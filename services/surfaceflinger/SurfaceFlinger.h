@@ -432,11 +432,6 @@ private:
         FINISHED,
     };
 
-    struct HotplugEvent {
-        hal::HWDisplayId hwcDisplayId;
-        hal::Connection connection = hal::Connection::INVALID;
-    };
-
     template <typename F, std::enable_if_t<!std::is_member_function_pointer_v<F>>* = nullptr>
     static Dumper dumper(F&& dump) {
         using namespace std::placeholders;
@@ -611,6 +606,9 @@ private:
 
     // ICompositor overrides:
 
+    // Configures physical displays, processing hotplug and/or mode setting via the Composer HAL.
+    void configure() override;
+
     // Commits transactions for layers and displays. Returns whether any state has been invalidated,
     // i.e. whether a frame should be composited for each display.
     bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) override;
@@ -622,9 +620,7 @@ private:
     // Samples the composited frame via RegionSamplingThread.
     void sample() override;
 
-    /*
-     * ISchedulerCallback
-     */
+    // ISchedulerCallback overrides:
 
     // Toggles hardware VSYNC by calling into HWC.
     void setVsyncEnabled(bool) override;
@@ -634,6 +630,7 @@ private:
     void kernelTimerChanged(bool expired) override;
     // Called when the frame rate override list changed to trigger an event.
     void triggerOnFrameRateOverridesChanged() override;
+
     // Toggles the kernel idle timer on or off depending the policy decisions around refresh rates.
     void toggleKernelIdleTimer() REQUIRES(mStateLock);
     // Get the controller and timeout that will help decide how the kernel idle timer will be
@@ -911,6 +908,13 @@ private:
     std::pair<DisplayModes, DisplayModePtr> loadDisplayModes(PhysicalDisplayId) const
             REQUIRES(mStateLock);
 
+    // TODO(b/241285876): Move to DisplayConfigurator.
+    //
+    // Returns whether displays have been added/changed/removed, i.e. whether ICompositor should
+    // commit display transactions.
+    bool configureLocked() REQUIRES(mStateLock) REQUIRES(kMainThreadContext)
+            EXCLUDES(mHotplugMutex);
+
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
             const wp<IBinder>& displayToken,
             std::shared_ptr<compositionengine::Display> compositionDisplay,
@@ -922,7 +926,6 @@ private:
     void processDisplayChanged(const wp<IBinder>& displayToken,
                                const DisplayDeviceState& currentState,
                                const DisplayDeviceState& drawingState) REQUIRES(mStateLock);
-    void processDisplayHotplugEventsLocked() REQUIRES(mStateLock);
 
     void dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected);
 
@@ -1145,7 +1148,13 @@ private:
 
     BootStage mBootStage = BootStage::BOOTLOADER;
 
-    std::vector<HotplugEvent> mPendingHotplugEvents GUARDED_BY(mStateLock);
+    struct HotplugEvent {
+        hal::HWDisplayId hwcDisplayId;
+        hal::Connection connection = hal::Connection::INVALID;
+    };
+
+    std::mutex mHotplugMutex;
+    std::vector<HotplugEvent> mPendingHotplugEvents GUARDED_BY(mHotplugMutex);
 
     // Displays are composited in `mDisplays` order. Internal displays are inserted at boot and
     // never removed, so take precedence over external and virtual displays.

@@ -16,12 +16,16 @@
 
 #include "../UnwantedInteractionBlocker.h"
 #include <android-base/silent_death_test.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <gui/constants.h>
 #include <linux/input.h>
 #include <thread>
+#include "ui/events/ozone/evdev/touch_filter/neural_stylus_palm_detection_filter.h"
 
 #include "TestInputListener.h"
+
+using ::testing::AllOf;
 
 namespace android {
 
@@ -29,6 +33,8 @@ constexpr int32_t DEVICE_ID = 3;
 constexpr int32_t X_RESOLUTION = 11;
 constexpr int32_t Y_RESOLUTION = 11;
 constexpr int32_t MAJOR_RESOLUTION = 1;
+
+const nsecs_t RESAMPLE_PERIOD = ::ui::kResamplePeriod.InNanoseconds();
 
 constexpr int POINTER_0_DOWN =
         AMOTION_EVENT_ACTION_POINTER_DOWN | (0 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
@@ -46,6 +52,23 @@ constexpr int DOWN = AMOTION_EVENT_ACTION_DOWN;
 constexpr int MOVE = AMOTION_EVENT_ACTION_MOVE;
 constexpr int UP = AMOTION_EVENT_ACTION_UP;
 constexpr int CANCEL = AMOTION_EVENT_ACTION_CANCEL;
+
+constexpr int32_t FLAG_CANCELED = AMOTION_EVENT_FLAG_CANCELED;
+
+MATCHER_P(WithAction, action, "MotionEvent with specified action") {
+    bool result = true;
+    if (action == CANCEL) {
+        result &= (arg.flags & FLAG_CANCELED) != 0;
+    }
+    result &= arg.action == action;
+    *result_listener << "expected to receive " << MotionEvent::actionToString(action)
+                     << " but received " << MotionEvent::actionToString(arg.action) << " instead.";
+    return result;
+}
+
+MATCHER_P(WithFlags, flags, "MotionEvent with specified flags") {
+    return arg.flags == flags;
+}
 
 static nsecs_t toNs(std::chrono::nanoseconds duration) {
     return duration.count();
@@ -256,7 +279,7 @@ TEST(CancelSuppressedPointersTest, NewlySuppressedPointerIsCanceled) {
                                      /*newSuppressedPointerIds*/ {1});
     ASSERT_EQ(2u, result.size());
     assertArgs(result[0], POINTER_1_UP, {{0, {1, 2, 3}}, {1, {4, 5, 6}}, {2, {7, 8, 9}}});
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, result[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, result[0].flags);
     assertArgs(result[1], MOVE, {{0, {1, 2, 3}}, {2, {7, 8, 9}}});
 }
 
@@ -271,7 +294,7 @@ TEST(CancelSuppressedPointersTest, SingleSuppressedPointerIsCanceled) {
                                      /*newSuppressedPointerIds*/ {0});
     ASSERT_EQ(1u, result.size());
     assertArgs(result[0], CANCEL, {{0, {1, 2, 3}}});
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, result[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, result[0].flags);
 }
 
 /**
@@ -286,7 +309,7 @@ TEST(CancelSuppressedPointersTest, SuppressedPointer1GoingUpIsCanceled) {
                                      /*newSuppressedPointerIds*/ {1});
     ASSERT_EQ(1u, result.size());
     assertArgs(result[0], POINTER_1_UP, {{0, {1, 2, 3}}, {1, {4, 5, 6}}, {2, {7, 8, 9}}});
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, result[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, result[0].flags);
 }
 
 /**
@@ -301,7 +324,7 @@ TEST(CancelSuppressedPointersTest, SuppressedPointer0GoingUpIsCanceled) {
                                      /*newSuppressedPointerIds*/ {0});
     ASSERT_EQ(1u, result.size());
     assertArgs(result[0], POINTER_0_UP, {{0, {1, 2, 3}}, {1, {4, 5, 6}}});
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, result[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, result[0].flags);
 }
 
 /**
@@ -316,7 +339,7 @@ TEST(CancelSuppressedPointersTest, TwoNewlySuppressedPointersAreBothCanceled) {
                                      /*newSuppressedPointerIds*/ {0, 1});
     ASSERT_EQ(1u, result.size());
     assertArgs(result[0], CANCEL, {{0, {1, 2, 3}}, {1, {4, 5, 6}}});
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, result[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, result[0].flags);
 }
 
 /**
@@ -332,7 +355,7 @@ TEST(CancelSuppressedPointersTest, TwoPointersAreCanceledDuringPointerUp) {
                                      /*newSuppressedPointerIds*/ {0, 1});
     ASSERT_EQ(1u, result.size());
     assertArgs(result[0], CANCEL, {{0, {1, 2, 3}}});
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, result[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, result[0].flags);
 }
 
 /**
@@ -573,6 +596,114 @@ TEST_F(UnwantedInteractionBlockerTest, DumpCanBeAccessedOnAnotherThread) {
     dumpThread.join();
 }
 
+/**
+ * Heuristic filter that's present in the palm rejection model blocks touches early if the size
+ * of the touch is large. This is an integration test that checks that this filter kicks in.
+ */
+TEST_F(UnwantedInteractionBlockerTest, HeuristicFilterWorks) {
+    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
+    // Small touch down
+    NotifyMotionArgs args1 = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2, 3}});
+    mBlocker->notifyMotion(&args1);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(DOWN));
+
+    // Large touch oval on the next move
+    NotifyMotionArgs args2 =
+            generateMotionArgs(0 /*downTime*/, RESAMPLE_PERIOD, MOVE, {{4, 5, 200}});
+    mBlocker->notifyMotion(&args2);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(MOVE));
+
+    // Lift up the touch to force the model to decide on whether it's a palm
+    NotifyMotionArgs args3 =
+            generateMotionArgs(0 /*downTime*/, 2 * RESAMPLE_PERIOD, UP, {{4, 5, 200}});
+    mBlocker->notifyMotion(&args3);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(CANCEL));
+}
+
+/**
+ * Send a stylus event that would have triggered the heuristic palm detector if it were a touch
+ * event. However, since it's a stylus event, it should propagate without being canceled through
+ * the blocker.
+ * This is similar to `HeuristicFilterWorks` test, but for stylus tool.
+ */
+TEST_F(UnwantedInteractionBlockerTest, StylusIsNotBlocked) {
+    InputDeviceInfo info = generateTestDeviceInfo();
+    info.addSource(AINPUT_SOURCE_STYLUS);
+    mBlocker->notifyInputDevicesChanged({info});
+    NotifyMotionArgs args1 = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2, 3}});
+    args1.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mBlocker->notifyMotion(&args1);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(DOWN));
+
+    // Move the stylus, setting large TOUCH_MAJOR/TOUCH_MINOR dimensions
+    NotifyMotionArgs args2 =
+            generateMotionArgs(0 /*downTime*/, RESAMPLE_PERIOD, MOVE, {{4, 5, 200}});
+    args2.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mBlocker->notifyMotion(&args2);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(MOVE));
+
+    // Lift up the stylus. If it were a touch event, this would force the model to decide on whether
+    // it's a palm.
+    NotifyMotionArgs args3 =
+            generateMotionArgs(0 /*downTime*/, 2 * RESAMPLE_PERIOD, UP, {{4, 5, 200}});
+    args3.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mBlocker->notifyMotion(&args3);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(UP));
+}
+
+/**
+ * Send a mixed touch and stylus event.
+ * The touch event goes first, and is a palm. The stylus event goes down after.
+ * Stylus event should continue to work even after touch is detected as a palm.
+ */
+TEST_F(UnwantedInteractionBlockerTest, TouchIsBlockedWhenMixedWithStylus) {
+    InputDeviceInfo info = generateTestDeviceInfo();
+    info.addSource(AINPUT_SOURCE_STYLUS);
+    mBlocker->notifyInputDevicesChanged({info});
+
+    // Touch down
+    NotifyMotionArgs args1 = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2, 3}});
+    mBlocker->notifyMotion(&args1);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(DOWN));
+
+    // Stylus pointer down
+    NotifyMotionArgs args2 = generateMotionArgs(0 /*downTime*/, RESAMPLE_PERIOD, POINTER_1_DOWN,
+                                                {{1, 2, 3}, {10, 20, 30}});
+    args2.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mBlocker->notifyMotion(&args2);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(POINTER_1_DOWN));
+
+    // Large touch oval on the next finger move
+    NotifyMotionArgs args3 = generateMotionArgs(0 /*downTime*/, 2 * RESAMPLE_PERIOD, MOVE,
+                                                {{1, 2, 300}, {11, 21, 30}});
+    args3.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mBlocker->notifyMotion(&args3);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(MOVE));
+
+    // Lift up the finger pointer. It should be canceled due to the heuristic filter.
+    NotifyMotionArgs args4 = generateMotionArgs(0 /*downTime*/, 3 * RESAMPLE_PERIOD, POINTER_0_UP,
+                                                {{1, 2, 300}, {11, 21, 30}});
+    args4.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mBlocker->notifyMotion(&args4);
+    mTestListener.assertNotifyMotionWasCalled(
+            AllOf(WithAction(POINTER_0_UP), WithFlags(FLAG_CANCELED)));
+
+    NotifyMotionArgs args5 =
+            generateMotionArgs(0 /*downTime*/, 4 * RESAMPLE_PERIOD, MOVE, {{12, 22, 30}});
+    args5.pointerProperties[0].id = args4.pointerProperties[1].id;
+    args5.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mBlocker->notifyMotion(&args5);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(MOVE));
+
+    // Lift up the stylus pointer
+    NotifyMotionArgs args6 =
+            generateMotionArgs(0 /*downTime*/, 5 * RESAMPLE_PERIOD, UP, {{4, 5, 200}});
+    args6.pointerProperties[0].id = args4.pointerProperties[1].id;
+    args6.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mBlocker->notifyMotion(&args6);
+    mTestListener.assertNotifyMotionWasCalled(WithAction(UP));
+}
+
 using UnwantedInteractionBlockerTestDeathTest = UnwantedInteractionBlockerTest;
 
 /**
@@ -672,7 +803,7 @@ TEST_F(PalmRejectorTest, TwoPointersAreCanceled) {
                                {{1433.0, 751.0, 44.0}, {1070.0, 771.0, 13.0}}));
     ASSERT_EQ(2u, argsList.size());
     ASSERT_EQ(POINTER_0_UP, argsList[0].action);
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, argsList[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, argsList[0].flags);
     ASSERT_EQ(MOVE, argsList[1].action);
     ASSERT_EQ(1u, argsList[1].pointerCount);
     ASSERT_EQ(0, argsList[1].flags);
@@ -849,7 +980,7 @@ TEST_F(PalmRejectorFakeFilterTest, OneOfTwoPointersIsCanceled) {
     ASSERT_EQ(2u, argsList.size());
     // First event - cancel pointer 1
     ASSERT_EQ(POINTER_1_UP, argsList[0].action);
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, argsList[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, argsList[0].flags);
     // Second event - send MOVE for the remaining pointer
     ASSERT_EQ(MOVE, argsList[1].action);
     ASSERT_EQ(0, argsList[1].flags);
@@ -890,7 +1021,7 @@ TEST_F(PalmRejectorFakeFilterTest, NewDownEventAfterCancel) {
     // Cancel all
     ASSERT_EQ(CANCEL, argsList[0].action);
     ASSERT_EQ(2u, argsList[0].pointerCount);
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, argsList[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, argsList[0].flags);
 
     // Future move events are ignored
     argsList = mPalmRejector->processMotion(
@@ -936,7 +1067,7 @@ TEST_F(PalmRejectorFakeFilterTest, TwoPointersCanceledWhenOnePointerGoesUp) {
                                {{1414.0, 702.0, 41.0}, {1059.0, 731.0, 12.0}}));
     ASSERT_EQ(1u, argsList.size());
     ASSERT_EQ(CANCEL, argsList[0].action) << MotionEvent::actionToString(argsList[0].action);
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, argsList[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, argsList[0].flags);
 
     // Future move events should not go to the listener.
     argsList = mPalmRejector->processMotion(
@@ -970,7 +1101,7 @@ TEST_F(PalmRejectorFakeFilterTest, CancelTwoPointers) {
                                {{1417.0, 685.0, 41.0}, {1060, 700, 10.0}}));
     ASSERT_EQ(2u, argsList.size());
     ASSERT_EQ(POINTER_1_UP, argsList[0].action);
-    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, argsList[0].flags);
+    ASSERT_EQ(FLAG_CANCELED, argsList[0].flags);
 
     ASSERT_EQ(MOVE, argsList[1].action) << MotionEvent::actionToString(argsList[1].action);
     ASSERT_EQ(0, argsList[1].flags);

@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <compositionengine/LayerFE.h>
@@ -57,7 +58,7 @@ public:
     void prepareForDeviceLayerRequests() override;
     void applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) override;
     bool needsFiltering() const override;
-    std::vector<LayerFE::LayerSettings> getOverrideCompositionList() const override;
+    std::optional<LayerFE::LayerSettings> getOverrideCompositionSettings() const override;
 
     void dump(std::string&) const override;
     virtual FloatRect calculateOutputSourceCrop(uint32_t internalDisplayRotationFlags) const;

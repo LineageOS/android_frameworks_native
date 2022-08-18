@@ -278,6 +278,7 @@ public:
 
 private:
     // ICompositor overrides:
+    void configure() override {}
     bool commit(TimePoint, VsyncId, TimePoint) override { return false; }
     void composite(TimePoint, VsyncId) override {}
     void sample() override {}

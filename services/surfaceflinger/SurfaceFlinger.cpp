@@ -763,10 +763,10 @@ chooseRenderEngineTypeViaSysProp() {
 
 // Do not call property_set on main thread which will be blocked by init
 // Use StartPropertySetThread instead.
-void SurfaceFlinger::init() {
+void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
-    Mutex::Autolock _l(mStateLock);
+    Mutex::Autolock lock(mStateLock);
 
     // Get a RenderEngine for the given display / config (can't fail)
     // TODO(b/77156734): We need to stop casting and use HAL types when possible.
@@ -806,12 +806,14 @@ void SurfaceFlinger::init() {
     }
 
     // Process any initial hotplug and resulting display changes.
-    processDisplayHotplugEventsLocked();
+    LOG_ALWAYS_FATAL_IF(!configureLocked(),
+                        "Initial display configuration failed: HWC did not hotplug");
+    processDisplayChangesLocked();
+
     const auto display = getDefaultDisplayDeviceLocked();
-    LOG_ALWAYS_FATAL_IF(!display, "Missing primary display after registering composer callback.");
-    const auto displayId = display->getPhysicalId();
-    LOG_ALWAYS_FATAL_IF(!getHwComposer().isConnected(displayId),
-                        "Primary display is disconnected.");
+    LOG_ALWAYS_FATAL_IF(!display, "Failed to configure the primary display");
+    LOG_ALWAYS_FATAL_IF(!getHwComposer().isConnected(display->getPhysicalId()),
+                        "Primary display is disconnected");
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
@@ -1869,23 +1871,14 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
 
 void SurfaceFlinger::onComposerHalHotplug(hal::HWDisplayId hwcDisplayId,
                                           hal::Connection connection) {
-    const bool connected = connection == hal::Connection::CONNECTED;
-    ALOGI("%s HAL display %" PRIu64, connected ? "Connecting" : "Disconnecting", hwcDisplayId);
-
-    // Only lock if we're not on the main thread. This function is normally
-    // called on a hwbinder thread, but for the primary display it's called on
-    // the main thread with the state lock already held, so don't attempt to
-    // acquire it here.
-    ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
-
-    mPendingHotplugEvents.emplace_back(HotplugEvent{hwcDisplayId, connection});
-
-    if (std::this_thread::get_id() == mMainThreadId) {
-        // Process all pending hot plug events immediately if we are on the main thread.
-        processDisplayHotplugEventsLocked();
+    {
+        std::lock_guard<std::mutex> lock(mHotplugMutex);
+        mPendingHotplugEvents.push_back(HotplugEvent{hwcDisplayId, connection});
     }
 
-    setTransactionFlags(eDisplayTransactionNeeded);
+    if (mScheduler) {
+        mScheduler->scheduleConfigure();
+    }
 }
 
 void SurfaceFlinger::onComposerHalVsyncPeriodTimingChanged(
@@ -1956,6 +1949,13 @@ TimePoint SurfaceFlinger::calculateExpectedPresentTime(TimePoint frameTime) cons
 
     // Inflate the expected present time if we're targeting the next vsync.
     return vsyncDeadline + schedule.period();
+}
+
+void SurfaceFlinger::configure() FTL_FAKE_GUARD(kMainThreadContext) {
+    Mutex::Autolock lock(mStateLock);
+    if (configureLocked()) {
+        setTransactionFlags(eDisplayTransactionNeeded);
+    }
 }
 
 bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expectedVsyncTime)
@@ -2642,8 +2642,14 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
     return {modes, activeMode};
 }
 
-void SurfaceFlinger::processDisplayHotplugEventsLocked() {
-    for (const auto& event : mPendingHotplugEvents) {
+bool SurfaceFlinger::configureLocked() {
+    std::vector<HotplugEvent> events;
+    {
+        std::lock_guard<std::mutex> lock(mHotplugMutex);
+        events = std::move(mPendingHotplugEvents);
+    }
+
+    for (const auto& event : events) {
         std::optional<DisplayIdentificationInfo> info =
                 getHwComposer().onHotplug(event.hwcDisplayId, event.connection);
 
@@ -2653,6 +2659,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 
         const auto displayId = info->id;
         const auto token = mPhysicalDisplayTokens.get(displayId);
+        const char* log;
 
         if (event.connection == hal::Connection::CONNECTED) {
             auto [supportedModes, activeMode] = loadDisplayModes(displayId);
@@ -2664,7 +2671,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             }
 
             if (!token) {
-                ALOGV("Creating display %s", to_string(displayId).c_str());
+                log = "Connecting";
 
                 DisplayDeviceState state;
                 state.physical = {.id = displayId,
@@ -2681,7 +2688,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 mPhysicalDisplayTokens.try_emplace(displayId, std::move(token));
                 mInterceptor->saveDisplayCreation(state);
             } else {
-                ALOGV("Recreating display %s", to_string(displayId).c_str());
+                log = "Reconnecting";
 
                 auto& state = mCurrentState.displays.editValueFor(token->get());
                 state.sequenceId = DisplayDeviceState{}.sequenceId; // Generate new sequenceId.
@@ -2692,7 +2699,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 }
             }
         } else {
-            ALOGV("Removing display %s", to_string(displayId).c_str());
+            log = "Disconnecting";
 
             if (const ssize_t index = mCurrentState.displays.indexOfKey(token->get()); index >= 0) {
                 const DisplayDeviceState& state = mCurrentState.displays.valueAt(index);
@@ -2703,15 +2710,14 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             mPhysicalDisplayTokens.erase(displayId);
         }
 
-        processDisplayChangesLocked();
+        ALOGI("%s display %s (HAL ID %" PRIu64 ")", log, to_string(displayId).c_str(),
+              event.hwcDisplayId);
     }
 
-    mPendingHotplugEvents.clear();
+    return !events.empty();
 }
 
 void SurfaceFlinger::dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected) {
-    ALOGI("Dispatching display hotplug event displayId=%s, connected=%d",
-          to_string(displayId).c_str(), connected);
     mScheduler->onHotplugReceived(mAppConnectionHandle, displayId, connected);
     mScheduler->onHotplugReceived(mSfConnectionHandle, displayId, connected);
 }
@@ -3041,7 +3047,6 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
     const bool displayTransactionNeeded = transactionFlags & eDisplayTransactionNeeded;
     if (displayTransactionNeeded) {
         processDisplayChangesLocked();
-        processDisplayHotplugEventsLocked();
     }
     mForceTransactionDisplayChange = displayTransactionNeeded;
 
@@ -6579,27 +6584,24 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                 isHdrLayer(layer) ? displayBrightnessNits : sdrWhitePointNits,
 
         };
-        std::vector<compositionengine::LayerFE::LayerSettings> results =
-                layer->prepareClientCompositionList(targetSettings);
-        if (results.size() > 0) {
-            for (auto& settings : results) {
-                settings.geometry.positionTransform =
-                        transform.asMatrix4() * settings.geometry.positionTransform;
-                // There's no need to process blurs when we're executing region sampling,
-                // we're just trying to understand what we're drawing, and doing so without
-                // blurs is already a pretty good approximation.
-                if (regionSampling) {
-                    settings.backgroundBlurRadius = 0;
-                }
-                captureResults.capturedHdrLayers |= isHdrLayer(layer);
-            }
-
-            clientCompositionLayers.insert(clientCompositionLayers.end(),
-                                           std::make_move_iterator(results.begin()),
-                                           std::make_move_iterator(results.end()));
-            renderedLayers.push_back(layer);
+        std::optional<compositionengine::LayerFE::LayerSettings> settings =
+                layer->prepareClientComposition(targetSettings);
+        if (!settings) {
+            return;
         }
 
+        settings->geometry.positionTransform =
+                transform.asMatrix4() * settings->geometry.positionTransform;
+        // There's no need to process blurs when we're executing region sampling,
+        // we're just trying to understand what we're drawing, and doing so without
+        // blurs is already a pretty good approximation.
+        if (regionSampling) {
+            settings->backgroundBlurRadius = 0;
+        }
+        captureResults.capturedHdrLayers |= isHdrLayer(layer);
+
+        clientCompositionLayers.push_back(std::move(*settings));
+        renderedLayers.push_back(layer);
     });
 
     std::vector<renderengine::LayerSettings> clientRenderEngineLayers;

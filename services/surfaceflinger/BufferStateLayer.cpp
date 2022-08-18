@@ -1109,7 +1109,29 @@ bool BufferStateLayer::isVisible() const {
 }
 
 std::optional<compositionengine::LayerFE::LayerSettings> BufferStateLayer::prepareClientComposition(
-        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) const {
+    std::optional<compositionengine::LayerFE::LayerSettings> layerSettings =
+            prepareClientCompositionInternal(targetSettings);
+    // Nothing to render.
+    if (!layerSettings) {
+        return {};
+    }
+
+    // HWC requests to clear this layer.
+    if (targetSettings.clearContent) {
+        prepareClearClientComposition(*layerSettings, false /* blackout */);
+        return *layerSettings;
+    }
+
+    // set the shadow for the layer if needed
+    prepareShadowClientComposition(*layerSettings, targetSettings.viewport);
+
+    return *layerSettings;
+}
+
+std::optional<compositionengine::LayerFE::LayerSettings>
+BufferStateLayer::prepareClientCompositionInternal(
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) const {
     ATRACE_CALL();
 
     std::optional<compositionengine::LayerFE::LayerSettings> result =
@@ -1559,7 +1581,7 @@ sp<GraphicBuffer> BufferStateLayer::getBuffer() const {
     return mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getBuffer() : nullptr;
 }
 
-void BufferStateLayer::getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]) {
+void BufferStateLayer::getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]) const {
     sp<GraphicBuffer> buffer = getBuffer();
     if (!buffer) {
         ALOGE("Buffer should not be null!");

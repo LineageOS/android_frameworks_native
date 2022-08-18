@@ -126,9 +126,9 @@ public:
     // Returns true if the composition settings scale pixels
     virtual bool needsFiltering() const = 0;
 
-    // Returns a composition list to be used by RenderEngine if the layer has been overridden
+    // Returns LayerSettings to be used by RenderEngine if the layer has been overridden
     // during the composition process
-    virtual std::vector<LayerFE::LayerSettings> getOverrideCompositionList() const = 0;
+    virtual std::optional<LayerFE::LayerSettings> getOverrideCompositionSettings() const = 0;
 
     // Debugging
     virtual void dump(std::string& result) const = 0;

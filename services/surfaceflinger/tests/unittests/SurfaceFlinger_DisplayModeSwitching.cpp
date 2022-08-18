@@ -40,18 +40,17 @@ public:
         PrimaryDisplayVariant::setupNativeWindowSurfaceCreationCallExpectations(this);
         PrimaryDisplayVariant::setupHwcGetActiveConfigCallExpectations(this);
 
+        DisplayModes modes = makeModes(kMode60, kMode90, kMode120, kMode90_4K);
+        auto configs = std::make_shared<scheduler::RefreshRateConfigs>(modes, kModeId60);
+
+        setupScheduler(configs);
+
         mFlinger.onComposerHalHotplug(PrimaryDisplayVariant::HWC_DISPLAY_ID, Connection::CONNECTED);
+        mFlinger.configureAndCommit();
 
-        {
-            DisplayModes modes = makeModes(kMode60, kMode90, kMode120, kMode90_4K);
-            auto configs = std::make_shared<scheduler::RefreshRateConfigs>(modes, kModeId60);
-
-            mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
-                               .setDisplayModes(std::move(modes), kModeId60, std::move(configs))
-                               .inject();
-        }
-
-        setupScheduler(mDisplay->holdRefreshRateConfigs());
+        mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
+                           .setDisplayModes(std::move(modes), kModeId60, std::move(configs))
+                           .inject();
 
         // isVsyncPeriodSwitchSupported should return true, otherwise the SF's HWC proxy
         // will call setActiveConfig instead of setActiveConfigWithConstraints.

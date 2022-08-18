@@ -4308,6 +4308,8 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
 
     struct Layer {
         Layer() {
+            EXPECT_CALL(mOutputLayer, getOverrideCompositionSettings())
+                    .WillRepeatedly(Return(std::nullopt));
             EXPECT_CALL(mOutputLayer, getState()).WillRepeatedly(ReturnRef(mOutputLayerState));
             EXPECT_CALL(mOutputLayer, editState()).WillRepeatedly(ReturnRef(mOutputLayerState));
             EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*mLayerFE));
@@ -4405,23 +4407,18 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, requiresVisibleRegionA
 }
 
 TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, gathersClientCompositionRequests) {
-    LayerFE::LayerSettings mShadowSettings;
-    mShadowSettings.source.solidColor = {0.1f, 0.1f, 0.1f};
-
-    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mLayers[1].mLayerSettings})));
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>(
-                    {mShadowSettings, mLayers[2].mLayerSettings})));
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mLayers[1].mLayerSettings)));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mLayers[2].mLayerSettings)));
 
     auto requests = mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
                                                               kDisplayDataspace);
-    ASSERT_EQ(3u, requests.size());
+    ASSERT_EQ(2u, requests.size());
     EXPECT_EQ(mLayers[1].mLayerSettings, requests[0]);
-    EXPECT_EQ(mShadowSettings, requests[1]);
-    EXPECT_EQ(mLayers[2].mLayerSettings, requests[2]);
+    EXPECT_EQ(mLayers[2].mLayerSettings, requests[1]);
 
     // Check that a timestamp was set for the layers that generated requests
     EXPECT_TRUE(0 == mLayers[0].mOutputLayerState.clientCompositionTimestamp);
@@ -4438,27 +4435,21 @@ MATCHER_P(ClientCompositionTargetSettingsBlurSettingsEq, expectedBlurSetting, ""
 }
 
 TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, overridesBlur) {
-    LayerFE::LayerSettings mShadowSettings;
-    mShadowSettings.source.solidColor = {0.1f, 0.1f, 0.1f};
-
     mLayers[2].mOutputLayerState.overrideInfo.disableBackgroundBlur = true;
 
-    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mLayers[1].mLayerSettings})));
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mLayers[1].mLayerSettings)));
     EXPECT_CALL(*mLayers[2].mLayerFE,
-                prepareClientCompositionList(ClientCompositionTargetSettingsBlurSettingsEq(
+                prepareClientComposition(ClientCompositionTargetSettingsBlurSettingsEq(
                         LayerFE::ClientCompositionTargetSettings::BlurSetting::BlurRegionsOnly)))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>(
-                    {mShadowSettings, mLayers[2].mLayerSettings})));
-
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mLayers[2].mLayerSettings)));
     auto requests = mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
                                                               kDisplayDataspace);
-    ASSERT_EQ(3u, requests.size());
+    ASSERT_EQ(2u, requests.size());
     EXPECT_EQ(mLayers[1].mLayerSettings, requests[0]);
-    EXPECT_EQ(mShadowSettings, requests[1]);
-    EXPECT_EQ(mLayers[2].mLayerSettings, requests[2]);
+    EXPECT_EQ(mLayers[2].mLayerSettings, requests[1]);
 
     // Check that a timestamp was set for the layers that generated requests
     EXPECT_TRUE(0 == mLayers[0].mOutputLayerState.clientCompositionTimestamp);
@@ -4480,8 +4471,8 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     mLayers[1].mLayerFEState.isOpaque = true;
     mLayers[2].mLayerFEState.isOpaque = true;
 
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mLayers[2].mLayerSettings})));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mLayers[2].mLayerSettings)));
 
     auto requests = mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
                                                               kDisplayDataspace);
@@ -4503,8 +4494,8 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     mLayers[1].mLayerFEState.isOpaque = false;
     mLayers[2].mLayerFEState.isOpaque = false;
 
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(_))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mLayers[2].mLayerSettings})));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(_))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mLayers[2].mLayerSettings)));
 
     auto requests = mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
                                                               kDisplayDataspace);
@@ -4562,10 +4553,10 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
     mBlackoutSettings.alpha = 0.f;
     mBlackoutSettings.disableBlending = true;
 
-    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mBlackoutSettings})));
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mLayers[2].mLayerSettings})));
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mBlackoutSettings)));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mLayers[2].mLayerSettings)));
 
     auto requests = mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
                                                               kDisplayDataspace);
@@ -4620,12 +4611,12 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kLayerWhitePointNits,
     };
 
-    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
 
     static_cast<void>(
             mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
@@ -4674,12 +4665,12 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kLayerWhitePointNits,
     };
 
-    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
 
     static_cast<void>(
             mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
@@ -4728,12 +4719,12 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kLayerWhitePointNits,
     };
 
-    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
 
     static_cast<void>(
             mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
@@ -4781,12 +4772,12 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kLayerWhitePointNits,
     };
 
-    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
 
     static_cast<void>(
             mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
@@ -4832,12 +4823,12 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kLayerWhitePointNits,
     };
 
-    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientComposition(Eq(ByRef(layer0TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientComposition(Eq(ByRef(layer1TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2TargetSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>()));
 
     static_cast<void>(mOutput.generateClientCompositionRequestsHelper(true /* supportsProtectedContent */,
                                                                 kDisplayDataspace));
@@ -5018,8 +5009,8 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
 
     EXPECT_CALL(leftLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
     EXPECT_CALL(leftLayer.mOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(*leftLayer.mLayerFE, prepareClientCompositionList(Eq(ByRef(leftLayerSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>({leftLayer.mLayerSettings})));
+    EXPECT_CALL(*leftLayer.mLayerFE, prepareClientComposition(Eq(ByRef(leftLayerSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(leftLayer.mLayerSettings)));
 
     compositionengine::LayerFE::ClientCompositionTargetSettings rightLayerSettings{
             Region(Rect(1000, 0, 2000, 1000)),
@@ -5036,8 +5027,8 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
 
     EXPECT_CALL(rightLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
     EXPECT_CALL(rightLayer.mOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(*rightLayer.mLayerFE, prepareClientCompositionList(Eq(ByRef(rightLayerSettings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>({rightLayer.mLayerSettings})));
+    EXPECT_CALL(*rightLayer.mLayerFE, prepareClientComposition(Eq(ByRef(rightLayerSettings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(rightLayer.mLayerSettings)));
 
     constexpr bool supportsProtectedContent = true;
     auto requests =
@@ -5075,8 +5066,8 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
     EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
     EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2Settings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mShadowSettings})));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2Settings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mShadowSettings)));
 
     auto requests = mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
                                                               kDisplayDataspace);
@@ -5092,9 +5083,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     const Region kShadowRegion = Region(kContentWithShadow).subtract(kContent);
     const Region kPartialContentWithPartialShadowRegion =
             Region(kContentWithShadow).subtract(Rect(40, 40, 50, 80));
-
-    LayerFE::LayerSettings mShadowSettings;
-    mShadowSettings.source.solidColor = {0.1f, 0.1f, 0.1f};
 
     mLayers[2].mOutputLayerState.visibleRegion = kPartialContentWithPartialShadowRegion;
     mLayers[2].mOutputLayerState.shadowRegion = kShadowRegion;
@@ -5114,16 +5102,14 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
     EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
     EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
-    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2Settings))))
-            .WillOnce(Return(std::vector<LayerFE::LayerSettings>(
-                    {mShadowSettings, mLayers[2].mLayerSettings})));
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientComposition(Eq(ByRef(layer2Settings))))
+            .WillOnce(Return(std::optional<LayerFE::LayerSettings>(mLayers[2].mLayerSettings)));
 
     auto requests = mOutput.generateClientCompositionRequestsHelper(false /* supportsProtectedContent */,
                                                               kDisplayDataspace);
-    ASSERT_EQ(2u, requests.size());
+    ASSERT_EQ(1u, requests.size());
 
-    EXPECT_EQ(mShadowSettings, requests[0]);
-    EXPECT_EQ(mLayers[2].mLayerSettings, requests[1]);
+    EXPECT_EQ(mLayers[2].mLayerSettings, requests[0]);
 }
 
 } // namespace

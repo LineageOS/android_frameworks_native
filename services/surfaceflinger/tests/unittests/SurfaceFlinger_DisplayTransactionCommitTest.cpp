@@ -175,7 +175,7 @@ void DisplayTransactionCommitTest::processesHotplugConnectCommon() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
+    mFlinger.configureAndCommit();
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -204,7 +204,7 @@ void DisplayTransactionCommitTest::ignoresHotplugConnectCommon() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
+    mFlinger.configureAndCommit();
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -239,7 +239,7 @@ void DisplayTransactionCommitTest::processesHotplugDisconnectCommon() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
+    mFlinger.configureAndCommit();
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -321,7 +321,7 @@ TEST_F(DisplayTransactionCommitTest, processesHotplugConnectThenDisconnectPrimar
                 // --------------------------------------------------------------------
                 // Invocation
 
-                mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
+                mFlinger.configureAndCommit();
 
                 // --------------------------------------------------------------------
                 // Postconditions
@@ -366,7 +366,7 @@ TEST_F(DisplayTransactionCommitTest, processesHotplugDisconnectThenConnectPrimar
                 // --------------------------------------------------------------------
                 // Invocation
 
-                mFlinger.commitTransactionsLocked(eDisplayTransactionNeeded);
+                mFlinger.configureAndCommit();
 
                 // --------------------------------------------------------------------
                 // Postconditions
