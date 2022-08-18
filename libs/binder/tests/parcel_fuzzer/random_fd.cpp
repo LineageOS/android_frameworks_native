@@ -26,9 +26,12 @@ namespace android {
 using base::unique_fd;
 
 std::vector<unique_fd> getRandomFds(FuzzedDataProvider* provider) {
+    const char* fdType;
+
     std::vector<unique_fd> fds = provider->PickValueInArray<
             std::function<std::vector<unique_fd>()>>({
             [&]() {
+                fdType = "ashmem";
                 std::vector<unique_fd> ret;
                 ret.push_back(unique_fd(
                         ashmem_create_region("binder test region",
@@ -36,18 +39,21 @@ std::vector<unique_fd> getRandomFds(FuzzedDataProvider* provider) {
                 return ret;
             },
             [&]() {
+                fdType = "/dev/null";
                 std::vector<unique_fd> ret;
                 ret.push_back(unique_fd(open("/dev/null", O_RDWR)));
                 return ret;
             },
             [&]() {
+                fdType = "pipefd";
+
                 int pipefds[2];
 
                 int flags = O_CLOEXEC;
                 if (provider->ConsumeBool()) flags |= O_DIRECT;
                 if (provider->ConsumeBool()) flags |= O_NONBLOCK;
 
-                CHECK_EQ(0, pipe2(pipefds, flags));
+                CHECK_EQ(0, pipe2(pipefds, flags)) << flags;
 
                 if (provider->ConsumeBool()) std::swap(pipefds[0], pipefds[1]);
 
@@ -58,7 +64,7 @@ std::vector<unique_fd> getRandomFds(FuzzedDataProvider* provider) {
             },
     })();
 
-    for (const auto& fd : fds) CHECK(fd.ok()) << fd.get();
+    for (const auto& fd : fds) CHECK(fd.ok()) << fd.get() << " " << fdType;
 
     return fds;
 }
