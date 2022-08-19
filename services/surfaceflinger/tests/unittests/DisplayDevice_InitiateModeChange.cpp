@@ -42,6 +42,7 @@ public:
         PrimaryDisplayVariant::setupHwcGetActiveConfigCallExpectations(this);
 
         mFlinger.onComposerHalHotplug(PrimaryDisplayVariant::HWC_DISPLAY_ID, Connection::CONNECTED);
+        mFlinger.configureAndCommit();
 
         mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
                            .setDisplayModes(makeModes(kMode60, kMode90, kMode120), kModeId60)

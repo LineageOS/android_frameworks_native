@@ -317,8 +317,15 @@ public:
      * Forwarding for functions being tested
      */
 
-    TimePoint commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expectedVSyncTime) {
-        mFlinger->commit(frameTime, vsyncId, expectedVSyncTime);
+    void configure() { mFlinger->configure(); }
+
+    void configureAndCommit() {
+        configure();
+        commitTransactionsLocked(eDisplayTransactionNeeded);
+    }
+
+    TimePoint commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expectedVsyncTime) {
+        mFlinger->commit(frameTime, vsyncId, expectedVsyncTime);
         return frameTime;
     }
 
@@ -362,17 +369,13 @@ public:
                                                        dispSurface, producer);
     }
 
-    auto commitTransactionsLocked(uint32_t transactionFlags) {
+    void commitTransactionsLocked(uint32_t transactionFlags) {
         Mutex::Autolock lock(mFlinger->mStateLock);
-        return mFlinger->commitTransactionsLocked(transactionFlags);
+        mFlinger->commitTransactionsLocked(transactionFlags);
     }
 
     void onComposerHalHotplug(hal::HWDisplayId hwcDisplayId, hal::Connection connection) {
         mFlinger->onComposerHalHotplug(hwcDisplayId, connection);
-    }
-
-    void processDisplayHotplugEvents() {
-        FTL_FAKE_GUARD(mFlinger->mStateLock, mFlinger->processDisplayHotplugEventsLocked());
     }
 
     auto setDisplayStateLocked(const DisplayState& s) {

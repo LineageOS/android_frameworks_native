@@ -116,6 +116,7 @@ public:
     using Impl::getScheduledFrameTime;
     using Impl::setDuration;
 
+    using Impl::scheduleConfigure;
     using Impl::scheduleFrame;
 
     // Schedule an asynchronous or synchronous task on the main thread.
