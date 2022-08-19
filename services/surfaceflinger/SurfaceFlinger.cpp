@@ -6597,6 +6597,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         // blurs is already a pretty good approximation.
         if (regionSampling) {
             settings->backgroundBlurRadius = 0;
+            settings->blurRegions.clear();
         }
         captureResults.capturedHdrLayers |= isHdrLayer(layer);
 
