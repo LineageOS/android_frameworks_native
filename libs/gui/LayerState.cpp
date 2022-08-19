@@ -40,8 +40,6 @@ layer_state_t::layer_state_t()
         x(0),
         y(0),
         z(0),
-        w(0),
-        h(0),
         alpha(0),
         flags(0),
         mask(0),
@@ -84,8 +82,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, x);
     SAFE_PARCEL(output.writeFloat, y);
     SAFE_PARCEL(output.writeInt32, z);
-    SAFE_PARCEL(output.writeUint32, w);
-    SAFE_PARCEL(output.writeUint32, h);
     SAFE_PARCEL(output.writeUint32, layerStack.id);
     SAFE_PARCEL(output.writeFloat, alpha);
     SAFE_PARCEL(output.writeUint32, flags);
@@ -180,8 +176,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readFloat, &x);
     SAFE_PARCEL(input.readFloat, &y);
     SAFE_PARCEL(input.readInt32, &z);
-    SAFE_PARCEL(input.readUint32, &w);
-    SAFE_PARCEL(input.readUint32, &h);
     SAFE_PARCEL(input.readUint32, &layerStack.id);
     SAFE_PARCEL(input.readFloat, &alpha);
 
@@ -456,11 +450,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eLayerChanged;
         what &= ~eRelativeLayerChanged;
         z = other.z;
-    }
-    if (other.what & eSizeChanged) {
-        what |= eSizeChanged;
-        w = other.w;
-        h = other.h;
     }
     if (other.what & eAlphaChanged) {
         what |= eAlphaChanged;

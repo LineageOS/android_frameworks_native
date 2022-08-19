@@ -1165,21 +1165,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::hide(
     return setFlags(sc, layer_state_t::eLayerHidden, layer_state_t::eLayerHidden);
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSize(
-        const sp<SurfaceControl>& sc, uint32_t w, uint32_t h) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eSizeChanged;
-    s->w = w;
-    s->h = h;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
-}
-
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayer(
         const sp<SurfaceControl>& sc, int32_t z) {
     layer_state_t* s = getLayerState(sc);

@@ -4254,11 +4254,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             }
         }
     }
-    if (what & layer_state_t::eSizeChanged) {
-        if (layer->setSize(s.w, s.h)) {
-            flags |= eTraversalNeeded;
-        }
-    }
     if (what & layer_state_t::eAlphaChanged) {
         if (layer->setAlpha(s.alpha))
             flags |= eTraversalNeeded;
