@@ -1158,6 +1158,42 @@ TEST_F(BinderLibTest, VectorSent) {
     EXPECT_EQ(readValue, testValue);
 }
 
+// see ProcessState.cpp BINDER_VM_SIZE = 1MB.
+// This value is not exposed, but some code in the framework relies on being able to use
+// buffers near the cap size.
+// TODO(b/238777741): why do larger values, like 300K fail sometimes
+constexpr size_t kSizeBytesAlmostFull = 100'000;
+constexpr size_t kSizeBytesOverFull = 1'050'000;
+
+TEST_F(BinderLibTest, GargantuanVectorSent) {
+    sp<IBinder> server = addServer();
+    ASSERT_TRUE(server != nullptr);
+
+    for (size_t i = 0; i < 10; i++) {
+        // a slight variation in size is used to consider certain possible caching implementations
+        const std::vector<uint64_t> testValue((kSizeBytesAlmostFull + i) / sizeof(uint64_t), 42);
+
+        Parcel data, reply;
+        data.writeUint64Vector(testValue);
+        EXPECT_THAT(server->transact(BINDER_LIB_TEST_ECHO_VECTOR, data, &reply), StatusEq(NO_ERROR))
+                << i;
+        std::vector<uint64_t> readValue;
+        EXPECT_THAT(reply.readUint64Vector(&readValue), StatusEq(OK));
+        EXPECT_EQ(readValue, testValue);
+    }
+}
+
+TEST_F(BinderLibTest, LimitExceededVectorSent) {
+    sp<IBinder> server = addServer();
+    ASSERT_TRUE(server != nullptr);
+    const std::vector<uint64_t> testValue(kSizeBytesOverFull / sizeof(uint64_t), 42);
+
+    Parcel data, reply;
+    data.writeUint64Vector(testValue);
+    EXPECT_THAT(server->transact(BINDER_LIB_TEST_ECHO_VECTOR, data, &reply),
+                StatusEq(FAILED_TRANSACTION));
+}
+
 TEST_F(BinderLibTest, BufRejected) {
     Parcel data, reply;
     uint32_t buf;
