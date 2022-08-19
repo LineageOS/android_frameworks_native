@@ -41,6 +41,7 @@ TEST_F(HotplugTest, schedulesConfigureToProcessHotplugEvents) {
 }
 
 TEST_F(HotplugTest, schedulesFrameToCommitDisplayTransaction) {
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleConfigure()).Times(1);
     EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     constexpr HWDisplayId displayId1 = 456;
@@ -50,6 +51,39 @@ TEST_F(HotplugTest, schedulesFrameToCommitDisplayTransaction) {
     // The configure stage should consume the hotplug queue and produce a display transaction.
     EXPECT_TRUE(mFlinger.mutablePendingHotplugEvents().empty());
     EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+}
+
+TEST_F(HotplugTest, ignoresDuplicateDisconnection) {
+    // Inject a primary display.
+    PrimaryDisplayVariant::injectHwcDisplay(this);
+
+    using ExternalDisplay = ExternalDisplayVariant;
+    ExternalDisplay::setupHwcHotplugCallExpectations(this);
+    ExternalDisplay::setupHwcGetActiveConfigCallExpectations(this);
+
+    // TODO(b/241286146): Remove this unnecessary call.
+    EXPECT_CALL(*mComposer,
+                setVsyncEnabled(ExternalDisplay::HWC_DISPLAY_ID, IComposerClient::Vsync::DISABLE))
+            .WillOnce(Return(Error::NONE));
+
+    // A single commit should be scheduled for both configure calls.
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
+
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::CONNECTED);
+    mFlinger.configure();
+
+    EXPECT_TRUE(hasPhysicalHwcDisplay(ExternalDisplay::HWC_DISPLAY_ID));
+
+    // Disconnecting a display that was already disconnected should be a no-op.
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+    mFlinger.configure();
+
+    // The display should be scheduled for removal during the next commit. At this point, it should
+    // still exist but be marked as disconnected.
+    EXPECT_TRUE(hasPhysicalHwcDisplay(ExternalDisplay::HWC_DISPLAY_ID));
+    EXPECT_FALSE(mFlinger.getHwComposer().isConnected(ExternalDisplay::DISPLAY_ID::get()));
 }
 
 TEST_F(HotplugTest, rejectsHotplugIfFailedToLoadDisplayModes) {
@@ -69,6 +103,8 @@ TEST_F(HotplugTest, rejectsHotplugIfFailedToLoadDisplayModes) {
     EXPECT_CALL(*mComposer,
                 setVsyncEnabled(ExternalDisplay::HWC_DISPLAY_ID, IComposerClient::Vsync::DISABLE))
             .WillOnce(Return(Error::NONE));
+
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     ExternalDisplay::injectPendingHotplugEvent(this, Connection::CONNECTED);
     mFlinger.configure();
