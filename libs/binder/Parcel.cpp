@@ -48,6 +48,7 @@
 #include <utils/String8.h>
 #include <utils/misc.h>
 
+#include "OS.h"
 #include "RpcState.h"
 #include "Static.h"
 #include "Utils.h"
@@ -1477,9 +1478,9 @@ status_t Parcel::writeFileDescriptor(int fd, bool takeOwnership) {
 
 status_t Parcel::writeDupFileDescriptor(int fd)
 {
-    int dupFd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
-    if (dupFd < 0) {
-        return -errno;
+    int dupFd;
+    if (status_t err = dupFileDescriptor(fd, &dupFd); err != OK) {
+        return err;
     }
     status_t err = writeFileDescriptor(dupFd, true /*takeOwnership*/);
     if (err != OK) {
@@ -1496,9 +1497,9 @@ status_t Parcel::writeParcelFileDescriptor(int fd, bool takeOwnership)
 
 status_t Parcel::writeDupParcelFileDescriptor(int fd)
 {
-    int dupFd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
-    if (dupFd < 0) {
-        return -errno;
+    int dupFd;
+    if (status_t err = dupFileDescriptor(fd, &dupFd); err != OK) {
+        return err;
     }
     status_t err = writeParcelFileDescriptor(dupFd, true /*takeOwnership*/);
     if (err != OK) {
@@ -2295,7 +2296,12 @@ status_t Parcel::readUniqueFileDescriptor(base::unique_fd* val) const
         return BAD_TYPE;
     }
 
-    val->reset(fcntl(got, F_DUPFD_CLOEXEC, 0));
+    int dupFd;
+    if (status_t err = dupFileDescriptor(got, &dupFd); err != OK) {
+        return BAD_VALUE;
+    }
+
+    val->reset(dupFd);
 
     if (val->get() < 0) {
         return BAD_VALUE;
@@ -2312,7 +2318,12 @@ status_t Parcel::readUniqueParcelFileDescriptor(base::unique_fd* val) const
         return BAD_TYPE;
     }
 
-    val->reset(fcntl(got, F_DUPFD_CLOEXEC, 0));
+    int dupFd;
+    if (status_t err = dupFileDescriptor(got, &dupFd); err != OK) {
+        return BAD_VALUE;
+    }
+
+    val->reset(dupFd);
 
     if (val->get() < 0) {
         return BAD_VALUE;

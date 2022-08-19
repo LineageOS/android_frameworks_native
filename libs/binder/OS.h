@@ -28,4 +28,6 @@ android::base::Result<void> setNonBlocking(android::base::borrowed_fd fd);
 
 status_t getRandomBytes(uint8_t* data, size_t size);
 
+status_t dupFileDescriptor(int oldFd, int* newFd);
+
 } // namespace android
