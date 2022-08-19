@@ -36,6 +36,7 @@ MODULE_SRCS := \
 	$(LIBBINDER_DIR)/IInterface.cpp \
 	$(LIBBINDER_DIR)/IResultReceiver.cpp \
 	$(LIBBINDER_DIR)/Parcel.cpp \
+	$(LIBBINDER_DIR)/ParcelFileDescriptor.cpp \
 	$(LIBBINDER_DIR)/RpcServer.cpp \
 	$(LIBBINDER_DIR)/RpcSession.cpp \
 	$(LIBBINDER_DIR)/RpcState.cpp \
