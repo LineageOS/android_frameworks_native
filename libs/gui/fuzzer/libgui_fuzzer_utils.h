@@ -102,8 +102,6 @@ public:
     MOCK_METHOD(binder::Status, overrideHdrTypes, (const sp<IBinder>&, const std::vector<int32_t>&),
                 (override));
     MOCK_METHOD(binder::Status, onPullAtom, (int32_t, gui::PullAtomData*), (override));
-    MOCK_METHOD(binder::Status, enableVSyncInjections, (bool), (override));
-    MOCK_METHOD(binder::Status, injectVSync, (int64_t), (override));
     MOCK_METHOD(binder::Status, getLayerDebugInfo, (std::vector<gui::LayerDebugInfo>*), (override));
     MOCK_METHOD(binder::Status, getColorManagement, (bool*), (override));
     MOCK_METHOD(binder::Status, getCompositionPreference, (gui::CompositionPreference*),

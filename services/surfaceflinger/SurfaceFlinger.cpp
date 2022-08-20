@@ -1542,27 +1542,6 @@ status_t SurfaceFlinger::isWideColorDisplay(const sp<IBinder>& displayToken,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
-    auto future = mScheduler->schedule([=] {
-        Mutex::Autolock lock(mStateLock);
-
-        if (const auto handle = mScheduler->enableVSyncInjection(enable)) {
-            mScheduler->setInjector(enable ? mScheduler->getEventConnection(handle) : nullptr);
-        }
-    });
-
-    future.wait();
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::injectVSync(nsecs_t when) {
-    Mutex::Autolock lock(mStateLock);
-    const nsecs_t expectedPresentTime = calculateExpectedPresentTime(TimePoint::fromNs(when)).ns();
-    const nsecs_t deadlineTimestamp = expectedPresentTime;
-    return mScheduler->injectVSync(when, expectedPresentTime, deadlineTimestamp) ? NO_ERROR
-                                                                                 : BAD_VALUE;
-}
-
 status_t SurfaceFlinger::getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers) {
     outLayers->clear();
     auto future = mScheduler->schedule([=] {
@@ -7371,30 +7350,6 @@ binder::Status SurfaceComposerAIDL::onPullAtom(int32_t atomId, gui::PullAtomData
         status = PERMISSION_DENIED;
     } else {
         status = mFlinger->onPullAtom(atomId, &outPullData->data, &outPullData->success);
-    }
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::enableVSyncInjections(bool enable) {
-    if (!mFlinger->hasMockHwc()) {
-        return binderStatusFromStatusT(PERMISSION_DENIED);
-    }
-
-    status_t status = checkAccessPermission();
-    if (status == OK) {
-        status = mFlinger->enableVSyncInjections(enable);
-    }
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::injectVSync(int64_t when) {
-    if (!mFlinger->hasMockHwc()) {
-        return binderStatusFromStatusT(PERMISSION_DENIED);
-    }
-
-    status_t status = checkAccessPermission();
-    if (status == OK) {
-        status = mFlinger->injectVSync(when);
     }
     return binderStatusFromStatusT(status);
 }

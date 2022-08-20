@@ -851,10 +851,6 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status enableVSyncInjections(bool /*enable*/) override { return binder::Status::ok(); }
-
-    binder::Status injectVSync(int64_t /*when*/) override { return binder::Status::ok(); }
-
     binder::Status getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* /*outLayers*/) override {
         return binder::Status::ok();
     }

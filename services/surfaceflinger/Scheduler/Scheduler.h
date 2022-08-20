@@ -78,7 +78,6 @@ struct hash<android::scheduler::ConnectionHandle> {
 namespace android {
 
 class FenceTime;
-class InjectVSyncSource;
 
 namespace frametimeline {
 class TokenManager;
@@ -144,7 +143,6 @@ public:
     void createVsyncSchedule(FeatureFlags);
 
     using Impl::initVsync;
-    using Impl::setInjector;
 
     using Impl::getScheduledFrameTime;
     using Impl::setDuration;
@@ -182,10 +180,6 @@ public:
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
 
-    // Returns injector handle if injection has toggled, or an invalid handle otherwise.
-    ConnectionHandle enableVSyncInjection(bool enable);
-    // Returns false if injection is disabled.
-    bool injectVSync(nsecs_t when, nsecs_t expectedVSyncTime, nsecs_t deadlineTimestamp);
     void enableHardwareVsync();
     void disableHardwareVsync(bool makeUnavailable);
 
@@ -341,10 +335,6 @@ private:
     ConnectionHandle::Id mNextConnectionHandleId = 0;
     mutable std::mutex mConnectionsLock;
     std::unordered_map<ConnectionHandle, Connection> mConnections GUARDED_BY(mConnectionsLock);
-
-    bool mInjectVSyncs = false;
-    InjectVSyncSource* mVSyncInjector = nullptr;
-    ConnectionHandle mInjectorConnectionHandle;
 
     mutable std::mutex mHWVsyncLock;
     bool mPrimaryHWVsyncEnabled GUARDED_BY(mHWVsyncLock) = false;
