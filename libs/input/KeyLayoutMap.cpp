@@ -25,8 +25,10 @@
 #include <utils/Errors.h>
 #include <utils/Timers.h>
 #include <utils/Tokenizer.h>
+#if defined(__ANDROID__)
 #include <vintf/RuntimeInfo.h>
 #include <vintf/VintfObject.h>
+#endif
 
 #include <cstdlib>
 #include <string_view>
@@ -79,6 +81,7 @@ static const std::unordered_map<std::string_view, InputDeviceSensorType> SENSOR_
          sensorPair<InputDeviceSensorType::SIGNIFICANT_MOTION>()};
 
 bool kernelConfigsArePresent(const std::set<std::string>& configs) {
+#if defined(__ANDROID__)
     std::shared_ptr<const android::vintf::RuntimeInfo> runtimeInfo =
             android::vintf::VintfObject::GetInstance()->getRuntimeInfo(
                     vintf::RuntimeInfo::FetchFlag::CONFIG_GZ);
@@ -99,6 +102,10 @@ bool kernelConfigsArePresent(const std::set<std::string>& configs) {
         }
     }
     return true;
+#else
+    (void)configs; // Suppress 'unused variable' warning
+    return true;
+#endif
 }
 
 } // namespace
