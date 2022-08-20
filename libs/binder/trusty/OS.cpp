@@ -32,4 +32,9 @@ status_t getRandomBytes(uint8_t* data, size_t size) {
     return res == 1 ? OK : UNKNOWN_ERROR;
 }
 
+status_t dupFileDescriptor(int oldFd, int* newFd) {
+    // TODO: implement separately
+    return INVALID_OPERATION;
+}
+
 } // namespace android
