@@ -252,11 +252,7 @@ std::shared_ptr<HWC2::Layer> HWComposer::createLayer(HalDisplayId displayId) {
 }
 
 bool HWComposer::isConnected(PhysicalDisplayId displayId) const {
-    if (mDisplayData.count(displayId)) {
-        return mDisplayData.at(displayId).hwcDisplay->isConnected();
-    }
-
-    return false;
+    return mDisplayData.count(displayId) && mDisplayData.at(displayId).hwcDisplay->isConnected();
 }
 
 std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId displayId) const {
@@ -946,18 +942,15 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplugDisconnect(
         return {};
     }
 
-    // The display will later be destroyed by a call to
-    // destroyDisplay(). For now we just mark it disconnected.
-    if (isConnected(*displayId)) {
-        mDisplayData[*displayId].hwcDisplay->setConnected(false);
-    } else {
+    if (!isConnected(*displayId)) {
         LOG_HWC_DISPLAY_ERROR(hwcDisplayId, "Already disconnected");
+        return {};
     }
-    // The cleanup of Disconnect is handled through HWComposer::disconnectDisplay
-    // via SurfaceFlinger's onHotplugReceived callback handling
-    return DisplayIdentificationInfo{.id = *displayId,
-                                     .name = std::string(),
-                                     .deviceProductInfo = std::nullopt};
+
+    // The display will later be destroyed by a call to HWComposer::disconnectDisplay. For now, mark
+    // it as disconnected.
+    mDisplayData.at(*displayId).hwcDisplay->setConnected(false);
+    return DisplayIdentificationInfo{.id = *displayId};
 }
 
 void HWComposer::loadCapabilities() {
