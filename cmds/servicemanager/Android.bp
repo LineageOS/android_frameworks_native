@@ -113,6 +113,9 @@ cc_fuzz {
     },
     srcs: ["ServiceManagerFuzzer.cpp"],
     fuzz_config: {
+        libfuzzer_options: [
+            "max_len=50000",
+        ],
         cc: [
             "smoreland@google.com",
             "waghpawan@google.com",
