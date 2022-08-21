@@ -26,8 +26,10 @@ const int MAX_STR_LEN = 32;
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     FuzzedDataProvider fdp(data, size);
     struct sensor_t sensor_type;
-    sensor_type.name = fdp.ConsumeBytesAsString(MAX_STR_LEN).c_str();
-    sensor_type.vendor = fdp.ConsumeBytesAsString(MAX_STR_LEN).c_str();
+    std::string name = fdp.ConsumeBytesAsString(MAX_STR_LEN);
+    sensor_type.name = name.c_str();
+    std::string vendor = fdp.ConsumeBytesAsString(MAX_STR_LEN);
+    sensor_type.vendor = vendor.c_str();
     sensor_type.stringType = "";
     sensor_type.requiredPermission = "";
     sensor_type.version = fdp.ConsumeIntegral<int>();
