@@ -442,12 +442,11 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
               sourceCrop.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-
     uint32_t z_udfps = z;
-    if ((strcmp(getLayerFE().getDebugName(), UDFPS_LAYER_NAME) == 0)
-            || (strcmp(getLayerFE().getDebugName(), UDFPS_BIOMETRIC_PROMPT_LAYER_NAME) == 0)) {
+    if (strstr(getLayerFE().getDebugName(), UDFPS_LAYER_NAME)
+            || strstr(getLayerFE().getDebugName(), UDFPS_BIOMETRIC_PROMPT_LAYER_NAME)) {
         z_udfps = getUdfpsZOrder(z, false);
-    } else if (strcmp(getLayerFE().getDebugName(), UDFPS_TOUCHED_LAYER_NAME) == 0) {
+    } else if (strstr(getLayerFE().getDebugName(), UDFPS_TOUCHED_LAYER_NAME)) {
         z_udfps = getUdfpsZOrder(z, true);
     }
 

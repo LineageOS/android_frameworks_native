@@ -471,9 +471,9 @@ status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, Pi
     }
     uint64_t usageBits = getEffectiveUsage(0);
 
-    if (mName == UDFPS_LAYER_NAME || mName == UDFPS_BIOMETRIC_PROMPT_LAYER_NAME) {
+    if (mName.find(UDFPS_LAYER_NAME) != std::string::npos || mName.find(UDFPS_BIOMETRIC_PROMPT_LAYER_NAME) != std::string::npos) {
         usageBits = getUdfpsUsageBits(usageBits, false);
-    } else if (mName == UDFPS_TOUCHED_LAYER_NAME) {
+    } else if (mName.find(UDFPS_TOUCHED_LAYER_NAME) != std::string::npos) {
         usageBits = getUdfpsUsageBits(usageBits, true);
     }
 

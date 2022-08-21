@@ -19,9 +19,9 @@
 #ifndef __UDFPS_EXTENSION__H__
 #define __UDFPS_EXTENSION__H__
 
-#define UDFPS_BIOMETRIC_PROMPT_LAYER_NAME "BiometricPrompt#0"
-#define UDFPS_LAYER_NAME "UdfpsController#0"
-#define UDFPS_TOUCHED_LAYER_NAME "SurfaceView[UdfpsController](BLAST)#0"
+#define UDFPS_BIOMETRIC_PROMPT_LAYER_NAME "BiometricPrompt#"
+#define UDFPS_LAYER_NAME "UdfpsControllerOverlay#"
+#define UDFPS_TOUCHED_LAYER_NAME "SurfaceView[UdfpsControllerOverlay](BLAST)#"
 
 extern uint32_t getUdfpsZOrder(uint32_t z, bool touched);
 extern uint64_t getUdfpsUsageBits(uint64_t usageBits, bool touched);
