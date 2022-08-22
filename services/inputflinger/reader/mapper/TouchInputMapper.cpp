@@ -441,11 +441,6 @@ void TouchInputMapper::configureParameters() {
     } else if (getDeviceContext().hasInputProperty(INPUT_PROP_POINTER)) {
         // The device is a pointing device like a track pad.
         mParameters.deviceType = Parameters::DeviceType::POINTER;
-    } else if (getDeviceContext().hasRelativeAxis(REL_X) ||
-               getDeviceContext().hasRelativeAxis(REL_Y)) {
-        // The device is a cursor device with a touch pad attached.
-        // By default don't use the touch pad to move the pointer.
-        mParameters.deviceType = Parameters::DeviceType::TOUCH_PAD;
     } else {
         // The device is a touch pad of unknown purpose.
         mParameters.deviceType = Parameters::DeviceType::POINTER;
@@ -458,8 +453,6 @@ void TouchInputMapper::configureParameters() {
                                                              deviceTypeString)) {
         if (deviceTypeString == "touchScreen") {
             mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
-        } else if (deviceTypeString == "touchPad") {
-            mParameters.deviceType = Parameters::DeviceType::TOUCH_PAD;
         } else if (deviceTypeString == "touchNavigation") {
             mParameters.deviceType = Parameters::DeviceType::TOUCH_NAVIGATION;
         } else if (deviceTypeString == "pointer") {
