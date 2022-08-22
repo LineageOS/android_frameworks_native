@@ -59,6 +59,8 @@ public:
     virtual void*       findObject(const void* objectID) const final;
     virtual void* detachObject(const void* objectID) final;
     void withLock(const std::function<void()>& doWithLock);
+    sp<IBinder> lookupOrCreateWeak(const void* objectID, IBinder::object_make_func make,
+                                   const void* makeArgs);
 
     virtual BBinder*    localBinder();
 

@@ -72,6 +72,8 @@ public:
     virtual void*       findObject(const void* objectID) const final;
     virtual void* detachObject(const void* objectID) final;
     void withLock(const std::function<void()>& doWithLock);
+    sp<IBinder> lookupOrCreateWeak(const void* objectID, IBinder::object_make_func make,
+                                   const void* makeArgs);
 
     virtual BpBinder*   remoteBinder();
 
@@ -96,6 +98,8 @@ public:
                      IBinder::object_cleanup_func func);
         void* find(const void* objectID) const;
         void* detach(const void* objectID);
+        sp<IBinder> lookupOrCreateWeak(const void* objectID, IBinder::object_make_func make,
+                                       const void* makeArgs);
 
         void kill();
 
@@ -104,9 +108,9 @@ public:
         ObjectManager& operator=(const ObjectManager&);
 
         struct entry_t {
-            void* object;
-            void* cleanupCookie;
-            IBinder::object_cleanup_func func;
+            void* object = nullptr;
+            void* cleanupCookie = nullptr;
+            IBinder::object_cleanup_func func = nullptr;
         };
 
         std::map<const void*, entry_t> mObjects;
