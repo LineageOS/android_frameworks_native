@@ -202,6 +202,17 @@ void IBinder::withLock(const std::function<void()>& doWithLock) {
     proxy->withLock(doWithLock);
 }
 
+sp<IBinder> IBinder::lookupOrCreateWeak(const void* objectID, object_make_func make,
+                                        const void* makeArgs) {
+    BBinder* local = localBinder();
+    if (local) {
+        return local->lookupOrCreateWeak(objectID, make, makeArgs);
+    }
+    BpBinder* proxy = this->remoteBinder();
+    LOG_ALWAYS_FATAL_IF(proxy == nullptr, "binder object must be either local or remote");
+    return proxy->lookupOrCreateWeak(objectID, make, makeArgs);
+}
+
 // ---------------------------------------------------------------------------
 
 class BBinder::RpcServerLink : public IBinder::DeathRecipient {
@@ -376,6 +387,14 @@ void BBinder::withLock(const std::function<void()>& doWithLock) {
 
     AutoMutex _l(e->mLock);
     doWithLock();
+}
+
+sp<IBinder> BBinder::lookupOrCreateWeak(const void* objectID, object_make_func make,
+                                        const void* makeArgs) {
+    Extras* e = getOrCreateExtras();
+    LOG_ALWAYS_FATAL_IF(!e, "no memory");
+    AutoMutex _l(e->mLock);
+    return e->mObjects.lookupOrCreateWeak(objectID, make, makeArgs);
 }
 
 BBinder* BBinder::localBinder()

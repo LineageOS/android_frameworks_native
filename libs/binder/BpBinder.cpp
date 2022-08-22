@@ -100,6 +100,36 @@ void* BpBinder::ObjectManager::detach(const void* objectID) {
     return value;
 }
 
+namespace {
+struct Tag {
+    wp<IBinder> binder;
+};
+} // namespace
+
+static void cleanWeak(const void* /* id */, void* obj, void* /* cookie */) {
+    delete static_cast<Tag*>(obj);
+}
+
+sp<IBinder> BpBinder::ObjectManager::lookupOrCreateWeak(const void* objectID, object_make_func make,
+                                                        const void* makeArgs) {
+    entry_t& e = mObjects[objectID];
+    if (e.object != nullptr) {
+        if (auto attached = static_cast<Tag*>(e.object)->binder.promote()) {
+            return attached;
+        }
+    } else {
+        e.object = new Tag;
+        LOG_ALWAYS_FATAL_IF(!e.object, "no more memory");
+    }
+    sp<IBinder> newObj = make(makeArgs);
+
+    static_cast<Tag*>(e.object)->binder = newObj;
+    e.cleanupCookie = nullptr;
+    e.func = cleanWeak;
+
+    return newObj;
+}
+
 void BpBinder::ObjectManager::kill()
 {
     const size_t N = mObjects.size();
@@ -514,6 +544,12 @@ void* BpBinder::detachObject(const void* objectID) {
 void BpBinder::withLock(const std::function<void()>& doWithLock) {
     AutoMutex _l(mLock);
     doWithLock();
+}
+
+sp<IBinder> BpBinder::lookupOrCreateWeak(const void* objectID, object_make_func make,
+                                         const void* makeArgs) {
+    AutoMutex _l(mLock);
+    return mObjects.lookupOrCreateWeak(objectID, make, makeArgs);
 }
 
 BpBinder* BpBinder::remoteBinder()
