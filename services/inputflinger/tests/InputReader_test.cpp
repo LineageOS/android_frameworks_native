@@ -5325,25 +5325,6 @@ TEST_F(SingleTouchInputMapperTest, GetSources_WhenDeviceTypeIsNotSpecifiedAndNot
     ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
 }
 
-TEST_F(SingleTouchInputMapperTest, GetSources_WhenDeviceTypeIsNotSpecifiedAndIsACursor_ReturnsTouchPad) {
-    mFakeEventHub->addRelativeAxis(EVENTHUB_ID, REL_X);
-    mFakeEventHub->addRelativeAxis(EVENTHUB_ID, REL_Y);
-    prepareButtons();
-    prepareAxes(POSITION);
-    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
-
-    ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
-}
-
-TEST_F(SingleTouchInputMapperTest, GetSources_WhenDeviceTypeIsTouchPad_ReturnsTouchPad) {
-    prepareButtons();
-    prepareAxes(POSITION);
-    addConfigurationProperty("touch.deviceType", "touchPad");
-    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
-
-    ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
-}
-
 TEST_F(SingleTouchInputMapperTest, GetSources_WhenDeviceTypeIsTouchScreen_ReturnsTouchScreen) {
     prepareButtons();
     prepareAxes(POSITION);
