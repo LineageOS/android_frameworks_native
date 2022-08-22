@@ -15,10 +15,11 @@
  */
 
 #include <binder/Binder.h>
-#include <binder/IBinder.h>
+#include <binder/IInterface.h>
 #include <gtest/gtest.h>
 
 using android::BBinder;
+using android::IBinder;
 using android::OK;
 using android::sp;
 
@@ -47,4 +48,50 @@ TEST(Binder, AttachExtension) {
     auto ext = sp<BBinder>::make();
     binder->setExtension(ext);
     EXPECT_EQ(ext, binder->getExtension());
+}
+
+struct MyCookie {
+    bool* deleted;
+};
+
+class UniqueBinder : public BBinder {
+public:
+    UniqueBinder(const void* c) : cookie(reinterpret_cast<const MyCookie*>(c)) {
+        *cookie->deleted = false;
+    }
+    ~UniqueBinder() { *cookie->deleted = true; }
+    const MyCookie* cookie;
+};
+
+static sp<IBinder> make(const void* arg) {
+    return sp<UniqueBinder>::make(arg);
+}
+
+TEST(Binder, LookupOrCreateWeak) {
+    auto binder = sp<BBinder>::make();
+    bool deleted;
+    MyCookie cookie = {&deleted};
+    sp<IBinder> createdBinder = binder->lookupOrCreateWeak(kObjectId1, make, &cookie);
+    EXPECT_NE(binder, createdBinder);
+
+    sp<IBinder> lookedUpBinder = binder->lookupOrCreateWeak(kObjectId1, make, &cookie);
+    EXPECT_EQ(createdBinder, lookedUpBinder);
+    EXPECT_FALSE(deleted);
+}
+
+TEST(Binder, LookupOrCreateWeakDropSp) {
+    auto binder = sp<BBinder>::make();
+    bool deleted1 = false;
+    bool deleted2 = false;
+    MyCookie cookie1 = {&deleted1};
+    MyCookie cookie2 = {&deleted2};
+    sp<IBinder> createdBinder = binder->lookupOrCreateWeak(kObjectId1, make, &cookie1);
+    EXPECT_NE(binder, createdBinder);
+
+    createdBinder.clear();
+    EXPECT_TRUE(deleted1);
+
+    sp<IBinder> lookedUpBinder = binder->lookupOrCreateWeak(kObjectId1, make, &cookie2);
+    EXPECT_EQ(&cookie2, sp<UniqueBinder>::cast(lookedUpBinder)->cookie);
+    EXPECT_FALSE(deleted2);
 }
