@@ -838,10 +838,7 @@ const bool AidlPowerHalWrapper::sTraceHintSessionData =
         base::GetBoolProperty(std::string("debug.sf.trace_hint_sessions"), false);
 
 PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
-    static std::unique_ptr<HalWrapper> sHalWrapper = nullptr;
-    static bool sHasHal = true;
-
-    if (!sHasHal) {
+    if (!mHasHal) {
         return nullptr;
     }
 
@@ -849,57 +846,57 @@ PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
     std::vector<int32_t> oldPowerHintSessionThreadIds;
     std::optional<int64_t> oldTargetWorkDuration;
 
-    if (sHalWrapper != nullptr) {
-        oldPowerHintSessionThreadIds = sHalWrapper->getPowerHintSessionThreadIds();
-        oldTargetWorkDuration = sHalWrapper->getTargetWorkDuration();
+    if (mHalWrapper != nullptr) {
+        oldPowerHintSessionThreadIds = mHalWrapper->getPowerHintSessionThreadIds();
+        oldTargetWorkDuration = mHalWrapper->getTargetWorkDuration();
     }
 
     // If we used to have a HAL, but it stopped responding, attempt to reconnect
     if (mReconnectPowerHal) {
-        sHalWrapper = nullptr;
+        mHalWrapper = nullptr;
         mReconnectPowerHal = false;
     }
 
-    if (sHalWrapper != nullptr) {
-        auto wrapper = sHalWrapper.get();
+    if (mHalWrapper != nullptr) {
+        auto wrapper = mHalWrapper.get();
         // If the wrapper is fine, return it, but if it indicates a reconnect, remake it
         if (!wrapper->shouldReconnectHAL()) {
             return wrapper;
         }
         ALOGD("Reconnecting Power HAL");
-        sHalWrapper = nullptr;
+        mHalWrapper = nullptr;
     }
 
     // At this point, we know for sure there is no running session
     mPowerHintSessionRunning = false;
 
     // First attempt to connect to the AIDL Power HAL
-    sHalWrapper = AidlPowerHalWrapper::connect();
+    mHalWrapper = AidlPowerHalWrapper::connect();
 
     // If that didn't succeed, attempt to connect to the HIDL Power HAL
-    if (sHalWrapper == nullptr) {
-        sHalWrapper = HidlPowerHalWrapper::connect();
+    if (mHalWrapper == nullptr) {
+        mHalWrapper = HidlPowerHalWrapper::connect();
     } else {
         ALOGD("Successfully connecting AIDL Power HAL");
         // If AIDL, pass on any existing hint session values
-        sHalWrapper->setPowerHintSessionThreadIds(oldPowerHintSessionThreadIds);
+        mHalWrapper->setPowerHintSessionThreadIds(oldPowerHintSessionThreadIds);
         // Only set duration and start if duration is defined
         if (oldTargetWorkDuration.has_value()) {
-            sHalWrapper->setTargetWorkDuration(*oldTargetWorkDuration);
+            mHalWrapper->setTargetWorkDuration(*oldTargetWorkDuration);
             // Only start if possible to run and both threadids and duration are defined
             if (usePowerHintSession() && !oldPowerHintSessionThreadIds.empty()) {
-                mPowerHintSessionRunning = sHalWrapper->startPowerHintSession();
+                mPowerHintSessionRunning = mHalWrapper->startPowerHintSession();
             }
         }
     }
 
     // If we make it to this point and still don't have a HAL, it's unlikely we
     // will, so stop trying
-    if (sHalWrapper == nullptr) {
-        sHasHal = false;
+    if (mHalWrapper == nullptr) {
+        mHasHal = false;
     }
 
-    return sHalWrapper.get();
+    return mHalWrapper.get();
 }
 
 } // namespace impl
