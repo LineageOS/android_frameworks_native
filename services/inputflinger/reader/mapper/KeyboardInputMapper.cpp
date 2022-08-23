@@ -127,7 +127,6 @@ void KeyboardInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "Orientation: %d\n", getOrientation());
     dump += StringPrintf(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
     dump += StringPrintf(INDENT3 "MetaState: 0x%0x\n", mMetaState);
-    dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
 std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
@@ -196,9 +195,7 @@ void KeyboardInputMapper::dumpParameters(std::string& dump) {
 }
 
 void KeyboardInputMapper::reset(nsecs_t when) {
-    mMetaState = AMETA_NONE;
-    mDownTime = 0;
-    mKeyDowns.clear();
+    cancelAllDownKeys(when);
     mCurrentHidUsage = 0;
 
     resetLedState();
@@ -281,6 +278,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, 
         policyFlags = 0;
     }
 
+    nsecs_t downTime = when;
     if (down) {
         // Rotate key codes according to orientation if needed.
         if (mParameters.orientationAware) {
@@ -292,6 +290,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, 
         if (keyDownIndex >= 0) {
             // key repeat, be sure to use same keycode as before in case of rotation
             keyCode = mKeyDowns[keyDownIndex].keyCode;
+            downTime = mKeyDowns[keyDownIndex].downTime;
         } else {
             // key down
             if ((policyFlags & POLICY_FLAG_VIRTUAL) &&
@@ -305,16 +304,16 @@ void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, 
             KeyDown keyDown;
             keyDown.keyCode = keyCode;
             keyDown.scanCode = scanCode;
+            keyDown.downTime = when;
             mKeyDowns.push_back(keyDown);
         }
-
-        mDownTime = when;
     } else {
         // Remove key down.
         ssize_t keyDownIndex = findKeyDown(scanCode);
         if (keyDownIndex >= 0) {
             // key up, be sure to use same keycode as before in case of rotation
             keyCode = mKeyDowns[keyDownIndex].keyCode;
+            downTime = mKeyDowns[keyDownIndex].downTime;
             mKeyDowns.erase(mKeyDowns.begin() + (size_t)keyDownIndex);
         } else {
             // key was not actually down
@@ -332,8 +331,6 @@ void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, 
         // meta bits for given key.
         keyMetaState = mMetaState;
     }
-
-    nsecs_t downTime = mDownTime;
 
     // Key down on external an keyboard should wake the device.
     // We don't do this for internal keyboards to prevent them from waking up in your pocket.
@@ -471,6 +468,21 @@ std::optional<int32_t> KeyboardInputMapper::getAssociatedDisplayId() {
         return std::make_optional(mViewport->displayId);
     }
     return std::nullopt;
+}
+
+void KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
+    size_t n = mKeyDowns.size();
+    for (size_t i = 0; i < n; i++) {
+        NotifyKeyArgs args(getContext()->getNextId(), when, systemTime(SYSTEM_TIME_MONOTONIC),
+                           getDeviceId(), mSource, getDisplayId(), 0 /*policyFlags*/,
+                           AKEY_EVENT_ACTION_UP,
+                           AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED,
+                           mKeyDowns[i].keyCode, mKeyDowns[i].scanCode, AMETA_NONE,
+                           mKeyDowns[i].downTime);
+        getListener().notifyKey(&args);
+    }
+    mKeyDowns.clear();
+    mMetaState = AMETA_NONE;
 }
 
 } // namespace android

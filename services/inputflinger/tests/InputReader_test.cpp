@@ -4088,6 +4088,37 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleInMultiDevices) {
     ASSERT_EQ(AMETA_NONE, mapper2.getMetaState());
 }
 
+TEST_F(KeyboardInputMapperTest, Process_DisabledDevice) {
+    const int32_t USAGE_A = 0x070004;
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, POLICY_FLAG_WAKE);
+    mFakeEventHub->addKey(EVENTHUB_ID, 0, USAGE_A, AKEYCODE_A, POLICY_FLAG_WAKE);
+
+    KeyboardInputMapper& mapper =
+            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+                                                       AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    // Key down by scan code.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
+    NotifyKeyArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
+    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
+    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
+    ASSERT_EQ(KEY_HOME, args.scanCode);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
+
+    // Disable device, it should synthesize cancellation events for down events.
+    mFakePolicy->addDisabledDevice(DEVICE_ID);
+    configureDevice(InputReaderConfiguration::CHANGE_ENABLED_STATE);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
+    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
+    ASSERT_EQ(KEY_HOME, args.scanCode);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED, args.flags);
+}
+
 // --- KeyboardInputMapperTest_ExternalDevice ---
 
 class KeyboardInputMapperTest_ExternalDevice : public InputMapperTest {
