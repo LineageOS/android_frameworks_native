@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d6de75c9_bf30a342",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T15:02:47Z",
+      "side": 1,
+      "message": "I should\u0027ve looked harder when submitting this on 18.1 and 19.0, but this patch is not necessary and should *never* have been forward ported because it\u0027s a no-op. An upstream patch fixed this long ago (https://github.com/LineageOS/android_frameworks_native/commit/a8f0f242299d620caa292dc2312f77bcf1d90f4b) and that was noted on both the 14.1 and 15.1 submissions of this patch.",
+      "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
