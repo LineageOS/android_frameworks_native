@@ -1,0 +1,50 @@
+rust_library {
+    name: "librpcbinder_rs",
+    crate_name: "rpcbinder",
+    srcs: ["src/lib.rs"],
+    shared_libs: [
+        "libutils",
+    ],
+    rustlibs: [
+        "libbinder_ndk_sys",
+        "libbinder_rpc_unstable_bindgen",
+        "libbinder_rs",
+        "libdowncast_rs",
+        "liblibc",
+    ],
+    apex_available: [
+        "com.android.compos",
+        "com.android.uwb",
+        "com.android.virt",
+    ],
+    min_sdk_version: "Tiramisu",
+}
+
+// TODO(b/184872979): remove once the RPC Binder API is stabilised.
+rust_bindgen {
+    name: "libbinder_rpc_unstable_bindgen",
+    wrapper_src: ":libbinder_rpc_unstable_header",
+    crate_name: "binder_rpc_unstable_bindgen",
+    visibility: [":__subpackages__"],
+    source_stem: "bindings",
+    shared_libs: [
+        "libbinder_rpc_unstable",
+        "libutils",
+    ],
+    apex_available: [
+        "com.android.compos",
+        "com.android.uwb",
+        "com.android.virt",
+    ],
+    min_sdk_version: "Tiramisu",
+}
+
+rust_test {
+    name: "libbinder_rpc_unstable_bindgen_test",
+    srcs: [":libbinder_rpc_unstable_bindgen"],
+    crate_name: "binder_rpc_unstable_bindgen",
+    test_suites: ["general-tests"],
+    auto_gen_config: true,
+    clippy_lints: "none",
+    lints: "none",
+}
