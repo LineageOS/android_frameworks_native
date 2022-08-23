@@ -36,6 +36,24 @@
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "acb9766d_a2ed0f73",
+        "filename": "opengl/libs/EGL/egl_object.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 318,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T21:57:19Z",
+      "side": 0,
+      "message": "K, I kept the original flow of the patch, but made it be a little bit better to read. I give up trying to explain why this happens though, since you\u0027ve informed me it still fills out the extension list somewhere else.",
+      "parentUuid": "df1b847b_1277af07",
+      "revId": "01e118c981d9bc0709b1f5f7d5ba39e2263f940b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "3c6f0adb_c3f48fa7",
