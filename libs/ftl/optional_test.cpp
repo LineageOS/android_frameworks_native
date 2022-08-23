@@ -33,6 +33,29 @@ namespace android::test {
 using ftl::Optional;
 using ftl::StaticVector;
 
+TEST(Optional, Construct) {
+  // Empty.
+  EXPECT_EQ(std::nullopt, Optional<int>());
+  EXPECT_EQ(std::nullopt, Optional<std::string>(std::nullopt));
+
+  // Value.
+  EXPECT_EQ('?', Optional('?'));
+  EXPECT_EQ(""s, Optional(std::string()));
+
+  // In place.
+  EXPECT_EQ("???"s, Optional<std::string>(std::in_place, 3u, '?'));
+  EXPECT_EQ("abc"s, Optional<std::string>(std::in_place, {'a', 'b', 'c'}));
+
+  // Implicit downcast.
+  {
+    Optional opt = std::optional("test"s);
+    static_assert(std::is_same_v<decltype(opt), Optional<std::string>>);
+
+    ASSERT_TRUE(opt);
+    EXPECT_EQ(opt.value(), "test"s);
+  }
+}
+
 TEST(Optional, Transform) {
   // Empty.
   EXPECT_EQ(std::nullopt, Optional<int>().transform([](int) { return 0; }));

@@ -32,6 +32,9 @@ template <typename T>
 struct Optional final : std::optional<T> {
   using std::optional<T>::optional;
 
+  // Implicit downcast.
+  Optional(std::optional<T> other) : std::optional<T>(std::move(other)) {}
+
   using std::optional<T>::has_value;
   using std::optional<T>::value;
 
@@ -94,8 +97,11 @@ struct Optional final : std::optional<T> {
   }
 };
 
-// Deduction guide.
+// Deduction guides.
 template <typename T>
 Optional(T) -> Optional<T>;
+
+template <typename T>
+Optional(std::optional<T>) -> Optional<T>;
 
 }  // namespace android::ftl
