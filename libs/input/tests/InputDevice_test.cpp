@@ -64,12 +64,10 @@ protected:
         mKeyMap.keyCharacterMapFile = path;
     }
 
-    virtual void SetUp() override {
+    void SetUp() override {
         loadKeyLayout("Generic");
         loadKeyCharacterMap("Generic");
     }
-
-    virtual void TearDown() override {}
 
     KeyMap mKeyMap;
 };
