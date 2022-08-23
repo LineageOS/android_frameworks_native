@@ -103,7 +103,10 @@ public:
             // read and call readFn as many times as needed to get all the data
             status_t ret = fillReadBuffer();
             if (ret != OK) {
-                return ret;
+                // We need to emulate a Linux read call, which sets errno on
+                // error and returns -1
+                errno = -ret;
+                return -1;
             }
 
             ssize_t processSize = 0;
