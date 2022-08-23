@@ -21,6 +21,7 @@
 #include <climits>
 #include <filesystem>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <batteryservice/BatteryService.h>
@@ -537,8 +538,6 @@ public:
 
 private:
     struct AssociatedDevice {
-        // The device descriptor from evdev device the misc device associated with.
-        std::string descriptor;
         // The sysfs root path of the misc device.
         std::filesystem::path sysfsRootPath;
 
@@ -582,7 +581,7 @@ private:
         int16_t ffEffectId; // initially -1
 
         // A shared_ptr of a device associated with the input device.
-        // The input devices with same descriptor has the same associated device.
+        // The input devices that have the same sysfs path have the same associated device.
         std::shared_ptr<AssociatedDevice> associatedDevice;
 
         int32_t controllerNumber;

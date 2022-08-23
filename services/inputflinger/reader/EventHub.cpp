@@ -1060,7 +1060,7 @@ const std::vector<int32_t> EventHub::getRawBatteryIds(int32_t deviceId) {
     std::scoped_lock _l(mLock);
     std::vector<int32_t> batteryIds;
 
-    for (const auto [id, info] : getBatteryInfoLocked(deviceId)) {
+    for (const auto& [id, info] : getBatteryInfoLocked(deviceId)) {
         batteryIds.push_back(id);
     }
 
@@ -1081,7 +1081,7 @@ std::optional<RawBatteryInfo> EventHub::getRawBatteryInfo(int32_t deviceId, int3
 }
 
 // Gets the light info map from light ID to RawLightInfo of the miscellaneous device associated
-// with the deivice ID. Returns an empty map if no miscellaneous device found.
+// with the device ID. Returns an empty map if no miscellaneous device found.
 const std::unordered_map<int32_t, RawLightInfo>& EventHub::getLightInfoLocked(
         int32_t deviceId) const {
     static const std::unordered_map<int32_t, RawLightInfo> EMPTY_LIGHT_INFO = {};
@@ -1096,7 +1096,7 @@ const std::vector<int32_t> EventHub::getRawLightIds(int32_t deviceId) {
     std::scoped_lock _l(mLock);
     std::vector<int32_t> lightIds;
 
-    for (const auto [id, info] : getLightInfoLocked(deviceId)) {
+    for (const auto& [id, info] : getLightInfoLocked(deviceId)) {
         lightIds.push_back(id);
     }
 
@@ -2042,23 +2042,20 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     // Load the configuration file for the device.
     device->loadConfigurationLocked();
 
-    bool hasBattery = false;
-    bool hasLights = false;
     // Check the sysfs root path
-    std::optional<std::filesystem::path> sysfsRootPath = getSysfsRootPath(devicePath.c_str());
+    const std::optional<std::filesystem::path> sysfsRootPath = getSysfsRootPath(devicePath.c_str());
     if (sysfsRootPath.has_value()) {
         std::shared_ptr<AssociatedDevice> associatedDevice;
         for (const auto& [id, dev] : mDevices) {
-            if (device->identifier.descriptor == dev->identifier.descriptor &&
-                !dev->associatedDevice) {
+            if (dev->associatedDevice && dev->associatedDevice->sysfsRootPath == *sysfsRootPath) {
                 associatedDevice = dev->associatedDevice;
             }
         }
         if (!associatedDevice) {
             associatedDevice = std::make_shared<AssociatedDevice>(sysfsRootPath.value());
+            associatedDevice->configureBatteryLocked();
+            associatedDevice->configureLightsLocked();
         }
-        hasBattery = associatedDevice->configureBatteryLocked();
-        hasLights = associatedDevice->configureLightsLocked();
 
         device->associatedDevice = associatedDevice;
     }
@@ -2212,12 +2209,12 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     }
 
     // Classify InputDeviceClass::BATTERY.
-    if (hasBattery) {
+    if (device->associatedDevice && !device->associatedDevice->batteryInfos.empty()) {
         device->classes |= InputDeviceClass::BATTERY;
     }
 
     // Classify InputDeviceClass::LIGHT.
-    if (hasLights) {
+    if (device->associatedDevice && !device->associatedDevice->lightInfos.empty()) {
         device->classes |= InputDeviceClass::LIGHT;
     }
 
@@ -2544,12 +2541,13 @@ void EventHub::dump(std::string& dump) {
                                  device->keyMap.keyCharacterMapFile.c_str());
             dump += StringPrintf(INDENT3 "ConfigurationFile: %s\n",
                                  device->configurationFile.c_str());
-            dump += INDENT3 "VideoDevice: ";
-            if (device->videoDevice) {
-                dump += device->videoDevice->dump() + "\n";
-            } else {
-                dump += "<none>\n";
-            }
+            dump += StringPrintf(INDENT3 "VideoDevice: %s\n",
+                                 device->videoDevice ? device->videoDevice->dump().c_str()
+                                                     : "<none>");
+            dump += StringPrintf(INDENT3 "SysfsDevicePath: %s\n",
+                                 device->associatedDevice
+                                         ? device->associatedDevice->sysfsRootPath.c_str()
+                                         : "<none>");
         }
 
         dump += INDENT "Unattached video devices:\n";
