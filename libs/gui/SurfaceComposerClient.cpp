@@ -1038,9 +1038,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
         flags |= ISurfaceComposer::eEarlyWakeupEnd;
     }
 
-    sp<IBinder> applyToken = mApplyToken
-            ? mApplyToken
-            : IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    sp<IBinder> applyToken = mApplyToken ? mApplyToken : sApplyToken;
 
     sf->setTransactionState(mFrameTimelineInfo, composerStates, displayStates, flags, applyToken,
                             mInputWindowCommands, mDesiredPresentTime, mIsAutoTimestamp,
@@ -1055,6 +1053,15 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
     return NO_ERROR;
 }
 
+sp<IBinder> SurfaceComposerClient::Transaction::sApplyToken = new BBinder();
+
+sp<IBinder> SurfaceComposerClient::Transaction::getDefaultApplyToken() {
+    return sApplyToken;
+}
+
+void SurfaceComposerClient::Transaction::setDefaultApplyToken(sp<IBinder> applyToken) {
+    sApplyToken = applyToken;
+}
 // ---------------------------------------------------------------------------
 
 sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool secure) {

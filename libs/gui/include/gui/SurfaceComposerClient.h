@@ -390,6 +390,7 @@ public:
 
     class Transaction : public Parcelable {
     private:
+        static sp<IBinder> sApplyToken;
         void releaseBufferIfOverwriting(const layer_state_t& state);
         static void mergeFrameTimelineInfo(FrameTimelineInfo& t, const FrameTimelineInfo& other);
         static void clearFrameTimelineInfo(FrameTimelineInfo& t);
@@ -669,6 +670,9 @@ public:
          * TODO (b/213644870): Remove all permissioned things from Transaction
          */
         void sanitize();
+
+        static sp<IBinder> getDefaultApplyToken();
+        static void setDefaultApplyToken(sp<IBinder> applyToken);
     };
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;
