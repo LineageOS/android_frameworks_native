@@ -69,6 +69,42 @@
       "message": "This was not a no-op on 18.1, it was very much needed. Glancing at 19.0 and 20.0, it looks like it is, however. Don\u0027t know how I missed that. What it was originally written for back on N was resolved upstream, but other issues came up on R that it was necessary for.",
       "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "1723d795_de3fdf09",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T16:25:44Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "57b583e5_7e5924a9",
+      "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a6c607fd_0970d228",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T16:25:44Z",
+      "side": 1,
+      "message": "It was a no-op in 18.1: https://review.lineageos.org/c/LineageOS/android_frameworks_native/+/327375/2/opengl/libs/EGL/egl_object.cpp#316, and you even abandoned the 15.1 patch as a result of the code that exists in 18.1: https://review.lineageos.org/c/LineageOS/android_frameworks_native/+/213272",
+      "parentUuid": "54b52ad2_1b710f69",
+      "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
