@@ -159,6 +159,24 @@
       "parentUuid": "1dba3a57_35740d7a",
       "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "b2b6337d_cd48bc27",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 14048
+      },
+      "writtenOn": "2022-08-23T18:17:51Z",
+      "side": 1,
+      "message": "The commit message could use a re-write, sure. But since I had a commit that already touched what needed touched, I just picked it and called it a day. One example of the gl error propagation being an issue is Dolphin. Without the 18.1 copy of this patch, it logs a gl init failure when starting content. I\u0027m doing further testing on 19.1 today. Will push a fixup! there if necessary.",
+      "parentUuid": "532aa6be_23fd93c1",
+      "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
