@@ -105,6 +105,24 @@
       "parentUuid": "54b52ad2_1b710f69",
       "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "cd9e68a2_f87b8a60",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T16:28:26Z",
+      "side": 1,
+      "message": "I should be careful, technically it\u0027s not a no-op because it does *something*, but it does nothing *useful* in 18.1 AFAICT, based on previous patches and versions.",
+      "parentUuid": "a6c607fd_0970d228",
+      "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
