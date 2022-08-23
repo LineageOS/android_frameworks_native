@@ -440,6 +440,7 @@ cc_library {
     // This library is intentionally limited to these targets, and it will be removed later.
     // Do not expand the visibility.
     visibility: [
+        ":__subpackages__",
         "//packages/modules/Virtualization:__subpackages__",
     ],
 }
