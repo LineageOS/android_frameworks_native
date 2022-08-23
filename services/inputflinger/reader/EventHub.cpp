@@ -52,6 +52,7 @@
 
 #include <filesystem>
 #include <regex>
+#include <utility>
 
 #include "EventHub.h"
 
@@ -193,8 +194,7 @@ static nsecs_t processEventTimestamp(const struct input_event& event) {
 }
 
 /**
- * Returns the sysfs root path of the input device
- *
+ * Returns the sysfs root path of the input device.
  */
 static std::optional<std::filesystem::path> getSysfsRootPath(const char* devicePath) {
     std::error_code errorCode;
@@ -301,6 +301,83 @@ static std::optional<std::array<LightColor, COLOR_NUM>> getColorIndexArray(
     return colors;
 }
 
+/**
+ * Read information about batteries exposed through the sysfs path.
+ */
+static std::unordered_map<int32_t /*batteryId*/, RawBatteryInfo> readBatteryConfiguration(
+        const std::filesystem::path& sysfsRootPath) {
+    std::unordered_map<int32_t, RawBatteryInfo> batteryInfos;
+    int32_t nextBatteryId = 0;
+    // Check if device has any battery.
+    const auto& paths = findSysfsNodes(sysfsRootPath, SysfsClass::POWER_SUPPLY);
+    for (const auto& nodePath : paths) {
+        RawBatteryInfo info;
+        info.id = ++nextBatteryId;
+        info.path = nodePath;
+        info.name = nodePath.filename();
+
+        // Scan the path for all the files
+        // Refer to https://www.kernel.org/doc/Documentation/leds/leds-class.txt
+        const auto& files = allFilesInPath(nodePath);
+        for (const auto& file : files) {
+            const auto it = BATTERY_CLASSES.find(file.filename().string());
+            if (it != BATTERY_CLASSES.end()) {
+                info.flags |= it->second;
+            }
+        }
+        batteryInfos.insert_or_assign(info.id, info);
+        ALOGD("configureBatteryLocked rawBatteryId %d name %s", info.id, info.name.c_str());
+    }
+    return batteryInfos;
+}
+
+/**
+ *  Read information about lights exposed through the sysfs path.
+ */
+static std::unordered_map<int32_t /*lightId*/, RawLightInfo> readLightsConfiguration(
+        const std::filesystem::path& sysfsRootPath) {
+    std::unordered_map<int32_t, RawLightInfo> lightInfos;
+    int32_t nextLightId = 0;
+    // Check if device has any lights.
+    const auto& paths = findSysfsNodes(sysfsRootPath, SysfsClass::LEDS);
+    for (const auto& nodePath : paths) {
+        RawLightInfo info;
+        info.id = ++nextLightId;
+        info.path = nodePath;
+        info.name = nodePath.filename();
+        info.maxBrightness = std::nullopt;
+        size_t nameStart = info.name.rfind(":");
+        if (nameStart != std::string::npos) {
+            // Trim the name to color name
+            info.name = info.name.substr(nameStart + 1);
+            // Set InputLightClass flag for colors
+            const auto it = LIGHT_CLASSES.find(info.name);
+            if (it != LIGHT_CLASSES.end()) {
+                info.flags |= it->second;
+            }
+        }
+        // Scan the path for all the files
+        // Refer to https://www.kernel.org/doc/Documentation/leds/leds-class.txt
+        const auto& files = allFilesInPath(nodePath);
+        for (const auto& file : files) {
+            const auto it = LIGHT_CLASSES.find(file.filename().string());
+            if (it != LIGHT_CLASSES.end()) {
+                info.flags |= it->second;
+                // If the node has maximum brightness, read it
+                if (it->second == InputLightClass::MAX_BRIGHTNESS) {
+                    std::string str;
+                    if (base::ReadFileToString(file, &str)) {
+                        info.maxBrightness = std::stoi(str);
+                    }
+                }
+            }
+        }
+        lightInfos.insert_or_assign(info.id, info);
+        ALOGD("configureLightsLocked rawLightId %d name %s", info.id, info.name.c_str());
+    }
+    return lightInfos;
+}
+
 // --- Global Functions ---
 
 ftl::Flags<InputDeviceClass> getAbsAxisUsage(int32_t axis,
@@ -357,18 +434,18 @@ ftl::Flags<InputDeviceClass> getAbsAxisUsage(int32_t axis,
 
 // --- EventHub::Device ---
 
-EventHub::Device::Device(int fd, int32_t id, const std::string& path,
-                         const InputDeviceIdentifier& identifier)
+EventHub::Device::Device(int fd, int32_t id, std::string path, InputDeviceIdentifier identifier,
+                         std::shared_ptr<const AssociatedDevice> assocDev)
       : fd(fd),
         id(id),
-        path(path),
-        identifier(identifier),
+        path(std::move(path)),
+        identifier(std::move(identifier)),
         classes(0),
         configuration(nullptr),
         virtualKeyMap(nullptr),
         ffEffectPlaying(false),
         ffEffectId(-1),
-        associatedDevice(nullptr),
+        associatedDevice(std::move(assocDev)),
         controllerNumber(0),
         enabled(true),
         isVirtual(fd < 0) {}
@@ -555,75 +632,6 @@ status_t EventHub::Device::mapLed(int32_t led, int32_t* outScanCode) const {
         }
     }
     return NAME_NOT_FOUND;
-}
-
-// Check the sysfs path for any input device batteries, returns true if battery found.
-bool EventHub::AssociatedDevice::configureBatteryLocked() {
-    nextBatteryId = 0;
-    // Check if device has any battery.
-    const auto& paths = findSysfsNodes(sysfsRootPath, SysfsClass::POWER_SUPPLY);
-    for (const auto& nodePath : paths) {
-        RawBatteryInfo info;
-        info.id = ++nextBatteryId;
-        info.path = nodePath;
-        info.name = nodePath.filename();
-
-        // Scan the path for all the files
-        // Refer to https://www.kernel.org/doc/Documentation/leds/leds-class.txt
-        const auto& files = allFilesInPath(nodePath);
-        for (const auto& file : files) {
-            const auto it = BATTERY_CLASSES.find(file.filename().string());
-            if (it != BATTERY_CLASSES.end()) {
-                info.flags |= it->second;
-            }
-        }
-        batteryInfos.insert_or_assign(info.id, info);
-        ALOGD("configureBatteryLocked rawBatteryId %d name %s", info.id, info.name.c_str());
-    }
-    return !batteryInfos.empty();
-}
-
-// Check the sysfs path for any input device lights, returns true if lights found.
-bool EventHub::AssociatedDevice::configureLightsLocked() {
-    nextLightId = 0;
-    // Check if device has any lights.
-    const auto& paths = findSysfsNodes(sysfsRootPath, SysfsClass::LEDS);
-    for (const auto& nodePath : paths) {
-        RawLightInfo info;
-        info.id = ++nextLightId;
-        info.path = nodePath;
-        info.name = nodePath.filename();
-        info.maxBrightness = std::nullopt;
-        size_t nameStart = info.name.rfind(":");
-        if (nameStart != std::string::npos) {
-            // Trim the name to color name
-            info.name = info.name.substr(nameStart + 1);
-            // Set InputLightClass flag for colors
-            const auto it = LIGHT_CLASSES.find(info.name);
-            if (it != LIGHT_CLASSES.end()) {
-                info.flags |= it->second;
-            }
-        }
-        // Scan the path for all the files
-        // Refer to https://www.kernel.org/doc/Documentation/leds/leds-class.txt
-        const auto& files = allFilesInPath(nodePath);
-        for (const auto& file : files) {
-            const auto it = LIGHT_CLASSES.find(file.filename().string());
-            if (it != LIGHT_CLASSES.end()) {
-                info.flags |= it->second;
-                // If the node has maximum brightness, read it
-                if (it->second == InputLightClass::MAX_BRIGHTNESS) {
-                    std::string str;
-                    if (base::ReadFileToString(file, &str)) {
-                        info.maxBrightness = std::stoi(str);
-                    }
-                }
-            }
-        }
-        lightInfos.insert_or_assign(info.id, info);
-        ALOGD("configureLightsLocked rawLightId %d name %s", info.id, info.name.c_str());
-    }
-    return !lightInfos.empty();
 }
 
 /**
@@ -1358,6 +1366,27 @@ void EventHub::assignDescriptorLocked(InputDeviceIdentifier& identifier) {
           identifier.descriptor.c_str());
 }
 
+std::shared_ptr<const EventHub::AssociatedDevice> EventHub::obtainAssociatedDeviceLocked(
+        const std::filesystem::path& devicePath) const {
+    const std::optional<std::filesystem::path> sysfsRootPathOpt =
+            getSysfsRootPath(devicePath.c_str());
+    if (!sysfsRootPathOpt) {
+        return nullptr;
+    }
+
+    const auto& path = *sysfsRootPathOpt;
+    for (const auto& [id, dev] : mDevices) {
+        if (dev->associatedDevice && dev->associatedDevice->sysfsRootPath == path) {
+            return dev->associatedDevice;
+        }
+    }
+
+    return std::make_shared<AssociatedDevice>(
+            AssociatedDevice{.sysfsRootPath = path,
+                             .batteryInfos = readBatteryConfiguration(path),
+                             .lightInfos = readLightsConfiguration(path)});
+}
+
 void EventHub::vibrate(int32_t deviceId, const VibrationElement& element) {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
@@ -2024,7 +2053,9 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
 
     // Allocate device.  (The device object takes ownership of the fd at this point.)
     int32_t deviceId = mNextDeviceId++;
-    std::unique_ptr<Device> device = std::make_unique<Device>(fd, deviceId, devicePath, identifier);
+    std::unique_ptr<Device> device =
+            std::make_unique<Device>(fd, deviceId, devicePath, identifier,
+                                     obtainAssociatedDeviceLocked(devicePath));
 
     ALOGV("add device %d: %s\n", deviceId, devicePath.c_str());
     ALOGV("  bus:        %04x\n"
@@ -2041,24 +2072,6 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
 
     // Load the configuration file for the device.
     device->loadConfigurationLocked();
-
-    // Check the sysfs root path
-    const std::optional<std::filesystem::path> sysfsRootPath = getSysfsRootPath(devicePath.c_str());
-    if (sysfsRootPath.has_value()) {
-        std::shared_ptr<AssociatedDevice> associatedDevice;
-        for (const auto& [id, dev] : mDevices) {
-            if (dev->associatedDevice && dev->associatedDevice->sysfsRootPath == *sysfsRootPath) {
-                associatedDevice = dev->associatedDevice;
-            }
-        }
-        if (!associatedDevice) {
-            associatedDevice = std::make_shared<AssociatedDevice>(sysfsRootPath.value());
-            associatedDevice->configureBatteryLocked();
-            associatedDevice->configureLightsLocked();
-        }
-
-        device->associatedDevice = associatedDevice;
-    }
 
     // Figure out the kinds of events the device reports.
     device->readDeviceBitMask(EVIOCGBIT(EV_KEY, 0), device->keyBitmask);
@@ -2337,7 +2350,7 @@ void EventHub::createVirtualKeyboardLocked() {
 
     std::unique_ptr<Device> device =
             std::make_unique<Device>(-1, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, "<virtual>",
-                                     identifier);
+                                     identifier, nullptr /*associatedDevice*/);
     device->classes = InputDeviceClass::KEYBOARD | InputDeviceClass::ALPHAKEY |
             InputDeviceClass::DPAD | InputDeviceClass::VIRTUAL;
     device->loadKeyMapLocked();

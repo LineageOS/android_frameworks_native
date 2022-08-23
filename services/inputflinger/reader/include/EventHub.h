@@ -537,18 +537,13 @@ public:
     ~EventHub() override;
 
 private:
+    // Holds information about the sysfs device associated with the Device.
     struct AssociatedDevice {
         // The sysfs root path of the misc device.
         std::filesystem::path sysfsRootPath;
 
-        int32_t nextBatteryId;
-        int32_t nextLightId;
-        std::unordered_map<int32_t, RawBatteryInfo> batteryInfos;
-        std::unordered_map<int32_t, RawLightInfo> lightInfos;
-        explicit AssociatedDevice(std::filesystem::path sysfsRootPath)
-              : sysfsRootPath(sysfsRootPath), nextBatteryId(0), nextLightId(0) {}
-        bool configureBatteryLocked();
-        bool configureLightsLocked();
+        std::unordered_map<int32_t /*batteryId*/, RawBatteryInfo> batteryInfos;
+        std::unordered_map<int32_t /*lightId*/, RawLightInfo> lightInfos;
     };
 
     struct Device {
@@ -582,12 +577,12 @@ private:
 
         // A shared_ptr of a device associated with the input device.
         // The input devices that have the same sysfs path have the same associated device.
-        std::shared_ptr<AssociatedDevice> associatedDevice;
+        const std::shared_ptr<const AssociatedDevice> associatedDevice;
 
         int32_t controllerNumber;
 
-        Device(int fd, int32_t id, const std::string& path,
-               const InputDeviceIdentifier& identifier);
+        Device(int fd, int32_t id, std::string path, InputDeviceIdentifier identifier,
+               std::shared_ptr<const AssociatedDevice> assocDev);
         ~Device();
 
         void close();
@@ -632,6 +627,8 @@ private:
     void createVirtualKeyboardLocked() REQUIRES(mLock);
     void addDeviceLocked(std::unique_ptr<Device> device) REQUIRES(mLock);
     void assignDescriptorLocked(InputDeviceIdentifier& identifier) REQUIRES(mLock);
+    std::shared_ptr<const AssociatedDevice> obtainAssociatedDeviceLocked(
+            const std::filesystem::path& devicePath) const REQUIRES(mLock);
 
     void closeDeviceByPathLocked(const std::string& devicePath) REQUIRES(mLock);
     void closeVideoDeviceByPathLocked(const std::string& devicePath) REQUIRES(mLock);
