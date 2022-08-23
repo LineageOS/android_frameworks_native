@@ -34,6 +34,24 @@
       "parentUuid": "d6de75c9_bf30a342",
       "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "57b583e5_7e5924a9",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T15:18:25Z",
+      "side": 1,
+      "message": "Kind of. That commit was the one that AOSP had when the 14.1 and 15.1 patches were abandoned. The code has been changed since then, because of https://github.com/LineageOS/android_frameworks_native/commit/8af03060a9ee64c48ac8342be8775f7d54f9ec20 -- however that was the patch that fixed the issue. Either way, the 18.1 and 19.0 ports both have the commit I just linked, so the function returns right before this null check.",
+      "parentUuid": "c7d98244_244a35ed",
+      "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
