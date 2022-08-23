@@ -123,6 +123,24 @@
       "parentUuid": "a6c607fd_0970d228",
       "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "1dba3a57_35740d7a",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 14048
+      },
+      "writtenOn": "2022-08-23T17:11:27Z",
+      "side": 1,
+      "message": "What it does is reset the gl error. glGetString for extensions returns null on desktop gl, because glGetStringi is supposed to be used. And so this call sets an error. If that error isn\u0027t cleared via glGetError, that error gets propagated to the calling app, which causes many to fail. So no, not anywhere close to a no-op. This should still be an issue on 19.1, so I think I did that wrong and needs revisiting. Then this commit updated with a squash of the fix.",
+      "parentUuid": "cd9e68a2_f87b8a60",
+      "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
