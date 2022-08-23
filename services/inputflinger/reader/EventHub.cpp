@@ -1042,7 +1042,7 @@ status_t EventHub::mapAxis(int32_t deviceId, int32_t scanCode, AxisInfo* outAxis
 }
 
 base::Result<std::pair<InputDeviceSensorType, int32_t>> EventHub::mapSensor(int32_t deviceId,
-                                                                            int32_t absCode) {
+                                                                            int32_t absCode) const {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
 
@@ -1064,7 +1064,7 @@ const std::unordered_map<int32_t, RawBatteryInfo>& EventHub::getBatteryInfoLocke
     return device->associatedDevice->batteryInfos;
 }
 
-const std::vector<int32_t> EventHub::getRawBatteryIds(int32_t deviceId) {
+std::vector<int32_t> EventHub::getRawBatteryIds(int32_t deviceId) const {
     std::scoped_lock _l(mLock);
     std::vector<int32_t> batteryIds;
 
@@ -1075,7 +1075,8 @@ const std::vector<int32_t> EventHub::getRawBatteryIds(int32_t deviceId) {
     return batteryIds;
 }
 
-std::optional<RawBatteryInfo> EventHub::getRawBatteryInfo(int32_t deviceId, int32_t batteryId) {
+std::optional<RawBatteryInfo> EventHub::getRawBatteryInfo(int32_t deviceId,
+                                                          int32_t batteryId) const {
     std::scoped_lock _l(mLock);
 
     const auto infos = getBatteryInfoLocked(deviceId);
@@ -1100,7 +1101,7 @@ const std::unordered_map<int32_t, RawLightInfo>& EventHub::getLightInfoLocked(
     return device->associatedDevice->lightInfos;
 }
 
-const std::vector<int32_t> EventHub::getRawLightIds(int32_t deviceId) {
+std::vector<int32_t> EventHub::getRawLightIds(int32_t deviceId) const {
     std::scoped_lock _l(mLock);
     std::vector<int32_t> lightIds;
 
@@ -1111,7 +1112,7 @@ const std::vector<int32_t> EventHub::getRawLightIds(int32_t deviceId) {
     return lightIds;
 }
 
-std::optional<RawLightInfo> EventHub::getRawLightInfo(int32_t deviceId, int32_t lightId) {
+std::optional<RawLightInfo> EventHub::getRawLightInfo(int32_t deviceId, int32_t lightId) const {
     std::scoped_lock _l(mLock);
 
     const auto infos = getLightInfoLocked(deviceId);
@@ -1124,7 +1125,7 @@ std::optional<RawLightInfo> EventHub::getRawLightInfo(int32_t deviceId, int32_t 
     return std::nullopt;
 }
 
-std::optional<int32_t> EventHub::getLightBrightness(int32_t deviceId, int32_t lightId) {
+std::optional<int32_t> EventHub::getLightBrightness(int32_t deviceId, int32_t lightId) const {
     std::scoped_lock _l(mLock);
 
     const auto infos = getLightInfoLocked(deviceId);
@@ -1141,7 +1142,7 @@ std::optional<int32_t> EventHub::getLightBrightness(int32_t deviceId, int32_t li
 }
 
 std::optional<std::unordered_map<LightColor, int32_t>> EventHub::getLightIntensities(
-        int32_t deviceId, int32_t lightId) {
+        int32_t deviceId, int32_t lightId) const {
     std::scoped_lock _l(mLock);
 
     const auto infos = getLightInfoLocked(deviceId);
@@ -1444,7 +1445,7 @@ void EventHub::cancelVibrate(int32_t deviceId) {
     }
 }
 
-std::vector<int32_t> EventHub::getVibratorIds(int32_t deviceId) {
+std::vector<int32_t> EventHub::getVibratorIds(int32_t deviceId) const {
     std::scoped_lock _l(mLock);
     std::vector<int32_t> vibrators;
     Device* device = getDeviceLocked(deviceId);
@@ -2295,7 +2296,7 @@ bool EventHub::tryAddVideoDeviceLocked(EventHub::Device& device,
     return true;
 }
 
-bool EventHub::isDeviceEnabled(int32_t deviceId) {
+bool EventHub::isDeviceEnabled(int32_t deviceId) const {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device == nullptr) {
@@ -2519,7 +2520,7 @@ void EventHub::requestReopenDevices() {
     mNeedToReopenDevices = true;
 }
 
-void EventHub::dump(std::string& dump) {
+void EventHub::dump(std::string& dump) const {
     dump += "Event Hub State:\n";
 
     { // acquire lock
@@ -2573,9 +2574,9 @@ void EventHub::dump(std::string& dump) {
     } // release lock
 }
 
-void EventHub::monitor() {
+void EventHub::monitor() const {
     // Acquire and release the lock to ensure that the event hub has not deadlocked.
     std::unique_lock<std::mutex> lock(mLock);
 }
 
-}; // namespace android
+} // namespace android

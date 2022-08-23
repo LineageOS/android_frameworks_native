@@ -185,7 +185,8 @@ status_t KeyLayoutMap::mapKey(int32_t scanCode, int32_t usageCode,
 }
 
 // Return pair of sensor type and sensor data index, for the input device abs code
-base::Result<std::pair<InputDeviceSensorType, int32_t>> KeyLayoutMap::mapSensor(int32_t absCode) {
+base::Result<std::pair<InputDeviceSensorType, int32_t>> KeyLayoutMap::mapSensor(
+        int32_t absCode) const {
     auto it = mSensorsByAbsCode.find(absCode);
     if (it == mSensorsByAbsCode.end()) {
         ALOGD_IF(DEBUG_MAPPING, "mapSensor: absCode=%d, ~ Failed.", absCode);
