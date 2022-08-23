@@ -111,16 +111,11 @@ Layer::Layer(const LayerCreationArgs& args)
         sSequence = *args.sequence + 1;
     }
     mDrawingState.flags = layerFlags;
-    mDrawingState.active_legacy.transform.set(0, 0);
     mDrawingState.crop.makeInvalid();
-    mDrawingState.requestedCrop = mDrawingState.crop;
     mDrawingState.z = 0;
     mDrawingState.color.a = 1.0f;
     mDrawingState.layerStack = ui::DEFAULT_LAYER_STACK;
     mDrawingState.sequence = 0;
-    mDrawingState.requested_legacy = mDrawingState.active_legacy;
-    mDrawingState.width = UINT32_MAX;
-    mDrawingState.height = UINT32_MAX;
     mDrawingState.transform.set(0, 0);
     mDrawingState.frameNumber = 0;
     mDrawingState.bufferTransform = 0;
@@ -875,20 +870,6 @@ bool Layer::isTrustedOverlay() const {
     return (p != nullptr) && p->isTrustedOverlay();
 }
 
-bool Layer::setSize(uint32_t w, uint32_t h) {
-    if (mDrawingState.requested_legacy.w == w && mDrawingState.requested_legacy.h == h)
-        return false;
-    mDrawingState.requested_legacy.w = w;
-    mDrawingState.requested_legacy.h = h;
-    mDrawingState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
-
-    // record the new size, from this point on, when the client request
-    // a buffer, it'll get the new size.
-    setDefaultBufferSize(mDrawingState.requested_legacy.w, mDrawingState.requested_legacy.h);
-    return true;
-}
-
 bool Layer::setAlpha(float alpha) {
     if (mDrawingState.color.a == alpha) return false;
     mDrawingState.sequence++;
@@ -978,7 +959,8 @@ bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix) {
 }
 
 bool Layer::setTransparentRegionHint(const Region& transparent) {
-    mDrawingState.requestedTransparentRegion_legacy = transparent;
+    mDrawingState.sequence++;
+    mDrawingState.transparentRegionHint = transparent;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -1007,9 +989,8 @@ bool Layer::setFlags(uint32_t flags, uint32_t mask) {
 }
 
 bool Layer::setCrop(const Rect& crop) {
-    if (mDrawingState.requestedCrop == crop) return false;
+    if (mDrawingState.crop == crop) return false;
     mDrawingState.sequence++;
-    mDrawingState.requestedCrop = crop;
     mDrawingState.crop = crop;
 
     mDrawingState.modified = true;
@@ -1433,7 +1414,6 @@ gui::LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const
     sp<Layer> parent = mDrawingParent.promote();
     info.mParentName = parent ? parent->getName() : "none"s;
     info.mType = getType();
-    info.mTransparentRegion = ds.activeTransparentRegion_legacy;
 
     info.mVisibleRegion = getVisibleRegion(display);
     info.mSurfaceDamageRegion = surfaceDamageRegion;
@@ -1441,8 +1421,6 @@ gui::LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const
     info.mX = ds.transform.tx();
     info.mY = ds.transform.ty();
     info.mZ = ds.z;
-    info.mWidth = ds.width;
-    info.mHeight = ds.height;
     info.mCrop = ds.crop;
     info.mColor = ds.color;
     info.mFlags = ds.flags;
@@ -2141,7 +2119,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
         }
     }
 
-    LayerProtoHelper::writeToProto(state.activeTransparentRegion_legacy,
+    LayerProtoHelper::writeToProto(state.transparentRegionHint,
                                    [&]() { return layerInfo->mutable_transparent_region(); });
 
     layerInfo->set_layer_stack(getLayerStack().id);
@@ -2150,9 +2128,6 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     LayerProtoHelper::writePositionToProto(requestedTransform.tx(), requestedTransform.ty(), [&]() {
         return layerInfo->mutable_requested_position();
     });
-
-    LayerProtoHelper::writeSizeToProto(state.width, state.height,
-                                       [&]() { return layerInfo->mutable_size(); });
 
     LayerProtoHelper::writeToProto(state.crop, [&]() { return layerInfo->mutable_crop(); });
 

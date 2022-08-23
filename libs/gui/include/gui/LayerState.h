@@ -148,7 +148,7 @@ struct layer_state_t {
     enum {
         ePositionChanged = 0x00000001,
         eLayerChanged = 0x00000002,
-        eSizeChanged = 0x00000004,
+        // unused = 0x00000004,
         eAlphaChanged = 0x00000008,
         eMatrixChanged = 0x00000010,
         eTransparentRegionChanged = 0x00000020,
@@ -217,8 +217,6 @@ struct layer_state_t {
     float x;
     float y;
     int32_t z;
-    uint32_t w;
-    uint32_t h;
     ui::LayerStack layerStack = ui::DEFAULT_LAYER_STACK;
     float alpha;
     uint32_t flags;

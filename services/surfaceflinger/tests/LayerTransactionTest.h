@@ -233,7 +233,7 @@ protected:
                                                  Rect(halfW, halfH, bufferWidth, bufferHeight),
                                                  bottomRight);
 
-        Transaction().setBuffer(layer, buffer).setSize(layer, bufferWidth, bufferHeight).apply();
+        Transaction().setBuffer(layer, buffer).apply();
     }
 
     std::unique_ptr<ScreenCapture> screenshot() {

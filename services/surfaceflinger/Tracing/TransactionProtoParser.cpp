@@ -88,10 +88,7 @@ proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer) {
     if (layer.what & layer_state_t::eLayerChanged) {
         proto.set_z(layer.z);
     }
-    if (layer.what & layer_state_t::eSizeChanged) {
-        proto.set_w(layer.w);
-        proto.set_h(layer.h);
-    }
+
     if (layer.what & layer_state_t::eLayerStackChanged) {
         proto.set_layer_stack(layer.layerStack.id);
     }
@@ -375,10 +372,6 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
     }
     if (proto.what() & layer_state_t::eLayerChanged) {
         layer.z = proto.z();
-    }
-    if (proto.what() & layer_state_t::eSizeChanged) {
-        layer.w = proto.w();
-        layer.h = proto.h();
     }
     if (proto.what() & layer_state_t::eLayerStackChanged) {
         layer.layerStack.id = proto.layer_stack();
