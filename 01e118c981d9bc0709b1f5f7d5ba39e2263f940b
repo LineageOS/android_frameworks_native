@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "3c6f0adb_c3f48fa7",
+        "filename": "opengl/libs/EGL/egl_object.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 320,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T20:42:58Z",
+      "side": 0,
+      "message": "if (!exts) {\n#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS\n    gEGLImpl.hooks[version]-\u003egl.glGetError();\n#endif\n    return;\n}",
+      "revId": "01e118c981d9bc0709b1f5f7d5ba39e2263f940b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}

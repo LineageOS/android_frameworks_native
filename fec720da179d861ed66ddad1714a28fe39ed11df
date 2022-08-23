@@ -16,6 +16,23 @@
       "message": "This is messy.",
       "revId": "fec720da179d861ed66ddad1714a28fe39ed11df",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "14b1fb6f_34b8bdf8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T20:42:58Z",
+      "side": 1,
+      "message": "You shouldn\u0027t need to set exts to an empty string for this to work...this would be the cleanest way to do it IMO",
+      "revId": "fec720da179d861ed66ddad1714a28fe39ed11df",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
