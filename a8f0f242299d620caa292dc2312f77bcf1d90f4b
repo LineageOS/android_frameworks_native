@@ -177,6 +177,41 @@
       "parentUuid": "532aa6be_23fd93c1",
       "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a2f9623d_1c7de370",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T18:56:49Z",
+      "side": 1,
+      "message": "ly ",
+      "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "dd342c54_7835587d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T18:56:49Z",
+      "side": 1,
+      "message": "Sure, but logging a gl init failure and something actually being broken are not the same thing. Does Dolphin actually fail to work without the patch in 18.1? If so, can you post the log somewhere to take a look? I\u0027m really curious to see what it\u0027s unhappy about, and why it\u0027s totally fine in 19.1.",
+      "parentUuid": "b2b6337d_cd48bc27",
+      "revId": "a8f0f242299d620caa292dc2312f77bcf1d90f4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
