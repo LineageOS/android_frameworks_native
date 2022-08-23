@@ -50,6 +50,24 @@
       "message": "I believe this would cause an exception if exts is NULL. Setting a std::string to a NULL pointer is invalid.",
       "revId": "fec720da179d861ed66ddad1714a28fe39ed11df",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "5ee95151_983a1197",
+        "filename": "opengl/libs/EGL/egl_object.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 334,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T21:09:40Z",
+      "side": 1,
+      "message": "The function returns if exts is NULL (if you remove the existing patch and put in what I suggested), so it wouldn\u0027t be an issue. But your commit message is confusing me again. Now I\u0027m confused if the actual fix is calling glGetError() or if it\u0027s setting exts\u003d\"\" (which should just be a no-op?).\n\nSomeone suggested to me that if calling glGetString(GL_EXTENSIONS) is not valid in your GL library, then maybe the best thing is to just make the function always just return immediately after setting read and draw and eliminate the overhead of calling glGetString(). Another solution would be to make it use glGetStringi and call the API appropriately, but /shrug",
+      "parentUuid": "5137f13d_13ad4bcb",
+      "revId": "fec720da179d861ed66ddad1714a28fe39ed11df",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
