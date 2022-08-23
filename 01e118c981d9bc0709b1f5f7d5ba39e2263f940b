@@ -3,6 +3,23 @@
     {
       "unresolved": true,
       "key": {
+        "uuid": "511de05f_cbda0bb3",
+        "filename": "opengl/libs/EGL/egl_object.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 318,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T21:34:11Z",
+      "side": 0,
+      "message": "#ifndef NV_ANDROID_FRAMEWORK_ENHANCEMENTS\n    // call the implementation\u0027s glGetString(GL_EXTENSIONS)\n    const char* exts \u003d (const char*)gEGLImpl.hooks[version]-\u003egl.glGetString(GL_EXTENSIONS);\n    if (!exts) return;\n#else\n    // NV\u0027s GL library doesn\u0027t like calling glGetString on GL_EXTENSIONS\n    // and returns NULL and sets an error flag internally. This is understandable\n    // given that it\u0027s technically not a valid API call in OpenGL 3.0 and above.\n    // We still need to have GL_EXT_debug_marker added to gl_extensions though,\n    // so set exts to an empty string to make sure GL_EXT_debug_marker gets added\n    const char* exts \u003d \"\";\n#endif",
+      "revId": "01e118c981d9bc0709b1f5f7d5ba39e2263f940b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
         "uuid": "3c6f0adb_c3f48fa7",
         "filename": "opengl/libs/EGL/egl_object.cpp",
         "patchSetId": 3
@@ -14,6 +31,24 @@
       "writtenOn": "2022-08-23T20:42:58Z",
       "side": 0,
       "message": "if (!exts) {\n#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS\n    gEGLImpl.hooks[version]-\u003egl.glGetError();\n#endif\n    return;\n}",
+      "revId": "01e118c981d9bc0709b1f5f7d5ba39e2263f940b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "556ad7a6_eb45248b",
+        "filename": "opengl/libs/EGL/egl_object.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 320,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-23T21:34:11Z",
+      "side": 0,
+      "message": "Done",
+      "parentUuid": "3c6f0adb_c3f48fa7",
       "revId": "01e118c981d9bc0709b1f5f7d5ba39e2263f940b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
