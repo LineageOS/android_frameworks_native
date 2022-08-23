@@ -78,7 +78,7 @@ public:
     std::optional<AxisInfo> mapAxis(int32_t scanCode) const;
     const std::string getLoadFileName() const;
     // Return pair of sensor type and sensor data index, for the input device abs code
-    base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(int32_t absCode);
+    base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(int32_t absCode) const;
 
     virtual ~KeyLayoutMap();
 
