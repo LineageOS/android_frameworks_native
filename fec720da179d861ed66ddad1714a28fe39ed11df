@@ -33,6 +33,23 @@
       "message": "You shouldn\u0027t need to set exts to an empty string for this to work...this would be the cleanest way to do it IMO",
       "revId": "fec720da179d861ed66ddad1714a28fe39ed11df",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "5137f13d_13ad4bcb",
+        "filename": "opengl/libs/EGL/egl_object.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 334,
+      "author": {
+        "id": 14048
+      },
+      "writtenOn": "2022-08-23T20:51:03Z",
+      "side": 1,
+      "message": "I believe this would cause an exception if exts is NULL. Setting a std::string to a NULL pointer is invalid.",
+      "revId": "fec720da179d861ed66ddad1714a28fe39ed11df",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
