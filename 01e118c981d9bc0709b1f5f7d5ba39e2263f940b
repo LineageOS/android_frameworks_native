@@ -20,6 +20,24 @@
     {
       "unresolved": true,
       "key": {
+        "uuid": "df1b847b_1277af07",
+        "filename": "opengl/libs/EGL/egl_object.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 318,
+      "author": {
+        "id": 14048
+      },
+      "writtenOn": "2022-08-23T21:40:13Z",
+      "side": 0,
+      "message": "This won\u0027t work for gles. The existing aosp flow works fine for gles on tegra. Changes are only necessary for a desktop gl context.",
+      "parentUuid": "511de05f_cbda0bb3",
+      "revId": "01e118c981d9bc0709b1f5f7d5ba39e2263f940b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
         "uuid": "3c6f0adb_c3f48fa7",
         "filename": "opengl/libs/EGL/egl_object.cpp",
         "patchSetId": 3
