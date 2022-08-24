@@ -17,6 +17,7 @@
 #include <ftl/optional.h>
 #include <ftl/static_vector.h>
 #include <ftl/string.h>
+#include <ftl/unit.h>
 #include <gtest/gtest.h>
 
 #include <functional>
@@ -60,6 +61,13 @@ TEST(Optional, Transform) {
     }));
 
     EXPECT_EQ(out, "abc"s);
+  }
+
+  // No return value.
+  {
+    Optional opt = "food"s;
+    EXPECT_EQ(ftl::unit, opt.transform(ftl::unit_fn([](std::string& str) { str.pop_back(); })));
+    EXPECT_EQ(opt, "foo"s);
   }
 
   // Chaining.

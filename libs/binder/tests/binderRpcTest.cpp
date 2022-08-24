@@ -264,8 +264,12 @@ public:
     RpcSecurity rpcSecurity() const { return std::get<1>(GetParam()); }
     uint32_t clientVersion() const { return std::get<2>(GetParam()); }
     uint32_t serverVersion() const { return std::get<3>(GetParam()); }
-    bool singleThreaded() const { return std::get<4>(GetParam()); }
+    bool serverSingleThreaded() const { return std::get<4>(GetParam()); }
     bool noKernel() const { return std::get<5>(GetParam()); }
+
+    bool clientOrServerSingleThreaded() const {
+        return !kEnableRpcThreads || serverSingleThreaded();
+    }
 
     // Whether the test params support sending FDs in parcels.
     bool supportsFdTransport() const {
@@ -404,18 +408,6 @@ public:
                                      size_t sleepMs = 500);
 };
 
-// Test fixture for tests that start multiple threads.
-// This includes tests with one thread but multiple sessions,
-// since a server uses one thread per session.
-class BinderRpcThreads : public BinderRpc {
-public:
-    void SetUp() override {
-        if constexpr (!kEnableRpcThreads) {
-            GTEST_SKIP() << "Test skipped because threads were disabled at build time";
-        }
-    }
-};
-
 TEST_P(BinderRpc, Ping) {
     auto proc = createRpcTestSocketServerProcess({});
     ASSERT_NE(proc.rootBinder, nullptr);
@@ -428,7 +420,13 @@ TEST_P(BinderRpc, GetInterfaceDescriptor) {
     EXPECT_EQ(IBinderRpcTest::descriptor, proc.rootBinder->getInterfaceDescriptor());
 }
 
-TEST_P(BinderRpcThreads, MultipleSessions) {
+TEST_P(BinderRpc, MultipleSessions) {
+    if (serverSingleThreaded()) {
+        // Tests with multiple sessions require a multi-threaded service,
+        // but work fine on a single-threaded client
+        GTEST_SKIP() << "This test requires a multi-threaded service";
+    }
+
     auto proc = createRpcTestSocketServerProcess({.numThreads = 1, .numSessions = 5});
     for (auto session : proc.proc.sessions) {
         ASSERT_NE(nullptr, session.root);
@@ -436,7 +434,11 @@ TEST_P(BinderRpcThreads, MultipleSessions) {
     }
 }
 
-TEST_P(BinderRpcThreads, SeparateRootObject) {
+TEST_P(BinderRpc, SeparateRootObject) {
+    if (serverSingleThreaded()) {
+        GTEST_SKIP() << "This test requires a multi-threaded service";
+    }
+
     SocketType type = std::get<0>(GetParam());
     if (type == SocketType::PRECONNECTED || type == SocketType::UNIX) {
         // we can't get port numbers for unix sockets
@@ -619,7 +621,11 @@ TEST_P(BinderRpc, CannotMixBindersBetweenUnrelatedSocketSessions) {
               proc1.rootIface->repeatBinder(proc2.rootBinder, &outBinder).transactionError());
 }
 
-TEST_P(BinderRpcThreads, CannotMixBindersBetweenTwoSessionsToTheSameServer) {
+TEST_P(BinderRpc, CannotMixBindersBetweenTwoSessionsToTheSameServer) {
+    if (serverSingleThreaded()) {
+        GTEST_SKIP() << "This test requires a multi-threaded service";
+    }
+
     auto proc = createRpcTestSocketServerProcess({.numThreads = 1, .numSessions = 2});
 
     sp<IBinder> outBinder;
@@ -775,7 +781,11 @@ size_t epochMillis() {
     return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 }
 
-TEST_P(BinderRpcThreads, ThreadPoolGreaterThanEqualRequested) {
+TEST_P(BinderRpc, ThreadPoolGreaterThanEqualRequested) {
+    if (clientOrServerSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
     constexpr size_t kNumThreads = 10;
 
     auto proc = createRpcTestSocketServerProcess({.numThreads = kNumThreads});
@@ -826,14 +836,22 @@ void BinderRpc::testThreadPoolOverSaturated(sp<IBinderRpcTest> iface, size_t num
     EXPECT_LE(epochMsAfter, epochMsBefore + 3 * sleepMs);
 }
 
-TEST_P(BinderRpcThreads, ThreadPoolOverSaturated) {
+TEST_P(BinderRpc, ThreadPoolOverSaturated) {
+    if (clientOrServerSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
     constexpr size_t kNumThreads = 10;
     constexpr size_t kNumCalls = kNumThreads + 3;
     auto proc = createRpcTestSocketServerProcess({.numThreads = kNumThreads});
     testThreadPoolOverSaturated(proc.rootIface, kNumCalls);
 }
 
-TEST_P(BinderRpcThreads, ThreadPoolLimitOutgoing) {
+TEST_P(BinderRpc, ThreadPoolLimitOutgoing) {
+    if (clientOrServerSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
     constexpr size_t kNumThreads = 20;
     constexpr size_t kNumOutgoingConnections = 10;
     constexpr size_t kNumCalls = kNumOutgoingConnections + 3;
@@ -842,7 +860,11 @@ TEST_P(BinderRpcThreads, ThreadPoolLimitOutgoing) {
     testThreadPoolOverSaturated(proc.rootIface, kNumCalls);
 }
 
-TEST_P(BinderRpcThreads, ThreadingStressTest) {
+TEST_P(BinderRpc, ThreadingStressTest) {
+    if (clientOrServerSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
     constexpr size_t kNumClientThreads = 10;
     constexpr size_t kNumServerThreads = 10;
     constexpr size_t kNumCalls = 100;
@@ -871,7 +893,11 @@ static void saturateThreadPool(size_t threadCount, const sp<IBinderRpcTest>& ifa
     for (auto& t : threads) t.join();
 }
 
-TEST_P(BinderRpcThreads, OnewayStressTest) {
+TEST_P(BinderRpc, OnewayStressTest) {
+    if (clientOrServerSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
     constexpr size_t kNumClientThreads = 10;
     constexpr size_t kNumServerThreads = 10;
     constexpr size_t kNumCalls = 1000;
@@ -906,7 +932,11 @@ TEST_P(BinderRpc, OnewayCallDoesNotWait) {
     EXPECT_LT(epochMsAfter, epochMsBefore + kReallyLongTimeMs);
 }
 
-TEST_P(BinderRpcThreads, OnewayCallQueueing) {
+TEST_P(BinderRpc, OnewayCallQueueing) {
+    if (clientOrServerSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
     constexpr size_t kNumSleeps = 10;
     constexpr size_t kNumExtraServerThreads = 4;
     constexpr size_t kSleepMs = 50;
@@ -935,7 +965,11 @@ TEST_P(BinderRpcThreads, OnewayCallQueueing) {
     saturateThreadPool(1 + kNumExtraServerThreads, proc.rootIface);
 }
 
-TEST_P(BinderRpcThreads, OnewayCallExhaustion) {
+TEST_P(BinderRpc, OnewayCallExhaustion) {
+    if (clientOrServerSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
     constexpr size_t kNumClients = 2;
     constexpr size_t kTooLongMs = 1000;
 
@@ -978,17 +1012,16 @@ TEST_P(BinderRpcThreads, OnewayCallExhaustion) {
 TEST_P(BinderRpc, Callbacks) {
     const static std::string kTestString = "good afternoon!";
 
-    bool bothSingleThreaded = !kEnableRpcThreads || singleThreaded();
-
     for (bool callIsOneway : {true, false}) {
         for (bool callbackIsOneway : {true, false}) {
             for (bool delayed : {true, false}) {
-                if (bothSingleThreaded && (callIsOneway || callbackIsOneway || delayed)) {
+                if (clientOrServerSingleThreaded() &&
+                    (callIsOneway || callbackIsOneway || delayed)) {
                     // we have no incoming connections to receive the callback
                     continue;
                 }
 
-                size_t numIncomingConnections = bothSingleThreaded ? 0 : 1;
+                size_t numIncomingConnections = clientOrServerSingleThreaded() ? 0 : 1;
                 auto proc = createRpcTestSocketServerProcess(
                         {.numThreads = 1,
                          .numSessions = 1,
@@ -1036,7 +1069,7 @@ TEST_P(BinderRpc, Callbacks) {
 }
 
 TEST_P(BinderRpc, SingleDeathRecipient) {
-    if (singleThreaded() || !kEnableRpcThreads) {
+    if (clientOrServerSingleThreaded()) {
         GTEST_SKIP() << "This test requires multiple threads";
     }
     class MyDeathRec : public IBinder::DeathRecipient {
@@ -1062,10 +1095,7 @@ TEST_P(BinderRpc, SingleDeathRecipient) {
     }
 
     std::unique_lock<std::mutex> lock(dr->mMtx);
-    if (!dr->dead) {
-        EXPECT_EQ(std::cv_status::no_timeout, dr->mCv.wait_for(lock, 1000ms));
-    }
-    EXPECT_TRUE(dr->dead) << "Failed to receive the death notification.";
+    ASSERT_TRUE(dr->mCv.wait_for(lock, 1000ms, [&]() { return dr->dead; }));
 
     // need to wait for the session to shutdown so we don't "Leak session"
     EXPECT_TRUE(proc.proc.sessions.at(0).session->shutdownAndWait(true));
@@ -1073,7 +1103,7 @@ TEST_P(BinderRpc, SingleDeathRecipient) {
 }
 
 TEST_P(BinderRpc, SingleDeathRecipientOnShutdown) {
-    if (singleThreaded() || !kEnableRpcThreads) {
+    if (clientOrServerSingleThreaded()) {
         GTEST_SKIP() << "This test requires multiple threads";
     }
     class MyDeathRec : public IBinder::DeathRecipient {
@@ -1127,7 +1157,7 @@ TEST_P(BinderRpc, DeathRecipientFatalWithoutIncoming) {
 }
 
 TEST_P(BinderRpc, UnlinkDeathRecipient) {
-    if (singleThreaded() || !kEnableRpcThreads) {
+    if (clientOrServerSingleThreaded()) {
         GTEST_SKIP() << "This test requires multiple threads";
     }
     class MyDeathRec : public IBinder::DeathRecipient {
@@ -1193,7 +1223,7 @@ TEST_P(BinderRpc, UseKernelBinderCallingId) {
     // libbinder.so (when using static libraries, even a client and service
     // using the same kind of static library should have separate copies of the
     // variables).
-    if (!kEnableSharedLibs || singleThreaded() || noKernel()) {
+    if (!kEnableSharedLibs || serverSingleThreaded() || noKernel()) {
         GTEST_SKIP() << "Test disabled because Binder kernel driver was disabled "
                         "at build time.";
     }
@@ -1393,7 +1423,11 @@ ssize_t countFds() {
     return ret;
 }
 
-TEST_P(BinderRpcThreads, Fds) {
+TEST_P(BinderRpc, Fds) {
+    if (serverSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
     ssize_t beforeFds = countFds();
     ASSERT_GE(beforeFds, 0);
     {
@@ -1531,15 +1565,6 @@ INSTANTIATE_TEST_CASE_P(PerSocket, BinderRpc,
                                            ::testing::ValuesIn(testVersions()),
                                            ::testing::ValuesIn(testVersions()),
                                            ::testing::Values(false, true),
-                                           ::testing::Values(false, true)),
-                        BinderRpc::PrintParamInfo);
-
-INSTANTIATE_TEST_CASE_P(PerSocket, BinderRpcThreads,
-                        ::testing::Combine(::testing::ValuesIn(testSocketTypes()),
-                                           ::testing::ValuesIn(RpcSecurityValues()),
-                                           ::testing::ValuesIn(testVersions()),
-                                           ::testing::ValuesIn(testVersions()),
-                                           ::testing::Values(false),
                                            ::testing::Values(false, true)),
                         BinderRpc::PrintParamInfo);
 
