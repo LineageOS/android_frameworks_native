@@ -104,8 +104,17 @@ int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const u
             return;
         }
 
-        /* Save the session for easy access */
-        *ctx_p = session.get();
+        /* Save the session and connection for the other callbacks */
+        auto* channelContext = new (std::nothrow) ChannelContext;
+        if (channelContext == nullptr) {
+            rc = ERR_NO_MEMORY;
+            return;
+        }
+
+        channelContext->session = std::move(session);
+        channelContext->connection = std::move(result.connection);
+
+        *ctx_p = channelContext;
     };
 
     base::unique_fd clientFd(chan);
@@ -119,9 +128,14 @@ int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const u
 }
 
 int RpcServerTrusty::handleMessage(const tipc_port* port, handle_t chan, void* ctx) {
-    auto* session = reinterpret_cast<RpcSession*>(ctx);
-    status_t status = session->state()->drainCommands(session->mConnections.mIncoming[0], session,
-                                                      RpcState::CommandType::ANY);
+    auto* channelContext = reinterpret_cast<ChannelContext*>(ctx);
+    LOG_ALWAYS_FATAL_IF(channelContext == nullptr,
+                        "bad state: message received on uninitialized channel");
+
+    auto& session = channelContext->session;
+    auto& connection = channelContext->connection;
+    status_t status =
+            session->state()->drainCommands(connection, session, RpcState::CommandType::ANY);
     if (status != OK) {
         LOG_RPC_DETAIL("Binder connection thread closing w/ status %s",
                        statusToString(status).c_str());
@@ -133,10 +147,17 @@ int RpcServerTrusty::handleMessage(const tipc_port* port, handle_t chan, void* c
 void RpcServerTrusty::handleDisconnect(const tipc_port* port, handle_t chan, void* ctx) {}
 
 void RpcServerTrusty::handleChannelCleanup(void* ctx) {
-    auto* session = reinterpret_cast<RpcSession*>(ctx);
-    auto& connection = session->mConnections.mIncoming.at(0);
+    auto* channelContext = reinterpret_cast<ChannelContext*>(ctx);
+    if (channelContext == nullptr) {
+        return;
+    }
+
+    auto& session = channelContext->session;
+    auto& connection = channelContext->connection;
     LOG_ALWAYS_FATAL_IF(!session->removeIncomingConnection(connection),
                         "bad state: connection object guaranteed to be in list");
+
+    delete channelContext;
 }
 
 } // namespace android
