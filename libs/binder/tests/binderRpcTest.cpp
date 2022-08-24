@@ -54,27 +54,6 @@ TEST(BinderRpcParcel, EntireParcelFormatted) {
     EXPECT_DEATH(p.markForBinder(sp<BBinder>::make()), "format must be set before data is written");
 }
 
-class BinderRpcServerOnly : public ::testing::TestWithParam<std::tuple<RpcSecurity, uint32_t>> {
-public:
-    static std::string PrintTestParam(const ::testing::TestParamInfo<ParamType>& info) {
-        return std::string(newFactory(std::get<0>(info.param))->toCString()) + "_serverV" +
-                std::to_string(std::get<1>(info.param));
-    }
-};
-
-TEST_P(BinderRpcServerOnly, SetExternalServerTest) {
-    base::unique_fd sink(TEMP_FAILURE_RETRY(open("/dev/null", O_RDWR)));
-    int sinkFd = sink.get();
-    auto server = RpcServer::make(newFactory(std::get<0>(GetParam())));
-    server->setProtocolVersion(std::get<1>(GetParam()));
-    ASSERT_FALSE(server->hasServer());
-    ASSERT_EQ(OK, server->setupExternalServer(std::move(sink)));
-    ASSERT_TRUE(server->hasServer());
-    base::unique_fd retrieved = server->releaseServer();
-    ASSERT_FALSE(server->hasServer());
-    ASSERT_EQ(sinkFd, retrieved.get());
-}
-
 TEST(BinderRpc, CannotUseNextWireVersion) {
     auto session = RpcSession::make();
     EXPECT_FALSE(session->setProtocolVersion(RPC_WIRE_PROTOCOL_VERSION_NEXT));
@@ -1619,36 +1598,6 @@ private:
     bool mValue = false;
 };
 
-TEST_P(BinderRpcServerOnly, Shutdown) {
-    if constexpr (!kEnableRpcThreads) {
-        GTEST_SKIP() << "Test skipped because threads were disabled at build time";
-    }
-
-    auto addr = allocateSocketAddress();
-    auto server = RpcServer::make(newFactory(std::get<0>(GetParam())));
-    server->setProtocolVersion(std::get<1>(GetParam()));
-    ASSERT_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
-    auto joinEnds = std::make_shared<OneOffSignal>();
-
-    // If things are broken and the thread never stops, don't block other tests. Because the thread
-    // may run after the test finishes, it must not access the stack memory of the test. Hence,
-    // shared pointers are passed.
-    std::thread([server, joinEnds] {
-        server->join();
-        joinEnds->notify();
-    }).detach();
-
-    bool shutdown = false;
-    for (int i = 0; i < 10 && !shutdown; i++) {
-        usleep(300 * 1000); // 300ms; total 3s
-        if (server->shutdown()) shutdown = true;
-    }
-    ASSERT_TRUE(shutdown) << "server->shutdown() never returns true";
-
-    ASSERT_TRUE(joinEnds->wait(2s))
-            << "After server->shutdown() returns true, join() did not stop after 2s";
-}
-
 TEST(BinderRpc, Java) {
 #if !defined(__ANDROID__)
     GTEST_SKIP() << "This test is only run on Android. Though it can technically run on host on"
@@ -1699,6 +1648,57 @@ TEST(BinderRpc, Java) {
     ASSERT_EQ(descriptor, rpcBinder->getInterfaceDescriptor())
             << "getInterfaceDescriptor should not crash system_server";
     ASSERT_EQ(OK, rpcBinder->pingBinder());
+}
+
+class BinderRpcServerOnly : public ::testing::TestWithParam<std::tuple<RpcSecurity, uint32_t>> {
+public:
+    static std::string PrintTestParam(const ::testing::TestParamInfo<ParamType>& info) {
+        return std::string(newFactory(std::get<0>(info.param))->toCString()) + "_serverV" +
+                std::to_string(std::get<1>(info.param));
+    }
+};
+
+TEST_P(BinderRpcServerOnly, SetExternalServerTest) {
+    base::unique_fd sink(TEMP_FAILURE_RETRY(open("/dev/null", O_RDWR)));
+    int sinkFd = sink.get();
+    auto server = RpcServer::make(newFactory(std::get<0>(GetParam())));
+    server->setProtocolVersion(std::get<1>(GetParam()));
+    ASSERT_FALSE(server->hasServer());
+    ASSERT_EQ(OK, server->setupExternalServer(std::move(sink)));
+    ASSERT_TRUE(server->hasServer());
+    base::unique_fd retrieved = server->releaseServer();
+    ASSERT_FALSE(server->hasServer());
+    ASSERT_EQ(sinkFd, retrieved.get());
+}
+
+TEST_P(BinderRpcServerOnly, Shutdown) {
+    if constexpr (!kEnableRpcThreads) {
+        GTEST_SKIP() << "Test skipped because threads were disabled at build time";
+    }
+
+    auto addr = allocateSocketAddress();
+    auto server = RpcServer::make(newFactory(std::get<0>(GetParam())));
+    server->setProtocolVersion(std::get<1>(GetParam()));
+    ASSERT_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
+    auto joinEnds = std::make_shared<OneOffSignal>();
+
+    // If things are broken and the thread never stops, don't block other tests. Because the thread
+    // may run after the test finishes, it must not access the stack memory of the test. Hence,
+    // shared pointers are passed.
+    std::thread([server, joinEnds] {
+        server->join();
+        joinEnds->notify();
+    }).detach();
+
+    bool shutdown = false;
+    for (int i = 0; i < 10 && !shutdown; i++) {
+        usleep(300 * 1000); // 300ms; total 3s
+        if (server->shutdown()) shutdown = true;
+    }
+    ASSERT_TRUE(shutdown) << "server->shutdown() never returns true";
+
+    ASSERT_TRUE(joinEnds->wait(2s))
+            << "After server->shutdown() returns true, join() did not stop after 2s";
 }
 
 INSTANTIATE_TEST_CASE_P(BinderRpc, BinderRpcServerOnly,
