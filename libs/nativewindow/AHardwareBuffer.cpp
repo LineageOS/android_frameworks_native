@@ -16,6 +16,8 @@
 
 #define LOG_TAG "AHardwareBuffer"
 
+#include <android/hardware_buffer.h>
+#include <android/hardware_buffer_aidl.h>
 #include <vndk/hardware_buffer.h>
 
 #include <errno.h>
@@ -31,6 +33,9 @@
 #include <private/android/AHardwareBufferHelpers.h>
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <aidl/android/hardware/graphics/common/PixelFormat.h>
+
+// TODO: Better way to handle this
+#include "../binder/ndk/parcel_internal.h"
 
 static constexpr int kFdBufferSize = 128 * sizeof(int);  // 128 ints
 
@@ -410,6 +415,25 @@ int AHardwareBuffer_getId(const AHardwareBuffer* buffer, uint64_t* outId) {
     *outId = gb->getId();
 
     return OK;
+}
+
+binder_status_t AHardwareBuffer_readFromParcel(const AParcel* _Nonnull parcel,
+        AHardwareBuffer* _Nullable* _Nonnull outBuffer) {
+    if (!parcel || !outBuffer) return STATUS_BAD_VALUE;
+    auto buffer = sp<GraphicBuffer>::make();
+    status_t status = parcel->get()->read(*buffer);
+    if (status != STATUS_OK) return status;
+    *outBuffer = AHardwareBuffer_from_GraphicBuffer(buffer.get());
+    AHardwareBuffer_acquire(*outBuffer);
+    return STATUS_OK;
+}
+
+binder_status_t AHardwareBuffer_writeToParcel(const AHardwareBuffer* _Nonnull buffer,
+        AParcel* _Nonnull parcel) {
+    const GraphicBuffer* gb = AHardwareBuffer_to_GraphicBuffer(buffer);
+    if (!gb) return STATUS_BAD_VALUE;
+    if (!parcel) return STATUS_BAD_VALUE;
+    return parcel->get()->write(*gb);
 }
 
 // ----------------------------------------------------------------------------

@@ -96,6 +96,8 @@ cc_library {
         "liblog",
         "libutils",
         "libui",
+        "libbinder",
+        "libbinder_ndk",
         "android.hardware.graphics.common@1.1",
     ],
 
