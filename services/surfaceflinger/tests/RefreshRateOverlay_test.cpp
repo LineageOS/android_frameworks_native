@@ -80,14 +80,6 @@ void toggleOverlay(bool enabled) {
 
 } // namespace
 
-TEST(RefreshRateOverlayTest, enableOverlay) {
-    toggleOverlay(true);
-}
-
-TEST(RefreshRateOverlayTest, disableOverlay) {
-    toggleOverlay(false);
-}
-
 TEST(RefreshRateOverlayTest, enableAndDisableOverlay) {
     toggleOverlay(true);
     toggleOverlay(false);
