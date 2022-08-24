@@ -2847,22 +2847,10 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             }
         }
 
-        float deltaX = 0, deltaY = 0;
         if (activeTouchId >= 0 && mLastCookedState.fingerIdBits.hasBit(activeTouchId)) {
-            const RawPointerData::Pointer& currentPointer =
-                    mCurrentRawState.rawPointerData.pointerForId(activeTouchId);
-            const RawPointerData::Pointer& lastPointer =
-                    mLastRawState.rawPointerData.pointerForId(activeTouchId);
-            deltaX = (currentPointer.x - lastPointer.x) * mPointerXMovementScale;
-            deltaY = (currentPointer.y - lastPointer.y) * mPointerYMovementScale;
-
-            rotateDelta(mInputDeviceOrientation, &deltaX, &deltaY);
-            mPointerVelocityControl.move(when, &deltaX, &deltaY);
-
-            // Move the pointer using a relative motion.
             // When using spots, the click will occur at the position of the anchor
             // spot and all other spots will move there.
-            mPointerController->move(deltaX, deltaY);
+            moveMousePointerFromPointerDelta(when, activeTouchId);
         } else {
             mPointerVelocityControl.reset();
         }
@@ -2974,21 +2962,9 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             mPointerGesture.currentGestureMode = PointerGesture::Mode::TAP_DRAG;
         }
 
-        float deltaX = 0, deltaY = 0;
         if (mLastCookedState.fingerIdBits.hasBit(activeTouchId)) {
-            const RawPointerData::Pointer& currentPointer =
-                    mCurrentRawState.rawPointerData.pointerForId(activeTouchId);
-            const RawPointerData::Pointer& lastPointer =
-                    mLastRawState.rawPointerData.pointerForId(activeTouchId);
-            deltaX = (currentPointer.x - lastPointer.x) * mPointerXMovementScale;
-            deltaY = (currentPointer.y - lastPointer.y) * mPointerYMovementScale;
-
-            rotateDelta(mInputDeviceOrientation, &deltaX, &deltaY);
-            mPointerVelocityControl.move(when, &deltaX, &deltaY);
-
-            // Move the pointer using a relative motion.
             // When using spots, the hover or drag will occur at the position of the anchor spot.
-            mPointerController->move(deltaX, deltaY);
+            moveMousePointerFromPointerDelta(when, activeTouchId);
         } else {
             mPointerVelocityControl.reset();
         }
@@ -3395,6 +3371,20 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
     return true;
 }
 
+void TouchInputMapper::moveMousePointerFromPointerDelta(nsecs_t when, uint32_t pointerId) {
+    const RawPointerData::Pointer& currentPointer =
+            mCurrentRawState.rawPointerData.pointerForId(pointerId);
+    const RawPointerData::Pointer& lastPointer =
+            mLastRawState.rawPointerData.pointerForId(pointerId);
+    float deltaX = (currentPointer.x - lastPointer.x) * mPointerXMovementScale;
+    float deltaY = (currentPointer.y - lastPointer.y) * mPointerYMovementScale;
+
+    rotateDelta(mInputDeviceOrientation, &deltaX, &deltaY);
+    mPointerVelocityControl.move(when, &deltaX, &deltaY);
+
+    mPointerController->move(deltaX, deltaY);
+}
+
 void TouchInputMapper::dispatchPointerStylus(nsecs_t when, nsecs_t readTime, uint32_t policyFlags) {
     mPointerSimple.currentCoords.clear();
     mPointerSimple.currentProperties.clear();
@@ -3438,21 +3428,8 @@ void TouchInputMapper::dispatchPointerMouse(nsecs_t when, nsecs_t readTime, uint
     bool down, hovering;
     if (!mCurrentCookedState.mouseIdBits.isEmpty()) {
         uint32_t id = mCurrentCookedState.mouseIdBits.firstMarkedBit();
-        uint32_t currentIndex = mCurrentRawState.rawPointerData.idToIndex[id];
-        float deltaX = 0, deltaY = 0;
         if (mLastCookedState.mouseIdBits.hasBit(id)) {
-            uint32_t lastIndex = mLastRawState.rawPointerData.idToIndex[id];
-            deltaX = (mCurrentRawState.rawPointerData.pointers[currentIndex].x -
-                      mLastRawState.rawPointerData.pointers[lastIndex].x) *
-                    mPointerXMovementScale;
-            deltaY = (mCurrentRawState.rawPointerData.pointers[currentIndex].y -
-                      mLastRawState.rawPointerData.pointers[lastIndex].y) *
-                    mPointerYMovementScale;
-
-            rotateDelta(mInputDeviceOrientation, &deltaX, &deltaY);
-            mPointerVelocityControl.move(when, &deltaX, &deltaY);
-
-            mPointerController->move(deltaX, deltaY);
+            moveMousePointerFromPointerDelta(when, id);
         } else {
             mPointerVelocityControl.reset();
         }
@@ -3462,6 +3439,7 @@ void TouchInputMapper::dispatchPointerMouse(nsecs_t when, nsecs_t readTime, uint
 
         float x, y;
         mPointerController->getPosition(&x, &y);
+        uint32_t currentIndex = mCurrentRawState.rawPointerData.idToIndex[id];
         mPointerSimple.currentCoords.copyFrom(
                 mCurrentCookedState.cookedPointerData.pointerCoords[currentIndex]);
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
