@@ -22,6 +22,7 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/Tokenizer.h>
+#include <set>
 
 #include <input/InputDevice.h>
 
@@ -64,7 +65,8 @@ struct AxisInfo {
  */
 class KeyLayoutMap {
 public:
-    static base::Result<std::shared_ptr<KeyLayoutMap>> load(const std::string& filename);
+    static base::Result<std::shared_ptr<KeyLayoutMap>> load(const std::string& filename,
+                                                            const char* contents = nullptr);
     static base::Result<std::shared_ptr<KeyLayoutMap>> loadContents(const std::string& filename,
                                                                     const char* contents);
 
@@ -104,6 +106,7 @@ private:
     KeyedVector<int32_t, Led> mLedsByScanCode;
     KeyedVector<int32_t, Led> mLedsByUsageCode;
     std::unordered_map<int32_t, Sensor> mSensorsByAbsCode;
+    std::set<std::string> mRequiredKernelConfigs;
     std::string mLoadFileName;
 
     KeyLayoutMap();
@@ -124,6 +127,7 @@ private:
         status_t parseAxis();
         status_t parseLed();
         status_t parseSensor();
+        status_t parseRequiredKernelConfig();
     };
 };
 
