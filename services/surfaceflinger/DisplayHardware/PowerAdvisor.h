@@ -154,6 +154,13 @@ public:
     void setTotalFrameTargetWorkDuration(nsecs_t targetDuration) override;
 
 private:
+    friend class PowerAdvisorTest;
+
+    // Tracks if powerhal exists
+    bool mHasHal = true;
+    // Holds the hal wrapper for getPowerHal
+    std::unique_ptr<HalWrapper> mHalWrapper GUARDED_BY(mPowerHalMutex) = nullptr;
+
     HalWrapper* getPowerHal() REQUIRES(mPowerHalMutex);
     bool mReconnectPowerHal GUARDED_BY(mPowerHalMutex) = false;
     std::mutex mPowerHalMutex;

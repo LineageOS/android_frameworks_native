@@ -484,6 +484,9 @@ status_t RpcSession::setupClient(const std::function<status_t(const std::vector<
         mProtocolVersion = oldProtocolVersion;
 
         mConnections = {};
+
+        // clear mStartedSetup so that we can reuse this RpcSession
+        mStartedSetup = false;
     });
 
     if (status_t status = connectAndInit({}, false /*incoming*/); status != OK) return status;

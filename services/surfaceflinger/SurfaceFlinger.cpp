@@ -3247,10 +3247,11 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
 
-        const auto opt = displayInputInfos.get(layer->getLayerStack(),
-                                               [](const auto& info) -> Layer::InputDisplayArgs {
-                                                   return {&info.transform, info.isSecure};
-                                               });
+        const auto opt = displayInputInfos.get(layer->getLayerStack())
+                                 .transform([](const DisplayDevice::InputInfo& info) {
+                                     return Layer::InputDisplayArgs{&info.transform, info.isSecure};
+                                 });
+
         outWindowInfos.push_back(layer->fillInputInfo(opt.value_or(Layer::InputDisplayArgs{})));
     });
 
@@ -4253,11 +4254,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             if (p->setChildRelativeLayer(layer, relativeHandle, s.z)) {
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
-        }
-    }
-    if (what & layer_state_t::eSizeChanged) {
-        if (layer->setSize(s.w, s.h)) {
-            flags |= eTraversalNeeded;
         }
     }
     if (what & layer_state_t::eAlphaChanged) {

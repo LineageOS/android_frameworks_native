@@ -531,8 +531,6 @@ bool BufferStateLayer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>&
                                                FrameTracer::FrameEvent::QUEUE);
     }
 
-    mDrawingState.width = mDrawingState.buffer->getWidth();
-    mDrawingState.height = mDrawingState.buffer->getHeight();
     mDrawingState.releaseBufferEndpoint = bufferData.releaseBufferEndpoint;
     return true;
 }
@@ -620,14 +618,6 @@ bool BufferStateLayer::setTransactionCompletedListeners(
     mCallbackHandleAcquireTimeOrFence = -1;
 
     return willPresent;
-}
-
-bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
-    mDrawingState.sequence++;
-    mDrawingState.transparentRegionHint = transparent;
-    mDrawingState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
-    return true;
 }
 
 Rect BufferStateLayer::getBufferSize(const State& /*s*/) const {

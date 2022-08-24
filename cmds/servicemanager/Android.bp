@@ -90,27 +90,11 @@ cc_test {
 
 cc_fuzz {
     name: "servicemanager_fuzzer",
-    defaults: ["servicemanager_defaults"],
-    host_supported: true,
-    static_libs: [
-        "libbase",
-        "libbinder_random_parcel",
-        "libcutils",
+    defaults: [
+        "servicemanager_defaults",
+        "service_fuzzer_defaults",
     ],
-    target: {
-        android: {
-            shared_libs: [
-                "libbinder_ndk",
-                "libbinder",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libbinder_ndk",
-                "libbinder",
-            ],
-        },
-    },
+    host_supported: true,
     srcs: ["ServiceManagerFuzzer.cpp"],
     fuzz_config: {
         libfuzzer_options: [
