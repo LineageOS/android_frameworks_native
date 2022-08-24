@@ -99,7 +99,8 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
 
 void Flattener::renderCachedSets(
         const OutputCompositionState& outputState,
-        std::optional<std::chrono::steady_clock::time_point> renderDeadline) {
+        std::optional<std::chrono::steady_clock::time_point> renderDeadline,
+        bool deviceHandlesColorTransform) {
     ATRACE_CALL();
 
     if (!mNewCachedSet) {
@@ -136,7 +137,7 @@ void Flattener::renderCachedSets(
         }
     }
 
-    mNewCachedSet->render(mRenderEngine, mTexturePool, outputState);
+    mNewCachedSet->render(mRenderEngine, mTexturePool, outputState, deviceHandlesColorTransform);
 }
 
 void Flattener::dumpLayers(std::string& result) const {
