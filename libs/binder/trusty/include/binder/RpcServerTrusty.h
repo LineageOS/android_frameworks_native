@@ -77,6 +77,12 @@ private:
     explicit RpcServerTrusty(std::unique_ptr<RpcTransportCtx> ctx, std::string&& portName,
                              std::shared_ptr<const PortAcl>&& portAcl, size_t msgMaxSize);
 
+    // The Rpc-specific context maintained for every open TIPC channel.
+    struct ChannelContext {
+        sp<RpcSession> session;
+        sp<RpcSession::RpcConnection> connection;
+    };
+
     static int handleConnect(const tipc_port* port, handle_t chan, const uuid* peer, void** ctx_p);
     static int handleMessage(const tipc_port* port, handle_t chan, void* ctx);
     static void handleDisconnect(const tipc_port* port, handle_t chan, void* ctx);
