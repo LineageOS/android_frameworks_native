@@ -374,7 +374,7 @@ TEST_F(CachedSetTest, renderUnsecureOutput) {
             .WillOnce(Return(clientComp2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
     mOutputState.isSecure = false;
-    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState, true);
     expectReadyBuffer(cachedSet);
 
     EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
@@ -425,7 +425,7 @@ TEST_F(CachedSetTest, renderSecureOutput) {
             .WillOnce(Return(clientComp2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
     mOutputState.isSecure = true;
-    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState, true);
     expectReadyBuffer(cachedSet);
 
     EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
@@ -473,7 +473,58 @@ TEST_F(CachedSetTest, renderWhitePoint) {
             .WillOnce(Return(clientComp2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
     mOutputState.isSecure = true;
-    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState, true);
+    expectReadyBuffer(cachedSet);
+
+    EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
+    EXPECT_EQ(Rect(kOutputSize.width, kOutputSize.height), cachedSet.getTextureBounds());
+
+    // Now check that appending a new cached set properly cleans up RenderEngine resources.
+    CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
+    cachedSet.append(CachedSet(layer3));
+}
+
+TEST_F(CachedSetTest, renderWhitePointNoColorTransform) {
+    // Skip the 0th layer to ensure that the bounding box of the layers is offset from (0, 0)
+    // This is a duplicate of the "renderWhitePoint" test, but setting "deviceHandlesColorTransform"
+    // to false, in the render call.
+
+    CachedSet::Layer& layer1 = *mTestLayers[1]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE1 = mTestLayers[1]->layerFE;
+    CachedSet::Layer& layer2 = *mTestLayers[2]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE2 = mTestLayers[2]->layerFE;
+
+    CachedSet cachedSet(layer1);
+    cachedSet.append(CachedSet(layer2));
+
+    std::optional<compositionengine::LayerFE::LayerSettings> clientComp1;
+    clientComp1.emplace();
+
+    std::optional<compositionengine::LayerFE::LayerSettings> clientComp2;
+    clientComp2.emplace();
+
+    mOutputState.displayBrightnessNits = 400.f;
+
+    const auto drawLayers =
+            [&](const renderengine::DisplaySettings& displaySettings,
+                const std::vector<renderengine::LayerSettings>&,
+                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+        EXPECT_EQ(mOutputState.displayBrightnessNits, displaySettings.targetLuminanceNits);
+        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+    };
+
+    EXPECT_CALL(*layerFE1,
+                prepareClientComposition(ClientCompositionTargetSettingsWhitePointEq(
+                        mOutputState.displayBrightnessNits)))
+            .WillOnce(Return(clientComp1));
+    EXPECT_CALL(*layerFE2,
+                prepareClientComposition(ClientCompositionTargetSettingsWhitePointEq(
+                        mOutputState.displayBrightnessNits)))
+            .WillOnce(Return(clientComp2));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
+    mOutputState.isSecure = true;
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState, false);
     expectReadyBuffer(cachedSet);
 
     EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
@@ -523,7 +574,7 @@ TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
     EXPECT_CALL(*layerFE1, prepareClientComposition(_)).WillOnce(Return(clientComp1));
     EXPECT_CALL(*layerFE2, prepareClientComposition(_)).WillOnce(Return(clientComp2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState, true);
     expectReadyBuffer(cachedSet);
 
     EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
@@ -763,7 +814,7 @@ TEST_F(CachedSetTest, addHolePunch) {
     };
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState, true);
 }
 
 TEST_F(CachedSetTest, addHolePunch_noBuffer) {
@@ -825,7 +876,7 @@ TEST_F(CachedSetTest, addHolePunch_noBuffer) {
     };
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState, true);
 }
 
 TEST_F(CachedSetTest, append_removesHolePunch) {
@@ -965,7 +1016,7 @@ TEST_F(CachedSetTest, addBlur) {
     };
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    cachedSet.render(mRenderEngine, mTexturePool, mOutputState);
+    cachedSet.render(mRenderEngine, mTexturePool, mOutputState, true);
 }
 
 } // namespace

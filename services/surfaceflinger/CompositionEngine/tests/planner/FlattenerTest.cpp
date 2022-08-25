@@ -159,13 +159,13 @@ void FlattenerTest::initializeFlattener(const std::vector<const LayerState*>& la
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // same geometry, update the internal layer stack
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 }
 
 void FlattenerTest::expectAllLayersFlattened(const std::vector<const LayerState*>& layers) {
@@ -177,7 +177,7 @@ void FlattenerTest::expectAllLayersFlattened(const std::vector<const LayerState*
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     for (const auto layer : layers) {
         EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
@@ -187,7 +187,7 @@ void FlattenerTest::expectAllLayersFlattened(const std::vector<const LayerState*
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     const auto buffer = layers[0]->getOutputLayer()->getState().overrideInfo.buffer;
     EXPECT_NE(nullptr, buffer);
@@ -222,7 +222,7 @@ TEST_F(FlattenerTest, flattenLayers_ActiveLayersAreNotFlattened) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 }
 
 TEST_F(FlattenerTest, flattenLayers_ActiveLayersWithLowFpsAreFlattened) {
@@ -284,7 +284,7 @@ TEST_F(FlattenerTest, flattenLayers_FlattenedLayersStayFlattenWhenNoUpdate) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -389,7 +389,7 @@ TEST_F(FlattenerTest, flattenLayers_addLayerToFlattenedCauseReset) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_EQ(nullptr, overrideBuffer1);
     EXPECT_EQ(nullptr, overrideBuffer2);
@@ -428,7 +428,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateToFlatten) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_EQ(nullptr, overrideBuffer1);
     EXPECT_EQ(nullptr, overrideBuffer2);
@@ -437,7 +437,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateToFlatten) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_EQ(nullptr, overrideBuffer1);
     EXPECT_NE(nullptr, overrideBuffer2);
@@ -452,7 +452,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateToFlatten) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_EQ(nullptr, overrideBuffer1);
     EXPECT_NE(nullptr, overrideBuffer2);
@@ -461,7 +461,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateToFlatten) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -505,7 +505,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_EQ(nullptr, overrideBuffer1);
     EXPECT_EQ(nullptr, overrideBuffer2);
@@ -521,7 +521,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
     mOutputState.framebufferSpace.setOrientation(ui::ROTATION_90);
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -534,7 +534,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
     mOutputState.framebufferSpace.setOrientation(ui::ROTATION_180);
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -550,7 +550,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -562,7 +562,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
     mOutputState.framebufferSpace.setOrientation(ui::ROTATION_270);
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -603,7 +603,7 @@ TEST_F(FlattenerTest, flattenLayers_pipRequiresRoundedCorners) {
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We've rendered a CachedSet, but we haven't merged it in.
     EXPECT_EQ(nullptr, overrideBuffer1);
@@ -616,7 +616,7 @@ TEST_F(FlattenerTest, flattenLayers_pipRequiresRoundedCorners) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -668,7 +668,7 @@ TEST_F(FlattenerTest, flattenLayers_pip) {
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We've rendered a CachedSet, but we haven't merged it in.
     EXPECT_EQ(nullptr, overrideBuffer1);
@@ -681,7 +681,7 @@ TEST_F(FlattenerTest, flattenLayers_pip) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -741,7 +741,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleLayer) {
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We've rendered a CachedSet, but we haven't merged it in.
     EXPECT_EQ(nullptr, overrideBuffer0);
@@ -751,7 +751,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleLayer) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer0); // got overridden
     EXPECT_EQ(nullptr, overrideBuffer1); // did not
@@ -812,7 +812,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleColorLayer) {
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We've rendered a CachedSet, but we haven't merged it in.
     EXPECT_EQ(nullptr, overrideBuffer0);
@@ -822,7 +822,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleColorLayer) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer0); // got overridden
     EXPECT_EQ(nullptr, overrideBuffer1); // did not
@@ -868,7 +868,7 @@ TEST_F(FlattenerTest, flattenLayers_flattensBlurBehindRunIfFirstRun) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     for (const auto layer : layers) {
         EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
@@ -878,7 +878,7 @@ TEST_F(FlattenerTest, flattenLayers_flattensBlurBehindRunIfFirstRun) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
     EXPECT_EQ(nullptr, overrideBuffer3);
@@ -914,7 +914,7 @@ TEST_F(FlattenerTest, flattenLayers_doesNotFlattenBlurBehindRun) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     for (const auto layer : layers) {
         EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
@@ -925,7 +925,7 @@ TEST_F(FlattenerTest, flattenLayers_doesNotFlattenBlurBehindRun) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
     for (const auto layer : layers) {
         EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
     }
@@ -968,7 +968,7 @@ TEST_F(FlattenerTest, flattenLayers_flattenSkipsLayerWithBlurBehind) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     for (const auto layer : layers) {
         EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
@@ -978,7 +978,7 @@ TEST_F(FlattenerTest, flattenLayers_flattenSkipsLayerWithBlurBehind) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
     EXPECT_EQ(nullptr, overrideBuffer1);
     EXPECT_EQ(nullptr, blurOverrideBuffer);
     EXPECT_NE(nullptr, overrideBuffer3);
@@ -1017,7 +1017,7 @@ TEST_F(FlattenerTest, flattenLayers_whenBlurLayerIsChanging_appliesBlurToInactiv
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     const auto& cachedSet = mFlattener->getNewCachedSetForTesting();
     ASSERT_NE(std::nullopt, cachedSet);
@@ -1031,7 +1031,7 @@ TEST_F(FlattenerTest, flattenLayers_whenBlurLayerIsChanging_appliesBlurToInactiv
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer2, overrideBuffer1);
     EXPECT_EQ(nullptr, blurOverrideBuffer);
@@ -1060,7 +1060,7 @@ TEST_F(FlattenerTest, flattenLayers_renderCachedSets_doesNotRenderTwice) {
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_EQ(nullptr, overrideBuffer1);
     EXPECT_EQ(nullptr, overrideBuffer2);
@@ -1068,12 +1068,12 @@ TEST_F(FlattenerTest, flattenLayers_renderCachedSets_doesNotRenderTwice) {
     // Simulate attempting to render prior to merging the new cached set with the layer stack.
     // Here we should not try to re-render.
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We provide the override buffer now that it's rendered
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer2, overrideBuffer1);
@@ -1117,7 +1117,8 @@ TEST_F(FlattenerRenderSchedulingTest, flattenLayers_renderCachedSets_defersUpToM
         EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
         mFlattener->renderCachedSets(mOutputState,
                                      std::chrono::steady_clock::now() -
-                                             (kCachedSetRenderDuration + 10ms));
+                                             (kCachedSetRenderDuration + 10ms),
+                                     true);
     }
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
@@ -1125,7 +1126,8 @@ TEST_F(FlattenerRenderSchedulingTest, flattenLayers_renderCachedSets_defersUpToM
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
     mFlattener->renderCachedSets(mOutputState,
                                  std::chrono::steady_clock::now() -
-                                         (kCachedSetRenderDuration + 10ms));
+                                         (kCachedSetRenderDuration + 10ms),
+                                 true);
 }
 
 TEST_F(FlattenerTest, flattenLayers_skipsBT601_625) {
@@ -1159,7 +1161,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsBT601_625) {
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We've rendered a CachedSet, but we haven't merged it in.
     EXPECT_EQ(nullptr, overrideBuffer1);
@@ -1172,7 +1174,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsBT601_625) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -1210,7 +1212,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR) {
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We've rendered a CachedSet, but we haven't merged it in.
     EXPECT_EQ(nullptr, overrideBuffer1);
@@ -1223,7 +1225,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -1261,7 +1263,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR2) {
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We've rendered a CachedSet, but we haven't merged it in.
     EXPECT_EQ(nullptr, overrideBuffer1);
@@ -1274,7 +1276,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR2) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
@@ -1315,7 +1317,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsColorLayers) {
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We've rendered a CachedSet, but we haven't merged it in.
     EXPECT_EQ(nullptr, overrideBuffer1);
@@ -1329,7 +1331,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsColorLayers) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_EQ(nullptr, overrideBuffer1);
     EXPECT_EQ(nullptr, overrideBuffer2);
@@ -1368,7 +1370,7 @@ TEST_F(FlattenerTest, flattenLayers_includes_DISPLAY_DECORATION) {
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
             .WillOnce(Return(ByMove(
                     futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We've rendered a CachedSet, but we haven't merged it in.
     EXPECT_EQ(nullptr, overrideBuffer1);
@@ -1381,7 +1383,7 @@ TEST_F(FlattenerTest, flattenLayers_includes_DISPLAY_DECORATION) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mFlattener->renderCachedSets(mOutputState, std::nullopt);
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);

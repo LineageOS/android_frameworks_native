@@ -509,7 +509,7 @@ public:
         enqueueEvent(ARBITRARY_TIME, READ_TIME, deviceId, EventHubInterface::DEVICE_REMOVED, 0, 0);
     }
 
-    bool isDeviceEnabled(int32_t deviceId) {
+    bool isDeviceEnabled(int32_t deviceId) const override {
         Device* device = getDevice(deviceId);
         if (device == nullptr) {
             ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
@@ -518,7 +518,7 @@ public:
         return device->enabled;
     }
 
-    status_t enableDevice(int32_t deviceId) {
+    status_t enableDevice(int32_t deviceId) override {
         status_t result;
         Device* device = getDevice(deviceId);
         if (device == nullptr) {
@@ -533,7 +533,7 @@ public:
         return result;
     }
 
-    status_t disableDevice(int32_t deviceId) {
+    status_t disableDevice(int32_t deviceId) override {
         Device* device = getDevice(deviceId);
         if (device == nullptr) {
             ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
@@ -795,8 +795,8 @@ private:
 
     status_t mapAxis(int32_t, int32_t, AxisInfo*) const override { return NAME_NOT_FOUND; }
 
-    base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(int32_t deviceId,
-                                                                      int32_t absCode) {
+    base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(
+            int32_t deviceId, int32_t absCode) const override {
         Device* device = getDevice(deviceId);
         if (!device) {
             return Errorf("Sensor device not found.");
@@ -981,7 +981,7 @@ private:
 
     void cancelVibrate(int32_t) override {}
 
-    std::vector<int32_t> getVibratorIds(int32_t deviceId) override { return mVibrators; };
+    std::vector<int32_t> getVibratorIds(int32_t deviceId) const override { return mVibrators; };
 
     std::optional<int32_t> getBatteryCapacity(int32_t, int32_t) const override {
         return BATTERY_CAPACITY;
@@ -991,13 +991,14 @@ private:
         return BATTERY_STATUS;
     }
 
-    const std::vector<int32_t> getRawBatteryIds(int32_t deviceId) { return {}; }
+    std::vector<int32_t> getRawBatteryIds(int32_t deviceId) const override { return {}; }
 
-    std::optional<RawBatteryInfo> getRawBatteryInfo(int32_t deviceId, int32_t batteryId) {
+    std::optional<RawBatteryInfo> getRawBatteryInfo(int32_t deviceId,
+                                                    int32_t batteryId) const override {
         return std::nullopt;
     }
 
-    const std::vector<int32_t> getRawLightIds(int32_t deviceId) override {
+    std::vector<int32_t> getRawLightIds(int32_t deviceId) const override {
         std::vector<int32_t> ids;
         for (const auto& [rawId, info] : mRawLightInfos) {
             ids.push_back(rawId);
@@ -1005,7 +1006,7 @@ private:
         return ids;
     }
 
-    std::optional<RawLightInfo> getRawLightInfo(int32_t deviceId, int32_t lightId) override {
+    std::optional<RawLightInfo> getRawLightInfo(int32_t deviceId, int32_t lightId) const override {
         auto it = mRawLightInfos.find(lightId);
         if (it == mRawLightInfos.end()) {
             return std::nullopt;
@@ -1022,7 +1023,7 @@ private:
         mLightIntensities.emplace(lightId, intensities);
     };
 
-    std::optional<int32_t> getLightBrightness(int32_t deviceId, int32_t lightId) override {
+    std::optional<int32_t> getLightBrightness(int32_t deviceId, int32_t lightId) const override {
         auto lightIt = mLightBrightness.find(lightId);
         if (lightIt == mLightBrightness.end()) {
             return std::nullopt;
@@ -1031,7 +1032,7 @@ private:
     }
 
     std::optional<std::unordered_map<LightColor, int32_t>> getLightIntensities(
-            int32_t deviceId, int32_t lightId) override {
+            int32_t deviceId, int32_t lightId) const override {
         auto lightIt = mLightIntensities.find(lightId);
         if (lightIt == mLightIntensities.end()) {
             return std::nullopt;
@@ -1039,13 +1040,9 @@ private:
         return lightIt->second;
     };
 
-    virtual bool isExternal(int32_t) const {
-        return false;
-    }
+    void dump(std::string&) const override {}
 
-    void dump(std::string&) override {}
-
-    void monitor() override {}
+    void monitor() const override {}
 
     void requestReopenDevices() override {}
 

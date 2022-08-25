@@ -182,8 +182,6 @@ void SurfaceComposerClientFuzzer::invokeSurfaceComposerTransaction() {
     sp<SurfaceControl> surface = makeSurfaceControl();
 
     SurfaceComposerClient::Transaction transaction;
-    transaction.setSize(surface, mFdp.ConsumeIntegral<uint32_t>(),
-                        mFdp.ConsumeIntegral<uint32_t>());
     int32_t layer = mFdp.ConsumeIntegral<int32_t>();
     transaction.setLayer(surface, layer);
 

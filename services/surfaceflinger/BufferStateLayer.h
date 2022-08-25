@@ -116,9 +116,6 @@ public:
 
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
 
-    Region getActiveTransparentRegion(const Layer::State& s) const override {
-        return s.transparentRegionHint;
-    }
     Rect getCrop(const Layer::State& s) const;
 
     bool setTransform(uint32_t transform) override;
@@ -136,10 +133,6 @@ public:
     bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) override;
     bool setPosition(float /*x*/, float /*y*/) override;
     bool setMatrix(const layer_state_t::matrix22_t& /*matrix*/);
-
-    // Override to ignore legacy layer state properties that are not used by BufferStateLayer
-    bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }
-    bool setTransparentRegionHint(const Region& transparent) override;
 
     // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
     // and its parent layer is not bounded
