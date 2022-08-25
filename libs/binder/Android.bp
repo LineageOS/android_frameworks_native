@@ -71,14 +71,8 @@ filegroup {
 }
 
 cc_defaults {
-    name: "libbinder_defaults",
+    name: "libbinder_common_defaults",
     host_supported: true,
-
-    // TODO(b/31559095): get headers from bionic on host
-    include_dirs: [
-        "bionic/libc/kernel/android/uapi/",
-        "bionic/libc/kernel/uapi/",
-    ],
 
     srcs: [
         "Binder.cpp",
@@ -87,17 +81,43 @@ cc_defaults {
         "FdTrigger.cpp",
         "IInterface.cpp",
         "IResultReceiver.cpp",
-        "OS.cpp",
         "Parcel.cpp",
         "ParcelFileDescriptor.cpp",
         "RpcSession.cpp",
         "RpcServer.cpp",
         "RpcState.cpp",
-        "RpcTransportRaw.cpp",
         "Stability.cpp",
         "Status.cpp",
         "TextOutput.cpp",
         "Utils.cpp",
+    ],
+
+    shared_libs: [
+        "libcutils",
+        "libutils",
+    ],
+
+    static_libs: [
+        "libbase",
+    ],
+
+    header_libs: [
+        "libbinder_headers",
+    ],
+}
+
+cc_defaults {
+    name: "libbinder_android_defaults",
+
+    // TODO(b/31559095): get headers from bionic on host
+    include_dirs: [
+        "bionic/libc/kernel/android/uapi/",
+        "bionic/libc/kernel/uapi/",
+    ],
+
+    srcs: [
+        "OS.cpp",
+        "RpcTransportRaw.cpp",
     ],
 
     target: {
@@ -133,16 +153,9 @@ cc_defaults {
 
     shared_libs: [
         "liblog",
-        "libcutils",
-        "libutils",
-    ],
-
-    static_libs: [
-        "libbase",
     ],
 
     header_libs: [
-        "libbinder_headers",
         "libandroid_runtime_vm_headers",
     ],
 
@@ -177,6 +190,48 @@ cc_defaults {
     ],
 }
 
+cc_library_shared {
+    name: "libbinder_on_trusty_mock",
+    defaults: ["libbinder_common_defaults"],
+
+    srcs: [
+        // Trusty-specific files
+        "trusty/logging.cpp",
+        "trusty/OS.cpp",
+        "trusty/RpcServerTrusty.cpp",
+        "trusty/RpcTransportTipcTrusty.cpp",
+        "trusty/TrustyStatus.cpp",
+        "trusty/socket.cpp",
+    ],
+
+    cflags: [
+        "-DBINDER_RPC_SINGLE_THREADED",
+        // Trusty libbinder uses vendor stability for its binders
+        "-D__ANDROID_VNDK__",
+        "-U__ANDROID__",
+        "-D__TRUSTY__",
+        "-DTRUSTY_USERSPACE",
+        // Flags from the Trusty build system
+        "-Werror",
+        "-Wsign-compare",
+        "-Wno-unused-function",
+        "-Wno-unused-label",
+        "-fno-common",
+        "-fno-omit-frame-pointer",
+        "-fno-threadsafe-statics",
+    ],
+    rtti: false,
+
+    local_include_dirs: [
+        "trusty/include",
+        "trusty/include_mock",
+    ],
+
+    visibility: [
+        ":__subpackages__",
+    ],
+}
+
 cc_defaults {
     name: "libbinder_kernel_defaults",
     srcs: [
@@ -208,7 +263,8 @@ cc_defaults {
 cc_library {
     name: "libbinder",
     defaults: [
-        "libbinder_defaults",
+        "libbinder_common_defaults",
+        "libbinder_android_defaults",
         "libbinder_kernel_defaults",
     ],
 
@@ -268,7 +324,10 @@ cc_library {
 
 cc_library_static {
     name: "libbinder_rpc_no_kernel",
-    defaults: ["libbinder_defaults"],
+    defaults: [
+        "libbinder_common_defaults",
+        "libbinder_android_defaults",
+    ],
     visibility: [
         ":__subpackages__",
     ],
@@ -277,7 +336,8 @@ cc_library_static {
 cc_library_static {
     name: "libbinder_rpc_single_threaded",
     defaults: [
-        "libbinder_defaults",
+        "libbinder_common_defaults",
+        "libbinder_android_defaults",
         "libbinder_kernel_defaults",
     ],
     cflags: [
@@ -290,7 +350,10 @@ cc_library_static {
 
 cc_library_static {
     name: "libbinder_rpc_single_threaded_no_kernel",
-    defaults: ["libbinder_defaults"],
+    defaults: [
+        "libbinder_common_defaults",
+        "libbinder_android_defaults",
+    ],
     cflags: [
         "-DBINDER_RPC_SINGLE_THREADED",
     ],
