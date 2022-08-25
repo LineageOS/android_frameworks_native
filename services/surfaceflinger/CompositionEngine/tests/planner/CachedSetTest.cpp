@@ -28,8 +28,6 @@
 #include <utils/Errors.h>
 #include <memory>
 
-#include "tests/TestUtils.h"
-
 namespace android::compositionengine {
 using namespace std::chrono_literals;
 
@@ -353,11 +351,10 @@ TEST_F(CachedSetTest, renderUnsecureOutput) {
     clientComp2.emplace();
     clientComp2->alpha = 0.75f;
 
-    const auto drawLayers =
-            [&](const renderengine::DisplaySettings& displaySettings,
-                const std::vector<renderengine::LayerSettings>& layers,
-                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+    const auto drawLayers = [&](const renderengine::DisplaySettings& displaySettings,
+                                const std::vector<renderengine::LayerSettings>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
         EXPECT_EQ(mOutputState.framebufferSpace.getContent(), displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.getContent(), displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.getOrientation()),
@@ -365,7 +362,7 @@ TEST_F(CachedSetTest, renderUnsecureOutput) {
         EXPECT_EQ(0.5f, layers[0].alpha);
         EXPECT_EQ(0.75f, layers[1].alpha);
         EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
-        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+        return ftl::yield<FenceResult>(Fence::NO_FENCE);
     };
 
     EXPECT_CALL(*layerFE1, prepareClientComposition(ClientCompositionTargetSettingsSecureEq(false)))
@@ -403,11 +400,10 @@ TEST_F(CachedSetTest, renderSecureOutput) {
     clientComp2.emplace();
     clientComp2->alpha = 0.75f;
 
-    const auto drawLayers =
-            [&](const renderengine::DisplaySettings& displaySettings,
-                const std::vector<renderengine::LayerSettings>& layers,
-                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+    const auto drawLayers = [&](const renderengine::DisplaySettings& displaySettings,
+                                const std::vector<renderengine::LayerSettings>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
         EXPECT_EQ(mOutputState.framebufferSpace.getContent(), displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.getContent(), displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.getOrientation()),
@@ -416,7 +412,7 @@ TEST_F(CachedSetTest, renderSecureOutput) {
         EXPECT_EQ(0.75f, layers[1].alpha);
         EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
 
-        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+        return ftl::yield<FenceResult>(Fence::NO_FENCE);
     };
 
     EXPECT_CALL(*layerFE1, prepareClientComposition(ClientCompositionTargetSettingsSecureEq(true)))
@@ -454,13 +450,12 @@ TEST_F(CachedSetTest, renderWhitePoint) {
 
     mOutputState.displayBrightnessNits = 400.f;
 
-    const auto drawLayers =
-            [&](const renderengine::DisplaySettings& displaySettings,
-                const std::vector<renderengine::LayerSettings>&,
-                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+    const auto drawLayers = [&](const renderengine::DisplaySettings& displaySettings,
+                                const std::vector<renderengine::LayerSettings>&,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
         EXPECT_EQ(mOutputState.displayBrightnessNits, displaySettings.targetLuminanceNits);
-        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+        return ftl::yield<FenceResult>(Fence::NO_FENCE);
     };
 
     EXPECT_CALL(*layerFE1,
@@ -505,13 +500,12 @@ TEST_F(CachedSetTest, renderWhitePointNoColorTransform) {
 
     mOutputState.displayBrightnessNits = 400.f;
 
-    const auto drawLayers =
-            [&](const renderengine::DisplaySettings& displaySettings,
-                const std::vector<renderengine::LayerSettings>&,
-                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+    const auto drawLayers = [&](const renderengine::DisplaySettings& displaySettings,
+                                const std::vector<renderengine::LayerSettings>&,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
         EXPECT_EQ(mOutputState.displayBrightnessNits, displaySettings.targetLuminanceNits);
-        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+        return ftl::yield<FenceResult>(Fence::NO_FENCE);
     };
 
     EXPECT_CALL(*layerFE1,
@@ -555,11 +549,10 @@ TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
 
     mOutputState.framebufferSpace = ProjectionSpace(ui::Size(10, 20), Rect(2, 3, 10, 5));
 
-    const auto drawLayers =
-            [&](const renderengine::DisplaySettings& displaySettings,
-                const std::vector<renderengine::LayerSettings>& layers,
-                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+    const auto drawLayers = [&](const renderengine::DisplaySettings& displaySettings,
+                                const std::vector<renderengine::LayerSettings>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
         EXPECT_EQ(mOutputState.framebufferSpace.getContent(), displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.getContent(), displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.getOrientation()),
@@ -568,7 +561,7 @@ TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
         EXPECT_EQ(0.75f, layers[1].alpha);
         EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
 
-        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+        return ftl::yield<FenceResult>(Fence::NO_FENCE);
     };
 
     EXPECT_CALL(*layerFE1, prepareClientComposition(_)).WillOnce(Return(clientComp1));
@@ -786,11 +779,10 @@ TEST_F(CachedSetTest, addHolePunch) {
     EXPECT_CALL(*layerFE2, prepareClientComposition(_)).WillOnce(Return(clientComp2));
     EXPECT_CALL(*layerFE3, prepareClientComposition(_)).WillOnce(Return(clientComp3));
 
-    const auto drawLayers =
-            [&](const renderengine::DisplaySettings&,
-                const std::vector<renderengine::LayerSettings>& layers,
-                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+    const auto drawLayers = [&](const renderengine::DisplaySettings&,
+                                const std::vector<renderengine::LayerSettings>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
         EXPECT_GE(layers.size(), 4u);
@@ -810,7 +802,7 @@ TEST_F(CachedSetTest, addHolePunch) {
             EXPECT_EQ(1.0f, holePunchBackgroundSettings.alpha);
         }
 
-        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+        return ftl::yield<FenceResult>(Fence::NO_FENCE);
     };
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
@@ -847,11 +839,10 @@ TEST_F(CachedSetTest, addHolePunch_noBuffer) {
     EXPECT_CALL(*layerFE2, prepareClientComposition(_)).WillOnce(Return(clientComp2));
     EXPECT_CALL(*layerFE3, prepareClientComposition(_)).WillOnce(Return(clientComp3));
 
-    const auto drawLayers =
-            [&](const renderengine::DisplaySettings&,
-                const std::vector<renderengine::LayerSettings>& layers,
-                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+    const auto drawLayers = [&](const renderengine::DisplaySettings&,
+                                const std::vector<renderengine::LayerSettings>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
         EXPECT_GE(layers.size(), 4u);
@@ -872,7 +863,7 @@ TEST_F(CachedSetTest, addHolePunch_noBuffer) {
             EXPECT_EQ(1.0f, holePunchBackgroundSettings.alpha);
         }
 
-        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+        return ftl::yield<FenceResult>(Fence::NO_FENCE);
     };
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));
@@ -999,11 +990,10 @@ TEST_F(CachedSetTest, addBlur) {
                                 BackgroundBlurOnly)))
             .WillOnce(Return(clientComp3));
 
-    const auto drawLayers =
-            [&](const renderengine::DisplaySettings&,
-                const std::vector<renderengine::LayerSettings>& layers,
-                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+    const auto drawLayers = [&](const renderengine::DisplaySettings&,
+                                const std::vector<renderengine::LayerSettings>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
         // If the highlight layer is enabled, it will increase the size by 1.
         // We're interested in the third layer either way.
         EXPECT_GE(layers.size(), 3u);
@@ -1012,7 +1002,7 @@ TEST_F(CachedSetTest, addBlur) {
         EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), blurSettings.source.solidColor);
         EXPECT_EQ(0.0f, blurSettings.alpha);
 
-        return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+        return ftl::yield<FenceResult>(Fence::NO_FENCE);
     };
 
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).WillOnce(Invoke(drawLayers));

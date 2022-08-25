@@ -6615,13 +6615,11 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     getRenderEngine().useProtectedContext(useProtected);
 
     constexpr bool kUseFramebufferCache = false;
-    auto chain =
-            ftl::Future(getRenderEngine().drawLayers(clientCompositionDisplay,
-                                                     clientRenderEngineLayers, buffer,
-                                                     kUseFramebufferCache, std::move(bufferFence)))
-                    .then(&toFenceResult);
+    const auto future = getRenderEngine()
+                                .drawLayers(clientCompositionDisplay, clientRenderEngineLayers,
+                                            buffer, kUseFramebufferCache, std::move(bufferFence))
+                                .share();
 
-    const auto future = chain.share();
     for (auto* layer : renderedLayers) {
         layer->onLayerDisplayed(future);
     }

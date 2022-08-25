@@ -1330,11 +1330,10 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     // over to RenderEngine, in which case this flag can be removed from the drawLayers interface.
     const bool useFramebufferCache = outputState.layerFilter.toInternalDisplay;
 
-    auto fenceResult =
-            toFenceResult(renderEngine
-                                  .drawLayers(clientCompositionDisplay, clientRenderEngineLayers,
-                                              tex, useFramebufferCache, std::move(fd))
-                                  .get());
+    auto fenceResult = renderEngine
+                               .drawLayers(clientCompositionDisplay, clientRenderEngineLayers, tex,
+                                           useFramebufferCache, std::move(fd))
+                               .get();
 
     if (mClientCompositionRequestCache && fenceStatus(fenceResult) != NO_ERROR) {
         // If rendering was not successful, remove the request from the cache.

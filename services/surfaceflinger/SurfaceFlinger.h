@@ -52,11 +52,11 @@
 #include <utils/Trace.h>
 #include <utils/threads.h>
 
-#include <compositionengine/FenceResult.h>
 #include <compositionengine/OutputColorSetting.h>
 #include <scheduler/Fps.h>
 #include <scheduler/PresentLatencyTracker.h>
 #include <scheduler/Time.h>
+#include <ui/FenceResult.h>
 
 #include "ClientCache.h"
 #include "DisplayDevice.h"

@@ -528,16 +528,15 @@ public:
 
     void invokeDraw(const renderengine::DisplaySettings& settings,
                     const std::vector<renderengine::LayerSettings>& layers) {
-        std::future<renderengine::RenderEngineResult> result =
+        ftl::Future<FenceResult> future =
                 mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+        ASSERT_TRUE(future.valid());
 
-        ASSERT_TRUE(result.valid());
-        auto [status, fence] = result.get();
+        auto result = future.get();
+        ASSERT_TRUE(result.ok());
 
-        ASSERT_EQ(NO_ERROR, status);
-        if (fence.ok()) {
-            sync_wait(fence.get(), -1);
-        }
+        auto fence = result.value();
+        fence->waitForever(LOG_TAG);
 
         if (layers.size() > 0 && mGLESRE != nullptr) {
             ASSERT_TRUE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getBuffer()->getId()));
@@ -1681,13 +1680,13 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
     layer.geometry.boundaries = fullscreenRect().toFloatRect();
     BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
     layers.push_back(layer);
-    std::future<renderengine::RenderEngineResult> result =
+    ftl::Future<FenceResult> future =
             mRE->drawLayers(settings, layers, nullptr, true, base::unique_fd());
 
-    ASSERT_TRUE(result.valid());
-    auto [status, fence] = result.get();
-    ASSERT_EQ(BAD_VALUE, status);
-    ASSERT_FALSE(fence.ok());
+    ASSERT_TRUE(future.valid());
+    auto result = future.get();
+    ASSERT_FALSE(result.ok());
+    ASSERT_EQ(BAD_VALUE, result.error());
 }
 
 TEST_P(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
@@ -1712,15 +1711,14 @@ TEST_P(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
     layer.alpha = 1.0;
     layers.push_back(layer);
 
-    std::future<renderengine::RenderEngineResult> result =
+    ftl::Future<FenceResult> future =
             mRE->drawLayers(settings, layers, mBuffer, false, base::unique_fd());
-    ASSERT_TRUE(result.valid());
-    auto [status, fence] = result.get();
+    ASSERT_TRUE(future.valid());
+    auto result = future.get();
 
-    ASSERT_EQ(NO_ERROR, status);
-    if (fence.ok()) {
-        sync_wait(fence.get(), -1);
-    }
+    ASSERT_TRUE(result.ok());
+    auto fence = result.value();
+    fence->waitForever(LOG_TAG);
 
     ASSERT_FALSE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getBuffer()->getId()));
     expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
@@ -2219,20 +2217,20 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
     layer.alpha = 1.0;
     layers.push_back(layer);
 
-    std::future<renderengine::RenderEngineResult> resultOne =
+    ftl::Future<FenceResult> futureOne =
             mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
-    ASSERT_TRUE(resultOne.valid());
-    auto [statusOne, fenceOne] = resultOne.get();
-    ASSERT_EQ(NO_ERROR, statusOne);
+    ASSERT_TRUE(futureOne.valid());
+    auto resultOne = futureOne.get();
+    ASSERT_TRUE(resultOne.ok());
+    auto fenceOne = resultOne.value();
 
-    std::future<renderengine::RenderEngineResult> resultTwo =
-            mRE->drawLayers(settings, layers, mBuffer, true, std::move(fenceOne));
-    ASSERT_TRUE(resultTwo.valid());
-    auto [statusTwo, fenceTwo] = resultTwo.get();
-    ASSERT_EQ(NO_ERROR, statusTwo);
-    if (fenceTwo.ok()) {
-        sync_wait(fenceTwo.get(), -1);
-    }
+    ftl::Future<FenceResult> futureTwo =
+            mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(fenceOne->dup()));
+    ASSERT_TRUE(futureTwo.valid());
+    auto resultTwo = futureTwo.get();
+    ASSERT_TRUE(resultTwo.ok());
+    auto fenceTwo = resultTwo.value();
+    fenceTwo->waitForever(LOG_TAG);
 
     // Only cleanup the first time.
     EXPECT_FALSE(mRE->canSkipPostRenderCleanup());
