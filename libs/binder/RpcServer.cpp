@@ -55,7 +55,7 @@ RpcServer::~RpcServer() {
 sp<RpcServer> RpcServer::make(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory) {
     // Default is without TLS.
     if (rpcTransportCtxFactory == nullptr)
-        rpcTransportCtxFactory = RpcTransportCtxFactoryRaw::make();
+        rpcTransportCtxFactory = makeDefaultRpcTransportCtxFactory();
     auto ctx = rpcTransportCtxFactory->newServerCtx();
     if (ctx == nullptr) return nullptr;
     return sp<RpcServer>::make(std::move(ctx));

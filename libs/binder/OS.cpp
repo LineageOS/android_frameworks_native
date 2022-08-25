@@ -17,6 +17,7 @@
 #include "OS.h"
 
 #include <android-base/file.h>
+#include <binder/RpcTransportRaw.h>
 #include <string.h>
 
 using android::base::ErrnoError;
@@ -56,6 +57,10 @@ status_t dupFileDescriptor(int oldFd, int* newFd) {
 
     *newFd = ret;
     return OK;
+}
+
+std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory() {
+    return RpcTransportCtxFactoryRaw::make();
 }
 
 } // namespace android
