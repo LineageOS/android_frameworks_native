@@ -159,9 +159,10 @@ static std::shared_ptr<ExternalTexture> copyBuffer(RenderEngine& re,
     };
     auto layers = std::vector<LayerSettings>{layer};
 
-    auto [status, drawFence] =
-            re.drawLayers(display, layers, texture, kUseFrameBufferCache, base::unique_fd()).get();
-    sp<Fence> waitFence = sp<Fence>::make(std::move(drawFence));
+    sp<Fence> waitFence =
+            re.drawLayers(display, layers, texture, kUseFrameBufferCache, base::unique_fd())
+                    .get()
+                    .value();
     waitFence->waitForever(LOG_TAG);
     return texture;
 }
@@ -190,10 +191,10 @@ static void benchDrawLayers(RenderEngine& re, const std::vector<LayerSettings>& 
 
     // This loop starts and stops the timer.
     for (auto _ : benchState) {
-        auto [status, drawFence] = re.drawLayers(display, layers, outputBuffer,
-                                                 kUseFrameBufferCache, base::unique_fd())
-                                           .get();
-        sp<Fence> waitFence = sp<Fence>::make(std::move(drawFence));
+        sp<Fence> waitFence = re.drawLayers(display, layers, outputBuffer, kUseFrameBufferCache,
+                                            base::unique_fd())
+                                      .get()
+                                      .value();
         waitFence->waitForever(LOG_TAG);
     }
 

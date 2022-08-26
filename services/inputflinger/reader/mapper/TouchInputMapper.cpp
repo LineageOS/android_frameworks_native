@@ -3441,7 +3441,7 @@ void TouchInputMapper::dispatchPointerMouse(nsecs_t when, nsecs_t readTime, uint
         uint32_t currentIndex = mCurrentRawState.rawPointerData.idToIndex[id];
         float deltaX = 0, deltaY = 0;
         if (mLastCookedState.mouseIdBits.hasBit(id)) {
-            uint32_t lastIndex = mCurrentRawState.rawPointerData.idToIndex[id];
+            uint32_t lastIndex = mLastRawState.rawPointerData.idToIndex[id];
             deltaX = (mCurrentRawState.rawPointerData.pointers[currentIndex].x -
                       mLastRawState.rawPointerData.pointers[lastIndex].x) *
                     mPointerXMovementScale;

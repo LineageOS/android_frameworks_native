@@ -42,9 +42,9 @@ struct RefreshRateScore {
     DisplayModeIterator modeIt;
     float overallScore;
     struct {
-        float belowThreshold;
-        float aboveThreshold;
-    } fixedRateLayersScore;
+        float modeBelowThreshold;
+        float modeAboveThreshold;
+    } fixedRateBelowThresholdLayersScore;
 };
 
 template <typename Iterator>
@@ -385,7 +385,7 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
 
         const auto weight = layer.weight;
 
-        for (auto& [modeIt, overallScore, fixedRateScore] : scores) {
+        for (auto& [modeIt, overallScore, fixedRateBelowThresholdLayersScore] : scores) {
             const auto& [id, mode] = *modeIt;
             const bool isSeamlessSwitch = mode->getGroup() == mActiveModeIt->second->getGroup();
 
@@ -451,21 +451,22 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
                         return false;
                 }
             }(layer.vote);
-            const bool layerAboveThreshold = mConfig.frameRateMultipleThreshold != 0 &&
-                    mode->getFps() >= Fps::fromValue(mConfig.frameRateMultipleThreshold) &&
+            const bool layerBelowThreshold = mConfig.frameRateMultipleThreshold != 0 &&
                     layer.desiredRefreshRate <
                             Fps::fromValue(mConfig.frameRateMultipleThreshold / 2);
-            if (fixedSourceLayer) {
-                if (layerAboveThreshold) {
+            const bool modeAboveThreshold = layerBelowThreshold &&
+                    mode->getFps() >= Fps::fromValue(mConfig.frameRateMultipleThreshold);
+            if (fixedSourceLayer && layerBelowThreshold) {
+                if (modeAboveThreshold) {
                     ALOGV("%s gives %s fixed source (above threshold) score of %.4f",
                           formatLayerInfo(layer, weight).c_str(), to_string(mode->getFps()).c_str(),
                           layerScore);
-                    fixedRateScore.aboveThreshold += weightedLayerScore;
+                    fixedRateBelowThresholdLayersScore.modeAboveThreshold += weightedLayerScore;
                 } else {
                     ALOGV("%s gives %s fixed source (below threshold) score of %.4f",
                           formatLayerInfo(layer, weight).c_str(), to_string(mode->getFps()).c_str(),
                           layerScore);
-                    fixedRateScore.belowThreshold += weightedLayerScore;
+                    fixedRateBelowThresholdLayersScore.modeBelowThreshold += weightedLayerScore;
                 }
             } else {
                 ALOGV("%s gives %s score of %.4f", formatLayerInfo(layer, weight).c_str(),
@@ -476,7 +477,7 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
     }
 
     // We want to find the best refresh rate without the fixed source layers,
-    // so we could know whether we should add the aboveThreshold scores or not.
+    // so we could know whether we should add the modeAboveThreshold scores or not.
     // If the best refresh rate is already above the threshold, it means that
     // some non-fixed source layers already scored it, so we can just add the score
     // for all fixed source layers, even the ones that are above the threshold.
@@ -500,10 +501,10 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
     }();
 
     // Now we can add the fixed rate layers score
-    for (auto& [modeIt, overallScore, fixedRateScore] : scores) {
-        overallScore += fixedRateScore.belowThreshold;
+    for (auto& [modeIt, overallScore, fixedRateBelowThresholdLayersScore] : scores) {
+        overallScore += fixedRateBelowThresholdLayersScore.modeBelowThreshold;
         if (maxScoreAboveThreshold) {
-            overallScore += fixedRateScore.aboveThreshold;
+            overallScore += fixedRateBelowThresholdLayersScore.modeAboveThreshold;
         }
         ALOGV("%s adjusted overallScore is %.4f", to_string(modeIt->second->getFps()).c_str(),
               overallScore);

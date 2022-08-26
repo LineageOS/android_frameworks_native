@@ -351,15 +351,13 @@ struct BaseDisplayVariant {
                 .WillRepeatedly([&](const renderengine::DisplaySettings& displaySettings,
                                     const std::vector<renderengine::LayerSettings>&,
                                     const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    const bool, base::unique_fd&&)
-                                        -> std::future<renderengine::RenderEngineResult> {
+                                    const bool, base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.clip);
-                    return futureOf<renderengine::RenderEngineResult>(
-                            {NO_ERROR, base::unique_fd()});
+                    return futureOf<FenceResult>(Fence::NO_FENCE);
                 });
     }
 
@@ -404,16 +402,14 @@ struct BaseDisplayVariant {
                 .WillRepeatedly([&](const renderengine::DisplaySettings& displaySettings,
                                     const std::vector<renderengine::LayerSettings>&,
                                     const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    const bool, base::unique_fd&&)
-                                        -> std::future<renderengine::RenderEngineResult> {
+                                    const bool, base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.clip);
                     EXPECT_EQ(ui::Dataspace::UNKNOWN, displaySettings.outputDataspace);
-                    return futureOf<renderengine::RenderEngineResult>(
-                            {NO_ERROR, base::unique_fd()});
+                    return futureOf<FenceResult>(Fence::NO_FENCE);
                 });
     }
 
@@ -606,7 +602,7 @@ struct BaseLayerProperties {
                 .WillOnce([&](const renderengine::DisplaySettings& displaySettings,
                               const std::vector<renderengine::LayerSettings>& layerSettings,
                               const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                              base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+                              base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -614,9 +610,7 @@ struct BaseLayerProperties {
                               displaySettings.clip);
                     // screen capture adds an additional color layer as an alpha
                     // prefill, so gtet the back layer.
-                    std::future<renderengine::RenderEngineResult> resultFuture =
-                            futureOf<renderengine::RenderEngineResult>(
-                                    {NO_ERROR, base::unique_fd()});
+                    std::future<FenceResult> resultFuture = futureOf<FenceResult>(Fence::NO_FENCE);
                     if (layerSettings.empty()) {
                         ADD_FAILURE() << "layerSettings was not expected to be empty in "
                                          "setupREBufferCompositionCommonCallExpectations "
@@ -659,7 +653,7 @@ struct BaseLayerProperties {
                 .WillOnce([&](const renderengine::DisplaySettings& displaySettings,
                               const std::vector<renderengine::LayerSettings>& layerSettings,
                               const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                              base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+                              base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -667,9 +661,7 @@ struct BaseLayerProperties {
                               displaySettings.clip);
                     // screen capture adds an additional color layer as an alpha
                     // prefill, so get the back layer.
-                    std::future<renderengine::RenderEngineResult> resultFuture =
-                            futureOf<renderengine::RenderEngineResult>(
-                                    {NO_ERROR, base::unique_fd()});
+                    std::future<FenceResult> resultFuture = futureOf<FenceResult>(Fence::NO_FENCE);
                     if (layerSettings.empty()) {
                         ADD_FAILURE()
                                 << "layerSettings was not expected to be empty in "
@@ -740,7 +732,7 @@ struct CommonSecureLayerProperties : public BaseLayerProperties<LayerProperties>
                 .WillOnce([&](const renderengine::DisplaySettings& displaySettings,
                               const std::vector<renderengine::LayerSettings>& layerSettings,
                               const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                              base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
+                              base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -748,9 +740,7 @@ struct CommonSecureLayerProperties : public BaseLayerProperties<LayerProperties>
                               displaySettings.clip);
                     // screen capture adds an additional color layer as an alpha
                     // prefill, so get the back layer.
-                    std::future<renderengine::RenderEngineResult> resultFuture =
-                            futureOf<renderengine::RenderEngineResult>(
-                                    {NO_ERROR, base::unique_fd()});
+                    std::future<FenceResult> resultFuture = futureOf<FenceResult>(Fence::NO_FENCE);
                     if (layerSettings.empty()) {
                         ADD_FAILURE() << "layerSettings was not expected to be empty in "
                                          "setupInsecureREBufferCompositionCommonCallExpectations "

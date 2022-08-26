@@ -18,6 +18,7 @@
 #define SF_RENDERENGINE_H_
 
 #include <android-base/unique_fd.h>
+#include <ftl/future.h>
 #include <math/mat4.h>
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/ExternalTexture.h>
@@ -26,6 +27,7 @@
 #include <renderengine/LayerSettings.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <ui/FenceResult.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
@@ -68,7 +70,6 @@ class Image;
 class Mesh;
 class Texture;
 struct RenderEngineCreationArgs;
-struct RenderEngineResult;
 
 namespace threaded {
 class RenderEngineThreaded;
@@ -158,12 +159,13 @@ public:
     // parameter does nothing.
     // @param bufferFence Fence signalling that the buffer is ready to be drawn
     // to.
-    // @return A future object of RenderEngineResult struct indicating whether
-    // drawing was successful in async mode.
-    virtual std::future<RenderEngineResult> drawLayers(
-            const DisplaySettings& display, const std::vector<LayerSettings>& layers,
-            const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
-            base::unique_fd&& bufferFence);
+    // @return A future object of FenceResult indicating whether drawing was
+    // successful in async mode.
+    virtual ftl::Future<FenceResult> drawLayers(const DisplaySettings& display,
+                                                const std::vector<LayerSettings>& layers,
+                                                const std::shared_ptr<ExternalTexture>& buffer,
+                                                const bool useFramebufferCache,
+                                                base::unique_fd&& bufferFence);
 
     // Clean-up method that should be called on the main thread after the
     // drawFence returned by drawLayers fires. This method will free up
@@ -237,7 +239,7 @@ protected:
     const RenderEngineType mRenderEngineType;
 
     virtual void drawLayersInternal(
-            const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+            const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
             const DisplaySettings& display, const std::vector<LayerSettings>& layers,
             const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
             base::unique_fd&& bufferFence) = 0;
@@ -325,13 +327,6 @@ private:
     RenderEngine::ContextPriority contextPriority = RenderEngine::ContextPriority::MEDIUM;
     RenderEngine::RenderEngineType renderEngineType =
             RenderEngine::RenderEngineType::SKIA_GL_THREADED;
-};
-
-struct RenderEngineResult {
-    // status indicates if drawing is successful
-    status_t status;
-    // drawFence will fire when the buffer has been drawn to and is ready to be examined.
-    base::unique_fd drawFence;
 };
 
 } // namespace renderengine

@@ -39,7 +39,6 @@
 #include "CallOrderStateMachineHelper.h"
 #include "MockHWC2.h"
 #include "RegionMatcher.h"
-#include "TestUtils.h"
 
 namespace android::compositionengine {
 namespace {
@@ -3527,9 +3526,8 @@ TEST_F(OutputComposeSurfacesTest, handlesZeroCompositionRequests) {
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
                                 const std::vector<renderengine::LayerSettings>&,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                                base::unique_fd&&)
-                                    -> std::future<renderengine::RenderEngineResult> {
-                return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
+                return ftl::yield<FenceResult>(Fence::NO_FENCE);
             });
     verify().execute().expectAFenceWasReturned();
 }
@@ -3559,9 +3557,8 @@ TEST_F(OutputComposeSurfacesTest, buildsAndRendersRequestList) {
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
                                 const std::vector<renderengine::LayerSettings>&,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                                base::unique_fd&&)
-                                    -> std::future<renderengine::RenderEngineResult> {
-                return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
+                return ftl::yield<FenceResult>(Fence::NO_FENCE);
             });
 
     verify().execute().expectAFenceWasReturned();
@@ -3594,9 +3591,8 @@ TEST_F(OutputComposeSurfacesTest,
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
                                 const std::vector<renderengine::LayerSettings>&,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                                base::unique_fd&&)
-                                    -> std::future<renderengine::RenderEngineResult> {
-                return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
+                return ftl::yield<FenceResult>(Fence::NO_FENCE);
             });
 
     verify().execute().expectAFenceWasReturned();
@@ -3622,10 +3618,8 @@ TEST_F(OutputComposeSurfacesTest, renderDuplicateClientCompositionRequestsWithou
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
     EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
             .Times(2)
-            .WillOnce(Return(ByMove(
-                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))))
-            .WillOnce(Return(ByMove(
-                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
+            .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))))
+            .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     verify().execute().expectAFenceWasReturned();
     EXPECT_FALSE(mOutput.mState.reusedClientComposition);
@@ -3653,8 +3647,7 @@ TEST_F(OutputComposeSurfacesTest, skipDuplicateClientCompositionRequests) {
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
     EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
-            .WillOnce(Return(ByMove(
-                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
+            .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
 
     verify().execute().expectAFenceWasReturned();
@@ -3693,9 +3686,8 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
                                 const std::vector<renderengine::LayerSettings>&,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                                base::unique_fd&&)
-                                    -> std::future<renderengine::RenderEngineResult> {
-                return futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()});
+                                base::unique_fd&&) -> ftl::Future<FenceResult> {
+                return ftl::yield<FenceResult>(Fence::NO_FENCE);
             });
 
     verify().execute().expectAFenceWasReturned();
@@ -3726,11 +3718,9 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfRequestChanges) {
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
     EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
-            .WillOnce(Return(ByMove(
-                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
+            .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r3), _, false, _))
-            .WillOnce(Return(ByMove(
-                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
+            .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     verify().execute().expectAFenceWasReturned();
     EXPECT_FALSE(mOutput.mState.reusedClientComposition);
@@ -3807,8 +3797,7 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
           : public CallOrderStateMachineHelper<TestType, ExpectDisplaySettingsState> {
         auto thenExpectDisplaySettingsUsed(renderengine::DisplaySettings settings) {
             EXPECT_CALL(getInstance()->mRenderEngine, drawLayers(settings, _, _, false, _))
-                    .WillOnce(Return(ByMove(futureOf<renderengine::RenderEngineResult>(
-                            {NO_ERROR, base::unique_fd()}))));
+                    .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
             return nextState<ExecuteState>();
         }
     };
@@ -4061,14 +4050,12 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
                 .WillRepeatedly(Return());
         EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
         EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _))
-                .WillRepeatedly(
-                        [&](const renderengine::DisplaySettings&,
-                            const std::vector<renderengine::LayerSettings>&,
-                            const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                            base::unique_fd&&) -> std::future<renderengine::RenderEngineResult> {
-                            return futureOf<renderengine::RenderEngineResult>(
-                                    {NO_ERROR, base::unique_fd()});
-                        });
+                .WillRepeatedly([&](const renderengine::DisplaySettings&,
+                                    const std::vector<renderengine::LayerSettings>&,
+                                    const std::shared_ptr<renderengine::ExternalTexture>&,
+                                    const bool, base::unique_fd&&) -> ftl::Future<FenceResult> {
+                    return ftl::yield<FenceResult>(Fence::NO_FENCE);
+                });
     }
 
     Layer mLayer1;
@@ -4133,8 +4120,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
     // Must happen after setting the protected content state.
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _))
-            .WillOnce(Return(ByMove(
-                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
+            .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     base::unique_fd fd;
     std::shared_ptr<renderengine::ExternalTexture> tex;
@@ -4226,8 +4212,7 @@ TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering, IfExepensiveOutputDatas
 
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _))
-            .WillOnce(Return(ByMove(
-                    futureOf<renderengine::RenderEngineResult>({NO_ERROR, base::unique_fd()}))));
+            .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     base::unique_fd fd;
     std::shared_ptr<renderengine::ExternalTexture> tex;
@@ -4250,8 +4235,7 @@ struct OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur
         EXPECT_CALL(mOutput, generateClientCompositionRequests(_, kDefaultOutputDataspace, _))
                 .WillOnce(Return(std::vector<LayerFE::LayerSettings>{}));
         EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _))
-                .WillOnce(Return(ByMove(futureOf<renderengine::RenderEngineResult>(
-                        {NO_ERROR, base::unique_fd()}))));
+                .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1u));
         EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
                 .WillRepeatedly(Return(&mLayer.outputLayer));
