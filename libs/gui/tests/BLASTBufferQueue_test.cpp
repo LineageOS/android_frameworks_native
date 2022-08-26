@@ -311,7 +311,7 @@ protected:
             return err;
         }
         captureResults = captureListener->waitForResults();
-        return captureResults.result;
+        return fenceStatus(captureResults.fenceResult);
     }
 
     void queueBuffer(sp<IGraphicBufferProducer> igbp, uint8_t r, uint8_t g, uint8_t b,
