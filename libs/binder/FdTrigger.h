@@ -21,6 +21,8 @@
 #include <android-base/unique_fd.h>
 #include <utils/Errors.h>
 
+#include <binder/RpcTransport.h>
+
 namespace android {
 
 /** This is not a pipe. */
@@ -53,7 +55,7 @@ public:
      *   true - time to read!
      *   false - trigger happened
      */
-    [[nodiscard]] status_t triggerablePoll(base::borrowed_fd fd, int16_t event);
+    [[nodiscard]] status_t triggerablePoll(const android::TransportFd& transportFd, int16_t event);
 
 private:
 #ifdef BINDER_RPC_SINGLE_THREADED
