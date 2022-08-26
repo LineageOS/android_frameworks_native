@@ -127,7 +127,7 @@ int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const u
     return rc;
 }
 
-int RpcServerTrusty::handleMessage(const tipc_port* port, handle_t chan, void* ctx) {
+int RpcServerTrusty::handleMessage(const tipc_port* /*port*/, handle_t /*chan*/, void* ctx) {
     auto* channelContext = reinterpret_cast<ChannelContext*>(ctx);
     LOG_ALWAYS_FATAL_IF(channelContext == nullptr,
                         "bad state: message received on uninitialized channel");
@@ -144,7 +144,8 @@ int RpcServerTrusty::handleMessage(const tipc_port* port, handle_t chan, void* c
     return NO_ERROR;
 }
 
-void RpcServerTrusty::handleDisconnect(const tipc_port* port, handle_t chan, void* ctx) {}
+void RpcServerTrusty::handleDisconnect(const tipc_port* /*port*/, handle_t /*chan*/,
+                                       void* /*ctx*/) {}
 
 void RpcServerTrusty::handleChannelCleanup(void* ctx) {
     auto* channelContext = reinterpret_cast<ChannelContext*>(ctx);
