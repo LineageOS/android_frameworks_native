@@ -20,6 +20,8 @@
 #include <lib/rand/rand.h>
 #endif
 
+#include <binder/RpcTransportTipcTrusty.h>
+
 #include "../OS.h"
 
 using android::base::Result;
@@ -44,6 +46,10 @@ status_t getRandomBytes(uint8_t* data, size_t size) {
 status_t dupFileDescriptor(int oldFd, int* newFd) {
     // TODO: implement separately
     return INVALID_OPERATION;
+}
+
+std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory() {
+    return RpcTransportCtxFactoryTipcTrusty::make();
 }
 
 } // namespace android
