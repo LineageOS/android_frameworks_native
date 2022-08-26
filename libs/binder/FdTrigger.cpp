@@ -54,7 +54,7 @@ bool FdTrigger::isTriggered() {
 #endif
 }
 
-status_t FdTrigger::triggerablePoll(const android::TransportFd& transportFd, int16_t event) {
+status_t FdTrigger::triggerablePoll(const android::RpcTransportFd& transportFd, int16_t event) {
 #ifdef BINDER_RPC_SINGLE_THREADED
     if (mTriggered) {
         return DEAD_OBJECT;

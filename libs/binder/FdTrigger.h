@@ -55,7 +55,8 @@ public:
      *   true - time to read!
      *   false - trigger happened
      */
-    [[nodiscard]] status_t triggerablePoll(const android::TransportFd& transportFd, int16_t event);
+    [[nodiscard]] status_t triggerablePoll(const android::RpcTransportFd& transportFd,
+                                           int16_t event);
 
 private:
 #ifdef BINDER_RPC_SINGLE_THREADED
