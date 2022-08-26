@@ -28,7 +28,7 @@ using android::base::Result;
 
 namespace android {
 
-Result<void> setNonBlocking(android::base::borrowed_fd fd) {
+Result<void> setNonBlocking(android::base::borrowed_fd /*fd*/) {
     // Trusty IPC syscalls are all non-blocking by default.
     return {};
 }
@@ -43,7 +43,7 @@ status_t getRandomBytes(uint8_t* data, size_t size) {
 #endif // TRUSTY_USERSPACE
 }
 
-status_t dupFileDescriptor(int oldFd, int* newFd) {
+status_t dupFileDescriptor(int /*oldFd*/, int* /*newFd*/) {
     // TODO: implement separately
     return INVALID_OPERATION;
 }
