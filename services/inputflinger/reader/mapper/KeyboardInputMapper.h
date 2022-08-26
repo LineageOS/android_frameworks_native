@@ -50,6 +50,7 @@ private:
     std::optional<DisplayViewport> mViewport;
 
     struct KeyDown {
+        nsecs_t downTime;
         int32_t keyCode;
         int32_t scanCode;
     };
@@ -59,7 +60,6 @@ private:
 
     std::vector<KeyDown> mKeyDowns; // keys that are down
     int32_t mMetaState;
-    nsecs_t mDownTime; // time of most recent key down
 
     int32_t mCurrentHidUsage; // most recent HID usage seen this packet, or 0 if none
 
@@ -98,6 +98,7 @@ private:
     void updateLedStateForModifier(LedState& ledState, int32_t led, int32_t modifier, bool reset);
     std::optional<DisplayViewport> findViewport(nsecs_t when,
                                                 const InputReaderConfiguration* config);
+    void cancelAllDownKeys(nsecs_t when);
 };
 
 } // namespace android
