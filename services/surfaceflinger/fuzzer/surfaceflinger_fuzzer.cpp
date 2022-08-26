@@ -237,7 +237,8 @@ void SurfaceFlingerFuzzer::process(const uint8_t *data, size_t size) {
 
     mTestableFlinger.enableHalVirtualDisplays(mFdp.ConsumeBool());
 
-    mTestableFlinger.commitTransactionsLocked(mFdp.ConsumeIntegral<uint32_t>());
+    FTL_FAKE_GUARD(kMainThreadContext,
+                   mTestableFlinger.commitTransactionsLocked(mFdp.ConsumeIntegral<uint32_t>()));
 
     mTestableFlinger.notifyPowerBoost(mFdp.ConsumeIntegral<int32_t>());
 

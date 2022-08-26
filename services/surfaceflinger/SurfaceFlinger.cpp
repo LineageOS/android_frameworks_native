@@ -1157,9 +1157,7 @@ void SurfaceFlinger::updateInternalStateWithChangedMode() {
         return;
     }
 
-    const auto upcomingModeInfo =
-            FTL_FAKE_GUARD(kMainThreadContext, display->getUpcomingActiveMode());
-
+    const auto upcomingModeInfo = display->getUpcomingActiveMode();
     if (!upcomingModeInfo.mode) {
         // There is no pending mode change. This can happen if the active
         // display changed and the mode change happened on a different display.
@@ -1273,9 +1271,8 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
         constraints.seamlessRequired = false;
         hal::VsyncPeriodChangeTimeline outTimeline;
 
-        const auto status = FTL_FAKE_GUARD(kMainThreadContext,
-                                           display->initiateModeChange(*desiredActiveMode,
-                                                                       constraints, &outTimeline));
+        const auto status =
+                display->initiateModeChange(*desiredActiveMode, constraints, &outTimeline);
 
         if (status != NO_ERROR) {
             // initiateModeChange may fail if a hotplug event is just about
@@ -2161,7 +2158,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
     // Hold mStateLock as chooseRefreshRateForContent promotes wp<Layer> to sp<Layer>
     // and may eventually call to ~Layer() if it holds the last reference
     {
-        Mutex::Autolock _l(mStateLock);
+        Mutex::Autolock lock(mStateLock);
         mScheduler->chooseRefreshRateForContent();
         setActiveModeInHwcIfNeeded();
     }
@@ -3060,9 +3057,10 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
         }
     }
 }
+
 void SurfaceFlinger::updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay) {
     mVsyncConfiguration->reset();
-    const Fps refreshRate = activeDisplay->refreshRateConfigs().getActiveMode()->getFps();
+    const Fps refreshRate = activeDisplay->refreshRateConfigs().getActiveMode().getFps();
     updatePhaseConfiguration(refreshRate);
     mRefreshRateStats->setRefreshRate(refreshRate);
 }
@@ -4724,8 +4722,6 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer) {
     }
 }
 
-// ---------------------------------------------------------------------------
-
 void SurfaceFlinger::onInitializeDisplays() {
     const auto display = getDefaultDisplayDeviceLocked();
     if (!display) return;
@@ -4763,8 +4759,9 @@ void SurfaceFlinger::onInitializeDisplays() {
 
 void SurfaceFlinger::initializeDisplays() {
     // Async since we may be called from the main thread.
-    static_cast<void>(
-            mScheduler->schedule([this]() FTL_FAKE_GUARD(mStateLock) { onInitializeDisplays(); }));
+    static_cast<void>(mScheduler->schedule(
+            [this]() FTL_FAKE_GUARD(mStateLock)
+                    FTL_FAKE_GUARD(kMainThreadContext) { onInitializeDisplays(); }));
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {
@@ -4796,7 +4793,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (mInterceptor->isEnabled()) {
         mInterceptor->savePowerModeUpdate(display->getSequenceId(), static_cast<int32_t>(mode));
     }
-    const auto refreshRate = display->refreshRateConfigs().getActiveMode()->getFps();
+    const auto refreshRate = display->refreshRateConfigs().getActiveMode().getFps();
     if (*currentMode == hal::PowerMode::OFF) {
         // Turn on the display
         if (isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn())) {
@@ -4870,7 +4867,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
 }
 
 void SurfaceFlinger::setPowerMode(const sp<IBinder>& displayToken, int mode) {
-    auto future = mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
+    auto future = mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(
+                                               kMainThreadContext) {
         const auto display = getDisplayDeviceLocked(displayToken);
         if (!display) {
             ALOGE("Attempt to set power mode %d for invalid display token %p", mode,
@@ -7021,7 +7019,7 @@ uint32_t SurfaceFlinger::getMaxAcquiredBufferCountForCurrentRefreshRate(uid_t ui
         refreshRate = *frameRateOverride;
     } else if (!getHwComposer().isHeadless()) {
         if (const auto display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked())) {
-            refreshRate = display->refreshRateConfigs().getActiveMode()->getFps();
+            refreshRate = display->refreshRateConfigs().getActiveModePtr()->getFps();
         }
     }
 
