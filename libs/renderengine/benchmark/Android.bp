@@ -24,6 +24,7 @@ package {
 cc_benchmark {
     name: "librenderengine_bench",
     defaults: [
+        "android.hardware.graphics.composer3-ndk_shared",
         "skia_deps",
         "surfaceflinger_defaults",
     ],
@@ -43,7 +44,6 @@ cc_benchmark {
     ],
 
     shared_libs: [
-        "android.hardware.graphics.composer3-V1-ndk",
         "libbase",
         "libcutils",
         "libjnigraphics",

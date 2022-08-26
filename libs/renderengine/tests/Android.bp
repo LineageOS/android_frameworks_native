@@ -24,6 +24,7 @@ package {
 cc_test {
     name: "librenderengine_test",
     defaults: [
+        "android.hardware.graphics.composer3-ndk_shared",
         "skia_deps",
         "surfaceflinger_defaults",
     ],
@@ -49,7 +50,6 @@ cc_test {
     ],
 
     shared_libs: [
-        "android.hardware.graphics.composer3-V1-ndk",
         "libbase",
         "libcutils",
         "libEGL",
