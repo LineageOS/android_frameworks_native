@@ -195,6 +195,9 @@ struct RawLightInfo {
     ftl::Flags<InputLightClass> flags;
     std::array<int32_t, COLOR_NUM> rgbIndex;
     std::filesystem::path path;
+
+    bool operator==(const RawLightInfo&) const = default;
+    bool operator!=(const RawLightInfo&) const = default;
 };
 
 /* Describes a raw battery. */
@@ -203,6 +206,9 @@ struct RawBatteryInfo {
     std::string name;
     ftl::Flags<InputBatteryClass> flags;
     std::filesystem::path path;
+
+    bool operator==(const RawBatteryInfo&) const = default;
+    bool operator!=(const RawBatteryInfo&) const = default;
 };
 
 /*
@@ -551,6 +557,10 @@ private:
         hardware::input::InputDeviceCountryCode countryCode;
         std::unordered_map<int32_t /*batteryId*/, RawBatteryInfo> batteryInfos;
         std::unordered_map<int32_t /*lightId*/, RawLightInfo> lightInfos;
+
+        bool operator==(const AssociatedDevice&) const = default;
+        bool operator!=(const AssociatedDevice&) const = default;
+        std::string dump() const;
     };
 
     struct Device {
@@ -584,7 +594,7 @@ private:
 
         // A shared_ptr of a device associated with the input device.
         // The input devices that have the same sysfs path have the same associated device.
-        const std::shared_ptr<const AssociatedDevice> associatedDevice;
+        std::shared_ptr<const AssociatedDevice> associatedDevice;
 
         int32_t controllerNumber;
 

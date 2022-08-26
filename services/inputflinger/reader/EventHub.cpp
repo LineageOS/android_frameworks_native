@@ -1416,17 +1416,28 @@ std::shared_ptr<const EventHub::AssociatedDevice> EventHub::obtainAssociatedDevi
     }
 
     const auto& path = *sysfsRootPathOpt;
-    for (const auto& [id, dev] : mDevices) {
-        if (dev->associatedDevice && dev->associatedDevice->sysfsRootPath == path) {
-            return dev->associatedDevice;
-        }
-    }
 
-    return std::make_shared<AssociatedDevice>(
+    std::shared_ptr<const AssociatedDevice> associatedDevice = std::make_shared<AssociatedDevice>(
             AssociatedDevice{.sysfsRootPath = path,
                              .countryCode = readCountryCodeLocked(path),
                              .batteryInfos = readBatteryConfiguration(path),
                              .lightInfos = readLightsConfiguration(path)});
+
+    bool associatedDeviceChanged = false;
+    for (const auto& [id, dev] : mDevices) {
+        if (dev->associatedDevice && dev->associatedDevice->sysfsRootPath == path) {
+            if (*associatedDevice != *dev->associatedDevice) {
+                associatedDeviceChanged = true;
+                dev->associatedDevice = associatedDevice;
+            }
+            associatedDevice = dev->associatedDevice;
+        }
+    }
+    ALOGI_IF(associatedDeviceChanged,
+             "The AssociatedDevice changed for path '%s'. Using new AssociatedDevice: %s",
+             path.c_str(), associatedDevice->dump().c_str());
+
+    return associatedDevice;
 }
 
 void EventHub::vibrate(int32_t deviceId, const VibrationElement& element) {
@@ -2643,6 +2654,11 @@ void EventHub::dump(std::string& dump) const {
 void EventHub::monitor() const {
     // Acquire and release the lock to ensure that the event hub has not deadlocked.
     std::unique_lock<std::mutex> lock(mLock);
+}
+
+std::string EventHub::AssociatedDevice::dump() const {
+    return StringPrintf("path=%s, numBatteries=%zu, numLight=%zu", sysfsRootPath.c_str(),
+                        batteryInfos.size(), lightInfos.size());
 }
 
 } // namespace android
