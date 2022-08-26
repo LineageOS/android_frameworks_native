@@ -61,6 +61,7 @@
 #define INDENT3 "      "
 
 using android::base::StringPrintf;
+using android::hardware::input::InputDeviceCountryCode;
 
 namespace android {
 
@@ -299,6 +300,24 @@ static std::optional<std::array<LightColor, COLOR_NUM>> getColorIndexArray(
         }
     }
     return colors;
+}
+
+/**
+ * Read country code information exposed through the sysfs path.
+ */
+static InputDeviceCountryCode readCountryCodeLocked(const std::filesystem::path& sysfsRootPath) {
+    // Check the sysfs root path
+    int hidCountryCode = static_cast<int>(InputDeviceCountryCode::INVALID);
+    std::string str;
+    if (base::ReadFileToString(sysfsRootPath / "country", &str)) {
+        hidCountryCode = std::stoi(str, nullptr, 16);
+        LOG_ALWAYS_FATAL_IF(hidCountryCode > 35 || hidCountryCode < 0,
+                            "HID country code should be in range [0, 35]. Found country code "
+                            "to be %d",
+                            hidCountryCode);
+    }
+
+    return static_cast<InputDeviceCountryCode>(hidCountryCode);
 }
 
 /**
@@ -1238,6 +1257,15 @@ void EventHub::setLightIntensities(int32_t deviceId, int32_t lightId,
     }
 }
 
+InputDeviceCountryCode EventHub::getCountryCode(int32_t deviceId) const {
+    std::scoped_lock _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr || !device->associatedDevice) {
+        return InputDeviceCountryCode::INVALID;
+    }
+    return device->associatedDevice->countryCode;
+}
+
 void EventHub::setExcludedDevices(const std::vector<std::string>& devices) {
     std::scoped_lock _l(mLock);
 
@@ -1384,6 +1412,7 @@ std::shared_ptr<const EventHub::AssociatedDevice> EventHub::obtainAssociatedDevi
 
     return std::make_shared<AssociatedDevice>(
             AssociatedDevice{.sysfsRootPath = path,
+                             .countryCode = readCountryCodeLocked(path),
                              .batteryInfos = readBatteryConfiguration(path),
                              .lightInfos = readLightsConfiguration(path)});
 }
@@ -2553,6 +2582,9 @@ void EventHub::dump(std::string& dump) const {
                                  device->keyMap.keyLayoutFile.c_str());
             dump += StringPrintf(INDENT3 "KeyCharacterMapFile: %s\n",
                                  device->keyMap.keyCharacterMapFile.c_str());
+            dump += StringPrintf(INDENT3 "CountryCode: %d\n",
+                                 device->associatedDevice ? device->associatedDevice->countryCode
+                                                          : InputDeviceCountryCode::INVALID);
             dump += StringPrintf(INDENT3 "ConfigurationFile: %s\n",
                                  device->configurationFile.c_str());
             dump += StringPrintf(INDENT3 "VideoDevice: %s\n",

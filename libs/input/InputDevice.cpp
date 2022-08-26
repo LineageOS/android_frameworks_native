@@ -26,6 +26,7 @@
 #include <input/InputEventLabels.h>
 
 using android::base::StringPrintf;
+using android::hardware::input::InputDeviceCountryCode;
 
 namespace android {
 
@@ -177,6 +178,7 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mAlias(other.mAlias),
         mIsExternal(other.mIsExternal),
         mHasMic(other.mHasMic),
+        mCountryCode(other.mCountryCode),
         mSources(other.mSources),
         mKeyboardType(other.mKeyboardType),
         mKeyCharacterMap(other.mKeyCharacterMap),
@@ -192,8 +194,8 @@ InputDeviceInfo::~InputDeviceInfo() {
 }
 
 void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t controllerNumber,
-        const InputDeviceIdentifier& identifier, const std::string& alias, bool isExternal,
-        bool hasMic) {
+                                 const InputDeviceIdentifier& identifier, const std::string& alias,
+                                 bool isExternal, bool hasMic, InputDeviceCountryCode countryCode) {
     mId = id;
     mGeneration = generation;
     mControllerNumber = controllerNumber;
@@ -201,6 +203,7 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
     mAlias = alias;
     mIsExternal = isExternal;
     mHasMic = hasMic;
+    mCountryCode = countryCode;
     mSources = 0;
     mKeyboardType = AINPUT_KEYBOARD_TYPE_NONE;
     mHasVibrator = false;
