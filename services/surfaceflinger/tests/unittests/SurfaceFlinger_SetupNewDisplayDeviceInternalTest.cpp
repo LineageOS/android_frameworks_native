@@ -17,6 +17,8 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
+#include <ftl/fake_guard.h>
+
 #include "DisplayHardware/DisplayMode.h"
 
 #include "DisplayTransactionTestHelpers.h"
@@ -265,7 +267,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     // --------------------------------------------------------------------
     // Postconditions
 
-    ASSERT_TRUE(device != nullptr);
+    ASSERT_NE(nullptr, device);
     EXPECT_EQ(Case::Display::DISPLAY_ID::get(), device->getId());
     EXPECT_EQ(static_cast<bool>(Case::Display::VIRTUAL), device->isVirtual());
     EXPECT_EQ(static_cast<bool>(Case::Display::SECURE), device->isSecure());
@@ -282,8 +284,8 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
               device->receivesInput());
 
     if constexpr (Case::Display::CONNECTION_TYPE::value) {
-        EXPECT_NE(nullptr, device->getActiveMode());
-        EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveMode()->getHwcId());
+        ftl::FakeGuard guard(kMainThreadContext);
+        EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveMode().getHwcId());
     }
 }
 
