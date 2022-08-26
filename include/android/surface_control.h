@@ -545,6 +545,8 @@ void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
  * You can register for changes in the refresh rate using
  * \a AChoreographer_registerRefreshRateCallback.
  *
+ * See ASurfaceTransaction_clearFrameRate().
+ *
  * \param frameRate is the intended frame rate of this surface, in frames per second. 0 is a special
  * value that indicates the app will accept the system's choice for the display frame rate, which is
  * the default behavior if this function isn't called. The frameRate param does <em>not</em> need to
@@ -566,6 +568,31 @@ void ASurfaceTransaction_setFrameRateWithChangeStrategy(ASurfaceTransaction* tra
                                       ASurfaceControl* surface_control, float frameRate,
                                       int8_t compatibility, int8_t changeFrameRateStrategy)
                                       __INTRODUCED_IN(31);
+
+/**
+ * Clears the frame rate which is set for \a surface_control.
+ *
+ * This is equivalent to calling
+ * ASurfaceTransaction_setFrameRateWithChangeStrategy(
+ * transaction, 0, compatibility, changeFrameRateStrategy).
+ *
+ * Usage of this API won't directly affect the application's frame production pipeline. However,
+ * because the system may change the display refresh rate, calls to this function may result in
+ * changes to Choreographer callback timings, and changes to the time interval at which the system
+ * releases buffers back to the application.
+ *
+ * See ASurfaceTransaction_setFrameRateWithChangeStrategy()
+ *
+ * You can register for changes in the refresh rate using
+ * \a AChoreographer_registerRefreshRateCallback.
+ *
+ * See ASurfaceTransaction_setFrameRateWithChangeStrategy().
+ *
+ * Available since API level 34.
+ */
+void ASurfaceTransaction_clearFrameRate(ASurfaceTransaction* transaction,
+                                        ASurfaceControl* surface_control)
+                                        __INTRODUCED_IN(__ANDROID_API_U__);
 
 /**
  * Indicate whether to enable backpressure for buffer submission to a given SurfaceControl.
