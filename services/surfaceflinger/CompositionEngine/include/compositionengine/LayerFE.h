@@ -20,8 +20,6 @@
 #include <ostream>
 #include <unordered_set>
 
-#include <compositionengine/FenceResult.h>
-
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
@@ -33,6 +31,7 @@
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include <ftl/future.h>
+#include <ui/FenceResult.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 

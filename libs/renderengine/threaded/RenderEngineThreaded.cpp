@@ -313,21 +313,21 @@ bool RenderEngineThreaded::canSkipPostRenderCleanup() const {
 }
 
 void RenderEngineThreaded::drawLayersInternal(
-        const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+        const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
         const DisplaySettings& display, const std::vector<LayerSettings>& layers,
         const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
         base::unique_fd&& bufferFence) {
-    resultPromise->set_value({NO_ERROR, base::unique_fd()});
+    resultPromise->set_value(Fence::NO_FENCE);
     return;
 }
 
-std::future<RenderEngineResult> RenderEngineThreaded::drawLayers(
+ftl::Future<FenceResult> RenderEngineThreaded::drawLayers(
         const DisplaySettings& display, const std::vector<LayerSettings>& layers,
         const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
         base::unique_fd&& bufferFence) {
     ATRACE_CALL();
-    const auto resultPromise = std::make_shared<std::promise<RenderEngineResult>>();
-    std::future<RenderEngineResult> resultFuture = resultPromise->get_future();
+    const auto resultPromise = std::make_shared<std::promise<FenceResult>>();
+    std::future<FenceResult> resultFuture = resultPromise->get_future();
     int fd = bufferFence.release();
     {
         std::lock_guard lock(mThreadMutex);
