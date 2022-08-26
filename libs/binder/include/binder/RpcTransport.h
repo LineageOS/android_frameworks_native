@@ -30,12 +30,14 @@
 #include <utils/Errors.h>
 
 #include <binder/RpcCertificateFormat.h>
+#include <binder/RpcThreads.h>
 
 #include <sys/uio.h>
 
 namespace android {
 
 class FdTrigger;
+struct TransportFd;
 
 // Represents a socket connection.
 // No thread-safety is guaranteed for these APIs.
@@ -81,6 +83,15 @@ public:
             const std::optional<android::base::function_ref<status_t()>> &altPoll,
             std::vector<std::variant<base::unique_fd, base::borrowed_fd>> *ancillaryFds) = 0;
 
+    /**
+     *  Check whether any threads are blocked while polling the transport
+     *  for read operations
+     *  Return:
+     *    True - Specifies that there is active polling on transport.
+     *    False - No active polling on transport
+     */
+    [[nodiscard]] virtual bool isWaiting() = 0;
+
 protected:
     RpcTransport() = default;
 };
@@ -96,7 +107,7 @@ public:
     // Implementation details: for TLS, this function may incur I/O. |fdTrigger| may be used
     // to interrupt I/O. This function blocks until handshake is finished.
     [[nodiscard]] virtual std::unique_ptr<RpcTransport> newTransport(
-            android::base::unique_fd fd, FdTrigger *fdTrigger) const = 0;
+            android::TransportFd fd, FdTrigger *fdTrigger) const = 0;
 
     // Return the preconfigured certificate of this context.
     //
@@ -127,6 +138,38 @@ public:
 
 protected:
     RpcTransportCtxFactory() = default;
+};
+
+struct TransportFd {
+private:
+    mutable bool isPolling{false};
+
+    void setPollingState(bool state) const { isPolling = state; }
+
+public:
+    base::unique_fd fd;
+
+    TransportFd() = default;
+    explicit TransportFd(base::unique_fd &&descriptor)
+          : isPolling(false), fd(std::move(descriptor)) {}
+
+    TransportFd(TransportFd &&transportFd) noexcept
+          : isPolling(transportFd.isPolling), fd(std::move(transportFd.fd)) {}
+
+    TransportFd &operator=(TransportFd &&transportFd) noexcept {
+        fd = std::move(transportFd.fd);
+        isPolling = transportFd.isPolling;
+        return *this;
+    }
+
+    TransportFd &operator=(base::unique_fd &&descriptor) noexcept {
+        fd = std::move(descriptor);
+        isPolling = false;
+        return *this;
+    }
+
+    bool isInPollingState() const { return isPolling; }
+    friend class FdTrigger;
 };
 
 } // namespace android
