@@ -36,11 +36,11 @@ constexpr size_t kMaxFdsPerMsg = 253;
 // RpcTransport with TLS disabled.
 class RpcTransportRaw : public RpcTransport {
 public:
-    explicit RpcTransportRaw(android::base::unique_fd socket) : mSocket(std::move(socket)) {}
+    explicit RpcTransportRaw(android::TransportFd socket) : mSocket(std::move(socket)) {}
     status_t pollRead(void) override {
         uint8_t buf;
         ssize_t ret = TEMP_FAILURE_RETRY(
-                ::recv(mSocket.get(), &buf, sizeof(buf), MSG_PEEK | MSG_DONTWAIT));
+                ::recv(mSocket.fd.get(), &buf, sizeof(buf), MSG_PEEK | MSG_DONTWAIT));
         if (ret < 0) {
             int savedErrno = errno;
             if (savedErrno == EAGAIN || savedErrno == EWOULDBLOCK) {
@@ -100,7 +100,7 @@ public:
                 msg.msg_controllen = CMSG_SPACE(fdsByteSize);
 
                 ssize_t processedSize = TEMP_FAILURE_RETRY(
-                        sendmsg(mSocket.get(), &msg, MSG_NOSIGNAL | MSG_CMSG_CLOEXEC));
+                        sendmsg(mSocket.fd.get(), &msg, MSG_NOSIGNAL | MSG_CMSG_CLOEXEC));
                 if (processedSize > 0) {
                     sentFds = true;
                 }
@@ -113,10 +113,10 @@ public:
                     // non-negative int and can be cast to either.
                     .msg_iovlen = static_cast<decltype(msg.msg_iovlen)>(niovs),
             };
-            return TEMP_FAILURE_RETRY(sendmsg(mSocket.get(), &msg, MSG_NOSIGNAL));
+            return TEMP_FAILURE_RETRY(sendmsg(mSocket.fd.get(), &msg, MSG_NOSIGNAL));
         };
-        return interruptableReadOrWrite(mSocket.get(), fdTrigger, iovs, niovs, send, "sendmsg",
-                                        POLLOUT, altPoll);
+        return interruptableReadOrWrite(mSocket, fdTrigger, iovs, niovs, send, "sendmsg", POLLOUT,
+                                        altPoll);
     }
 
     status_t interruptableReadFully(
@@ -135,7 +135,7 @@ public:
                         .msg_controllen = sizeof(msgControlBuf),
                 };
                 ssize_t processSize =
-                        TEMP_FAILURE_RETRY(recvmsg(mSocket.get(), &msg, MSG_NOSIGNAL));
+                        TEMP_FAILURE_RETRY(recvmsg(mSocket.fd.get(), &msg, MSG_NOSIGNAL));
                 if (processSize < 0) {
                     return -1;
                 }
@@ -171,21 +171,23 @@ public:
                     // non-negative int and can be cast to either.
                     .msg_iovlen = static_cast<decltype(msg.msg_iovlen)>(niovs),
             };
-            return TEMP_FAILURE_RETRY(recvmsg(mSocket.get(), &msg, MSG_NOSIGNAL));
+            return TEMP_FAILURE_RETRY(recvmsg(mSocket.fd.get(), &msg, MSG_NOSIGNAL));
         };
-        return interruptableReadOrWrite(mSocket.get(), fdTrigger, iovs, niovs, recv, "recvmsg",
-                                        POLLIN, altPoll);
+        return interruptableReadOrWrite(mSocket, fdTrigger, iovs, niovs, recv, "recvmsg", POLLIN,
+                                        altPoll);
     }
 
+    virtual bool isWaiting() { return mSocket.isInPollingState(); }
+
 private:
-    base::unique_fd mSocket;
+    android::TransportFd mSocket;
 };
 
 // RpcTransportCtx with TLS disabled.
 class RpcTransportCtxRaw : public RpcTransportCtx {
 public:
-    std::unique_ptr<RpcTransport> newTransport(android::base::unique_fd fd, FdTrigger*) const {
-        return std::make_unique<RpcTransportRaw>(std::move(fd));
+    std::unique_ptr<RpcTransport> newTransport(android::TransportFd socket, FdTrigger*) const {
+        return std::make_unique<RpcTransportRaw>(std::move(socket));
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }
 };
