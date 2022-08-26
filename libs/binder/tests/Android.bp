@@ -341,6 +341,11 @@ cc_test {
         "binderRpcTest_shared_defaults",
         "libbinder_tls_shared_deps",
     ],
+
+    // Add the Trusty mock library as a fake dependency so it gets built
+    required: [
+        "libbinder_on_trusty_mock",
+    ],
 }
 
 cc_test {
