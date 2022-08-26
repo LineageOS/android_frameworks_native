@@ -754,6 +754,10 @@ private:
     bool preparePointerGestures(nsecs_t when, bool* outCancelPreviousGesture,
                                 bool* outFinishPreviousGesture, bool isTimeout);
 
+    // Moves the on-screen mouse pointer based on the movement of the pointer of the given ID
+    // between the last and current events. Uses a relative motion.
+    void moveMousePointerFromPointerDelta(nsecs_t when, uint32_t pointerId);
+
     void dispatchPointerStylus(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
     void abortPointerStylus(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
 
