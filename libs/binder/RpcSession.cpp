@@ -68,7 +68,7 @@ RpcSession::~RpcSession() {
 
 sp<RpcSession> RpcSession::make() {
     // Default is without TLS.
-    return make(RpcTransportCtxFactoryRaw::make());
+    return make(makeDefaultRpcTransportCtxFactory());
 }
 
 sp<RpcSession> RpcSession::make(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory) {
