@@ -54,7 +54,7 @@ void DefaultAborter(const char* abort_message) {
     abort();
 }
 
-static void TrustyLogLine(const char* msg, int length, android::base::LogSeverity severity,
+static void TrustyLogLine(const char* msg, int /*length*/, android::base::LogSeverity severity,
                           const char* tag) {
     switch (severity) {
         case VERBOSE:
@@ -157,7 +157,7 @@ void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity severi
     TrustyLogger(DEFAULT, severity, tag ?: "<unknown>", file, line, message);
 }
 
-bool ShouldLog(LogSeverity severity, const char* tag) {
+bool ShouldLog(LogSeverity /*severity*/, const char* /*tag*/) {
     // This is controlled by Trusty's log level.
     return true;
 }
