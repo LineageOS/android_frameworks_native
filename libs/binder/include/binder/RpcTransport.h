@@ -37,7 +37,7 @@
 namespace android {
 
 class FdTrigger;
-struct TransportFd;
+struct RpcTransportFd;
 
 // Represents a socket connection.
 // No thread-safety is guaranteed for these APIs.
@@ -107,7 +107,7 @@ public:
     // Implementation details: for TLS, this function may incur I/O. |fdTrigger| may be used
     // to interrupt I/O. This function blocks until handshake is finished.
     [[nodiscard]] virtual std::unique_ptr<RpcTransport> newTransport(
-            android::TransportFd fd, FdTrigger *fdTrigger) const = 0;
+            android::RpcTransportFd fd, FdTrigger *fdTrigger) const = 0;
 
     // Return the preconfigured certificate of this context.
     //
@@ -140,7 +140,7 @@ protected:
     RpcTransportCtxFactory() = default;
 };
 
-struct TransportFd {
+struct RpcTransportFd {
 private:
     mutable bool isPolling{false};
 
@@ -149,20 +149,20 @@ private:
 public:
     base::unique_fd fd;
 
-    TransportFd() = default;
-    explicit TransportFd(base::unique_fd &&descriptor)
+    RpcTransportFd() = default;
+    explicit RpcTransportFd(base::unique_fd &&descriptor)
           : isPolling(false), fd(std::move(descriptor)) {}
 
-    TransportFd(TransportFd &&transportFd) noexcept
+    RpcTransportFd(RpcTransportFd &&transportFd) noexcept
           : isPolling(transportFd.isPolling), fd(std::move(transportFd.fd)) {}
 
-    TransportFd &operator=(TransportFd &&transportFd) noexcept {
+    RpcTransportFd &operator=(RpcTransportFd &&transportFd) noexcept {
         fd = std::move(transportFd.fd);
         isPolling = transportFd.isPolling;
         return *this;
     }
 
-    TransportFd &operator=(base::unique_fd &&descriptor) noexcept {
+    RpcTransportFd &operator=(base::unique_fd &&descriptor) noexcept {
         fd = std::move(descriptor);
         isPolling = false;
         return *this;

@@ -182,7 +182,7 @@ public:
     // If |sslError| is WANT_READ / WANT_WRITE, poll for POLLIN / POLLOUT respectively. Otherwise
     // return error. Also return error if |fdTrigger| is triggered before or during poll().
     status_t pollForSslError(
-            const android::TransportFd& fd, int sslError, FdTrigger* fdTrigger,
+            const android::RpcTransportFd& fd, int sslError, FdTrigger* fdTrigger,
             const char* fnString, int additionalEvent,
             const std::optional<android::base::function_ref<status_t()>>& altPoll) {
         switch (sslError) {
@@ -198,7 +198,7 @@ public:
 private:
     bool mHandled = false;
 
-    status_t handlePoll(int event, const android::TransportFd& fd, FdTrigger* fdTrigger,
+    status_t handlePoll(int event, const android::RpcTransportFd& fd, FdTrigger* fdTrigger,
                         const char* fnString,
                         const std::optional<android::base::function_ref<status_t()>>& altPoll) {
         status_t ret;
@@ -277,7 +277,7 @@ private:
 
 class RpcTransportTls : public RpcTransport {
 public:
-    RpcTransportTls(TransportFd socket, Ssl ssl)
+    RpcTransportTls(RpcTransportFd socket, Ssl ssl)
           : mSocket(std::move(socket)), mSsl(std::move(ssl)) {}
     status_t pollRead(void) override;
     status_t interruptableWriteFully(
@@ -293,7 +293,7 @@ public:
     bool isWaiting() { return mSocket.isInPollingState(); };
 
 private:
-    android::TransportFd mSocket;
+    android::RpcTransportFd mSocket;
     Ssl mSsl;
 };
 
@@ -411,7 +411,7 @@ status_t RpcTransportTls::interruptableReadFully(
 }
 
 // For |ssl|, set internal FD to |fd|, and do handshake. Handshake is triggerable by |fdTrigger|.
-bool setFdAndDoHandshake(Ssl* ssl, const android::TransportFd& socket, FdTrigger* fdTrigger) {
+bool setFdAndDoHandshake(Ssl* ssl, const android::RpcTransportFd& socket, FdTrigger* fdTrigger) {
     bssl::UniquePtr<BIO> bio = newSocketBio(socket.fd);
     TEST_AND_RETURN(false, bio != nullptr);
     auto [_, errorQueue] = ssl->call(SSL_set_bio, bio.get(), bio.get());
@@ -444,7 +444,8 @@ public:
               typename = std::enable_if_t<std::is_base_of_v<RpcTransportCtxTls, Impl>>>
     static std::unique_ptr<RpcTransportCtxTls> create(
             std::shared_ptr<RpcCertificateVerifier> verifier, RpcAuth* auth);
-    std::unique_ptr<RpcTransport> newTransport(TransportFd fd, FdTrigger* fdTrigger) const override;
+    std::unique_ptr<RpcTransport> newTransport(RpcTransportFd fd,
+                                               FdTrigger* fdTrigger) const override;
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override;
 
 protected:
@@ -514,7 +515,7 @@ std::unique_ptr<RpcTransportCtxTls> RpcTransportCtxTls::create(
     return ret;
 }
 
-std::unique_ptr<RpcTransport> RpcTransportCtxTls::newTransport(android::TransportFd socket,
+std::unique_ptr<RpcTransport> RpcTransportCtxTls::newTransport(android::RpcTransportFd socket,
                                                                FdTrigger* fdTrigger) const {
     bssl::UniquePtr<SSL> ssl(SSL_new(mCtx.get()));
     TEST_AND_RETURN(nullptr, ssl != nullptr);
