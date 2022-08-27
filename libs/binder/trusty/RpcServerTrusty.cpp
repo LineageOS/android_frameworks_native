@@ -118,16 +118,18 @@ int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const u
     };
 
     base::unique_fd clientFd(chan);
+    android::TransportFd transportFd(std::move(clientFd));
+
     std::array<uint8_t, RpcServer::kRpcAddressSize> addr;
     constexpr size_t addrLen = sizeof(*peer);
     memcpy(addr.data(), peer, addrLen);
-    RpcServer::establishConnection(sp(server->mRpcServer), std::move(clientFd), addr, addrLen,
+    RpcServer::establishConnection(sp(server->mRpcServer), std::move(transportFd), addr, addrLen,
                                    joinFn);
 
     return rc;
 }
 
-int RpcServerTrusty::handleMessage(const tipc_port* port, handle_t chan, void* ctx) {
+int RpcServerTrusty::handleMessage(const tipc_port* /*port*/, handle_t /*chan*/, void* ctx) {
     auto* channelContext = reinterpret_cast<ChannelContext*>(ctx);
     LOG_ALWAYS_FATAL_IF(channelContext == nullptr,
                         "bad state: message received on uninitialized channel");
@@ -144,7 +146,8 @@ int RpcServerTrusty::handleMessage(const tipc_port* port, handle_t chan, void* c
     return NO_ERROR;
 }
 
-void RpcServerTrusty::handleDisconnect(const tipc_port* port, handle_t chan, void* ctx) {}
+void RpcServerTrusty::handleDisconnect(const tipc_port* /*port*/, handle_t /*chan*/,
+                                       void* /*ctx*/) {}
 
 void RpcServerTrusty::handleChannelCleanup(void* ctx) {
     auto* channelContext = reinterpret_cast<ChannelContext*>(ctx);

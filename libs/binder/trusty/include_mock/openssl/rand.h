@@ -15,22 +15,6 @@
  */
 #pragma once
 
-#include <stddef.h>
-#include <cstdint>
-
-#include <android-base/result.h>
-#include <android-base/unique_fd.h>
-#include <binder/RpcTransport.h>
-#include <utils/Errors.h>
-
-namespace android {
-
-android::base::Result<void> setNonBlocking(android::base::borrowed_fd fd);
-
-status_t getRandomBytes(uint8_t* data, size_t size);
-
-status_t dupFileDescriptor(int oldFd, int* newFd);
-
-std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory();
-
-} // namespace android
+static inline int RAND_bytes(unsigned char*, int) {
+    return 0;
+}

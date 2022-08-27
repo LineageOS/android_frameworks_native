@@ -6439,7 +6439,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
         std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
         if (!renderArea) {
             ALOGW("Skipping screen capture because of invalid render area.");
-            captureResults.result = NO_MEMORY;
+            captureResults.fenceResult = base::unexpected(NO_MEMORY);
             captureListener->onScreenCaptureCompleted(captureResults);
             return ftl::yield<FenceResult>(base::unexpected(NO_ERROR)).share();
         }
@@ -6456,9 +6456,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
             return ftl::Future(std::move(renderFuture))
                     .then([captureListener, captureResults = std::move(captureResults)](
                                   FenceResult fenceResult) mutable -> FenceResult {
-                        // TODO(b/232535621): Change ScreenCaptureResults to store a FenceResult.
-                        captureResults.result = fenceStatus(fenceResult);
-                        captureResults.fence = std::move(fenceResult).value_or(Fence::NO_FENCE);
+                        captureResults.fenceResult = std::move(fenceResult);
                         captureListener->onScreenCaptureCompleted(captureResults);
                         return base::unexpected(NO_ERROR);
                     })

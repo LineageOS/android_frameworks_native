@@ -43,6 +43,7 @@
 
 #include "TouchVideoDevice.h"
 #include "VibrationElement.h"
+#include "android/hardware/input/InputDeviceCountryCode.h"
 
 struct inotify_event;
 
@@ -301,9 +302,9 @@ public:
             int32_t deviceId, int32_t lightId) const = 0;
     virtual void setLightIntensities(int32_t deviceId, int32_t lightId,
                                      std::unordered_map<LightColor, int32_t> intensities) = 0;
-    /*
-     * Query current input state.
-     */
+    /* Query Country code associated with the input device. */
+    virtual hardware::input::InputDeviceCountryCode getCountryCode(int32_t deviceId) const = 0;
+    /* Query current input state. */
     virtual int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const = 0;
     virtual int32_t getKeyCodeState(int32_t deviceId, int32_t keyCode) const = 0;
     virtual int32_t getSwitchState(int32_t deviceId, int32_t sw) const = 0;
@@ -483,6 +484,8 @@ public:
     void setLightIntensities(int32_t deviceId, int32_t lightId,
                              std::unordered_map<LightColor, int32_t> intensities) override final;
 
+    hardware::input::InputDeviceCountryCode getCountryCode(int32_t deviceId) const override final;
+
     void setExcludedDevices(const std::vector<std::string>& devices) override final;
 
     int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const override final;
@@ -544,7 +547,7 @@ private:
     struct AssociatedDevice {
         // The sysfs root path of the misc device.
         std::filesystem::path sysfsRootPath;
-
+        hardware::input::InputDeviceCountryCode countryCode;
         std::unordered_map<int32_t /*batteryId*/, RawBatteryInfo> batteryInfos;
         std::unordered_map<int32_t /*lightId*/, RawLightInfo> lightInfos;
     };

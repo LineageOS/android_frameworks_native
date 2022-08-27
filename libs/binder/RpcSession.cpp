@@ -68,7 +68,7 @@ RpcSession::~RpcSession() {
 
 sp<RpcSession> RpcSession::make() {
     // Default is without TLS.
-    return make(RpcTransportCtxFactoryRaw::make());
+    return make(makeDefaultRpcTransportCtxFactory());
 }
 
 sp<RpcSession> RpcSession::make(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory) {
@@ -162,7 +162,8 @@ status_t RpcSession::setupInetClient(const char* addr, unsigned int port) {
     return NAME_NOT_FOUND;
 }
 
-status_t RpcSession::setupPreconnectedClient(unique_fd fd, std::function<unique_fd()>&& request) {
+status_t RpcSession::setupPreconnectedClient(base::unique_fd fd,
+                                             std::function<unique_fd()>&& request) {
     return setupClient([&](const std::vector<uint8_t>& sessionId, bool incoming) -> status_t {
         if (!fd.ok()) {
             fd = request();
@@ -172,7 +173,9 @@ status_t RpcSession::setupPreconnectedClient(unique_fd fd, std::function<unique_
             ALOGE("setupPreconnectedClient: %s", res.error().message().c_str());
             return res.error().code() == 0 ? UNKNOWN_ERROR : -res.error().code();
         }
-        status_t status = initAndAddConnection(std::move(fd), sessionId, incoming);
+
+        TransportFd transportFd(std::move(fd));
+        status_t status = initAndAddConnection(std::move(transportFd), sessionId, incoming);
         fd = unique_fd(); // Explicitly reset after move to avoid analyzer warning.
         return status;
     });
@@ -190,7 +193,8 @@ status_t RpcSession::addNullDebuggingClient() {
         return -savedErrno;
     }
 
-    auto server = mCtx->newTransport(std::move(serverFd), mShutdownTrigger.get());
+    TransportFd transportFd(std::move(serverFd));
+    auto server = mCtx->newTransport(std::move(transportFd), mShutdownTrigger.get());
     if (server == nullptr) {
         ALOGE("Unable to set up RpcTransport");
         return UNKNOWN_ERROR;
@@ -572,12 +576,14 @@ status_t RpcSession::setupOneSocketConnection(const RpcSocketAddress& addr,
             return -savedErrno;
         }
 
-        if (0 != TEMP_FAILURE_RETRY(connect(serverFd.get(), addr.addr(), addr.addrSize()))) {
+        TransportFd transportFd(std::move(serverFd));
+
+        if (0 != TEMP_FAILURE_RETRY(connect(transportFd.fd.get(), addr.addr(), addr.addrSize()))) {
             int connErrno = errno;
             if (connErrno == EAGAIN || connErrno == EINPROGRESS) {
                 // For non-blocking sockets, connect() may return EAGAIN (for unix domain socket) or
                 // EINPROGRESS (for others). Call poll() and getsockopt() to get the error.
-                status_t pollStatus = mShutdownTrigger->triggerablePoll(serverFd, POLLOUT);
+                status_t pollStatus = mShutdownTrigger->triggerablePoll(transportFd, POLLOUT);
                 if (pollStatus != OK) {
                     ALOGE("Could not POLLOUT after connect() on non-blocking socket: %s",
                           statusToString(pollStatus).c_str());
@@ -585,8 +591,8 @@ status_t RpcSession::setupOneSocketConnection(const RpcSocketAddress& addr,
                 }
                 // Set connErrno to the errno that connect() would have set if the fd were blocking.
                 socklen_t connErrnoLen = sizeof(connErrno);
-                int ret =
-                        getsockopt(serverFd.get(), SOL_SOCKET, SO_ERROR, &connErrno, &connErrnoLen);
+                int ret = getsockopt(transportFd.fd.get(), SOL_SOCKET, SO_ERROR, &connErrno,
+                                     &connErrnoLen);
                 if (ret == -1) {
                     int savedErrno = errno;
                     ALOGE("Could not getsockopt() after connect() on non-blocking socket: %s. "
@@ -608,16 +614,17 @@ status_t RpcSession::setupOneSocketConnection(const RpcSocketAddress& addr,
                 return -connErrno;
             }
         }
-        LOG_RPC_DETAIL("Socket at %s client with fd %d", addr.toString().c_str(), serverFd.get());
+        LOG_RPC_DETAIL("Socket at %s client with fd %d", addr.toString().c_str(),
+                       transportFd.fd.get());
 
-        return initAndAddConnection(std::move(serverFd), sessionId, incoming);
+        return initAndAddConnection(std::move(transportFd), sessionId, incoming);
     }
 
     ALOGE("Ran out of retries to connect to %s", addr.toString().c_str());
     return UNKNOWN_ERROR;
 }
 
-status_t RpcSession::initAndAddConnection(unique_fd fd, const std::vector<uint8_t>& sessionId,
+status_t RpcSession::initAndAddConnection(TransportFd fd, const std::vector<uint8_t>& sessionId,
                                           bool incoming) {
     LOG_ALWAYS_FATAL_IF(mShutdownTrigger == nullptr);
     auto server = mCtx->newTransport(std::move(fd), mShutdownTrigger.get());
