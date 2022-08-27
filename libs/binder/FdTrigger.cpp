@@ -22,6 +22,7 @@
 #include <poll.h>
 
 #include <android-base/macros.h>
+#include <android-base/scopeguard.h>
 
 #include "RpcState.h"
 namespace android {
@@ -53,25 +54,34 @@ bool FdTrigger::isTriggered() {
 #endif
 }
 
-status_t FdTrigger::triggerablePoll(base::borrowed_fd fd, int16_t event) {
+status_t FdTrigger::triggerablePoll(const android::TransportFd& transportFd, int16_t event) {
 #ifdef BINDER_RPC_SINGLE_THREADED
     if (mTriggered) {
         return DEAD_OBJECT;
     }
 #endif
 
-    LOG_ALWAYS_FATAL_IF(event == 0, "triggerablePoll %d with event 0 is not allowed", fd.get());
+    LOG_ALWAYS_FATAL_IF(event == 0, "triggerablePoll %d with event 0 is not allowed",
+                        transportFd.fd.get());
     pollfd pfd[]{
-            {.fd = fd.get(), .events = static_cast<int16_t>(event), .revents = 0},
+            {.fd = transportFd.fd.get(), .events = static_cast<int16_t>(event), .revents = 0},
 #ifndef BINDER_RPC_SINGLE_THREADED
             {.fd = mRead.get(), .events = 0, .revents = 0},
 #endif
     };
+
+    LOG_ALWAYS_FATAL_IF(transportFd.isInPollingState() == true,
+                        "Only one thread should be polling on Fd!");
+
+    transportFd.setPollingState(true);
+    auto pollingStateGuard =
+            android::base::make_scope_guard([&]() { transportFd.setPollingState(false); });
+
     int ret = TEMP_FAILURE_RETRY(poll(pfd, arraysize(pfd), -1));
     if (ret < 0) {
         return -errno;
     }
-    LOG_ALWAYS_FATAL_IF(ret == 0, "poll(%d) returns 0 with infinite timeout", fd.get());
+    LOG_ALWAYS_FATAL_IF(ret == 0, "poll(%d) returns 0 with infinite timeout", transportFd.fd.get());
 
     // At least one FD has events. Check them.
 

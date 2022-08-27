@@ -26,6 +26,7 @@ package {
 filegroup {
     name: "inputconstants_aidl",
     srcs: [
+        "android/hardware/input/InputDeviceCountryCode.aidl",
         "android/os/IInputConstants.aidl",
         "android/os/InputEventInjectionResult.aidl",
         "android/os/InputEventInjectionSync.aidl",

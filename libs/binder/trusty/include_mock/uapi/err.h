@@ -15,22 +15,26 @@
  */
 #pragma once
 
-#include <stddef.h>
-#include <cstdint>
-
-#include <android-base/result.h>
-#include <android-base/unique_fd.h>
-#include <binder/RpcTransport.h>
-#include <utils/Errors.h>
-
-namespace android {
-
-android::base::Result<void> setNonBlocking(android::base::borrowed_fd fd);
-
-status_t getRandomBytes(uint8_t* data, size_t size);
-
-status_t dupFileDescriptor(int oldFd, int* newFd);
-
-std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory();
-
-} // namespace android
+enum {
+    NO_ERROR,
+    ERR_ACCESS_DENIED,
+    ERR_ALREADY_EXISTS,
+    ERR_BAD_HANDLE,
+    ERR_BAD_LEN,
+    ERR_BAD_STATE,
+    ERR_CHANNEL_CLOSED,
+    ERR_CMD_UNKNOWN,
+    ERR_GENERIC,
+    ERR_INVALID_ARGS,
+    ERR_NO_MEMORY,
+    ERR_NO_MSG,
+    ERR_NOT_ALLOWED,
+    ERR_NOT_CONFIGURED,
+    ERR_NOT_ENOUGH_BUFFER,
+    ERR_NOT_FOUND,
+    ERR_NOT_READY,
+    ERR_NOT_SUPPORTED,
+    ERR_NOT_VALID,
+    ERR_TIMED_OUT,
+    ERR_TOO_BIG,
+};

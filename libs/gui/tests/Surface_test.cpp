@@ -218,7 +218,7 @@ protected:
             return err;
         }
         captureResults = captureListener->waitForResults();
-        return captureResults.result;
+        return fenceStatus(captureResults.fenceResult);
     }
 
     sp<Surface> mSurface;

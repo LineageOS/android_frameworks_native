@@ -15,22 +15,12 @@
  */
 #pragma once
 
-#include <stddef.h>
-#include <cstdint>
+#include <stdio.h>
 
-#include <android-base/result.h>
-#include <android-base/unique_fd.h>
-#include <binder/RpcTransport.h>
-#include <utils/Errors.h>
-
-namespace android {
-
-android::base::Result<void> setNonBlocking(android::base::borrowed_fd fd);
-
-status_t getRandomBytes(uint8_t* data, size_t size);
-
-status_t dupFileDescriptor(int oldFd, int* newFd);
-
-std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory();
-
-} // namespace android
+// Mock definitions for the Trusty logging macros. These are not
+// meant to be run, just compiled successfully.
+#define TLOGD(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#define TLOGI(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#define TLOGW(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#define TLOGE(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#define TLOGC(fmt, ...) printf(fmt, ##__VA_ARGS__)

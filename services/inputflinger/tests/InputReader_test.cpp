@@ -38,8 +38,11 @@
 #include <gtest/gtest.h>
 #include <gui/constants.h>
 
+#include "android/hardware/input/InputDeviceCountryCode.h"
 #include "input/DisplayViewport.h"
 #include "input/Input.h"
+
+using android::hardware::input::InputDeviceCountryCode;
 
 namespace android {
 
@@ -455,6 +458,7 @@ class FakeEventHub : public EventHubInterface {
         BitArray<MSC_MAX> mscBitmask;
         std::vector<VirtualKeyDefinition> virtualKeys;
         bool enabled;
+        InputDeviceCountryCode countryCode;
 
         status_t enable() {
             enabled = true;
@@ -582,6 +586,11 @@ public:
     void setKeyCodeState(int32_t deviceId, int32_t keyCode, int32_t state) {
         Device* device = getDevice(deviceId);
         device->keyCodeStates.replaceValueFor(keyCode, state);
+    }
+
+    void setCountryCode(int32_t deviceId, InputDeviceCountryCode countryCode) {
+        Device* device = getDevice(deviceId);
+        device->countryCode = countryCode;
     }
 
     void setScanCodeState(int32_t deviceId, int32_t scanCode, int32_t state) {
@@ -843,6 +852,14 @@ private:
             }
         }
         return AKEY_STATE_UNKNOWN;
+    }
+
+    InputDeviceCountryCode getCountryCode(int32_t deviceId) const override {
+        Device* device = getDevice(deviceId);
+        if (device) {
+            return device->countryCode;
+        }
+        return InputDeviceCountryCode::INVALID;
     }
 
     int32_t getKeyCodeState(int32_t deviceId, int32_t keyCode) const override {
@@ -2685,6 +2702,17 @@ TEST_F(InputDeviceTest, ImmutableProperties) {
     ASSERT_EQ(ftl::Flags<InputDeviceClass>(0), mDevice->getClasses());
 }
 
+TEST_F(InputDeviceTest, CountryCodeCorrectlyMapped) {
+    mFakeEventHub->setCountryCode(EVENTHUB_ID, InputDeviceCountryCode::INTERNATIONAL);
+
+    // Configuration
+    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
+    InputReaderConfiguration config;
+    mDevice->configure(ARBITRARY_TIME, &config, 0);
+
+    ASSERT_EQ(InputDeviceCountryCode::INTERNATIONAL, mDevice->getDeviceInfo().getCountryCode());
+}
+
 TEST_F(InputDeviceTest, WhenDeviceCreated_EnabledIsFalse) {
     ASSERT_EQ(mDevice->isEnabled(), false);
 }
@@ -4086,6 +4114,37 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleInMultiDevices) {
     ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
     ASSERT_EQ(AMETA_NONE, mapper1.getMetaState());
     ASSERT_EQ(AMETA_NONE, mapper2.getMetaState());
+}
+
+TEST_F(KeyboardInputMapperTest, Process_DisabledDevice) {
+    const int32_t USAGE_A = 0x070004;
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, POLICY_FLAG_WAKE);
+    mFakeEventHub->addKey(EVENTHUB_ID, 0, USAGE_A, AKEYCODE_A, POLICY_FLAG_WAKE);
+
+    KeyboardInputMapper& mapper =
+            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+                                                       AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    // Key down by scan code.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
+    NotifyKeyArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
+    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
+    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
+    ASSERT_EQ(KEY_HOME, args.scanCode);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
+
+    // Disable device, it should synthesize cancellation events for down events.
+    mFakePolicy->addDisabledDevice(DEVICE_ID);
+    configureDevice(InputReaderConfiguration::CHANGE_ENABLED_STATE);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
+    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
+    ASSERT_EQ(KEY_HOME, args.scanCode);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED, args.flags);
 }
 
 // --- KeyboardInputMapperTest_ExternalDevice ---

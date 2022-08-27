@@ -199,8 +199,8 @@ private:
 
     static constexpr size_t kRpcAddressSize = 128;
     static void establishConnection(
-            sp<RpcServer>&& server, base::unique_fd clientFd,
-            std::array<uint8_t, kRpcAddressSize> addr, size_t addrLen,
+            sp<RpcServer>&& server, TransportFd clientFd, std::array<uint8_t, kRpcAddressSize> addr,
+            size_t addrLen,
             std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& joinFn);
     [[nodiscard]] status_t setupSocketServer(const RpcSocketAddress& address);
 
@@ -210,7 +210,7 @@ private:
     // A mode is supported if the N'th bit is on, where N is the mode enum's value.
     std::bitset<8> mSupportedFileDescriptorTransportModes = std::bitset<8>().set(
             static_cast<size_t>(RpcSession::FileDescriptorTransportMode::NONE));
-    base::unique_fd mServer; // socket we are accepting sessions on
+    TransportFd mServer; // socket we are accepting sessions on
 
     RpcMutex mLock; // for below
     std::unique_ptr<RpcMaybeThread> mJoinThread;

@@ -23,6 +23,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "android/hardware/input/InputDeviceCountryCode.h"
+
 namespace android {
 
 /*
@@ -210,8 +212,10 @@ public:
     };
 
     void initialize(int32_t id, int32_t generation, int32_t controllerNumber,
-            const InputDeviceIdentifier& identifier, const std::string& alias, bool isExternal,
-            bool hasMic);
+                    const InputDeviceIdentifier& identifier, const std::string& alias,
+                    bool isExternal, bool hasMic,
+                    hardware::input::InputDeviceCountryCode countryCode =
+                            hardware::input::InputDeviceCountryCode::INVALID);
 
     inline int32_t getId() const { return mId; }
     inline int32_t getControllerNumber() const { return mControllerNumber; }
@@ -223,6 +227,7 @@ public:
     }
     inline bool isExternal() const { return mIsExternal; }
     inline bool hasMic() const { return mHasMic; }
+    inline hardware::input::InputDeviceCountryCode getCountryCode() const { return mCountryCode; }
     inline uint32_t getSources() const { return mSources; }
 
     const MotionRange* getMotionRange(int32_t axis, uint32_t source) const;
@@ -274,9 +279,11 @@ private:
     std::string mAlias;
     bool mIsExternal;
     bool mHasMic;
+    hardware::input::InputDeviceCountryCode mCountryCode;
     uint32_t mSources;
     int32_t mKeyboardType;
     std::shared_ptr<KeyCharacterMap> mKeyCharacterMap;
+
     bool mHasVibrator;
     bool mHasBattery;
     bool mHasButtonUnderPad;
