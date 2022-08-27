@@ -16,9 +16,10 @@
 
 #define LOG_TAG "VelocityTracker_test"
 
+#include <math.h>
 #include <array>
 #include <chrono>
-#include <math.h>
+#include <limits>
 
 #include <android-base/stringprintf.h>
 #include <attestation/HmacKeyManager.h>
@@ -198,25 +199,13 @@ static void computeAndCheckVelocity(const VelocityTracker::Strategy strategy,
                                     const std::vector<MotionEventEntry>& motions, int32_t axis,
                                     float targetVelocity, uint32_t pointerId = DEFAULT_POINTER_ID) {
     VelocityTracker vt(strategy);
-    float Vx, Vy;
 
     std::vector<MotionEvent> events = createMotionEventStream(motions);
     for (MotionEvent event : events) {
         vt.addMovement(&event);
     }
 
-    vt.getVelocity(pointerId, &Vx, &Vy);
-
-    switch (axis) {
-    case AMOTION_EVENT_AXIS_X:
-        checkVelocity(Vx, targetVelocity);
-        break;
-    case AMOTION_EVENT_AXIS_Y:
-        checkVelocity(Vy, targetVelocity);
-        break;
-    default:
-        FAIL() << "Axis must be either AMOTION_EVENT_AXIS_X or AMOTION_EVENT_AXIS_Y";
-    }
+    checkVelocity(vt.getVelocity(axis, pointerId).value_or(0), targetVelocity);
 }
 
 static void computeAndCheckQuadraticEstimate(const std::vector<MotionEventEntry>& motions,
@@ -226,17 +215,99 @@ static void computeAndCheckQuadraticEstimate(const std::vector<MotionEventEntry>
     for (MotionEvent event : events) {
         vt.addMovement(&event);
     }
-    VelocityTracker::Estimator estimator;
-    EXPECT_TRUE(vt.getEstimator(0, &estimator));
+    VelocityTracker::Estimator estimatorX;
+    VelocityTracker::Estimator estimatorY;
+    EXPECT_TRUE(vt.getEstimator(AMOTION_EVENT_AXIS_X, 0, &estimatorX));
+    EXPECT_TRUE(vt.getEstimator(AMOTION_EVENT_AXIS_Y, 0, &estimatorY));
     for (size_t i = 0; i< coefficients.size(); i++) {
-        checkCoefficient(estimator.xCoeff[i], coefficients[i]);
-        checkCoefficient(estimator.yCoeff[i], coefficients[i]);
+        checkCoefficient(estimatorX.coeff[i], coefficients[i]);
+        checkCoefficient(estimatorY.coeff[i], coefficients[i]);
     }
 }
 
 /*
  * ================== VelocityTracker tests generated manually =====================================
  */
+TEST_F(VelocityTrackerTest, TestComputedVelocity) {
+    VelocityTracker::ComputedVelocity computedVelocity;
+
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, 0 /*id*/, 200 /*velocity*/);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, 26U /*id*/, 400 /*velocity*/);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, 27U /*id*/, 650 /*velocity*/);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, MAX_POINTER_ID, 750 /*velocity*/);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, 0 /*id*/, 1000 /*velocity*/);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, 26U /*id*/, 2000 /*velocity*/);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, 27U /*id*/, 3000 /*velocity*/);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, MAX_POINTER_ID, 4000 /*velocity*/);
+
+    // Check the axes/indices with velocity.
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, 0U /*id*/)), 200);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, 26U /*id*/)), 400);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, 27U /*id*/)), 650);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, MAX_POINTER_ID)), 750);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, 0U /*id*/)), 1000);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, 26U /*id*/)), 2000);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, 27U /*id*/)), 3000);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, MAX_POINTER_ID)), 4000);
+    for (uint32_t id = 0; id < 32; id++) {
+        // Since no data was added for AXIS_SCROLL, expect empty value for the axis for any id.
+        EXPECT_FALSE(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_SCROLL, id))
+                << "Empty scroll data expected at id=" << id;
+        if (id == 0 || id == 26U || id == 27U || id == MAX_POINTER_ID) {
+            // Already checked above; continue.
+            continue;
+        }
+        // No data was added to X/Y for this id, expect empty value.
+        EXPECT_FALSE(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, id))
+                << "Empty X data expected at id=" << id;
+        EXPECT_FALSE(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, id))
+                << "Empty Y data expected at id=" << id;
+    }
+    // Out-of-bounds ids should given empty values.
+    EXPECT_FALSE(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, -1));
+    EXPECT_FALSE(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, MAX_POINTER_ID + 1));
+}
+
+TEST_F(VelocityTrackerTest, TestPopulateComputedVelocity) {
+    std::vector<MotionEventEntry> motions = {
+            {235089067457000ns, {{528.00, 0}}}, {235089084684000ns, {{527.00, 0}}},
+            {235089093349000ns, {{527.00, 0}}}, {235089095677625ns, {{527.00, 0}}},
+            {235089101859000ns, {{527.00, 0}}}, {235089110378000ns, {{528.00, 0}}},
+            {235089112497111ns, {{528.25, 0}}}, {235089118760000ns, {{531.00, 0}}},
+            {235089126686000ns, {{535.00, 0}}}, {235089129316820ns, {{536.33, 0}}},
+            {235089135199000ns, {{540.00, 0}}}, {235089144297000ns, {{546.00, 0}}},
+            {235089146136443ns, {{547.21, 0}}}, {235089152923000ns, {{553.00, 0}}},
+            {235089160784000ns, {{559.00, 0}}}, {235089162955851ns, {{560.66, 0}}},
+            {235089162955851ns, {{560.66, 0}}}, // ACTION_UP
+    };
+    VelocityTracker vt(VelocityTracker::Strategy::IMPULSE);
+    std::vector<MotionEvent> events = createMotionEventStream(motions);
+    for (const MotionEvent& event : events) {
+        vt.addMovement(&event);
+    }
+
+    float maxFloat = std::numeric_limits<float>::max();
+    VelocityTracker::ComputedVelocity computedVelocity;
+    vt.populateComputedVelocity(computedVelocity, 1000 /* units */, maxFloat);
+    checkVelocity(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID)),
+                  764.345703);
+
+    // Expect X velocity to be scaled with respective to provided units.
+    vt.populateComputedVelocity(computedVelocity, 1000000 /* units */, maxFloat);
+    checkVelocity(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID)),
+                  764345.703);
+
+    // Expect X velocity to be clamped by provided max velocity.
+    vt.populateComputedVelocity(computedVelocity, 1000000 /* units */, 1000);
+    checkVelocity(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID)), 1000);
+
+    // All 0 data for Y; expect 0 velocity.
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, DEFAULT_POINTER_ID)), 0);
+
+    // No data for scroll-axis; expect empty velocity.
+    EXPECT_FALSE(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_SCROLL, DEFAULT_POINTER_ID));
+}
+
 TEST_F(VelocityTrackerTest, ThreePointsPositiveVelocityTest) {
     // Same coordinate is reported 2 times in a row
     // It is difficult to determine the correct answer here, but at least the direction
