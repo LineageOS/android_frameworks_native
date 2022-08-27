@@ -36,7 +36,7 @@ namespace {
 // RpcTransport for writing Trusty IPC clients in Android.
 class RpcTransportTipcAndroid : public RpcTransport {
 public:
-    explicit RpcTransportTipcAndroid(android::TransportFd socket) : mSocket(std::move(socket)) {}
+    explicit RpcTransportTipcAndroid(android::RpcTransportFd socket) : mSocket(std::move(socket)) {}
 
     status_t pollRead() override {
         if (mReadBufferPos < mReadBufferSize) {
@@ -174,7 +174,7 @@ private:
         }
     }
 
-    TransportFd mSocket;
+    RpcTransportFd mSocket;
 
     // For now, we copy all the input data into a temporary buffer because
     // we might get multiple interruptableReadFully calls per message, but
@@ -193,7 +193,8 @@ private:
 // RpcTransportCtx for Trusty.
 class RpcTransportCtxTipcAndroid : public RpcTransportCtx {
 public:
-    std::unique_ptr<RpcTransport> newTransport(android::TransportFd fd, FdTrigger*) const override {
+    std::unique_ptr<RpcTransport> newTransport(android::RpcTransportFd fd,
+                                               FdTrigger*) const override {
         return std::make_unique<RpcTransportTipcAndroid>(std::move(fd));
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }

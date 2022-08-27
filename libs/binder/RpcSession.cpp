@@ -174,7 +174,7 @@ status_t RpcSession::setupPreconnectedClient(base::unique_fd fd,
             return res.error().code() == 0 ? UNKNOWN_ERROR : -res.error().code();
         }
 
-        TransportFd transportFd(std::move(fd));
+        RpcTransportFd transportFd(std::move(fd));
         status_t status = initAndAddConnection(std::move(transportFd), sessionId, incoming);
         fd = unique_fd(); // Explicitly reset after move to avoid analyzer warning.
         return status;
@@ -193,7 +193,7 @@ status_t RpcSession::addNullDebuggingClient() {
         return -savedErrno;
     }
 
-    TransportFd transportFd(std::move(serverFd));
+    RpcTransportFd transportFd(std::move(serverFd));
     auto server = mCtx->newTransport(std::move(transportFd), mShutdownTrigger.get());
     if (server == nullptr) {
         ALOGE("Unable to set up RpcTransport");
@@ -576,7 +576,7 @@ status_t RpcSession::setupOneSocketConnection(const RpcSocketAddress& addr,
             return -savedErrno;
         }
 
-        TransportFd transportFd(std::move(serverFd));
+        RpcTransportFd transportFd(std::move(serverFd));
 
         if (0 != TEMP_FAILURE_RETRY(connect(transportFd.fd.get(), addr.addr(), addr.addrSize()))) {
             int connErrno = errno;
@@ -624,7 +624,7 @@ status_t RpcSession::setupOneSocketConnection(const RpcSocketAddress& addr,
     return UNKNOWN_ERROR;
 }
 
-status_t RpcSession::initAndAddConnection(TransportFd fd, const std::vector<uint8_t>& sessionId,
+status_t RpcSession::initAndAddConnection(RpcTransportFd fd, const std::vector<uint8_t>& sessionId,
                                           bool incoming) {
     LOG_ALWAYS_FATAL_IF(mShutdownTrigger == nullptr);
     auto server = mCtx->newTransport(std::move(fd), mShutdownTrigger.get());
