@@ -194,7 +194,7 @@ void RpcServer::join() {
         static_assert(addr.size() >= sizeof(sockaddr_storage), "kRpcAddressSize is too small");
 
         socklen_t addrLen = addr.size();
-        TransportFd clientSocket(unique_fd(TEMP_FAILURE_RETRY(
+        RpcTransportFd clientSocket(unique_fd(TEMP_FAILURE_RETRY(
                 accept4(mServer.fd.get(), reinterpret_cast<sockaddr*>(addr.data()), &addrLen,
                         SOCK_CLOEXEC | SOCK_NONBLOCK))));
 
@@ -296,7 +296,7 @@ size_t RpcServer::numUninitializedSessions() {
 }
 
 void RpcServer::establishConnection(
-        sp<RpcServer>&& server, TransportFd clientFd, std::array<uint8_t, kRpcAddressSize> addr,
+        sp<RpcServer>&& server, RpcTransportFd clientFd, std::array<uint8_t, kRpcAddressSize> addr,
         size_t addrLen,
         std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& joinFn) {
     // mShutdownTrigger can only be cleared once connection threads have joined.
@@ -488,7 +488,7 @@ status_t RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
     LOG_RPC_DETAIL("Setting up socket server %s", addr.toString().c_str());
     LOG_ALWAYS_FATAL_IF(hasServer(), "Each RpcServer can only have one server.");
 
-    TransportFd transportFd(unique_fd(TEMP_FAILURE_RETRY(
+    RpcTransportFd transportFd(unique_fd(TEMP_FAILURE_RETRY(
             socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0))));
     if (!transportFd.fd.ok()) {
         int savedErrno = errno;
