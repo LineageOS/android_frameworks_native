@@ -16,6 +16,23 @@
       "message": "Verified on darcy running Dolphin, Talos Principle, and Portal.",
       "revId": "7cb596e13aa81373218f401099bd5e6bc8c7bbc4",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "40c2f861_6547f711",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2022-08-27T20:53:44Z",
+      "side": 1,
+      "message": "I hate this, but it seems like Google messed up the flow here in querying this for OpenGL 3.0+ contexts.",
+      "revId": "7cb596e13aa81373218f401099bd5e6bc8c7bbc4",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
