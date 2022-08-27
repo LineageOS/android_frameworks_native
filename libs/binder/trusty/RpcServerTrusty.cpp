@@ -118,7 +118,7 @@ int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const u
     };
 
     base::unique_fd clientFd(chan);
-    android::TransportFd transportFd(std::move(clientFd));
+    android::RpcTransportFd transportFd(std::move(clientFd));
 
     std::array<uint8_t, RpcServer::kRpcAddressSize> addr;
     constexpr size_t addrLen = sizeof(*peer);
