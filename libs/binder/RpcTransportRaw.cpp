@@ -36,7 +36,7 @@ constexpr size_t kMaxFdsPerMsg = 253;
 // RpcTransport with TLS disabled.
 class RpcTransportRaw : public RpcTransport {
 public:
-    explicit RpcTransportRaw(android::TransportFd socket) : mSocket(std::move(socket)) {}
+    explicit RpcTransportRaw(android::RpcTransportFd socket) : mSocket(std::move(socket)) {}
     status_t pollRead(void) override {
         uint8_t buf;
         ssize_t ret = TEMP_FAILURE_RETRY(
@@ -180,13 +180,13 @@ public:
     virtual bool isWaiting() { return mSocket.isInPollingState(); }
 
 private:
-    android::TransportFd mSocket;
+    android::RpcTransportFd mSocket;
 };
 
 // RpcTransportCtx with TLS disabled.
 class RpcTransportCtxRaw : public RpcTransportCtx {
 public:
-    std::unique_ptr<RpcTransport> newTransport(android::TransportFd socket, FdTrigger*) const {
+    std::unique_ptr<RpcTransport> newTransport(android::RpcTransportFd socket, FdTrigger*) const {
         return std::make_unique<RpcTransportRaw>(std::move(socket));
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }

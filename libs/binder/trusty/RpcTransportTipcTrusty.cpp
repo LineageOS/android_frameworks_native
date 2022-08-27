@@ -33,7 +33,7 @@ namespace {
 // RpcTransport for Trusty.
 class RpcTransportTipcTrusty : public RpcTransport {
 public:
-    explicit RpcTransportTipcTrusty(android::TransportFd socket) : mSocket(std::move(socket)) {}
+    explicit RpcTransportTipcTrusty(android::RpcTransportFd socket) : mSocket(std::move(socket)) {}
     ~RpcTransportTipcTrusty() { releaseMessage(); }
 
     status_t pollRead() override {
@@ -212,7 +212,7 @@ private:
         }
     }
 
-    android::TransportFd mSocket;
+    android::RpcTransportFd mSocket;
 
     bool mHaveMessage = false;
     ipc_msg_info mMessageInfo;
@@ -222,7 +222,7 @@ private:
 // RpcTransportCtx for Trusty.
 class RpcTransportCtxTipcTrusty : public RpcTransportCtx {
 public:
-    std::unique_ptr<RpcTransport> newTransport(android::TransportFd socket,
+    std::unique_ptr<RpcTransport> newTransport(android::RpcTransportFd socket,
                                                FdTrigger*) const override {
         return std::make_unique<RpcTransportTipcTrusty>(std::move(socket));
     }
