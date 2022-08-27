@@ -1803,7 +1803,7 @@ public:
         }
         void handleOne(android::base::unique_fd acceptedFd) {
             ASSERT_TRUE(acceptedFd.ok());
-            TransportFd transportFd(std::move(acceptedFd));
+            RpcTransportFd transportFd(std::move(acceptedFd));
             auto serverTransport = mCtx->newTransport(std::move(transportFd), mFdTrigger.get());
             if (serverTransport == nullptr) return; // handshake failed
             ASSERT_TRUE(mPostConnect(serverTransport.get(), mFdTrigger.get()));
@@ -1823,7 +1823,7 @@ public:
         std::unique_ptr<std::thread> mThread;
         ConnectToServer mConnectToServer;
         std::unique_ptr<FdTrigger> mFdTrigger = FdTrigger::make();
-        TransportFd mFd;
+        RpcTransportFd mFd;
         std::unique_ptr<RpcTransportCtx> mCtx;
         std::shared_ptr<RpcCertificateVerifierSimple> mCertVerifier =
                 std::make_shared<RpcCertificateVerifierSimple>();
@@ -1903,7 +1903,7 @@ public:
 
     private:
         ConnectToServer mConnectToServer;
-        TransportFd mFd;
+        RpcTransportFd mFd;
         std::unique_ptr<FdTrigger> mFdTrigger = FdTrigger::make();
         std::unique_ptr<RpcTransportCtx> mCtx;
         std::shared_ptr<RpcCertificateVerifierSimple> mCertVerifier =
