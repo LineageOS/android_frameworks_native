@@ -181,7 +181,7 @@ public:
     /* ------------------------------------------------------------------------
      * Display power mode management.
      */
-    hardware::graphics::composer::hal::PowerMode getPowerMode() const;
+    std::optional<hardware::graphics::composer::hal::PowerMode> getPowerMode() const;
     void setPowerMode(hardware::graphics::composer::hal::PowerMode mode);
     bool isPoweredOn() const;
 
@@ -280,8 +280,8 @@ private:
 
     static ui::Transform::RotationFlags sPrimaryDisplayRotationFlags;
 
-    hardware::graphics::composer::hal::PowerMode mPowerMode =
-            hardware::graphics::composer::hal::PowerMode::OFF;
+    // allow initial power mode as null.
+    std::optional<hardware::graphics::composer::hal::PowerMode> mPowerMode;
     DisplayModePtr mActiveMode;
     std::optional<float> mStagedBrightness = std::nullopt;
     float mBrightness = -1.f;
@@ -365,8 +365,7 @@ struct DisplayDeviceCreationArgs {
     HdrCapabilities hdrCapabilities;
     int32_t supportedPerFrameMetadata{0};
     std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hwcColorModes;
-    hardware::graphics::composer::hal::PowerMode initialPowerMode{
-            hardware::graphics::composer::hal::PowerMode::ON};
+    std::optional<hardware::graphics::composer::hal::PowerMode> initialPowerMode;
     bool isPrimary{false};
     DisplayModes supportedModes;
     DisplayModeId activeModeId;
