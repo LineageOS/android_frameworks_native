@@ -668,6 +668,12 @@ private:
     // Returns true if the display has a visible HDR layer in its layer stack.
     bool hasVisibleHdrLayer(const sp<DisplayDevice>& display) REQUIRES(mStateLock);
 
+    // Returns the preferred mode for PhysicalDisplayId if the Scheduler has selected one for that
+    // display. Falls back to the display's defaultModeId otherwise.
+    std::optional<DisplayModePtr> getPreferredDisplayMode(PhysicalDisplayId,
+                                                          DisplayModeId defaultModeId) const
+            REQUIRES(mStateLock);
+
     // Sets the desired display mode specs.
     status_t setDesiredDisplayModeSpecsInternal(
             const sp<DisplayDevice>& display,

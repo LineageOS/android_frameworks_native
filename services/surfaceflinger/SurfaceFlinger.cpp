@@ -6744,6 +6744,20 @@ void SurfaceFlinger::traverseLayersInLayerStack(ui::LayerStack layerStack, const
     }
 }
 
+std::optional<DisplayModePtr> SurfaceFlinger::getPreferredDisplayMode(
+        PhysicalDisplayId displayId, DisplayModeId defaultModeId) const {
+    if (const auto schedulerMode = mScheduler->getPreferredDisplayMode();
+        schedulerMode && schedulerMode->getPhysicalDisplayId() == displayId) {
+        return schedulerMode;
+    }
+
+    return mPhysicalDisplays.get(displayId)
+            .transform(&PhysicalDisplay::snapshotRef)
+            .and_then([&](const display::DisplaySnapshot& snapshot) {
+                return snapshot.displayModes().get(defaultModeId);
+            });
+}
+
 status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         const sp<DisplayDevice>& display,
         const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy) {
@@ -6762,7 +6776,7 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         return NO_ERROR;
     }
 
-    scheduler::RefreshRateConfigs::Policy currentPolicy =
+    const scheduler::RefreshRateConfigs::Policy currentPolicy =
             display->refreshRateConfigs().getCurrentPolicy();
 
     ALOGV("Setting desired display mode specs: %s", currentPolicy.toString().c_str());
@@ -6777,40 +6791,25 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         mScheduler->onNonPrimaryDisplayModeChanged(mAppConnectionHandle, activeMode);
     }
 
-    const DisplayModePtr preferredDisplayMode = [&]() REQUIRES(mStateLock) -> DisplayModePtr {
-        const auto displayId = display->getPhysicalId();
-
-        if (const auto schedulerMode = mScheduler->getPreferredDisplayMode();
-            schedulerMode && schedulerMode->getPhysicalDisplayId() == displayId) {
-            return schedulerMode;
-        }
-
-        const DisplayModePtr nullMode;
-        return mPhysicalDisplays.get(displayId)
-                .transform(&PhysicalDisplay::snapshotRef)
-                .and_then([&](const display::DisplaySnapshot& snapshot) {
-                    return snapshot.displayModes().get(currentPolicy.defaultMode);
-                })
-                .value_or(std::cref(nullMode));
-    }();
-
-    if (!preferredDisplayMode) {
+    auto preferredModeOpt =
+            getPreferredDisplayMode(display->getPhysicalId(), currentPolicy.defaultMode);
+    if (!preferredModeOpt) {
         ALOGE("%s: Preferred mode is unknown", __func__);
         return NAME_NOT_FOUND;
     }
 
-    ALOGV("trying to switch to Scheduler preferred mode %d (%s)",
-          preferredDisplayMode->getId().value(), to_string(preferredDisplayMode->getFps()).c_str());
+    auto preferredMode = std::move(*preferredModeOpt);
+    const auto preferredModeId = preferredMode->getId();
 
-    if (display->refreshRateConfigs().isModeAllowed(preferredDisplayMode->getId())) {
-        ALOGV("switching to Scheduler preferred display mode %d",
-              preferredDisplayMode->getId().value());
-        setDesiredActiveMode({preferredDisplayMode, DisplayModeEvent::Changed});
-    } else {
-        LOG_ALWAYS_FATAL("Desired display mode not allowed: %d",
-                         preferredDisplayMode->getId().value());
+    ALOGV("Switching to Scheduler preferred mode %d (%s)", preferredModeId.value(),
+          to_string(preferredMode->getFps()).c_str());
+
+    if (!display->refreshRateConfigs().isModeAllowed(preferredModeId)) {
+        ALOGE("%s: Preferred mode %d is disallowed", __func__, preferredModeId.value());
+        return INVALID_OPERATION;
     }
 
+    setDesiredActiveMode({std::move(preferredMode), DisplayModeEvent::Changed});
     return NO_ERROR;
 }
 
