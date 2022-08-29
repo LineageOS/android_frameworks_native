@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "8220fb7f_814116f9",
+        "filename": "libs/ui/Gralloc2.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 52,
+      "author": {
+        "id": 15173
+      },
+      "writtenOn": "2022-08-29T23:59:29Z",
+      "side": 1,
+      "message": "Ever since moving to soong config vars, this is ALWAYS defined. The ifdef should really just be dropped. Same with other gralloc impls in this change.",
+      "revId": "dc5fbd422a10a2ba0f85c232e252390bbb061b5f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
