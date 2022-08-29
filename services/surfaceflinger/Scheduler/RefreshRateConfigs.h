@@ -185,9 +185,13 @@ public:
         bool touch = false;
         // True if the system hasn't seen any buffers posted to layers recently.
         bool idle = false;
+        // Whether the display is about to be powered on, or has been in PowerMode::ON
+        // within the timeout of DisplayPowerTimer.
+        bool powerOnImminent = false;
 
         bool operator==(GlobalSignals other) const {
-            return touch == other.touch && idle == other.idle;
+            return touch == other.touch && idle == other.idle &&
+                    powerOnImminent == other.powerOnImminent;
         }
     };
 

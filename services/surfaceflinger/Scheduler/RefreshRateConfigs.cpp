@@ -280,6 +280,15 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
     ATRACE_CALL();
     ALOGV("%s: %zu layers", __func__, layers.size());
 
+    const auto& activeMode = *getActiveModeItLocked()->second;
+
+    // Keep the display at max refresh rate for the duration of powering on the display.
+    if (signals.powerOnImminent) {
+        ALOGV("Power On Imminent");
+        const auto& max = getMaxRefreshRateByPolicyLocked(activeMode.getGroup());
+        return {max, GlobalSignals{.powerOnImminent = true}};
+    }
+
     int noVoteLayers = 0;
     int minVoteLayers = 0;
     int maxVoteLayers = 0;
@@ -326,7 +335,6 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
 
     const Policy* policy = getCurrentPolicyLocked();
     const auto& defaultMode = mDisplayModes.get(policy->defaultMode)->get();
-    const auto& activeMode = *getActiveModeItLocked()->second;
 
     // If the default mode group is different from the group of current mode,
     // this means a layer requesting a seamed mode switch just disappeared and
