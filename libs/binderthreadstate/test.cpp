@@ -68,8 +68,13 @@ static void callHidl(size_t id, int32_t idx) {
 
 static void callAidl(size_t id, int32_t idx) {
     sp<IAidlStuff> stuff;
-    CHECK(OK == android::getService<IAidlStuff>(String16(id2name(id).c_str()), &stuff));
-    CHECK(stuff->call(idx).isOk());
+    CHECK_EQ(OK, android::getService<IAidlStuff>(String16(id2name(id).c_str()), &stuff));
+    auto ret = stuff->call(idx);
+    CHECK(ret.isOk()) << ret;
+}
+
+static inline std::ostream& operator<<(std::ostream& o, const BinderCallType& s) {
+    return o << static_cast<std::underlying_type_t<BinderCallType>>(s);
 }
 
 class HidlServer : public IHidlStuff {
@@ -79,13 +84,13 @@ public:
     size_t otherId;
 
     Return<void> callLocal() {
-        CHECK(BinderCallType::NONE == getCurrentServingCall());
+        CHECK_EQ(BinderCallType::NONE, getCurrentServingCall());
         return android::hardware::Status::ok();
     }
     Return<void> call(int32_t idx) {
         LOG(INFO) << "HidlServer CALL " << thisId << " to " << otherId << " at idx: " << idx
                   << " with tid: " << gettid();
-        CHECK(BinderCallType::HWBINDER == getCurrentServingCall());
+        CHECK_EQ(BinderCallType::HWBINDER, getCurrentServingCall());
         if (idx > 0) {
             if (thisId == kP1Id && idx % 4 < 2) {
                 callHidl(otherId, idx - 1);
@@ -93,7 +98,7 @@ public:
                 callAidl(otherId, idx - 1);
             }
         }
-        CHECK(BinderCallType::HWBINDER == getCurrentServingCall());
+        CHECK_EQ(BinderCallType::HWBINDER, getCurrentServingCall());
         return android::hardware::Status::ok();
     }
 };
@@ -104,13 +109,13 @@ public:
     size_t otherId;
 
     Status callLocal() {
-        CHECK(BinderCallType::NONE == getCurrentServingCall());
+        CHECK_EQ(BinderCallType::NONE, getCurrentServingCall());
         return Status::ok();
     }
     Status call(int32_t idx) {
         LOG(INFO) << "AidlServer CALL " << thisId << " to " << otherId << " at idx: " << idx
                   << " with tid: " << gettid();
-        CHECK(BinderCallType::BINDER == getCurrentServingCall());
+        CHECK_EQ(BinderCallType::BINDER, getCurrentServingCall());
         if (idx > 0) {
             if (thisId == kP2Id && idx % 4 < 2) {
                 callHidl(otherId, idx - 1);
@@ -118,7 +123,7 @@ public:
                 callAidl(otherId, idx - 1);
             }
         }
-        CHECK(BinderCallType::BINDER == getCurrentServingCall());
+        CHECK_EQ(BinderCallType::BINDER, getCurrentServingCall());
         return Status::ok();
     }
 };
@@ -161,13 +166,14 @@ int server(size_t thisId, size_t otherId) {
     // AIDL
     android::ProcessState::self()->setThreadPoolMaxThreadCount(1);
     sp<AidlServer> aidlServer = new AidlServer(thisId, otherId);
-    CHECK(OK == defaultServiceManager()->addService(String16(id2name(thisId).c_str()), aidlServer));
+    CHECK_EQ(OK,
+             defaultServiceManager()->addService(String16(id2name(thisId).c_str()), aidlServer));
     android::ProcessState::self()->startThreadPool();
 
     // HIDL
     android::hardware::configureRpcThreadpool(1, true /*callerWillJoin*/);
     sp<IHidlStuff> hidlServer = new HidlServer(thisId, otherId);
-    CHECK(OK == hidlServer->registerAsService(id2name(thisId).c_str()));
+    CHECK_EQ(OK, hidlServer->registerAsService(id2name(thisId).c_str()));
     android::hardware::joinRpcThreadpool();
 
     return EXIT_FAILURE;
