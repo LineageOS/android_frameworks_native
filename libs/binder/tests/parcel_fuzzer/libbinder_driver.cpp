@@ -17,6 +17,9 @@
 
 #include <fuzzbinder/random_parcel.h>
 
+#include <android-base/logging.h>
+#include <binder/ProcessState.h>
+
 namespace android {
 
 void fuzzService(const sp<IBinder>& binder, FuzzedDataProvider&& provider) {
@@ -59,6 +62,15 @@ void fuzzService(const sp<IBinder>& binder, FuzzedDataProvider&& provider) {
         for (size_t i = 0; i < retFds.size(); i++) {
             options.extraFds.push_back(base::unique_fd(dup(retFds[i])));
         }
+    }
+
+    // invariants
+
+    auto ps = ProcessState::selfOrNull();
+    if (ps) {
+        CHECK_EQ(0, ps->getThreadPoolMaxTotalThreadCount())
+                << "Binder threadpool should not be started by fuzzer because coverage can only "
+                   "cover in-process calls.";
     }
 }
 
