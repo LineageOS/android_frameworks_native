@@ -706,23 +706,43 @@ void InputReader::flushSensor(int32_t deviceId, InputDeviceSensorType sensorType
 }
 
 std::optional<int32_t> InputReader::getBatteryCapacity(int32_t deviceId) {
-    std::scoped_lock _l(mLock);
+    std::optional<int32_t> eventHubId;
+    {
+        // Do not query the battery state while holding the lock. For some peripheral devices,
+        // reading battery state can be broken and take 5+ seconds. Holding the lock in this case
+        // would block all other event processing during this time. For now, we assume this
+        // call never happens on the InputReader thread and get the battery state outside the
+        // lock to prevent event processing from being blocked by this call.
+        std::scoped_lock _l(mLock);
+        InputDevice* device = findInputDeviceLocked(deviceId);
+        if (!device) return {};
+        eventHubId = device->getBatteryEventHubId();
+    } // release lock
 
-    InputDevice* device = findInputDeviceLocked(deviceId);
-    if (device) {
-        return device->getBatteryCapacity();
-    }
-    return std::nullopt;
+    if (!eventHubId) return {};
+    const auto batteryIds = mEventHub->getRawBatteryIds(*eventHubId);
+    if (batteryIds.empty()) return {};
+    return mEventHub->getBatteryCapacity(*eventHubId, batteryIds.front());
 }
 
 std::optional<int32_t> InputReader::getBatteryStatus(int32_t deviceId) {
-    std::scoped_lock _l(mLock);
+    std::optional<int32_t> eventHubId;
+    {
+        // Do not query the battery state while holding the lock. For some peripheral devices,
+        // reading battery state can be broken and take 5+ seconds. Holding the lock in this case
+        // would block all other event processing during this time. For now, we assume this
+        // call never happens on the InputReader thread and get the battery state outside the
+        // lock to prevent event processing from being blocked by this call.
+        std::scoped_lock _l(mLock);
+        InputDevice* device = findInputDeviceLocked(deviceId);
+        if (!device) return {};
+        eventHubId = device->getBatteryEventHubId();
+    } // release lock
 
-    InputDevice* device = findInputDeviceLocked(deviceId);
-    if (device) {
-        return device->getBatteryStatus();
-    }
-    return std::nullopt;
+    if (!eventHubId) return {};
+    const auto batteryIds = mEventHub->getRawBatteryIds(*eventHubId);
+    if (batteryIds.empty()) return {};
+    return mEventHub->getBatteryStatus(*eventHubId, batteryIds.front());
 }
 
 std::vector<InputDeviceLightInfo> InputReader::getLights(int32_t deviceId) {

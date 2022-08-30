@@ -31,6 +31,7 @@ public:
     explicit PeripheralController(InputDeviceContext& deviceContext);
     ~PeripheralController() override;
 
+    int32_t getEventHubId() const override;
     void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     void dump(std::string& dump) override;
     bool setLightColor(int32_t lightId, int32_t color) override;
@@ -43,6 +44,7 @@ public:
 private:
     inline int32_t getDeviceId() { return mDeviceContext.getId(); }
     inline InputDeviceContext& getDeviceContext() { return mDeviceContext; }
+    inline InputDeviceContext& getDeviceContext() const { return mDeviceContext; }
 
     InputDeviceContext& mDeviceContext;
     void configureLights();
