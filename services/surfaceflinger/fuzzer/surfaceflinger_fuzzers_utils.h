@@ -762,10 +762,11 @@ public:
      * post-conditions.
      */
 
-    auto &mutableCurrentState() { return mFlinger->mCurrentState; }
-    auto &mutableDisplays() { return mFlinger->mDisplays; }
-    auto &mutableDrawingState() { return mFlinger->mDrawingState; }
-    auto &mutableInterceptor() { return mFlinger->mInterceptor; }
+    auto& mutableSupportsWideColor() { return mFlinger->mSupportsWideColor; }
+    auto& mutableCurrentState() { return mFlinger->mCurrentState; }
+    auto& mutableDisplays() { return mFlinger->mDisplays; }
+    auto& mutableDrawingState() { return mFlinger->mDrawingState; }
+    auto& mutableInterceptor() { return mFlinger->mInterceptor; }
 
     auto fromHandle(const sp<IBinder> &handle) { return mFlinger->fromHandle(handle); }
 

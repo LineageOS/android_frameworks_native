@@ -182,7 +182,6 @@ using gui::IWindowInfosListener;
 using gui::LayerMetadata;
 using gui::WindowInfo;
 using gui::aidl_utils::binderStatusFromStatusT;
-using ui::ColorMode;
 using ui::Dataspace;
 using ui::DisplayPrimaries;
 using ui::RenderIntent;
@@ -192,33 +191,6 @@ using KernelIdleTimerController = scheduler::RefreshRateConfigs::KernelIdleTimer
 namespace hal = android::hardware::graphics::composer::hal;
 
 namespace {
-
-#pragma clang diagnostic push
-#pragma clang diagnostic error "-Wswitch-enum"
-
-bool isWideColorMode(const ColorMode colorMode) {
-    switch (colorMode) {
-        case ColorMode::DISPLAY_P3:
-        case ColorMode::ADOBE_RGB:
-        case ColorMode::DCI_P3:
-        case ColorMode::BT2020:
-        case ColorMode::DISPLAY_BT2020:
-        case ColorMode::BT2100_PQ:
-        case ColorMode::BT2100_HLG:
-            return true;
-        case ColorMode::NATIVE:
-        case ColorMode::STANDARD_BT601_625:
-        case ColorMode::STANDARD_BT601_625_UNADJUSTED:
-        case ColorMode::STANDARD_BT601_525:
-        case ColorMode::STANDARD_BT601_525_UNADJUSTED:
-        case ColorMode::STANDARD_BT709:
-        case ColorMode::SRGB:
-            return false;
-    }
-    return false;
-}
-
-#pragma clang diagnostic pop
 
 // TODO(b/141333600): Consolidate with DisplayMode::Builder::getDefaultDensity.
 constexpr float FALLBACK_DENSITY = ACONFIGURATION_DENSITY_TV;
@@ -291,7 +263,6 @@ bool SurfaceFlinger::hasSyncFramework;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 uint32_t SurfaceFlinger::maxGraphicsWidth;
 uint32_t SurfaceFlinger::maxGraphicsHeight;
-bool SurfaceFlinger::hasWideColorDisplay;
 bool SurfaceFlinger::useContextPriority;
 Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
@@ -360,11 +331,11 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     maxGraphicsWidth = std::max(max_graphics_width(0), 0);
     maxGraphicsHeight = std::max(max_graphics_height(0), 0);
 
-    hasWideColorDisplay = has_wide_color_display(false);
+    mSupportsWideColor = has_wide_color_display(false);
     mDefaultCompositionDataspace =
             static_cast<ui::Dataspace>(default_composition_dataspace(Dataspace::V0_SRGB));
     mWideColorGamutCompositionDataspace = static_cast<ui::Dataspace>(wcg_composition_dataspace(
-            hasWideColorDisplay ? Dataspace::DISPLAY_P3 : Dataspace::V0_SRGB));
+            mSupportsWideColor ? Dataspace::DISPLAY_P3 : Dataspace::V0_SRGB));
     defaultCompositionDataspace = mDefaultCompositionDataspace;
     wideColorGamutCompositionDataspace = mWideColorGamutCompositionDataspace;
     defaultCompositionPixelFormat = static_cast<ui::PixelFormat>(
@@ -896,8 +867,8 @@ void SurfaceFlinger::readPersistentProperties() {
     property_get("persist.sys.sf.native_mode", value, "0");
     mDisplayColorSetting = static_cast<DisplayColorSetting>(atoi(value));
 
-    property_get("persist.sys.sf.color_mode", value, "0");
-    mForceColorMode = static_cast<ColorMode>(atoi(value));
+    mForceColorMode =
+            static_cast<ui::ColorMode>(base::GetIntProperty("persist.sys.sf.color_mode"s, 0));
 }
 
 void SurfaceFlinger::startBootAnim() {
@@ -1059,11 +1030,12 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
         info->supportedDisplayModes.push_back(outMode);
     }
 
+    info->supportedColorModes = snapshot.filterColorModes(mSupportsWideColor);
+
     const PhysicalDisplayId displayId = snapshot.displayId();
 
     info->activeDisplayModeId = display->refreshRateConfigs().getActiveModePtr()->getId().value();
     info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
-    info->supportedColorModes = getDisplayColorModes(displayId);
     info->hdrCapabilities = display->getHdrCapabilities();
 
     info->autoLowLatencyModeSupported =
@@ -1341,25 +1313,6 @@ void SurfaceFlinger::disableExpensiveRendering() {
     future.wait();
 }
 
-std::vector<ColorMode> SurfaceFlinger::getDisplayColorModes(PhysicalDisplayId displayId) {
-    auto modes = getHwComposer().getColorModes(displayId);
-
-    const bool isInternalDisplay = mPhysicalDisplays.get(displayId)
-                                           .transform(&PhysicalDisplay::isInternal)
-                                           .value_or(false);
-
-    // If the display is internal and the configuration claims it's not wide color capable,
-    // filter out all wide color modes. The typical reason why this happens is that the
-    // hardware is not good enough to support GPU composition of wide color, and thus the
-    // OEMs choose to disable this capability.
-    if (isInternalDisplay && !hasWideColorDisplay) {
-        const auto newEnd = std::remove_if(modes.begin(), modes.end(), isWideColorMode);
-        modes.erase(newEnd, modes.end());
-    }
-
-    return modes;
-}
-
 status_t SurfaceFlinger::getDisplayNativePrimaries(const sp<IBinder>& displayToken,
                                                    ui::DisplayPrimaries& primaries) {
     if (!displayToken) {
@@ -1383,31 +1336,32 @@ status_t SurfaceFlinger::getDisplayNativePrimaries(const sp<IBinder>& displayTok
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, ColorMode mode) {
+status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode mode) {
     if (!displayToken) {
         return BAD_VALUE;
     }
 
+    const char* const whence = __func__;
     auto future = mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) -> status_t {
-        const auto display = getDisplayDeviceLocked(displayToken);
-        if (!display) {
-            ALOGE("Attempt to set active color mode %s (%d) for invalid display token %p",
-                  decodeColorMode(mode).c_str(), mode, displayToken.get());
+        const auto displayOpt =
+                ftl::find_if(mPhysicalDisplays, PhysicalDisplay::hasToken(displayToken))
+                        .transform(&ftl::to_mapped_ref<PhysicalDisplays>)
+                        .and_then(getDisplayDeviceAndSnapshot());
+
+        if (!displayOpt) {
+            ALOGE("%s: Invalid physical display token %p", whence, displayToken.get());
             return NAME_NOT_FOUND;
         }
 
-        if (display->isVirtual()) {
-            ALOGW("Attempt to set active color mode %s (%d) for virtual display",
-                  decodeColorMode(mode).c_str(), mode);
-            return INVALID_OPERATION;
-        }
+        const auto& [display, snapshotRef] = *displayOpt;
+        const auto& snapshot = snapshotRef.get();
 
-        const auto modes = getDisplayColorModes(display->getPhysicalId());
+        const auto modes = snapshot.filterColorModes(mSupportsWideColor);
         const bool exists = std::find(modes.begin(), modes.end(), mode) != modes.end();
 
-        if (mode < ColorMode::NATIVE || !exists) {
-            ALOGE("Attempt to set invalid active color mode %s (%d) for display token %p",
-                  decodeColorMode(mode).c_str(), mode, displayToken.get());
+        if (mode < ui::ColorMode::NATIVE || !exists) {
+            ALOGE("%s: Invalid color mode %s (%d) for display %s", whence,
+                  decodeColorMode(mode).c_str(), mode, to_string(snapshot.displayId()).c_str());
             return BAD_VALUE;
         }
 
@@ -1585,7 +1539,7 @@ status_t SurfaceFlinger::isWideColorDisplay(const sp<IBinder>& displayToken,
     }
 
     *outIsWideColorDisplay =
-            display->isPrimary() ? hasWideColorDisplay : display->hasWideColorGamut();
+            display->isPrimary() ? mSupportsWideColor : display->hasWideColorGamut();
     return NO_ERROR;
 }
 
@@ -2753,6 +2707,8 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
         return nullptr;
     }
 
+    ui::ColorModes colorModes = getHwComposer().getColorModes(displayId);
+
     if (displayOpt) {
         const auto& display = displayOpt->get();
         const auto& snapshot = display.snapshot();
@@ -2767,7 +2723,7 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
         const auto it =
                 mPhysicalDisplays.try_replace(displayId, display.token(), displayId,
                                               snapshot.connectionType(), std::move(displayModes),
-                                              std::move(deviceProductInfo));
+                                              std::move(colorModes), std::move(deviceProductInfo));
 
         auto& state = mCurrentState.displays.editValueFor(it->second.token());
         state.sequenceId = DisplayDeviceState{}.sequenceId; // Generate new sequenceId.
@@ -2779,7 +2735,8 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
 
     mPhysicalDisplays.try_emplace(displayId, token, displayId,
                                   getHwComposer().getDisplayConnectionType(displayId),
-                                  std::move(displayModes), std::move(info.deviceProductInfo));
+                                  std::move(displayModes), std::move(colorModes),
+                                  std::move(info.deviceProductInfo));
 
     DisplayDeviceState state;
     state.physical = {.id = displayId,
@@ -2834,22 +2791,20 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                                                                    config);
                         })
                         .value_or(nullptr);
-    }
 
-    if (const auto id = PhysicalDisplayId::tryCast(compositionDisplay->getId())) {
-        creationArgs.isPrimary = id == getPrimaryDisplayIdLocked();
+        creationArgs.isPrimary = physical->id == getPrimaryDisplayIdLocked();
 
         if (useColorManagement) {
-            std::vector<ColorMode> modes = getHwComposer().getColorModes(*id);
-            for (ColorMode colorMode : modes) {
-                if (isWideColorMode(colorMode)) {
-                    creationArgs.hasWideColorGamut = true;
-                }
-
-                std::vector<RenderIntent> renderIntents =
-                        getHwComposer().getRenderIntents(*id, colorMode);
-                creationArgs.hwcColorModes.emplace(colorMode, renderIntents);
-            }
+            mPhysicalDisplays.get(physical->id)
+                    .transform(&PhysicalDisplay::snapshotRef)
+                    .transform(ftl::unit_fn([&](const display::DisplaySnapshot& snapshot) {
+                        for (const auto mode : snapshot.colorModes()) {
+                            creationArgs.hasWideColorGamut |= ui::isWideColorMode(mode);
+                            creationArgs.hwcColorModes
+                                    .emplace(mode,
+                                             getHwComposer().getRenderIntents(physical->id, mode));
+                        }
+                    }));
         }
     }
 
@@ -2881,10 +2836,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
     nativeWindowSurface->preallocateBuffers();
 
-    ColorMode defaultColorMode = ColorMode::NATIVE;
+    ui::ColorMode defaultColorMode = ui::ColorMode::NATIVE;
     Dataspace defaultDataSpace = Dataspace::UNKNOWN;
     if (display->hasWideColorGamut()) {
-        defaultColorMode = ColorMode::SRGB;
+        defaultColorMode = ui::ColorMode::SRGB;
         defaultDataSpace = Dataspace::V0_SRGB;
     }
     display->getCompositionDisplay()->setColorProfile(
@@ -5173,28 +5128,24 @@ void SurfaceFlinger::dumpRawDisplayIdentificationData(const DumpArgs& args,
 }
 
 void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
-    StringAppendF(&result, "Device has wide color built-in display: %d\n", hasWideColorDisplay);
+    StringAppendF(&result, "Device supports wide color: %d\n", mSupportsWideColor);
     StringAppendF(&result, "Device uses color management: %d\n", useColorManagement);
     StringAppendF(&result, "DisplayColorSetting: %s\n",
                   decodeDisplayColorSetting(mDisplayColorSetting).c_str());
 
     // TODO: print out if wide-color mode is active or not
 
-    for (const auto& [token, display] : mDisplays) {
-        const auto displayId = PhysicalDisplayId::tryCast(display->getId());
-        if (!displayId) {
-            continue;
-        }
-
-        StringAppendF(&result, "Display %s color modes:\n", to_string(*displayId).c_str());
-        std::vector<ColorMode> modes = getHwComposer().getColorModes(*displayId);
-        for (auto&& mode : modes) {
+    for (const auto& [id, display] : mPhysicalDisplays) {
+        StringAppendF(&result, "Display %s color modes:\n", to_string(id).c_str());
+        for (const auto mode : display.snapshot().colorModes()) {
             StringAppendF(&result, "    %s (%d)\n", decodeColorMode(mode).c_str(), mode);
         }
 
-        ColorMode currentMode = display->getCompositionDisplay()->getState().colorMode;
-        StringAppendF(&result, "    Current color mode: %s (%d)\n",
-                      decodeColorMode(currentMode).c_str(), currentMode);
+        if (const auto display = getDisplayDeviceLocked(id)) {
+            ui::ColorMode currentMode = display->getCompositionDisplay()->getState().colorMode;
+            StringAppendF(&result, "    Current color mode: %s (%d)\n",
+                          decodeColorMode(currentMode).c_str(), currentMode);
+        }
     }
     result.append("\n");
 }
@@ -5738,12 +5689,11 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 updateColorMatrixLocked();
                 return NO_ERROR;
             }
-            case 1023: { // Set native mode
-                int32_t colorMode;
-
+            case 1023: { // Set color mode.
                 mDisplayColorSetting = static_cast<DisplayColorSetting>(data.readInt32());
-                if (data.readInt32(&colorMode) == NO_ERROR) {
-                    mForceColorMode = static_cast<ColorMode>(colorMode);
+
+                if (int32_t colorMode; data.readInt32(&colorMode) == NO_ERROR) {
+                    mForceColorMode = static_cast<ui::ColorMode>(colorMode);
                 }
                 scheduleRepaint();
                 return NO_ERROR;
@@ -6172,18 +6122,6 @@ private:
     const int mApi;
 };
 
-static Dataspace pickDataspaceFromColorMode(const ColorMode colorMode) {
-    switch (colorMode) {
-        case ColorMode::DISPLAY_P3:
-        case ColorMode::BT2100_PQ:
-        case ColorMode::BT2100_HLG:
-        case ColorMode::DISPLAY_BT2020:
-            return Dataspace::DISPLAY_P3;
-        default:
-            return Dataspace::V0_SRGB;
-    }
-}
-
 static bool hasCaptureBlackoutContentPermission() {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
@@ -6295,15 +6233,11 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
             reqSize = display->getLayerStackSpaceRect().getSize();
         }
 
-        // The dataspace is depended on the color mode of display, that could use non-native mode
-        // (ex. displayP3) to enhance the content, but some cases are checking native RGB in bytes,
-        // and failed if display is not in native mode. This provide a way to force using native
-        // colors when capture.
-        dataspace = args.dataspace;
-        if (dataspace == ui::Dataspace::UNKNOWN) {
-            const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
-            dataspace = pickDataspaceFromColorMode(colorMode);
-        }
+        // Allow the caller to specify a dataspace regardless of the display's color mode, e.g. if
+        // it wants sRGB regardless of the display's wide color mode.
+        dataspace = args.dataspace == ui::Dataspace::UNKNOWN
+                ? ui::pickDataspaceFor(display->getCompositionDisplay()->getState().colorMode)
+                : args.dataspace;
     }
 
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
@@ -6338,9 +6272,7 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
         displayWeak = display;
         layerStack = display->getLayerStack();
         size = display->getLayerStackSpaceRect().getSize();
-
-        dataspace =
-                pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
+        dataspace = ui::pickDataspaceFor(display->getCompositionDisplay()->getState().colorMode);
     }
 
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
@@ -6616,7 +6548,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     auto sdrWhitePointNits = DisplayDevice::sDefaultMaxLumiance;
     auto displayBrightnessNits = DisplayDevice::sDefaultMaxLumiance;
 
-    if ((dataspace == ui::Dataspace::UNKNOWN) && (parent != nullptr)) {
+    if (dataspace == ui::Dataspace::UNKNOWN && parent) {
         Mutex::Autolock lock(mStateLock);
         auto display = findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
             return display.getLayerStack() == layerStack;
@@ -6626,8 +6558,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
             display = getDefaultDisplayDeviceLocked();
         }
 
-        const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
-        dataspace = pickDataspaceFromColorMode(colorMode);
+        dataspace = ui::pickDataspaceFor(display->getCompositionDisplay()->getState().colorMode);
         renderIntent = display->getCompositionDisplay()->getState().renderIntent;
         sdrWhitePointNits = display->getCompositionDisplay()->getState().sdrWhitePointNits;
         displayBrightnessNits = display->getCompositionDisplay()->getState().displayBrightnessNits;
