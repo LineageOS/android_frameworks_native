@@ -640,9 +640,6 @@ AidlPowerHalWrapper::AidlPowerHalWrapper(sp<IPower> powerHal) : mPowerHal(std::m
     }
 
     mSupportsPowerHint = checkPowerHintSessionSupported();
-
-    // Currently set to 0 to disable rate limiter by default
-    mAllowedActualDeviation = base::GetIntProperty<nsecs_t>("debug.sf.allowed_actual_deviation", 0);
 }
 
 AidlPowerHalWrapper::~AidlPowerHalWrapper() {
@@ -758,21 +755,6 @@ void AidlPowerHalWrapper::setTargetWorkDuration(int64_t targetDuration) {
     }
 }
 
-bool AidlPowerHalWrapper::shouldReportActualDurations() {
-    // Report if we have never reported before or will go stale next frame
-    if (!mLastActualDurationSent.has_value() ||
-        (mLastTargetDurationSent + systemTime() - mLastActualReportTimestamp) >
-                kStaleTimeout.count()) {
-        return true;
-    }
-
-    if (!mActualDuration.has_value()) {
-        return false;
-    }
-    // Report if the change in actual duration exceeds the threshold
-    return abs(*mActualDuration - *mLastActualDurationSent) > mAllowedActualDeviation;
-}
-
 void AidlPowerHalWrapper::sendActualWorkDuration(int64_t actualDuration, nsecs_t timestamp) {
     ATRACE_CALL();
 
@@ -801,22 +783,13 @@ void AidlPowerHalWrapper::sendActualWorkDuration(int64_t actualDuration, nsecs_t
           " with error: %" PRId64,
           reportedDuration, mLastTargetDurationSent, reportedDuration - mLastTargetDurationSent);
 
-    // This rate limiter queues similar duration reports to the powerhal into
-    // batches to avoid excessive binder calls. The criteria to send a given batch
-    // are outlined in shouldReportActualDurationsNow()
-    if (shouldReportActualDurations()) {
-        ALOGV("Sending hint update batch");
-        mLastActualReportTimestamp = systemTime();
-        auto ret = mPowerHintSession->reportActualWorkDuration(mPowerHintQueue);
-        if (!ret.isOk()) {
-            ALOGW("Failed to report actual work durations with error: %s",
-                  ret.exceptionMessage().c_str());
-            mShouldReconnectHal = true;
-        }
-        mPowerHintQueue.clear();
-        // We save the actual duration here for rate limiting
-        mLastActualDurationSent = actualDuration;
+    auto ret = mPowerHintSession->reportActualWorkDuration(mPowerHintQueue);
+    if (!ret.isOk()) {
+        ALOGW("Failed to report actual work durations with error: %s",
+              ret.exceptionMessage().c_str());
+        mShouldReconnectHal = true;
     }
+    mPowerHintQueue.clear();
 }
 
 bool AidlPowerHalWrapper::shouldReconnectHAL() {
@@ -829,10 +802,6 @@ std::vector<int32_t> AidlPowerHalWrapper::getPowerHintSessionThreadIds() {
 
 std::optional<int64_t> AidlPowerHalWrapper::getTargetWorkDuration() {
     return mTargetDuration;
-}
-
-void AidlPowerHalWrapper::setAllowedActualDeviation(nsecs_t allowedDeviation) {
-    mAllowedActualDeviation = allowedDeviation;
 }
 
 const bool AidlPowerHalWrapper::sTraceHintSessionData =
