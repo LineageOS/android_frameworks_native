@@ -9,7 +9,10 @@ package {
 
 cc_test {
     name: "sffakehwc_test",
-    defaults: ["surfaceflinger_defaults"],
+    defaults: [
+        "android.hardware.graphics.composer3-ndk_shared",
+        "surfaceflinger_defaults",
+    ],
     test_suites: ["device-tests"],
     srcs: [
         "FakeComposerClient.cpp",
@@ -23,7 +26,6 @@ cc_test {
         "android.hardware.graphics.composer@2.2",
         "android.hardware.graphics.composer@2.3",
         "android.hardware.graphics.composer@2.4",
-        "android.hardware.graphics.composer3-V1-ndk",
         "android.hardware.graphics.mapper@2.0",
         "android.hardware.graphics.mapper@3.0",
         "android.hardware.graphics.mapper@4.0",

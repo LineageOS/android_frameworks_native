@@ -23,7 +23,10 @@ package {
 
 cc_test {
     name: "SurfaceFlinger_test",
-    defaults: ["surfaceflinger_defaults"],
+    defaults: [
+        "android.hardware.graphics.common-ndk_shared",
+        "surfaceflinger_defaults",
+    ],
     test_suites: ["device-tests"],
     srcs: [
         "BootDisplayMode_test.cpp",
@@ -64,7 +67,6 @@ cc_test {
         "android.hardware.graphics.composer@2.1",
     ],
     shared_libs: [
-        "android.hardware.graphics.common-V3-ndk",
         "android.hardware.graphics.common@1.2",
         "libandroid",
         "libbase",
