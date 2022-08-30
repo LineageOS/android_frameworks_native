@@ -17,12 +17,12 @@
 #pragma once
 
 #include <optional>
-#include <string>
 
 #include <ui/DisplayId.h>
 #include <ui/StaticDisplayInfo.h>
 
-#include "../DisplayHardware/DisplayMode.h"
+#include "DisplayHardware/DisplayMode.h"
+#include "Utils/Dumper.h"
 
 namespace android::display {
 
@@ -43,7 +43,7 @@ public:
     const auto& displayModes() const { return mDisplayModes; }
     const auto& deviceProductInfo() const { return mDeviceProductInfo; }
 
-    void dump(std::string&) const;
+    void dump(utils::Dumper&) const;
 
 private:
     const PhysicalDisplayId mDisplayId;

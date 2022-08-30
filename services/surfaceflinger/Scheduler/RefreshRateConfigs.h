@@ -32,6 +32,7 @@
 #include "Scheduler/OneShotTimer.h"
 #include "Scheduler/StrongTyping.h"
 #include "ThreadContext.h"
+#include "Utils/Dumper.h"
 
 namespace android::scheduler {
 
@@ -336,7 +337,7 @@ public:
         mIdleTimer->reset();
     }
 
-    void dump(std::string& result) const EXCLUDES(mLock);
+    void dump(utils::Dumper&) const EXCLUDES(mLock);
 
     std::chrono::milliseconds getIdleTimerTimeout();
 

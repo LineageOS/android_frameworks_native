@@ -47,6 +47,7 @@
 #include "Scheduler/RefreshRateConfigs.h"
 #include "ThreadContext.h"
 #include "TracedOrdinal.h"
+#include "Utils/Dumper.h"
 
 namespace android {
 
@@ -248,7 +249,7 @@ public:
      * Debugging
      */
     std::string getDebugName() const;
-    void dump(std::string& result) const;
+    void dump(utils::Dumper&) const;
 
 private:
     const sp<SurfaceFlinger> mFlinger;

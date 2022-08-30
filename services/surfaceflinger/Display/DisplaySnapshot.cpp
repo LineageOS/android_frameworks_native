@@ -41,18 +41,11 @@ std::optional<DisplayModeId> DisplaySnapshot::translateModeId(hal::HWConfigId hw
             .transform(&ftl::to_key<DisplayModes>);
 }
 
-void DisplaySnapshot::dump(std::string& out) const {
-    using namespace std::string_literals;
+void DisplaySnapshot::dump(utils::Dumper& dumper) const {
+    using namespace std::string_view_literals;
 
-    out += "   connectionType="s;
-    out += ftl::enum_string(mConnectionType);
-
-    out += "\n   deviceProductInfo="s;
-    if (mDeviceProductInfo) {
-        mDeviceProductInfo->dump(out);
-    } else {
-        out += "{}"s;
-    }
+    dumper.dump("connectionType"sv, ftl::enum_string(mConnectionType));
+    dumper.dump("deviceProductInfo"sv, mDeviceProductInfo);
 }
 
 } // namespace android::display

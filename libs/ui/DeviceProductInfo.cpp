@@ -14,44 +14,43 @@
  * limitations under the License.
  */
 
+#include <ftl/match.h>
 #include <ui/DeviceProductInfo.h>
 
 #include <android-base/stringprintf.h>
-#include <utils/Log.h>
-
-#define RETURN_IF_ERROR(op) \
-    if (const status_t status = (op); status != OK) return status;
 
 namespace android {
 
-using base::StringAppendF;
+std::string to_string(const DeviceProductInfo& info) {
+    using base::StringAppendF;
 
-void DeviceProductInfo::dump(std::string& result) const {
-    StringAppendF(&result, "{name=\"%s\", ", name.c_str());
-    StringAppendF(&result, "manufacturerPnpId=%s, ", manufacturerPnpId.data());
-    StringAppendF(&result, "productId=%s, ", productId.c_str());
+    std::string result;
+    StringAppendF(&result, "{name=\"%s\", ", info.name.c_str());
+    StringAppendF(&result, "manufacturerPnpId=%s, ", info.manufacturerPnpId.data());
+    StringAppendF(&result, "productId=%s, ", info.productId.c_str());
 
-    if (const auto* model = std::get_if<ModelYear>(&manufactureOrModelDate)) {
-        StringAppendF(&result, "modelYear=%u, ", model->year);
-    } else if (const auto* manufactureWeekAndYear =
-                       std::get_if<ManufactureWeekAndYear>(&manufactureOrModelDate)) {
-        StringAppendF(&result, "manufactureWeek=%u, ", manufactureWeekAndYear->week);
-        StringAppendF(&result, "manufactureYear=%d, ", manufactureWeekAndYear->year);
-    } else if (const auto* manufactureYear =
-                       std::get_if<ManufactureYear>(&manufactureOrModelDate)) {
-        StringAppendF(&result, "manufactureYear=%d, ", manufactureYear->year);
-    } else {
-        ALOGE("Unknown alternative for variant DeviceProductInfo::ManufactureOrModelDate");
-    }
+    ftl::match(
+            info.manufactureOrModelDate,
+            [&](DeviceProductInfo::ModelYear model) {
+                StringAppendF(&result, "modelYear=%u, ", model.year);
+            },
+            [&](DeviceProductInfo::ManufactureWeekAndYear manufacture) {
+                StringAppendF(&result, "manufactureWeek=%u, ", manufacture.week);
+                StringAppendF(&result, "manufactureYear=%d, ", manufacture.year);
+            },
+            [&](DeviceProductInfo::ManufactureYear manufacture) {
+                StringAppendF(&result, "manufactureYear=%d, ", manufacture.year);
+            });
 
     result.append("relativeAddress=[");
-    for (size_t i = 0; i < relativeAddress.size(); i++) {
+    for (size_t i = 0; i < info.relativeAddress.size(); i++) {
         if (i != 0) {
             result.append(", ");
         }
-        StringAppendF(&result, "%u", relativeAddress[i]);
+        StringAppendF(&result, "%u", info.relativeAddress[i]);
     }
     result.append("]}");
+    return result;
 }
 
 } // namespace android

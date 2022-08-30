@@ -177,6 +177,9 @@ inline std::string to_string(hardware::graphics::composer::hal::Error error) {
     return to_string(static_cast<hardware::graphics::composer::hal::V2_4::Error>(error));
 }
 
+// For utils::Dumper ADL.
+namespace hardware::graphics::composer::V2_2 {
+
 inline std::string to_string(hardware::graphics::composer::hal::PowerMode mode) {
     switch (mode) {
         case hardware::graphics::composer::hal::PowerMode::OFF:
@@ -193,6 +196,8 @@ inline std::string to_string(hardware::graphics::composer::hal::PowerMode mode) 
             return "Unknown";
     }
 }
+
+} // namespace hardware::graphics::composer::V2_2
 
 inline std::string to_string(hardware::graphics::composer::hal::Vsync vsync) {
     switch (vsync) {
