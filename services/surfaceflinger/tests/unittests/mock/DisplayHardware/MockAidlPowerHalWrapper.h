@@ -17,6 +17,7 @@
 #pragma once
 
 #include <gmock/gmock.h>
+#include <scheduler/Time.h>
 
 #include "DisplayHardware/PowerAdvisor.h"
 
@@ -42,8 +43,8 @@ public:
     MOCK_METHOD(void, setPowerHintSessionThreadIds, (const std::vector<int32_t>& threadIds),
                 (override));
     MOCK_METHOD(bool, startPowerHintSession, (), (override));
-    MOCK_METHOD(void, setTargetWorkDuration, (nsecs_t targetDuration), (override));
-    MOCK_METHOD(void, sendActualWorkDuration, (nsecs_t actualDuration, nsecs_t timestamp),
+    MOCK_METHOD(void, setTargetWorkDuration, (Duration targetDuration), (override));
+    MOCK_METHOD(void, sendActualWorkDuration, (Duration actualDuration, TimePoint timestamp),
                 (override));
     MOCK_METHOD(bool, shouldReconnectHAL, (), (override));
 };
