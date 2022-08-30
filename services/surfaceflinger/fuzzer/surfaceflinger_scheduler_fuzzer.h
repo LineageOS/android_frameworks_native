@@ -24,8 +24,8 @@
 
 #include <scheduler/TimeKeeper.h>
 
-#include "BufferStateLayer.h"
 #include "Clock.h"
+#include "Layer.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/Scheduler.h"
@@ -66,10 +66,10 @@ private:
     std::chrono::steady_clock::time_point mNow;
 };
 
-class FuzzImplLayer : public BufferStateLayer {
+class FuzzImplLayer : public Layer {
 public:
     FuzzImplLayer(SurfaceFlinger* flinger, std::string name)
-          : BufferStateLayer(LayerCreationArgs(flinger, nullptr, std::move(name), 0, {})) {}
+          : Layer(LayerCreationArgs(flinger, nullptr, std::move(name), 0, {})) {}
     explicit FuzzImplLayer(SurfaceFlinger* flinger) : FuzzImplLayer(flinger, "FuzzLayer") {}
 
     const char* getType() const override { return ""; }
