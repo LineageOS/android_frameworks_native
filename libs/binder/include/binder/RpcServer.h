@@ -187,6 +187,11 @@ public:
     std::vector<sp<RpcSession>> listSessions();
     size_t numUninitializedSessions();
 
+    /**
+     * Whether any requests are currently being processed.
+     */
+    bool hasActiveRequests();
+
     ~RpcServer();
 
 private:
