@@ -1955,7 +1955,6 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
         return error("Failed to determine free space for " + data_path);
     }
 
-    int64_t cleared = 0;
     int64_t needed = targetFreeBytes - free;
     if (!defy_target) {
         LOG(DEBUG) << "Device " << data_path << " has " << free << " free; requested "
@@ -2056,7 +2055,6 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
 
         // 2. Populate tracker stats and insert into priority queue
         ATRACE_BEGIN("populate");
-        int64_t cacheTotal = 0;
         auto cmp = [](std::shared_ptr<CacheTracker> left, std::shared_ptr<CacheTracker> right) {
             return (left->getCacheRatio() < right->getCacheRatio());
         };
@@ -2065,7 +2063,6 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
         for (const auto& it : trackers) {
             it.second->loadStats();
             queue.push(it.second);
-            cacheTotal += it.second->cacheUsed;
         }
         ATRACE_END();
 
@@ -2111,7 +2108,6 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
                 }
                 active->cacheUsed -= item->size;
                 needed -= item->size;
-                cleared += item->size;
             }
 
             if (!defy_target) {

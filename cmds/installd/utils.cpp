@@ -523,7 +523,6 @@ int calculate_tree_size(const std::string& path, int64_t* size,
  */
 bool is_valid_package_name(const std::string& packageName) {
     // This logic is borrowed from PackageParser.java
-    bool hasSep = false;
     bool front = true;
 
     auto it = packageName.begin();
@@ -539,7 +538,6 @@ bool is_valid_package_name(const std::string& packageName) {
             }
         }
         if (c == '.') {
-            hasSep = true;
             front = true;
             continue;
         }
