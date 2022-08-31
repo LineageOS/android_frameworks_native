@@ -23,13 +23,14 @@ package {
 
 cc_library_static {
     name: "libshaders",
-
+    defaults: [
+        "android.hardware.graphics.common-ndk_shared",
+        "android.hardware.graphics.composer3-ndk_shared",
+    ],
     export_include_dirs: ["include"],
     local_include_dirs: ["include"],
 
     shared_libs: [
-        "android.hardware.graphics.common-V3-ndk",
-        "android.hardware.graphics.composer3-V1-ndk",
         "android.hardware.graphics.common@1.2",
         "libnativewindow",
     ],

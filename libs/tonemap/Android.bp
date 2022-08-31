@@ -23,13 +23,15 @@ package {
 
 cc_library_static {
     name: "libtonemap",
+    defaults: [
+        "android.hardware.graphics.common-ndk_shared",
+        "android.hardware.graphics.composer3-ndk_shared",
+    ],
     vendor_available: true,
 
     local_include_dirs: ["include"],
 
     shared_libs: [
-        "android.hardware.graphics.common-V3-ndk",
-        "android.hardware.graphics.composer3-V1-ndk",
         "liblog",
         "libnativewindow",
     ],

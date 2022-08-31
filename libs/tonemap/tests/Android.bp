@@ -23,6 +23,10 @@ package {
 
 cc_test {
     name: "libtonemap_test",
+    defaults: [
+        "android.hardware.graphics.common-ndk_shared",
+        "android.hardware.graphics.composer3-ndk_shared",
+    ],
     test_suites: ["device-tests"],
     srcs: [
         "tonemap_test.cpp",
@@ -31,8 +35,6 @@ cc_test {
         "libtonemap_headers",
     ],
     shared_libs: [
-        "android.hardware.graphics.common-V3-ndk",
-        "android.hardware.graphics.composer3-V1-ndk",
         "libnativewindow",
     ],
     static_libs: [
