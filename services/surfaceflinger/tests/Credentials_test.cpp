@@ -55,19 +55,12 @@ const String8 SURFACE_NAME("Test Surface Name");
 #pragma clang diagnostic ignored "-Wconversion"
 class CredentialsTest : public ::testing::Test {
 protected:
-    void SetUp() override {
-        // Start the tests as root.
-        seteuid(AID_ROOT);
-
-        ASSERT_NO_FATAL_FAILURE(initClient());
-    }
+    void SetUp() override { ASSERT_NO_FATAL_FAILURE(initClient()); }
 
     void TearDown() override {
         mComposerClient->dispose();
         mBGSurfaceControl.clear();
         mComposerClient.clear();
-        // Finish the tests as root.
-        seteuid(AID_ROOT);
     }
 
     sp<IBinder> mDisplay;
@@ -102,31 +95,6 @@ protected:
     }
 
     /**
-     * Sets UID to imitate Graphic's process.
-     */
-    void setGraphicsUID() {
-        seteuid(AID_ROOT);
-        seteuid(AID_GRAPHICS);
-    }
-
-    /**
-     * Sets UID to imitate System's process.
-     */
-    void setSystemUID() {
-        seteuid(AID_ROOT);
-        seteuid(AID_SYSTEM);
-    }
-
-    /**
-     * Sets UID to imitate a process that doesn't have any special privileges in
-     * our code.
-     */
-    void setBinUID() {
-        seteuid(AID_ROOT);
-        seteuid(AID_BIN);
-    }
-
-    /**
      * Template function the check a condition for different types of users: root
      * graphics, system, and non-supported user. Root, graphics, and system should
      * always equal privilegedValue, and non-supported user should equal unprivilegedValue.
@@ -134,24 +102,34 @@ protected:
     template <typename T>
     void checkWithPrivileges(std::function<T()> condition, T privilegedValue, T unprivilegedValue) {
         // Check with root.
-        seteuid(AID_ROOT);
-        ASSERT_EQ(privilegedValue, condition());
+        {
+            UIDFaker f(AID_SYSTEM);
+            ASSERT_EQ(privilegedValue, condition());
+        }
 
         // Check as a Graphics user.
-        setGraphicsUID();
-        ASSERT_EQ(privilegedValue, condition());
+        {
+            UIDFaker f(AID_GRAPHICS);
+            ASSERT_EQ(privilegedValue, condition());
+        }
 
         // Check as a system user.
-        setSystemUID();
-        ASSERT_EQ(privilegedValue, condition());
+        {
+            UIDFaker f(AID_SYSTEM);
+            ASSERT_EQ(privilegedValue, condition());
+        }
 
         // Check as a non-supported user.
-        setBinUID();
-        ASSERT_EQ(unprivilegedValue, condition());
+        {
+            UIDFaker f(AID_BIN);
+            ASSERT_EQ(unprivilegedValue, condition());
+        }
 
         // Check as shell since shell has some additional permissions
-        seteuid(AID_SHELL);
-        ASSERT_EQ(unprivilegedValue, condition());
+        {
+            UIDFaker f(AID_SHELL);
+            ASSERT_EQ(privilegedValue, condition());
+        }
     }
 };
 
@@ -160,17 +138,23 @@ TEST_F(CredentialsTest, ClientInitTest) {
     ASSERT_NO_FATAL_FAILURE(initClient());
 
     // Graphics can init the client.
-    setGraphicsUID();
-    ASSERT_NO_FATAL_FAILURE(initClient());
+    {
+        UIDFaker f(AID_GRAPHICS);
+        ASSERT_NO_FATAL_FAILURE(initClient());
+    }
 
     // System can init the client.
-    setSystemUID();
-    ASSERT_NO_FATAL_FAILURE(initClient());
+    {
+        UIDFaker f(AID_SYSTEM);
+        ASSERT_NO_FATAL_FAILURE(initClient());
+    }
 
     // Anyone else can init the client.
-    setBinUID();
-    mComposerClient = sp<SurfaceComposerClient>::make();
-    ASSERT_NO_FATAL_FAILURE(initClient());
+    {
+        UIDFaker f(AID_BIN);
+        mComposerClient = sp<SurfaceComposerClient>::make();
+        ASSERT_NO_FATAL_FAILURE(initClient());
+    }
 }
 
 TEST_F(CredentialsTest, GetBuiltInDisplayAccessTest) {
@@ -184,7 +168,7 @@ TEST_F(CredentialsTest, GetBuiltInDisplayAccessTest) {
 TEST_F(CredentialsTest, AllowedGetterMethodsTest) {
     // The following methods are tested with a UID that is not root, graphics,
     // or system, to show that anyone can access them.
-    setBinUID();
+    UIDFaker f(AID_BIN);
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     ASSERT_TRUE(display != nullptr);
 
@@ -253,24 +237,34 @@ TEST_F(CredentialsTest, CreateDisplayTest) {
     };
 
     // Check with root.
-    seteuid(AID_ROOT);
-    ASSERT_FALSE(condition());
+    {
+        UIDFaker f(AID_ROOT);
+        ASSERT_FALSE(condition());
+    }
 
     // Check as a Graphics user.
-    setGraphicsUID();
-    ASSERT_TRUE(condition());
+    {
+        UIDFaker f(AID_GRAPHICS);
+        ASSERT_TRUE(condition());
+    }
 
     // Check as a system user.
-    setSystemUID();
-    ASSERT_TRUE(condition());
+    {
+        UIDFaker f(AID_SYSTEM);
+        ASSERT_TRUE(condition());
+    }
 
     // Check as a non-supported user.
-    setBinUID();
-    ASSERT_FALSE(condition());
+    {
+        UIDFaker f(AID_BIN);
+        ASSERT_FALSE(condition());
+    }
 
     // Check as shell since shell has some additional permissions
-    seteuid(AID_SHELL);
-    ASSERT_FALSE(condition());
+    {
+        UIDFaker f(AID_SHELL);
+        ASSERT_FALSE(condition());
+    }
 
     condition = [=]() {
         sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
@@ -315,21 +309,27 @@ TEST_F(CredentialsTest, GetLayerDebugInfo) {
     // Historically, only root and shell can access the getLayerDebugInfo which
     // is called when we call dumpsys. I don't see a reason why we should change this.
     std::vector<LayerDebugInfo> outLayers;
+    binder::Status status = binder::Status::ok();
     // Check with root.
-    seteuid(AID_ROOT);
-    binder::Status status = sf->getLayerDebugInfo(&outLayers);
-    ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
+    {
+        UIDFaker f(AID_ROOT);
+        status = sf->getLayerDebugInfo(&outLayers);
+        ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
+    }
 
     // Check as a shell.
-    seteuid(AID_SHELL);
-    status = sf->getLayerDebugInfo(&outLayers);
-    ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
+    {
+        UIDFaker f(AID_SHELL);
+        status = sf->getLayerDebugInfo(&outLayers);
+        ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
+    }
 
     // Check as anyone else.
-    seteuid(AID_ROOT);
-    seteuid(AID_BIN);
-    status = sf->getLayerDebugInfo(&outLayers);
-    ASSERT_EQ(PERMISSION_DENIED, statusTFromBinderStatus(status));
+    {
+        UIDFaker f(AID_BIN);
+        status = sf->getLayerDebugInfo(&outLayers);
+        ASSERT_EQ(PERMISSION_DENIED, statusTFromBinderStatus(status));
+    }
 }
 
 TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {
