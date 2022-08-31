@@ -19,7 +19,9 @@
 #if !defined(__ANDROID_APEX__) && !defined(__ANDROID_VNDK__)
 
 #include <android/binder_ibinder.h>
+#include <android/binder_parcel.h>
 #include <binder/IBinder.h>
+#include <binder/Parcel.h>
 
 /**
  * Get libbinder version of binder from AIBinder.
@@ -46,5 +48,27 @@ android::sp<android::IBinder> AIBinder_toPlatformBinder(AIBinder* binder);
  * AIBinder_decStrong
  */
 AIBinder* AIBinder_fromPlatformBinder(const android::sp<android::IBinder>& binder);
+
+/**
+ * View libbinder version of parcel from AParcel (mutable).
+ *
+ * The lifetime of the returned parcel is the lifetime of the input AParcel.
+ * Do not ues this reference after dropping the AParcel.
+ *
+ * \param parcel non-null parcel with ownership retained by client
+ * \return platform parcel object
+ */
+android::Parcel* AParcel_viewPlatformParcel(AParcel* parcel);
+
+/**
+ * View libbinder version of parcel from AParcel (const version).
+ *
+ * The lifetime of the returned parcel is the lifetime of the input AParcel.
+ * Do not ues this reference after dropping the AParcel.
+ *
+ * \param parcel non-null parcel with ownership retained by client
+ * \return platform parcel object
+ */
+const android::Parcel* AParcel_viewPlatformParcel(const AParcel* parcel);
 
 #endif

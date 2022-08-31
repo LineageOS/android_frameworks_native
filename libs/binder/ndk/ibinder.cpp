@@ -14,20 +14,18 @@
  * limitations under the License.
  */
 
+#include <android-base/logging.h>
 #include <android/binder_ibinder.h>
 #include <android/binder_ibinder_platform.h>
-#include <android/binder_libbinder.h>
-#include "ibinder_internal.h"
-
 #include <android/binder_stability.h>
 #include <android/binder_status.h>
-#include "parcel_internal.h"
-#include "status_internal.h"
-
-#include <android-base/logging.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IResultReceiver.h>
 #include <private/android_filesystem_config.h>
+
+#include "ibinder_internal.h"
+#include "parcel_internal.h"
+#include "status_internal.h"
 
 using DeathRecipient = ::android::IBinder::DeathRecipient;
 
@@ -780,17 +778,6 @@ void AIBinder_setRequestingSid(AIBinder* binder, bool requestingSid) {
 
 const char* AIBinder_getCallingSid() {
     return ::android::IPCThreadState::self()->getCallingSid();
-}
-
-android::sp<android::IBinder> AIBinder_toPlatformBinder(AIBinder* binder) {
-    if (binder == nullptr) return nullptr;
-    return binder->getBinder();
-}
-
-AIBinder* AIBinder_fromPlatformBinder(const android::sp<android::IBinder>& binder) {
-    sp<AIBinder> ndkBinder = ABpBinder::lookupOrCreateFromBinder(binder);
-    AIBinder_incStrong(ndkBinder.get());
-    return ndkBinder.get();
 }
 
 void AIBinder_setMinSchedulerPolicy(AIBinder* binder, int policy, int priority) {
