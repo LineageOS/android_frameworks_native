@@ -18,29 +18,27 @@
 #include <android/binder_auto_utils.h>
 #include <vector>
 
+#include <android/binder_libbinder.h>
 #include <android/binder_parcel.h>
 #include "parcel_fuzzer.h"
 
-// libbinder_ndk doesn't export this header which breaks down its API for NDK
-// and APEX users, but we need access to it to fuzz.
-#include "../../ndk/parcel_internal.h"
-
 class NdkParcelAdapter {
 public:
-    NdkParcelAdapter() : mParcel(new AParcel(nullptr /*binder*/)) {}
+    NdkParcelAdapter() : mParcel(AParcel_create()) {}
 
     const AParcel* aParcel() const { return mParcel.get(); }
     AParcel* aParcel() { return mParcel.get(); }
 
-    android::Parcel* parcel() { return aParcel()->get(); }
+    const android::Parcel* parcel() const { return AParcel_viewPlatformParcel(aParcel()); }
+    android::Parcel* parcel() { return AParcel_viewPlatformParcel(aParcel()); }
 
-    const uint8_t* data() const { return aParcel()->get()->data(); }
-    size_t dataSize() const { return aParcel()->get()->dataSize(); }
-    size_t dataAvail() const { return aParcel()->get()->dataAvail(); }
-    size_t dataPosition() const { return aParcel()->get()->dataPosition(); }
-    size_t dataCapacity() const { return aParcel()->get()->dataCapacity(); }
+    const uint8_t* data() const { return parcel()->data(); }
+    size_t dataSize() const { return parcel()->dataSize(); }
+    size_t dataAvail() const { return parcel()->dataAvail(); }
+    size_t dataPosition() const { return parcel()->dataPosition(); }
+    size_t dataCapacity() const { return parcel()->dataCapacity(); }
     android::status_t setData(const uint8_t* buffer, size_t len) {
-        return aParcel()->get()->setData(buffer, len);
+        return parcel()->setData(buffer, len);
     }
 
     android::status_t appendFrom(const NdkParcelAdapter* parcel, int32_t start, int32_t len) {
