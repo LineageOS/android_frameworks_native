@@ -661,6 +661,15 @@ TEST(NdkBinder, ConvertToPlatformBinder) {
     }
 }
 
+TEST(NdkBinder, ConvertToPlatformParcel) {
+    ndk::ScopedAParcel parcel = ndk::ScopedAParcel(AParcel_create());
+    EXPECT_EQ(OK, AParcel_writeInt32(parcel.get(), 42));
+
+    android::Parcel* pparcel = AParcel_viewPlatformParcel(parcel.get());
+    pparcel->setDataPosition(0);
+    EXPECT_EQ(42, pparcel->readInt32());
+}
+
 class MyResultReceiver : public BnResultReceiver {
    public:
     Mutex mMutex;
