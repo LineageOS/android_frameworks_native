@@ -41,6 +41,8 @@ struct TimePoint : scheduler::SchedulerClock::time_point {
 
     static constexpr TimePoint fromNs(nsecs_t);
 
+    static TimePoint now() { return scheduler::SchedulerClock::now(); };
+
     nsecs_t ns() const;
 };
 

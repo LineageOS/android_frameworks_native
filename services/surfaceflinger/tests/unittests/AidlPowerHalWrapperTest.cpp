@@ -69,7 +69,8 @@ void AidlPowerHalWrapperTest::verifyAndClearExpectations() {
 void AidlPowerHalWrapperTest::sendActualWorkDurationGroup(std::vector<WorkDuration> durations) {
     for (size_t i = 0; i < durations.size(); i++) {
         auto duration = durations[i];
-        mWrapper->sendActualWorkDuration(duration.durationNanos, duration.timeStampNanos);
+        mWrapper->sendActualWorkDuration(Duration::fromNs(duration.durationNanos),
+                                         TimePoint::fromNs(duration.timeStampNanos));
     }
 }
 
@@ -155,13 +156,13 @@ TEST_F(AidlPowerHalWrapperTest, setTargetWorkDuration) {
 
     for (const auto& test : testCases) {
         // reset to 100ms baseline
-        mWrapper->setTargetWorkDuration(1);
-        mWrapper->setTargetWorkDuration(base.count());
+        mWrapper->setTargetWorkDuration(1ns);
+        mWrapper->setTargetWorkDuration(base);
 
-        auto target = test.first;
+        std::chrono::nanoseconds target = test.first;
         EXPECT_CALL(*mMockSession.get(), updateTargetWorkDuration(target.count()))
                 .Times(test.second ? 1 : 0);
-        mWrapper->setTargetWorkDuration(target.count());
+        mWrapper->setTargetWorkDuration(target);
         verifyAndClearExpectations();
     }
 }
@@ -178,7 +179,7 @@ TEST_F(AidlPowerHalWrapperTest, setTargetWorkDuration_shouldReconnectOnError) {
 
     EXPECT_CALL(*mMockSession.get(), updateTargetWorkDuration(1))
             .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_ILLEGAL_STATE)));
-    mWrapper->setTargetWorkDuration(1);
+    mWrapper->setTargetWorkDuration(1ns);
     EXPECT_TRUE(mWrapper->shouldReconnectHAL());
 }
 
