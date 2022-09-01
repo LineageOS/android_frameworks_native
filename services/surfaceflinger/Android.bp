@@ -25,6 +25,7 @@ cc_defaults {
 cc_defaults {
     name: "libsurfaceflinger_defaults",
     defaults: [
+        "android.hardware.graphics.composer3-ndk_shared",
         "surfaceflinger_defaults",
         "skia_renderengine_deps",
     ],
@@ -46,7 +47,6 @@ cc_defaults {
         "android.hardware.graphics.composer@2.2",
         "android.hardware.graphics.composer@2.3",
         "android.hardware.graphics.composer@2.4",
-        "android.hardware.graphics.composer3-V1-ndk",
         "android.hardware.power@1.0",
         "android.hardware.power@1.3",
         "android.hardware.power-V2-cpp",
@@ -106,7 +106,6 @@ cc_defaults {
         "android.hardware.graphics.composer@2.2",
         "android.hardware.graphics.composer@2.3",
         "android.hardware.graphics.composer@2.4",
-        "android.hardware.graphics.composer3-V1-ndk",
         "android.hardware.power@1.3",
         "libhidlbase",
         "libtimestats",

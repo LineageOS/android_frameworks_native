@@ -21,13 +21,15 @@ cc_defaults {
 
 cc_defaults {
     name: "librenderengine_defaults",
-    defaults: ["renderengine_defaults"],
+    defaults: [
+        "android.hardware.graphics.composer3-ndk_shared",
+        "renderengine_defaults",
+    ],
     cflags: [
         "-DGL_GLEXT_PROTOTYPES",
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     shared_libs: [
-        "android.hardware.graphics.composer3-V1-ndk",
         "libbase",
         "libcutils",
         "libEGL",
