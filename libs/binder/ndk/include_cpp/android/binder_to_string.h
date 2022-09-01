@@ -162,7 +162,12 @@ std::string ToString(const _T& t) {
     } else if constexpr (std::is_same_v<bool, _T>) {
         return t ? "true" : "false";
     } else if constexpr (std::is_same_v<char16_t, _T>) {
+        // TODO(b/244494451): codecvt is deprecated in C++17 -- suppress the
+        // warnings. There's no replacement in the standard library yet.
+        _Pragma("clang diagnostic push")
+                _Pragma("clang diagnostic ignored \"-Wdeprecated-declarations\"");
         return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(t);
+        _Pragma("clang diagnostic pop");
     } else if constexpr (std::is_arithmetic_v<_T>) {
         return std::to_string(t);
     } else if constexpr (std::is_same_v<std::string, _T>) {
