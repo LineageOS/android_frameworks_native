@@ -38,7 +38,6 @@
 #include <utils/String8.h>
 
 #include "DisplayRenderArea.h"
-#include "EffectLayer.h"
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
@@ -857,13 +856,13 @@ struct BaseLayerVariant {
 template <typename LayerProperties>
 struct EffectLayerVariant : public BaseLayerVariant<LayerProperties> {
     using Base = BaseLayerVariant<LayerProperties>;
-    using FlingerLayerType = sp<EffectLayer>;
+    using FlingerLayerType = sp<Layer>;
 
     static FlingerLayerType createLayer(CompositionTest* test) {
-        FlingerLayerType layer = Base::template createLayerWithFactory<EffectLayer>(test, [test]() {
-            return sp<EffectLayer>::make(
-                    LayerCreationArgs(test->mFlinger.flinger(), sp<Client>(), "test-layer",
-                                      LayerProperties::LAYER_FLAGS, LayerMetadata()));
+        FlingerLayerType layer = Base::template createLayerWithFactory<Layer>(test, [test]() {
+            return sp<Layer>::make(LayerCreationArgs(test->mFlinger.flinger(), sp<Client>(),
+                                                     "test-layer", LayerProperties::LAYER_FLAGS,
+                                                     LayerMetadata()));
         });
 
         auto& layerDrawingState = test->mFlinger.mutableLayerDrawingState(layer);
@@ -945,12 +944,12 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
 template <typename LayerProperties>
 struct ContainerLayerVariant : public BaseLayerVariant<LayerProperties> {
     using Base = BaseLayerVariant<LayerProperties>;
-    using FlingerLayerType = sp<EffectLayer>;
+    using FlingerLayerType = sp<Layer>;
 
     static FlingerLayerType createLayer(CompositionTest* test) {
         LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-container-layer",
                                LayerProperties::LAYER_FLAGS, LayerMetadata());
-        FlingerLayerType layer = sp<EffectLayer>::make(args);
+        FlingerLayerType layer = sp<Layer>::make(args);
         Base::template initLayerDrawingStateAndComputeBounds(test, layer);
         return layer;
     }

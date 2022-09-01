@@ -118,7 +118,6 @@
 #include "DisplayHardware/PowerAdvisor.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "DisplayRenderArea.h"
-#include "EffectLayer.h"
 #include "Effects/Daltonizer.h"
 #include "FlagManager.h"
 #include "FpsReporter.h"

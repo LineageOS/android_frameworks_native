@@ -33,7 +33,6 @@ typedef int32_t PixelFormat;
 class BufferLayerConsumer;
 class BufferStateLayer;
 class DisplayDevice;
-class EffectLayer;
 class FrameTracer;
 class GraphicBuffer;
 class HWComposer;
@@ -91,7 +90,7 @@ public:
     virtual std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() = 0;
 
     virtual sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
-    virtual sp<EffectLayer> createEffectLayer(const LayerCreationArgs& args) = 0;
+    virtual sp<Layer> createEffectLayer(const LayerCreationArgs& args) = 0;
     virtual std::unique_ptr<FrameTracer> createFrameTracer() = 0;
     virtual std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(
             std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid) = 0;

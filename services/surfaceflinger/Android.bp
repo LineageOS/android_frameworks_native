@@ -154,7 +154,6 @@ filegroup {
         "DisplayHardware/PowerAdvisor.cpp",
         "DisplayHardware/VirtualDisplaySurface.cpp",
         "DisplayRenderArea.cpp",
-        "EffectLayer.cpp",
         "Effects/Daltonizer.cpp",
         "EventLog/EventLog.cpp",
         "FlagManager.cpp",
