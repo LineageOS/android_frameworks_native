@@ -75,7 +75,7 @@ public:
     // GRALLOC_USAGE_PROTECTED sense.
     bool isProtected() const override;
 
-    bool usesSourceCrop() const override { return true; }
+    bool usesSourceCrop() const override { return hasBufferOrSidebandStream(); }
 
     bool isHdrY410() const override;
 
@@ -103,7 +103,7 @@ public:
     uint32_t getBufferTransform() const override;
 
     ui::Dataspace getDataSpace() const override;
-
+    ui::Dataspace getRequestedDataSpace() const;
     sp<GraphicBuffer> getBuffer() const override;
     const std::shared_ptr<renderengine::ExternalTexture>& getExternalTexture() const override;
 
@@ -116,11 +116,12 @@ public:
 
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
 
-    Rect getCrop(const Layer::State& s) const;
+    Region getActiveTransparentRegion(const Layer::State& s) const override {
+        return s.transparentRegionHint;
+    }
 
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
-    bool setCrop(const Rect& crop) override;
     bool setBuffer(std::shared_ptr<renderengine::ExternalTexture>& /* buffer */,
                    const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
                    bool isAutoTimestamp, std::optional<nsecs_t> dequeueTime,
@@ -154,6 +155,7 @@ public:
 
     std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) const override;
+    bool setColor(const half3& color) override;
 
 protected:
     void gatherBufferInfo();
@@ -189,8 +191,10 @@ protected:
      */
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
     void preparePerFrameCompositionState() override;
+    void preparePerFrameBufferCompositionState();
+    void preparePerFrameEffectsCompositionState();
 
-    static bool getOpacityForFormat(PixelFormat format);
+    static bool isOpaqueFormat(PixelFormat format);
 
     // from graphics API
     const uint32_t mTextureName;
@@ -218,7 +222,9 @@ private:
     // We generate InputWindowHandles for all non-cursor buffered layers regardless of whether they
     // have an InputChannel. This is to enable the InputDispatcher to do PID based occlusion
     // detection.
-    bool needsInputInfo() const override { return !mPotentialCursor; }
+    bool needsInputInfo() const override {
+        return (hasInputInfo() || hasBufferOrSidebandStream()) && !mPotentialCursor;
+    }
 
     // Returns true if this layer requires filtering
     bool needsFiltering(const DisplayDevice*) const override;
@@ -264,6 +270,18 @@ private:
                                    uint32_t currentMaxAcquiredBufferCount);
 
     std::optional<compositionengine::LayerFE::LayerSettings> prepareClientCompositionInternal(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) const;
+    // Returns true if there is a valid color to fill.
+    bool fillsColor() const;
+    // Returns true if this layer has a blur value.
+    bool hasBlur() const;
+    bool hasEffect() const { return fillsColor() || drawShadows() || hasBlur(); }
+    bool hasBufferOrSidebandStream() const {
+        return ((mSidebandStream != nullptr) || (mBufferInfo.mBuffer != nullptr));
+    }
+    bool hasSomethingToDraw() const { return hasEffect() || hasBufferOrSidebandStream(); }
+    void prepareEffectsClientComposition(
+            compositionengine::LayerFE::LayerSettings&,
             compositionengine::LayerFE::ClientCompositionTargetSettings&) const;
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;

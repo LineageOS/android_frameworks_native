@@ -172,6 +172,7 @@ public:
 
         // dataspace is only used by BufferStateLayer and EffectLayer
         ui::Dataspace dataspace;
+        bool dataspaceRequested;
 
         // The fields below this point are only used by BufferStateLayer
         uint64_t frameNumber;
@@ -317,7 +318,7 @@ public:
     // Set a 2x2 transformation matrix on the layer. This transform
     // will be applied after parent transforms, but before any final
     // producer specified transform.
-    virtual bool setMatrix(const layer_state_t::matrix22_t& matrix);
+    virtual bool setMatrix(const layer_state_t::matrix22_t& matrix) = 0;
 
     // This second set of geometry attributes are controlled by
     // setGeometryAppliesWithResize, and their default mode is to be
@@ -327,9 +328,9 @@ public:
 
     // setPosition operates in parent buffer space (pre parent-transform) or display
     // space for top-level layers.
-    virtual bool setPosition(float x, float y);
+    virtual bool setPosition(float x, float y) = 0;
     // Buffer space
-    virtual bool setCrop(const Rect& crop);
+    bool setCrop(const Rect& crop);
 
     // TODO(b/38182121): Could we eliminate the various latching modes by
     // using the layer hierarchy?
@@ -338,7 +339,7 @@ public:
     virtual bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ);
 
     virtual bool setAlpha(float alpha);
-    virtual bool setColor(const half3& /*color*/) { return false; };
+    virtual bool setColor(const half3& /*color*/) = 0;
 
     // Set rounded corner radius for this layer and its children.
     //
@@ -365,29 +366,27 @@ public:
     virtual bool isDimmingEnabled() const { return getDrawingState().dimmingEnabled; };
 
     // Used only to set BufferStateLayer state
-    virtual bool setTransform(uint32_t /*transform*/) { return false; };
-    virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
+    virtual bool setTransform(uint32_t /*transform*/) = 0;
+    virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) = 0;
     virtual bool setBuffer(std::shared_ptr<renderengine::ExternalTexture>& /* buffer */,
                            const BufferData& /* bufferData */, nsecs_t /* postTime */,
                            nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
                            std::optional<nsecs_t> /* dequeueTime */,
-                           const FrameTimelineInfo& /*info*/) {
-        return false;
-    };
-    virtual bool setDataspace(ui::Dataspace /*dataspace*/) { return false; };
-    virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) { return false; };
-    virtual bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/) { return false; };
-    virtual bool setApi(int32_t /*api*/) { return false; };
-    virtual bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/) { return false; };
+                           const FrameTimelineInfo& /*info*/) = 0;
+    virtual bool setDataspace(ui::Dataspace /*dataspace*/) = 0;
+    virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) = 0;
+    virtual bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/) = 0;
+    virtual bool setApi(int32_t /*api*/) = 0;
+    virtual bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/) = 0;
     virtual bool setTransactionCompletedListeners(
-            const std::vector<sp<CallbackHandle>>& /*handles*/);
+            const std::vector<sp<CallbackHandle>>& /*handles*/) = 0;
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
     virtual bool setDimmingEnabled(const bool dimmingEnabled);
     virtual bool setDefaultFrameRateCompatibility(FrameRateCompatibility compatibility);
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
-    virtual void setAutoRefresh(bool /* autoRefresh */) {}
+    virtual void setAutoRefresh(bool /* autoRefresh */) = 0;
     bool setDropInputMode(gui::DropInputMode);
 
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
@@ -396,10 +395,10 @@ public:
     //
     virtual FrameRateCompatibility getDefaultFrameRateCompatibility() const;
     //
-    virtual ui::Dataspace getDataSpace() const { return ui::Dataspace::UNKNOWN; }
+    virtual ui::Dataspace getDataSpace() const = 0;
 
-    virtual sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const;
-    virtual compositionengine::LayerFECompositionState* editCompositionState();
+    virtual sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const = 0;
+    virtual compositionengine::LayerFECompositionState* editCompositionState() = 0;
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
@@ -415,18 +414,18 @@ public:
      * pixel format includes an alpha channel) and the "opaque" flag set
      * on the layer.  It does not examine the current plane alpha value.
      */
-    virtual bool isOpaque(const Layer::State&) const { return false; }
+    virtual bool isOpaque(const Layer::State&) const = 0;
 
     /*
      * Returns whether this layer can receive input.
      */
-    virtual bool canReceiveInput() const;
+    virtual bool canReceiveInput() const = 0;
 
     /*
      * isProtected - true if the layer may contain protected contents in the
      * GRALLOC_USAGE_PROTECTED sense.
      */
-    virtual bool isProtected() const { return false; }
+    virtual bool isProtected() const = 0;
 
     /*
      * isFixedSize - true if content has a fixed size
@@ -436,7 +435,7 @@ public:
     /*
      * usesSourceCrop - true if content should use a source crop
      */
-    virtual bool usesSourceCrop() const { return false; }
+    virtual bool usesSourceCrop() const = 0;
 
     // Most layers aren't created from the main thread, and therefore need to
     // grab the SF state lock to access HWC, but ContainerLayer does, so we need
@@ -444,11 +443,9 @@ public:
     virtual bool isCreatedFromMainThread() const { return false; }
 
     ui::Transform getActiveTransform(const Layer::State& s) const { return s.transform; }
-    Region getActiveTransparentRegion(const Layer::State& s) const {
-        return s.transparentRegionHint;
-    }
-    virtual Rect getCrop(const Layer::State& s) const { return s.crop; }
-    virtual bool needsFiltering(const DisplayDevice*) const { return false; }
+    virtual Region getActiveTransparentRegion(const Layer::State& s) const = 0;
+    Rect getCrop(const Layer::State& s) const { return s.crop; }
+    virtual bool needsFiltering(const DisplayDevice*) const = 0;
 
     // True if this layer requires filtering
     // This method is distinct from needsFiltering() in how the filter
@@ -459,13 +456,11 @@ public:
     // different.
     // If the parent transform needs to be undone when capturing the layer, then
     // the inverse parent transform is also required.
-    virtual bool needsFilteringForScreenshots(const DisplayDevice*, const ui::Transform&) const {
-        return false;
-    }
+    virtual bool needsFilteringForScreenshots(const DisplayDevice*, const ui::Transform&) const = 0;
 
     virtual void updateCloneBufferInfo(){};
 
-    virtual bool isHdrY410() const { return false; }
+    virtual bool isHdrY410() const = 0;
 
     /*
      * called after composition.
@@ -474,10 +469,10 @@ public:
     virtual void onPostComposition(const DisplayDevice*,
                                    const std::shared_ptr<FenceTime>& /*glDoneFence*/,
                                    const std::shared_ptr<FenceTime>& /*presentFence*/,
-                                   const CompositorTiming&) {}
+                                   const CompositorTiming&) = 0;
 
     // If a buffer was replaced this frame, release the former buffer
-    virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
+    virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) = 0;
 
     /*
      * latchBuffer - called each time the screen is redrawn and returns whether
@@ -485,34 +480,30 @@ public:
      * operation, so this should be set only if needed). Typically this is used
      * to figure out if the content or size of a surface has changed.
      */
-    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/) {
-        return false;
-    }
+    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/) = 0;
 
-    virtual void latchAndReleaseBuffer() {}
+    virtual void latchAndReleaseBuffer() = 0;
 
     /*
      * returns the rectangle that crops the content of the layer and scales it
      * to the layer's size.
      */
-    virtual Rect getBufferCrop() const { return Rect(); }
+    virtual Rect getBufferCrop() const = 0;
 
     /*
      * Returns the transform applied to the buffer.
      */
-    virtual uint32_t getBufferTransform() const { return 0; }
+    virtual uint32_t getBufferTransform() const = 0;
 
-    virtual sp<GraphicBuffer> getBuffer() const { return nullptr; }
-    virtual const std::shared_ptr<renderengine::ExternalTexture>& getExternalTexture() const {
-        return mDrawingState.buffer;
-    };
+    virtual sp<GraphicBuffer> getBuffer() const = 0;
+    virtual const std::shared_ptr<renderengine::ExternalTexture>& getExternalTexture() const = 0;
 
-    virtual ui::Transform::RotationFlags getTransformHint() const { return ui::Transform::ROT_0; }
+    virtual ui::Transform::RotationFlags getTransformHint() const = 0;
 
     /*
      * Returns if a frame is ready
      */
-    virtual bool hasReadyFrame() const { return false; }
+    virtual bool hasReadyFrame() const = 0;
 
     virtual int32_t getQueuedFrameCount() const { return 0; }
 
@@ -520,19 +511,17 @@ public:
      * Returns active buffer size in the correct orientation. Buffer size is determined by undoing
      * any buffer transformations. If the layer has no buffer then return INVALID_RECT.
      */
-    virtual Rect getBufferSize(const Layer::State&) const { return Rect::INVALID_RECT; }
+    virtual Rect getBufferSize(const Layer::State&) const = 0;
 
     /**
      * Returns the source bounds. If the bounds are not defined, it is inferred from the
      * buffer size. Failing that, the bounds are determined from the passed in parent bounds.
      * For the root layer, this is the display viewport size.
      */
-    virtual FloatRect computeSourceBounds(const FloatRect& parentBounds) const {
-        return parentBounds;
-    }
+    virtual FloatRect computeSourceBounds(const FloatRect& parentBounds) const = 0;
     virtual FrameRate getFrameRateForLayerTree() const;
 
-    virtual bool getTransformToDisplayInverse() const { return false; }
+    virtual bool getTransformToDisplayInverse() const = 0;
 
     // Returns how rounded corners should be drawn for this layer.
     // A layer can override its parent's rounded corner settings if the parent's rounded
@@ -548,19 +537,19 @@ public:
      * overrides this so we can generate input-info for Buffered layers that don't
      * have them (for input occlusion detection checks).
      */
-    virtual bool needsInputInfo() const { return hasInputInfo(); }
+    virtual bool needsInputInfo() const = 0;
 
     // Implements RefBase.
     void onFirstRef() override;
 
     // implements compositionengine::LayerFE
-    const compositionengine::LayerFECompositionState* getCompositionState() const override;
-    bool onPreComposition(nsecs_t) override;
+    virtual const compositionengine::LayerFECompositionState* getCompositionState() const = 0;
+    virtual bool onPreComposition(nsecs_t) = 0;
     void prepareCompositionState(compositionengine::LayerFE::StateSubset subset) override;
 
     std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) const override;
-    void onLayerDisplayed(ftl::SharedFuture<FenceResult>) override;
+    virtual void onLayerDisplayed(ftl::SharedFuture<FenceResult>) = 0;
 
     void setWasClientComposed(const sp<Fence>& fence) override {
         mLastClientCompositionFence = fence;
@@ -838,13 +827,13 @@ public:
     float getBorderWidth();
     const half4& getBorderColor();
 
-    virtual bool setBufferCrop(const Rect& /* bufferCrop */) { return false; }
-    virtual bool setDestinationFrame(const Rect& /* destinationFrame */) { return false; }
-    virtual std::atomic<int32_t>* getPendingBufferCounter() { return nullptr; }
-    virtual std::string getPendingBufferCounterName() { return ""; }
-    virtual bool updateGeometry() { return false; }
+    virtual bool setBufferCrop(const Rect& /* bufferCrop */) = 0;
+    virtual bool setDestinationFrame(const Rect& /* destinationFrame */) = 0;
+    virtual std::atomic<int32_t>* getPendingBufferCounter() = 0;
+    virtual std::string getPendingBufferCounterName() = 0;
+    virtual bool updateGeometry() = 0;
 
-    virtual bool simpleBufferUpdate(const layer_state_t&) const { return false; }
+    virtual bool simpleBufferUpdate(const layer_state_t&) const = 0;
 
 protected:
     friend class impl::SurfaceInterceptor;
@@ -899,7 +888,7 @@ protected:
     compositionengine::OutputLayer* findOutputLayerForDisplay(const DisplayDevice*) const;
     bool usingRelativeZ(LayerVector::StateSet) const;
 
-    virtual ui::Transform getInputTransform() const;
+    virtual ui::Transform getInputTransform() const = 0;
     /**
      * Get the bounds in layer space within which this layer can receive input.
      *
@@ -913,7 +902,7 @@ protected:
      * "replaceTouchableRegionWithCrop" is specified. In this case, the layer will receive input
      * in this layer's space, regardless of the specified crop layer.
      */
-    virtual Rect getInputBounds() const;
+    virtual Rect getInputBounds() const = 0;
 
     // constant
     sp<SurfaceFlinger> mFlinger;
@@ -984,7 +973,7 @@ protected:
     sp<Fence> mLastClientCompositionFence;
     bool mClearClientCompositionFenceOnLayerDisplayed = false;
 private:
-    virtual void setTransformHint(ui::Transform::RotationFlags) {}
+    virtual void setTransformHint(ui::Transform::RotationFlags) = 0;
 
     // Returns true if the layer can draw shadows on its border.
     virtual bool canDrawShadows() const { return true; }

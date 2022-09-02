@@ -4576,7 +4576,11 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
 
     switch (args.flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
-        case ISurfaceComposerClient::eFXSurfaceBufferState: {
+        case ISurfaceComposerClient::eFXSurfaceContainer:
+        case ISurfaceComposerClient::eFXSurfaceBufferState:
+            args.flags |= ISurfaceComposerClient::eNoColorFill;
+            FMT_FALLTHROUGH;
+        case ISurfaceComposerClient::eFXSurfaceEffect: {
             result = createBufferStateLayer(args, outHandle, &layer);
             std::atomic<int32_t>* pendingBufferCounter = layer->getPendingBufferCounter();
             if (pendingBufferCounter) {
@@ -4585,12 +4589,6 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
                                         pendingBufferCounter);
             }
         } break;
-        case ISurfaceComposerClient::eFXSurfaceContainer:
-            args.flags |= ISurfaceComposerClient::eNoColorFill;
-            FMT_FALLTHROUGH;
-        case ISurfaceComposerClient::eFXSurfaceEffect:
-            result = createEffectLayer(args, outHandle, &layer);
-            break;
         default:
             result = BAD_VALUE;
             break;
