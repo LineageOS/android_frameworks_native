@@ -25,6 +25,7 @@ cc_defaults {
         "CrateManager.cpp",
         "InstalldNativeService.cpp",
         "QuotaUtils.cpp",
+        "SysTrace.cpp",
         "dexopt.cpp",
         "execv_helper.cpp",
         "globals.cpp",
