@@ -174,7 +174,7 @@ cc_binary {
 
     // Needs to be wherever installd is as it's execed by
     // installd.
-    required: ["migrate_legacy_obb_data.sh"],
+    required: ["migrate_legacy_obb_data"],
 }
 
 // OTA chroot tool
@@ -300,6 +300,6 @@ sh_binary {
 
 // Script to migrate legacy obb data.
 sh_binary {
-    name: "migrate_legacy_obb_data.sh",
+    name: "migrate_legacy_obb_data",
     src: "migrate_legacy_obb_data.sh",
 }
