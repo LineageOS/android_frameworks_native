@@ -3708,7 +3708,7 @@ binder::Status InstalldNativeService::migrateLegacyObbData() {
     ENFORCE_UID(AID_SYSTEM);
     // NOTE: The lint warning doesn't apply to the use of system(3) with
     // absolute parse and no command line arguments.
-    if (system("/system/bin/migrate_legacy_obb_data.sh") != 0) { // NOLINT(cert-env33-c)
+    if (system("/system/bin/migrate_legacy_obb_data") != 0) { // NOLINT(cert-env33-c)
         LOG(ERROR) << "Unable to migrate legacy obb data";
     }
 
