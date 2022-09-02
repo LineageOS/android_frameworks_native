@@ -680,11 +680,9 @@ private:
                                                           DisplayModeId defaultModeId) const
             REQUIRES(mStateLock);
 
-    // Sets the desired display mode specs.
-    status_t setDesiredDisplayModeSpecsInternal(
-            const sp<DisplayDevice>& display,
-            const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
-            EXCLUDES(mStateLock);
+    status_t setDesiredDisplayModeSpecsInternal(const sp<DisplayDevice>&,
+                                                const scheduler::RefreshRateConfigs::PolicyVariant&)
+            EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
 
     void commitTransactions() EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
     void commitTransactionsLocked(uint32_t transactionFlags)

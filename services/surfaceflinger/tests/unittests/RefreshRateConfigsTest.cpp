@@ -34,6 +34,7 @@ namespace android::scheduler {
 
 namespace hal = android::hardware::graphics::composer::hal;
 
+using SetPolicyResult = RefreshRateConfigs::SetPolicyResult;
 using LayerVoteType = RefreshRateConfigs::LayerVoteType;
 using LayerRequirement = RefreshRateConfigs::LayerRequirement;
 
@@ -92,6 +93,15 @@ struct TestableRefreshRateConfigs : RefreshRateConfigs {
     DisplayModePtr getBestRefreshRate(const std::vector<LayerRequirement>& layers = {},
                                       GlobalSignals signals = {}) const {
         return getRankedRefreshRatesAndSignals(layers, signals).first.front().displayModePtr;
+    }
+
+    SetPolicyResult setPolicy(const PolicyVariant& policy) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return RefreshRateConfigs::setPolicy(policy);
+    }
+
+    SetPolicyResult setDisplayManagerPolicy(const DisplayManagerPolicy& policy) {
+        return setPolicy(policy);
     }
 };
 
@@ -178,9 +188,33 @@ TEST_F(RefreshRateConfigsTest, oneMode_canSwitch) {
 }
 
 TEST_F(RefreshRateConfigsTest, invalidPolicy) {
-    RefreshRateConfigs configs(kModes_60, kModeId60);
-    EXPECT_LT(configs.setDisplayManagerPolicy({DisplayModeId(10), {60_Hz, 60_Hz}}), 0);
-    EXPECT_LT(configs.setDisplayManagerPolicy({kModeId60, {20_Hz, 40_Hz}}), 0);
+    TestableRefreshRateConfigs configs(kModes_60, kModeId60);
+
+    EXPECT_EQ(SetPolicyResult::Invalid,
+              configs.setDisplayManagerPolicy({DisplayModeId(10), {60_Hz, 60_Hz}}));
+    EXPECT_EQ(SetPolicyResult::Invalid,
+              configs.setDisplayManagerPolicy({kModeId60, {20_Hz, 40_Hz}}));
+}
+
+TEST_F(RefreshRateConfigsTest, unchangedPolicy) {
+    TestableRefreshRateConfigs configs(kModes_60_90, kModeId60);
+
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId90, {60_Hz, 90_Hz}}));
+
+    EXPECT_EQ(SetPolicyResult::Unchanged,
+              configs.setDisplayManagerPolicy({kModeId90, {60_Hz, 90_Hz}}));
+
+    // Override to the same policy.
+    EXPECT_EQ(SetPolicyResult::Unchanged,
+              configs.setPolicy(RefreshRateConfigs::OverridePolicy{kModeId90, {60_Hz, 90_Hz}}));
+
+    // Clear override to restore DisplayManagerPolicy.
+    EXPECT_EQ(SetPolicyResult::Unchanged,
+              configs.setPolicy(RefreshRateConfigs::NoOverridePolicy{}));
+
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId90, {30_Hz, 90_Hz}}));
 }
 
 TEST_F(RefreshRateConfigsTest, twoModes_storesFullRefreshRateMap) {
@@ -211,7 +245,8 @@ TEST_F(RefreshRateConfigsTest, twoModes_storesFullRefreshRateMap_differentGroups
     EXPECT_EQ(kMode60, minRate60);
     EXPECT_EQ(kMode60, performanceRate60);
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId90, {60_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId90, {60_Hz, 90_Hz}}));
     configs.setActiveModeId(kModeId90);
 
     const auto minRate90 = configs.getMinRefreshRateByPolicy();
@@ -234,7 +269,8 @@ TEST_F(RefreshRateConfigsTest, twoModes_storesFullRefreshRateMap_differentResolu
     EXPECT_EQ(kMode60, minRate60);
     EXPECT_EQ(kMode60, performanceRate60);
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId90, {60_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId90, {60_Hz, 90_Hz}}));
     configs.setActiveModeId(kModeId90);
 
     const auto minRate90 = configs.getMinRefreshRateByPolicy();
@@ -254,7 +290,8 @@ TEST_F(RefreshRateConfigsTest, twoModes_policyChange) {
     EXPECT_EQ(kMode60, minRate);
     EXPECT_EQ(kMode90, performanceRate);
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}));
 
     const auto minRate60 = configs.getMinRefreshRateByPolicy();
     const auto performanceRate60 = configs.getMaxRefreshRateByPolicy();
@@ -276,7 +313,8 @@ TEST_F(RefreshRateConfigsTest, twoModes_getActiveMode) {
         EXPECT_EQ(mode.getId(), kModeId90);
     }
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}}));
     {
         const auto& mode = configs.getActiveMode();
         EXPECT_EQ(mode.getId(), kModeId90);
@@ -291,15 +329,17 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_noLayers) {
         // range.
         EXPECT_EQ(kMode90, configs.getBestRefreshRate());
 
-        EXPECT_EQ(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}), NO_ERROR);
+        EXPECT_EQ(SetPolicyResult::Changed,
+                  configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}));
         EXPECT_EQ(kMode60, configs.getBestRefreshRate());
     }
     {
         // We select max even when this will cause a non-seamless switch.
         TestableRefreshRateConfigs configs(kModes_60_90_G1, kModeId60);
         constexpr bool kAllowGroupSwitching = true;
-        EXPECT_EQ(configs.setDisplayManagerPolicy({kModeId90, kAllowGroupSwitching, {0_Hz, 90_Hz}}),
-                  NO_ERROR);
+        EXPECT_EQ(SetPolicyResult::Changed,
+                  configs.setDisplayManagerPolicy(
+                          {kModeId90, kAllowGroupSwitching, {0_Hz, 90_Hz}}));
         EXPECT_EQ(kMode90_G1, configs.getBestRefreshRate());
     }
 }
@@ -340,7 +380,8 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_60_90) {
     EXPECT_EQ(kMode60, configs.getBestRefreshRate(layers));
 
     lr.name = "";
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}));
 
     lr.vote = LayerVoteType::Min;
     EXPECT_EQ(kMode60, configs.getBestRefreshRate(layers));
@@ -364,7 +405,8 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_60_90) {
     lr.desiredRefreshRate = 24_Hz;
     EXPECT_EQ(kMode60, configs.getBestRefreshRate(layers));
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}}));
 
     lr.vote = LayerVoteType::Min;
     EXPECT_EQ(kMode90, configs.getBestRefreshRate(layers));
@@ -388,7 +430,8 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_60_90) {
     lr.desiredRefreshRate = 24_Hz;
     EXPECT_EQ(kMode90, configs.getBestRefreshRate(layers));
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {0_Hz, 120_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {0_Hz, 120_Hz}}));
     lr.vote = LayerVoteType::Min;
     EXPECT_EQ(kMode60, configs.getBestRefreshRate(layers));
 
@@ -1039,7 +1082,8 @@ TEST_F(RefreshRateConfigsTest, getMinRefreshRatesByPolicyOutsideTheGroup) {
                                                                    RefreshRateRanking{kMode60},
                                                                    RefreshRateRanking{kMode90}};
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}));
 
     const std::vector<RefreshRateRanking>& refreshRates =
             configs.getRefreshRatesByPolicy(/*anchorGroupOpt*/ std::nullopt,
@@ -1062,7 +1106,8 @@ TEST_F(RefreshRateConfigsTest, getMaxRefreshRatesByPolicyOutsideTheGroup) {
                                                                    RefreshRateRanking{kMode60},
                                                                    RefreshRateRanking{kMode30}};
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}));
 
     const std::vector<RefreshRateRanking>& refreshRates =
             configs.getRefreshRatesByPolicy(/*anchorGroupOpt*/ std::nullopt,
@@ -1300,9 +1345,10 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ExplicitExact_WithFractionalRe
 
 TEST_F(RefreshRateConfigsTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_ignoresTouchFlag) {
-    RefreshRateConfigs configs(kModes_60_90, kModeId90);
+    TestableRefreshRateConfigs configs(kModes_60_90, kModeId90);
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}, {60_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}, {60_Hz, 90_Hz}}));
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     auto& lr = layers[0];
@@ -1323,7 +1369,8 @@ TEST_F(RefreshRateConfigsTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_ignoresIdleFlag) {
     TestableRefreshRateConfigs configs(kModes_60_90, kModeId60);
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}, {60_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}, {60_Hz, 90_Hz}}));
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     auto& lr = layers[0];
@@ -1472,7 +1519,8 @@ TEST_F(RefreshRateConfigsTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_onlySwitchesRatesForExplicitFocusedLayers) {
     TestableRefreshRateConfigs configs(kModes_60_90, kModeId90);
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}, {60_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}, {60_Hz, 90_Hz}}));
 
     const auto [mode, signals] = configs.getRankedRefreshRatesAndSignals({}, {});
     EXPECT_EQ(mode.front().displayModePtr, kMode90);
@@ -1546,10 +1594,10 @@ TEST_F(RefreshRateConfigsTest, groupSwitchingNotAllowed) {
 TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayer) {
     TestableRefreshRateConfigs configs(kModes_60_90_G1, kModeId60);
 
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     auto& layer = layers[0];
@@ -1564,10 +1612,10 @@ TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayer) {
 TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayerOnlySeamless) {
     TestableRefreshRateConfigs configs(kModes_60_90_G1, kModeId60);
 
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     // Verify that we won't change the group if seamless switch is required.
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
@@ -1583,10 +1631,10 @@ TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayerOnlySeamless) {
 TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayerOnlySeamlessDefaultFps) {
     TestableRefreshRateConfigs configs(kModes_60_90_G1, kModeId60);
 
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     configs.setActiveModeId(kModeId90);
 
@@ -1604,10 +1652,10 @@ TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayerOnlySeamlessDefaultFps)
 TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayerDefaultSeamlessness) {
     TestableRefreshRateConfigs configs(kModes_60_90_G1, kModeId60);
 
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     configs.setActiveModeId(kModeId90);
 
@@ -1628,10 +1676,10 @@ TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayerDefaultSeamlessness) {
 TEST_F(RefreshRateConfigsTest, groupSwitchingWithTwoLayersOnlySeamlessAndSeamed) {
     TestableRefreshRateConfigs configs(kModes_60_90_G1, kModeId60);
 
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     configs.setActiveModeId(kModeId90);
 
@@ -1657,10 +1705,10 @@ TEST_F(RefreshRateConfigsTest, groupSwitchingWithTwoLayersOnlySeamlessAndSeamed)
 TEST_F(RefreshRateConfigsTest, groupSwitchingWithTwoLayersDefaultFocusedAndSeamed) {
     TestableRefreshRateConfigs configs(kModes_60_90_G1, kModeId60);
 
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     configs.setActiveModeId(kModeId90);
 
@@ -1690,10 +1738,10 @@ TEST_F(RefreshRateConfigsTest, groupSwitchingWithTwoLayersDefaultFocusedAndSeame
 TEST_F(RefreshRateConfigsTest, groupSwitchingWithTwoLayersDefaultNotFocusedAndSeamed) {
     TestableRefreshRateConfigs configs(kModes_60_90_G1, kModeId60);
 
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     configs.setActiveModeId(kModeId90);
 
@@ -1721,10 +1769,10 @@ TEST_F(RefreshRateConfigsTest, nonSeamlessVotePrefersSeamlessSwitches) {
     TestableRefreshRateConfigs configs(kModes_30_60, kModeId60);
 
     // Allow group switching.
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     auto& layer = layers[0];
@@ -1744,10 +1792,10 @@ TEST_F(RefreshRateConfigsTest, nonSeamlessExactAndSeamlessMultipleLayers) {
     TestableRefreshRateConfigs configs(kModes_25_30_50_60, kModeId60);
 
     // Allow group switching.
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     std::vector<LayerRequirement> layers = {{.name = "60Hz ExplicitDefault",
                                              .vote = LayerVoteType::ExplicitDefault,
@@ -1776,10 +1824,10 @@ TEST_F(RefreshRateConfigsTest, minLayersDontTrigerSeamedSwitch) {
     TestableRefreshRateConfigs configs(kModes_60_90_G1, kModeId90);
 
     // Allow group switching.
-    RefreshRateConfigs::Policy policy;
+    RefreshRateConfigs::DisplayManagerPolicy policy;
     policy.defaultMode = configs.getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
-    EXPECT_GE(configs.setDisplayManagerPolicy(policy), 0);
+    EXPECT_EQ(SetPolicyResult::Changed, configs.setPolicy(policy));
 
     std::vector<LayerRequirement> layers = {
             {.name = "Min", .vote = LayerVoteType::Min, .weight = 1.f, .focused = true}};
@@ -1807,7 +1855,8 @@ TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
         return configs.getBestRefreshRate(layers, {.touch = args.touch})->getId();
     };
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {30_Hz, 60_Hz}, {30_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {30_Hz, 60_Hz}, {30_Hz, 90_Hz}}));
 
     EXPECT_EQ(kModeId60, configs.getBestRefreshRate()->getId());
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::NoVote, 90_Hz));
@@ -1831,7 +1880,8 @@ TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
     EXPECT_EQ(kModeId60,
               getFrameRate(LayerVoteType::ExplicitExactOrMultiple, 90_Hz, {.touch = true}));
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}, {60_Hz, 60_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}, {60_Hz, 60_Hz}}));
 
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::NoVote, 90_Hz));
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::Min, 90_Hz));
@@ -1860,7 +1910,8 @@ TEST_F(RefreshRateConfigsTest, idle) {
         return refreshRate.front().displayModePtr->getId();
     };
 
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 90_Hz}, {60_Hz, 90_Hz}}), 0);
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 90_Hz}, {60_Hz, 90_Hz}}));
 
     // Idle should be lower priority than touch boost.
     {
@@ -2156,43 +2207,50 @@ TEST_F(RefreshRateConfigsTest, modeComparison) {
 TEST_F(RefreshRateConfigsTest, testKernelIdleTimerAction) {
     using KernelIdleTimerAction = RefreshRateConfigs::KernelIdleTimerAction;
 
-    RefreshRateConfigs configs(kModes_60_90, kModeId90);
+    TestableRefreshRateConfigs configs(kModes_60_90, kModeId90);
 
-    // SetPolicy(60, 90), current 90Hz => TurnOn.
+    // setPolicy(60, 90), current 90Hz => TurnOn.
     EXPECT_EQ(KernelIdleTimerAction::TurnOn, configs.getIdleTimerAction());
 
-    // SetPolicy(60, 90), current 60Hz => TurnOn.
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 90_Hz}}), 0);
+    // setPolicy(60, 90), current 60Hz => TurnOn.
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 90_Hz}}));
     EXPECT_EQ(KernelIdleTimerAction::TurnOn, configs.getIdleTimerAction());
 
-    // SetPolicy(60, 60), current 60Hz => TurnOff
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}), 0);
+    // setPolicy(60, 60), current 60Hz => TurnOff
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}));
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, configs.getIdleTimerAction());
 
-    // SetPolicy(90, 90), current 90Hz => TurnOff.
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}}), 0);
+    // setPolicy(90, 90), current 90Hz => TurnOff.
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}}));
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, configs.getIdleTimerAction());
 }
 
 TEST_F(RefreshRateConfigsTest, testKernelIdleTimerActionFor120Hz) {
     using KernelIdleTimerAction = RefreshRateConfigs::KernelIdleTimerAction;
 
-    RefreshRateConfigs configs(kModes_60_120, kModeId120);
+    TestableRefreshRateConfigs configs(kModes_60_120, kModeId120);
 
-    // SetPolicy(0, 60), current 60Hz => TurnOn.
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {0_Hz, 60_Hz}}), 0);
+    // setPolicy(0, 60), current 60Hz => TurnOn.
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {0_Hz, 60_Hz}}));
     EXPECT_EQ(KernelIdleTimerAction::TurnOn, configs.getIdleTimerAction());
 
-    // SetPolicy(60, 60), current 60Hz => TurnOff.
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}), 0);
+    // setPolicy(60, 60), current 60Hz => TurnOff.
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}));
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, configs.getIdleTimerAction());
 
-    // SetPolicy(60, 120), current 60Hz => TurnOn.
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 120_Hz}}), 0);
+    // setPolicy(60, 120), current 60Hz => TurnOn.
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 120_Hz}}));
     EXPECT_EQ(KernelIdleTimerAction::TurnOn, configs.getIdleTimerAction());
 
-    // SetPolicy(120, 120), current 120Hz => TurnOff.
-    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId120, {120_Hz, 120_Hz}}), 0);
+    // setPolicy(120, 120), current 120Hz => TurnOff.
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId120, {120_Hz, 120_Hz}}));
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, configs.getIdleTimerAction());
 }
 

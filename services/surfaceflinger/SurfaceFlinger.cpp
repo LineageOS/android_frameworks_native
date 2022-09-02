@@ -1105,7 +1105,7 @@ status_t SurfaceFlinger::setActiveModeFromBackdoor(const sp<display::DisplayToke
     }
 
     const char* const whence = __func__;
-    auto future = mScheduler->schedule([=]() -> status_t {
+    auto future = mScheduler->schedule([=]() FTL_FAKE_GUARD(kMainThreadContext) -> status_t {
         const auto displayOpt =
                 FTL_FAKE_GUARD(mStateLock,
                                ftl::find_if(mPhysicalDisplays,
@@ -1130,13 +1130,16 @@ status_t SurfaceFlinger::setActiveModeFromBackdoor(const sp<display::DisplayToke
         }
 
         const Fps fps = *fpsOpt;
+
         // Keep the old switching type.
         const bool allowGroupSwitching =
                 display->refreshRateConfigs().getCurrentPolicy().allowGroupSwitching;
-        const scheduler::RefreshRateConfigs::Policy policy{modeId, allowGroupSwitching, {fps, fps}};
-        constexpr bool kOverridePolicy = false;
 
-        return setDesiredDisplayModeSpecsInternal(display, policy, kOverridePolicy);
+        const scheduler::RefreshRateConfigs::DisplayManagerPolicy policy{modeId,
+                                                                         allowGroupSwitching,
+                                                                         {fps, fps}};
+
+        return setDesiredDisplayModeSpecsInternal(display, policy);
     });
 
     return future.get();
@@ -1273,6 +1276,8 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
             ALOGW("initiateModeChange failed: %d", status);
             continue;
         }
+
+        display->refreshRateConfigs().onModeChangeInitiated();
         mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
 
         if (outTimeline.refreshRequired) {
@@ -5866,7 +5871,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1036: {
                 if (data.readInt32() > 0) { // turn on
                     return mScheduler
-                            ->schedule([this] {
+                            ->schedule([this]() FTL_FAKE_GUARD(kMainThreadContext) {
                                 const auto display =
                                         FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
 
@@ -5876,24 +5881,21 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                                 // defaultMode. The defaultMode doesn't matter for the override
                                 // policy though, since we set allowGroupSwitching to true, so it's
                                 // not a problem.
-                                scheduler::RefreshRateConfigs::Policy overridePolicy;
+                                scheduler::RefreshRateConfigs::OverridePolicy overridePolicy;
                                 overridePolicy.defaultMode = display->refreshRateConfigs()
                                                                      .getDisplayManagerPolicy()
                                                                      .defaultMode;
                                 overridePolicy.allowGroupSwitching = true;
-                                constexpr bool kOverridePolicy = true;
-                                return setDesiredDisplayModeSpecsInternal(display, overridePolicy,
-                                                                          kOverridePolicy);
+                                return setDesiredDisplayModeSpecsInternal(display, overridePolicy);
                             })
                             .get();
                 } else { // turn off
                     return mScheduler
-                            ->schedule([this] {
+                            ->schedule([this]() FTL_FAKE_GUARD(kMainThreadContext) {
                                 const auto display =
                                         FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
-                                constexpr bool kOverridePolicy = true;
-                                return setDesiredDisplayModeSpecsInternal(display, {},
-                                                                          kOverridePolicy);
+                                return setDesiredDisplayModeSpecsInternal(
+                                        display, scheduler::RefreshRateConfigs::NoOverridePolicy{});
                             })
                             .get();
                 }
@@ -6732,7 +6734,7 @@ std::optional<DisplayModePtr> SurfaceFlinger::getPreferredDisplayMode(
 
 status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         const sp<DisplayDevice>& display,
-        const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy) {
+        const scheduler::RefreshRateConfigs::PolicyVariant& policy) {
     Mutex::Autolock lock(mStateLock);
 
     if (mDebugDisplayModeSetByBackdoor) {
@@ -6740,23 +6742,24 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         return NO_ERROR;
     }
 
-    const status_t setPolicyResult = display->setRefreshRatePolicy(policy, overridePolicy);
-    if (setPolicyResult < 0) {
-        return BAD_VALUE;
-    }
-    if (setPolicyResult == scheduler::RefreshRateConfigs::CURRENT_POLICY_UNCHANGED) {
-        return NO_ERROR;
+    auto& configs = display->refreshRateConfigs();
+    using SetPolicyResult = scheduler::RefreshRateConfigs::SetPolicyResult;
+
+    switch (configs.setPolicy(policy)) {
+        case SetPolicyResult::Invalid:
+            return BAD_VALUE;
+        case SetPolicyResult::Unchanged:
+            return NO_ERROR;
+        case SetPolicyResult::Changed:
+            break;
     }
 
-    const scheduler::RefreshRateConfigs::Policy currentPolicy =
-            display->refreshRateConfigs().getCurrentPolicy();
-
+    const scheduler::RefreshRateConfigs::Policy currentPolicy = configs.getCurrentPolicy();
     ALOGV("Setting desired display mode specs: %s", currentPolicy.toString().c_str());
 
     // TODO(b/140204874): Leave the event in until we do proper testing with all apps that might
     // be depending in this callback.
-    const auto activeModePtr = display->refreshRateConfigs().getActiveModePtr();
-    if (isDisplayActiveLocked(display)) {
+    if (const auto activeModePtr = configs.getActiveModePtr(); isDisplayActiveLocked(display)) {
         mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, activeModePtr);
         toggleKernelIdleTimer();
     } else {
@@ -6776,7 +6779,7 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
     ALOGV("Switching to Scheduler preferred mode %d (%s)", preferredModeId.value(),
           to_string(preferredMode->getFps()).c_str());
 
-    if (!display->refreshRateConfigs().isModeAllowed(preferredModeId)) {
+    if (!configs.isModeAllowed(preferredModeId)) {
         ALOGE("%s: Preferred mode %d is disallowed", __func__, preferredModeId.value());
         return INVALID_OPERATION;
     }
@@ -6795,7 +6798,7 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecs(
         return BAD_VALUE;
     }
 
-    auto future = mScheduler->schedule([=]() -> status_t {
+    auto future = mScheduler->schedule([=]() FTL_FAKE_GUARD(kMainThreadContext) -> status_t {
         const auto display = FTL_FAKE_GUARD(mStateLock, getDisplayDeviceLocked(displayToken));
         if (!display) {
             ALOGE("Attempt to set desired display modes for invalid display token %p",
@@ -6805,16 +6808,15 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecs(
             ALOGW("Attempt to set desired display modes for virtual display");
             return INVALID_OPERATION;
         } else {
-            using Policy = scheduler::RefreshRateConfigs::Policy;
+            using Policy = scheduler::RefreshRateConfigs::DisplayManagerPolicy;
             const Policy policy{DisplayModeId(defaultMode),
                                 allowGroupSwitching,
                                 {Fps::fromValue(primaryRefreshRateMin),
                                  Fps::fromValue(primaryRefreshRateMax)},
                                 {Fps::fromValue(appRequestRefreshRateMin),
                                  Fps::fromValue(appRequestRefreshRateMax)}};
-            constexpr bool kOverridePolicy = false;
 
-            return setDesiredDisplayModeSpecsInternal(display, policy, kOverridePolicy);
+            return setDesiredDisplayModeSpecsInternal(display, policy);
         }
     });
 
