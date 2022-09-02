@@ -34,6 +34,7 @@
 #include "SurfaceInterceptor.h"
 
 #include "DisplayHardware/ComposerHal.h"
+#include "FrameTimeline/FrameTimeline.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncConfiguration.h"
 #include "Scheduler/VsyncController.h"

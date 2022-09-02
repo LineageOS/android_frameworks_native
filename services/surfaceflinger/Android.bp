@@ -141,7 +141,6 @@ filegroup {
     name: "libsurfaceflinger_sources",
     srcs: [
         "BackgroundExecutor.cpp",
-        "BufferStateLayer.cpp",
         "ClientCache.cpp",
         "Client.cpp",
         "EffectLayer.cpp",
