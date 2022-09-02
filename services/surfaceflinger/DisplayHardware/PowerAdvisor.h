@@ -305,10 +305,6 @@ private:
 
     bool checkPowerHintSessionSupported();
     void closePowerHintSession();
-    bool shouldReportActualDurations();
-
-    // Used for testing
-    void setAllowedActualDeviation(nsecs_t);
 
     const sp<hardware::power::IPower> mPowerHal = nullptr;
     bool mHasExpensiveRendering = false;
@@ -328,19 +324,10 @@ private:
     // The list of thread ids, stored so we can restart the session from this class if needed
     std::vector<int32_t> mPowerHintThreadIds;
     bool mSupportsPowerHint = false;
-    // Keep track of the last messages sent for rate limiter change detection
-    std::optional<nsecs_t> mLastActualDurationSent;
-    // Timestamp of the last report we sent, used to avoid stale sessions
-    nsecs_t mLastActualReportTimestamp = 0;
     nsecs_t mLastTargetDurationSent = kDefaultTarget.count();
-    // Max amount the error term can vary without causing an actual value report
-    nsecs_t mAllowedActualDeviation = -1;
     // Whether we should emit ATRACE_INT data for hint sessions
     static const bool sTraceHintSessionData;
     static constexpr const std::chrono::nanoseconds kDefaultTarget = 16ms;
-    // Amount of time after the last message was sent before the session goes stale
-    // actually 100ms but we use 80 here to give some slack
-    static constexpr const std::chrono::nanoseconds kStaleTimeout = 80ms;
 };
 
 } // namespace impl
