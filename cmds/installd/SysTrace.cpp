@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,24 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
 
-#include <sys/types.h>
+#define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
 
-#include <cstdint>
+#include "SysTrace.h"
+#include <utils/Trace.h>
 
-#include "BufferStateLayer.h"
+namespace android::installd {
+void atrace_pm_begin(const char* name) {
+    ATRACE_BEGIN(name);
+}
 
-namespace android {
-
-// A layer that can render a combination of the following effects.
-//   * fill the bounds of the layer with a color
-//   * render a shadow cast by the bounds of the layer
-// If no effects are enabled, the layer is considered to be invisible.
-class EffectLayer : public BufferStateLayer {
-public:
-    explicit EffectLayer(const LayerCreationArgs&);
-    ~EffectLayer() override;
-};
-
-} // namespace android
+void atrace_pm_end() {
+    ATRACE_END();
+}
+} /* namespace android::installd */

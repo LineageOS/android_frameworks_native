@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,24 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
 
-#include <sys/types.h>
-
-#include <cstdint>
-
-#include "BufferStateLayer.h"
+#include <binder/Trace.h>
+#include <cutils/trace.h>
 
 namespace android {
+namespace binder {
 
-// A layer that can render a combination of the following effects.
-//   * fill the bounds of the layer with a color
-//   * render a shadow cast by the bounds of the layer
-// If no effects are enabled, the layer is considered to be invisible.
-class EffectLayer : public BufferStateLayer {
-public:
-    explicit EffectLayer(const LayerCreationArgs&);
-    ~EffectLayer() override;
-};
+void atrace_begin(uint64_t tag, const char* name) {
+    ::atrace_begin(tag, name);
+}
 
+void atrace_end(uint64_t tag) {
+    ::atrace_end(tag);
+}
+
+} // namespace binder
 } // namespace android

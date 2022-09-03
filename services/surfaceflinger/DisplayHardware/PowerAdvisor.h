@@ -27,6 +27,7 @@
 
 #include <android/hardware/power/IPower.h>
 #include <compositionengine/impl/OutputCompositionState.h>
+#include <scheduler/Time.h>
 #include <ui/DisplayIdentification.h>
 #include "../Scheduler/OneShotTimer.h"
 
@@ -53,7 +54,7 @@ public:
     virtual bool supportsPowerHintSession() = 0;
     virtual bool isPowerHintSessionRunning() = 0;
     // Sends a power hint that updates to the target work duration for the frame
-    virtual void setTargetWorkDuration(nsecs_t targetDuration) = 0;
+    virtual void setTargetWorkDuration(Duration targetDuration) = 0;
     // Sends a power hint for the actual known work duration at the end of the frame
     virtual void sendActualWorkDuration() = 0;
     // Sends a power hint for the upcoming frame predicted from previous frame timing
@@ -65,33 +66,33 @@ public:
     // Provides PowerAdvisor with a copy of the gpu fence so it can determine the gpu end time
     virtual void setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime) = 0;
     // Reports the start and end times of a hwc validate call this frame for a given display
-    virtual void setHwcValidateTiming(DisplayId displayId, nsecs_t validateStartTime,
-                                      nsecs_t validateEndTime) = 0;
+    virtual void setHwcValidateTiming(DisplayId displayId, TimePoint validateStartTime,
+                                      TimePoint validateEndTime) = 0;
     // Reports the start and end times of a hwc present call this frame for a given display
-    virtual void setHwcPresentTiming(DisplayId displayId, nsecs_t presentStartTime,
-                                     nsecs_t presentEndTime) = 0;
+    virtual void setHwcPresentTiming(DisplayId displayId, TimePoint presentStartTime,
+                                     TimePoint presentEndTime) = 0;
     // Reports the expected time that the current frame will present to the display
-    virtual void setExpectedPresentTime(nsecs_t expectedPresentTime) = 0;
+    virtual void setExpectedPresentTime(TimePoint expectedPresentTime) = 0;
     // Reports the most recent present fence time and end time once known
-    virtual void setSfPresentTiming(nsecs_t presentFenceTime, nsecs_t presentEndTime) = 0;
+    virtual void setSfPresentTiming(TimePoint presentFenceTime, TimePoint presentEndTime) = 0;
     // Reports whether a display used client composition this frame
     virtual void setRequiresClientComposition(DisplayId displayId,
                                               bool requiresClientComposition) = 0;
     // Reports whether a given display skipped validation this frame
     virtual void setSkippedValidate(DisplayId displayId, bool skipped) = 0;
     // Reports when a hwc present is delayed, and the time that it will resume
-    virtual void setHwcPresentDelayedTime(
-            DisplayId displayId, std::chrono::steady_clock::time_point earliestFrameStartTime) = 0;
+    virtual void setHwcPresentDelayedTime(DisplayId displayId,
+                                          TimePoint earliestFrameStartTime) = 0;
     // Reports the start delay for SurfaceFlinger this frame
-    virtual void setFrameDelay(nsecs_t frameDelayDuration) = 0;
+    virtual void setFrameDelay(Duration frameDelayDuration) = 0;
     // Reports the SurfaceFlinger commit start time this frame
-    virtual void setCommitStart(nsecs_t commitStartTime) = 0;
+    virtual void setCommitStart(TimePoint commitStartTime) = 0;
     // Reports the SurfaceFlinger composite end time this frame
-    virtual void setCompositeEnd(nsecs_t compositeEndTime) = 0;
+    virtual void setCompositeEnd(TimePoint compositeEndTime) = 0;
     // Reports the list of the currently active displays
     virtual void setDisplays(std::vector<DisplayId>& displayIds) = 0;
     // Sets the target duration for the entire pipeline including the gpu
-    virtual void setTotalFrameTargetWorkDuration(nsecs_t targetDuration) = 0;
+    virtual void setTotalFrameTargetWorkDuration(Duration targetDuration) = 0;
 };
 
 namespace impl {
@@ -111,11 +112,11 @@ public:
         virtual void restartPowerHintSession() = 0;
         virtual void setPowerHintSessionThreadIds(const std::vector<int32_t>& threadIds) = 0;
         virtual bool startPowerHintSession() = 0;
-        virtual void setTargetWorkDuration(nsecs_t targetDuration) = 0;
-        virtual void sendActualWorkDuration(nsecs_t actualDuration, nsecs_t timestamp) = 0;
+        virtual void setTargetWorkDuration(Duration targetDuration) = 0;
+        virtual void sendActualWorkDuration(Duration actualDuration, TimePoint timestamp) = 0;
         virtual bool shouldReconnectHAL() = 0;
         virtual std::vector<int32_t> getPowerHintSessionThreadIds() = 0;
-        virtual std::optional<nsecs_t> getTargetWorkDuration() = 0;
+        virtual std::optional<Duration> getTargetWorkDuration() = 0;
     };
 
     PowerAdvisor(SurfaceFlinger& flinger);
@@ -129,29 +130,27 @@ public:
     bool usePowerHintSession() override;
     bool supportsPowerHintSession() override;
     bool isPowerHintSessionRunning() override;
-    void setTargetWorkDuration(nsecs_t targetDuration) override;
+    void setTargetWorkDuration(Duration targetDuration) override;
     void sendActualWorkDuration() override;
     void sendPredictedWorkDuration() override;
     void enablePowerHint(bool enabled) override;
     bool startPowerHintSession(const std::vector<int32_t>& threadIds) override;
     void setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime);
-    void setHwcValidateTiming(DisplayId displayId, nsecs_t valiateStartTime,
-                              nsecs_t validateEndTime) override;
-    void setHwcPresentTiming(DisplayId displayId, nsecs_t presentStartTime,
-                             nsecs_t presentEndTime) override;
+    void setHwcValidateTiming(DisplayId displayId, TimePoint validateStartTime,
+                              TimePoint validateEndTime) override;
+    void setHwcPresentTiming(DisplayId displayId, TimePoint presentStartTime,
+                             TimePoint presentEndTime) override;
     void setSkippedValidate(DisplayId displayId, bool skipped) override;
     void setRequiresClientComposition(DisplayId displayId, bool requiresClientComposition) override;
-    void setExpectedPresentTime(nsecs_t expectedPresentTime) override;
-    void setSfPresentTiming(nsecs_t presentFenceTime, nsecs_t presentEndTime) override;
-    void setHwcPresentDelayedTime(
-            DisplayId displayId,
-            std::chrono::steady_clock::time_point earliestFrameStartTime) override;
+    void setExpectedPresentTime(TimePoint expectedPresentTime) override;
+    void setSfPresentTiming(TimePoint presentFenceTime, TimePoint presentEndTime) override;
+    void setHwcPresentDelayedTime(DisplayId displayId, TimePoint earliestFrameStartTime) override;
 
-    void setFrameDelay(nsecs_t frameDelayDuration) override;
-    void setCommitStart(nsecs_t commitStartTime) override;
-    void setCompositeEnd(nsecs_t compositeEndTime) override;
+    void setFrameDelay(Duration frameDelayDuration) override;
+    void setCommitStart(TimePoint commitStartTime) override;
+    void setCompositeEnd(TimePoint compositeEndTime) override;
     void setDisplays(std::vector<DisplayId>& displayIds) override;
-    void setTotalFrameTargetWorkDuration(nsecs_t targetDuration) override;
+    void setTotalFrameTargetWorkDuration(Duration targetDuration) override;
 
 private:
     friend class PowerAdvisorTest;
@@ -178,44 +177,45 @@ private:
     // Higher-level timing data used for estimation
     struct DisplayTimeline {
         // The start of hwc present, or the start of validate if it happened there instead
-        nsecs_t hwcPresentStartTime = -1;
+        TimePoint hwcPresentStartTime;
         // The end of hwc present or validate, whichever one actually presented
-        nsecs_t hwcPresentEndTime = -1;
+        TimePoint hwcPresentEndTime;
         // How long the actual hwc present was delayed after hwcPresentStartTime
-        nsecs_t hwcPresentDelayDuration = 0;
+        Duration hwcPresentDelayDuration{0ns};
         // When we think we started waiting for the present fence after calling into hwc present and
         // after potentially waiting for the earliest present time
-        nsecs_t presentFenceWaitStartTime = -1;
+        TimePoint presentFenceWaitStartTime;
         // How long we ran after we finished waiting for the fence but before hwc present finished
-        nsecs_t postPresentFenceHwcPresentDuration = 0;
+        Duration postPresentFenceHwcPresentDuration{0ns};
         // Are we likely to have waited for the present fence during composition
         bool probablyWaitsForPresentFence = false;
         // Estimate one frame's timeline from that of a previous frame
-        DisplayTimeline estimateTimelineFromReference(nsecs_t fenceTime, nsecs_t displayStartTime);
+        DisplayTimeline estimateTimelineFromReference(TimePoint fenceTime,
+                                                      TimePoint displayStartTime);
     };
 
     struct GpuTimeline {
-        nsecs_t duration = 0;
-        nsecs_t startTime = -1;
+        Duration duration{0ns};
+        TimePoint startTime;
     };
 
     // Power hint session data recorded from the pipeline
     struct DisplayTimingData {
         std::unique_ptr<FenceTime> gpuEndFenceTime;
-        std::optional<nsecs_t> gpuStartTime;
-        std::optional<nsecs_t> lastValidGpuEndTime;
-        std::optional<nsecs_t> lastValidGpuStartTime;
-        std::optional<nsecs_t> hwcPresentStartTime;
-        std::optional<nsecs_t> hwcPresentEndTime;
-        std::optional<nsecs_t> hwcValidateStartTime;
-        std::optional<nsecs_t> hwcValidateEndTime;
-        std::optional<nsecs_t> hwcPresentDelayedTime;
+        std::optional<TimePoint> gpuStartTime;
+        std::optional<TimePoint> lastValidGpuEndTime;
+        std::optional<TimePoint> lastValidGpuStartTime;
+        std::optional<TimePoint> hwcPresentStartTime;
+        std::optional<TimePoint> hwcPresentEndTime;
+        std::optional<TimePoint> hwcValidateStartTime;
+        std::optional<TimePoint> hwcValidateEndTime;
+        std::optional<TimePoint> hwcPresentDelayedTime;
         bool usedClientComposition = false;
         bool skippedValidate = false;
         // Calculate high-level timing milestones from more granular display timing data
-        DisplayTimeline calculateDisplayTimeline(nsecs_t fenceTime);
+        DisplayTimeline calculateDisplayTimeline(TimePoint fenceTime);
         // Estimate the gpu duration for a given display from previous gpu timing data
-        std::optional<GpuTimeline> estimateGpuTiming(std::optional<nsecs_t> previousEnd);
+        std::optional<GpuTimeline> estimateGpuTiming(std::optional<TimePoint> previousEndTime);
     };
 
     template <class T, size_t N>
@@ -240,30 +240,31 @@ private:
     };
 
     // Filter and sort the display ids by a given property
-    std::vector<DisplayId> getOrderedDisplayIds(std::optional<nsecs_t> DisplayTimingData::*sortBy);
+    std::vector<DisplayId> getOrderedDisplayIds(
+            std::optional<TimePoint> DisplayTimingData::*sortBy);
     // Estimates a frame's total work duration including gpu time.
     // Runs either at the beginning or end of a frame, using the most recent data available
-    std::optional<nsecs_t> estimateWorkDuration(bool earlyHint);
+    std::optional<Duration> estimateWorkDuration(bool earlyHint);
     // There are two different targets and actual work durations we care about,
     // this normalizes them together and takes the max of the two
-    nsecs_t combineTimingEstimates(nsecs_t totalDuration, nsecs_t flingerDuration);
+    Duration combineTimingEstimates(Duration totalDuration, Duration flingerDuration);
 
     std::unordered_map<DisplayId, DisplayTimingData> mDisplayTimingData;
 
     // Current frame's delay
-    nsecs_t mFrameDelayDuration = 0;
+    Duration mFrameDelayDuration{0ns};
     // Last frame's post-composition duration
-    nsecs_t mLastPostcompDuration = 0;
+    Duration mLastPostcompDuration{0ns};
     // Buffer of recent commit start times
-    RingBuffer<nsecs_t, 2> mCommitStartTimes;
+    RingBuffer<TimePoint, 2> mCommitStartTimes;
     // Buffer of recent expected present times
-    RingBuffer<nsecs_t, 2> mExpectedPresentTimes;
+    RingBuffer<TimePoint, 2> mExpectedPresentTimes;
     // Most recent present fence time, provided by SF after composition engine finishes presenting
-    nsecs_t mLastPresentFenceTime = -1;
+    TimePoint mLastPresentFenceTime;
     // Most recent composition engine present end time, returned with the present fence from SF
-    nsecs_t mLastSfPresentEndTime = -1;
+    TimePoint mLastSfPresentEndTime;
     // Target duration for the entire pipeline including gpu
-    std::optional<nsecs_t> mTotalFrameTargetDuration;
+    std::optional<Duration> mTotalFrameTargetDuration;
     // Updated list of display IDs
     std::vector<DisplayId> mDisplayIds;
 
@@ -273,11 +274,11 @@ private:
 
     // An adjustable safety margin which pads the "actual" value sent to PowerHAL,
     // encouraging more aggressive boosting to give SurfaceFlinger a larger margin for error
-    static constexpr const std::chrono::nanoseconds kTargetSafetyMargin = 1ms;
+    static constexpr const Duration kTargetSafetyMargin{1ms};
 
     // How long we expect hwc to run after the present call until it waits for the fence
-    static constexpr const std::chrono::nanoseconds kFenceWaitStartDelayValidated = 150us;
-    static constexpr const std::chrono::nanoseconds kFenceWaitStartDelaySkippedValidate = 250us;
+    static constexpr const Duration kFenceWaitStartDelayValidated{150us};
+    static constexpr const Duration kFenceWaitStartDelaySkippedValidate{250us};
 };
 
 class AidlPowerHalWrapper : public PowerAdvisor::HalWrapper {
@@ -294,11 +295,11 @@ public:
     void restartPowerHintSession() override;
     void setPowerHintSessionThreadIds(const std::vector<int32_t>& threadIds) override;
     bool startPowerHintSession() override;
-    void setTargetWorkDuration(nsecs_t targetDuration) override;
-    void sendActualWorkDuration(nsecs_t actualDuration, nsecs_t timestamp) override;
+    void setTargetWorkDuration(Duration targetDuration) override;
+    void sendActualWorkDuration(Duration actualDuration, TimePoint timestamp) override;
     bool shouldReconnectHAL() override;
     std::vector<int32_t> getPowerHintSessionThreadIds() override;
-    std::optional<nsecs_t> getTargetWorkDuration() override;
+    std::optional<Duration> getTargetWorkDuration() override;
 
 private:
     friend class AidlPowerHalWrapperTest;
@@ -319,15 +320,15 @@ private:
     // Queue of actual durations saved to report
     std::vector<hardware::power::WorkDuration> mPowerHintQueue;
     // The latest values we have received for target and actual
-    nsecs_t mTargetDuration = kDefaultTarget.count();
-    std::optional<nsecs_t> mActualDuration;
+    Duration mTargetDuration = kDefaultTargetDuration;
+    std::optional<Duration> mActualDuration;
     // The list of thread ids, stored so we can restart the session from this class if needed
     std::vector<int32_t> mPowerHintThreadIds;
     bool mSupportsPowerHint = false;
-    nsecs_t mLastTargetDurationSent = kDefaultTarget.count();
+    Duration mLastTargetDurationSent = kDefaultTargetDuration;
     // Whether we should emit ATRACE_INT data for hint sessions
     static const bool sTraceHintSessionData;
-    static constexpr const std::chrono::nanoseconds kDefaultTarget = 16ms;
+    static constexpr Duration kDefaultTargetDuration{16ms};
 };
 
 } // namespace impl

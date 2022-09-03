@@ -1056,7 +1056,7 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* ou
     }
 
     const auto& schedule = mScheduler->getVsyncSchedule();
-    outStats->vsyncTime = schedule.vsyncDeadlineAfter(scheduler::SchedulerClock::now()).ns();
+    outStats->vsyncTime = schedule.vsyncDeadlineAfter(TimePoint::now()).ns();
     outStats->vsyncPeriod = schedule.period().ns();
     return NO_ERROR;
 }
@@ -1972,7 +1972,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
                                                           : calculateExpectedPresentTime(frameTime);
 
     ATRACE_FORMAT("%s %" PRId64 " vsyncIn %.2fms%s", __func__, vsyncId.value,
-                  ticks<std::milli, float>(mExpectedPresentTime - scheduler::SchedulerClock::now()),
+                  ticks<std::milli, float>(mExpectedPresentTime - TimePoint::now()),
                   mExpectedPresentTime == expectedVsyncTime ? "" : " (adjusted)");
 
     const Period vsyncPeriod = mScheduler->getVsyncSchedule().period();
@@ -2059,16 +2059,16 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
             activeDisplay->getPowerMode() == hal::PowerMode::ON;
     if (mPowerHintSessionEnabled) {
         const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
-        const nsecs_t vsyncPeriod = display->getActiveMode()->getVsyncPeriod();
-        mPowerAdvisor->setCommitStart(frameTime.ns());
-        mPowerAdvisor->setExpectedPresentTime(mExpectedPresentTime.ns());
+        const Period vsyncPeriod = Period::fromNs(display->getActiveMode()->getVsyncPeriod());
+        mPowerAdvisor->setCommitStart(frameTime);
+        mPowerAdvisor->setExpectedPresentTime(mExpectedPresentTime);
 
         // Frame delay is how long we should have minus how long we actually have.
         const Duration idealSfWorkDuration = mVsyncModulator->getVsyncConfig().sfWorkDuration;
         const Duration frameDelay = idealSfWorkDuration - (mExpectedPresentTime - frameTime);
 
-        mPowerAdvisor->setFrameDelay(frameDelay.ns());
-        mPowerAdvisor->setTotalFrameTargetWorkDuration(idealSfWorkDuration.ns());
+        mPowerAdvisor->setFrameDelay(frameDelay);
+        mPowerAdvisor->setTotalFrameTargetWorkDuration(idealSfWorkDuration);
         mPowerAdvisor->setTargetWorkDuration(vsyncPeriod);
 
         // Send early hint here to make sure there's not another frame pending
@@ -2228,8 +2228,9 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     // Send a power hint hint after presentation is finished
     if (mPowerHintSessionEnabled) {
-        mPowerAdvisor->setSfPresentTiming(mPreviousPresentFences[0].fenceTime->getSignalTime(),
-                                          systemTime());
+        mPowerAdvisor->setSfPresentTiming(TimePoint::fromNs(mPreviousPresentFences[0]
+                                                                    .fenceTime->getSignalTime()),
+                                          TimePoint::now());
         if (mPowerHintSessionMode.late) {
             mPowerAdvisor->sendActualWorkDuration();
         }
@@ -2279,7 +2280,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     }
 
     if (mPowerHintSessionEnabled) {
-        mPowerAdvisor->setCompositeEnd(systemTime());
+        mPowerAdvisor->setCompositeEnd(TimePoint::now());
     }
 }
 
@@ -2376,7 +2377,7 @@ void SurfaceFlinger::postComposition() {
     auto presentFenceTime = std::make_shared<FenceTime>(presentFence);
     mPreviousPresentFences[0] = {presentFence, presentFenceTime};
 
-    const TimePoint presentTime = scheduler::SchedulerClock::now();
+    const TimePoint presentTime = TimePoint::now();
 
     // Set presentation information before calling Layer::releasePendingBuffer, such that jank
     // information from previous' frame classification is already available when sending jank info
@@ -4575,7 +4576,11 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
 
     switch (args.flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
-        case ISurfaceComposerClient::eFXSurfaceBufferState: {
+        case ISurfaceComposerClient::eFXSurfaceContainer:
+        case ISurfaceComposerClient::eFXSurfaceBufferState:
+            args.flags |= ISurfaceComposerClient::eNoColorFill;
+            FMT_FALLTHROUGH;
+        case ISurfaceComposerClient::eFXSurfaceEffect: {
             result = createBufferStateLayer(args, outHandle, &layer);
             std::atomic<int32_t>* pendingBufferCounter = layer->getPendingBufferCounter();
             if (pendingBufferCounter) {
@@ -4584,12 +4589,6 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
                                         pendingBufferCounter);
             }
         } break;
-        case ISurfaceComposerClient::eFXSurfaceContainer:
-            args.flags |= ISurfaceComposerClient::eNoColorFill;
-            FMT_FALLTHROUGH;
-        case ISurfaceComposerClient::eFXSurfaceEffect:
-            result = createEffectLayer(args, outHandle, &layer);
-            break;
         default:
             result = BAD_VALUE;
             break;

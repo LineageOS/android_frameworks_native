@@ -89,6 +89,7 @@ cc_defaults {
         "Stability.cpp",
         "Status.cpp",
         "TextOutput.cpp",
+        "Trace.cpp",
         "Utils.cpp",
     ],
 

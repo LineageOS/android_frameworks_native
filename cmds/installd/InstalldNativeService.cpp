@@ -16,8 +16,6 @@
 
 #include "InstalldNativeService.h"
 
-#define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
-
 #include <errno.h>
 #include <fts.h>
 #include <inttypes.h>
@@ -75,6 +73,7 @@
 #include "CrateManager.h"
 #include "MatchExtensionGen.h"
 #include "QuotaUtils.h"
+#include "SysTrace.h"
 
 #ifndef LOG_TAG
 #define LOG_TAG "installd"
@@ -1327,7 +1326,7 @@ binder::Status InstalldNativeService::fixupAppData(const std::optional<std::stri
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     for (auto userId : get_known_users(uuid_)) {
         LOCK_USER();
-        ATRACE_BEGIN("fixup user");
+        atrace_pm_begin("fixup user");
         FTS* fts;
         FTSENT* p;
         auto ce_path = create_data_user_ce_path(uuid_, userId);
@@ -1417,7 +1416,7 @@ binder::Status InstalldNativeService::fixupAppData(const std::optional<std::stri
             }
         }
         fts_close(fts);
-        ATRACE_END();
+        atrace_pm_end();
     }
     return ok();
 }
@@ -1970,7 +1969,7 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
         // files from the UIDs which are most over their allocated quota
 
         // 1. Create trackers for every known UID
-        ATRACE_BEGIN("create");
+        atrace_pm_begin("create");
         const auto users = get_known_users(uuid_);
 #ifdef GRANULAR_LOCKS
         std::vector<UserLock> userLocks;
@@ -2051,10 +2050,10 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
             }
             fts_close(fts);
         }
-        ATRACE_END();
+        atrace_pm_end();
 
         // 2. Populate tracker stats and insert into priority queue
-        ATRACE_BEGIN("populate");
+        atrace_pm_begin("populate");
         auto cmp = [](std::shared_ptr<CacheTracker> left, std::shared_ptr<CacheTracker> right) {
             return (left->getCacheRatio() < right->getCacheRatio());
         };
@@ -2064,11 +2063,11 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
             it.second->loadStats();
             queue.push(it.second);
         }
-        ATRACE_END();
+        atrace_pm_end();
 
         // 3. Bounce across the queue, freeing items from whichever tracker is
         // the most over their assigned quota
-        ATRACE_BEGIN("bounce");
+        atrace_pm_begin("bounce");
         std::shared_ptr<CacheTracker> active;
         while (active || !queue.empty()) {
             // Only look at apps under quota when explicitly requested
@@ -2124,7 +2123,7 @@ binder::Status InstalldNativeService::freeCache(const std::optional<std::string>
                 }
             }
         }
-        ATRACE_END();
+        atrace_pm_end();
 
     } else {
         return error("Legacy cache logic no longer supported");
@@ -2469,84 +2468,84 @@ binder::Status InstalldNativeService::getAppSize(const std::optional<std::string
         flags &= ~FLAG_USE_QUOTA;
     }
 
-    ATRACE_BEGIN("obb");
+    atrace_pm_begin("obb");
     for (const auto& packageName : packageNames) {
         auto obbCodePath = create_data_media_package_path(uuid_, userId,
                 "obb", packageName.c_str());
         calculate_tree_size(obbCodePath, &extStats.codeSize);
     }
-    ATRACE_END();
+    atrace_pm_end();
     // Calculating the app size of the external storage owning app in a manual way, since
     // calculating it through quota apis also includes external media storage in the app storage
     // numbers
     if (flags & FLAG_USE_QUOTA && appId >= AID_APP_START && !ownsExternalStorage(appId)) {
-        ATRACE_BEGIN("code");
+        atrace_pm_begin("code");
         for (const auto& codePath : codePaths) {
             calculate_tree_size(codePath, &stats.codeSize, -1,
                     multiuser_get_shared_gid(0, appId));
         }
-        ATRACE_END();
+        atrace_pm_end();
 
-        ATRACE_BEGIN("quota");
+        atrace_pm_begin("quota");
         collectQuotaStats(uuidString, userId, appId, &stats, &extStats);
-        ATRACE_END();
+        atrace_pm_end();
     } else {
-        ATRACE_BEGIN("code");
+        atrace_pm_begin("code");
         for (const auto& codePath : codePaths) {
             calculate_tree_size(codePath, &stats.codeSize);
         }
-        ATRACE_END();
+        atrace_pm_end();
 
         for (size_t i = 0; i < packageNames.size(); i++) {
             const char* pkgname = packageNames[i].c_str();
 
-            ATRACE_BEGIN("data");
+            atrace_pm_begin("data");
             auto cePath = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInodes[i]);
             collectManualStats(cePath, &stats);
             auto dePath = create_data_user_de_package_path(uuid_, userId, pkgname);
             collectManualStats(dePath, &stats);
-            ATRACE_END();
+            atrace_pm_end();
 
             // In case of sdk sandbox storage (e.g. /data/misc_ce/0/sdksandbox/<package-name>),
             // collect individual stats of each subdirectory (shared, storage of each sdk etc.)
             if (appId >= AID_APP_START && appId <= AID_APP_END) {
-                ATRACE_BEGIN("sdksandbox");
+                atrace_pm_begin("sdksandbox");
                 auto sdkSandboxCePath =
                         create_data_misc_sdk_sandbox_package_path(uuid_, true, userId, pkgname);
                 collectManualStatsForSubDirectories(sdkSandboxCePath, &stats);
                 auto sdkSandboxDePath =
                         create_data_misc_sdk_sandbox_package_path(uuid_, false, userId, pkgname);
                 collectManualStatsForSubDirectories(sdkSandboxDePath, &stats);
-                ATRACE_END();
+                atrace_pm_end();
             }
 
             if (!uuid) {
-                ATRACE_BEGIN("profiles");
+                atrace_pm_begin("profiles");
                 calculate_tree_size(
                         create_primary_current_profile_package_dir_path(userId, pkgname),
                         &stats.dataSize);
                 calculate_tree_size(
                         create_primary_reference_profile_package_dir_path(pkgname),
                         &stats.codeSize);
-                ATRACE_END();
+                atrace_pm_end();
             }
 
-            ATRACE_BEGIN("external");
+            atrace_pm_begin("external");
             auto extPath = create_data_media_package_path(uuid_, userId, "data", pkgname);
             collectManualStats(extPath, &extStats);
             auto mediaPath = create_data_media_package_path(uuid_, userId, "media", pkgname);
             calculate_tree_size(mediaPath, &extStats.dataSize);
-            ATRACE_END();
+            atrace_pm_end();
         }
 
         if (!uuid) {
-            ATRACE_BEGIN("dalvik");
+            atrace_pm_begin("dalvik");
             int32_t sharedGid = multiuser_get_shared_gid(0, appId);
             if (sharedGid != -1) {
                 calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
                         sharedGid, -1);
             }
-            ATRACE_END();
+            atrace_pm_end();
         }
     }
 
@@ -2692,41 +2691,41 @@ binder::Status InstalldNativeService::getUserSize(const std::optional<std::strin
     }
 
     if (flags & FLAG_USE_QUOTA) {
-        ATRACE_BEGIN("code");
+        atrace_pm_begin("code");
         calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize, -1, -1, true);
-        ATRACE_END();
+        atrace_pm_end();
 
-        ATRACE_BEGIN("data");
+        atrace_pm_begin("data");
         auto cePath = create_data_user_ce_path(uuid_, userId);
         collectManualStatsForUser(cePath, &stats, true);
         auto dePath = create_data_user_de_path(uuid_, userId);
         collectManualStatsForUser(dePath, &stats, true);
-        ATRACE_END();
+        atrace_pm_end();
 
         if (!uuid) {
-            ATRACE_BEGIN("profile");
+            atrace_pm_begin("profile");
             auto userProfilePath = create_primary_cur_profile_dir_path(userId);
             calculate_tree_size(userProfilePath, &stats.dataSize, -1, -1, true);
             auto refProfilePath = create_primary_ref_profile_dir_path();
             calculate_tree_size(refProfilePath, &stats.codeSize, -1, -1, true);
-            ATRACE_END();
+            atrace_pm_end();
         }
 
-        ATRACE_BEGIN("external");
+        atrace_pm_begin("external");
         auto sizes = getExternalSizesForUserWithQuota(uuidString, userId, appIds);
         extStats.dataSize += sizes.totalSize;
         extStats.codeSize += sizes.obbSize;
-        ATRACE_END();
+        atrace_pm_end();
 
         if (!uuid) {
-            ATRACE_BEGIN("dalvik");
+            atrace_pm_begin("dalvik");
             calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
                     -1, -1, true);
             calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize,
                     -1, -1, true);
-            ATRACE_END();
+            atrace_pm_end();
         }
-        ATRACE_BEGIN("quota");
+        atrace_pm_begin("quota");
         int64_t dataSize = extStats.dataSize;
         for (auto appId : appIds) {
             if (appId >= AID_APP_START) {
@@ -2738,54 +2737,54 @@ binder::Status InstalldNativeService::getUserSize(const std::optional<std::strin
             }
         }
         extStats.dataSize = dataSize;
-        ATRACE_END();
+        atrace_pm_end();
     } else {
-        ATRACE_BEGIN("obb");
+        atrace_pm_begin("obb");
         auto obbPath = create_data_path(uuid_) + "/media/obb";
         calculate_tree_size(obbPath, &extStats.codeSize);
-        ATRACE_END();
+        atrace_pm_end();
 
-        ATRACE_BEGIN("code");
+        atrace_pm_begin("code");
         calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize);
-        ATRACE_END();
+        atrace_pm_end();
 
-        ATRACE_BEGIN("data");
+        atrace_pm_begin("data");
         auto cePath = create_data_user_ce_path(uuid_, userId);
         collectManualStatsForUser(cePath, &stats);
         auto dePath = create_data_user_de_path(uuid_, userId);
         collectManualStatsForUser(dePath, &stats);
-        ATRACE_END();
+        atrace_pm_end();
 
-        ATRACE_BEGIN("sdksandbox");
+        atrace_pm_begin("sdksandbox");
         auto sdkSandboxCePath = create_data_misc_sdk_sandbox_path(uuid_, true, userId);
         collectManualStatsForUser(sdkSandboxCePath, &stats, false, true);
         auto sdkSandboxDePath = create_data_misc_sdk_sandbox_path(uuid_, false, userId);
         collectManualStatsForUser(sdkSandboxDePath, &stats, false, true);
-        ATRACE_END();
+        atrace_pm_end();
 
         if (!uuid) {
-            ATRACE_BEGIN("profile");
+            atrace_pm_begin("profile");
             auto userProfilePath = create_primary_cur_profile_dir_path(userId);
             calculate_tree_size(userProfilePath, &stats.dataSize);
             auto refProfilePath = create_primary_ref_profile_dir_path();
             calculate_tree_size(refProfilePath, &stats.codeSize);
-            ATRACE_END();
+            atrace_pm_end();
         }
 
-        ATRACE_BEGIN("external");
+        atrace_pm_begin("external");
         auto dataMediaPath = create_data_media_path(uuid_, userId);
         collectManualExternalStatsForUser(dataMediaPath, &extStats);
 #if MEASURE_DEBUG
         LOG(DEBUG) << "Measured external data " << extStats.dataSize << " cache "
                 << extStats.cacheSize;
 #endif
-        ATRACE_END();
+        atrace_pm_end();
 
         if (!uuid) {
-            ATRACE_BEGIN("dalvik");
+            atrace_pm_begin("dalvik");
             calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize);
             calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize);
-            ATRACE_END();
+            atrace_pm_end();
         }
     }
 
@@ -2833,16 +2832,16 @@ binder::Status InstalldNativeService::getExternalSize(const std::optional<std::s
     }
 
     if (flags & FLAG_USE_QUOTA) {
-        ATRACE_BEGIN("quota");
+        atrace_pm_begin("quota");
         auto sizes = getExternalSizesForUserWithQuota(uuidString, userId, appIds);
         totalSize = sizes.totalSize;
         audioSize = sizes.audioSize;
         videoSize = sizes.videoSize;
         imageSize = sizes.imageSize;
         obbSize = sizes.obbSize;
-        ATRACE_END();
+        atrace_pm_end();
 
-        ATRACE_BEGIN("apps");
+        atrace_pm_begin("apps");
         struct stats extStats;
         memset(&extStats, 0, sizeof(extStats));
         for (auto appId : appIds) {
@@ -2851,9 +2850,9 @@ binder::Status InstalldNativeService::getExternalSize(const std::optional<std::s
             }
         }
         appSize = extStats.dataSize;
-        ATRACE_END();
+        atrace_pm_end();
     } else {
-        ATRACE_BEGIN("manual");
+        atrace_pm_begin("manual");
         FTS *fts;
         FTSENT *p;
         auto path = create_data_media_path(uuid_, userId);
@@ -2896,16 +2895,16 @@ binder::Status InstalldNativeService::getExternalSize(const std::optional<std::s
             }
         }
         fts_close(fts);
-        ATRACE_END();
+        atrace_pm_end();
 
-        ATRACE_BEGIN("obb");
+        atrace_pm_begin("obb");
         auto obbPath = StringPrintf("%s/Android/obb",
                 create_data_media_path(uuid_, userId).c_str());
         calculate_tree_size(obbPath, &obbSize);
         if (!(flags & FLAG_USE_QUOTA)) {
             totalSize -= obbSize;
         }
-        ATRACE_END();
+        atrace_pm_end();
     }
 
     std::vector<int64_t> ret;
@@ -3709,7 +3708,7 @@ binder::Status InstalldNativeService::migrateLegacyObbData() {
     ENFORCE_UID(AID_SYSTEM);
     // NOTE: The lint warning doesn't apply to the use of system(3) with
     // absolute parse and no command line arguments.
-    if (system("/system/bin/migrate_legacy_obb_data.sh") != 0) { // NOLINT(cert-env33-c)
+    if (system("/system/bin/migrate_legacy_obb_data") != 0) { // NOLINT(cert-env33-c)
         LOG(ERROR) << "Unable to migrate legacy obb data";
     }
 
