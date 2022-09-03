@@ -39,15 +39,15 @@ class PowerAdvisorTest : public testing::Test {
 public:
     void SetUp() override;
     void startPowerHintSession();
-    void fakeBasicFrameTiming(nsecs_t startTime, nsecs_t vsyncPeriod);
-    void setExpectedTiming(nsecs_t startTime, nsecs_t vsyncPeriod);
-    nsecs_t getFenceWaitDelayDuration(bool skipValidate);
+    void fakeBasicFrameTiming(TimePoint startTime, Duration vsyncPeriod);
+    void setExpectedTiming(Duration totalFrameTargetDuration, TimePoint expectedPresentTime);
+    Duration getFenceWaitDelayDuration(bool skipValidate);
 
 protected:
     TestableSurfaceFlinger mFlinger;
     std::unique_ptr<PowerAdvisor> mPowerAdvisor;
     NiceMock<MockAidlPowerHalWrapper>* mMockAidlWrapper;
-    nsecs_t kErrorMargin = std::chrono::nanoseconds(1ms).count();
+    Duration kErrorMargin = 1ms;
 };
 
 void PowerAdvisorTest::SetUp() FTL_FAKE_GUARD(mPowerAdvisor->mPowerHalMutex) {
@@ -67,21 +67,21 @@ void PowerAdvisorTest::startPowerHintSession() {
     mPowerAdvisor->startPowerHintSession(threadIds);
 }
 
-void PowerAdvisorTest::setExpectedTiming(nsecs_t totalFrameTarget, nsecs_t expectedPresentTime) {
-    mPowerAdvisor->setTotalFrameTargetWorkDuration(totalFrameTarget);
+void PowerAdvisorTest::setExpectedTiming(Duration totalFrameTargetDuration,
+                                         TimePoint expectedPresentTime) {
+    mPowerAdvisor->setTotalFrameTargetWorkDuration(totalFrameTargetDuration);
     mPowerAdvisor->setExpectedPresentTime(expectedPresentTime);
 }
 
-void PowerAdvisorTest::fakeBasicFrameTiming(nsecs_t startTime, nsecs_t vsyncPeriod) {
+void PowerAdvisorTest::fakeBasicFrameTiming(TimePoint startTime, Duration vsyncPeriod) {
     mPowerAdvisor->setCommitStart(startTime);
-    mPowerAdvisor->setFrameDelay(0);
+    mPowerAdvisor->setFrameDelay(0ns);
     mPowerAdvisor->setTargetWorkDuration(vsyncPeriod);
 }
 
-nsecs_t PowerAdvisorTest::getFenceWaitDelayDuration(bool skipValidate) {
+Duration PowerAdvisorTest::getFenceWaitDelayDuration(bool skipValidate) {
     return (skipValidate ? PowerAdvisor::kFenceWaitStartDelaySkippedValidate
-                         : PowerAdvisor::kFenceWaitStartDelayValidated)
-            .count();
+                         : PowerAdvisor::kFenceWaitStartDelayValidated);
 }
 
 namespace {
@@ -93,11 +93,11 @@ TEST_F(PowerAdvisorTest, hintSessionUseHwcDisplay) {
     std::vector<DisplayId> displayIds{PhysicalDisplayId::fromPort(42u)};
 
     // 60hz
-    const nsecs_t vsyncPeriod = std::chrono::nanoseconds(1s).count() / 60;
-    const nsecs_t presentDuration = std::chrono::nanoseconds(5ms).count();
-    const nsecs_t postCompDuration = std::chrono::nanoseconds(1ms).count();
+    const Duration vsyncPeriod{std::chrono::nanoseconds(1s) / 60};
+    const Duration presentDuration = 5ms;
+    const Duration postCompDuration = 1ms;
 
-    nsecs_t startTime = 100;
+    TimePoint startTime{100ns};
 
     // advisor only starts on frame 2 so do an initial no-op frame
     fakeBasicFrameTiming(startTime, vsyncPeriod);
@@ -109,14 +109,14 @@ TEST_F(PowerAdvisorTest, hintSessionUseHwcDisplay) {
     // increment the frame
     startTime += vsyncPeriod;
 
-    const nsecs_t expectedDuration = kErrorMargin + presentDuration + postCompDuration;
+    const Duration expectedDuration = kErrorMargin + presentDuration + postCompDuration;
     EXPECT_CALL(*mMockAidlWrapper, sendActualWorkDuration(Eq(expectedDuration), _)).Times(1);
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
     setExpectedTiming(vsyncPeriod, startTime + vsyncPeriod);
     mPowerAdvisor->setDisplays(displayIds);
-    mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime + 1000000, startTime + 1500000);
-    mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime + 2000000, startTime + 2500000);
+    mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime + 1ms, startTime + 1500us);
+    mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime + 2ms, startTime + 2500us);
     mPowerAdvisor->setSfPresentTiming(startTime, startTime + presentDuration);
     mPowerAdvisor->sendActualWorkDuration();
 }
@@ -128,12 +128,12 @@ TEST_F(PowerAdvisorTest, hintSessionSubtractsHwcFenceTime) {
     std::vector<DisplayId> displayIds{PhysicalDisplayId::fromPort(42u)};
 
     // 60hz
-    const nsecs_t vsyncPeriod = std::chrono::nanoseconds(1s).count() / 60;
-    const nsecs_t presentDuration = std::chrono::nanoseconds(5ms).count();
-    const nsecs_t postCompDuration = std::chrono::nanoseconds(1ms).count();
-    const nsecs_t hwcBlockedDuration = std::chrono::nanoseconds(500us).count();
+    const Duration vsyncPeriod{std::chrono::nanoseconds(1s) / 60};
+    const Duration presentDuration = 5ms;
+    const Duration postCompDuration = 1ms;
+    const Duration hwcBlockedDuration = 500us;
 
-    nsecs_t startTime = 100;
+    TimePoint startTime{100ns};
 
     // advisor only starts on frame 2 so do an initial no-op frame
     fakeBasicFrameTiming(startTime, vsyncPeriod);
@@ -145,17 +145,17 @@ TEST_F(PowerAdvisorTest, hintSessionSubtractsHwcFenceTime) {
     // increment the frame
     startTime += vsyncPeriod;
 
-    const nsecs_t expectedDuration = kErrorMargin + presentDuration +
+    const Duration expectedDuration = kErrorMargin + presentDuration +
             getFenceWaitDelayDuration(false) - hwcBlockedDuration + postCompDuration;
     EXPECT_CALL(*mMockAidlWrapper, sendActualWorkDuration(Eq(expectedDuration), _)).Times(1);
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
     setExpectedTiming(vsyncPeriod, startTime + vsyncPeriod);
     mPowerAdvisor->setDisplays(displayIds);
-    mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime + 1000000, startTime + 1500000);
-    mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime + 2000000, startTime + 3000000);
+    mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime + 1ms, startTime + 1500us);
+    mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime + 2ms, startTime + 3ms);
     // now report the fence as having fired during the display HWC time
-    mPowerAdvisor->setSfPresentTiming(startTime + 2000000 + hwcBlockedDuration,
+    mPowerAdvisor->setSfPresentTiming(startTime + 2ms + hwcBlockedDuration,
                                       startTime + presentDuration);
     mPowerAdvisor->sendActualWorkDuration();
 }
@@ -168,12 +168,12 @@ TEST_F(PowerAdvisorTest, hintSessionUsingSecondaryVirtualDisplays) {
                                       GpuVirtualDisplayId(1)};
 
     // 60hz
-    const nsecs_t vsyncPeriod = std::chrono::nanoseconds(1s).count() / 60;
+    const Duration vsyncPeriod{std::chrono::nanoseconds(1s) / 60};
     // make present duration much later than the hwc display by itself will account for
-    const nsecs_t presentDuration = std::chrono::nanoseconds(10ms).count();
-    const nsecs_t postCompDuration = std::chrono::nanoseconds(1ms).count();
+    const Duration presentDuration{10ms};
+    const Duration postCompDuration{1ms};
 
-    nsecs_t startTime = 100;
+    TimePoint startTime{100ns};
 
     // advisor only starts on frame 2 so do an initial no-op frame
     fakeBasicFrameTiming(startTime, vsyncPeriod);
@@ -185,7 +185,7 @@ TEST_F(PowerAdvisorTest, hintSessionUsingSecondaryVirtualDisplays) {
     // increment the frame
     startTime += vsyncPeriod;
 
-    const nsecs_t expectedDuration = kErrorMargin + presentDuration + postCompDuration;
+    const Duration expectedDuration = kErrorMargin + presentDuration + postCompDuration;
     EXPECT_CALL(*mMockAidlWrapper, sendActualWorkDuration(Eq(expectedDuration), _)).Times(1);
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
@@ -193,8 +193,8 @@ TEST_F(PowerAdvisorTest, hintSessionUsingSecondaryVirtualDisplays) {
     mPowerAdvisor->setDisplays(displayIds);
 
     // don't report timing for the gpu displays since they don't use hwc
-    mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime + 1000000, startTime + 1500000);
-    mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime + 2000000, startTime + 2500000);
+    mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime + 1ms, startTime + 1500us);
+    mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime + 2ms, startTime + 2500us);
     mPowerAdvisor->setSfPresentTiming(startTime, startTime + presentDuration);
     mPowerAdvisor->sendActualWorkDuration();
 }

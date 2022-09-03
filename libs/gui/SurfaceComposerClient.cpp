@@ -2715,12 +2715,16 @@ std::optional<DisplayDecorationSupport> SurfaceComposerClient::getDisplayDecorat
             ComposerServiceAIDL::getComposerService()->getDisplayDecorationSupport(displayToken,
                                                                                    &gsupport);
     std::optional<DisplayDecorationSupport> support;
-    if (status.isOk() && gsupport.has_value()) {
-        support->format = static_cast<aidl::android::hardware::graphics::common::PixelFormat>(
-                gsupport->format);
-        support->alphaInterpretation =
+    // TODO (b/241277093): Remove `false && ` once b/241278870 is fixed.
+    if (false && status.isOk() && gsupport.has_value()) {
+        support.emplace(DisplayDecorationSupport{
+          .format =
+                static_cast<aidl::android::hardware::graphics::common::PixelFormat>(
+                gsupport->format),
+          .alphaInterpretation =
                 static_cast<aidl::android::hardware::graphics::common::AlphaInterpretation>(
-                        gsupport->alphaInterpretation);
+                        gsupport->alphaInterpretation)
+        });
     }
     return support;
 }
