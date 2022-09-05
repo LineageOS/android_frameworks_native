@@ -204,6 +204,12 @@ class Dumpstate {
         BUGREPORT_DEFAULT = android::os::IDumpstate::BUGREPORT_MODE_DEFAULT
     };
 
+    // The flags used to customize bugreport requests.
+    enum BugreportFlag {
+        BUGREPORT_USE_PREDUMPED_UI_DATA =
+          android::os::IDumpstate::BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA
+    };
+
     static android::os::dumpstate::CommandOptions DEFAULT_DUMPSYS;
 
     static Dumpstate& GetInstance();
@@ -333,6 +339,12 @@ class Dumpstate {
 
     struct DumpOptions;
 
+    /**
+     * Pre-dump critical UI data, e.g. data stored in short ring buffers that might get lost
+     * by the time the actual bugreport is requested.
+     */
+    void PreDumpUiData();
+
     /*
      * Main entry point for running a complete bugreport.
      *
@@ -396,6 +408,8 @@ class Dumpstate {
         // TODO(b/148168577) get rid of the AIDL values, replace them with the HAL values instead.
         // The HAL is actually an API surface that can be validated, while the AIDL is not (@hide).
         BugreportMode bugreport_mode = Dumpstate::BugreportMode::BUGREPORT_DEFAULT;
+        // Will use data collected through a previous call to PreDumpUiData().
+        bool use_predumped_ui_data;
         // File descriptor to output zip file. Takes precedence over out_dir.
         android::base::unique_fd bugreport_fd;
         // File descriptor to screenshot file.
@@ -414,7 +428,8 @@ class Dumpstate {
         RunStatus Initialize(int argc, char* argv[]);
 
         /* Initializes options from the requested mode. */
-        void Initialize(BugreportMode bugreport_mode, const android::base::unique_fd& bugreport_fd,
+        void Initialize(BugreportMode bugreport_mode, int bugreport_flags,
+                        const android::base::unique_fd& bugreport_fd,
                         const android::base::unique_fd& screenshot_fd,
                         bool is_screenshot_requested);
 
@@ -532,10 +547,13 @@ class Dumpstate {
     RunStatus RunInternal(int32_t calling_uid, const std::string& calling_package);
 
     RunStatus DumpstateDefaultAfterCritical();
+    RunStatus dumpstate();
 
     void MaybeTakeEarlyScreenshot();
     void MaybeSnapshotSystemTrace();
-    void MaybeSnapshotWinTrace();
+    void MaybeSnapshotUiTraces();
+    void MaybePostProcessUiTraces();
+    void MaybeAddUiTracesToZip();
 
     void onUiIntensiveBugreportDumpsFinished(int32_t calling_uid);
 
