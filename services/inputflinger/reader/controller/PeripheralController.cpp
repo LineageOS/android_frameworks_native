@@ -524,4 +524,8 @@ std::optional<int32_t> PeripheralController::getLightPlayerId(int32_t lightId) {
     return light->getLightPlayerId();
 }
 
+int32_t PeripheralController::getEventHubId() const {
+    return getDeviceContext().getEventHubId();
+}
+
 } // namespace android
