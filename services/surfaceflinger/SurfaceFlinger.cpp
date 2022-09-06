@@ -3572,15 +3572,16 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
         return NO_MEMORY;
     }
 
+    layer->updateTransformHint(mActiveDisplayTransformHint);
+    if (outTransformHint) {
+        *outTransformHint = mActiveDisplayTransformHint;
+    }
+
     {
         std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
         mCreatedLayers.emplace_back(layer, parent, addToRoot);
     }
 
-    layer->updateTransformHint(mActiveDisplayTransformHint);
-    if (outTransformHint) {
-        *outTransformHint = mActiveDisplayTransformHint;
-    }
     // attach this layer to the client
     if (client != nullptr) {
         client->attachLayer(handle, layer);
