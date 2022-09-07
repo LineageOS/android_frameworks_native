@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <android-base/unique_fd.h>
 #include <binder/IBinder.h>
 #include <utils/Mutex.h>
 
@@ -89,12 +88,6 @@ public:
     static void         setBinderProxyCountWatermarks(int high, int low);
 
     std::optional<int32_t> getDebugBinderHandle() const;
-
-    // Start recording transactions to the unique_fd.
-    // See BinderRecordReplay.h for more details.
-    status_t startRecordingBinder(const android::base::unique_fd& fd);
-    // Stop the current recording.
-    status_t stopRecordingBinder();
 
     class ObjectManager {
     public:
