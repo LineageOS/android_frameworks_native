@@ -987,7 +987,9 @@ private:
         return BATTERY_STATUS;
     }
 
-    const std::vector<int32_t> getRawBatteryIds(int32_t deviceId) { return {}; }
+    const std::vector<int32_t> getRawBatteryIds(int32_t deviceId) override {
+        return {DEFAULT_BATTERY};
+    }
 
     std::optional<RawBatteryInfo> getRawBatteryInfo(int32_t deviceId, int32_t batteryId) {
         return std::nullopt;
@@ -2137,6 +2139,8 @@ public:
 
     ~FakePeripheralController() override {}
 
+    int32_t getEventHubId() const { return getDeviceContext().getEventHubId(); }
+
     void populateDeviceInfo(InputDeviceInfo* deviceInfo) override {}
 
     void dump(std::string& dump) override {}
@@ -2170,6 +2174,7 @@ private:
     InputDeviceContext& mDeviceContext;
     inline int32_t getDeviceId() { return mDeviceContext.getId(); }
     inline InputDeviceContext& getDeviceContext() { return mDeviceContext; }
+    inline InputDeviceContext& getDeviceContext() const { return mDeviceContext; }
 };
 
 TEST_F(InputReaderTest, BatteryGetCapacity) {
