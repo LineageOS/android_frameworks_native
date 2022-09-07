@@ -100,6 +100,8 @@ public:
 
     std::optional<int32_t> getBatteryStatus(int32_t deviceId) override;
 
+    std::optional<std::string> getBatteryDevicePath(int32_t deviceId) override;
+
     std::vector<InputDeviceLightInfo> getLights(int32_t deviceId) override;
 
     std::vector<InputDeviceSensorInfo> getSensors(int32_t deviceId) override;

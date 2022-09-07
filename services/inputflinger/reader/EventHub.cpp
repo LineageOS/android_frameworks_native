@@ -1555,7 +1555,7 @@ std::optional<int32_t> EventHub::getBatteryCapacity(int32_t deviceId, int32_t ba
         // the lock to prevent event processing from being blocked by this call.
         std::scoped_lock _l(mLock);
 
-        const auto infos = getBatteryInfoLocked(deviceId);
+        const auto& infos = getBatteryInfoLocked(deviceId);
         auto it = infos.find(batteryId);
         if (it == infos.end()) {
             return std::nullopt;
@@ -1596,7 +1596,7 @@ std::optional<int32_t> EventHub::getBatteryStatus(int32_t deviceId, int32_t batt
         // the lock to prevent event processing from being blocked by this call.
         std::scoped_lock _l(mLock);
 
-        const auto infos = getBatteryInfoLocked(deviceId);
+        const auto& infos = getBatteryInfoLocked(deviceId);
         auto it = infos.find(batteryId);
         if (it == infos.end()) {
             return std::nullopt;

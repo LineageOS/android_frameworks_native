@@ -721,7 +721,10 @@ std::optional<int32_t> InputReader::getBatteryCapacity(int32_t deviceId) {
 
     if (!eventHubId) return {};
     const auto batteryIds = mEventHub->getRawBatteryIds(*eventHubId);
-    if (batteryIds.empty()) return {};
+    if (batteryIds.empty()) {
+        ALOGW("%s: There are no battery ids for EventHub device %d", __func__, *eventHubId);
+        return {};
+    }
     return mEventHub->getBatteryCapacity(*eventHubId, batteryIds.front());
 }
 
@@ -741,8 +744,33 @@ std::optional<int32_t> InputReader::getBatteryStatus(int32_t deviceId) {
 
     if (!eventHubId) return {};
     const auto batteryIds = mEventHub->getRawBatteryIds(*eventHubId);
-    if (batteryIds.empty()) return {};
+    if (batteryIds.empty()) {
+        ALOGW("%s: There are no battery ids for EventHub device %d", __func__, *eventHubId);
+        return {};
+    }
     return mEventHub->getBatteryStatus(*eventHubId, batteryIds.front());
+}
+
+std::optional<std::string> InputReader::getBatteryDevicePath(int32_t deviceId) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (!device) return {};
+
+    std::optional<int32_t> eventHubId = device->getBatteryEventHubId();
+    if (!eventHubId) return {};
+    const auto batteryIds = mEventHub->getRawBatteryIds(*eventHubId);
+    if (batteryIds.empty()) {
+        ALOGW("%s: There are no battery ids for EventHub device %d", __func__, *eventHubId);
+        return {};
+    }
+    const auto batteryInfo = mEventHub->getRawBatteryInfo(*eventHubId, batteryIds.front());
+    if (!batteryInfo) {
+        ALOGW("%s: Failed to get RawBatteryInfo for battery %d of EventHub device %d", __func__,
+              batteryIds.front(), *eventHubId);
+        return {};
+    }
+    return batteryInfo->path;
 }
 
 std::vector<InputDeviceLightInfo> InputReader::getLights(int32_t deviceId) {
