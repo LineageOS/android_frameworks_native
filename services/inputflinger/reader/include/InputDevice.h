@@ -32,8 +32,6 @@
 #include "InputReaderContext.h"
 
 namespace android {
-// TODO b/180733860 support multiple battery in API and remove this.
-constexpr int32_t DEFAULT_BATTERY_ID = 1;
 
 class PeripheralController;
 class PeripheralControllerInterface;
@@ -100,8 +98,7 @@ public:
     void disableSensor(InputDeviceSensorType sensorType);
     void flushSensor(InputDeviceSensorType sensorType);
 
-    std::optional<int32_t> getBatteryCapacity();
-    std::optional<int32_t> getBatteryStatus();
+    std::optional<int32_t> getBatteryEventHubId() const;
 
     bool setLightColor(int32_t lightId, int32_t color);
     bool setLightPlayerId(int32_t lightId, int32_t playerId);
