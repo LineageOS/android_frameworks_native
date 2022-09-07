@@ -806,7 +806,7 @@ void Layer::prepareEffectsClientComposition(
 void Layer::prepareBufferStateClientComposition(
         compositionengine::LayerFE::LayerSettings& layerSettings,
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) const {
-    if (CC_UNLIKELY(mBufferInfo.mBuffer == 0) && mSidebandStream != nullptr) {
+    if (CC_UNLIKELY(!mBufferInfo.mBuffer)) {
         // For surfaceview of tv sideband, there is no activeBuffer
         // in bufferqueue, we need return LayerSettings.
         return;
