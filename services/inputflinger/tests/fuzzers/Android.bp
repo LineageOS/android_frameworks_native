@@ -57,6 +57,7 @@ cc_defaults {
     ],
     shared_libs: [
         "android.hardware.input.classifier@1.0",
+        "android.hardware.input.processor-V1-ndk",
         "libbase",
         "libbinder",
         "libcutils",
@@ -115,5 +116,35 @@ cc_fuzz {
     ],
     srcs: [
         "SwitchInputFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_input_reader_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "InputReaderFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_blocking_queue_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "BlockingQueueFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_input_classifier_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "InputClassifierFuzzer.cpp",
     ],
 }
