@@ -769,7 +769,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
     // Record the name of the layer for debugging further down the stack.
     layerSettings.name = getName();
 
-    if (hasEffect()) {
+    if (hasEffect() && !hasBufferOrSidebandStream()) {
         prepareEffectsClientComposition(layerSettings, targetSettings);
         return layerSettings;
     }
