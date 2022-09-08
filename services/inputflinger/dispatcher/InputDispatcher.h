@@ -658,7 +658,6 @@ private:
     void sendDropWindowCommandLocked(const sp<IBinder>& token, float x, float y) REQUIRES(mLock);
     void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     void onAnrLocked(std::shared_ptr<InputApplicationHandle> application) REQUIRES(mLock);
-    bool onAnrLocked(const android::gui::FocusRequest& pendingFocusRequest) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<android::gui::WindowInfoHandle>& window,
                                   const std::string& reason) REQUIRES(mLock);
     void updateLastAnrStateLocked(const InputApplicationHandle& application,
