@@ -9,15 +9,15 @@
       ]
     },
     {
-      "name": "dumpstate_smoke_test"
-    },
-    {
       "name": "dumpstate_test"
     }
   ],
   "postsubmit": [
     {
       "name": "BugreportManagerTestCases"
+    },
+    {
+      "name": "dumpstate_smoke_test"
     }
   ],
   "imports": [
