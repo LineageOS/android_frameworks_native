@@ -44,8 +44,8 @@ void VelocityControl::setParameters(const VelocityControlParameters& parameters)
 
 void VelocityControl::reset() {
     mLastMovementTime = LLONG_MIN;
-    mRawPositionX = 0;
-    mRawPositionY = 0;
+    mRawPosition.x = 0;
+    mRawPosition.y = 0;
     mVelocityTracker.clear();
 }
 
@@ -61,20 +61,17 @@ void VelocityControl::move(nsecs_t eventTime, float* deltaX, float* deltaY) {
 
         mLastMovementTime = eventTime;
         if (deltaX) {
-            mRawPositionX += *deltaX;
+            mRawPosition.x += *deltaX;
         }
         if (deltaY) {
-            mRawPositionY += *deltaY;
+            mRawPosition.y += *deltaY;
         }
-        mVelocityTracker.addMovement(eventTime, BitSet32(BitSet32::valueForBit(0)),
-                                     {{AMOTION_EVENT_AXIS_X, {mRawPositionX}},
-                                      {AMOTION_EVENT_AXIS_Y, {mRawPositionY}}});
+        mVelocityTracker.addMovement(eventTime, BitSet32(BitSet32::valueForBit(0)), {mRawPosition});
 
-        std::optional<float> vx = mVelocityTracker.getVelocity(AMOTION_EVENT_AXIS_X, 0);
-        std::optional<float> vy = mVelocityTracker.getVelocity(AMOTION_EVENT_AXIS_Y, 0);
+        float vx, vy;
         float scale = mParameters.scale;
-        if (vx && vy) {
-            float speed = hypotf(*vx, *vy) * scale;
+        if (mVelocityTracker.getVelocity(0, &vx, &vy)) {
+            float speed = hypotf(vx, vy) * scale;
             if (speed >= mParameters.highThreshold) {
                 // Apply full acceleration above the high speed threshold.
                 scale *= mParameters.acceleration;
@@ -88,9 +85,10 @@ void VelocityControl::move(nsecs_t eventTime, float* deltaX, float* deltaY) {
 
             if (DEBUG_ACCELERATION) {
                 ALOGD("VelocityControl(%0.3f, %0.3f, %0.3f, %0.3f): "
-                      "vx=%0.3f, vy=%0.3f, speed=%0.3f, accel=%0.3f",
-                      mParameters.scale, mParameters.lowThreshold, mParameters.highThreshold,
-                      mParameters.acceleration, *vx, *vy, speed, scale / mParameters.scale);
+                        "vx=%0.3f, vy=%0.3f, speed=%0.3f, accel=%0.3f",
+                        mParameters.scale, mParameters.lowThreshold, mParameters.highThreshold,
+                        mParameters.acceleration,
+                        vx, vy, speed, scale / mParameters.scale);
             }
 
         } else {

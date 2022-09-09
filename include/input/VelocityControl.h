@@ -98,7 +98,7 @@ private:
     VelocityControlParameters mParameters;
 
     nsecs_t mLastMovementTime;
-    float mRawPositionX, mRawPositionY;
+    VelocityTracker::Position mRawPosition;
     VelocityTracker mVelocityTracker;
 };
 
