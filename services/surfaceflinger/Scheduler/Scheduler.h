@@ -269,8 +269,10 @@ private:
     template <typename S, typename T>
     GlobalSignals applyPolicy(S Policy::*, T&&) EXCLUDES(mPolicyLock);
 
-    // Returns the display mode that fulfills the policy, and the signals that were considered.
-    std::pair<DisplayModePtr, GlobalSignals> chooseDisplayMode() REQUIRES(mPolicyLock);
+    // Returns the list of display modes in descending order of their priority that fulfills the
+    // policy, and the signals that were considered.
+    std::pair<std::vector<RefreshRateRanking>, GlobalSignals> getRankedDisplayModes()
+            REQUIRES(mPolicyLock);
 
     bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
 
