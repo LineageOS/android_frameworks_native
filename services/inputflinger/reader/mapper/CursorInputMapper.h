@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_CURSOR_INPUT_MAPPER_H
-#define _UI_INPUTREADER_CURSOR_INPUT_MAPPER_H
+#pragma once
 
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
@@ -129,5 +128,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_CURSOR_INPUT_MAPPER_H

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_MANAGER_H
-#define _UI_INPUT_MANAGER_H
+#pragma once
 
 /**
  * Native input manager.
@@ -130,5 +129,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUT_MANAGER_H

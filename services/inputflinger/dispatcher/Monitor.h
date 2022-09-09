@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_MONITOR_H
-#define _UI_INPUT_INPUTDISPATCHER_MONITOR_H
+#pragma once
 
 #include <input/InputTransport.h>
 
@@ -30,5 +29,3 @@ struct Monitor {
 };
 
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_MONITOR_H

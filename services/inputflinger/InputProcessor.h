@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_CLASSIFIER_H
-#define _UI_INPUT_CLASSIFIER_H
+#pragma once
 
 #include <android-base/thread_annotations.h>
 #include <future>
@@ -288,4 +287,3 @@ private:
 };
 
 } // namespace android
-#endif

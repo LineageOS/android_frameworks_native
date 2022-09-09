@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_LIGHT_CONTROLLER_H
-#define _UI_INPUTREADER_LIGHT_CONTROLLER_H
+#pragma once
 
 #include "PeripheralControllerInterface.h"
 
@@ -150,5 +149,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_LIGHT_CONTROLLER_H
