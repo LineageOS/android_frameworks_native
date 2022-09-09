@@ -1083,50 +1083,6 @@ uint64_t BLASTBufferQueue::getLastAcquiredFrameNum() {
     return mLastAcquiredFrameNumber;
 }
 
-void BLASTBufferQueue::abandon() {
-    std::unique_lock _lock{mMutex};
-    // flush out the shadow queue
-    while (mNumFrameAvailable > 0) {
-        acquireAndReleaseBuffer();
-    }
-
-    // Clear submitted buffer states
-    mNumAcquired = 0;
-    mSubmitted.clear();
-    mPendingRelease.clear();
-
-    if (!mPendingTransactions.empty()) {
-        BQA_LOGD("Applying pending transactions on abandon %d",
-                 static_cast<uint32_t>(mPendingTransactions.size()));
-        SurfaceComposerClient::Transaction t;
-        mergePendingTransactions(&t, std::numeric_limits<uint64_t>::max() /* frameNumber */);
-        // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
-        t.setApplyToken(mApplyToken).apply(false, true);
-    }
-
-    // Clear sync states
-    if (!mSyncedFrameNumbers.empty()) {
-        BQA_LOGD("mSyncedFrameNumbers cleared");
-        mSyncedFrameNumbers.clear();
-    }
-
-    if (mSyncTransaction != nullptr) {
-        BQA_LOGD("mSyncTransaction cleared mAcquireSingleBuffer=%s",
-                 mAcquireSingleBuffer ? "true" : "false");
-        mSyncTransaction = nullptr;
-        mAcquireSingleBuffer = false;
-    }
-
-    // abandon buffer queue
-    if (mBufferItemConsumer != nullptr) {
-        mBufferItemConsumer->abandon();
-        mBufferItemConsumer->setFrameAvailableListener(nullptr);
-    }
-    mBufferItemConsumer = nullptr;
-    mConsumer = nullptr;
-    mProducer = nullptr;
-}
-
 bool BLASTBufferQueue::isSameSurfaceControl(const sp<SurfaceControl>& surfaceControl) const {
     std::unique_lock _lock{mMutex};
     return SurfaceControl::isSameSurface(mSurfaceControl, surfaceControl);
