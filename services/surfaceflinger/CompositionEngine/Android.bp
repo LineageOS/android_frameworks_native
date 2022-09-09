@@ -140,6 +140,11 @@ cc_test {
         "libgmock",
         "libgtest",
     ],
+    // For some reason, libvulkan isn't picked up from librenderengine
+    // Probably ASAN related?
+    shared_libs: [
+        "libvulkan",
+    ],
     sanitize: {
         // By using the address sanitizer, we not only uncover any issues
         // with the test, but also any issues with the code under test.

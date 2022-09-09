@@ -36,8 +36,12 @@ SyncFeatures::SyncFeatures() : Singleton<SyncFeatures>(),
         mHasFenceSync(false),
         mHasWaitSync(false) {
     EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    // This can only be called after EGL has been initialized; otherwise the
-    // check below will abort.
+    // eglQueryString can only be called after EGL has been initialized;
+    // otherwise the check below will abort.  If RenderEngine is using SkiaVk,
+    // EGL will not have been initialized.  There's no problem with initializing
+    // it again here (it is ref counted), and then terminating it later.
+    EGLBoolean initialized = eglInitialize(dpy, nullptr, nullptr);
+    LOG_ALWAYS_FATAL_IF(!initialized, "eglInitialize failed");
     const char* exts = eglQueryString(dpy, EGL_EXTENSIONS);
     LOG_ALWAYS_FATAL_IF(exts == nullptr, "eglQueryString failed");
     if (strstr(exts, "EGL_ANDROID_native_fence_sync")) {
@@ -63,6 +67,8 @@ SyncFeatures::SyncFeatures() : Singleton<SyncFeatures>(),
         mString.append(" EGL_KHR_wait_sync");
     }
     mString.append("]");
+    // Terminate EGL to match the eglInitialize above
+    eglTerminate(dpy);
 }
 
 bool SyncFeatures::useNativeFenceSync() const {

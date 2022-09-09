@@ -99,6 +99,8 @@ public:
         THREADED = 2,
         SKIA_GL = 3,
         SKIA_GL_THREADED = 4,
+        SKIA_VK = 5,
+        SKIA_VK_THREADED = 6,
     };
 
     static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
@@ -170,9 +172,16 @@ public:
     virtual void cleanupPostRender() = 0;
 
     virtual void cleanFramebufferCache() = 0;
-    // Returns the priority this context was actually created with. Note: this may not be
-    // the same as specified at context creation time, due to implementation limits on the
-    // number of contexts that can be created at a specific priority level in the system.
+
+    // Returns the priority this context was actually created with. Note: this
+    // may not be the same as specified at context creation time, due to
+    // implementation limits on the number of contexts that can be created at a
+    // specific priority level in the system.
+    //
+    // This should return a valid EGL context priority enum as described by
+    // https://registry.khronos.org/EGL/extensions/IMG/EGL_IMG_context_priority.txt
+    // or
+    // https://registry.khronos.org/EGL/extensions/NV/EGL_NV_context_priority_realtime.txt
     virtual int getContextPriority() = 0;
 
     // Returns true if blur was requested in the RenderEngineCreationArgs and the implementation

@@ -731,6 +731,10 @@ chooseRenderEngineTypeViaSysProp() {
         return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
     } else if (strcmp(prop, "skiaglthreaded") == 0) {
         return renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED;
+    } else if (strcmp(prop, "skiavk") == 0) {
+        return renderengine::RenderEngine::RenderEngineType::SKIA_VK;
+    } else if (strcmp(prop, "skiavkthreaded") == 0) {
+        return renderengine::RenderEngine::RenderEngineType::SKIA_VK_THREADED;
     } else {
         ALOGE("Unrecognized RenderEngineType %s; ignoring!", prop);
         return {};

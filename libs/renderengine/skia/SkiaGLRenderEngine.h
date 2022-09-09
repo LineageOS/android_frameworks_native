@@ -52,9 +52,6 @@ namespace skia {
 class SkiaGLRenderEngine : public skia::SkiaRenderEngine {
 public:
     static std::unique_ptr<SkiaGLRenderEngine> create(const RenderEngineCreationArgs& args);
-    SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display, EGLContext ctxt,
-                       EGLSurface placeholder, EGLContext protectedContext,
-                       EGLSurface protectedPlaceholder);
     ~SkiaGLRenderEngine() override;
 
     int getContextPriority() override;
@@ -70,6 +67,9 @@ protected:
     void appendBackendSpecificInfoToDump(std::string& result) override;
 
 private:
+    SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display, EGLContext ctxt,
+                       EGLSurface placeholder, EGLContext protectedContext,
+                       EGLSurface protectedPlaceholder);
     bool waitGpuFence(base::borrowed_fd fenceFd);
     base::unique_fd flush();
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
