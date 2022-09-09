@@ -56,6 +56,8 @@ public:
         LAST_CALL_TRANSACTION = 0x00ffffff,
 
         PING_TRANSACTION = B_PACK_CHARS('_', 'P', 'N', 'G'),
+        START_RECORDING_TRANSACTION = B_PACK_CHARS('_', 'S', 'R', 'D'),
+        STOP_RECORDING_TRANSACTION = B_PACK_CHARS('_', 'E', 'R', 'D'),
         DUMP_TRANSACTION = B_PACK_CHARS('_', 'D', 'M', 'P'),
         SHELL_COMMAND_TRANSACTION = B_PACK_CHARS('_', 'C', 'M', 'D'),
         INTERFACE_TRANSACTION = B_PACK_CHARS('_', 'N', 'T', 'F'),
