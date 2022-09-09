@@ -65,6 +65,10 @@ class Display;
 class DisplaySurface;
 } // namespace compositionengine
 
+namespace display {
+class DisplaySnapshot;
+} // namespace display
+
 class DisplayDevice : public RefBase {
 public:
     constexpr static float sDefaultMinLumiance = 0.0;
@@ -80,11 +84,8 @@ public:
         return mCompositionDisplay;
     }
 
-    std::optional<ui::DisplayConnectionType> getConnectionType() const { return mConnectionType; }
-
-    bool isVirtual() const { return !mConnectionType; }
+    bool isVirtual() const { return VirtualDisplayId::tryCast(getId()).has_value(); }
     bool isPrimary() const { return mIsPrimary; }
-    bool isInternal() const { return mConnectionType == ui::DisplayConnectionType::Internal; }
 
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
@@ -94,7 +95,7 @@ public:
     int getHeight() const;
     ui::Size getSize() const { return {getWidth(), getHeight()}; }
 
-    void setLayerStack(ui::LayerStack);
+    void setLayerFilter(ui::LayerFilter);
     void setDisplaySize(int width, int height);
     void setProjection(ui::Rotation orientation, Rect viewport, Rect frame);
     void stageBrightness(float brightness) REQUIRES(kMainThreadContext);
@@ -164,11 +165,6 @@ public:
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
 
-    void setDeviceProductInfo(std::optional<DeviceProductInfo> info);
-    const std::optional<DeviceProductInfo>& getDeviceProductInfo() const {
-        return mDeviceProductInfo;
-    }
-
     struct InputInfo {
         gui::DisplayInfo info;
         ui::Transform transform;
@@ -211,23 +207,13 @@ public:
         return mUpcomingActiveMode;
     }
 
-    void setActiveMode(DisplayModeId) REQUIRES(kMainThreadContext);
+    // Precondition: DisplaySnapshot must contain a mode with DisplayModeId.
+    void setActiveMode(DisplayModeId, const display::DisplaySnapshot&) REQUIRES(kMainThreadContext);
+
     status_t initiateModeChange(const ActiveModeInfo&,
                                 const hal::VsyncPeriodChangeConstraints& constraints,
                                 hal::VsyncPeriodChangeTimeline* outTimeline)
             REQUIRES(kMainThreadContext);
-
-    // Return the immutable list of supported display modes. The HWC may report different modes
-    // after a hotplug reconnect event, in which case the DisplayDevice object will be recreated.
-    // Hotplug reconnects are common for external displays.
-    const DisplayModes& getSupportedModes() const;
-
-    // Returns nullptr if the given mode ID is not supported. A previously
-    // supported mode may be no longer supported for some devices like TVs and
-    // set-top boxes after a hotplug reconnect.
-    DisplayModePtr getMode(DisplayModeId) const;
-
-    std::optional<DisplayModeId> translateModeId(hal::HWConfigId) const;
 
     // Returns the refresh rate configs for this display.
     scheduler::RefreshRateConfigs& refreshRateConfigs() const { return *mRefreshRateConfigs; }
@@ -267,7 +253,6 @@ private:
     HWComposer& mHwComposer;
     const wp<IBinder> mDisplayToken;
     const int32_t mSequenceId;
-    const std::optional<ui::DisplayConnectionType> mConnectionType;
 
     const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
@@ -285,7 +270,6 @@ private:
     DisplayModePtr mActiveMode;
     std::optional<float> mStagedBrightness = std::nullopt;
     float mBrightness = -1.f;
-    const DisplayModes mSupportedModes;
 
     std::atomic<nsecs_t> mLastHwVsync = 0;
 
@@ -293,8 +277,6 @@ private:
     const bool mIsPrimary;
 
     uint32_t mFlags = 0;
-
-    std::optional<DeviceProductInfo> mDeviceProductInfo;
 
     std::vector<ui::Hdr> mOverrideHdrTypes;
 
@@ -313,14 +295,11 @@ private:
 struct DisplayDeviceState {
     struct Physical {
         PhysicalDisplayId id;
-        ui::DisplayConnectionType type;
         hardware::graphics::composer::hal::HWDisplayId hwcDisplayId;
-        std::optional<DeviceProductInfo> deviceProductInfo;
-        DisplayModes supportedModes;
         DisplayModePtr activeMode;
 
         bool operator==(const Physical& other) const {
-            return id == other.id && type == other.type && hwcDisplayId == other.hwcDisplayId;
+            return id == other.id && hwcDisplayId == other.hwcDisplayId;
         }
     };
 
@@ -356,7 +335,6 @@ struct DisplayDeviceCreationArgs {
     std::shared_ptr<scheduler::RefreshRateConfigs> refreshRateConfigs;
 
     int32_t sequenceId{0};
-    std::optional<ui::DisplayConnectionType> connectionType;
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;
     sp<compositionengine::DisplaySurface> displaySurface;
@@ -367,7 +345,6 @@ struct DisplayDeviceCreationArgs {
     std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hwcColorModes;
     std::optional<hardware::graphics::composer::hal::PowerMode> initialPowerMode;
     bool isPrimary{false};
-    DisplayModes supportedModes;
     DisplayModeId activeModeId;
 };
 

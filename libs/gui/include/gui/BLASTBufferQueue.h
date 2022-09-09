@@ -108,7 +108,6 @@ public:
 
     uint32_t getLastTransformHint() const;
     uint64_t getLastAcquiredFrameNum();
-    void abandon();
 
     /**
      * Set a callback to be invoked when we are hung. The boolean parameter

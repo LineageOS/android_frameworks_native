@@ -75,7 +75,7 @@ bool PropertyMap::tryGetProperty(const std::string& key, int32_t& outValue) cons
     }
 
     char* end;
-    int value = strtol(stringValue.c_str(), &end, 10);
+    int32_t value = static_cast<int32_t>(strtol(stringValue.c_str(), &end, 10));
     if (*end != '\0') {
         ALOGW("Property key '%s' has invalid value '%s'.  Expected an integer.", key.c_str(),
               stringValue.c_str());

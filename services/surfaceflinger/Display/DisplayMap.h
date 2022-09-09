@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,22 +16,16 @@
 
 #pragma once
 
-#include <optional>
+#include <ftl/small_map.h>
 
-#include <ui/DeviceProductInfo.h>
-#include <ui/Rotation.h>
+namespace android::display {
 
-namespace android::ui {
+// The static capacities were chosen to exceed a typical number of physical and/or virtual displays.
 
-enum class DisplayConnectionType { Internal, External, ftl_last = External };
+template <typename Key, typename Value>
+using DisplayMap = ftl::SmallMap<Key, Value, 5>;
 
-// Immutable information about physical display.
-struct StaticDisplayInfo {
-    DisplayConnectionType connectionType = DisplayConnectionType::Internal;
-    float density = 0.f;
-    bool secure = false;
-    std::optional<DeviceProductInfo> deviceProductInfo;
-    Rotation installOrientation = ROTATION_0;
-};
+template <typename Key, typename Value>
+using PhysicalDisplayMap = ftl::SmallMap<Key, Value, 3>;
 
-} // namespace android::ui
+} // namespace android::display
