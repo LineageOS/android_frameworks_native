@@ -1190,7 +1190,7 @@ void SurfaceFlinger::updateInternalStateWithChangedMode() {
 
 void SurfaceFlinger::clearDesiredActiveModeState(const sp<DisplayDevice>& display) {
     display->clearDesiredActiveModeState();
-    if (isDisplayActiveLocked(display)) {
+    if (display->getPhysicalId() == mActiveDisplayId) {
         mScheduler->setModeChangePending(false);
     }
 }
@@ -1220,12 +1220,12 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
         // Store the local variable to release the lock.
         const auto desiredActiveMode = display->getDesiredActiveMode();
         if (!desiredActiveMode) {
-            // No desired active mode pending to be applied
+            // No desired active mode pending to be applied.
             continue;
         }
 
-        if (!isDisplayActiveLocked(display)) {
-            // display is no longer the active display, so abort the mode change
+        if (id != mActiveDisplayId) {
+            // Display is no longer the active display, so abort the mode change.
             clearDesiredActiveModeState(display);
             continue;
         }
@@ -1858,10 +1858,8 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
         return;
     }
 
-    const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
-    const bool isActiveDisplay =
-            displayId && getPhysicalDisplayTokenLocked(*displayId) == mActiveDisplayToken;
-    if (!isActiveDisplay) {
+    if (const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
+        displayId != mActiveDisplayId) {
         // For now, we don't do anything with non active display vsyncs.
         return;
     }
@@ -2057,8 +2055,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
 
     // Save this once per commit + composite to ensure consistency
     // TODO (b/240619471): consider removing active display check once AOD is fixed
-    const auto activeDisplay =
-            FTL_FAKE_GUARD(mStateLock, getDisplayDeviceLocked(mActiveDisplayToken));
+    const auto activeDisplay = FTL_FAKE_GUARD(mStateLock, getDisplayDeviceLocked(mActiveDisplayId));
     mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession() && activeDisplay &&
             activeDisplay->getPowerMode() == hal::PowerMode::ON;
     if (mPowerHintSessionEnabled) {
@@ -3031,7 +3028,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             (currentState.orientedDisplaySpaceRect != drawingState.orientedDisplaySpaceRect)) {
             display->setProjection(currentState.orientation, currentState.layerStackSpaceRect,
                                    currentState.orientedDisplaySpaceRect);
-            if (isDisplayActiveLocked(display)) {
+            if (display->getId() == mActiveDisplayId) {
                 mActiveDisplayTransformHint = display->getTransformHint();
             }
         }
@@ -3039,7 +3036,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             currentState.height != drawingState.height) {
             display->setDisplaySize(currentState.width, currentState.height);
 
-            if (isDisplayActiveLocked(display)) {
+            if (display->getId() == mActiveDisplayId) {
                 onActiveDisplaySizeChanged(display);
             }
         }
@@ -4765,11 +4762,12 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         return;
     }
 
+    const bool isActiveDisplay = displayId == mActiveDisplayId;
     const bool isInternalDisplay = mPhysicalDisplays.get(displayId)
                                            .transform(&PhysicalDisplay::isInternal)
                                            .value_or(false);
 
-    const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayToken);
+    const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayId);
     if (isInternalDisplay && activeDisplay != display && activeDisplay &&
         activeDisplay->isPoweredOn()) {
         ALOGW("Trying to change power mode on non active display while the active display is ON");
@@ -4795,7 +4793,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
             ALOGW("Couldn't set SCHED_FIFO on display on: %s\n", strerror(errno));
         }
         getHwComposer().setPowerMode(displayId, mode);
-        if (isDisplayActiveLocked(display) && mode != hal::PowerMode::DOZE_SUSPEND) {
+        if (isActiveDisplay && mode != hal::PowerMode::DOZE_SUSPEND) {
             setHWCVsyncEnabled(displayId, mHWCVsyncPendingState);
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, refreshRate);
@@ -4811,7 +4809,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         if (SurfaceFlinger::setSchedAttr(false) != NO_ERROR) {
             ALOGW("Couldn't set uclamp.min on display off: %s\n", strerror(errno));
         }
-        if (isDisplayActiveLocked(display) && *currentMode != hal::PowerMode::DOZE_SUSPEND) {
+        if (isActiveDisplay && *currentMode != hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
         }
@@ -4825,7 +4823,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
         // Update display while dozing
         getHwComposer().setPowerMode(displayId, mode);
-        if (isDisplayActiveLocked(display) && *currentMode == hal::PowerMode::DOZE_SUSPEND) {
+        if (isActiveDisplay && *currentMode == hal::PowerMode::DOZE_SUSPEND) {
             ALOGI("Force repainting for DOZE_SUSPEND -> DOZE or ON.");
             mVisibleRegionsDirty = true;
             scheduleRepaint();
@@ -4834,7 +4832,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
     } else if (mode == hal::PowerMode::DOZE_SUSPEND) {
         // Leave display going to doze
-        if (isDisplayActiveLocked(display)) {
+        if (isActiveDisplay) {
             mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
         }
@@ -4844,7 +4842,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         getHwComposer().setPowerMode(displayId, mode);
     }
 
-    if (isDisplayActiveLocked(display)) {
+    if (isActiveDisplay) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats->setPowerMode(mode);
         mScheduler->setDisplayPowerMode(mode);
@@ -5230,7 +5228,7 @@ void SurfaceFlinger::dumpHwcLayersMinidumpLocked(std::string& result) const {
         }
 
         StringAppendF(&result, "Display %s (%s) HWC layers:\n", to_string(*displayId).c_str(),
-                      (isDisplayActiveLocked(display) ? "active" : "inactive"));
+                      displayId == mActiveDisplayId ? "active" : "inactive");
         Layer::miniDumpHeader(result);
 
         const DisplayDevice& ref = *display;
@@ -6735,6 +6733,8 @@ std::optional<DisplayModePtr> SurfaceFlinger::getPreferredDisplayMode(
 status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         const sp<DisplayDevice>& display,
         const scheduler::RefreshRateConfigs::PolicyVariant& policy) {
+    const auto displayId = display->getPhysicalId();
+
     Mutex::Autolock lock(mStateLock);
 
     if (mDebugDisplayModeSetByBackdoor) {
@@ -6759,15 +6759,14 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
 
     // TODO(b/140204874): Leave the event in until we do proper testing with all apps that might
     // be depending in this callback.
-    if (const auto activeModePtr = configs.getActiveModePtr(); isDisplayActiveLocked(display)) {
+    if (const auto activeModePtr = configs.getActiveModePtr(); displayId == mActiveDisplayId) {
         mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, activeModePtr);
         toggleKernelIdleTimer();
     } else {
         mScheduler->onNonPrimaryDisplayModeChanged(mAppConnectionHandle, activeModePtr);
     }
 
-    auto preferredModeOpt =
-            getPreferredDisplayMode(display->getPhysicalId(), currentPolicy.defaultMode);
+    auto preferredModeOpt = getPreferredDisplayMode(displayId, currentPolicy.defaultMode);
     if (!preferredModeOpt) {
         ALOGE("%s: Preferred mode is unknown", __func__);
         return NAME_NOT_FOUND;
@@ -7060,7 +7059,7 @@ void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<const DisplayDevice>& a
 void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) {
     ATRACE_CALL();
 
-    if (const auto display = getDisplayDeviceLocked(mActiveDisplayToken)) {
+    if (const auto display = getDisplayDeviceLocked(mActiveDisplayId)) {
         display->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
     }
 
@@ -7068,7 +7067,7 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
         ALOGE("%s: activeDisplay is null", __func__);
         return;
     }
-    mActiveDisplayToken = activeDisplay->getDisplayToken();
+    mActiveDisplayId = activeDisplay->getPhysicalId();
     activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
     updateInternalDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
