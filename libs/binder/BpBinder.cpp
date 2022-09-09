@@ -30,6 +30,8 @@
 
 #include "BuildFlags.h"
 
+#include <android-base/file.h>
+
 //#undef ALOGV
 //#define ALOGV(...) fprintf(stderr, __VA_ARGS__)
 
@@ -297,6 +299,18 @@ status_t BpBinder::pingBinder()
     data.markForBinder(sp<BpBinder>::fromExisting(this));
     Parcel reply;
     return transact(PING_TRANSACTION, data, &reply);
+}
+
+status_t BpBinder::startRecordingBinder(const android::base::unique_fd& fd) {
+    Parcel send, reply;
+    send.writeUniqueFileDescriptor(fd);
+    return transact(START_RECORDING_TRANSACTION, send, &reply);
+}
+
+status_t BpBinder::stopRecordingBinder() {
+    Parcel data, reply;
+    data.markForBinder(sp<BpBinder>::fromExisting(this));
+    return transact(STOP_RECORDING_TRANSACTION, data, &reply);
 }
 
 status_t BpBinder::dump(int fd, const Vector<String16>& args)
