@@ -20,6 +20,8 @@
 #include <input/Input.h>
 #include <utils/BitSet.h>
 #include <utils/Timers.h>
+#include <map>
+#include <set>
 
 namespace android {
 
@@ -46,18 +48,14 @@ public:
         MAX = LEGACY,
     };
 
-    struct Position {
-        float x, y;
-    };
-
     struct Estimator {
         static const size_t MAX_DEGREE = 4;
 
         // Estimator time base.
         nsecs_t time;
 
-        // Polynomial coefficients describing motion in X and Y.
-        float xCoeff[MAX_DEGREE + 1], yCoeff[MAX_DEGREE + 1];
+        // Polynomial coefficients describing motion.
+        float coeff[MAX_DEGREE + 1];
 
         // Polynomial degree (number of coefficients), or zero if no information is
         // available.
@@ -71,14 +69,40 @@ public:
             degree = 0;
             confidence = 0;
             for (size_t i = 0; i <= MAX_DEGREE; i++) {
-                xCoeff[i] = 0;
-                yCoeff[i] = 0;
+                coeff[i] = 0;
             }
         }
     };
 
-    // Creates a velocity tracker using the specified strategy.
+    /*
+     * Contains all available velocity data from a VelocityTracker.
+     */
+    struct ComputedVelocity {
+        inline std::optional<float> getVelocity(int32_t axis, uint32_t id) const {
+            const auto& axisVelocities = mVelocities.find(axis);
+            if (axisVelocities == mVelocities.end()) {
+                return {};
+            }
+
+            const auto& axisIdVelocity = axisVelocities->second.find(id);
+            if (axisIdVelocity == axisVelocities->second.end()) {
+                return {};
+            }
+
+            return axisIdVelocity->second;
+        }
+
+        inline void addVelocity(int32_t axis, uint32_t id, float velocity) {
+            mVelocities[axis][id] = velocity;
+        }
+
+    private:
+        std::map<int32_t /*axis*/, std::map<int32_t /*pointerId*/, float /*velocity*/>> mVelocities;
+    };
+
+    // Creates a velocity tracker using the specified strategy for each supported axis.
     // If strategy is not provided, uses the default strategy for the platform.
+    // TODO(b/32830165): support axis-specific strategies.
     VelocityTracker(const Strategy strategy = Strategy::DEFAULT);
 
     ~VelocityTracker();
@@ -92,30 +116,34 @@ public:
     void clearPointers(BitSet32 idBits);
 
     // Adds movement information for a set of pointers.
-    // The idBits bitfield specifies the pointer ids of the pointers whose positions
+    // The idBits bitfield specifies the pointer ids of the pointers whose data points
     // are included in the movement.
-    // The positions array contains position information for each pointer in order by
-    // increasing id.  Its size should be equal to the number of one bits in idBits.
-    void addMovement(nsecs_t eventTime, BitSet32 idBits, const std::vector<Position>& positions);
+    // The positions map contains a mapping of an axis to positions array.
+    // The positions arrays contain information for each pointer in order by increasing id.
+    // Each array's size should be equal to the number of one bits in idBits.
+    void addMovement(nsecs_t eventTime, BitSet32 idBits,
+                     const std::map<int32_t, std::vector<float>>& positions);
 
     // Adds movement information for all pointers in a MotionEvent, including historical samples.
     void addMovement(const MotionEvent* event);
 
-    // Gets the velocity of the specified pointer id in position units per second.
-    // Returns false and sets the velocity components to zero if there is
-    // insufficient movement information for the pointer.
-    bool getVelocity(uint32_t id, float* outVx, float* outVy) const;
+    // Returns the velocity of the specified pointer id and axis in position units per second.
+    // Returns empty optional if there is insufficient movement information for the pointer, or if
+    // the given axis is not supported for velocity tracking.
+    std::optional<float> getVelocity(int32_t axis, uint32_t id) const;
 
-    // Gets an estimator for the recent movements of the specified pointer id.
+    // Returns a ComputedVelocity instance with all available velocity data, using the given units
+    // (reference: units == 1 means "per millisecond"), and clamping each velocity between
+    // [-maxVelocity, maxVelocity], inclusive.
+    ComputedVelocity getComputedVelocity(int32_t units, float maxVelocity);
+
+    // Gets an estimator for the recent movements of the specified pointer id for the given axis.
     // Returns false and clears the estimator if there is no information available
     // about the pointer.
-    bool getEstimator(uint32_t id, Estimator* outEstimator) const;
+    bool getEstimator(int32_t axis, uint32_t id, Estimator* outEstimator) const;
 
     // Gets the active pointer id, or -1 if none.
     inline int32_t getActivePointerId() const { return mActivePointerId; }
-
-    // Gets a bitset containing all pointer ids from the most recent movement.
-    inline BitSet32 getCurrentPointerIdBits() const { return mCurrentPointerIdBits; }
 
 private:
     // The default velocity tracker strategy.
@@ -123,14 +151,21 @@ private:
     // this is the strategy that applications will actually use.  Be very careful
     // when adjusting the default strategy because it can dramatically affect
     // (often in a bad way) the user experience.
+    // TODO(b/32830165): define default strategy per axis.
     static const Strategy DEFAULT_STRATEGY = Strategy::LSQ2;
+
+    // Set of all axes supported for velocity tracking.
+    static const std::set<int32_t> SUPPORTED_AXES;
+
+    // Axes specifying location on a 2D plane (i.e. X and Y).
+    static const std::set<int32_t> PLANAR_AXES;
 
     nsecs_t mLastEventTime;
     BitSet32 mCurrentPointerIdBits;
     int32_t mActivePointerId;
-    std::unique_ptr<VelocityTrackerStrategy> mStrategy;
+    std::map<int32_t /*axis*/, std::unique_ptr<VelocityTrackerStrategy>> mStrategies;
 
-    bool configureStrategy(const Strategy strategy);
+    void configureStrategy(int32_t axis, const Strategy strategy);
 
     static std::unique_ptr<VelocityTrackerStrategy> createStrategy(const Strategy strategy);
 };
@@ -149,7 +184,7 @@ public:
     virtual void clear() = 0;
     virtual void clearPointers(BitSet32 idBits) = 0;
     virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                             const std::vector<VelocityTracker::Position>& positions) = 0;
+                             const std::vector<float>& positions) = 0;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const = 0;
 };
 
@@ -181,7 +216,7 @@ public:
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                     const std::vector<VelocityTracker::Position>& positions) override;
+                     const std::vector<float>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -196,11 +231,9 @@ private:
     struct Movement {
         nsecs_t eventTime;
         BitSet32 idBits;
-        VelocityTracker::Position positions[MAX_POINTERS];
+        float positions[MAX_POINTERS];
 
-        inline const VelocityTracker::Position& getPosition(uint32_t id) const {
-            return positions[idBits.getIndexOfBit(id)];
-        }
+        inline float getPosition(uint32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
     };
 
     float chooseWeight(uint32_t index) const;
@@ -224,7 +257,7 @@ public:
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                     const std::vector<VelocityTracker::Position>& positions) override;
+                     const std::vector<float>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -233,16 +266,15 @@ private:
         nsecs_t updateTime;
         uint32_t degree;
 
-        float xpos, xvel, xaccel;
-        float ypos, yvel, yaccel;
+        float pos, vel, accel;
     };
 
     const uint32_t mDegree;
     BitSet32 mPointerIdBits;
     State mPointerState[MAX_POINTER_ID + 1];
 
-    void initState(State& state, nsecs_t eventTime, float xpos, float ypos) const;
-    void updateState(State& state, nsecs_t eventTime, float xpos, float ypos) const;
+    void initState(State& state, nsecs_t eventTime, float pos) const;
+    void updateState(State& state, nsecs_t eventTime, float pos) const;
     void populateEstimator(const State& state, VelocityTracker::Estimator* outEstimator) const;
 };
 
@@ -258,7 +290,7 @@ public:
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                     const std::vector<VelocityTracker::Position>& positions) override;
+                     const std::vector<float>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -274,11 +306,9 @@ private:
     struct Movement {
         nsecs_t eventTime;
         BitSet32 idBits;
-        VelocityTracker::Position positions[MAX_POINTERS];
+        float positions[MAX_POINTERS];
 
-        inline const VelocityTracker::Position& getPosition(uint32_t id) const {
-            return positions[idBits.getIndexOfBit(id)];
-        }
+        inline float getPosition(uint32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
     };
 
     uint32_t mIndex;
@@ -293,7 +323,7 @@ public:
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                     const std::vector<VelocityTracker::Position>& positions) override;
+                     const std::vector<float>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -308,11 +338,9 @@ private:
     struct Movement {
         nsecs_t eventTime;
         BitSet32 idBits;
-        VelocityTracker::Position positions[MAX_POINTERS];
+        float positions[MAX_POINTERS];
 
-        inline const VelocityTracker::Position& getPosition(uint32_t id) const {
-            return positions[idBits.getIndexOfBit(id)];
-        }
+        inline float getPosition(uint32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
     };
 
     size_t mIndex;
