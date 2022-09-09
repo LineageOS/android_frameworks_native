@@ -39,7 +39,6 @@
 #include <thread>
 
 using namespace android::hardware::sensors;
-using android::hardware::Return;
 using android::util::ProtoOutputStream;
 
 namespace android {
