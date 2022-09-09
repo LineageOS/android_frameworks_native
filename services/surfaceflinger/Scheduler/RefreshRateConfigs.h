@@ -31,6 +31,7 @@
 #include "DisplayHardware/HWComposer.h"
 #include "Scheduler/OneShotTimer.h"
 #include "Scheduler/StrongTyping.h"
+#include "ThreadContext.h"
 
 namespace android::scheduler {
 
@@ -207,8 +208,11 @@ public:
     // uses the primary range, not the app request range.
     DisplayModePtr getMaxRefreshRateByPolicy() const EXCLUDES(mLock);
 
-    void setActiveModeId(DisplayModeId) EXCLUDES(mLock);
-    DisplayModePtr getActiveMode() const EXCLUDES(mLock);
+    void setActiveModeId(DisplayModeId) EXCLUDES(mLock) REQUIRES(kMainThreadContext);
+
+    // See mActiveModeIt for thread safety.
+    DisplayModePtr getActiveModePtr() const EXCLUDES(mLock);
+    const DisplayMode& getActiveMode() const REQUIRES(kMainThreadContext);
 
     // Returns a known frame rate that is the closest to frameRate
     Fps findClosestKnownFrameRate(Fps frameRate) const;
@@ -332,6 +336,9 @@ private:
 
     void constructAvailableRefreshRates() REQUIRES(mLock);
 
+    // See mActiveModeIt for thread safety.
+    DisplayModeIterator getActiveModeItLocked() const REQUIRES(mLock);
+
     std::pair<DisplayModePtr, GlobalSignals> getBestRefreshRateLocked(
             const std::vector<LayerRequirement>&, GlobalSignals) const REQUIRES(mLock);
 
@@ -345,10 +352,8 @@ private:
 
     // Returns the highest refresh rate according to the current policy. May change at runtime. Only
     // uses the primary range, not the app request range.
+    const DisplayModePtr& getMaxRefreshRateByPolicyLocked() const REQUIRES(mLock);
     const DisplayModePtr& getMaxRefreshRateByPolicyLocked(int anchorGroup) const REQUIRES(mLock);
-    const DisplayModePtr& getMaxRefreshRateByPolicyLocked() const REQUIRES(mLock) {
-        return getMaxRefreshRateByPolicyLocked(mActiveModeIt->second->getGroup());
-    }
 
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
@@ -361,7 +366,8 @@ private:
     float calculateNonExactMatchingLayerScoreLocked(const LayerRequirement&, Fps refreshRate) const
             REQUIRES(mLock);
 
-    void updateDisplayModes(DisplayModes, DisplayModeId activeModeId) EXCLUDES(mLock);
+    void updateDisplayModes(DisplayModes, DisplayModeId activeModeId) EXCLUDES(mLock)
+            REQUIRES(kMainThreadContext);
 
     void initializeIdleTimer();
 
@@ -377,7 +383,10 @@ private:
     // is also dependent, so must be reset as well.
     DisplayModes mDisplayModes GUARDED_BY(mLock);
 
-    DisplayModeIterator mActiveModeIt GUARDED_BY(mLock);
+    // Written under mLock exclusively from kMainThreadContext, so reads from kMainThreadContext
+    // need not be under mLock.
+    DisplayModeIterator mActiveModeIt GUARDED_BY(mLock) GUARDED_BY(kMainThreadContext);
+
     DisplayModeIterator mMinRefreshRateModeIt GUARDED_BY(mLock);
     DisplayModeIterator mMaxRefreshRateModeIt GUARDED_BY(mLock);
 

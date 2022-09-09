@@ -27,6 +27,7 @@
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <ftl/enum.h>
+#include <ftl/fake_guard.h>
 #include <utils/Trace.h>
 
 #include "../SurfaceFlingerProperties.h"
@@ -325,6 +326,8 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
 
     const Policy* policy = getCurrentPolicyLocked();
     const auto& defaultMode = mDisplayModes.get(policy->defaultMode)->get();
+    const auto& activeMode = *getActiveModeItLocked()->second;
+
     // If the default mode group is different from the group of current mode,
     // this means a layer requesting a seamed mode switch just disappeared and
     // we should switch back to the default group.
@@ -332,7 +335,7 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
     // of the current mode, in order to prevent unnecessary seamed mode switches
     // (e.g. when pausing a video playback).
     const auto anchorGroup =
-            seamedFocusedLayers > 0 ? mActiveModeIt->second->getGroup() : defaultMode->getGroup();
+            seamedFocusedLayers > 0 ? activeMode.getGroup() : defaultMode->getGroup();
 
     // Consider the touch event if there are no Explicit* layers. Otherwise wait until after we've
     // selected a refresh rate to see if we should apply touch boost.
@@ -387,12 +390,12 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
 
         for (auto& [modeIt, overallScore, fixedRateBelowThresholdLayersScore] : scores) {
             const auto& [id, mode] = *modeIt;
-            const bool isSeamlessSwitch = mode->getGroup() == mActiveModeIt->second->getGroup();
+            const bool isSeamlessSwitch = mode->getGroup() == activeMode.getGroup();
 
             if (layer.seamlessness == Seamlessness::OnlySeamless && !isSeamlessSwitch) {
                 ALOGV("%s ignores %s to avoid non-seamless switch. Current mode = %s",
                       formatLayerInfo(layer, weight).c_str(), to_string(*mode).c_str(),
-                      to_string(*mActiveModeIt->second).c_str());
+                      to_string(activeMode).c_str());
                 continue;
             }
 
@@ -401,7 +404,7 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
                 ALOGV("%s ignores %s because it's not focused and the switch is going to be seamed."
                       " Current mode = %s",
                       formatLayerInfo(layer, weight).c_str(), to_string(*mode).c_str(),
-                      to_string(*mActiveModeIt->second).c_str());
+                      to_string(activeMode).c_str());
                 continue;
             }
 
@@ -413,7 +416,7 @@ auto RefreshRateConfigs::getBestRefreshRateLocked(const std::vector<LayerRequire
             const bool isInPolicyForDefault = mode->getGroup() == anchorGroup;
             if (layer.seamlessness == Seamlessness::Default && !isInPolicyForDefault) {
                 ALOGV("%s ignores %s. Current mode = %s", formatLayerInfo(layer, weight).c_str(),
-                      to_string(*mode).c_str(), to_string(*mActiveModeIt->second).c_str());
+                      to_string(*mode).c_str(), to_string(activeMode).c_str());
                 continue;
             }
 
@@ -676,7 +679,7 @@ std::optional<Fps> RefreshRateConfigs::onKernelTimerChanged(
 
     const DisplayModePtr& current = desiredActiveModeId
             ? mDisplayModes.get(*desiredActiveModeId)->get()
-            : mActiveModeIt->second;
+            : getActiveModeItLocked()->second;
 
     const DisplayModePtr& min = mMinRefreshRateModeIt->second;
     if (current == min) {
@@ -688,16 +691,17 @@ std::optional<Fps> RefreshRateConfigs::onKernelTimerChanged(
 }
 
 const DisplayModePtr& RefreshRateConfigs::getMinRefreshRateByPolicyLocked() const {
+    const auto& activeMode = *getActiveModeItLocked()->second;
+
     for (const DisplayModeIterator modeIt : mPrimaryRefreshRates) {
         const auto& mode = modeIt->second;
-        if (mActiveModeIt->second->getGroup() == mode->getGroup()) {
+        if (activeMode.getGroup() == mode->getGroup()) {
             return mode;
         }
     }
 
-    ALOGE("Can't find min refresh rate by policy with the same mode group"
-          " as the current mode %s",
-          to_string(*mActiveModeIt->second).c_str());
+    ALOGE("Can't find min refresh rate by policy with the same mode group as the current mode %s",
+          to_string(activeMode).c_str());
 
     // Default to the lowest refresh rate.
     return mPrimaryRefreshRates.front()->second;
@@ -708,6 +712,11 @@ DisplayModePtr RefreshRateConfigs::getMaxRefreshRateByPolicy() const {
     return getMaxRefreshRateByPolicyLocked();
 }
 
+const DisplayModePtr& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked() const {
+    const int anchorGroup = getActiveModeItLocked()->second->getGroup();
+    return getMaxRefreshRateByPolicyLocked(anchorGroup);
+}
+
 const DisplayModePtr& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked(int anchorGroup) const {
     for (auto it = mPrimaryRefreshRates.rbegin(); it != mPrimaryRefreshRates.rend(); ++it) {
         const auto& mode = (*it)->second;
@@ -716,17 +725,28 @@ const DisplayModePtr& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked(int an
         }
     }
 
-    ALOGE("Can't find max refresh rate by policy with the same mode group"
-          " as the current mode %s",
-          to_string(*mActiveModeIt->second).c_str());
+    const auto& activeMode = *getActiveModeItLocked()->second;
+    ALOGE("Can't find max refresh rate by policy with the same mode group as the current mode %s",
+          to_string(activeMode).c_str());
 
     // Default to the highest refresh rate.
     return mPrimaryRefreshRates.back()->second;
 }
 
-DisplayModePtr RefreshRateConfigs::getActiveMode() const {
+DisplayModePtr RefreshRateConfigs::getActiveModePtr() const {
     std::lock_guard lock(mLock);
-    return mActiveModeIt->second;
+    return getActiveModeItLocked()->second;
+}
+
+const DisplayMode& RefreshRateConfigs::getActiveMode() const {
+    // Reads from kMainThreadContext do not require mLock.
+    ftl::FakeGuard guard(mLock);
+    return *mActiveModeIt->second;
+}
+
+DisplayModeIterator RefreshRateConfigs::getActiveModeItLocked() const {
+    // Reads under mLock do not require kMainThreadContext.
+    return FTL_FAKE_GUARD(kMainThreadContext, mActiveModeIt);
 }
 
 void RefreshRateConfigs::setActiveModeId(DisplayModeId modeId) {
@@ -744,7 +764,7 @@ RefreshRateConfigs::RefreshRateConfigs(DisplayModes modes, DisplayModeId activeM
                                        Config config)
       : mKnownFrameRates(constructKnownFrameRates(modes)), mConfig(config) {
     initializeIdleTimer();
-    updateDisplayModes(std::move(modes), activeModeId);
+    FTL_FAKE_GUARD(kMainThreadContext, updateDisplayModes(std::move(modes), activeModeId));
 }
 
 void RefreshRateConfigs::initializeIdleTimer() {
@@ -976,7 +996,7 @@ void RefreshRateConfigs::dump(std::string& result) const {
 
     std::lock_guard lock(mLock);
 
-    const auto activeModeId = mActiveModeIt->first;
+    const auto activeModeId = getActiveModeItLocked()->first;
     result += "   activeModeId="s;
     result += std::to_string(activeModeId.value());
 
