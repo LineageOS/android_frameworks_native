@@ -24,6 +24,7 @@
 #include "ui/events/ozone/evdev/touch_filter/neural_stylus_palm_detection_filter.h"
 
 #include "TestInputListener.h"
+#include "TestInputListenerMatchers.h"
 
 using ::testing::AllOf;
 
@@ -54,21 +55,6 @@ constexpr int UP = AMOTION_EVENT_ACTION_UP;
 constexpr int CANCEL = AMOTION_EVENT_ACTION_CANCEL;
 
 constexpr int32_t FLAG_CANCELED = AMOTION_EVENT_FLAG_CANCELED;
-
-MATCHER_P(WithAction, action, "MotionEvent with specified action") {
-    bool result = true;
-    if (action == CANCEL) {
-        result &= (arg.flags & FLAG_CANCELED) != 0;
-    }
-    result &= arg.action == action;
-    *result_listener << "expected to receive " << MotionEvent::actionToString(action)
-                     << " but received " << MotionEvent::actionToString(arg.action) << " instead.";
-    return result;
-}
-
-MATCHER_P(WithFlags, flags, "MotionEvent with specified flags") {
-    return arg.flags == flags;
-}
 
 static nsecs_t toNs(std::chrono::nanoseconds duration) {
     return duration.count();
@@ -605,19 +591,19 @@ TEST_F(UnwantedInteractionBlockerTest, HeuristicFilterWorks) {
     // Small touch down
     NotifyMotionArgs args1 = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2, 3}});
     mBlocker->notifyMotion(&args1);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(DOWN));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(DOWN));
 
     // Large touch oval on the next move
     NotifyMotionArgs args2 =
             generateMotionArgs(0 /*downTime*/, RESAMPLE_PERIOD, MOVE, {{4, 5, 200}});
     mBlocker->notifyMotion(&args2);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(MOVE));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(MOVE));
 
     // Lift up the touch to force the model to decide on whether it's a palm
     NotifyMotionArgs args3 =
             generateMotionArgs(0 /*downTime*/, 2 * RESAMPLE_PERIOD, UP, {{4, 5, 200}});
     mBlocker->notifyMotion(&args3);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(CANCEL));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(CANCEL));
 }
 
 /**
@@ -633,14 +619,14 @@ TEST_F(UnwantedInteractionBlockerTest, StylusIsNotBlocked) {
     NotifyMotionArgs args1 = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2, 3}});
     args1.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
     mBlocker->notifyMotion(&args1);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(DOWN));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(DOWN));
 
     // Move the stylus, setting large TOUCH_MAJOR/TOUCH_MINOR dimensions
     NotifyMotionArgs args2 =
             generateMotionArgs(0 /*downTime*/, RESAMPLE_PERIOD, MOVE, {{4, 5, 200}});
     args2.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
     mBlocker->notifyMotion(&args2);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(MOVE));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(MOVE));
 
     // Lift up the stylus. If it were a touch event, this would force the model to decide on whether
     // it's a palm.
@@ -648,7 +634,7 @@ TEST_F(UnwantedInteractionBlockerTest, StylusIsNotBlocked) {
             generateMotionArgs(0 /*downTime*/, 2 * RESAMPLE_PERIOD, UP, {{4, 5, 200}});
     args3.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
     mBlocker->notifyMotion(&args3);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(UP));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(UP));
 }
 
 /**
@@ -664,21 +650,21 @@ TEST_F(UnwantedInteractionBlockerTest, TouchIsBlockedWhenMixedWithStylus) {
     // Touch down
     NotifyMotionArgs args1 = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2, 3}});
     mBlocker->notifyMotion(&args1);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(DOWN));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(DOWN));
 
     // Stylus pointer down
     NotifyMotionArgs args2 = generateMotionArgs(0 /*downTime*/, RESAMPLE_PERIOD, POINTER_1_DOWN,
                                                 {{1, 2, 3}, {10, 20, 30}});
     args2.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
     mBlocker->notifyMotion(&args2);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(POINTER_1_DOWN));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(POINTER_1_DOWN));
 
     // Large touch oval on the next finger move
     NotifyMotionArgs args3 = generateMotionArgs(0 /*downTime*/, 2 * RESAMPLE_PERIOD, MOVE,
                                                 {{1, 2, 300}, {11, 21, 30}});
     args3.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
     mBlocker->notifyMotion(&args3);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(MOVE));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(MOVE));
 
     // Lift up the finger pointer. It should be canceled due to the heuristic filter.
     NotifyMotionArgs args4 = generateMotionArgs(0 /*downTime*/, 3 * RESAMPLE_PERIOD, POINTER_0_UP,
@@ -686,14 +672,14 @@ TEST_F(UnwantedInteractionBlockerTest, TouchIsBlockedWhenMixedWithStylus) {
     args4.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
     mBlocker->notifyMotion(&args4);
     mTestListener.assertNotifyMotionWasCalled(
-            AllOf(WithAction(POINTER_0_UP), WithFlags(FLAG_CANCELED)));
+            AllOf(WithMotionAction(POINTER_0_UP), WithFlags(FLAG_CANCELED)));
 
     NotifyMotionArgs args5 =
             generateMotionArgs(0 /*downTime*/, 4 * RESAMPLE_PERIOD, MOVE, {{12, 22, 30}});
     args5.pointerProperties[0].id = args4.pointerProperties[1].id;
     args5.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
     mBlocker->notifyMotion(&args5);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(MOVE));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(MOVE));
 
     // Lift up the stylus pointer
     NotifyMotionArgs args6 =
@@ -701,7 +687,7 @@ TEST_F(UnwantedInteractionBlockerTest, TouchIsBlockedWhenMixedWithStylus) {
     args6.pointerProperties[0].id = args4.pointerProperties[1].id;
     args6.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
     mBlocker->notifyMotion(&args6);
-    mTestListener.assertNotifyMotionWasCalled(WithAction(UP));
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(UP));
 }
 
 using UnwantedInteractionBlockerTestDeathTest = UnwantedInteractionBlockerTest;

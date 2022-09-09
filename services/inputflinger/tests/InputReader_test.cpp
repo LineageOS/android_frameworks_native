@@ -31,6 +31,7 @@
 #include <SingleTouchInputMapper.h>
 #include <SwitchInputMapper.h>
 #include <TestInputListener.h>
+#include <TestInputListenerMatchers.h>
 #include <TouchInputMapper.h>
 #include <UinputDevice.h>
 #include <VibratorInputMapper.h>
@@ -47,7 +48,7 @@ using android::hardware::input::InputDeviceCountryCode;
 namespace android {
 
 using namespace ftl::flag_operators;
-
+using testing::AllOf;
 using std::chrono_literals::operator""ms;
 
 // Timeout for waiting for an expected event
@@ -95,24 +96,6 @@ static constexpr int32_t ACTION_POINTER_1_UP =
 
 // Error tolerance for floating point assertions.
 static const float EPSILON = 0.001f;
-
-using ::testing::AllOf;
-
-MATCHER_P(WithAction, action, "InputEvent with specified action") {
-    return arg.action == action;
-}
-
-MATCHER_P(WithSource, source, "InputEvent with specified source") {
-    return arg.source == source;
-}
-
-MATCHER_P(WithDisplayId, displayId, "InputEvent with specified displayId") {
-    return arg.displayId == displayId;
-}
-
-MATCHER_P2(WithCoords, x, y, "MotionEvent with specified action") {
-    return arg.pointerCoords[0].getX() == x && arg.pointerCoords[0].getY();
-}
 
 template<typename T>
 static inline T min(T a, T b) {
@@ -5133,8 +5116,9 @@ TEST_F(CursorInputMapperTest, ConfigureDisplayId_NoAssociatedViewport) {
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
-            AllOf(WithAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithSource(AINPUT_SOURCE_MOUSE),
-                  WithDisplayId(SECONDARY_DISPLAY_ID), WithCoords(110.0f, 220.0f))));
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithSource(AINPUT_SOURCE_MOUSE), WithDisplayId(SECONDARY_DISPLAY_ID),
+                  WithCoords(110.0f, 220.0f))));
     ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 110.0f, 220.0f));
 }
 
@@ -5159,8 +5143,9 @@ TEST_F(CursorInputMapperTest, ConfigureDisplayId_WithAssociatedViewport) {
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
-            AllOf(WithAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithSource(AINPUT_SOURCE_MOUSE),
-                  WithDisplayId(SECONDARY_DISPLAY_ID), WithCoords(110.0f, 220.0f))));
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithSource(AINPUT_SOURCE_MOUSE), WithDisplayId(SECONDARY_DISPLAY_ID),
+                  WithCoords(110.0f, 220.0f))));
     ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 110.0f, 220.0f));
 }
 
