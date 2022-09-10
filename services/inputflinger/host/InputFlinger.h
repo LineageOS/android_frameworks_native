@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_INPUT_FLINGER_H
-#define ANDROID_INPUT_FLINGER_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -58,5 +57,3 @@ private:
 };
 
 } // namespace android
-
-#endif // ANDROID_INPUT_FLINGER_H

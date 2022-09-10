@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _INPUTFLINGER_POINTER_CONTROLLER_INTERFACE_H
-#define _INPUTFLINGER_POINTER_CONTROLLER_INTERFACE_H
+#pragma once
 
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
@@ -108,5 +107,3 @@ public:
 };
 
 } // namespace android
-
-#endif // _INPUTFLINGER_POINTER_CONTROLLER_INTERFACE_H

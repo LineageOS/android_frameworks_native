@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _RUNTIME_EVENT_HUB_H
-#define _RUNTIME_EVENT_HUB_H
+#pragma once
 
 #include <bitset>
 #include <climits>
@@ -732,5 +731,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _RUNTIME_EVENT_HUB_H

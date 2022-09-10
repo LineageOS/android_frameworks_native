@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_READER_BASE_H
-#define _UI_INPUT_READER_BASE_H
+#pragma once
 
 #include <android/os/IInputConstants.h>
 #include <input/DisplayViewport.h>
@@ -395,5 +394,3 @@ public:
 };
 
 } // namespace android
-
-#endif // _UI_INPUT_READER_COMMON_H

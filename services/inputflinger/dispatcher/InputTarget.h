@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_INPUTTARGET_H
-#define _UI_INPUT_INPUTDISPATCHER_INPUTTARGET_H
+#pragma once
 
 #include <gui/constants.h>
 #include <input/InputTransport.h>
@@ -136,5 +135,3 @@ struct InputTarget {
 std::string dispatchModeToString(int32_t dispatchMode);
 
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_INPUTTARGET_H

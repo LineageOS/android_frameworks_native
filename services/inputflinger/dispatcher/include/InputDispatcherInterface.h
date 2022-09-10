@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERINTERFACE_H
-#define _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERINTERFACE_H
+#pragma once
 
 #include <InputListener.h>
 #include <android-base/result.h>
@@ -226,5 +225,3 @@ public:
 };
 
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERINTERFACE_H

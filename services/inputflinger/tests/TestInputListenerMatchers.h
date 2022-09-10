@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_TEST_INPUT_LISTENER_MATCHERS_H
-#define _UI_TEST_INPUT_LISTENER_MATCHERS_H
+#pragma once
 
 #include <android/input.h>
 #include <gmock/gmock.h>
@@ -57,4 +56,3 @@ MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {
 }
 
 } // namespace android
-#endif

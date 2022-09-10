@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_CURSOR_SCROLL_ACCUMULATOR_H
-#define _UI_INPUTREADER_CURSOR_SCROLL_ACCUMULATOR_H
+#pragma once
 
 #include <stdint.h>
 
@@ -56,5 +55,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_CURSOR_SCROLL_ACCUMULATOR_H

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_LATENCYTRACKER_H
-#define _UI_INPUT_INPUTDISPATCHER_LATENCYTRACKER_H
+#pragma once
 
 #include <map>
 #include <unordered_map>
@@ -81,5 +80,3 @@ private:
 };
 
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_LATENCYTRACKER_H

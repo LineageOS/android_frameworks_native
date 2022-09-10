@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERFACTORY_H
-#define _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERFACTORY_H
+#pragma once
 
 #include <utils/StrongPointer.h>
 
@@ -29,5 +28,3 @@ std::unique_ptr<InputDispatcherInterface> createInputDispatcher(
         const sp<InputDispatcherPolicyInterface>& policy);
 
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERFACTORY_H
