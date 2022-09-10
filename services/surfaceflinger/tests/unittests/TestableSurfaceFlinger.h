@@ -223,7 +223,7 @@ public:
             configs = std::make_shared<scheduler::RefreshRateConfigs>(modes, kModeId60);
         }
 
-        const auto fps = configs->getActiveMode()->getFps();
+        const auto fps = FTL_FAKE_GUARD(kMainThreadContext, configs->getActiveMode().getFps());
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
         mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
                 mFlinger->mVsyncConfiguration->getCurrentConfigs());
@@ -371,6 +371,7 @@ public:
 
     void commitTransactionsLocked(uint32_t transactionFlags) {
         Mutex::Autolock lock(mFlinger->mStateLock);
+        ftl::FakeGuard guard(kMainThreadContext);
         mFlinger->commitTransactionsLocked(transactionFlags);
     }
 
@@ -464,6 +465,7 @@ public:
 
     void onActiveDisplayChanged(const sp<DisplayDevice>& activeDisplay) {
         Mutex::Autolock lock(mFlinger->mStateLock);
+        ftl::FakeGuard guard(kMainThreadContext);
         mFlinger->onActiveDisplayChangedLocked(activeDisplay);
     }
 
@@ -503,6 +505,7 @@ public:
      */
 
     const auto& displays() const { return mFlinger->mDisplays; }
+    const auto& physicalDisplays() const { return mFlinger->mPhysicalDisplays; }
     const auto& currentState() const { return mFlinger->mCurrentState; }
     const auto& drawingState() const { return mFlinger->mDrawingState; }
     const auto& transactionFlags() const { return mFlinger->mTransactionFlags; }
@@ -515,12 +518,12 @@ public:
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
     auto& mutableDisplayColorSetting() { return mFlinger->mDisplayColorSetting; }
     auto& mutableDisplays() { return mFlinger->mDisplays; }
+    auto& mutablePhysicalDisplays() { return mFlinger->mPhysicalDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
     auto& mutableGeometryDirty() { return mFlinger->mGeometryDirty; }
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
-    auto& mutablePhysicalDisplayTokens() { return mFlinger->mPhysicalDisplayTokens; }
     auto& mutableTexturePool() { return mFlinger->mTexturePool; }
     auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
     auto& mutableDebugDisableHWC() { return mFlinger->mDebugDisableHWC; }
@@ -725,13 +728,19 @@ public:
               : mFlinger(flinger),
                 mCreationArgs(flinger.mFlinger, flinger.mFlinger->getHwComposer(), mDisplayToken,
                               display),
+                mConnectionType(connectionType),
                 mHwcDisplayId(hwcDisplayId) {
-            mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;
             mCreationArgs.initialPowerMode = hal::PowerMode::ON;
         }
 
         sp<IBinder> token() const { return mDisplayToken; }
+
+        auto physicalDisplay() const {
+            return ftl::Optional(mCreationArgs.compositionDisplay->getDisplayId())
+                    .and_then(&PhysicalDisplayId::tryCast)
+                    .and_then(display::getPhysicalDisplay(mFlinger.physicalDisplays()));
+        }
 
         DisplayDeviceState& mutableDrawingDisplayState() {
             return mFlinger.mutableDrawingState().displays.editValueFor(mDisplayToken);
@@ -760,7 +769,7 @@ public:
         // the `configs` parameter in favor of an alternative setRefreshRateConfigs API.
         auto& setDisplayModes(DisplayModes modes, DisplayModeId activeModeId,
                               std::shared_ptr<scheduler::RefreshRateConfigs> configs = nullptr) {
-            mCreationArgs.supportedModes = std::move(modes);
+            mDisplayModes = std::move(modes);
             mCreationArgs.activeModeId = activeModeId;
             mCreationArgs.refreshRateConfigs = std::move(configs);
             return *this;
@@ -806,7 +815,7 @@ public:
         sp<DisplayDevice> inject() NO_THREAD_SAFETY_ANALYSIS {
             const auto displayId = mCreationArgs.compositionDisplay->getDisplayId();
 
-            auto& modes = mCreationArgs.supportedModes;
+            auto& modes = mDisplayModes;
             auto& activeModeId = mCreationArgs.activeModeId;
 
             if (displayId && !mCreationArgs.refreshRateConfigs) {
@@ -834,8 +843,13 @@ public:
                 }
             }
 
+            sp<DisplayDevice> display = sp<DisplayDevice>::make(mCreationArgs);
+            mFlinger.mutableDisplays().emplace_or_replace(mDisplayToken, display);
+
             DisplayDeviceState state;
-            if (const auto type = mCreationArgs.connectionType) {
+            state.isSecure = mCreationArgs.isSecure;
+
+            if (mConnectionType) {
                 LOG_ALWAYS_FATAL_IF(!displayId);
                 const auto physicalId = PhysicalDisplayId::tryCast(*displayId);
                 LOG_ALWAYS_FATAL_IF(!physicalId);
@@ -845,28 +859,20 @@ public:
                 LOG_ALWAYS_FATAL_IF(!activeMode);
 
                 state.physical = {.id = *physicalId,
-                                  .type = *type,
                                   .hwcDisplayId = *mHwcDisplayId,
-                                  .deviceProductInfo = {},
-                                  .supportedModes = modes,
                                   .activeMode = activeMode->get()};
-            }
 
-            state.isSecure = mCreationArgs.isSecure;
+                const auto it = mFlinger.mutablePhysicalDisplays()
+                                        .emplace_or_replace(*physicalId, mDisplayToken, *physicalId,
+                                                            *mConnectionType, std::move(modes),
+                                                            std::nullopt)
+                                        .first;
 
-            sp<DisplayDevice> display = sp<DisplayDevice>::make(mCreationArgs);
-            if (!display->isVirtual()) {
-                display->setActiveMode(activeModeId);
+                display->setActiveMode(activeModeId, it->second.snapshot());
             }
-            mFlinger.mutableDisplays().emplace_or_replace(mDisplayToken, display);
 
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
-
-            if (const auto& physical = state.physical) {
-                mFlinger.mutablePhysicalDisplayTokens().emplace_or_replace(physical->id,
-                                                                           mDisplayToken);
-            }
 
             return display;
         }
@@ -875,6 +881,8 @@ public:
         TestableSurfaceFlinger& mFlinger;
         sp<BBinder> mDisplayToken = sp<BBinder>::make();
         DisplayDeviceCreationArgs mCreationArgs;
+        DisplayModes mDisplayModes;
+        const std::optional<ui::DisplayConnectionType> mConnectionType;
         const std::optional<hal::HWDisplayId> mHwcDisplayId;
     };
 

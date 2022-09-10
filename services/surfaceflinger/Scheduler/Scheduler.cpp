@@ -182,7 +182,7 @@ impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() 
 
 impl::EventThread::GetVsyncPeriodFunction Scheduler::makeGetVsyncPeriodFunction() const {
     return [this](uid_t uid) {
-        const Fps refreshRate = holdRefreshRateConfigs()->getActiveMode()->getFps();
+        const Fps refreshRate = holdRefreshRateConfigs()->getActiveModePtr()->getFps();
         const nsecs_t currentPeriod = mVsyncSchedule->period().ns() ?: refreshRate.getPeriodNsecs();
 
         const auto frameRate = getFrameRateOverride(uid);
@@ -320,7 +320,7 @@ void Scheduler::dispatchCachedReportedMode() {
     // mode change is in progress. In that case we shouldn't dispatch an event
     // as it will be dispatched when the current mode changes.
     if (std::scoped_lock lock(mRefreshRateConfigsLock);
-        mRefreshRateConfigs->getActiveMode() != mPolicy.mode) {
+        mRefreshRateConfigs->getActiveModePtr() != mPolicy.mode) {
         return;
     }
 
@@ -453,7 +453,7 @@ void Scheduler::resync() {
     if (now - last > kIgnoreDelay) {
         const auto refreshRate = [&] {
             std::scoped_lock lock(mRefreshRateConfigsLock);
-            return mRefreshRateConfigs->getActiveMode()->getFps();
+            return mRefreshRateConfigs->getActiveModePtr()->getFps();
         }();
         resyncToHardwareVsync(false, refreshRate);
     }
@@ -577,7 +577,7 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
     // magic number
     const Fps refreshRate = [&] {
         std::scoped_lock lock(mRefreshRateConfigsLock);
-        return mRefreshRateConfigs->getActiveMode()->getFps();
+        return mRefreshRateConfigs->getActiveModePtr()->getFps();
     }();
 
     constexpr Fps FPS_THRESHOLD_FOR_KERNEL_TIMER = 65_Hz;

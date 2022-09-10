@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_SWITCH_INPUT_MAPPER_H
-#define _UI_INPUTREADER_SWITCH_INPUT_MAPPER_H
+#pragma once
 
 #include "InputMapper.h"
 
@@ -41,5 +40,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_SWITCH_INPUT_MAPPER_H

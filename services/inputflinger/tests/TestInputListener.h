@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_TEST_INPUT_LISTENER_H
-#define _UI_TEST_INPUT_LISTENER_H
+#pragma once
 
 #include <android-base/thread_annotations.h>
 #include <gmock/gmock.h>
@@ -103,4 +102,3 @@ private:
 };
 
 } // namespace android
-#endif

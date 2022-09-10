@@ -600,14 +600,18 @@ public:
         mFlinger->binderDied(display);
         mFlinger->onFirstRef();
 
-        mFlinger->commitTransactions();
         mFlinger->updateInputFlinger();
         mFlinger->updateCursorAsync();
 
         setVsyncConfig(&mFdp);
 
-        FTL_FAKE_GUARD(kMainThreadContext,
-                       mFlinger->flushTransactionQueues(getFuzzedVsyncId(mFdp)));
+        {
+            ftl::FakeGuard guard(kMainThreadContext);
+
+            mFlinger->commitTransactions();
+            mFlinger->flushTransactionQueues(getFuzzedVsyncId(mFdp));
+            mFlinger->postComposition();
+        }
 
         mFlinger->setTransactionFlags(mFdp.ConsumeIntegral<uint32_t>());
         mFlinger->clearTransactionFlags(mFdp.ConsumeIntegral<uint32_t>());
@@ -623,8 +627,6 @@ public:
                                              mFdp.ConsumeIntegral<uint32_t>());
 
         mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mFdp.ConsumeIntegral<uid_t>());
-
-        FTL_FAKE_GUARD(kMainThreadContext, mFlinger->postComposition());
 
         mFlinger->calculateExpectedPresentTime({});
 
@@ -664,7 +666,8 @@ public:
         }
 
         mRefreshRateConfigs = std::make_shared<scheduler::RefreshRateConfigs>(modes, kModeId60);
-        const auto fps = mRefreshRateConfigs->getActiveMode()->getFps();
+        const auto fps =
+                FTL_FAKE_GUARD(kMainThreadContext, mRefreshRateConfigs->getActiveMode().getFps());
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
         mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
                 mFlinger->mVsyncConfiguration->getCurrentConfigs());
@@ -715,9 +718,9 @@ public:
 
     void enableHalVirtualDisplays(bool enable) { mFlinger->enableHalVirtualDisplays(enable); }
 
-    auto commitTransactionsLocked(uint32_t transactionFlags) {
+    void commitTransactionsLocked(uint32_t transactionFlags) FTL_FAKE_GUARD(kMainThreadContext) {
         Mutex::Autolock lock(mFlinger->mStateLock);
-        return mFlinger->commitTransactionsLocked(transactionFlags);
+        mFlinger->commitTransactionsLocked(transactionFlags);
     }
 
     auto setDisplayStateLocked(const DisplayState &s) {

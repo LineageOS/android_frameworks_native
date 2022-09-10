@@ -292,9 +292,10 @@ TEST_F(DispSyncSourceTest, waitForCallbacksWithDurationChange) {
 
 TEST_F(DispSyncSourceTest, getLatestVsyncData) {
     const nsecs_t now = systemTime();
-    const nsecs_t vsyncInternalDuration = mWorkDuration.count() + mReadyDuration.count();
+    const nsecs_t expectedPresentationTime =
+            now + mWorkDuration.count() + mReadyDuration.count() + 1;
     EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_))
-            .WillOnce(Return(now + vsyncInternalDuration + 1));
+            .WillOnce(Return(expectedPresentationTime));
     {
         InSequence seq;
         EXPECT_CALL(*mVSyncDispatch, registerCallback(_, mName)).Times(1);
@@ -306,10 +307,8 @@ TEST_F(DispSyncSourceTest, getLatestVsyncData) {
     EXPECT_TRUE(mDispSyncSource);
 
     const auto vsyncData = mDispSyncSource->getLatestVSyncData();
-    ASSERT_GT(vsyncData.deadlineTimestamp, now);
-    ASSERT_GT(vsyncData.expectedPresentationTime, vsyncData.deadlineTimestamp);
-    EXPECT_EQ(vsyncData.deadlineTimestamp,
-              vsyncData.expectedPresentationTime - vsyncInternalDuration);
+    ASSERT_EQ(vsyncData.expectedPresentationTime, expectedPresentationTime);
+    EXPECT_EQ(vsyncData.deadlineTimestamp, expectedPresentationTime - mReadyDuration.count());
 }
 
 } // namespace

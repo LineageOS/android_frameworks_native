@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_ROTARY_ENCODER_INPUT_MAPPER_H
-#define _UI_INPUTREADER_ROTARY_ENCODER_INPUT_MAPPER_H
+#pragma once
 
 #include "CursorScrollAccumulator.h"
 #include "InputMapper.h"
@@ -46,5 +45,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_ROTARY_ENCODER_INPUT_MAPPER_H

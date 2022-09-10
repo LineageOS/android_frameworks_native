@@ -188,10 +188,10 @@ void DispSyncSource::onVsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime
 
 VSyncSource::VSyncData DispSyncSource::getLatestVSyncData() const {
     std::lock_guard lock(mVsyncMutex);
-    nsecs_t expectedPresentTime = mVSyncTracker.nextAnticipatedVSyncTimeFrom(
+    nsecs_t expectedPresentationTime = mVSyncTracker.nextAnticipatedVSyncTimeFrom(
             systemTime() + mWorkDuration.get().count() + mReadyDuration.count());
-    nsecs_t deadline = expectedPresentTime - mWorkDuration.get().count() - mReadyDuration.count();
-    return {expectedPresentTime, deadline};
+    nsecs_t deadline = expectedPresentationTime - mReadyDuration.count();
+    return {expectedPresentationTime, deadline};
 }
 
 void DispSyncSource::dump(std::string& result) const {

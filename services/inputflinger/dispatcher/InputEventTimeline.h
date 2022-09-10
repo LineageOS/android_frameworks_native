@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_INPUTEVENTTIMELINE_H
-#define _UI_INPUT_INPUTDISPATCHER_INPUTEVENTTIMELINE_H
+#pragma once
 
 #include <binder/IBinder.h>
 #include <input/Input.h>
@@ -104,5 +103,3 @@ public:
 
 } // namespace inputdispatcher
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_INPUTEVENTTIMELINE_H

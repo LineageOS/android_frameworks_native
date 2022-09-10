@@ -89,6 +89,17 @@ void testInvalidSharedMem_NoCrash(SensorManager &mgr) {
 
     // Should print -22 (BAD_VALUE) and the device runtime shouldn't restart
     printf("createInvalidDirectChannel=%d\n", ret);
+
+    // Secondary test: correct channel creation & destruction (should print 0)
+    ret = mgr.createDirectChannel(kMemSize, ASENSOR_DIRECT_CHANNEL_TYPE_HARDWARE_BUFFER,
+                                  resourceHandle);
+    printf("createValidDirectChannel=%d\n", ret);
+
+    // Third test: double-destroy (should not crash)
+    mgr.destroyDirectChannel(ret);
+    AHardwareBuffer_release(hardwareBuffer);
+    printf("duplicate destroyDirectChannel...\n");
+    mgr.destroyDirectChannel(ret);
 }
 
 int main() {

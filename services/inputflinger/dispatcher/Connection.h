@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_CONNECTION_H
-#define _UI_INPUT_INPUTDISPATCHER_CONNECTION_H
+#pragma once
 
 #include "InputState.h"
 
@@ -74,5 +73,3 @@ public:
 };
 
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_CONNECTION_H

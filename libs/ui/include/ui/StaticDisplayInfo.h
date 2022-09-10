@@ -23,7 +23,7 @@
 
 namespace android::ui {
 
-enum class DisplayConnectionType { Internal, External };
+enum class DisplayConnectionType { Internal, External, ftl_last = External };
 
 // Immutable information about physical display.
 struct StaticDisplayInfo {

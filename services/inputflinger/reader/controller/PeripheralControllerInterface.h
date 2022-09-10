@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_INPUT_CONTROLLER_H
-#define _UI_INPUTREADER_INPUT_CONTROLLER_H
+#pragma once
 
 #include "EventHub.h"
 #include "InputDevice.h"
@@ -50,5 +49,3 @@ public:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_INPUT_CONTROLLER_H

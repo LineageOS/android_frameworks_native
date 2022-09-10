@@ -29,7 +29,6 @@
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <ftl/future.h>
-#include <ftl/small_map.h>
 #include <gui/BufferQueue.h>
 #include <gui/CompositorTiming.h>
 #include <gui/FrameTimestamps.h>
@@ -59,6 +58,8 @@
 #include <ui/FenceResult.h>
 
 #include "ClientCache.h"
+#include "Display/DisplayMap.h"
+#include "Display/PhysicalDisplay.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/PowerAdvisor.h"
@@ -515,7 +516,7 @@ private:
     status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken, ui::DisplayPrimaries&);
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode);
     status_t getBootDisplayModeSupport(bool* outSupport) const;
-    status_t setBootDisplayMode(const sp<IBinder>& displayToken, ui::DisplayModeId id);
+    status_t setBootDisplayMode(const sp<display::DisplayToken>&, DisplayModeId);
     status_t clearBootDisplayMode(const sp<IBinder>& displayToken);
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on);
     void setGameContentType(const sp<IBinder>& displayToken, bool on);
@@ -647,25 +648,29 @@ private:
     // Show spinner with refresh rate overlay
     bool mRefreshRateOverlaySpinner = false;
 
-    // Called on the main thread in response to initializeDisplays()
-    void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active mode bit. It obtains the lock, and sets mDesiredActiveMode.
     void setDesiredActiveMode(const ActiveModeInfo& info) REQUIRES(mStateLock);
-    status_t setActiveModeFromBackdoor(const sp<IBinder>& displayToken, int id);
+    status_t setActiveModeFromBackdoor(const sp<display::DisplayToken>&, DisplayModeId);
     // Sets the active mode and a new refresh rate in SF.
-    void updateInternalStateWithChangedMode() REQUIRES(mStateLock);
+    void updateInternalStateWithChangedMode() REQUIRES(mStateLock, kMainThreadContext);
     // Calls to setActiveMode on the main thread if there is a pending mode change
     // that needs to be applied.
-    void setActiveModeInHwcIfNeeded() REQUIRES(mStateLock);
+    void setActiveModeInHwcIfNeeded() REQUIRES(mStateLock, kMainThreadContext);
     void clearDesiredActiveModeState(const sp<DisplayDevice>&) REQUIRES(mStateLock);
     // Called when active mode is no longer is progress
     void desiredActiveModeChangeDone(const sp<DisplayDevice>&) REQUIRES(mStateLock);
     // Called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
-            REQUIRES(mStateLock);
+            REQUIRES(mStateLock, kMainThreadContext);
 
     // Returns true if the display has a visible HDR layer in its layer stack.
     bool hasVisibleHdrLayer(const sp<DisplayDevice>& display) REQUIRES(mStateLock);
+
+    // Returns the preferred mode for PhysicalDisplayId if the Scheduler has selected one for that
+    // display. Falls back to the display's defaultModeId otherwise.
+    std::optional<DisplayModePtr> getPreferredDisplayMode(PhysicalDisplayId,
+                                                          DisplayModeId defaultModeId) const
+            REQUIRES(mStateLock);
 
     // Sets the desired display mode specs.
     status_t setDesiredDisplayModeSpecsInternal(
@@ -673,8 +678,9 @@ private:
             const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
             EXCLUDES(mStateLock);
 
-    void commitTransactions() EXCLUDES(mStateLock);
-    void commitTransactionsLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
+    void commitTransactions() EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
+    void commitTransactionsLocked(uint32_t transactionFlags)
+            REQUIRES(mStateLock, kMainThreadContext);
     void doCommitTransactions() REQUIRES(mStateLock);
 
     // Returns whether a new buffer has been latched.
@@ -817,8 +823,14 @@ private:
     /*
      * Display and layer stack management
      */
-    // called when starting, or restarting after system_server death
+
+    // Called during boot, and restart after system_server death.
     void initializeDisplays();
+    void onInitializeDisplays() REQUIRES(mStateLock, kMainThreadContext);
+
+    bool isDisplayActiveLocked(const sp<const DisplayDevice>& display) const REQUIRES(mStateLock) {
+        return display->getDisplayToken() == mActiveDisplayToken;
+    }
 
     sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) const
             REQUIRES(mStateLock) {
@@ -867,6 +879,21 @@ private:
         return getDefaultDisplayDeviceLocked();
     }
 
+    using DisplayDeviceAndSnapshot =
+            std::pair<sp<DisplayDevice>, display::PhysicalDisplay::SnapshotRef>;
+
+    // Combinator for ftl::Optional<PhysicalDisplay>::and_then.
+    auto getDisplayDeviceAndSnapshot() REQUIRES(mStateLock) {
+        return [this](const display::PhysicalDisplay& display) REQUIRES(
+                       mStateLock) -> ftl::Optional<DisplayDeviceAndSnapshot> {
+            if (auto device = getDisplayDeviceLocked(display.snapshot().displayId())) {
+                return std::make_pair(std::move(device), display.snapshotRef());
+            }
+
+            return {};
+        };
+    }
+
     // Returns the first display that matches a `bool(const DisplayDevice&)` predicate.
     template <typename Predicate>
     sp<DisplayDevice> findDisplay(Predicate p) const REQUIRES(mStateLock) {
@@ -882,8 +909,13 @@ private:
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
 
-    bool isDisplayActiveLocked(const sp<const DisplayDevice>& display) const REQUIRES(mStateLock) {
-        return display->getDisplayToken() == mActiveDisplayToken;
+    ui::LayerFilter makeLayerFilterForDisplay(DisplayId displayId, ui::LayerStack layerStack)
+            REQUIRES(mStateLock) {
+        return {layerStack,
+                PhysicalDisplayId::tryCast(displayId)
+                        .and_then(display::getPhysicalDisplay(mPhysicalDisplays))
+                        .transform(&display::PhysicalDisplay::isInternal)
+                        .value_or(false)};
     }
 
     /*
@@ -926,11 +958,12 @@ private:
             const DisplayDeviceState& state,
             const sp<compositionengine::DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer) REQUIRES(mStateLock);
-    void processDisplayChangesLocked() REQUIRES(mStateLock);
+    void processDisplayChangesLocked() REQUIRES(mStateLock, kMainThreadContext);
     void processDisplayRemoved(const wp<IBinder>& displayToken) REQUIRES(mStateLock);
     void processDisplayChanged(const wp<IBinder>& displayToken,
                                const DisplayDeviceState& currentState,
-                               const DisplayDeviceState& drawingState) REQUIRES(mStateLock);
+                               const DisplayDeviceState& drawingState)
+            REQUIRES(mStateLock, kMainThreadContext);
 
     void dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected);
 
@@ -959,21 +992,16 @@ private:
     /*
      * Display identification
      */
-    sp<IBinder> getPhysicalDisplayTokenLocked(PhysicalDisplayId displayId) const
+    sp<display::DisplayToken> getPhysicalDisplayTokenLocked(PhysicalDisplayId displayId) const
             REQUIRES(mStateLock) {
-        const sp<IBinder> nullToken;
-        return mPhysicalDisplayTokens.get(displayId).value_or(std::cref(nullToken));
+        const sp<display::DisplayToken> nullToken;
+        return mPhysicalDisplays.get(displayId)
+                .transform([](const display::PhysicalDisplay& display) { return display.token(); })
+                .value_or(std::cref(nullToken));
     }
 
     std::optional<PhysicalDisplayId> getPhysicalDisplayIdLocked(
-            const sp<IBinder>& displayToken) const REQUIRES(mStateLock) {
-        for (const auto& [id, token] : mPhysicalDisplayTokens) {
-            if (token == displayToken) {
-                return id;
-            }
-        }
-        return {};
-    }
+            const sp<display::DisplayToken>&) const REQUIRES(mStateLock);
 
     // Returns the first display connected at boot.
     //
@@ -996,7 +1024,8 @@ private:
     VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat) REQUIRES(mStateLock);
     void releaseVirtualDisplay(VirtualDisplayId);
 
-    void onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) REQUIRES(mStateLock);
+    void onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay)
+            REQUIRES(mStateLock, kMainThreadContext);
 
     void onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeDisplay);
 
@@ -1063,14 +1092,14 @@ private:
     /*
      * Misc
      */
-    std::vector<ui::ColorMode> getDisplayColorModes(const DisplayDevice&) REQUIRES(mStateLock);
+    std::vector<ui::ColorMode> getDisplayColorModes(PhysicalDisplayId) REQUIRES(mStateLock);
 
     static int calculateMaxAcquiredBufferCount(Fps refreshRate,
                                                std::chrono::nanoseconds presentLatency);
     int getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) const;
 
     void updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay)
-            REQUIRES(mStateLock);
+            REQUIRES(mStateLock, kMainThreadContext);
 
     bool isHdrLayer(Layer* layer) const;
 
@@ -1164,12 +1193,10 @@ private:
     // Displays are composited in `mDisplays` order. Internal displays are inserted at boot and
     // never removed, so take precedence over external and virtual displays.
     //
-    // The static capacities were chosen to exceed a typical number of physical/virtual displays.
-    //
     // May be read from any thread, but must only be written from the main thread.
-    ftl::SmallMap<wp<IBinder>, const sp<DisplayDevice>, 5> mDisplays GUARDED_BY(mStateLock);
-    ftl::SmallMap<PhysicalDisplayId, const sp<IBinder>, 3> mPhysicalDisplayTokens
-            GUARDED_BY(mStateLock);
+    display::DisplayMap<wp<IBinder>, const sp<DisplayDevice>> mDisplays GUARDED_BY(mStateLock);
+
+    display::PhysicalDisplays mPhysicalDisplays GUARDED_BY(mStateLock);
 
     struct {
         DisplayIdGenerator<GpuVirtualDisplayId> gpu;

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERPOLICYINTERFACE_H
-#define _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERPOLICYINTERFACE_H
+#pragma once
 
 #include "InputDispatcherConfiguration.h"
 
@@ -143,5 +142,3 @@ public:
 };
 
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERPOLICYINTERFACE_H

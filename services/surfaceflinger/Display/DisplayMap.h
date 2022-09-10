@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,16 @@
 
 #pragma once
 
-#include <utils/StrongPointer.h>
+#include <ftl/small_map.h>
 
-#include "InputDispatcherInterface.h"
-#include "InputDispatcherPolicyInterface.h"
+namespace android::display {
 
-namespace android {
+// The static capacities were chosen to exceed a typical number of physical and/or virtual displays.
 
-// This factory method is used to encapsulate implementation details in internal header files.
-std::unique_ptr<InputDispatcherInterface> createInputDispatcher(
-        const sp<InputDispatcherPolicyInterface>& policy);
+template <typename Key, typename Value>
+using DisplayMap = ftl::SmallMap<Key, Value, 5>;
 
-} // namespace android
+template <typename Key, typename Value>
+using PhysicalDisplayMap = ftl::SmallMap<Key, Value, 3>;
+
+} // namespace android::display

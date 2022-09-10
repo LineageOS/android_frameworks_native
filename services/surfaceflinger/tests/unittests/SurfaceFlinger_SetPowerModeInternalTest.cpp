@@ -253,14 +253,16 @@ struct DisplayPowerCase {
     using DispSync = DispSyncVariant;
     using Transition = TransitionVariant;
 
-    static auto injectDisplayWithInitialPowerMode(DisplayTransactionTest* test, PowerMode mode) {
+    static sp<DisplayDevice> injectDisplayWithInitialPowerMode(DisplayTransactionTest* test,
+                                                               PowerMode mode) {
         Display::injectHwcDisplayWithNoDefaultCapabilities(test);
-        auto display = Display::makeFakeExistingDisplayInjector(test);
-        display.inject();
-        display.mutableDisplayDevice()->setPowerMode(mode);
-        if (display.mutableDisplayDevice()->isInternal()) {
-            test->mFlinger.mutableActiveDisplayToken() =
-                    display.mutableDisplayDevice()->getDisplayToken();
+        auto injector = Display::makeFakeExistingDisplayInjector(test);
+        const auto display = injector.inject();
+        display->setPowerMode(mode);
+        if (injector.physicalDisplay()
+                    .transform(&display::PhysicalDisplay::isInternal)
+                    .value_or(false)) {
+            test->mFlinger.mutableActiveDisplayToken() = display->getDisplayToken();
         }
 
         return display;
@@ -353,8 +355,7 @@ void SetPowerModeInternalTest::transitionDisplayCommon() {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.setPowerModeInternal(display.mutableDisplayDevice(),
-                                  Case::Transition::TARGET_POWER_MODE);
+    mFlinger.setPowerModeInternal(display, Case::Transition::TARGET_POWER_MODE);
 
     // --------------------------------------------------------------------
     // Postconditions

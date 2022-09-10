@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_STYLUS_STATE_H
-#define _UI_INPUTREADER_STYLUS_STATE_H
+#pragma once
 
 #include <input/Input.h>
 
@@ -49,5 +48,3 @@ struct StylusState {
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_STYLUS_STATE_H

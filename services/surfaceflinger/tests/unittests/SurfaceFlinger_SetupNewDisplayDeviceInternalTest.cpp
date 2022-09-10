@@ -246,11 +246,14 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
                                             .setDpiY(DEFAULT_DPI)
                                             .setGroup(0)
                                             .build();
+
         state.physical = {.id = *displayId,
-                          .type = *connectionType,
                           .hwcDisplayId = *hwcDisplayId,
-                          .supportedModes = makeModes(activeMode),
-                          .activeMode = std::move(activeMode)};
+                          .activeMode = activeMode};
+
+        mFlinger.mutablePhysicalDisplays().emplace_or_replace(*displayId, displayToken, *displayId,
+                                                              *connectionType,
+                                                              makeModes(activeMode), std::nullopt);
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
@@ -264,7 +267,6 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
 
     ASSERT_TRUE(device != nullptr);
     EXPECT_EQ(Case::Display::DISPLAY_ID::get(), device->getId());
-    EXPECT_EQ(Case::Display::CONNECTION_TYPE::value, device->getConnectionType());
     EXPECT_EQ(static_cast<bool>(Case::Display::VIRTUAL), device->isVirtual());
     EXPECT_EQ(static_cast<bool>(Case::Display::SECURE), device->isSecure());
     EXPECT_EQ(static_cast<bool>(Case::Display::PRIMARY), device->isPrimary());
@@ -280,7 +282,6 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
               device->receivesInput());
 
     if constexpr (Case::Display::CONNECTION_TYPE::value) {
-        EXPECT_EQ(1, device->getSupportedModes().size());
         EXPECT_NE(nullptr, device->getActiveMode());
         EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveMode()->getHwcId());
     }

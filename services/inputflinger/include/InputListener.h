@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_LISTENER_H
-#define _UI_INPUT_LISTENER_H
+#pragma once
 
 #include <vector>
 
@@ -292,5 +291,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUT_LISTENER_H

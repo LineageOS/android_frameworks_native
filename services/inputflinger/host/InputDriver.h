@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_INPUT_DRIVER_H
-#define ANDROID_INPUT_DRIVER_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -192,4 +191,3 @@ void input_free_device_property_map(input_host_t* host, input_property_map_t* ma
 }
 
 } // namespace android
-#endif // ANDROID_INPUT_DRIVER_H

@@ -22,12 +22,12 @@
 #include <cutils/native_handle.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
-#include <utils/Vector.h>
 #include <utils/Timers.h>
+#include <utils/Vector.h>
 
-#include <binder/Parcel.h>
 #include <binder/IInterface.h>
 #include <binder/IResultReceiver.h>
+#include <binder/Parcel.h>
 
 #include <sensor/Sensor.h>
 #include <sensor/ISensorEventConnection.h>
@@ -205,9 +205,10 @@ status_t BnSensorServer::onTransact(
             if (resource == nullptr) {
                 return BAD_VALUE;
             }
+            native_handle_set_fdsan_tag(resource);
             sp<ISensorEventConnection> ch =
                     createSensorDirectConnection(opPackageName, size, type, format, resource);
-            native_handle_close(resource);
+            native_handle_close_with_tag(resource);
             native_handle_delete(resource);
             reply->writeStrongBinder(IInterface::asBinder(ch));
             return NO_ERROR;
