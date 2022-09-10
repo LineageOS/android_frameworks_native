@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_VELOCITY_TRACKER_H
-#define _LIBINPUT_VELOCITY_TRACKER_H
+#pragma once
 
 #include <input/Input.h>
 #include <utils/BitSet.h>
@@ -349,5 +348,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_VELOCITY_TRACKER_H

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_VIRTUAL_KEY_MAP_H
-#define _LIBINPUT_VIRTUAL_KEY_MAP_H
+#pragma once
 
 #include <stdint.h>
 
@@ -77,5 +76,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_KEY_CHARACTER_MAP_H

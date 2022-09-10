@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_INPUT_TRANSPORT_H
-#define _LIBINPUT_INPUT_TRANSPORT_H
+#pragma once
 
 #pragma GCC system_header
 
@@ -674,5 +673,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_INPUT_TRANSPORT_H
