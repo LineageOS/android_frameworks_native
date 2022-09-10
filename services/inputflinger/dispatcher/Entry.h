@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_ENTRY_H
-#define _UI_INPUT_INPUTDISPATCHER_ENTRY_H
+#pragma once
 
 #include "InjectionState.h"
 #include "InputTarget.h"
@@ -257,5 +256,3 @@ VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry,
                                                        const ui::Transform& rawTransform);
 
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_ENTRY_H

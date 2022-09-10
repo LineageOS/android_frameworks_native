@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
-#define _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
+#pragma once
 
 #include <input/DisplayViewport.h>
 #include <stdint.h>
@@ -99,5 +98,3 @@ static void synthesizeButtonKeys(InputReaderContext* context, int32_t action, ns
 }
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H

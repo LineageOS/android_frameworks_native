@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_INPUT_READER_H
-#define _UI_INPUTREADER_INPUT_READER_H
+#pragma once
 
 #include <PointerControllerInterface.h>
 #include <android-base/thread_annotations.h>
@@ -246,5 +245,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_INPUT_READER_H

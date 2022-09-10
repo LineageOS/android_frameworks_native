@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_ANRTRACKER_H
-#define _UI_INPUT_INPUTDISPATCHER_ANRTRACKER_H
+#pragma once
 
 #include <binder/IBinder.h>
 #include <utils/Timers.h>
@@ -56,5 +55,3 @@ private:
 };
 
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_ANRTRACKER_H

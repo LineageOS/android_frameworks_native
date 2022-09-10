@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_MACROS_H
-#define _UI_INPUTREADER_MACROS_H
+#pragma once
 
 #define LOG_TAG "InputReader"
 
@@ -115,5 +114,3 @@ static inline bool sourcesMatchMask(uint32_t sources, uint32_t sourceMask) {
 }
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_MACROS_H

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_MULTI_TOUCH_INPUT_MAPPER_H
-#define _UI_INPUTREADER_MULTI_TOUCH_INPUT_MAPPER_H
+#pragma once
 
 #include "TouchInputMapper.h"
 
@@ -122,5 +121,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_MULTI_TOUCH_INPUT_MAPPER_H

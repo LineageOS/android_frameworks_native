@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_INPUT_READER_CONTEXT_H
-#define _UI_INPUTREADER_INPUT_READER_CONTEXT_H
+#pragma once
 
 #include <input/InputDevice.h>
 
@@ -65,5 +64,3 @@ public:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_INPUT_READER_CONTEXT_H

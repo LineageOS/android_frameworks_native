@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_INPUTSTATE_H
-#define _UI_INPUT_INPUTDISPATCHER_INPUTSTATE_H
+#pragma once
 
 #include "CancelationOptions.h"
 #include "Entry.h"
@@ -134,5 +133,3 @@ private:
 
 } // namespace inputdispatcher
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_INPUTSTATE_H

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_DISPATCHER_DEBUG_CONFIG_H
-#define _UI_INPUT_DISPATCHER_DEBUG_CONFIG_H
+#pragma once
 
 #define LOG_TAG "InputDispatcher"
 
@@ -95,5 +94,3 @@ const bool DEBUG_APP_SWITCH =
 const bool DEBUG_HOVER =
         __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Hover", ANDROID_LOG_INFO);
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_DISPATCHER_DEBUG_CONFIG_H

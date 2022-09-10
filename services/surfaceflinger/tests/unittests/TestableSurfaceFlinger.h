@@ -223,7 +223,7 @@ public:
             configs = std::make_shared<scheduler::RefreshRateConfigs>(modes, kModeId60);
         }
 
-        const auto fps = configs->getActiveMode()->getFps();
+        const auto fps = FTL_FAKE_GUARD(kMainThreadContext, configs->getActiveMode().getFps());
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
         mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
                 mFlinger->mVsyncConfiguration->getCurrentConfigs());
@@ -371,6 +371,7 @@ public:
 
     void commitTransactionsLocked(uint32_t transactionFlags) {
         Mutex::Autolock lock(mFlinger->mStateLock);
+        ftl::FakeGuard guard(kMainThreadContext);
         mFlinger->commitTransactionsLocked(transactionFlags);
     }
 
@@ -464,6 +465,7 @@ public:
 
     void onActiveDisplayChanged(const sp<DisplayDevice>& activeDisplay) {
         Mutex::Autolock lock(mFlinger->mStateLock);
+        ftl::FakeGuard guard(kMainThreadContext);
         mFlinger->onActiveDisplayChangedLocked(activeDisplay);
     }
 

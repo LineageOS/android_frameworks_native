@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_TEST_INPUT_UINPUT_INJECTOR_H
-#define _UI_TEST_INPUT_UINPUT_INJECTOR_H
+#pragma once
 
 #include <android-base/unique_fd.h>
 #include <gtest/gtest.h>
@@ -155,5 +154,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_TEST_INPUT_UINPUT_INJECTOR_H

@@ -16,7 +16,6 @@
 #include <android-base/strings.h>
 #include <android/content/pm/IPackageManagerNative.h>
 #include <android/util/ProtoOutputStream.h>
-#include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <binder/ActivityManager.h>
 #include <binder/BinderService.h>
 #include <binder/IServiceManager.h>
@@ -25,6 +24,7 @@
 #include <cutils/ashmem.h>
 #include <cutils/misc.h>
 #include <cutils/properties.h>
+#include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <hardware/sensors.h>
 #include <hardware_legacy/power.h>
 #include <log/log.h>
@@ -1475,6 +1475,7 @@ sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
     if (!clone) {
         return nullptr;
     }
+    native_handle_set_fdsan_tag(clone);
 
     sp<SensorDirectConnection> conn;
     SensorDevice& dev(SensorDevice::getInstance());
@@ -1488,7 +1489,7 @@ sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
     }
 
     if (conn == nullptr) {
-        native_handle_close(clone);
+        native_handle_close_with_tag(clone);
         native_handle_delete(clone);
     } else {
         // add to list of direct connections

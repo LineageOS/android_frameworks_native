@@ -229,7 +229,7 @@ public:
 
     nsecs_t getVsyncPeriodFromRefreshRateConfigs() const EXCLUDES(mRefreshRateConfigsLock) {
         std::scoped_lock lock(mRefreshRateConfigsLock);
-        return mRefreshRateConfigs->getActiveMode()->getFps().getPeriodNsecs();
+        return mRefreshRateConfigs->getActiveModePtr()->getFps().getPeriodNsecs();
     }
 
     // Returns the framerate of the layer with the given sequence ID

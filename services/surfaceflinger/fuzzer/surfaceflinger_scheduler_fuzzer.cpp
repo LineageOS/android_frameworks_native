@@ -366,7 +366,7 @@ void SchedulerFuzzer::fuzzRefreshRateConfigs() {
             {modeId,
              {Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
               Fps::fromValue(mFdp.ConsumeFloatingPoint<float>())}});
-    refreshRateConfigs.setActiveModeId(modeId);
+    FTL_FAKE_GUARD(kMainThreadContext, refreshRateConfigs.setActiveModeId(modeId));
 
     RefreshRateConfigs::isFractionalPairOrMultiple(Fps::fromValue(
                                                            mFdp.ConsumeFloatingPoint<float>()),

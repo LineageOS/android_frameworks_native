@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_DRAGSTATE_H
-#define _UI_INPUT_INPUTDISPATCHER_DRAGSTATE_H
+#pragma once
 
 #include <gui/WindowInfo.h>
 #include <utils/StrongPointer.h>
@@ -44,5 +43,3 @@ struct DragState {
 
 } // namespace inputdispatcher
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_DRAGSTATE_H

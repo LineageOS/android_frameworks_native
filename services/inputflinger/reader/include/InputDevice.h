@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_INPUT_DEVICE_H
-#define _UI_INPUTREADER_INPUT_DEVICE_H
+#pragma once
 
 #include <ftl/flags.h>
 #include <input/DisplayViewport.h>
@@ -409,5 +408,3 @@ private:
 };
 
 } // namespace android
-
-#endif //_UI_INPUTREADER_INPUT_DEVICE_H

@@ -18,6 +18,7 @@
 #define LOG_TAG "SchedulerUnittests"
 
 #include <ftl/enum.h>
+#include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <log/log.h>
 #include <ui/Size.h>
@@ -40,6 +41,16 @@ using mock::createDisplayMode;
 
 struct TestableRefreshRateConfigs : RefreshRateConfigs {
     using RefreshRateConfigs::RefreshRateConfigs;
+
+    void setActiveModeId(DisplayModeId modeId) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return RefreshRateConfigs::setActiveModeId(modeId);
+    }
+
+    const DisplayMode& getActiveMode() const {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return RefreshRateConfigs::getActiveMode();
+    }
 
     DisplayModePtr getMinSupportedRefreshRate() const {
         std::lock_guard lock(mLock);
@@ -243,20 +254,20 @@ TEST_F(RefreshRateConfigsTest, twoModes_policyChange) {
 TEST_F(RefreshRateConfigsTest, twoModes_getActiveMode) {
     TestableRefreshRateConfigs configs(kModes_60_90, kModeId60);
     {
-        const auto mode = configs.getActiveMode();
-        EXPECT_EQ(mode->getId(), kModeId60);
+        const auto& mode = configs.getActiveMode();
+        EXPECT_EQ(mode.getId(), kModeId60);
     }
 
     configs.setActiveModeId(kModeId90);
     {
-        const auto mode = configs.getActiveMode();
-        EXPECT_EQ(mode->getId(), kModeId90);
+        const auto& mode = configs.getActiveMode();
+        EXPECT_EQ(mode.getId(), kModeId90);
     }
 
     EXPECT_GE(configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}}), 0);
     {
-        const auto mode = configs.getActiveMode();
-        EXPECT_EQ(mode->getId(), kModeId90);
+        const auto& mode = configs.getActiveMode();
+        EXPECT_EQ(mode.getId(), kModeId90);
     }
 }
 
@@ -1898,30 +1909,30 @@ TEST_F(RefreshRateConfigsTest, testKernelIdleTimerActionFor120Hz) {
 }
 
 TEST_F(RefreshRateConfigsTest, getFrameRateDivisor) {
-    RefreshRateConfigs configs(kModes_30_60_72_90_120, kModeId30);
+    TestableRefreshRateConfigs configs(kModes_30_60_72_90_120, kModeId30);
 
     const auto frameRate = 30_Hz;
-    Fps displayRefreshRate = configs.getActiveMode()->getFps();
+    Fps displayRefreshRate = configs.getActiveMode().getFps();
     EXPECT_EQ(1, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setActiveModeId(kModeId60);
-    displayRefreshRate = configs.getActiveMode()->getFps();
+    displayRefreshRate = configs.getActiveMode().getFps();
     EXPECT_EQ(2, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setActiveModeId(kModeId72);
-    displayRefreshRate = configs.getActiveMode()->getFps();
+    displayRefreshRate = configs.getActiveMode().getFps();
     EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setActiveModeId(kModeId90);
-    displayRefreshRate = configs.getActiveMode()->getFps();
+    displayRefreshRate = configs.getActiveMode().getFps();
     EXPECT_EQ(3, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setActiveModeId(kModeId120);
-    displayRefreshRate = configs.getActiveMode()->getFps();
+    displayRefreshRate = configs.getActiveMode().getFps();
     EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, frameRate));
 
     configs.setActiveModeId(kModeId90);
-    displayRefreshRate = configs.getActiveMode()->getFps();
+    displayRefreshRate = configs.getActiveMode().getFps();
     EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivisor(displayRefreshRate, 22.5_Hz));
 
     EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivisor(24_Hz, 25_Hz));

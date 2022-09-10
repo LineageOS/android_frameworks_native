@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_INPUT_HOST_H
-#define ANDROID_INPUT_HOST_H
+#pragma once
 
 #include <vector>
 
@@ -55,4 +54,3 @@ private:
 };
 
 } // namespace android
-#endif // ANDRIOD_INPUT_HOST_H
