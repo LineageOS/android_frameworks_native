@@ -2712,17 +2712,18 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
     // Update the velocity tracker.
     {
-        std::vector<VelocityTracker::Position> positions;
+        std::vector<float> positionsX;
+        std::vector<float> positionsY;
         for (BitSet32 idBits(mCurrentCookedState.fingerIdBits); !idBits.isEmpty();) {
             uint32_t id = idBits.clearFirstMarkedBit();
             const RawPointerData::Pointer& pointer =
                     mCurrentRawState.rawPointerData.pointerForId(id);
-            float x = pointer.x * mPointerXMovementScale;
-            float y = pointer.y * mPointerYMovementScale;
-            positions.push_back({x, y});
+            positionsX.push_back(pointer.x * mPointerXMovementScale);
+            positionsY.push_back(pointer.y * mPointerYMovementScale);
         }
         mPointerGesture.velocityTracker.addMovement(when, mCurrentCookedState.fingerIdBits,
-                                                    positions);
+                                                    {{AMOTION_EVENT_AXIS_X, positionsX},
+                                                     {AMOTION_EVENT_AXIS_Y, positionsY}});
     }
 
     // If the gesture ever enters a mode other than TAP, HOVER or TAP_DRAG, without first returning
@@ -2829,9 +2830,12 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             float bestSpeed = mConfig.pointerGestureDragMinSwitchSpeed;
             for (BitSet32 idBits(mCurrentCookedState.fingerIdBits); !idBits.isEmpty();) {
                 uint32_t id = idBits.clearFirstMarkedBit();
-                float vx, vy;
-                if (mPointerGesture.velocityTracker.getVelocity(id, &vx, &vy)) {
-                    float speed = hypotf(vx, vy);
+                std::optional<float> vx =
+                        mPointerGesture.velocityTracker.getVelocity(AMOTION_EVENT_AXIS_X, id);
+                std::optional<float> vy =
+                        mPointerGesture.velocityTracker.getVelocity(AMOTION_EVENT_AXIS_Y, id);
+                if (vx && vy) {
+                    float speed = hypotf(*vx, *vy);
                     if (speed > bestSpeed) {
                         bestId = id;
                         bestSpeed = speed;
