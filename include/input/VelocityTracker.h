@@ -146,16 +146,12 @@ public:
     inline int32_t getActivePointerId() const { return mActivePointerId; }
 
 private:
-    // The default velocity tracker strategy.
+    // All axes supported for velocity tracking, mapped to their default strategies.
     // Although other strategies are available for testing and comparison purposes,
-    // this is the strategy that applications will actually use.  Be very careful
+    // the default strategy is the one that applications will actually use.  Be very careful
     // when adjusting the default strategy because it can dramatically affect
     // (often in a bad way) the user experience.
-    // TODO(b/32830165): define default strategy per axis.
-    static const Strategy DEFAULT_STRATEGY = Strategy::LSQ2;
-
-    // Set of all axes supported for velocity tracking.
-    static const std::set<int32_t> SUPPORTED_AXES;
+    static const std::map<int32_t, Strategy> DEFAULT_STRATEGY_BY_AXIS;
 
     // Axes specifying location on a 2D plane (i.e. X and Y).
     static const std::set<int32_t> PLANAR_AXES;
@@ -163,9 +159,17 @@ private:
     nsecs_t mLastEventTime;
     BitSet32 mCurrentPointerIdBits;
     int32_t mActivePointerId;
-    std::map<int32_t /*axis*/, std::unique_ptr<VelocityTrackerStrategy>> mStrategies;
 
-    void configureStrategy(int32_t axis, const Strategy strategy);
+    // An override strategy passed in the constructor to be used for all axes.
+    // This strategy will apply to all axes, unless the default strategy is specified here.
+    // When default strategy is specified, then each axis will use a potentially different strategy
+    // based on a hardcoded mapping.
+    const Strategy mOverrideStrategy;
+    // Maps axes to their respective VelocityTrackerStrategy instances.
+    // Note that, only axes that have had MotionEvents (and not all supported axes) will be here.
+    std::map<int32_t /*axis*/, std::unique_ptr<VelocityTrackerStrategy>> mConfiguredStrategies;
+
+    void configureStrategy(int32_t axis);
 
     static std::unique_ptr<VelocityTrackerStrategy> createStrategy(const Strategy strategy);
 };
@@ -181,7 +185,6 @@ protected:
 public:
     virtual ~VelocityTrackerStrategy() { }
 
-    virtual void clear() = 0;
     virtual void clearPointers(BitSet32 idBits) = 0;
     virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
                              const std::vector<float>& positions) = 0;
@@ -213,7 +216,6 @@ public:
     LeastSquaresVelocityTrackerStrategy(uint32_t degree, Weighting weighting = WEIGHTING_NONE);
     virtual ~LeastSquaresVelocityTrackerStrategy();
 
-    virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
                      const std::vector<float>& positions) override;
@@ -254,7 +256,6 @@ public:
     IntegratingVelocityTrackerStrategy(uint32_t degree);
     ~IntegratingVelocityTrackerStrategy();
 
-    virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
                      const std::vector<float>& positions) override;
@@ -287,7 +288,6 @@ public:
     LegacyVelocityTrackerStrategy();
     virtual ~LegacyVelocityTrackerStrategy();
 
-    virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
                      const std::vector<float>& positions) override;
@@ -320,7 +320,6 @@ public:
     ImpulseVelocityTrackerStrategy();
     virtual ~ImpulseVelocityTrackerStrategy();
 
-    virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
                      const std::vector<float>& positions) override;
