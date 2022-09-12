@@ -25,7 +25,6 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 #include "BufferStateLayer.h"
-#include "EffectLayer.h"
 #include "Layer.h"
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
@@ -374,11 +373,6 @@ TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
     const auto& layerFactory = GetParam();
 
     auto parent = mLayers.emplace_back(layerFactory->createLayer(mFlinger));
-    if (!parent->isVisible()) {
-        // This is a hack as all the test layers except EffectLayer are not visible,
-        // but since the logic is unified in Layer, it should be fine.
-        return;
-    }
 
     auto child = mLayers.emplace_back(layerFactory->createLayer(mFlinger));
     addChild(parent, child);

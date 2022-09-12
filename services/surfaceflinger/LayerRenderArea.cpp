@@ -18,7 +18,6 @@
 #include <ui/Transform.h>
 
 #include "DisplayDevice.h"
-#include "EffectLayer.h"
 #include "Layer.h"
 #include "LayerRenderArea.h"
 #include "SurfaceFlinger.h"
@@ -110,7 +109,7 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
         // layer which has no properties set and which does not draw.
         //  We hold the statelock as the reparent-for-drawing operation modifies the
         //  hierarchy and there could be readers on Binder threads, like dump.
-        sp<EffectLayer> screenshotParentLayer = mFlinger.getFactory().createEffectLayer(
+        auto screenshotParentLayer = mFlinger.getFactory().createEffectLayer(
                 {&mFlinger, nullptr, "Screenshot Parent"s, ISurfaceComposerClient::eNoColorFill,
                  LayerMetadata()});
         {

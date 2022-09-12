@@ -65,9 +65,9 @@
 #include <mutex>
 #include <sstream>
 
+#include "BufferStateLayer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWComposer.h"
-#include "EffectLayer.h"
 #include "FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
 #include "LayerProtoHelper.h"
@@ -2205,8 +2205,8 @@ void Layer::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
     renderengine::ShadowSettings state = mFlinger->mDrawingState.globalShadowSettings;
 
     // Note: this preserves existing behavior of shadowing the entire layer and not cropping it if
-    // transparent regions are present. This may not be necessary since shadows are only cast by
-    // SurfaceFlinger's EffectLayers, which do not typically use transparent regions.
+    // transparent regions are present. This may not be necessary since shadows are typically cast
+    // by layers without transparent regions.
     state.boundaries = mBounds;
 
     // Shift the spot light x-position to the middle of the display and then

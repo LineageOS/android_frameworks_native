@@ -22,7 +22,6 @@
 #include <gui/LayerMetadata.h>
 
 #include "BufferStateLayer.h"
-#include "EffectLayer.h"
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
@@ -60,7 +59,7 @@ protected:
 
     void setupScheduler();
     sp<BufferStateLayer> createBufferStateLayer();
-    sp<EffectLayer> createEffectLayer();
+    sp<Layer> createEffectLayer();
 
     void setParent(Layer* child, Layer* parent);
     void commitTransaction(Layer* layer);
@@ -96,10 +95,10 @@ sp<BufferStateLayer> RefreshRateSelectionTest::createBufferStateLayer() {
     return sp<BufferStateLayer>::make(args);
 }
 
-sp<EffectLayer> RefreshRateSelectionTest::createEffectLayer() {
+sp<Layer> RefreshRateSelectionTest::createEffectLayer() {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "color-layer", LAYER_FLAGS, LayerMetadata());
-    return sp<EffectLayer>::make(args);
+    return sp<Layer>::make(args);
 }
 
 void RefreshRateSelectionTest::setParent(Layer* child, Layer* parent) {

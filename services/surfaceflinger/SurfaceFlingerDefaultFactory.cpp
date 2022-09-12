@@ -24,7 +24,6 @@
 
 #include "BufferStateLayer.h"
 #include "DisplayDevice.h"
-#include "EffectLayer.h"
 #include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
@@ -94,8 +93,8 @@ sp<BufferStateLayer> DefaultFactory::createBufferStateLayer(const LayerCreationA
     return sp<BufferStateLayer>::make(args);
 }
 
-sp<EffectLayer> DefaultFactory::createEffectLayer(const LayerCreationArgs& args) {
-    return sp<EffectLayer>::make(args);
+sp<Layer> DefaultFactory::createEffectLayer(const LayerCreationArgs& args) {
+    return sp<Layer>::make(args);
 }
 
 std::unique_ptr<FrameTracer> DefaultFactory::createFrameTracer() {
