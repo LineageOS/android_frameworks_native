@@ -10099,7 +10099,7 @@ protected:
 
 TEST_F(LightControllerTest, MonoLight) {
     RawLightInfo infoMono = {.id = 1,
-                             .name = "Mono",
+                             .name = "mono_light",
                              .maxBrightness = 255,
                              .flags = InputLightClass::BRIGHTNESS,
                              .path = ""};
@@ -10110,7 +10110,29 @@ TEST_F(LightControllerTest, MonoLight) {
     controller.populateDeviceInfo(&info);
     std::vector<InputDeviceLightInfo> lights = info.getLights();
     ASSERT_EQ(1U, lights.size());
-    ASSERT_EQ(InputDeviceLightType::MONO, lights[0].type);
+    ASSERT_EQ(InputDeviceLightType::INPUT, lights[0].type);
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
+
+    ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_BRIGHTNESS));
+    ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_BRIGHTNESS);
+}
+
+TEST_F(LightControllerTest, MonoKeyboardBacklight) {
+    RawLightInfo infoMono = {.id = 1,
+                             .name = "mono_keyboard_backlight",
+                             .maxBrightness = 255,
+                             .flags = InputLightClass::BRIGHTNESS |
+                                     InputLightClass::KEYBOARD_BACKLIGHT,
+                             .path = ""};
+    mFakeEventHub->addRawLightInfo(infoMono.id, std::move(infoMono));
+
+    PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
+    InputDeviceInfo info;
+    controller.populateDeviceInfo(&info);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_EQ(InputDeviceLightType::KEYBOARD_BACKLIGHT, lights[0].type);
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
 
     ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_BRIGHTNESS));
     ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_BRIGHTNESS);
@@ -10141,7 +10163,85 @@ TEST_F(LightControllerTest, RGBLight) {
     controller.populateDeviceInfo(&info);
     std::vector<InputDeviceLightInfo> lights = info.getLights();
     ASSERT_EQ(1U, lights.size());
-    ASSERT_EQ(InputDeviceLightType::RGB, lights[0].type);
+    ASSERT_EQ(InputDeviceLightType::INPUT, lights[0].type);
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::RGB));
+
+    ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
+    ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_COLOR);
+}
+
+TEST_F(LightControllerTest, CorrectRGBKeyboardBacklight) {
+    RawLightInfo infoRed = {.id = 1,
+                            .name = "red_keyboard_backlight",
+                            .maxBrightness = 255,
+                            .flags = InputLightClass::BRIGHTNESS | InputLightClass::RED |
+                                    InputLightClass::KEYBOARD_BACKLIGHT,
+                            .path = ""};
+    RawLightInfo infoGreen = {.id = 2,
+                              .name = "green_keyboard_backlight",
+                              .maxBrightness = 255,
+                              .flags = InputLightClass::BRIGHTNESS | InputLightClass::GREEN |
+                                      InputLightClass::KEYBOARD_BACKLIGHT,
+                              .path = ""};
+    RawLightInfo infoBlue = {.id = 3,
+                             .name = "blue_keyboard_backlight",
+                             .maxBrightness = 255,
+                             .flags = InputLightClass::BRIGHTNESS | InputLightClass::BLUE |
+                                     InputLightClass::KEYBOARD_BACKLIGHT,
+                             .path = ""};
+    mFakeEventHub->addRawLightInfo(infoRed.id, std::move(infoRed));
+    mFakeEventHub->addRawLightInfo(infoGreen.id, std::move(infoGreen));
+    mFakeEventHub->addRawLightInfo(infoBlue.id, std::move(infoBlue));
+
+    PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
+    InputDeviceInfo info;
+    controller.populateDeviceInfo(&info);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_EQ(InputDeviceLightType::KEYBOARD_BACKLIGHT, lights[0].type);
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::RGB));
+
+    ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
+    ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_COLOR);
+}
+
+TEST_F(LightControllerTest, IncorrectRGBKeyboardBacklight) {
+    RawLightInfo infoRed = {.id = 1,
+                            .name = "red",
+                            .maxBrightness = 255,
+                            .flags = InputLightClass::BRIGHTNESS | InputLightClass::RED,
+                            .path = ""};
+    RawLightInfo infoGreen = {.id = 2,
+                              .name = "green",
+                              .maxBrightness = 255,
+                              .flags = InputLightClass::BRIGHTNESS | InputLightClass::GREEN,
+                              .path = ""};
+    RawLightInfo infoBlue = {.id = 3,
+                             .name = "blue",
+                             .maxBrightness = 255,
+                             .flags = InputLightClass::BRIGHTNESS | InputLightClass::BLUE,
+                             .path = ""};
+    RawLightInfo infoGlobal = {.id = 3,
+                               .name = "global_keyboard_backlight",
+                               .maxBrightness = 255,
+                               .flags = InputLightClass::BRIGHTNESS | InputLightClass::GLOBAL |
+                                       InputLightClass::KEYBOARD_BACKLIGHT,
+                               .path = ""};
+    mFakeEventHub->addRawLightInfo(infoRed.id, std::move(infoRed));
+    mFakeEventHub->addRawLightInfo(infoGreen.id, std::move(infoGreen));
+    mFakeEventHub->addRawLightInfo(infoBlue.id, std::move(infoBlue));
+    mFakeEventHub->addRawLightInfo(infoBlue.id, std::move(infoGlobal));
+
+    PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
+    InputDeviceInfo info;
+    controller.populateDeviceInfo(&info);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_EQ(InputDeviceLightType::INPUT, lights[0].type);
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::RGB));
 
     ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
     ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_COLOR);
@@ -10149,7 +10249,7 @@ TEST_F(LightControllerTest, RGBLight) {
 
 TEST_F(LightControllerTest, MultiColorRGBLight) {
     RawLightInfo infoColor = {.id = 1,
-                              .name = "red",
+                              .name = "multi_color",
                               .maxBrightness = 255,
                               .flags = InputLightClass::BRIGHTNESS |
                                       InputLightClass::MULTI_INTENSITY |
@@ -10163,7 +10263,34 @@ TEST_F(LightControllerTest, MultiColorRGBLight) {
     controller.populateDeviceInfo(&info);
     std::vector<InputDeviceLightInfo> lights = info.getLights();
     ASSERT_EQ(1U, lights.size());
-    ASSERT_EQ(InputDeviceLightType::MULTI_COLOR, lights[0].type);
+    ASSERT_EQ(InputDeviceLightType::INPUT, lights[0].type);
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::RGB));
+
+    ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
+    ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_COLOR);
+}
+
+TEST_F(LightControllerTest, MultiColorRGBKeyboardBacklight) {
+    RawLightInfo infoColor = {.id = 1,
+                              .name = "multi_color_keyboard_backlight",
+                              .maxBrightness = 255,
+                              .flags = InputLightClass::BRIGHTNESS |
+                                      InputLightClass::MULTI_INTENSITY |
+                                      InputLightClass::MULTI_INDEX |
+                                      InputLightClass::KEYBOARD_BACKLIGHT,
+                              .path = ""};
+
+    mFakeEventHub->addRawLightInfo(infoColor.id, std::move(infoColor));
+
+    PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
+    InputDeviceInfo info;
+    controller.populateDeviceInfo(&info);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_EQ(InputDeviceLightType::KEYBOARD_BACKLIGHT, lights[0].type);
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
+    ASSERT_TRUE(lights[0].capabilityFlags.test(InputDeviceLightCapability::RGB));
 
     ASSERT_TRUE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
     ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_COLOR);
@@ -10201,6 +10328,8 @@ TEST_F(LightControllerTest, PlayerIdLight) {
     std::vector<InputDeviceLightInfo> lights = info.getLights();
     ASSERT_EQ(1U, lights.size());
     ASSERT_EQ(InputDeviceLightType::PLAYER_ID, lights[0].type);
+    ASSERT_FALSE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
+    ASSERT_FALSE(lights[0].capabilityFlags.test(InputDeviceLightCapability::RGB));
 
     ASSERT_FALSE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
     ASSERT_TRUE(controller.setLightPlayerId(lights[0].id, LIGHT_PLAYER_ID));

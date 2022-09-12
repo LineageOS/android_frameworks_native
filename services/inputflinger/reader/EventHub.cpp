@@ -117,7 +117,8 @@ static const std::unordered_map<std::string, InputLightClass> LIGHT_CLASSES =
          {"brightness", InputLightClass::BRIGHTNESS},
          {"multi_index", InputLightClass::MULTI_INDEX},
          {"multi_intensity", InputLightClass::MULTI_INTENSITY},
-         {"max_brightness", InputLightClass::MAX_BRIGHTNESS}};
+         {"max_brightness", InputLightClass::MAX_BRIGHTNESS},
+         {"kbd_backlight", InputLightClass::KEYBOARD_BACKLIGHT}};
 
 // Mapping for input multicolor led class node names.
 // https://www.kernel.org/doc/html/latest/leds/leds-class-multicolor.html
@@ -365,15 +366,26 @@ static std::unordered_map<int32_t /*lightId*/, RawLightInfo> readLightsConfigura
         info.path = nodePath;
         info.name = nodePath.filename();
         info.maxBrightness = std::nullopt;
-        size_t nameStart = info.name.rfind(":");
-        if (nameStart != std::string::npos) {
-            // Trim the name to color name
-            info.name = info.name.substr(nameStart + 1);
-            // Set InputLightClass flag for colors
-            const auto it = LIGHT_CLASSES.find(info.name);
-            if (it != LIGHT_CLASSES.end()) {
-                info.flags |= it->second;
+
+        // Light name should follow the naming pattern <name>:<color>:<function>
+        // Refer kernel docs /leds/leds-class.html for valid supported LED names.
+        std::regex indexPattern("([a-zA-Z0-9_.:]*:)?([a-zA-Z0-9_.]*):([a-zA-Z0-9_.]*)");
+        std::smatch results;
+
+        if (std::regex_match(info.name, results, indexPattern)) {
+            // regex_match will return full match at index 0 and <name> at index 1. For RawLightInfo
+            // we only care about sections <color> and <function> which will be at index 2 and 3.
+            for (int i = 2; i <= 3; i++) {
+                const auto it = LIGHT_CLASSES.find(results.str(i));
+                if (it != LIGHT_CLASSES.end()) {
+                    info.flags |= it->second;
+                }
             }
+
+            // Set name of the raw light to <function> which represents playerIDs for LEDs that
+            // turn on/off based on the current player ID (Refer to PeripheralController.cpp for
+            // player ID logic)
+            info.name = results.str(3);
         }
         // Scan the path for all the files
         // Refer to https://www.kernel.org/doc/Documentation/leds/leds-class.txt
