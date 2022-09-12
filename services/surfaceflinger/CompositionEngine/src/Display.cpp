@@ -430,4 +430,13 @@ void Display::finishFrame(GpuCompositionResult&& result) {
     impl::Output::finishFrame(std::move(result));
 }
 
+bool Display::supportsOffloadPresent() const {
+    if (const auto halDisplayId = HalDisplayId::tryCast(mId)) {
+        const auto& hwc = getCompositionEngine().getHwComposer();
+        return hwc.hasDisplayCapability(*halDisplayId, DisplayCapability::MULTI_THREADED_PRESENT);
+    }
+
+    return false;
+}
+
 } // namespace android::compositionengine::impl
