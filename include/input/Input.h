@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_INPUT_H
-#define _LIBINPUT_INPUT_H
+#pragma once
 
 #pragma GCC system_header
 
@@ -1104,5 +1103,3 @@ enum class PointerIconStyle : int32_t {
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_INPUT_H

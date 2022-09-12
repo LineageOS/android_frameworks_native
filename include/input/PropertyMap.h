@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UTILS_PROPERTY_MAP_H
-#define _UTILS_PROPERTY_MAP_H
+#pragma once
 
 #include <android-base/result.h>
 #include <utils/Tokenizer.h>
@@ -98,5 +97,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UTILS_PROPERTY_MAP_H

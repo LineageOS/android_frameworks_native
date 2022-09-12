@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_KEY_LAYOUT_MAP_H
-#define _LIBINPUT_KEY_LAYOUT_MAP_H
+#pragma once
 
 #include <android-base/result.h>
 #include <stdint.h>
@@ -131,5 +130,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_KEY_LAYOUT_MAP_H

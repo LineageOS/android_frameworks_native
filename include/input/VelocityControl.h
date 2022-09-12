@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_VELOCITY_CONTROL_H
-#define _LIBINPUT_VELOCITY_CONTROL_H
+#pragma once
 
 #include <input/Input.h>
 #include <input/VelocityTracker.h>
@@ -103,5 +102,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_VELOCITY_CONTROL_H
