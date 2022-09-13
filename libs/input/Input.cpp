@@ -929,6 +929,8 @@ std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
         out << ", actionButton=" << std::to_string(event.getActionButton());
     }
     const size_t pointerCount = event.getPointerCount();
+    LOG_ALWAYS_FATAL_IF(pointerCount > MAX_POINTERS, "Too many pointers : pointerCount = %zu",
+                        pointerCount);
     for (size_t i = 0; i < pointerCount; i++) {
         out << ", id[" << i << "]=" << event.getPointerId(i);
         float x = event.getX(i);
