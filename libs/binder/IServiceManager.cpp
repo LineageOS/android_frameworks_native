@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "ServiceManager"
+#define LOG_TAG "ServiceManagerCppClient"
 
 #include <binder/IServiceManager.h>
 
