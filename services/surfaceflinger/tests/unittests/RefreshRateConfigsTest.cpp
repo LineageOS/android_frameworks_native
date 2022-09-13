@@ -977,6 +977,32 @@ TEST_F(RefreshRateConfigsTest, scrollWhileWatching60fps_60_90) {
     EXPECT_EQ(kMode90, configs.getBestRefreshRate(layers));
 }
 
+TEST_F(RefreshRateConfigsTest, powerOnImminentConsidered) {
+    RefreshRateConfigs configs(kModes_60_90, kModeId60);
+
+    auto [refreshRate, signals] = configs.getBestRefreshRate({}, {});
+    EXPECT_FALSE(signals.powerOnImminent);
+    EXPECT_EQ(kMode90, refreshRate);
+
+    std::tie(refreshRate, signals) = configs.getBestRefreshRate({}, {.powerOnImminent = true});
+    EXPECT_TRUE(signals.powerOnImminent);
+    EXPECT_EQ(kMode90, refreshRate);
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    auto& lr1 = layers[0];
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.desiredRefreshRate = 60_Hz;
+    lr1.name = "60Hz ExplicitExactOrMultiple";
+
+    std::tie(refreshRate, signals) = configs.getBestRefreshRate(layers, {.powerOnImminent = false});
+    EXPECT_FALSE(signals.powerOnImminent);
+    EXPECT_EQ(kMode60, refreshRate);
+
+    std::tie(refreshRate, signals) = configs.getBestRefreshRate(layers, {.powerOnImminent = true});
+    EXPECT_TRUE(signals.powerOnImminent);
+    EXPECT_EQ(kMode90, refreshRate);
+}
+
 TEST_F(RefreshRateConfigsTest, touchConsidered) {
     RefreshRateConfigs configs(kModes_60_90, kModeId60);
 
