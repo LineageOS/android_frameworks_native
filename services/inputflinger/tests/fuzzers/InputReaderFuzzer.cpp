@@ -107,6 +107,10 @@ public:
         return reader->getBatteryStatus(deviceId);
     }
 
+    std::optional<std::string> getBatteryDevicePath(int32_t deviceId) {
+        return reader->getBatteryDevicePath(deviceId);
+    }
+
     std::vector<InputDeviceLightInfo> getLights(int32_t deviceId) {
         return reader->getLights(deviceId);
     }
@@ -232,6 +236,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void { reader->getBatteryCapacity(fdp->ConsumeIntegral<int32_t>()); },
                 [&]() -> void { reader->getBatteryStatus(fdp->ConsumeIntegral<int32_t>()); },
+                [&]() -> void { reader->getBatteryDevicePath(fdp->ConsumeIntegral<int32_t>()); },
                 [&]() -> void { reader->getLights(fdp->ConsumeIntegral<int32_t>()); },
                 [&]() -> void { reader->getSensors(fdp->ConsumeIntegral<int32_t>()); },
                 [&]() -> void {

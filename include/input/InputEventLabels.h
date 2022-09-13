@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_INPUT_EVENT_LABELS_H
-#define _LIBINPUT_INPUT_EVENT_LABELS_H
+#pragma once
 
 #include <input/Input.h>
 #include <android/keycodes.h>
@@ -68,4 +67,3 @@ private:
 };
 
 } // namespace android
-#endif // _LIBINPUT_INPUT_EVENT_LABELS_H

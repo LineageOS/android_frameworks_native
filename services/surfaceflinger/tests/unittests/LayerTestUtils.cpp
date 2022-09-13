@@ -35,7 +35,7 @@ sp<Layer> BufferStateLayerFactory::createLayer(TestableSurfaceFlinger& flinger) 
 sp<Layer> EffectLayerFactory::createLayer(TestableSurfaceFlinger& flinger) {
     sp<Client> client;
     LayerCreationArgs args(flinger.flinger(), client, "color-layer", LAYER_FLAGS, LayerMetadata());
-    return sp<EffectLayer>::make(args);
+    return sp<Layer>::make(args);
 }
 
 std::string PrintToStringParamName(

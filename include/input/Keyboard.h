@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_KEYBOARD_H
-#define _LIBINPUT_KEYBOARD_H
+#pragma once
 
 #include <input/Input.h>
 #include <input/InputDevice.h>
@@ -88,5 +87,3 @@ extern int32_t normalizeMetaState(int32_t oldMetaState);
 extern bool isMetaKey(int32_t keyCode);
 
 } // namespace android
-
-#endif // _LIBINPUT_KEYBOARD_H

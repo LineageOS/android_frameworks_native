@@ -17,7 +17,6 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
-#include <EffectLayer.h>
 #include <gtest/gtest.h>
 #include <ui/FloatRect.h>
 #include <ui/Transform.h>

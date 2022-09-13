@@ -17,7 +17,6 @@
 #include <BufferStateLayer.h>
 #include <Client.h>
 #include <DisplayDevice.h>
-#include <EffectLayer.h>
 #include <LayerRenderArea.h>
 #include <ftl/future.h>
 #include <fuzzer/FuzzedDataProvider.h>
@@ -79,13 +78,13 @@ void LayerFuzzer::invokeEffectLayer() {
     TestableSurfaceFlinger flinger;
     sp<Client> client = sp<Client>::make(sp<SurfaceFlinger>::fromExisting(flinger.flinger()));
     const LayerCreationArgs layerCreationArgs = createLayerCreationArgs(&flinger, client);
-    sp<EffectLayer> effectLayer = sp<EffectLayer>::make(layerCreationArgs);
+    sp<Layer> effectLayer = sp<Layer>::make(layerCreationArgs);
 
     effectLayer->setColor({(mFdp.ConsumeFloatingPointInRange<float>(0, 255) /*x*/,
                             mFdp.ConsumeFloatingPointInRange<float>(0, 255) /*y*/,
                             mFdp.ConsumeFloatingPointInRange<float>(0, 255) /*z*/)});
     effectLayer->setDataspace(mFdp.PickValueInArray(kDataspaces));
-    sp<EffectLayer> parent = sp<EffectLayer>::make(layerCreationArgs);
+    sp<Layer> parent = sp<Layer>::make(layerCreationArgs);
     effectLayer->setChildrenDrawingParent(parent);
 
     const FrameTimelineInfo frameInfo = getFuzzedFrameTimelineInfo();

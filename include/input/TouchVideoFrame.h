@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_TOUCHVIDEOFRAME_H
-#define _LIBINPUT_TOUCHVIDEOFRAME_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/time.h>
@@ -75,5 +74,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_TOUCHVIDEOFRAME_H
