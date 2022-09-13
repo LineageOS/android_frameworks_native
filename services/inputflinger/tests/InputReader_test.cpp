@@ -56,7 +56,9 @@ static constexpr nsecs_t READ_TIME = 4321;
 
 // Arbitrary display properties.
 static constexpr int32_t DISPLAY_ID = 0;
+static const std::string DISPLAY_UNIQUE_ID = "local:1";
 static constexpr int32_t SECONDARY_DISPLAY_ID = DISPLAY_ID + 1;
+static const std::string SECONDARY_DISPLAY_UNIQUE_ID = "local:2";
 static constexpr int32_t DISPLAY_WIDTH = 480;
 static constexpr int32_t DISPLAY_HEIGHT = 800;
 static constexpr int32_t VIRTUAL_DISPLAY_ID = 1;
@@ -90,6 +92,24 @@ static constexpr int32_t ACTION_POINTER_1_UP =
 
 // Error tolerance for floating point assertions.
 static const float EPSILON = 0.001f;
+
+using ::testing::AllOf;
+
+MATCHER_P(WithAction, action, "InputEvent with specified action") {
+    return arg.action == action;
+}
+
+MATCHER_P(WithSource, source, "InputEvent with specified source") {
+    return arg.source == source;
+}
+
+MATCHER_P(WithDisplayId, displayId, "InputEvent with specified displayId") {
+    return arg.displayId == displayId;
+}
+
+MATCHER_P2(WithCoords, x, y, "MotionEvent with specified action") {
+    return arg.pointerCoords[0].getX() == x && arg.pointerCoords[0].getY();
+}
 
 template<typename T>
 static inline T min(T a, T b) {
@@ -2872,7 +2892,6 @@ TEST_F(InputDeviceTest, Configure_AssignsDisplayUniqueId) {
 
     // Device should be disabled because it is associated with a specific display, but the
     // corresponding display is not found.
-    const std::string DISPLAY_UNIQUE_ID = "displayUniqueId";
     mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, DISPLAY_UNIQUE_ID);
     mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                        InputReaderConfiguration::CHANGE_DISPLAY_INFO);
@@ -2903,7 +2922,6 @@ TEST_F(InputDeviceTest, Configure_UniqueId_CorrectlyMatches) {
     mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
     mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0);
 
-    const std::string DISPLAY_UNIQUE_ID = "displayUniqueId";
     mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, DISPLAY_UNIQUE_ID);
     mFakePolicy->addDisplayViewport(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                     DISPLAY_ORIENTATION_0, /* isActive= */ true, DISPLAY_UNIQUE_ID,
@@ -4188,10 +4206,14 @@ protected:
                             int32_t rotatedX, int32_t rotatedY);
 
     void prepareDisplay(int32_t orientation) {
-        const std::string uniqueId = "local:0";
-        const ViewportType viewportType = ViewportType::INTERNAL;
-        setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                orientation, uniqueId, NO_PORT, viewportType);
+        setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, orientation,
+                                     DISPLAY_UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
+    }
+
+    void prepareSecondaryDisplay() {
+        setDisplayInfoAndReconfigure(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                     DISPLAY_ORIENTATION_0, SECONDARY_DISPLAY_UNIQUE_ID, NO_PORT,
+                                     ViewportType::EXTERNAL);
     }
 
     static void assertCursorPointerCoords(const PointerCoords& coords, float x, float y,
@@ -4468,6 +4490,7 @@ TEST_F(CursorInputMapperTest, Process_ShouldHandleCombinedXYAndButtonUpdates) {
 }
 
 TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldNotRotateMotions) {
+    mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, DISPLAY_UNIQUE_ID);
     addConfigurationProperty("cursor.mode", "navigation");
     // InputReader works in the un-rotated coordinate space, so orientation-aware devices do not
     // need to be rotated.
@@ -4486,11 +4509,13 @@ TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldNotRotateMotion
 }
 
 TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldRotateMotions) {
+    mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, DISPLAY_UNIQUE_ID);
     addConfigurationProperty("cursor.mode", "navigation");
     // Since InputReader works in the un-rotated coordinate space, only devices that are not
     // orientation-aware are affected by display rotation.
     CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
 
+    clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_0);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  0,  1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1,  1,  1));
@@ -4501,6 +4526,7 @@ TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldRotateMotion
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  0, -1,  0));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1, -1,  1));
 
+    clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_90);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1, -1,  0));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1, -1,  1));
@@ -4511,6 +4537,7 @@ TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldRotateMotion
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  0,  0, -1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1, -1, -1));
 
+    clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_180);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  0, -1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1, -1, -1));
@@ -4521,6 +4548,7 @@ TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldRotateMotion
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  0,  1,  0));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1,  1, -1));
 
+    clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_270);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  1,  0));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1,  1, -1));
@@ -5017,33 +5045,76 @@ TEST_F(CursorInputMapperTest, PointerCaptureDisablesOrientationChanges) {
     ASSERT_EQ(20, args.pointerCoords[0].getY());
 }
 
-TEST_F(CursorInputMapperTest, Process_ShouldHandleDisplayId) {
+TEST_F(CursorInputMapperTest, ConfigureDisplayId_NoAssociatedViewport) {
     CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
 
-    // Setup for second display.
-    constexpr int32_t SECOND_DISPLAY_ID = 1;
-    const std::string SECOND_DISPLAY_UNIQUE_ID = "local:1";
-    mFakePolicy->addDisplayViewport(SECOND_DISPLAY_ID, 800, 480, DISPLAY_ORIENTATION_0,
-                                    true /*isActive*/, SECOND_DISPLAY_UNIQUE_ID, NO_PORT,
-                                    ViewportType::EXTERNAL);
-    mFakePolicy->setDefaultPointerDisplayId(SECOND_DISPLAY_ID);
+    // Set up the default display.
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+
+    // Set up the secondary display as the display on which the pointer should be shown.
+    // The InputDevice is not associated with any display.
+    prepareSecondaryDisplay();
+    mFakePolicy->setDefaultPointerDisplayId(SECONDARY_DISPLAY_ID);
     configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
 
-    mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
+    mFakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
     mFakePointerController->setPosition(100, 200);
     mFakePointerController->setButtonState(0);
 
-    NotifyMotionArgs args;
+    // Ensure input events are generated for the secondary display.
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
-    ASSERT_EQ(AINPUT_SOURCE_MOUSE, args.source);
-    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
-    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
-            110.0f, 220.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithSource(AINPUT_SOURCE_MOUSE),
+                  WithDisplayId(SECONDARY_DISPLAY_ID), WithCoords(110.0f, 220.0f))));
     ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 110.0f, 220.0f));
-    ASSERT_EQ(SECOND_DISPLAY_ID, args.displayId);
+}
+
+TEST_F(CursorInputMapperTest, ConfigureDisplayId_WithAssociatedViewport) {
+    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+
+    // Set up the default display.
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+
+    // Set up the secondary display as the display on which the pointer should be shown,
+    // and associate the InputDevice with the secondary display.
+    prepareSecondaryDisplay();
+    mFakePolicy->setDefaultPointerDisplayId(SECONDARY_DISPLAY_ID);
+    mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, SECONDARY_DISPLAY_UNIQUE_ID);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    mFakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+    mFakePointerController->setPosition(100, 200);
+    mFakePointerController->setButtonState(0);
+
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithSource(AINPUT_SOURCE_MOUSE),
+                  WithDisplayId(SECONDARY_DISPLAY_ID), WithCoords(110.0f, 220.0f))));
+    ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 110.0f, 220.0f));
+}
+
+TEST_F(CursorInputMapperTest, ConfigureDisplayId_IgnoresEventsForMismatchedPointerDisplay) {
+    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+
+    // Set up the default display as the display on which the pointer should be shown.
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+    mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+
+    // Associate the InputDevice with the secondary display.
+    prepareSecondaryDisplay();
+    mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, SECONDARY_DISPLAY_UNIQUE_ID);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    // The mapper should not generate any events because it is associated with a display that is
+    // different from the pointer display.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
 // --- TouchInputMapperTest ---
