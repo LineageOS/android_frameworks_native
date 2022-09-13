@@ -127,8 +127,6 @@ static std::once_flag flag;
 
 namespace {
 
-constexpr const char* kDump = "android.permission.DUMP";
-
 static binder::Status ok() {
     return binder::Status::ok();
 }
@@ -150,19 +148,6 @@ static binder::Status error(const std::string& msg) {
 static binder::Status error(uint32_t code, const std::string& msg) {
     LOG(ERROR) << msg << " (" << code << ")";
     return binder::Status::fromServiceSpecificError(code, String8(msg.c_str()));
-}
-
-binder::Status checkPermission(const char* permission) {
-    pid_t pid;
-    uid_t uid;
-
-    if (checkCallingPermission(String16(permission), reinterpret_cast<int32_t*>(&pid),
-            reinterpret_cast<int32_t*>(&uid))) {
-        return ok();
-    } else {
-        return exception(binder::Status::EX_SECURITY,
-                StringPrintf("UID %d / PID %d lacks permission %s", uid, pid, permission));
-    }
 }
 
 binder::Status checkUid(uid_t expectedUid) {
@@ -402,13 +387,7 @@ status_t InstalldNativeService::start() {
     return android::OK;
 }
 
-status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */) {
-    const binder::Status dump_permission = checkPermission(kDump);
-    if (!dump_permission.isOk()) {
-        dprintf(fd, "%s\n", dump_permission.toString8().c_str());
-        return PERMISSION_DENIED;
-    }
-
+status_t InstalldNativeService::dump(int fd, const Vector<String16>& /* args */) {
     {
         std::lock_guard<std::recursive_mutex> lock(mMountsLock);
         dprintf(fd, "Storage mounts:\n");
