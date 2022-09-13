@@ -33,7 +33,6 @@
 #include "BufferStateLayer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/ComposerHal.h"
-#include "EffectLayer.h"
 #include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
@@ -360,8 +359,8 @@ public:
         return nullptr;
     }
 
-    sp<EffectLayer> createEffectLayer(const LayerCreationArgs &args) override {
-        return sp<EffectLayer>::make(args);
+    sp<Layer> createEffectLayer(const LayerCreationArgs &args) override {
+        return sp<Layer>::make(args);
     }
 
     std::unique_ptr<FrameTracer> createFrameTracer() override {

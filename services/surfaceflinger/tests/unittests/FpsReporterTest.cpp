@@ -25,7 +25,6 @@
 #include <gui/LayerMetadata.h>
 
 #include "BufferStateLayer.h"
-#include "EffectLayer.h"
 #include "FpsReporter.h"
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"

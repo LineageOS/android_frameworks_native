@@ -84,9 +84,7 @@ public:
         return sp<BufferStateLayer>::make(args);
     }
 
-    sp<EffectLayer> createEffectLayer(const LayerCreationArgs& args) {
-        return sp<EffectLayer>::make(args);
-    }
+    sp<Layer> createEffectLayer(const LayerCreationArgs& args) { return sp<Layer>::make(args); }
 
     std::unique_ptr<FrameTracer> createFrameTracer() override {
         return std::make_unique<testing::NiceMock<mock::FrameTracer>>();

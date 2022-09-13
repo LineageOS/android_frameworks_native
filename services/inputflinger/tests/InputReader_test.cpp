@@ -81,6 +81,7 @@ static constexpr int32_t THIRD_TRACKING_ID = 2;
 static constexpr int32_t DEFAULT_BATTERY = 1;
 static constexpr int32_t BATTERY_STATUS = 4;
 static constexpr int32_t BATTERY_CAPACITY = 66;
+static const std::string BATTERY_DEVPATH = "/sys/devices/mydevice/power_supply/mybattery";
 static constexpr int32_t LIGHT_BRIGHTNESS = 0x55000000;
 static constexpr int32_t LIGHT_COLOR = 0x7F448866;
 static constexpr int32_t LIGHT_PLAYER_ID = 2;
@@ -1017,7 +1018,12 @@ private:
 
     std::optional<RawBatteryInfo> getRawBatteryInfo(int32_t deviceId,
                                                     int32_t batteryId) const override {
-        return std::nullopt;
+        if (batteryId != DEFAULT_BATTERY) return {};
+        static const auto BATTERY_INFO = RawBatteryInfo{.id = DEFAULT_BATTERY,
+                                                        .name = "default battery",
+                                                        .flags = InputBatteryClass::CAPACITY,
+                                                        .path = BATTERY_DEVPATH};
+        return BATTERY_INFO;
     }
 
     std::vector<int32_t> getRawLightIds(int32_t deviceId) const override {
@@ -2233,6 +2239,21 @@ TEST_F(InputReaderTest, BatteryGetStatus) {
 
     ASSERT_EQ(controller.getBatteryStatus(DEFAULT_BATTERY), BATTERY_STATUS);
     ASSERT_EQ(mReader->getBatteryStatus(deviceId), BATTERY_STATUS);
+}
+
+TEST_F(InputReaderTest, BatteryGetDevicePath) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    ftl::Flags<InputDeviceClass> deviceClass =
+            InputDeviceClass::KEYBOARD | InputDeviceClass::BATTERY;
+    constexpr int32_t eventHubId = 1;
+    const char* DEVICE_LOCATION = "BLUETOOTH";
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake", DEVICE_LOCATION);
+    device->addController<FakePeripheralController>(eventHubId);
+    mReader->pushNextDevice(device);
+
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
+
+    ASSERT_EQ(mReader->getBatteryDevicePath(deviceId), BATTERY_DEVPATH);
 }
 
 TEST_F(InputReaderTest, LightGetColor) {

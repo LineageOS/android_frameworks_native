@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_DISPLAY_VIEWPORT_H
-#define _LIBINPUT_DISPLAY_VIEWPORT_H
+#pragma once
 
 #include <android-base/stringprintf.h>
 #include <ftl/enum.h>
@@ -144,5 +143,3 @@ struct DisplayViewport {
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_DISPLAY_VIEWPORT_H
