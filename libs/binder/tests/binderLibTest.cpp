@@ -1161,8 +1161,7 @@ TEST_F(BinderLibTest, VectorSent) {
 // see ProcessState.cpp BINDER_VM_SIZE = 1MB.
 // This value is not exposed, but some code in the framework relies on being able to use
 // buffers near the cap size.
-// TODO(b/238777741): why do larger values, like 300K fail sometimes
-constexpr size_t kSizeBytesAlmostFull = 100'000;
+constexpr size_t kSizeBytesAlmostFull = 950'000;
 constexpr size_t kSizeBytesOverFull = 1'050'000;
 
 TEST_F(BinderLibTest, GargantuanVectorSent) {
