@@ -108,12 +108,6 @@ TEST_F(CompositionEnginePresentTest, worksAsExpected) {
     EXPECT_CALL(*mOutput2, prepare(Ref(mRefreshArgs), _));
     EXPECT_CALL(*mOutput3, prepare(Ref(mRefreshArgs), _));
 
-    // The next step in presenting is to make sure all outputs have the latest
-    // state from the front-end (SurfaceFlinger).
-    EXPECT_CALL(*mOutput1, updateLayerStateFromFE(Ref(mRefreshArgs)));
-    EXPECT_CALL(*mOutput2, updateLayerStateFromFE(Ref(mRefreshArgs)));
-    EXPECT_CALL(*mOutput3, updateLayerStateFromFE(Ref(mRefreshArgs)));
-
     // The last step is to actually present each output.
     EXPECT_CALL(*mOutput1, present(Ref(mRefreshArgs)));
     EXPECT_CALL(*mOutput2, present(Ref(mRefreshArgs)));
@@ -175,21 +169,18 @@ TEST_F(CompositionEngineUpdateCursorAsyncTest, handlesMultipleLayersBeingCursorL
     {
         InSequence seq;
         EXPECT_CALL(mOutput2Layer1.outputLayer, isHardwareCursor()).WillRepeatedly(Return(true));
-        EXPECT_CALL(*mOutput2Layer1.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
         EXPECT_CALL(mOutput2Layer1.outputLayer, writeCursorPositionToHWC());
     }
 
     {
         InSequence seq;
         EXPECT_CALL(mOutput3Layer1.outputLayer, isHardwareCursor()).WillRepeatedly(Return(true));
-        EXPECT_CALL(*mOutput3Layer1.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
         EXPECT_CALL(mOutput3Layer1.outputLayer, writeCursorPositionToHWC());
     }
 
     {
         InSequence seq;
         EXPECT_CALL(mOutput3Layer2.outputLayer, isHardwareCursor()).WillRepeatedly(Return(true));
-        EXPECT_CALL(*mOutput3Layer2.layerFE, prepareCompositionState(LayerFE::StateSubset::Cursor));
         EXPECT_CALL(mOutput3Layer2.outputLayer, writeCursorPositionToHWC());
     }
 
@@ -222,9 +213,12 @@ TEST_F(CompositionTestPreComposition, preCompositionInvokesLayerPreCompositionWi
     nsecs_t ts1 = 0;
     nsecs_t ts2 = 0;
     nsecs_t ts3 = 0;
-    EXPECT_CALL(*mLayer1FE, onPreComposition(_)).WillOnce(DoAll(SaveArg<0>(&ts1), Return(false)));
-    EXPECT_CALL(*mLayer2FE, onPreComposition(_)).WillOnce(DoAll(SaveArg<0>(&ts2), Return(false)));
-    EXPECT_CALL(*mLayer3FE, onPreComposition(_)).WillOnce(DoAll(SaveArg<0>(&ts3), Return(false)));
+    EXPECT_CALL(*mLayer1FE, onPreComposition(_, _))
+            .WillOnce(DoAll(SaveArg<0>(&ts1), Return(false)));
+    EXPECT_CALL(*mLayer2FE, onPreComposition(_, _))
+            .WillOnce(DoAll(SaveArg<0>(&ts2), Return(false)));
+    EXPECT_CALL(*mLayer3FE, onPreComposition(_, _))
+            .WillOnce(DoAll(SaveArg<0>(&ts3), Return(false)));
 
     mRefreshArgs.outputs = {mOutput1};
     mRefreshArgs.layers = {mLayer1FE, mLayer2FE, mLayer3FE};
@@ -238,9 +232,9 @@ TEST_F(CompositionTestPreComposition, preCompositionInvokesLayerPreCompositionWi
 }
 
 TEST_F(CompositionTestPreComposition, preCompositionDefaultsToNoUpdateNeeded) {
-    EXPECT_CALL(*mLayer1FE, onPreComposition(_)).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer2FE, onPreComposition(_)).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer3FE, onPreComposition(_)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer1FE, onPreComposition(_, _)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer2FE, onPreComposition(_, _)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer3FE, onPreComposition(_, _)).WillOnce(Return(false));
 
     mEngine.setNeedsAnotherUpdateForTest(true);
 
@@ -255,9 +249,9 @@ TEST_F(CompositionTestPreComposition, preCompositionDefaultsToNoUpdateNeeded) {
 
 TEST_F(CompositionTestPreComposition,
        preCompositionSetsNeedsAnotherUpdateIfAtLeastOneLayerRequestsIt) {
-    EXPECT_CALL(*mLayer1FE, onPreComposition(_)).WillOnce(Return(true));
-    EXPECT_CALL(*mLayer2FE, onPreComposition(_)).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer3FE, onPreComposition(_)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer1FE, onPreComposition(_, _)).WillOnce(Return(true));
+    EXPECT_CALL(*mLayer2FE, onPreComposition(_, _)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer3FE, onPreComposition(_, _)).WillOnce(Return(false));
 
     mRefreshArgs.outputs = {mOutput1};
     mRefreshArgs.layers = {mLayer1FE, mLayer2FE, mLayer3FE};

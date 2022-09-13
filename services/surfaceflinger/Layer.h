@@ -574,9 +574,8 @@ public:
     // implements compositionengine::LayerFE
     const compositionengine::LayerFECompositionState* getCompositionState() const;
     bool fenceHasSignaled() const;
-    bool onPreComposition(nsecs_t);
-    void prepareCompositionState(compositionengine::LayerFE::StateSubset subset) override;
-
+    // Called before composition. updatingOutputGeometryThisFrame is used by ARC++'s Layer subclass.
+    bool onPreComposition(nsecs_t refreshStartTime, bool updatingOutputGeometryThisFrame);
     std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) const override;
     void onLayerDisplayed(ftl::SharedFuture<FenceResult>);
@@ -868,6 +867,7 @@ public:
     bool simpleBufferUpdate(const layer_state_t&) const;
 
     static bool isOpaqueFormat(PixelFormat format);
+    void updateSnapshot(bool updateGeometry);
 
 protected:
     friend class impl::SurfaceInterceptor;

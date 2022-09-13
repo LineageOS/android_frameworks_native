@@ -148,7 +148,8 @@ void LayerFuzzer::invokeBufferStateLayer() {
     layer->computeSourceBounds(getFuzzedFloatRect(&mFdp));
 
     layer->fenceHasSignaled();
-    layer->onPreComposition(mFdp.ConsumeIntegral<int64_t>());
+    layer->onPreComposition(mFdp.ConsumeIntegral<int64_t>(),
+                            false /*updatingOutputGeometryThisFrame*/);
     const std::vector<sp<CallbackHandle>> callbacks;
     layer->setTransactionCompletedListeners(callbacks);
 

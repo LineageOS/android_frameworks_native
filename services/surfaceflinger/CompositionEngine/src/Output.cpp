@@ -501,7 +501,6 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
     // appear on multiple outputs.
     if (!coverage.latchedLayers.count(layerFE)) {
         coverage.latchedLayers.insert(layerFE);
-        layerFE->prepareCompositionState(compositionengine::LayerFE::StateSubset::BasicGeometry);
     }
 
     // Only consider the layers on this output
@@ -723,14 +722,6 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
 
 void Output::setReleasedLayers(const compositionengine::CompositionRefreshArgs&) {
     // The base class does nothing with this call.
-}
-
-void Output::updateLayerStateFromFE(const CompositionRefreshArgs& args) const {
-    for (auto* layer : getOutputLayersOrderedByZ()) {
-        layer->getLayerFE().prepareCompositionState(
-                args.updatingGeometryThisFrame ? LayerFE::StateSubset::GeometryAndContent
-                                               : LayerFE::StateSubset::Content);
-    }
 }
 
 void Output::updateCompositionState(const compositionengine::CompositionRefreshArgs& refreshArgs) {

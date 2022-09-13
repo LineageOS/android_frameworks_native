@@ -53,31 +53,8 @@ public:
     // Called before composition starts. Should return true if this layer has
     // pending updates which would require an extra display refresh cycle to
     // process.
-    virtual bool onPreComposition(nsecs_t refreshStartTime) = 0;
-
-    // Used with latchCompositionState()
-    enum class StateSubset {
-        // Gets the basic geometry (bounds, transparent region, visibility,
-        // transforms, alpha) for the layer, for computing visibility and
-        // coverage.
-        BasicGeometry,
-
-        // Gets the full geometry (crops, buffer transforms, metadata) and
-        // content (buffer or color) state for the layer.
-        GeometryAndContent,
-
-        // Gets the per frame content (buffer or color) state for the layer.
-        Content,
-
-        // Gets the cursor state for the layer.
-        Cursor,
-    };
-
-    // Prepares the output-independent composition state for the layer. The
-    // StateSubset argument selects what portion of the state is actually needed
-    // by the CompositionEngine code, since computing everything may be
-    // expensive.
-    virtual void prepareCompositionState(StateSubset) = 0;
+    virtual bool onPreComposition(nsecs_t refreshStartTime,
+                                  bool updatingOutputGeometryThisFrame) = 0;
 
     struct ClientCompositionTargetSettings {
         enum class BlurSetting {
