@@ -256,6 +256,7 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
                              y.resolution);
     }
     info->setButtonUnderPad(mParameters.hasButtonUnderPad);
+    info->setSupportsUsi(mParameters.supportsUsi);
 }
 
 void TouchInputMapper::dump(std::string& dump) {
@@ -505,6 +506,10 @@ void TouchInputMapper::configureParameters() {
     // up in your pocket but you can enable it using the input device configuration.
     mParameters.wake = getDeviceContext().isExternal();
     getDeviceContext().getConfiguration().tryGetProperty("touch.wake", mParameters.wake);
+
+    mParameters.supportsUsi = false;
+    getDeviceContext().getConfiguration().tryGetProperty("touch.supportsUsi",
+                                                         mParameters.supportsUsi);
 }
 
 void TouchInputMapper::dumpParameters(std::string& dump) {
@@ -521,6 +526,7 @@ void TouchInputMapper::dumpParameters(std::string& dump) {
                          mParameters.uniqueDisplayId.c_str());
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
     dump += INDENT4 "Orientation: " + ftl::enum_string(mParameters.orientation) + "\n";
+    dump += StringPrintf(INDENT4 "SupportsUsi: %s\n", toString(mParameters.supportsUsi));
 }
 
 void TouchInputMapper::configureRawPointerAxes() {
