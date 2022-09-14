@@ -4718,36 +4718,6 @@ TEST_F(InputDispatcherSingleWindowAnr, OnKeyDown_BasicAnr) {
 
 // We have a focused application, but no focused window
 TEST_F(InputDispatcherSingleWindowAnr, FocusedApplication_NoFocusedWindow) {
-    FocusRequest request;
-    request.token = nullptr;
-    request.windowName = "";
-    request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
-    request.displayId = mWindow->getInfo()->displayId;
-    mDispatcher->setFocusedWindow(request);
-    mWindow->consumeFocusEvent(false);
-
-    // taps on the window work as normal
-    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
-                               WINDOW_LOCATION));
-    ASSERT_NO_FATAL_FAILURE(mWindow->consumeMotionDown());
-    mDispatcher->waitForIdle();
-    mFakePolicy->assertNotifyAnrWasNotCalled();
-
-    // Once a focused event arrives, we get an ANR for this application
-    // We specify the injection timeout to be smaller than the application timeout, to ensure that
-    // injection times out (instead of failing).
-    const InputEventInjectionResult result =
-            injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /* repeatCount */, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::WAIT_FOR_RESULT, 10ms, false /* allowKeyRepeat */);
-    ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
-    const std::chrono::duration timeout = mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyNoFocusedWindowAnrWasCalled(timeout, mApplication);
-    ASSERT_TRUE(mDispatcher->waitForIdle());
-}
-
-// We have a focused application, but we are waiting on the requested window to become focusable
-TEST_F(InputDispatcherSingleWindowAnr, FocusedApplication_PendingFocusedRequest) {
     mWindow->setFocusable(false);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
     mWindow->consumeFocusEvent(false);
@@ -4768,7 +4738,7 @@ TEST_F(InputDispatcherSingleWindowAnr, FocusedApplication_PendingFocusedRequest)
                       InputEventInjectionSync::WAIT_FOR_RESULT, 10ms, false /* allowKeyRepeat */);
     ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
     const std::chrono::duration timeout = mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow);
+    mFakePolicy->assertNotifyNoFocusedWindowAnrWasCalled(timeout, mApplication);
     ASSERT_TRUE(mDispatcher->waitForIdle());
 }
 
@@ -4818,10 +4788,11 @@ TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_DoesNotSendDuplicateAnr) 
             injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /* repeatCount */, ADISPLAY_ID_DEFAULT,
                       InputEventInjectionSync::WAIT_FOR_RESULT, 10ms, false /* allowKeyRepeat */);
     ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
-    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow);
+    const std::chrono::duration appTimeout =
+            mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyNoFocusedWindowAnrWasCalled(appTimeout, mApplication);
 
-    std::this_thread::sleep_for(timeout);
+    std::this_thread::sleep_for(appTimeout);
     // ANR should not be raised again. It is up to policy to do that if it desires.
     mFakePolicy->assertNotifyAnrWasNotCalled();
 
@@ -4842,8 +4813,8 @@ TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_DropsFocusedEvents) {
                       InputEventInjectionSync::WAIT_FOR_RESULT, 10ms);
     ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
 
-    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow);
+    const std::chrono::duration timeout = mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyNoFocusedWindowAnrWasCalled(timeout, mApplication);
 
     // Future focused events get dropped right away
     ASSERT_EQ(InputEventInjectionResult::FAILED, injectKeyDown(mDispatcher));

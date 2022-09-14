@@ -2189,10 +2189,6 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         displayIds.push_back(display->getId());
     }
     mPowerAdvisor->setDisplays(displayIds);
-    mDrawingState.traverseInZOrder([&refreshArgs](Layer* layer) {
-        if (auto layerFE = layer->getCompositionEngineLayerFE())
-            refreshArgs.layers.push_back(layerFE);
-    });
 
     if (DOES_CONTAIN_BORDER) {
         refreshArgs.borderInfoList.clear();
@@ -2223,6 +2219,12 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
     refreshArgs.updatingGeometryThisFrame = mGeometryDirty.exchange(false) || mVisibleRegionsDirty;
+    mDrawingState.traverseInZOrder([&refreshArgs](Layer* layer) {
+        layer->updateSnapshot(refreshArgs.updatingGeometryThisFrame);
+        if (auto layerFE = layer->getCompositionEngineLayerFE()) {
+            refreshArgs.layers.push_back(layerFE);
+        }
+    });
     refreshArgs.blursAreExpensive = mBlursAreExpensive;
     refreshArgs.internalDisplayRotationFlags = DisplayDevice::getPrimaryDisplayRotationFlags();
 

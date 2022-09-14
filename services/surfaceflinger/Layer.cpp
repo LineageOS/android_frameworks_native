@@ -465,6 +465,10 @@ void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform,
     for (const sp<Layer>& child : mDrawingChildren) {
         child->computeBounds(mBounds, mEffectiveTransform, childShadowRadius);
     }
+
+    if (mPotentialCursor) {
+        prepareCursorCompositionState();
+    }
 }
 
 Rect Layer::getCroppedBufferSize(const State& s) const {
@@ -648,30 +652,6 @@ sp<compositionengine::LayerFE> Layer::asLayerFE() const {
     compositionengine::LayerFE* layerFE = const_cast<compositionengine::LayerFE*>(
             static_cast<const compositionengine::LayerFE*>(this));
     return sp<compositionengine::LayerFE>::fromExisting(layerFE);
-}
-
-void Layer::prepareCompositionState(compositionengine::LayerFE::StateSubset subset) {
-    using StateSubset = compositionengine::LayerFE::StateSubset;
-
-    switch (subset) {
-        case StateSubset::BasicGeometry:
-            prepareBasicGeometryCompositionState();
-            break;
-
-        case StateSubset::GeometryAndContent:
-            prepareBasicGeometryCompositionState();
-            prepareGeometryCompositionState();
-            preparePerFrameCompositionState();
-            break;
-
-        case StateSubset::Content:
-            preparePerFrameCompositionState();
-            break;
-
-        case StateSubset::Cursor:
-            prepareCursorCompositionState();
-            break;
-    }
 }
 
 const char* Layer::getDebugName() const {
@@ -3426,7 +3406,7 @@ bool Layer::fenceHasSignaled() const {
     return fenceSignaled;
 }
 
-bool Layer::onPreComposition(nsecs_t refreshStartTime) {
+bool Layer::onPreComposition(nsecs_t refreshStartTime, bool /* updatingOutputGeometryThisFrame */) {
     for (const auto& handle : mDrawingState.callbackHandles) {
         handle->refreshStartTime = refreshStartTime;
     }
@@ -4238,6 +4218,18 @@ bool Layer::fillsColor() const {
 
 bool Layer::hasBlur() const {
     return getBackgroundBlurRadius() > 0 || getDrawingState().blurRegions.size() > 0;
+}
+
+void Layer::updateSnapshot(bool updateGeometry) {
+    if (!getCompositionEngineLayerFE()) {
+        return;
+    }
+
+    if (updateGeometry) {
+        prepareBasicGeometryCompositionState();
+        prepareGeometryCompositionState();
+    }
+    preparePerFrameCompositionState();
 }
 
 // ---------------------------------------------------------------------------

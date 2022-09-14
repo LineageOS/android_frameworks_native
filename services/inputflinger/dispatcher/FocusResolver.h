@@ -62,7 +62,6 @@ public:
     std::optional<FocusResolver::FocusChanges> setFocusedWindow(
             const android::gui::FocusRequest& request,
             const std::vector<sp<android::gui::WindowInfoHandle>>& windows);
-    std::optional<android::gui::FocusRequest> getFocusRequest(int32_t displayId) const;
 
     // Display has been removed from the system, clean up old references.
     void displayRemoved(int32_t displayId);
@@ -113,6 +112,7 @@ private:
     std::optional<FocusResolver::FocusChanges> updateFocusedWindow(
             int32_t displayId, const std::string& reason, const sp<IBinder>& token,
             const std::string& tokenName = "");
+    std::optional<android::gui::FocusRequest> getFocusRequest(int32_t displayId);
 };
 
 } // namespace android::inputdispatcher

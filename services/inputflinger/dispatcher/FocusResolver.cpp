@@ -39,7 +39,7 @@ sp<IBinder> FocusResolver::getFocusedWindowToken(int32_t displayId) const {
     return it != mFocusedWindowTokenByDisplay.end() ? it->second.second : nullptr;
 }
 
-std::optional<FocusRequest> FocusResolver::getFocusRequest(int32_t displayId) const {
+std::optional<FocusRequest> FocusResolver::getFocusRequest(int32_t displayId) {
     auto it = mFocusRequestByDisplay.find(displayId);
     return it != mFocusRequestByDisplay.end() ? std::make_optional<>(it->second) : std::nullopt;
 }

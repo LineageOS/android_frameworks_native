@@ -51,8 +51,6 @@ public:
     // Debugging
     void dump(std::string&) const override;
 
-    void updateLayerStateFromFE(CompositionRefreshArgs& args);
-
     // Testing
     void setNeedsAnotherUpdateForTest(bool);
 

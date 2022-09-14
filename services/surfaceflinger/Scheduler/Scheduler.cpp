@@ -704,17 +704,13 @@ auto Scheduler::chooseDisplayMode() -> std::pair<DisplayModePtr, GlobalSignals> 
 
     const auto configs = holdRefreshRateConfigs();
 
-    // If Display Power is not in normal operation we want to be in performance mode. When coming
-    // back to normal mode, a grace period is given with DisplayPowerTimer.
-    if (mDisplayPowerTimer &&
-        (mPolicy.displayPowerMode != hal::PowerMode::ON ||
-         mPolicy.displayPowerTimer == TimerState::Reset)) {
-        constexpr GlobalSignals kNoSignals;
-        return {configs->getMaxRefreshRateByPolicy(), kNoSignals};
-    }
+    const bool powerOnImminent = mDisplayPowerTimer &&
+            (mPolicy.displayPowerMode != hal::PowerMode::ON ||
+             mPolicy.displayPowerTimer == TimerState::Reset);
 
     const GlobalSignals signals{.touch = mTouchTimer && mPolicy.touch == TouchState::Active,
-                                .idle = mPolicy.idleTimer == TimerState::Expired};
+                                .idle = mPolicy.idleTimer == TimerState::Expired,
+                                .powerOnImminent = powerOnImminent};
 
     return configs->getBestRefreshRate(mPolicy.contentRequirements, signals);
 }
