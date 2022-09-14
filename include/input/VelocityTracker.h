@@ -160,7 +160,8 @@ private:
 
     void configureStrategy(int32_t axis);
 
-    static std::unique_ptr<VelocityTrackerStrategy> createStrategy(const Strategy strategy);
+    static std::unique_ptr<VelocityTrackerStrategy> createStrategy(const Strategy strategy,
+                                                                   bool isCumulative);
 };
 
 
@@ -306,7 +307,7 @@ private:
 
 class ImpulseVelocityTrackerStrategy : public VelocityTrackerStrategy {
 public:
-    ImpulseVelocityTrackerStrategy();
+    ImpulseVelocityTrackerStrategy(bool deltaValues);
     virtual ~ImpulseVelocityTrackerStrategy();
 
     virtual void clearPointers(BitSet32 idBits);
@@ -330,6 +331,11 @@ private:
 
         inline float getPosition(uint32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
     };
+
+    // Whether or not the input movement values for the strategy come in the form of delta values.
+    // If the input values are not deltas, the strategy needs to calculate deltas as part of its
+    // velocity calculation.
+    const bool mDeltaValues;
 
     size_t mIndex;
     Movement mMovements[HISTORY_SIZE];
