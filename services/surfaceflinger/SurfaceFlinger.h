@@ -333,7 +333,6 @@ protected:
 
 private:
     friend class BufferLayer;
-    friend class BufferStateLayer;
     friend class Client;
     friend class FpsReporter;
     friend class TunnelModeEnabledReporter;

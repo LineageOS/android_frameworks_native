@@ -322,7 +322,7 @@ void SchedulerFuzzer::fuzzRefreshRateSelection() {
     LayerCreationArgs args(flinger.flinger(), client,
                            mFdp.ConsumeRandomLengthString(kRandomStringLength) /*name*/,
                            mFdp.ConsumeIntegral<uint16_t>() /*layerFlags*/, LayerMetadata());
-    sp<Layer> layer = sp<BufferStateLayer>::make(args);
+    sp<Layer> layer = sp<Layer>::make(args);
 
     layer->setFrameRateSelectionPriority(mFdp.ConsumeIntegral<int16_t>());
 }

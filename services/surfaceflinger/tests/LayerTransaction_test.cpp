@@ -32,7 +32,7 @@ TEST_F(LayerTransactionTest, SetTransformToDisplayInverse_BufferState) {
 
     Transaction().setTransformToDisplayInverse(layer, false).apply();
 
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::GREEN, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::GREEN, 32, 32));
 
     Transaction().setTransformToDisplayInverse(layer, true).apply();
 }
@@ -161,7 +161,7 @@ TEST_F(LayerTransactionTest, DISABLED_BufferQueueLayerMergeDamageRegionWhenDropp
 TEST_F(LayerTransactionTest, BufferTakesPriorityOverBlur) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::RED, 32, 32));
     Transaction().setBackgroundBlurRadius(layer, 5).apply();
     {
         SCOPED_TRACE("BufferTakesPriorityOverBlur");
@@ -174,7 +174,7 @@ TEST_F(LayerTransactionTest, BufferTakesPriorityOverBlur) {
 TEST_F(LayerTransactionTest, BufferTakesPriorityOverColor) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::RED, 32, 32));
     Transaction().setColor(layer, {Color::GREEN.r, Color::GREEN.g, Color::GREEN.b}).apply();
     {
         SCOPED_TRACE("BufferTakesPriorityOverColor");

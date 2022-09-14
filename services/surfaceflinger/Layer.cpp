@@ -65,7 +65,6 @@
 #include <mutex>
 #include <sstream>
 
-#include "BufferStateLayer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWComposer.h"
 #include "FrameTimeline.h"
@@ -871,7 +870,7 @@ void Layer::prepareBufferStateClientComposition(
     float bufferWidth = getBufferSize(s).getWidth();
     float bufferHeight = getBufferSize(s).getHeight();
 
-    // BufferStateLayers can have a "buffer size" of [0, 0, -1, -1] when no display frame has
+    // Layers can have a "buffer size" of [0, 0, -1, -1] when no display frame has
     // been set and there is no parent layer bounds. In that case, the scale is meaningless so
     // ignore them.
     if (!getBufferSize(s).isValid()) {
@@ -3538,7 +3537,7 @@ Rect Layer::computeBufferCrop(const State& s) {
 sp<Layer> Layer::createClone() {
     LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0, LayerMetadata());
     args.textureName = mTextureName;
-    sp<BufferStateLayer> layer = mFlinger->getFactory().createBufferStateLayer(args);
+    sp<Layer> layer = mFlinger->getFactory().createBufferStateLayer(args);
     layer->mHwcSlotGenerator = mHwcSlotGenerator;
     layer->setInitialValuesForClone(sp<Layer>::fromExisting(this));
     return layer;

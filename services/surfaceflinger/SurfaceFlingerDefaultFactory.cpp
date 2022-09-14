@@ -22,7 +22,6 @@
 #include <cutils/properties.h>
 #include <ui/GraphicBuffer.h>
 
-#include "BufferStateLayer.h"
 #include "DisplayDevice.h"
 #include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
@@ -89,8 +88,8 @@ std::unique_ptr<compositionengine::CompositionEngine> DefaultFactory::createComp
     return compositionengine::impl::createCompositionEngine();
 }
 
-sp<BufferStateLayer> DefaultFactory::createBufferStateLayer(const LayerCreationArgs& args) {
-    return sp<BufferStateLayer>::make(args);
+sp<Layer> DefaultFactory::createBufferStateLayer(const LayerCreationArgs& args) {
+    return sp<Layer>::make(args);
 }
 
 sp<Layer> DefaultFactory::createEffectLayer(const LayerCreationArgs& args) {

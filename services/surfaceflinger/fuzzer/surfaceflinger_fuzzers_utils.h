@@ -30,7 +30,6 @@
 #include <ui/DisplayStatInfo.h>
 #include <ui/DynamicDisplayInfo.h>
 
-#include "BufferStateLayer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/ComposerHal.h"
 #include "FrameTimeline/FrameTimeline.h"
@@ -355,9 +354,7 @@ public:
         return compositionengine::impl::createCompositionEngine();
     }
 
-    sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs &) override {
-        return nullptr;
-    }
+    sp<Layer> createBufferStateLayer(const LayerCreationArgs &) override { return nullptr; }
 
     sp<Layer> createEffectLayer(const LayerCreationArgs &args) override {
         return sp<Layer>::make(args);
