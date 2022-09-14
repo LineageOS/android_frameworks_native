@@ -233,6 +233,7 @@ static const char* WAKE_LOCK_NAME = "dumpstate_wakelock";
 // task and the log title of the duration report.
 static const std::string DUMP_TRACES_TASK = "DUMP TRACES";
 static const std::string DUMP_INCIDENT_REPORT_TASK = "INCIDENT REPORT";
+static const std::string DUMP_NETSTATS_PROTO_TASK = "DUMP NETSTATS PROTO";
 static const std::string DUMP_HALS_TASK = "DUMP HALS";
 static const std::string DUMP_BOARD_TASK = "dumpstate_board()";
 static const std::string DUMP_CHECKINS_TASK = "DUMP CHECKINS";
@@ -1038,6 +1039,26 @@ static void DumpIncidentReport() {
     }
 }
 
+static void DumpNetstatsProto() {
+    const std::string path = ds.bugreport_internal_dir_ + "/tmp_netstats_proto";
+    auto fd = android::base::unique_fd(TEMP_FAILURE_RETRY(open(path.c_str(),
+                O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
+    if (fd < 0) {
+        MYLOGE("Could not open %s to dump netstats proto.\n", path.c_str());
+        return;
+    }
+    RunCommandToFd(fd, "", {"dumpsys", "netstats", "--proto"},
+            CommandOptions::WithTimeout(120).Build());
+    bool empty = 0 == lseek(fd, 0, SEEK_END);
+    if (!empty) {
+        ds.EnqueueAddZipEntryAndCleanupIfNeeded(kProtoPath + "netstats" + kProtoExt,
+                path);
+    } else {
+        unlink(path.c_str());
+    }
+}
+
 static void MaybeAddSystemTraceToZip() {
     // This function copies into the .zip the system trace that was snapshotted
     // by the early call to MaybeSnapshotSystemTrace(), if any background
@@ -1571,7 +1592,8 @@ static Dumpstate::RunStatus dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
 
     // Enqueue slow functions into the thread pool, if the parallel run is enabled.
-    std::future<std::string> dump_hals, dump_incident_report, dump_board, dump_checkins;
+    std::future<std::string> dump_hals, dump_incident_report, dump_board, dump_checkins,
+            dump_netstats_report;
     if (ds.dump_pool_) {
         // Pool was shutdown in DumpstateDefaultAfterCritical method in order to
         // drop root user. Restarts it with two threads for the parallel run.
@@ -1580,6 +1602,8 @@ static Dumpstate::RunStatus dumpstate() {
         dump_hals = ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
         dump_incident_report = ds.dump_pool_->enqueueTask(
             DUMP_INCIDENT_REPORT_TASK, &DumpIncidentReport);
+        dump_netstats_report = ds.dump_pool_->enqueueTask(
+            DUMP_NETSTATS_PROTO_TASK, &DumpNetstatsProto);
         dump_board = ds.dump_pool_->enqueueTaskWithFd(
             DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
         dump_checkins = ds.dump_pool_->enqueueTaskWithFd(DUMP_CHECKINS_TASK, &DumpCheckins, _1);
@@ -1776,6 +1800,13 @@ static Dumpstate::RunStatus dumpstate() {
 
     /* Dump frozen cgroupfs */
     dump_frozen_cgroupfs();
+
+    if (ds.dump_pool_) {
+        WAIT_TASK_WITH_CONSENT_CHECK(std::move(dump_netstats_report));
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_NETSTATS_PROTO_TASK,
+                DumpNetstatsProto);
+    }
 
     if (ds.dump_pool_) {
         WAIT_TASK_WITH_CONSENT_CHECK(std::move(dump_incident_report));
