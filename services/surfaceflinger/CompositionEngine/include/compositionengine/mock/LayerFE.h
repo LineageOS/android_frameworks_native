@@ -42,9 +42,8 @@ public:
 
     MOCK_CONST_METHOD0(getCompositionState, const LayerFECompositionState*());
 
-    MOCK_METHOD1(onPreComposition, bool(nsecs_t));
+    MOCK_METHOD2(onPreComposition, bool(nsecs_t, bool));
 
-    MOCK_METHOD1(prepareCompositionState, void(compositionengine::LayerFE::StateSubset));
     MOCK_CONST_METHOD1(prepareClientComposition,
                        std::optional<compositionengine::LayerFE::LayerSettings>(
                                compositionengine::LayerFE::ClientCompositionTargetSettings&));

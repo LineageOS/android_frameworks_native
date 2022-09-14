@@ -78,9 +78,8 @@ You can find the possible values in the fuzzer's source code.
 Layer supports the following parameters:
 1. Display Connection Types (parameter name: `fakeDisplay`)
 2. State Sets (parameter name: `traverseInZOrder`)
-3. State Subsets (parameter name: `prepareCompositionState`)
-4. Disconnect modes (parameter name: `disconnect`)
-5. Data Spaces (parameter name: `setDataspace`)
+3. Disconnect modes (parameter name: `disconnect`)
+4. Data Spaces (parameter name: `setDataspace`)
 
 You can find the possible values in the fuzzer's source code.
 

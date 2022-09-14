@@ -262,9 +262,6 @@ public:
     // Presents the output, finalizing all composition details
     virtual void present(const CompositionRefreshArgs&) = 0;
 
-    // Latches the front-end layer state for each output layer
-    virtual void updateLayerStateFromFE(const CompositionRefreshArgs&) const = 0;
-
     // Enables predicting composition strategy to run client composition earlier
     virtual void setPredictCompositionStrategy(bool) = 0;
 
