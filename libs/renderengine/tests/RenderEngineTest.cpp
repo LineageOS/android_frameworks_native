@@ -37,7 +37,6 @@
 #include <condition_variable>
 #include <fstream>
 
-#include "../gl/GLESRenderEngine.h"
 #include "../skia/SkiaGLRenderEngine.h"
 #include "../threaded/RenderEngineThreaded.h"
 
@@ -108,71 +107,7 @@ public:
     virtual std::string name() = 0;
     virtual renderengine::RenderEngine::RenderEngineType type() = 0;
     virtual std::unique_ptr<renderengine::RenderEngine> createRenderEngine() = 0;
-    virtual std::unique_ptr<renderengine::gl::GLESRenderEngine> createGLESRenderEngine() {
-        return nullptr;
-    }
     virtual bool useColorManagement() const = 0;
-};
-
-class GLESRenderEngineFactory : public RenderEngineFactory {
-public:
-    std::string name() override { return "GLESRenderEngineFactory"; }
-
-    renderengine::RenderEngine::RenderEngineType type() {
-        return renderengine::RenderEngine::RenderEngineType::GLES;
-    }
-
-    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
-        return createGLESRenderEngine();
-    }
-
-    std::unique_ptr<renderengine::gl::GLESRenderEngine> createGLESRenderEngine() {
-        renderengine::RenderEngineCreationArgs reCreationArgs =
-                renderengine::RenderEngineCreationArgs::Builder()
-                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
-                        .setImageCacheSize(1)
-                        .setUseColorManagerment(false)
-                        .setEnableProtectedContext(false)
-                        .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
-                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(type())
-                        .setUseColorManagerment(useColorManagement())
-                        .build();
-        return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
-    }
-
-    bool useColorManagement() const override { return false; }
-};
-
-class GLESCMRenderEngineFactory : public RenderEngineFactory {
-public:
-    std::string name() override { return "GLESCMRenderEngineFactory"; }
-
-    renderengine::RenderEngine::RenderEngineType type() {
-        return renderengine::RenderEngine::RenderEngineType::GLES;
-    }
-
-    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
-        return createGLESRenderEngine();
-    }
-
-    std::unique_ptr<renderengine::gl::GLESRenderEngine> createGLESRenderEngine() override {
-        renderengine::RenderEngineCreationArgs reCreationArgs =
-                renderengine::RenderEngineCreationArgs::Builder()
-                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
-                        .setImageCacheSize(1)
-                        .setEnableProtectedContext(false)
-                        .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
-                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(type())
-                        .setUseColorManagerment(useColorManagement())
-                        .build();
-        return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
-    }
-
-    bool useColorManagement() const override { return true; }
 };
 
 class SkiaGLESRenderEngineFactory : public RenderEngineFactory {
@@ -313,9 +248,6 @@ public:
         }
         for (uint32_t texName : mTexNames) {
             mRE->deleteTextures(1, &texName);
-            if (mGLESRE != nullptr) {
-                EXPECT_FALSE(mGLESRE->isTextureNameKnownForTesting(texName));
-            }
         }
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
@@ -537,10 +469,6 @@ public:
 
         auto fence = result.value();
         fence->waitForever(LOG_TAG);
-
-        if (layers.size() > 0 && mGLESRE != nullptr) {
-            ASSERT_TRUE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getBuffer()->getId()));
-        }
     }
 
     void drawEmptyLayers() {
@@ -663,26 +591,13 @@ public:
 
     std::unique_ptr<renderengine::RenderEngine> mRE;
     std::shared_ptr<renderengine::ExternalTexture> mBuffer;
-    // GLESRenderEngine for testing GLES-specific behavior.
-    // Owened by mRE, but this is downcasted.
-    renderengine::gl::GLESRenderEngine* mGLESRE = nullptr;
 
     std::vector<uint32_t> mTexNames;
 };
 
 void RenderEngineTest::initializeRenderEngine() {
     const auto& renderEngineFactory = GetParam();
-    if (renderEngineFactory->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        // Only GLESRenderEngine exposes test-only methods. Provide a pointer to the
-        // GLESRenderEngine if we're using it so that we don't need to dynamic_cast
-        // every time.
-        std::unique_ptr<renderengine::gl::GLESRenderEngine> renderEngine =
-                renderEngineFactory->createGLESRenderEngine();
-        mGLESRE = renderEngine.get();
-        mRE = std::move(renderEngine);
-    } else {
-        mRE = renderEngineFactory->createRenderEngine();
-    }
+    mRE = renderEngineFactory->createRenderEngine();
     mBuffer = allocateDefaultBuffer();
 }
 
@@ -1003,9 +918,9 @@ void RenderEngineTest::fillBufferWithColorTransformAndSourceDataspace(
     std::vector<renderengine::LayerSettings> layers;
 
     renderengine::LayerSettings layer;
-    layer.sourceDataspace = sourceDataspace;
     layer.geometry.boundaries = Rect(1, 1).toFloatRect();
     SourceVariant::fillColor(layer, 0.5f, 0.25f, 0.125f, this);
+    layer.sourceDataspace = sourceDataspace;
     layer.alpha = 1.0f;
 
     // construct a fake color matrix
@@ -1031,13 +946,13 @@ void RenderEngineTest::fillBufferColorTransform() {
 template <typename SourceVariant>
 void RenderEngineTest::fillBufferColorTransformAndSourceDataspace() {
     unordered_map<ui::Dataspace, ubyte4> dataspaceToColorMap;
-    dataspaceToColorMap[ui::Dataspace::V0_BT709] = {172, 0, 0, 255};
-    dataspaceToColorMap[ui::Dataspace::BT2020] = {172, 0, 0, 255};
-    dataspaceToColorMap[ui::Dataspace::ADOBE_RGB] = {172, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::V0_BT709] = {77, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::BT2020] = {101, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::ADOBE_RGB] = {75, 0, 0, 255};
     ui::Dataspace customizedDataspace = static_cast<ui::Dataspace>(
             ui::Dataspace::STANDARD_BT709 | ui::Dataspace::TRANSFER_GAMMA2_2 |
             ui::Dataspace::RANGE_FULL);
-    dataspaceToColorMap[customizedDataspace] = {172, 0, 0, 255};
+    dataspaceToColorMap[customizedDataspace] = {61, 0, 0, 255};
     for (const auto& [sourceDataspace, color] : dataspaceToColorMap) {
         fillBufferWithColorTransformAndSourceDataspace<SourceVariant>(sourceDataspace);
         expectBufferColor(fullscreenRect(), color.r, color.g, color.b, color.a, 1);
@@ -1077,13 +992,13 @@ void RenderEngineTest::fillBufferWithColorTransformAndOutputDataspace(
 template <typename SourceVariant>
 void RenderEngineTest::fillBufferColorTransformAndOutputDataspace() {
     unordered_map<ui::Dataspace, ubyte4> dataspaceToColorMap;
-    dataspaceToColorMap[ui::Dataspace::V0_BT709] = {202, 0, 0, 255};
-    dataspaceToColorMap[ui::Dataspace::BT2020] = {192, 0, 0, 255};
-    dataspaceToColorMap[ui::Dataspace::ADOBE_RGB] = {202, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::V0_BT709] = {198, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::BT2020] = {187, 0, 0, 255};
+    dataspaceToColorMap[ui::Dataspace::ADOBE_RGB] = {192, 0, 0, 255};
     ui::Dataspace customizedDataspace = static_cast<ui::Dataspace>(
             ui::Dataspace::STANDARD_BT709 | ui::Dataspace::TRANSFER_GAMMA2_6 |
             ui::Dataspace::RANGE_FULL);
-    dataspaceToColorMap[customizedDataspace] = {202, 0, 0, 255};
+    dataspaceToColorMap[customizedDataspace] = {205, 0, 0, 255};
     for (const auto& [outputDataspace, color] : dataspaceToColorMap) {
         fillBufferWithColorTransformAndOutputDataspace<SourceVariant>(outputDataspace);
         expectBufferColor(fullscreenRect(), color.r, color.g, color.b, color.a, 1);
@@ -1599,9 +1514,7 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
 }
 
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
-                         testing::Values(std::make_shared<GLESRenderEngineFactory>(),
-                                         std::make_shared<GLESCMRenderEngineFactory>(),
-                                         std::make_shared<SkiaGLESRenderEngineFactory>(),
+                         testing::Values(std::make_shared<SkiaGLESRenderEngineFactory>(),
                                          std::make_shared<SkiaGLESCMRenderEngineFactory>()));
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
@@ -1610,12 +1523,6 @@ TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedBufferAndEmptyBuffer) {
-    const auto& renderEngineFactory = GetParam();
-    if (renderEngineFactory->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        // GLES-specific test
-        return;
-    }
-
     initializeRenderEngine();
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
@@ -1689,41 +1596,6 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
     ASSERT_EQ(BAD_VALUE, result.error());
 }
 
-TEST_P(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
-    const auto& renderEngineFactory = GetParam();
-
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        // GLES-specific test
-        return;
-    }
-
-    initializeRenderEngine();
-
-    renderengine::DisplaySettings settings;
-    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
-    settings.physicalDisplay = fullscreenRect();
-    settings.clip = fullscreenRect();
-
-    std::vector<renderengine::LayerSettings> layers;
-    renderengine::LayerSettings layer;
-    layer.geometry.boundaries = fullscreenRect().toFloatRect();
-    BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
-    layer.alpha = 1.0;
-    layers.push_back(layer);
-
-    ftl::Future<FenceResult> future =
-            mRE->drawLayers(settings, layers, mBuffer, false, base::unique_fd());
-    ASSERT_TRUE(future.valid());
-    auto result = future.get();
-
-    ASSERT_TRUE(result.ok());
-    auto fence = result.value();
-    fence->waitForever(LOG_TAG);
-
-    ASSERT_FALSE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getBuffer()->getId()));
-    expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
-}
-
 TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_colorSource) {
     initializeRenderEngine();
     fillRedBuffer<ColorSourceVariant>();
@@ -1783,11 +1655,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->useColorManagement()) {
-        return;
-    }
-    // skip for GLESRenderEngine
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
+        GTEST_SKIP();
     }
 
     initializeRenderEngine();
@@ -1798,11 +1666,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_outputDataspace) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->useColorManagement()) {
-        return;
-    }
-    // skip for GLESRenderEngine
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
+        GTEST_SKIP();
     }
 
     initializeRenderEngine();
@@ -1893,11 +1757,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_o
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->useColorManagement()) {
-        return;
-    }
-    // skip for GLESRenderEngine
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
+        GTEST_SKIP();
     }
 
     initializeRenderEngine();
@@ -1908,11 +1768,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_o
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->useColorManagement()) {
-        return;
-    }
-    // skip for GLESRenderEngine
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
+        GTEST_SKIP();
     }
 
     initializeRenderEngine();
@@ -2003,11 +1859,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_b
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->useColorManagement()) {
-        return;
-    }
-    // skip for GLESRenderEngine
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
+        GTEST_SKIP();
     }
 
     initializeRenderEngine();
@@ -2018,11 +1870,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_b
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->useColorManagement()) {
-        return;
-    }
-    // skip for GLESRenderEngine
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
+        GTEST_SKIP();
     }
 
     initializeRenderEngine();
@@ -2537,10 +2385,6 @@ TEST_P(RenderEngineTest, testBorder) {
 }
 
 TEST_P(RenderEngineTest, testDimming) {
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        GTEST_SKIP();
-    }
-
     initializeRenderEngine();
 
     const ui::Dataspace dataspace = ui::Dataspace::V0_SRGB_LINEAR;
@@ -2613,9 +2457,6 @@ TEST_P(RenderEngineTest, testDimming) {
 }
 
 TEST_P(RenderEngineTest, testDimming_inGammaSpace) {
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        GTEST_SKIP();
-    }
     initializeRenderEngine();
 
     const ui::Dataspace dataspace = static_cast<ui::Dataspace>(ui::Dataspace::STANDARD_BT709 |
@@ -2691,9 +2532,6 @@ TEST_P(RenderEngineTest, testDimming_inGammaSpace) {
 }
 
 TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform) {
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        GTEST_SKIP();
-    }
     initializeRenderEngine();
 
     const ui::Dataspace dataspace = static_cast<ui::Dataspace>(ui::Dataspace::STANDARD_BT709 |
@@ -2754,9 +2592,6 @@ TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform) {
 }
 
 TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform_deviceHandles) {
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        GTEST_SKIP();
-    }
     initializeRenderEngine();
 
     const ui::Dataspace dataspace = static_cast<ui::Dataspace>(ui::Dataspace::STANDARD_BT709 |
@@ -2819,9 +2654,6 @@ TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform_devi
 
 TEST_P(RenderEngineTest, testDimming_withoutTargetLuminance) {
     initializeRenderEngine();
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
-    }
 
     const auto displayRect = Rect(2, 1);
     const renderengine::DisplaySettings display{
@@ -2927,10 +2759,6 @@ TEST_P(RenderEngineTest, test_tonemapPQMatches) {
         GTEST_SKIP();
     }
 
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        GTEST_SKIP();
-    }
-
     initializeRenderEngine();
 
     tonemap(
@@ -2948,10 +2776,6 @@ TEST_P(RenderEngineTest, test_tonemapHLGMatches) {
         GTEST_SKIP();
     }
 
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        GTEST_SKIP();
-    }
-
     initializeRenderEngine();
 
     tonemap(
@@ -2965,10 +2789,6 @@ TEST_P(RenderEngineTest, test_tonemapHLGMatches) {
 }
 
 TEST_P(RenderEngineTest, r8_behaves_as_mask) {
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
-    }
-
     initializeRenderEngine();
 
     const auto r8Buffer = allocateR8Buffer(2, 1);
@@ -3026,10 +2846,6 @@ TEST_P(RenderEngineTest, r8_behaves_as_mask) {
 }
 
 TEST_P(RenderEngineTest, r8_respects_color_transform) {
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
-    }
-
     initializeRenderEngine();
 
     const auto r8Buffer = allocateR8Buffer(2, 1);
@@ -3092,10 +2908,6 @@ TEST_P(RenderEngineTest, r8_respects_color_transform) {
 }
 
 TEST_P(RenderEngineTest, r8_respects_color_transform_when_device_handles) {
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        return;
-    }
-
     initializeRenderEngine();
 
     const auto r8Buffer = allocateR8Buffer(2, 1);
@@ -3161,10 +2973,6 @@ TEST_P(RenderEngineTest, r8_respects_color_transform_when_device_handles) {
 }
 
 TEST_P(RenderEngineTest, primeShaderCache) {
-    if (GetParam()->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
-        GTEST_SKIP();
-    }
-
     initializeRenderEngine();
 
     auto fut = mRE->primeCache();

@@ -308,6 +308,27 @@ TEST_F(VelocityTrackerTest, TestGetComputedVelocity) {
     EXPECT_FALSE(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_SCROLL, DEFAULT_POINTER_ID));
 }
 
+TEST_F(VelocityTrackerTest, TestApiInteractionsWithNoMotionEvents) {
+    VelocityTracker vt(VelocityTracker::Strategy::DEFAULT);
+
+    EXPECT_FALSE(vt.getVelocity(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID));
+
+    VelocityTracker::Estimator estimator;
+    EXPECT_FALSE(vt.getEstimator(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID, &estimator));
+
+    VelocityTracker::ComputedVelocity computedVelocity = vt.getComputedVelocity(1000, 1000);
+    for (uint32_t id = 0; id <= MAX_POINTER_ID; id++) {
+        EXPECT_FALSE(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, id));
+        EXPECT_FALSE(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, id));
+    }
+
+    EXPECT_EQ(-1, vt.getActivePointerId());
+
+    // Make sure that the clearing functions execute without an issue.
+    vt.clearPointers(BitSet32(7U));
+    vt.clear();
+}
+
 TEST_F(VelocityTrackerTest, ThreePointsPositiveVelocityTest) {
     // Same coordinate is reported 2 times in a row
     // It is difficult to determine the correct answer here, but at least the direction
