@@ -26,15 +26,9 @@ using ::android::ServiceManager;
 using ::android::sp;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    FuzzedDataProvider provider(data, size);
-
-    // Adding this random abort to check bug pipeline.
-    bool shouldAbort = provider.ConsumeBool();
-    if (shouldAbort) abort();
-
     auto accessPtr = std::make_unique<Access>();
     auto serviceManager = sp<ServiceManager>::make(std::move(accessPtr));
-    fuzzService(serviceManager, std::move(provider));
+    fuzzService(serviceManager, FuzzedDataProvider(data, size));
 
     return 0;
 }

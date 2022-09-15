@@ -125,39 +125,32 @@ static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool r
 
 // --- VelocityTracker ---
 
-const std::set<int32_t> VelocityTracker::SUPPORTED_AXES = {AMOTION_EVENT_AXIS_X,
-                                                           AMOTION_EVENT_AXIS_Y};
+const std::map<int32_t, VelocityTracker::Strategy> VelocityTracker::DEFAULT_STRATEGY_BY_AXIS =
+        {{AMOTION_EVENT_AXIS_X, VelocityTracker::Strategy::LSQ2},
+         {AMOTION_EVENT_AXIS_Y, VelocityTracker::Strategy::LSQ2}};
 
 const std::set<int32_t> VelocityTracker::PLANAR_AXES = {AMOTION_EVENT_AXIS_X, AMOTION_EVENT_AXIS_Y};
 
 VelocityTracker::VelocityTracker(const Strategy strategy)
-      : mLastEventTime(0), mCurrentPointerIdBits(0), mActivePointerId(-1) {
-    // Configure the strategy for each axis.
-    for (int32_t axis : SUPPORTED_AXES) {
-        configureStrategy(axis, strategy);
-    }
-}
+      : mLastEventTime(0),
+        mCurrentPointerIdBits(0),
+        mActivePointerId(-1),
+        mOverrideStrategy(strategy) {}
 
 VelocityTracker::~VelocityTracker() {
 }
 
-void VelocityTracker::configureStrategy(int32_t axis, const Strategy strategy) {
+void VelocityTracker::configureStrategy(int32_t axis) {
     std::unique_ptr<VelocityTrackerStrategy> createdStrategy;
-
-    if (strategy == VelocityTracker::Strategy::DEFAULT) {
-        createdStrategy = createStrategy(VelocityTracker::DEFAULT_STRATEGY);
+    if (mOverrideStrategy != VelocityTracker::Strategy::DEFAULT) {
+        createdStrategy = createStrategy(mOverrideStrategy);
     } else {
-        createdStrategy = createStrategy(strategy);
+        createdStrategy = createStrategy(VelocityTracker::DEFAULT_STRATEGY_BY_AXIS.at(axis));
     }
 
-    if (createdStrategy == nullptr) {
-        ALOGE("Unrecognized velocity tracker strategy %" PRId32 ".", strategy);
-        createdStrategy = createStrategy(VelocityTracker::DEFAULT_STRATEGY);
-        LOG_ALWAYS_FATAL_IF(createdStrategy == nullptr,
-                            "Could not create the default velocity tracker strategy '%" PRId32 "'!",
-                            strategy);
-    }
-    mStrategies[axis] = std::move(createdStrategy);
+    LOG_ALWAYS_FATAL_IF(createdStrategy == nullptr,
+                        "Could not create velocity tracker strategy for axis '%" PRId32 "'!", axis);
+    mConfiguredStrategies[axis] = std::move(createdStrategy);
 }
 
 std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
@@ -211,9 +204,7 @@ std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
 void VelocityTracker::clear() {
     mCurrentPointerIdBits.clear();
     mActivePointerId = -1;
-    for (int32_t axis : SUPPORTED_AXES) {
-        mStrategies[axis]->clear();
-    }
+    mConfiguredStrategies.clear();
 }
 
 void VelocityTracker::clearPointers(BitSet32 idBits) {
@@ -224,8 +215,8 @@ void VelocityTracker::clearPointers(BitSet32 idBits) {
         mActivePointerId = !remainingIdBits.isEmpty() ? remainingIdBits.firstMarkedBit() : -1;
     }
 
-    for (int32_t axis : SUPPORTED_AXES) {
-        mStrategies[axis]->clearPointers(idBits);
+    for (const auto& [_, strategy] : mConfiguredStrategies) {
+        strategy->clearPointers(idBits);
     }
 }
 
@@ -242,9 +233,7 @@ void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits,
 
         // We have not received any movements for too long.  Assume that all pointers
         // have stopped.
-        for (const auto& [_, strategy] : mStrategies) {
-            strategy->clear();
-        }
+        mConfiguredStrategies.clear();
     }
     mLastEventTime = eventTime;
 
@@ -257,7 +246,10 @@ void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits,
         LOG_ALWAYS_FATAL_IF(idBits.count() != positionValues.size(),
                             "Mismatching number of pointers, idBits=%" PRIu32 ", positions=%zu",
                             idBits.count(), positionValues.size());
-        mStrategies[axis]->addMovement(eventTime, idBits, positionValues);
+        if (mConfiguredStrategies.find(axis) == mConfiguredStrategies.end()) {
+            configureStrategy(axis);
+        }
+        mConfiguredStrategies[axis]->addMovement(eventTime, idBits, positionValues);
     }
 
     if (DEBUG_VELOCITY) {
@@ -323,7 +315,7 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
             // We have not received any movements for too long.  Assume that all pointers
             // have stopped.
             for (int32_t axis : PLANAR_AXES) {
-                mStrategies[axis]->clear();
+                mConfiguredStrategies.erase(axis);
             }
         }
         // These actions because they do not convey any new information about
@@ -385,7 +377,7 @@ std::optional<float> VelocityTracker::getVelocity(int32_t axis, uint32_t id) con
 VelocityTracker::ComputedVelocity VelocityTracker::getComputedVelocity(int32_t units,
                                                                        float maxVelocity) {
     ComputedVelocity computedVelocity;
-    for (int32_t axis : SUPPORTED_AXES) {
+    for (const auto& [axis, _] : mConfiguredStrategies) {
         BitSet32 copyIdBits = BitSet32(mCurrentPointerIdBits);
         while (!copyIdBits.isEmpty()) {
             uint32_t id = copyIdBits.clearFirstMarkedBit();
@@ -401,26 +393,20 @@ VelocityTracker::ComputedVelocity VelocityTracker::getComputedVelocity(int32_t u
 }
 
 bool VelocityTracker::getEstimator(int32_t axis, uint32_t id, Estimator* outEstimator) const {
-    if (SUPPORTED_AXES.find(axis) == SUPPORTED_AXES.end()) {
+    const auto& it = mConfiguredStrategies.find(axis);
+    if (it == mConfiguredStrategies.end()) {
         return false;
     }
-    return mStrategies.at(axis)->getEstimator(id, outEstimator);
+    return it->second->getEstimator(id, outEstimator);
 }
 
 // --- LeastSquaresVelocityTrackerStrategy ---
 
-LeastSquaresVelocityTrackerStrategy::LeastSquaresVelocityTrackerStrategy(
-        uint32_t degree, Weighting weighting) :
-        mDegree(degree), mWeighting(weighting) {
-    clear();
-}
+LeastSquaresVelocityTrackerStrategy::LeastSquaresVelocityTrackerStrategy(uint32_t degree,
+                                                                         Weighting weighting)
+      : mDegree(degree), mWeighting(weighting), mIndex(0) {}
 
 LeastSquaresVelocityTrackerStrategy::~LeastSquaresVelocityTrackerStrategy() {
-}
-
-void LeastSquaresVelocityTrackerStrategy::clear() {
-    mIndex = 0;
-    mMovements[0].idBits.clear();
 }
 
 void LeastSquaresVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
@@ -825,10 +811,6 @@ IntegratingVelocityTrackerStrategy::IntegratingVelocityTrackerStrategy(uint32_t 
 IntegratingVelocityTrackerStrategy::~IntegratingVelocityTrackerStrategy() {
 }
 
-void IntegratingVelocityTrackerStrategy::clear() {
-    mPointerIdBits.clear();
-}
-
 void IntegratingVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
     mPointerIdBits.value &= ~idBits.value;
 }
@@ -920,16 +902,9 @@ void IntegratingVelocityTrackerStrategy::populateEstimator(const State& state,
 
 // --- LegacyVelocityTrackerStrategy ---
 
-LegacyVelocityTrackerStrategy::LegacyVelocityTrackerStrategy() {
-    clear();
-}
+LegacyVelocityTrackerStrategy::LegacyVelocityTrackerStrategy() : mIndex(0) {}
 
 LegacyVelocityTrackerStrategy::~LegacyVelocityTrackerStrategy() {
-}
-
-void LegacyVelocityTrackerStrategy::clear() {
-    mIndex = 0;
-    mMovements[0].idBits.clear();
 }
 
 void LegacyVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
@@ -1029,16 +1004,9 @@ bool LegacyVelocityTrackerStrategy::getEstimator(uint32_t id,
 
 // --- ImpulseVelocityTrackerStrategy ---
 
-ImpulseVelocityTrackerStrategy::ImpulseVelocityTrackerStrategy() {
-    clear();
-}
+ImpulseVelocityTrackerStrategy::ImpulseVelocityTrackerStrategy() : mIndex(0) {}
 
 ImpulseVelocityTrackerStrategy::~ImpulseVelocityTrackerStrategy() {
-}
-
-void ImpulseVelocityTrackerStrategy::clear() {
-    mIndex = 0;
-    mMovements[0].idBits.clear();
 }
 
 void ImpulseVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
