@@ -22,6 +22,7 @@
 #include <android-base/stringprintf.h>
 #include <android/binder_manager.h>
 #include <android/binder_process.h>
+#include <input/Input.h>
 #include <inttypes.h>
 #include <log/log.h>
 #include <algorithm>
@@ -436,7 +437,13 @@ void InputProcessor::notifyMotion(const NotifyMotionArgs* args) {
             mQueuedListener.notifyMotion(args);
         } else {
             NotifyMotionArgs newArgs(*args);
-            newArgs.classification = mMotionClassifier->classify(newArgs);
+            const MotionClassification newClassification = mMotionClassifier->classify(newArgs);
+            LOG_ALWAYS_FATAL_IF(args->classification != MotionClassification::NONE &&
+                                        newClassification != MotionClassification::NONE,
+                                "Conflicting classifications %s (new) and %s (old)!",
+                                motionClassificationToString(newClassification),
+                                motionClassificationToString(args->classification));
+            newArgs.classification = newClassification;
             mQueuedListener.notifyMotion(&newArgs);
         }
     } // release lock

@@ -779,7 +779,8 @@ private:
                         int32_t action, int32_t actionButton, int32_t flags, int32_t metaState,
                         int32_t buttonState, int32_t edgeFlags, const PointerProperties* properties,
                         const PointerCoords* coords, const uint32_t* idToIndex, BitSet32 idBits,
-                        int32_t changedId, float xPrecision, float yPrecision, nsecs_t downTime);
+                        int32_t changedId, float xPrecision, float yPrecision, nsecs_t downTime,
+                        MotionClassification classification);
 
     // Updates pointer coords and properties for pointers with specified ids that have moved.
     // Returns true if any of them changed.

@@ -9751,6 +9751,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthSwipe) {
     ASSERT_EQ(1U, motionArgs.pointerCount);
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(MotionClassification::NONE, motionArgs.classification);
     ASSERT_NO_FATAL_FAILURE(
             assertPointerCoords(motionArgs.pointerCoords[0], 0, 0, 1, 0, 0, 0, 0, 0, 0, 0));
 
@@ -9772,6 +9773,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthSwipe) {
     ASSERT_EQ(1U, motionArgs.pointerCount);
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(MotionClassification::TWO_FINGER_SWIPE, motionArgs.classification);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0], 0,
                                                 movingDistance * mPointerMovementScale, 1, 0, 0, 0,
                                                 0, 0, 0, 0));
@@ -9809,6 +9811,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthLowResolutionSwipe)
     ASSERT_EQ(1U, motionArgs.pointerCount);
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(MotionClassification::NONE, motionArgs.classification);
     ASSERT_NO_FATAL_FAILURE(
             assertPointerCoords(motionArgs.pointerCoords[0], 0, 0, 1, 0, 0, 0, 0, 0, 0, 0));
 
@@ -9830,6 +9833,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthLowResolutionSwipe)
     ASSERT_EQ(1U, motionArgs.pointerCount);
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(MotionClassification::TWO_FINGER_SWIPE, motionArgs.classification);
     // New coordinate is the scaled relative coordinate from the initial coordinate.
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0], 0,
                                                 movingDistance * mPointerMovementScale, 1, 0, 0, 0,
@@ -9863,6 +9867,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthFreeform) {
     ASSERT_EQ(1U, motionArgs.pointerCount);
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(MotionClassification::NONE, motionArgs.classification);
     // One pointer for PRESS, and its coordinate is used as the origin for pointer coordinates.
     ASSERT_NO_FATAL_FAILURE(
             assertPointerCoords(motionArgs.pointerCoords[0], 0, 0, 1, 0, 0, 0, 0, 0, 0, 0));
@@ -9892,9 +9897,11 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthFreeform) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(MotionClassification::NONE, motionArgs.classification);
     ASSERT_EQ(2U, motionArgs.pointerCount);
     ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN, motionArgs.action & AMOTION_EVENT_ACTION_MASK);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(MotionClassification::NONE, motionArgs.classification);
     // Two pointers' scaled relative coordinates from their initial centroid.
     // Initial y coordinates are 0 as y1 and y2 have the same value.
     float cookedX1 = (x1 - x2) / 2 * mPointerXZoomScale;
@@ -9924,6 +9931,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthFreeform) {
     ASSERT_EQ(2U, motionArgs.pointerCount);
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(MotionClassification::NONE, motionArgs.classification);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0], cookedX1,
                                                 movingDistance * 2 * mPointerMovementScale, 1, 0, 0,
                                                 0, 0, 0, 0, 0));
