@@ -233,6 +233,8 @@ public:
     virtual void notifyVibratorState(const NotifyVibratorStateArgs* args) = 0;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) = 0;
     virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) = 0;
+
+    void notify(const NotifyArgs& args);
 };
 
 /*

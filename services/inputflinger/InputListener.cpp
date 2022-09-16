@@ -231,6 +231,31 @@ NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(
         int32_t id, nsecs_t eventTime, const PointerCaptureRequest& request)
       : id(id), eventTime(eventTime), request(request) {}
 
+// --- InputListenerInterface ---
+
+// Helper to std::visit with lambdas.
+template <typename... V>
+struct Visitor : V... {};
+// explicit deduction guide (not needed as of C++20)
+template <typename... V>
+Visitor(V...) -> Visitor<V...>;
+
+void InputListenerInterface::notify(const NotifyArgs& generalArgs) {
+    Visitor v{
+            [&](const NotifyConfigurationChangedArgs& args) { notifyConfigurationChanged(&args); },
+            [&](const NotifyKeyArgs& args) { notifyKey(&args); },
+            [&](const NotifyMotionArgs& args) { notifyMotion(&args); },
+            [&](const NotifySwitchArgs& args) { notifySwitch(&args); },
+            [&](const NotifySensorArgs& args) { notifySensor(&args); },
+            [&](const NotifyVibratorStateArgs& args) { notifyVibratorState(&args); },
+            [&](const NotifyDeviceResetArgs& args) { notifyDeviceReset(&args); },
+            [&](const NotifyPointerCaptureChangedArgs& args) {
+                notifyPointerCaptureChanged(&args);
+            },
+    };
+    std::visit(v, generalArgs);
+}
+
 // --- QueuedInputListener ---
 
 static inline void traceEvent(const char* functionName, int32_t id) {
@@ -284,30 +309,9 @@ void QueuedInputListener::notifyPointerCaptureChanged(const NotifyPointerCapture
     mArgsQueue.emplace_back(*args);
 }
 
-// Helper to std::visit with lambdas.
-template <typename... V>
-struct Visitor : V... {};
-// explicit deduction guide (not needed as of C++20)
-template <typename... V>
-Visitor(V...) -> Visitor<V...>;
-
 void QueuedInputListener::flush() {
-    Visitor v{
-            [&](const NotifyConfigurationChangedArgs& args) {
-                mInnerListener.notifyConfigurationChanged(&args);
-            },
-            [&](const NotifyKeyArgs& args) { mInnerListener.notifyKey(&args); },
-            [&](const NotifyMotionArgs& args) { mInnerListener.notifyMotion(&args); },
-            [&](const NotifySwitchArgs& args) { mInnerListener.notifySwitch(&args); },
-            [&](const NotifySensorArgs& args) { mInnerListener.notifySensor(&args); },
-            [&](const NotifyVibratorStateArgs& args) { mInnerListener.notifyVibratorState(&args); },
-            [&](const NotifyDeviceResetArgs& args) { mInnerListener.notifyDeviceReset(&args); },
-            [&](const NotifyPointerCaptureChangedArgs& args) {
-                mInnerListener.notifyPointerCaptureChanged(&args);
-            },
-    };
     for (const NotifyArgs& args : mArgsQueue) {
-        std::visit(v, args);
+        mInnerListener.notify(args);
     }
     mArgsQueue.clear();
 }
