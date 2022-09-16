@@ -55,6 +55,18 @@ const bool DEBUG_IMPULSE =
 // Nanoseconds per milliseconds.
 static const nsecs_t NANOS_PER_MS = 1000000;
 
+// All axes supported for velocity tracking, mapped to their default strategies.
+// Although other strategies are available for testing and comparison purposes,
+// the default strategy is the one that applications will actually use.  Be very careful
+// when adjusting the default strategy because it can dramatically affect
+// (often in a bad way) the user experience.
+static const std::map<int32_t, VelocityTracker::Strategy> DEFAULT_STRATEGY_BY_AXIS =
+        {{AMOTION_EVENT_AXIS_X, VelocityTracker::Strategy::LSQ2},
+         {AMOTION_EVENT_AXIS_Y, VelocityTracker::Strategy::LSQ2}};
+
+// Axes specifying location on a 2D plane (i.e. X and Y).
+static const std::set<int32_t> PLANAR_AXES = {AMOTION_EVENT_AXIS_X, AMOTION_EVENT_AXIS_Y};
+
 // Threshold for determining that a pointer has stopped moving.
 // Some input devices do not send ACTION_MOVE events in the case where a pointer has
 // stopped.  We need to detect this case so that we can accurately predict the
@@ -125,12 +137,6 @@ static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool r
 
 // --- VelocityTracker ---
 
-const std::map<int32_t, VelocityTracker::Strategy> VelocityTracker::DEFAULT_STRATEGY_BY_AXIS =
-        {{AMOTION_EVENT_AXIS_X, VelocityTracker::Strategy::LSQ2},
-         {AMOTION_EVENT_AXIS_Y, VelocityTracker::Strategy::LSQ2}};
-
-const std::set<int32_t> VelocityTracker::PLANAR_AXES = {AMOTION_EVENT_AXIS_X, AMOTION_EVENT_AXIS_Y};
-
 VelocityTracker::VelocityTracker(const Strategy strategy)
       : mLastEventTime(0),
         mCurrentPointerIdBits(0),
@@ -145,7 +151,7 @@ void VelocityTracker::configureStrategy(int32_t axis) {
     if (mOverrideStrategy != VelocityTracker::Strategy::DEFAULT) {
         createdStrategy = createStrategy(mOverrideStrategy);
     } else {
-        createdStrategy = createStrategy(VelocityTracker::DEFAULT_STRATEGY_BY_AXIS.at(axis));
+        createdStrategy = createStrategy(DEFAULT_STRATEGY_BY_AXIS.at(axis));
     }
 
     LOG_ALWAYS_FATAL_IF(createdStrategy == nullptr,
@@ -283,9 +289,7 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
     case AMOTION_EVENT_ACTION_HOVER_ENTER:
         // Clear all pointers on down before adding the new movement.
         clear();
-        for (int32_t axis : PLANAR_AXES) {
-            axesToProcess.insert(axis);
-        }
+        axesToProcess.insert(PLANAR_AXES.begin(), PLANAR_AXES.end());
         break;
     case AMOTION_EVENT_ACTION_POINTER_DOWN: {
         // Start a new movement trace for a pointer that just went down.
@@ -294,16 +298,12 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         BitSet32 downIdBits;
         downIdBits.markBit(event->getPointerId(event->getActionIndex()));
         clearPointers(downIdBits);
-        for (int32_t axis : PLANAR_AXES) {
-            axesToProcess.insert(axis);
-        }
+        axesToProcess.insert(PLANAR_AXES.begin(), PLANAR_AXES.end());
         break;
     }
     case AMOTION_EVENT_ACTION_MOVE:
     case AMOTION_EVENT_ACTION_HOVER_MOVE:
-        for (int32_t axis : PLANAR_AXES) {
-            axesToProcess.insert(axis);
-        }
+        axesToProcess.insert(PLANAR_AXES.begin(), PLANAR_AXES.end());
         break;
     case AMOTION_EVENT_ACTION_POINTER_UP:
     case AMOTION_EVENT_ACTION_UP: {
