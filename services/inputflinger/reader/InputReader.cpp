@@ -120,14 +120,14 @@ void InputReader::loopOnce() {
         }
     } // release lock
 
-    size_t count = mEventHub->getEvents(timeoutMillis, mEventBuffer, EVENT_BUFFER_SIZE);
+    std::vector<RawEvent> events = mEventHub->getEvents(timeoutMillis);
 
     { // acquire lock
         std::scoped_lock _l(mLock);
         mReaderIsAliveCondition.notify_all();
 
-        if (count) {
-            processEventsLocked(mEventBuffer, count);
+        if (!events.empty()) {
+            processEventsLocked(events.data(), events.size());
         }
 
         if (mNextTimeout != LLONG_MAX) {

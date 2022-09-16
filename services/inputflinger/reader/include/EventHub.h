@@ -282,7 +282,7 @@ public:
      *
      * Returns the number of events obtained, or 0 if the timeout expired.
      */
-    virtual size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) = 0;
+    virtual std::vector<RawEvent> getEvents(int timeoutMillis) = 0;
     virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) = 0;
     virtual base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(
             int32_t deviceId, int32_t absCode) const = 0;
@@ -500,7 +500,7 @@ public:
     bool markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,
                                uint8_t* outFlags) const override final;
 
-    size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) override final;
+    std::vector<RawEvent> getEvents(int timeoutMillis) override final;
     std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) override final;
 
     bool hasScanCode(int32_t deviceId, int32_t scanCode) const override final;

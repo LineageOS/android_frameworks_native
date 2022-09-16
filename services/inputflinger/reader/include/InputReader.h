@@ -170,10 +170,6 @@ private:
 
     InputReaderConfiguration mConfig GUARDED_BY(mLock);
 
-    // The event queue.
-    static const int EVENT_BUFFER_SIZE = 256;
-    RawEvent mEventBuffer[EVENT_BUFFER_SIZE] GUARDED_BY(mLock);
-
     // An input device can represent a collection of EventHub devices. This map provides a way
     // to lookup the input device instance from the EventHub device id.
     std::unordered_map<int32_t /*eventHubId*/, std::shared_ptr<InputDevice>> mDevices
