@@ -26,41 +26,25 @@ namespace android {
 
 class InputListenerInterface;
 
-
-/* Superclass of all input event argument objects */
-struct NotifyArgs {
+/* Describes a configuration change event. */
+struct NotifyConfigurationChangedArgs {
     int32_t id;
     nsecs_t eventTime;
 
-    inline NotifyArgs() : id(0), eventTime(0) {}
-
-    inline explicit NotifyArgs(int32_t id, nsecs_t eventTime) : id(id), eventTime(eventTime) {}
-
-    virtual ~NotifyArgs() { }
-
-    virtual void notify(InputListenerInterface& listener) const = 0;
-};
-
-
-/* Describes a configuration change event. */
-struct NotifyConfigurationChangedArgs : public NotifyArgs {
-
     inline NotifyConfigurationChangedArgs() { }
-
-    bool operator==(const NotifyConfigurationChangedArgs& rhs) const;
 
     NotifyConfigurationChangedArgs(int32_t id, nsecs_t eventTime);
 
-    NotifyConfigurationChangedArgs(const NotifyConfigurationChangedArgs& other);
+    bool operator==(const NotifyConfigurationChangedArgs& rhs) const = default;
 
-    virtual ~NotifyConfigurationChangedArgs() { }
-
-    void notify(InputListenerInterface& listener) const override;
+    NotifyConfigurationChangedArgs(const NotifyConfigurationChangedArgs& other) = default;
 };
 
-
 /* Describes a key event. */
-struct NotifyKeyArgs : public NotifyArgs {
+struct NotifyKeyArgs {
+    int32_t id;
+    nsecs_t eventTime;
+
     int32_t deviceId;
     uint32_t source;
     int32_t displayId;
@@ -80,18 +64,16 @@ struct NotifyKeyArgs : public NotifyArgs {
                   int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
                   nsecs_t downTime);
 
-    bool operator==(const NotifyKeyArgs& rhs) const;
+    bool operator==(const NotifyKeyArgs& rhs) const = default;
 
-    NotifyKeyArgs(const NotifyKeyArgs& other);
-
-    virtual ~NotifyKeyArgs() { }
-
-    void notify(InputListenerInterface& listener) const override;
+    NotifyKeyArgs(const NotifyKeyArgs& other) = default;
 };
 
-
 /* Describes a motion event. */
-struct NotifyMotionArgs : public NotifyArgs {
+struct NotifyMotionArgs {
+    int32_t id;
+    nsecs_t eventTime;
+
     int32_t deviceId;
     uint32_t source;
     int32_t displayId;
@@ -136,17 +118,16 @@ struct NotifyMotionArgs : public NotifyArgs {
 
     NotifyMotionArgs(const NotifyMotionArgs& other);
 
-    virtual ~NotifyMotionArgs() { }
-
     bool operator==(const NotifyMotionArgs& rhs) const;
-
-    void notify(InputListenerInterface& listener) const override;
 
     std::string dump() const;
 };
 
 /* Describes a sensor event. */
-struct NotifySensorArgs : public NotifyArgs {
+struct NotifySensorArgs {
+    int32_t id;
+    nsecs_t eventTime;
+
     int32_t deviceId;
     uint32_t source;
     InputDeviceSensorType sensorType;
@@ -161,17 +142,14 @@ struct NotifySensorArgs : public NotifyArgs {
                      InputDeviceSensorType sensorType, InputDeviceSensorAccuracy accuracy,
                      bool accuracyChanged, nsecs_t hwTimestamp, std::vector<float> values);
 
-    NotifySensorArgs(const NotifySensorArgs& other);
-
-    bool operator==(const NotifySensorArgs rhs) const;
-
-    ~NotifySensorArgs() override {}
-
-    void notify(InputListenerInterface& listener) const override;
+    NotifySensorArgs(const NotifySensorArgs& other) = default;
 };
 
 /* Describes a switch event. */
-struct NotifySwitchArgs : public NotifyArgs {
+struct NotifySwitchArgs {
+    int32_t id;
+    nsecs_t eventTime;
+
     uint32_t policyFlags;
     uint32_t switchValues;
     uint32_t switchMask;
@@ -181,54 +159,48 @@ struct NotifySwitchArgs : public NotifyArgs {
     NotifySwitchArgs(int32_t id, nsecs_t eventTime, uint32_t policyFlags, uint32_t switchValues,
                      uint32_t switchMask);
 
-    NotifySwitchArgs(const NotifySwitchArgs& other);
+    NotifySwitchArgs(const NotifySwitchArgs& other) = default;
 
-    bool operator==(const NotifySwitchArgs rhs) const;
-
-    virtual ~NotifySwitchArgs() { }
-
-    void notify(InputListenerInterface& listener) const override;
+    bool operator==(const NotifySwitchArgs& rhs) const = default;
 };
-
 
 /* Describes a device reset event, such as when a device is added,
  * reconfigured, or removed. */
-struct NotifyDeviceResetArgs : public NotifyArgs {
+struct NotifyDeviceResetArgs {
+    int32_t id;
+    nsecs_t eventTime;
+
     int32_t deviceId;
 
     inline NotifyDeviceResetArgs() { }
 
     NotifyDeviceResetArgs(int32_t id, nsecs_t eventTime, int32_t deviceId);
 
-    NotifyDeviceResetArgs(const NotifyDeviceResetArgs& other);
+    NotifyDeviceResetArgs(const NotifyDeviceResetArgs& other) = default;
 
-    bool operator==(const NotifyDeviceResetArgs& rhs) const;
-
-    virtual ~NotifyDeviceResetArgs() { }
-
-    void notify(InputListenerInterface& listener) const override;
+    bool operator==(const NotifyDeviceResetArgs& rhs) const = default;
 };
 
 /* Describes a change in the state of Pointer Capture. */
-struct NotifyPointerCaptureChangedArgs : public NotifyArgs {
+struct NotifyPointerCaptureChangedArgs {
     // The sequence number of the Pointer Capture request, if enabled.
+    int32_t id;
+    nsecs_t eventTime;
+
     PointerCaptureRequest request;
 
     inline NotifyPointerCaptureChangedArgs() {}
 
     NotifyPointerCaptureChangedArgs(int32_t id, nsecs_t eventTime, const PointerCaptureRequest&);
 
-    NotifyPointerCaptureChangedArgs(const NotifyPointerCaptureChangedArgs& other);
-
-    bool operator==(const NotifyPointerCaptureChangedArgs& rhs) const;
-
-    virtual ~NotifyPointerCaptureChangedArgs() {}
-
-    void notify(InputListenerInterface& listener) const override;
+    NotifyPointerCaptureChangedArgs(const NotifyPointerCaptureChangedArgs& other) = default;
 };
 
 /* Describes a vibrator state event. */
-struct NotifyVibratorStateArgs : public NotifyArgs {
+struct NotifyVibratorStateArgs {
+    int32_t id;
+    nsecs_t eventTime;
+
     int32_t deviceId;
     bool isOn;
 
@@ -237,13 +209,11 @@ struct NotifyVibratorStateArgs : public NotifyArgs {
     NotifyVibratorStateArgs(int32_t id, nsecs_t eventTIme, int32_t deviceId, bool isOn);
 
     NotifyVibratorStateArgs(const NotifyVibratorStateArgs& other);
-
-    bool operator==(const NotifyVibratorStateArgs rhs) const;
-
-    virtual ~NotifyVibratorStateArgs() {}
-
-    void notify(InputListenerInterface& listener) const override;
 };
+
+using NotifyArgs = std::variant<NotifyConfigurationChangedArgs, NotifyKeyArgs, NotifyMotionArgs,
+                                NotifySensorArgs, NotifySwitchArgs, NotifyDeviceResetArgs,
+                                NotifyPointerCaptureChangedArgs, NotifyVibratorStateArgs>;
 
 /*
  * The interface used by the InputReader to notify the InputListener about input events.
@@ -287,7 +257,7 @@ public:
 
 private:
     InputListenerInterface& mInnerListener;
-    std::vector<std::unique_ptr<NotifyArgs>> mArgsQueue;
+    std::vector<NotifyArgs> mArgsQueue;
 };
 
 } // namespace android

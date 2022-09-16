@@ -123,40 +123,38 @@ ScopedDeathRecipient::~ScopedDeathRecipient() {
 
 // --- ClassifierEvent ---
 
-ClassifierEvent::ClassifierEvent(std::unique_ptr<NotifyMotionArgs> args)
-      : type(ClassifierEventType::MOTION), args(std::move(args)){};
-ClassifierEvent::ClassifierEvent(std::unique_ptr<NotifyDeviceResetArgs> args)
-      : type(ClassifierEventType::DEVICE_RESET), args(std::move(args)){};
-ClassifierEvent::ClassifierEvent(ClassifierEventType type, std::unique_ptr<NotifyArgs> args)
-      : type(type), args(std::move(args)){};
+ClassifierEvent::ClassifierEvent(const NotifyMotionArgs& args)
+      : type(ClassifierEventType::MOTION), args(args){};
 
-ClassifierEvent::ClassifierEvent(ClassifierEvent&& other)
-      : type(other.type), args(std::move(other.args)){};
+ClassifierEvent::ClassifierEvent(const NotifyDeviceResetArgs& args)
+      : type(ClassifierEventType::DEVICE_RESET), args(args){};
+
+ClassifierEvent::ClassifierEvent(ClassifierEventType type, std::optional<NotifyArgs> args)
+      : type(type), args(args){};
 
 ClassifierEvent& ClassifierEvent::operator=(ClassifierEvent&& other) {
     type = other.type;
-    args = std::move(other.args);
+    args = other.args;
     return *this;
 }
 
 ClassifierEvent ClassifierEvent::createHalResetEvent() {
-    return ClassifierEvent(ClassifierEventType::HAL_RESET, nullptr);
+    return ClassifierEvent(ClassifierEventType::HAL_RESET, std::nullopt);
 }
 
 ClassifierEvent ClassifierEvent::createExitEvent() {
-    return ClassifierEvent(ClassifierEventType::EXIT, nullptr);
+    return ClassifierEvent(ClassifierEventType::EXIT, std::nullopt);
 }
 
 std::optional<int32_t> ClassifierEvent::getDeviceId() const {
     switch (type) {
         case ClassifierEventType::MOTION: {
-            NotifyMotionArgs* motionArgs = static_cast<NotifyMotionArgs*>(args.get());
-            return motionArgs->deviceId;
+            const NotifyMotionArgs& motionArgs = std::get<NotifyMotionArgs>(*args);
+            return motionArgs.deviceId;
         }
         case ClassifierEventType::DEVICE_RESET: {
-            NotifyDeviceResetArgs* deviceResetArgs =
-                    static_cast<NotifyDeviceResetArgs*>(args.get());
-            return deviceResetArgs->deviceId;
+            const NotifyDeviceResetArgs& deviceResetArgs = std::get<NotifyDeviceResetArgs>(*args);
+            return deviceResetArgs.deviceId;
         }
         case ClassifierEventType::HAL_RESET: {
             return std::nullopt;
@@ -212,12 +210,12 @@ void MotionClassifier::processEvents() {
         bool halResponseOk = true;
         switch (event.type) {
             case ClassifierEventType::MOTION: {
-                NotifyMotionArgs* motionArgs = static_cast<NotifyMotionArgs*>(event.args.get());
-                common::MotionEvent motionEvent = notifyMotionArgsToHalMotionEvent(*motionArgs);
+                NotifyMotionArgs& motionArgs = std::get<NotifyMotionArgs>(*event.args);
+                common::MotionEvent motionEvent = notifyMotionArgsToHalMotionEvent(motionArgs);
                 common::Classification classification;
                 ndk::ScopedAStatus response = mService->classify(motionEvent, &classification);
                 if (response.isOk()) {
-                    updateClassification(motionArgs->deviceId, motionArgs->eventTime,
+                    updateClassification(motionArgs.deviceId, motionArgs.eventTime,
                                          getMotionClassification(classification));
                 }
                 break;
@@ -307,8 +305,7 @@ MotionClassification MotionClassifier::classify(const NotifyMotionArgs& args) {
         updateLastDownTime(args.deviceId, args.downTime);
     }
 
-    ClassifierEvent event(std::make_unique<NotifyMotionArgs>(args));
-    enqueueEvent(std::move(event));
+    enqueueEvent(args);
     return getClassification(args.deviceId);
 }
 
@@ -328,7 +325,7 @@ void MotionClassifier::reset(const NotifyDeviceResetArgs& args) {
         std::optional<int32_t> eventDeviceId = event.getDeviceId();
         return eventDeviceId && (*eventDeviceId == deviceId);
     });
-    enqueueEvent(std::make_unique<NotifyDeviceResetArgs>(args));
+    enqueueEvent(args);
 }
 
 void MotionClassifier::dump(std::string& dump) {
