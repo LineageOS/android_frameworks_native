@@ -1491,6 +1491,8 @@ private:
     bool mPowerHintSessionEnabled;
 
     bool mLayerLifecycleManagerEnabled = false;
+    // Whether a display should be turned on when initialized
+    bool mSkipPowerOnForQuiescent;
 
     frontend::LayerLifecycleManager mLayerLifecycleManager GUARDED_BY(kMainThreadContext);
     frontend::LayerHierarchyBuilder mLayerHierarchyBuilder GUARDED_BY(kMainThreadContext);
