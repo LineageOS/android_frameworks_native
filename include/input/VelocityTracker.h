@@ -145,16 +145,6 @@ public:
     inline int32_t getActivePointerId() const { return mActivePointerId; }
 
 private:
-    // All axes supported for velocity tracking, mapped to their default strategies.
-    // Although other strategies are available for testing and comparison purposes,
-    // the default strategy is the one that applications will actually use.  Be very careful
-    // when adjusting the default strategy because it can dramatically affect
-    // (often in a bad way) the user experience.
-    static const std::map<int32_t, Strategy> DEFAULT_STRATEGY_BY_AXIS;
-
-    // Axes specifying location on a 2D plane (i.e. X and Y).
-    static const std::set<int32_t> PLANAR_AXES;
-
     nsecs_t mLastEventTime;
     BitSet32 mCurrentPointerIdBits;
     int32_t mActivePointerId;
@@ -170,7 +160,8 @@ private:
 
     void configureStrategy(int32_t axis);
 
-    static std::unique_ptr<VelocityTrackerStrategy> createStrategy(const Strategy strategy);
+    static std::unique_ptr<VelocityTrackerStrategy> createStrategy(const Strategy strategy,
+                                                                   bool isCumulative);
 };
 
 
@@ -316,7 +307,7 @@ private:
 
 class ImpulseVelocityTrackerStrategy : public VelocityTrackerStrategy {
 public:
-    ImpulseVelocityTrackerStrategy();
+    ImpulseVelocityTrackerStrategy(bool deltaValues);
     virtual ~ImpulseVelocityTrackerStrategy();
 
     virtual void clearPointers(BitSet32 idBits);
@@ -340,6 +331,11 @@ private:
 
         inline float getPosition(uint32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
     };
+
+    // Whether or not the input movement values for the strategy come in the form of delta values.
+    // If the input values are not deltas, the strategy needs to calculate deltas as part of its
+    // velocity calculation.
+    const bool mDeltaValues;
 
     size_t mIndex;
     Movement mMovements[HISTORY_SIZE];

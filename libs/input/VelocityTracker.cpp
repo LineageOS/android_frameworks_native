@@ -55,6 +55,22 @@ const bool DEBUG_IMPULSE =
 // Nanoseconds per milliseconds.
 static const nsecs_t NANOS_PER_MS = 1000000;
 
+// All axes supported for velocity tracking, mapped to their default strategies.
+// Although other strategies are available for testing and comparison purposes,
+// the default strategy is the one that applications will actually use.  Be very careful
+// when adjusting the default strategy because it can dramatically affect
+// (often in a bad way) the user experience.
+static const std::map<int32_t, VelocityTracker::Strategy> DEFAULT_STRATEGY_BY_AXIS =
+        {{AMOTION_EVENT_AXIS_X, VelocityTracker::Strategy::LSQ2},
+         {AMOTION_EVENT_AXIS_Y, VelocityTracker::Strategy::LSQ2},
+         {AMOTION_EVENT_AXIS_SCROLL, VelocityTracker::Strategy::IMPULSE}};
+
+// Axes specifying location on a 2D plane (i.e. X and Y).
+static const std::set<int32_t> PLANAR_AXES = {AMOTION_EVENT_AXIS_X, AMOTION_EVENT_AXIS_Y};
+
+// Axes whose motion values are differential values (i.e. deltas).
+static const std::set<int32_t> DIFFERENTIAL_AXES = {AMOTION_EVENT_AXIS_SCROLL};
+
 // Threshold for determining that a pointer has stopped moving.
 // Some input devices do not send ACTION_MOVE events in the case where a pointer has
 // stopped.  We need to detect this case so that we can accurately predict the
@@ -125,12 +141,6 @@ static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool r
 
 // --- VelocityTracker ---
 
-const std::map<int32_t, VelocityTracker::Strategy> VelocityTracker::DEFAULT_STRATEGY_BY_AXIS =
-        {{AMOTION_EVENT_AXIS_X, VelocityTracker::Strategy::LSQ2},
-         {AMOTION_EVENT_AXIS_Y, VelocityTracker::Strategy::LSQ2}};
-
-const std::set<int32_t> VelocityTracker::PLANAR_AXES = {AMOTION_EVENT_AXIS_X, AMOTION_EVENT_AXIS_Y};
-
 VelocityTracker::VelocityTracker(const Strategy strategy)
       : mLastEventTime(0),
         mCurrentPointerIdBits(0),
@@ -141,11 +151,14 @@ VelocityTracker::~VelocityTracker() {
 }
 
 void VelocityTracker::configureStrategy(int32_t axis) {
+    const bool isDifferentialAxis = DIFFERENTIAL_AXES.find(axis) != DIFFERENTIAL_AXES.end();
+
     std::unique_ptr<VelocityTrackerStrategy> createdStrategy;
     if (mOverrideStrategy != VelocityTracker::Strategy::DEFAULT) {
-        createdStrategy = createStrategy(mOverrideStrategy);
+        createdStrategy = createStrategy(mOverrideStrategy, isDifferentialAxis /* deltaValues */);
     } else {
-        createdStrategy = createStrategy(VelocityTracker::DEFAULT_STRATEGY_BY_AXIS.at(axis));
+        createdStrategy = createStrategy(DEFAULT_STRATEGY_BY_AXIS.at(axis),
+                                         isDifferentialAxis /* deltaValues */);
     }
 
     LOG_ALWAYS_FATAL_IF(createdStrategy == nullptr,
@@ -154,11 +167,11 @@ void VelocityTracker::configureStrategy(int32_t axis) {
 }
 
 std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
-        VelocityTracker::Strategy strategy) {
+        VelocityTracker::Strategy strategy, bool deltaValues) {
     switch (strategy) {
         case VelocityTracker::Strategy::IMPULSE:
             ALOGI_IF(DEBUG_STRATEGY, "Initializing impulse strategy");
-            return std::make_unique<ImpulseVelocityTrackerStrategy>();
+            return std::make_unique<ImpulseVelocityTrackerStrategy>(deltaValues);
 
         case VelocityTracker::Strategy::LSQ1:
             return std::make_unique<LeastSquaresVelocityTrackerStrategy>(1);
@@ -283,9 +296,7 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
     case AMOTION_EVENT_ACTION_HOVER_ENTER:
         // Clear all pointers on down before adding the new movement.
         clear();
-        for (int32_t axis : PLANAR_AXES) {
-            axesToProcess.insert(axis);
-        }
+        axesToProcess.insert(PLANAR_AXES.begin(), PLANAR_AXES.end());
         break;
     case AMOTION_EVENT_ACTION_POINTER_DOWN: {
         // Start a new movement trace for a pointer that just went down.
@@ -294,16 +305,12 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         BitSet32 downIdBits;
         downIdBits.markBit(event->getPointerId(event->getActionIndex()));
         clearPointers(downIdBits);
-        for (int32_t axis : PLANAR_AXES) {
-            axesToProcess.insert(axis);
-        }
+        axesToProcess.insert(PLANAR_AXES.begin(), PLANAR_AXES.end());
         break;
     }
     case AMOTION_EVENT_ACTION_MOVE:
     case AMOTION_EVENT_ACTION_HOVER_MOVE:
-        for (int32_t axis : PLANAR_AXES) {
-            axesToProcess.insert(axis);
-        }
+        axesToProcess.insert(PLANAR_AXES.begin(), PLANAR_AXES.end());
         break;
     case AMOTION_EVENT_ACTION_POINTER_UP:
     case AMOTION_EVENT_ACTION_UP: {
@@ -328,6 +335,9 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         // before adding the movement.
         return;
     }
+    case AMOTION_EVENT_ACTION_SCROLL:
+        axesToProcess.insert(AMOTION_EVENT_AXIS_SCROLL);
+        break;
     default:
         // Ignore all other actions.
         return;
@@ -1004,7 +1014,8 @@ bool LegacyVelocityTrackerStrategy::getEstimator(uint32_t id,
 
 // --- ImpulseVelocityTrackerStrategy ---
 
-ImpulseVelocityTrackerStrategy::ImpulseVelocityTrackerStrategy() : mIndex(0) {}
+ImpulseVelocityTrackerStrategy::ImpulseVelocityTrackerStrategy(bool deltaValues)
+      : mDeltaValues(deltaValues), mIndex(0) {}
 
 ImpulseVelocityTrackerStrategy::~ImpulseVelocityTrackerStrategy() {
 }
@@ -1112,7 +1123,8 @@ static float kineticEnergyToVelocity(float work) {
     return (work < 0 ? -1.0 : 1.0) * sqrtf(fabsf(work)) * sqrt2;
 }
 
-static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t count) {
+static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t count,
+                                      bool deltaValues) {
     // The input should be in reversed time order (most recent sample at index i=0)
     // t[i] is in nanoseconds, but due to FP arithmetic, convert to seconds inside this function
     static constexpr float SECONDS_PER_NANO = 1E-9;
@@ -1123,12 +1135,26 @@ static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t c
     if (t[1] > t[0]) { // Algorithm will still work, but not perfectly
         ALOGE("Samples provided to calculateImpulseVelocity in the wrong order");
     }
+
+    // If the data values are delta values, we do not have to calculate deltas here.
+    // We can use the delta values directly, along with the calculated time deltas.
+    // Since the data value input is in reversed time order:
+    //      [a] for non-delta inputs, instantenous velocity = (x[i] - x[i-1])/(t[i] - t[i-1])
+    //      [b] for delta inputs, instantenous velocity = -x[i-1]/(t[i] - t[i - 1])
+    // e.g., let the non-delta values are: V = [2, 3, 7], the equivalent deltas are D = [2, 1, 4].
+    // Since the input is in reversed time order, the input values for this function would be
+    // V'=[7, 3, 2] and D'=[4, 1, 2] for the non-delta and delta values, respectively.
+    //
+    // The equivalent of {(V'[2] - V'[1]) = 2 - 3 = -1} would be {-D'[1] = -1}
+    // Similarly, the equivalent of {(V'[1] - V'[0]) = 3 - 7 = -4} would be {-D'[0] = -4}
+
     if (count == 2) { // if 2 points, basic linear calculation
         if (t[1] == t[0]) {
             ALOGE("Events have identical time stamps t=%" PRId64 ", setting velocity = 0", t[0]);
             return 0;
         }
-        return (x[1] - x[0]) / (SECONDS_PER_NANO * (t[1] - t[0]));
+        const float deltaX = deltaValues ? -x[0] : x[1] - x[0];
+        return deltaX / (SECONDS_PER_NANO * (t[1] - t[0]));
     }
     // Guaranteed to have at least 3 points here
     float work = 0;
@@ -1138,7 +1164,8 @@ static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t c
             continue;
         }
         float vprev = kineticEnergyToVelocity(work); // v[i-1]
-        float vcurr = (x[i] - x[i-1]) / (SECONDS_PER_NANO * (t[i] - t[i-1])); // v[i]
+        const float deltaX = deltaValues ? -x[i-1] : x[i] - x[i-1];
+        float vcurr = deltaX / (SECONDS_PER_NANO * (t[i] - t[i-1])); // v[i]
         work += (vcurr - vprev) * fabsf(vcurr);
         if (i == count - 1) {
             work *= 0.5; // initial condition, case 2) above
@@ -1177,7 +1204,7 @@ bool ImpulseVelocityTrackerStrategy::getEstimator(uint32_t id,
         return false; // no data
     }
     outEstimator->coeff[0] = 0;
-    outEstimator->coeff[1] = calculateImpulseVelocity(time, positions, m);
+    outEstimator->coeff[1] = calculateImpulseVelocity(time, positions, m, mDeltaValues);
     outEstimator->coeff[2] = 0;
 
     outEstimator->time = newestMovement.eventTime;
