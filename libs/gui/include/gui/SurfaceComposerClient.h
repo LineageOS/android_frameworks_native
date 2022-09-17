@@ -409,8 +409,10 @@ public:
         bool mEarlyWakeupStart = false;
         bool mEarlyWakeupEnd = false;
 
-        // Indicates that the Transaction contains a buffer that should be cached
-        bool mContainsBuffer = false;
+        // Indicates that the Transaction may contain buffers that should be cached. The reason this
+        // is only a guess is that buffers can be removed before cache is called. This is only a
+        // hint that at some point a buffer was added to this transaction before apply was called.
+        bool mMayContainBuffer = false;
 
         // mDesiredPresentTime is the time in nanoseconds that the client would like the transaction
         // to be presented. When it is not possible to present at exactly that time, it will be

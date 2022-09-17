@@ -23,6 +23,8 @@
 
 namespace android {
 
+// clang-format off
+
 // NOTE: If you add a new keycode here you must also add it to several other files.
 //       Refer to frameworks/base/core/java/android/view/KeyEvent.java for the full list.
 #define KEYCODES_SEQUENCE \
@@ -333,7 +335,11 @@ namespace android {
     DEFINE_KEYCODE(DEMO_APP_4), \
     DEFINE_KEYCODE(KEYBOARD_BACKLIGHT_DOWN), \
     DEFINE_KEYCODE(KEYBOARD_BACKLIGHT_UP), \
-    DEFINE_KEYCODE(KEYBOARD_BACKLIGHT_TOGGLE)
+    DEFINE_KEYCODE(KEYBOARD_BACKLIGHT_TOGGLE), \
+    DEFINE_KEYCODE(STYLUS_BUTTON_PRIMARY), \
+    DEFINE_KEYCODE(STYLUS_BUTTON_SECONDARY), \
+    DEFINE_KEYCODE(STYLUS_BUTTON_TERTIARY), \
+    DEFINE_KEYCODE(STYLUS_BUTTON_TAIL)
 
 // NOTE: If you add a new axis here you must also add it to several other files.
 //       Refer to frameworks/base/core/java/android/view/MotionEvent.java for the full list.
@@ -387,7 +393,6 @@ namespace android {
     DEFINE_AXIS(GENERIC_15), \
     DEFINE_AXIS(GENERIC_16)
 
-
 // NOTE: If you add new LEDs here, you must also add them to Input.h
 #define LEDS_SEQUENCE \
     DEFINE_LED(NUM_LOCK), \
@@ -411,6 +416,8 @@ namespace android {
     DEFINE_FLAG(FUNCTION), \
     DEFINE_FLAG(GESTURE), \
     DEFINE_FLAG(WAKE)
+
+// clang-format on
 
 // --- InputEventLookup ---
 const std::unordered_map<std::string, int> InputEventLookup::KEYCODES = {KEYCODES_SEQUENCE};

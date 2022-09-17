@@ -632,7 +632,7 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
         mAnimation(other.mAnimation),
         mEarlyWakeupStart(other.mEarlyWakeupStart),
         mEarlyWakeupEnd(other.mEarlyWakeupEnd),
-        mContainsBuffer(other.mContainsBuffer),
+        mMayContainBuffer(other.mMayContainBuffer),
         mDesiredPresentTime(other.mDesiredPresentTime),
         mIsAutoTimestamp(other.mIsAutoTimestamp),
         mFrameTimelineInfo(other.mFrameTimelineInfo),
@@ -667,7 +667,6 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     const bool animation = parcel->readBool();
     const bool earlyWakeupStart = parcel->readBool();
     const bool earlyWakeupEnd = parcel->readBool();
-    const bool containsBuffer = parcel->readBool();
     const int64_t desiredPresentTime = parcel->readInt64();
     const bool isAutoTimestamp = parcel->readBool();
     FrameTimelineInfo frameTimelineInfo;
@@ -745,7 +744,6 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     mAnimation = animation;
     mEarlyWakeupStart = earlyWakeupStart;
     mEarlyWakeupEnd = earlyWakeupEnd;
-    mContainsBuffer = containsBuffer;
     mDesiredPresentTime = desiredPresentTime;
     mIsAutoTimestamp = isAutoTimestamp;
     mFrameTimelineInfo = frameTimelineInfo;
@@ -777,7 +775,6 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     parcel->writeBool(mAnimation);
     parcel->writeBool(mEarlyWakeupStart);
     parcel->writeBool(mEarlyWakeupEnd);
-    parcel->writeBool(mContainsBuffer);
     parcel->writeInt64(mDesiredPresentTime);
     parcel->writeBool(mIsAutoTimestamp);
     mFrameTimelineInfo.writeToParcel(parcel);
@@ -876,7 +873,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
 
     mInputWindowCommands.merge(other.mInputWindowCommands);
 
-    mContainsBuffer |= other.mContainsBuffer;
+    mMayContainBuffer |= other.mMayContainBuffer;
     mEarlyWakeupStart = mEarlyWakeupStart || other.mEarlyWakeupStart;
     mEarlyWakeupEnd = mEarlyWakeupEnd || other.mEarlyWakeupEnd;
     mApplyToken = other.mApplyToken;
@@ -892,7 +889,7 @@ void SurfaceComposerClient::Transaction::clear() {
     mDisplayStates.clear();
     mListenerCallbacks.clear();
     mInputWindowCommands.clear();
-    mContainsBuffer = false;
+    mMayContainBuffer = false;
     mForceSynchronous = 0;
     mTransactionNestCount = 0;
     mAnimation = false;
@@ -920,7 +917,7 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {
-    if (!mContainsBuffer) {
+    if (!mMayContainBuffer) {
         return;
     }
 
@@ -1464,7 +1461,6 @@ std::shared_ptr<BufferData> SurfaceComposerClient::Transaction::getAndClearBuffe
     s->what &= ~layer_state_t::eBufferChanged;
     s->bufferData = nullptr;
 
-    mContainsBuffer = false;
     return bufferData;
 }
 
@@ -1495,7 +1491,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     if (buffer == nullptr) {
         s->what &= ~layer_state_t::eBufferChanged;
         s->bufferData = nullptr;
-        mContainsBuffer = false;
         return *this;
     }
 
@@ -1530,7 +1525,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
                                        const std::vector<SurfaceControlStats>&) {},
                                     nullptr);
 
-    mContainsBuffer = true;
+    mMayContainBuffer = true;
     return *this;
 }
 
