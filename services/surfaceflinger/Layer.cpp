@@ -3177,8 +3177,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
                       const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
                       bool isAutoTimestamp, std::optional<nsecs_t> dequeueTime,
                       const FrameTimelineInfo& info) {
-    ATRACE_CALL();
-
+    ATRACE_FORMAT("setBuffer %s - hasBuffer=%s", getDebugName(), (buffer ? "true" : "false"));
     if (!buffer) {
         return false;
     }
@@ -3187,6 +3186,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
             bufferData.flags.test(BufferData::BufferDataChange::frameNumberChanged);
     const uint64_t frameNumber =
             frameNumberChanged ? bufferData.frameNumber : mDrawingState.frameNumber + 1;
+    ATRACE_FORMAT_INSTANT("setBuffer %s - %" PRIu64, getDebugName(), frameNumber);
 
     if (mDrawingState.buffer) {
         mReleasePreviousBuffer = true;
