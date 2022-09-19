@@ -14,7 +14,6 @@
  * limitations under the License.
  *
  */
-#include <BufferStateLayer.h>
 #include <Client.h>
 #include <DisplayDevice.h>
 #include <LayerRenderArea.h>
@@ -109,8 +108,7 @@ void LayerFuzzer::invokeEffectLayer() {
 void LayerFuzzer::invokeBufferStateLayer() {
     TestableSurfaceFlinger flinger;
     sp<Client> client = sp<Client>::make(sp<SurfaceFlinger>::fromExisting(flinger.flinger()));
-    sp<BufferStateLayer> layer =
-            sp<BufferStateLayer>::make(createLayerCreationArgs(&flinger, client));
+    sp<Layer> layer = sp<Layer>::make(createLayerCreationArgs(&flinger, client));
     sp<Fence> fence = sp<Fence>::make();
     const std::shared_ptr<FenceTime> fenceTime = std::make_shared<FenceTime>(fence);
 

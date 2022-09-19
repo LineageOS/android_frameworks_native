@@ -491,7 +491,7 @@ struct BaseLayerProperties {
     static constexpr IComposerClient::BlendMode BLENDMODE =
             IComposerClient::BlendMode::PREMULTIPLIED;
 
-    static void setupLatchedBuffer(CompositionTest* test, sp<BufferStateLayer> layer) {
+    static void setupLatchedBuffer(CompositionTest* test, sp<Layer> layer) {
         Mock::VerifyAndClear(test->mRenderEngine);
 
         const auto buffer = std::make_shared<
@@ -515,7 +515,7 @@ struct BaseLayerProperties {
         Mock::VerifyAndClear(test->mRenderEngine);
     }
 
-    static void setupLayerState(CompositionTest* test, sp<BufferStateLayer> layer) {
+    static void setupLayerState(CompositionTest* test, sp<Layer> layer) {
         setupLatchedBuffer(test, layer);
     }
 
@@ -699,7 +699,7 @@ struct SidebandLayerProperties : public BaseLayerProperties<SidebandLayerPropert
     using Base = BaseLayerProperties<SidebandLayerProperties>;
     static constexpr IComposerClient::BlendMode BLENDMODE = IComposerClient::BlendMode::NONE;
 
-    static void setupLayerState(CompositionTest* test, sp<BufferStateLayer> layer) {
+    static void setupLayerState(CompositionTest* test, sp<Layer> layer) {
         sp<NativeHandle> stream =
                 NativeHandle::create(reinterpret_cast<native_handle_t*>(DEFAULT_SIDEBAND_STREAM),
                                      false);
@@ -780,14 +780,14 @@ struct SecureLayerProperties : public CommonSecureLayerProperties<SecureLayerPro
 struct CursorLayerProperties : public BaseLayerProperties<CursorLayerProperties> {
     using Base = BaseLayerProperties<CursorLayerProperties>;
 
-    static void setupLayerState(CompositionTest* test, sp<BufferStateLayer> layer) {
+    static void setupLayerState(CompositionTest* test, sp<Layer> layer) {
         Base::setupLayerState(test, layer);
         test->mFlinger.setLayerPotentialCursor(layer, true);
     }
 };
 
 struct NoLayerVariant {
-    using FlingerLayerType = sp<BufferStateLayer>;
+    using FlingerLayerType = sp<Layer>;
 
     static FlingerLayerType createLayer(CompositionTest*) { return FlingerLayerType(); }
     static void injectLayer(CompositionTest*, FlingerLayerType) {}
@@ -892,17 +892,17 @@ struct EffectLayerVariant : public BaseLayerVariant<LayerProperties> {
 template <typename LayerProperties>
 struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
     using Base = BaseLayerVariant<LayerProperties>;
-    using FlingerLayerType = sp<BufferStateLayer>;
+    using FlingerLayerType = sp<Layer>;
 
     static FlingerLayerType createLayer(CompositionTest* test) {
         test->mFlinger.mutableTexturePool().push_back(DEFAULT_TEXTURE_ID);
 
         FlingerLayerType layer =
-                Base::template createLayerWithFactory<BufferStateLayer>(test, [test]() {
+                Base::template createLayerWithFactory<Layer>(test, [test]() {
                     LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-layer",
                                            LayerProperties::LAYER_FLAGS, LayerMetadata());
                     args.textureName = test->mFlinger.mutableTexturePool().back();
-                    return sp<BufferStateLayer>::make(args);
+                    return sp<Layer>::make(args);
                 });
 
         LayerProperties::setupLayerState(test, layer);

@@ -30,7 +30,6 @@
 #include <ftl/fake_guard.h>
 #include <gui/ScreenCaptureResults.h>
 
-#include "BufferStateLayer.h"
 #include "DisplayDevice.h"
 #include "FakeVsyncConfiguration.h"
 #include "FrameTracer/FrameTracer.h"
@@ -120,9 +119,7 @@ public:
         return compositionengine::impl::createCompositionEngine();
     }
 
-    sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs&) override {
-        return nullptr;
-    }
+    sp<Layer> createBufferStateLayer(const LayerCreationArgs&) override { return nullptr; }
 
     sp<Layer> createEffectLayer(const LayerCreationArgs&) override { return nullptr; }
 

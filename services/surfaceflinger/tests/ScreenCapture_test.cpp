@@ -371,7 +371,7 @@ TEST_F(ScreenCaptureTest, CaptureBufferLayerWithoutBufferFails) {
     ScreenCaptureResults captureResults;
     ASSERT_EQ(BAD_VALUE, ScreenCapture::captureLayers(args, captureResults));
 
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(child, Color::RED, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(child, Color::RED, 32, 32));
     SurfaceComposerClient::Transaction().apply(true);
     ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(args, captureResults));
     ScreenCapture sc(captureResults.buffer, captureResults.capturedHdrLayers);
@@ -449,8 +449,8 @@ TEST_F(ScreenCaptureTest, CaptureCrop) {
                                                  ISurfaceComposerClient::eFXSurfaceBufferState,
                                                  redLayer.get());
 
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(redLayer, Color::RED, 60, 60));
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(blueLayer, Color::BLUE, 30, 30));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(redLayer, Color::RED, 60, 60));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(blueLayer, Color::BLUE, 30, 30));
 
     SurfaceComposerClient::Transaction()
             .setLayer(redLayer, INT32_MAX - 1)
@@ -484,8 +484,8 @@ TEST_F(ScreenCaptureTest, CaptureSize) {
                                                  ISurfaceComposerClient::eFXSurfaceBufferState,
                                                  redLayer.get());
 
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(redLayer, Color::RED, 60, 60));
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(blueLayer, Color::BLUE, 30, 30));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(redLayer, Color::RED, 60, 60));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(blueLayer, Color::BLUE, 30, 30));
 
     SurfaceComposerClient::Transaction()
             .setLayer(redLayer, INT32_MAX - 1)
@@ -549,8 +549,8 @@ TEST_F(ScreenCaptureTest, CaptureSecureLayer) {
                         ISurfaceComposerClient::eSecure |
                                 ISurfaceComposerClient::eFXSurfaceBufferState,
                         redLayer.get());
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(redLayer, Color::RED, 60, 60));
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(secureLayer, Color::BLUE, 30, 30));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(redLayer, Color::RED, 60, 60));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(secureLayer, Color::BLUE, 30, 30));
 
     auto redLayerHandle = redLayer->getHandle();
     Transaction()
@@ -803,7 +803,7 @@ TEST_F(ScreenCaptureTest, CaptureWithGrayscale) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
                                                 ISurfaceComposerClient::eFXSurfaceBufferState,
                                                 mBGSurfaceControl.get()));
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::RED, 32, 32));
     Transaction().show(layer).setLayer(layer, INT32_MAX).apply();
 
     LayerCaptureArgs captureArgs;
@@ -825,7 +825,7 @@ TEST_F(ScreenCaptureTest, CaptureWithGrayscale) {
     mCapture->expectColor(Rect(0, 0, 32, 32),
                           Color{expectedColor, expectedColor, expectedColor, 255}, tolerance);
 
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::BLUE, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::BLUE, 32, 32));
     ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     expectedColor = luminance.b * 255;
@@ -838,7 +838,7 @@ TEST_F(ScreenCaptureTest, CaptureOffscreen) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
                                                 ISurfaceComposerClient::eFXSurfaceBufferState,
                                                 mBGSurfaceControl.get()));
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::RED, 32, 32));
 
     Transaction().show(layer).hide(mFGSurfaceControl).reparent(layer, nullptr).apply();
 
@@ -865,7 +865,7 @@ TEST_F(ScreenCaptureTest, CaptureNonHdrLayer) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
                                                 ISurfaceComposerClient::eFXSurfaceBufferState,
                                                 mBGSurfaceControl.get()));
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::BLACK, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::BLACK, 32, 32));
     Transaction()
             .show(layer)
             .setLayer(layer, INT32_MAX)
@@ -885,7 +885,7 @@ TEST_F(ScreenCaptureTest, CaptureHdrLayer) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
                                                 ISurfaceComposerClient::eFXSurfaceBufferState,
                                                 mBGSurfaceControl.get()));
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::BLACK, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::BLACK, 32, 32));
     Transaction()
             .show(layer)
             .setLayer(layer, INT32_MAX)

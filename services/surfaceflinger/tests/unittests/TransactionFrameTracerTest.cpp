@@ -56,11 +56,11 @@ public:
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
     }
 
-    sp<BufferStateLayer> createBufferStateLayer() {
+    sp<Layer> createLayer() {
         sp<Client> client;
         LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", 0,
                                LayerMetadata());
-        return sp<BufferStateLayer>::make(args);
+        return sp<Layer>::make(args);
     }
 
     void commitTransaction(Layer* layer) {
@@ -101,7 +101,7 @@ public:
     FenceToFenceTimeMap fenceFactory;
 
     void BLASTTransactionSendsFrameTracerEvents() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
 
         sp<Fence> fence(sp<Fence>::make());
         int32_t layerId = layer->getSequence();
