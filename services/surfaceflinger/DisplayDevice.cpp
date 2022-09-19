@@ -334,8 +334,10 @@ void DisplayDevice::stageBrightness(float brightness) {
 }
 
 void DisplayDevice::persistBrightness(bool needsComposite) {
-    if (needsComposite && mStagedBrightness && mBrightness != *mStagedBrightness) {
-        getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
+    if (mStagedBrightness && mBrightness != *mStagedBrightness) {
+        if (needsComposite) {
+            getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
+        }
         mBrightness = *mStagedBrightness;
     }
     mStagedBrightness = std::nullopt;
