@@ -674,7 +674,9 @@ auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals 
         if (currentState == newState) return {};
         currentState = std::forward<T>(newState);
 
-        std::tie(newMode, consideredSignals) = chooseDisplayMode();
+        const auto [rankings, signals] = getRankedDisplayModes();
+        newMode = rankings.front().displayModePtr;
+        consideredSignals = signals;
         frameRateOverridesChanged = updateFrameRateOverrides(consideredSignals, newMode->getFps());
 
         if (mPolicy.mode == newMode) {
@@ -699,7 +701,8 @@ auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals 
     return consideredSignals;
 }
 
-auto Scheduler::chooseDisplayMode() -> std::pair<DisplayModePtr, GlobalSignals> {
+auto Scheduler::getRankedDisplayModes()
+        -> std::pair<std::vector<RefreshRateRanking>, GlobalSignals> {
     ATRACE_CALL();
 
     const auto configs = holdRefreshRateConfigs();
@@ -712,14 +715,14 @@ auto Scheduler::chooseDisplayMode() -> std::pair<DisplayModePtr, GlobalSignals> 
                                 .idle = mPolicy.idleTimer == TimerState::Expired,
                                 .powerOnImminent = powerOnImminent};
 
-    return configs->getBestRefreshRate(mPolicy.contentRequirements, signals);
+    return configs->getRankedRefreshRates(mPolicy.contentRequirements, signals);
 }
 
 DisplayModePtr Scheduler::getPreferredDisplayMode() {
     std::lock_guard<std::mutex> lock(mPolicyLock);
     // Make sure the stored mode is up to date.
     if (mPolicy.mode) {
-        mPolicy.mode = chooseDisplayMode().first;
+        mPolicy.mode = getRankedDisplayModes().first.front().displayModePtr;
     }
     return mPolicy.mode;
 }
