@@ -1340,7 +1340,7 @@ private:
 
     std::unique_ptr<Hwc2::PowerAdvisor> mPowerAdvisor;
 
-    void enableRefreshRateOverlay(bool enable) REQUIRES(mStateLock);
+    void enableRefreshRateOverlay(bool enable) REQUIRES(mStateLock, kMainThreadContext);
 
     // Flag used to set override desired display mode from backdoor
     bool mDebugDisplayModeSetByBackdoor = false;
