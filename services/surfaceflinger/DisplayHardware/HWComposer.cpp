@@ -513,7 +513,7 @@ status_t HWComposer::presentAndGetReleaseFences(
 
     if (displayData.validateWasSkipped) {
         // explicitly flush all pending commands
-        auto error = static_cast<hal::Error>(mComposer->executeCommands());
+        auto error = static_cast<hal::Error>(mComposer->executeCommands(hwcDisplay->getId()));
         RETURN_IF_HWC_ERROR_FOR("executeCommands", error, displayId, UNKNOWN_ERROR);
         RETURN_IF_HWC_ERROR_FOR("present", displayData.presentError, displayId, UNKNOWN_ERROR);
         return NO_ERROR;
@@ -933,6 +933,8 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplugConnect(
                                                                : "Secondary display",
                                              .deviceProductInfo = std::nullopt};
         }();
+
+        mComposer->onHotplugConnect(hwcDisplayId);
     }
 
     if (!isConnected(info->id)) {
@@ -960,6 +962,7 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplugDisconnect(
     // The display will later be destroyed by a call to HWComposer::disconnectDisplay. For now, mark
     // it as disconnected.
     mDisplayData.at(*displayId).hwcDisplay->setConnected(false);
+    mComposer->onHotplugDisconnect(hwcDisplayId);
     return DisplayIdentificationInfo{.id = *displayId};
 }
 

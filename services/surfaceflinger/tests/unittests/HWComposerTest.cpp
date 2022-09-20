@@ -73,6 +73,7 @@ struct HWComposerTest : testing::Test {
 
         EXPECT_CALL(*mHal, setClientTargetSlotCount(_));
         EXPECT_CALL(*mHal, setVsyncEnabled(hwcDisplayId, Hwc2::IComposerClient::Vsync::DISABLE));
+        EXPECT_CALL(*mHal, onHotplugConnect(hwcDisplayId));
     }
 };
 

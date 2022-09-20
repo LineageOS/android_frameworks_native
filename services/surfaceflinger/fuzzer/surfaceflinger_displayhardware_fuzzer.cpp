@@ -326,8 +326,8 @@ void DisplayHardwareFuzzer::invokeAidlComposer() {
     invokeComposerHal2_3(&composer, display, outLayer);
     invokeComposerHal2_4(&composer, display, outLayer);
 
-    composer.executeCommands();
-    composer.resetCommands();
+    composer.executeCommands(display);
+    composer.resetCommands(display);
 
     composer.destroyLayer(display, outLayer);
     composer.destroyVirtualDisplay(display);
