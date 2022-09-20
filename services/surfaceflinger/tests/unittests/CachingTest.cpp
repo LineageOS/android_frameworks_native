@@ -20,7 +20,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <gui/BufferQueue.h>
-#include "BufferStateLayer.h"
+
+#include "HwcSlotGenerator.h"
 
 namespace android {
 

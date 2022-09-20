@@ -22,7 +22,6 @@
 #include <gtest/gtest.h>
 #include <gui/LayerMetadata.h>
 
-#include "BufferStateLayer.h"
 #include "TestableSurfaceFlinger.h"
 #include "TunnelModeEnabledReporter.h"
 #include "mock/DisplayHardware/MockComposer.h"
@@ -64,7 +63,7 @@ protected:
 
     void setupScheduler();
     void setupComposer(uint32_t virtualDisplayCount);
-    sp<BufferStateLayer> createBufferStateLayer(LayerMetadata metadata);
+    sp<Layer> createBufferStateLayer(LayerMetadata metadata);
 
     TestableSurfaceFlinger mFlinger;
     Hwc2::mock::Composer* mComposer = nullptr;
@@ -95,11 +94,10 @@ TunnelModeEnabledReporterTest::~TunnelModeEnabledReporterTest() {
     mTunnelModeEnabledReporter->removeListener(mTunnelModeEnabledListener);
 }
 
-sp<BufferStateLayer> TunnelModeEnabledReporterTest::createBufferStateLayer(
-        LayerMetadata metadata = {}) {
+sp<Layer> TunnelModeEnabledReporterTest::createBufferStateLayer(LayerMetadata metadata = {}) {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", LAYER_FLAGS, metadata);
-    return sp<BufferStateLayer>::make(args);
+    return sp<Layer>::make(args);
 }
 
 void TunnelModeEnabledReporterTest::setupScheduler() {

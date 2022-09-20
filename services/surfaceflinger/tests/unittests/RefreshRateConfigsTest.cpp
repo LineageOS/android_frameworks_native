@@ -41,6 +41,7 @@ using mock::createDisplayMode;
 
 struct TestableRefreshRateConfigs : RefreshRateConfigs {
     using RefreshRateConfigs::RefreshRateConfigs;
+    using RefreshRateConfigs::RefreshRateOrder;
 
     void setActiveModeId(DisplayModeId modeId) {
         ftl::FakeGuard guard(kMainThreadContext);
@@ -67,19 +68,30 @@ struct TestableRefreshRateConfigs : RefreshRateConfigs {
         return getMinRefreshRateByPolicyLocked();
     }
 
+    DisplayModePtr getMaxRefreshRateByPolicy() const {
+        std::lock_guard lock(mLock);
+        return getMaxRefreshRateByPolicyLocked(getActiveModeItLocked()->second->getGroup());
+    }
+
+    std::vector<RefreshRateRanking> getRefreshRatesByPolicy(
+            std::optional<int> anchorGroupOpt, RefreshRateOrder refreshRateOrder) const {
+        std::lock_guard lock(mLock);
+        return RefreshRateConfigs::getRefreshRatesByPolicyLocked(anchorGroupOpt, refreshRateOrder);
+    }
+
     const std::vector<Fps>& knownFrameRates() const { return mKnownFrameRates; }
 
-    using RefreshRateConfigs::GetBestRefreshRateCache;
-    auto& mutableGetBestRefreshRateCache() { return mGetBestRefreshRateCache; }
+    using RefreshRateConfigs::GetRankedRefreshRatesCache;
+    auto& mutableGetRankedRefreshRatesCache() { return mGetRankedRefreshRatesCache; }
 
-    auto getBestRefreshRateAndSignals(const std::vector<LayerRequirement>& layers,
-                                      GlobalSignals signals) const {
-        return RefreshRateConfigs::getBestRefreshRate(layers, signals);
+    auto getRankedRefreshRatesAndSignals(const std::vector<LayerRequirement>& layers,
+                                         GlobalSignals signals) const {
+        return RefreshRateConfigs::getRankedRefreshRates(layers, signals);
     }
 
     DisplayModePtr getBestRefreshRate(const std::vector<LayerRequirement>& layers = {},
                                       GlobalSignals signals = {}) const {
-        return getBestRefreshRateAndSignals(layers, signals).first;
+        return getRankedRefreshRatesAndSignals(layers, signals).first.front().displayModePtr;
     }
 };
 
@@ -977,16 +989,116 @@ TEST_F(RefreshRateConfigsTest, scrollWhileWatching60fps_60_90) {
     EXPECT_EQ(kMode90, configs.getBestRefreshRate(layers));
 }
 
+TEST_F(RefreshRateConfigsTest, getMaxRefreshRatesByPolicy) {
+    // The kModes_30_60_90 contains two kMode72_G1, kMode120_G1 which are from the
+    // different group.
+    TestableRefreshRateConfigs configs(kModes_30_60_90, kModeId60);
+    const std::vector<RefreshRateRanking>& expectedRefreshRates = {RefreshRateRanking{kMode90},
+                                                                   RefreshRateRanking{kMode60},
+                                                                   RefreshRateRanking{kMode30}};
+
+    const std::vector<RefreshRateRanking>& refreshRates =
+            configs.getRefreshRatesByPolicy(configs.getActiveMode().getGroup(),
+                                            TestableRefreshRateConfigs::RefreshRateOrder::
+                                                    Descending);
+
+    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i].displayModePtr, refreshRates[i].displayModePtr)
+                << "Expected fps " << expectedRefreshRates[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << refreshRates[i].displayModePtr->getFps().getIntValue();
+    }
+}
+
+TEST_F(RefreshRateConfigsTest, getMinRefreshRatesByPolicy) {
+    // The kModes_30_60_90 contains two kMode72_G1, kMode120_G1 which are from the
+    // different group.
+    TestableRefreshRateConfigs configs(kModes_30_60_90, kModeId60);
+    const std::vector<RefreshRateRanking>& expectedRefreshRates = {RefreshRateRanking{kMode30},
+                                                                   RefreshRateRanking{kMode60},
+                                                                   RefreshRateRanking{kMode90}};
+
+    const std::vector<RefreshRateRanking>& refreshRates =
+            configs.getRefreshRatesByPolicy(configs.getActiveMode().getGroup(),
+                                            TestableRefreshRateConfigs::RefreshRateOrder::
+                                                    Ascending);
+
+    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i].displayModePtr, refreshRates[i].displayModePtr)
+                << "Expected fps " << expectedRefreshRates[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << refreshRates[i].displayModePtr->getFps().getIntValue();
+    }
+}
+
+TEST_F(RefreshRateConfigsTest, getMinRefreshRatesByPolicyOutsideTheGroup) {
+    // The kModes_30_60_90 contains two kMode72_G1, kMode120_G1 which are from the
+    // different group.
+    TestableRefreshRateConfigs configs(kModes_30_60_90, kModeId72);
+    const std::vector<RefreshRateRanking>& expectedRefreshRates = {RefreshRateRanking{kMode30},
+                                                                   RefreshRateRanking{kMode60},
+                                                                   RefreshRateRanking{kMode90}};
+
+    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}), 0);
+
+    const std::vector<RefreshRateRanking>& refreshRates =
+            configs.getRefreshRatesByPolicy(/*anchorGroupOpt*/ std::nullopt,
+                                            TestableRefreshRateConfigs::RefreshRateOrder::
+                                                    Ascending);
+
+    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i].displayModePtr, refreshRates[i].displayModePtr)
+                << "Expected fps " << expectedRefreshRates[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << refreshRates[i].displayModePtr->getFps().getIntValue();
+    }
+}
+
+TEST_F(RefreshRateConfigsTest, getMaxRefreshRatesByPolicyOutsideTheGroup) {
+    // The kModes_30_60_90 contains two kMode72_G1, kMode120_G1 which are from the
+    // different group.
+    TestableRefreshRateConfigs configs(kModes_30_60_90, kModeId72);
+    const std::vector<RefreshRateRanking>& expectedRefreshRates = {RefreshRateRanking{kMode90},
+                                                                   RefreshRateRanking{kMode60},
+                                                                   RefreshRateRanking{kMode30}};
+
+    EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}), 0);
+
+    const std::vector<RefreshRateRanking>& refreshRates =
+            configs.getRefreshRatesByPolicy(/*anchorGroupOpt*/ std::nullopt,
+                                            TestableRefreshRateConfigs::RefreshRateOrder::
+                                                    Descending);
+
+    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i].displayModePtr, refreshRates[i].displayModePtr)
+                << "Expected fps " << expectedRefreshRates[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << refreshRates[i].displayModePtr->getFps().getIntValue();
+    }
+}
+
 TEST_F(RefreshRateConfigsTest, powerOnImminentConsidered) {
     RefreshRateConfigs configs(kModes_60_90, kModeId60);
+    std::vector<RefreshRateRanking> expectedRefreshRates = {RefreshRateRanking{kMode90},
+                                                            RefreshRateRanking{kMode60}};
 
-    auto [refreshRate, signals] = configs.getBestRefreshRate({}, {});
+    auto [refreshRates, signals] = configs.getRankedRefreshRates({}, {});
     EXPECT_FALSE(signals.powerOnImminent);
-    EXPECT_EQ(kMode90, refreshRate);
+    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i].displayModePtr, refreshRates[i].displayModePtr)
+                << "Expected fps " << expectedRefreshRates[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << refreshRates[i].displayModePtr->getFps().getIntValue();
+    }
 
-    std::tie(refreshRate, signals) = configs.getBestRefreshRate({}, {.powerOnImminent = true});
+    std::tie(refreshRates, signals) = configs.getRankedRefreshRates({}, {.powerOnImminent = true});
     EXPECT_TRUE(signals.powerOnImminent);
-    EXPECT_EQ(kMode90, refreshRate);
+    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i].displayModePtr, refreshRates[i].displayModePtr)
+                << "Expected fps " << expectedRefreshRates[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << refreshRates[i].displayModePtr->getFps().getIntValue();
+    }
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     auto& lr1 = layers[0];
@@ -994,22 +1106,35 @@ TEST_F(RefreshRateConfigsTest, powerOnImminentConsidered) {
     lr1.desiredRefreshRate = 60_Hz;
     lr1.name = "60Hz ExplicitExactOrMultiple";
 
-    std::tie(refreshRate, signals) = configs.getBestRefreshRate(layers, {.powerOnImminent = false});
-    EXPECT_FALSE(signals.powerOnImminent);
-    EXPECT_EQ(kMode60, refreshRate);
-
-    std::tie(refreshRate, signals) = configs.getBestRefreshRate(layers, {.powerOnImminent = true});
+    std::tie(refreshRates, signals) =
+            configs.getRankedRefreshRates(layers, {.powerOnImminent = true});
     EXPECT_TRUE(signals.powerOnImminent);
-    EXPECT_EQ(kMode90, refreshRate);
+    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i].displayModePtr, refreshRates[i].displayModePtr)
+                << "Expected fps " << expectedRefreshRates[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << refreshRates[i].displayModePtr->getFps().getIntValue();
+    }
+
+    expectedRefreshRates = {RefreshRateRanking{kMode60}, RefreshRateRanking{kMode90}};
+    std::tie(refreshRates, signals) =
+            configs.getRankedRefreshRates(layers, {.powerOnImminent = false});
+    EXPECT_FALSE(signals.powerOnImminent);
+    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i].displayModePtr, refreshRates[i].displayModePtr)
+                << "Expected fps " << expectedRefreshRates[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << refreshRates[i].displayModePtr->getFps().getIntValue();
+    }
 }
 
 TEST_F(RefreshRateConfigsTest, touchConsidered) {
     RefreshRateConfigs configs(kModes_60_90, kModeId60);
 
-    auto [_, signals] = configs.getBestRefreshRate({}, {});
+    auto [_, signals] = configs.getRankedRefreshRates({}, {});
     EXPECT_FALSE(signals.touch);
 
-    std::tie(std::ignore, signals) = configs.getBestRefreshRate({}, {.touch = true});
+    std::tie(std::ignore, signals) = configs.getRankedRefreshRates({}, {.touch = true});
     EXPECT_TRUE(signals.touch);
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 1.f}};
@@ -1022,16 +1147,16 @@ TEST_F(RefreshRateConfigsTest, touchConsidered) {
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 60_Hz;
     lr2.name = "60Hz Heuristic";
-    std::tie(std::ignore, signals) = configs.getBestRefreshRate(layers, {.touch = true});
+    std::tie(std::ignore, signals) = configs.getRankedRefreshRates(layers, {.touch = true});
     EXPECT_TRUE(signals.touch);
 
     lr1.vote = LayerVoteType::ExplicitDefault;
     lr1.desiredRefreshRate = 60_Hz;
-    lr1.name = "60Hz ExplicitExactOrMultiple";
+    lr1.name = "60Hz ExplicitDefault";
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 60_Hz;
     lr2.name = "60Hz Heuristic";
-    std::tie(std::ignore, signals) = configs.getBestRefreshRate(layers, {.touch = true});
+    std::tie(std::ignore, signals) = configs.getRankedRefreshRates(layers, {.touch = true});
     EXPECT_FALSE(signals.touch);
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -1040,16 +1165,16 @@ TEST_F(RefreshRateConfigsTest, touchConsidered) {
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 60_Hz;
     lr2.name = "60Hz Heuristic";
-    std::tie(std::ignore, signals) = configs.getBestRefreshRate(layers, {.touch = true});
+    std::tie(std::ignore, signals) = configs.getRankedRefreshRates(layers, {.touch = true});
     EXPECT_TRUE(signals.touch);
 
     lr1.vote = LayerVoteType::ExplicitDefault;
     lr1.desiredRefreshRate = 60_Hz;
-    lr1.name = "60Hz ExplicitExactOrMultiple";
+    lr1.name = "60Hz ExplicitDefault";
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 60_Hz;
     lr2.name = "60Hz Heuristic";
-    std::tie(std::ignore, signals) = configs.getBestRefreshRate(layers, {.touch = true});
+    std::tie(std::ignore, signals) = configs.getRankedRefreshRates(layers, {.touch = true});
     EXPECT_FALSE(signals.touch);
 }
 
@@ -1187,9 +1312,10 @@ TEST_F(RefreshRateConfigsTest,
     lr.name = "60Hz ExplicitDefault";
     lr.focused = true;
 
-    const auto [mode, signals] = configs.getBestRefreshRate(layers, {.touch = true, .idle = true});
+    const auto [mode, signals] =
+            configs.getRankedRefreshRates(layers, {.touch = true, .idle = true});
 
-    EXPECT_EQ(mode, kMode60);
+    EXPECT_EQ(mode.begin()->displayModePtr, kMode60);
     EXPECT_FALSE(signals.touch);
 }
 
@@ -1209,14 +1335,147 @@ TEST_F(RefreshRateConfigsTest,
     EXPECT_EQ(kMode90, configs.getBestRefreshRate(layers, {.idle = true}));
 }
 
+TEST_F(RefreshRateConfigsTest, testDisplayModeOrdering) {
+    TestableRefreshRateConfigs configs(kModes_30_60_72_90_120, kModeId60);
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f},
+                                            {.weight = 1.f},
+                                            {.weight = 1.f},
+                                            {.weight = 1.f},
+                                            {.weight = 1.f}};
+    auto& lr1 = layers[0];
+    auto& lr2 = layers[1];
+    auto& lr3 = layers[2];
+    auto& lr4 = layers[3];
+    auto& lr5 = layers[4];
+
+    lr1.desiredRefreshRate = 90_Hz;
+    lr1.name = "90Hz";
+    lr1.focused = true;
+
+    lr2.desiredRefreshRate = 60_Hz;
+    lr2.name = "60Hz";
+    lr2.focused = true;
+
+    lr3.desiredRefreshRate = 72_Hz;
+    lr3.name = "72Hz";
+    lr3.focused = true;
+
+    lr4.desiredRefreshRate = 120_Hz;
+    lr4.name = "120Hz";
+    lr4.focused = true;
+
+    lr5.desiredRefreshRate = 30_Hz;
+    lr5.name = "30Hz";
+    lr5.focused = true;
+
+    std::vector<RefreshRateRanking> expectedRankings = {
+            RefreshRateRanking{kMode120}, RefreshRateRanking{kMode90}, RefreshRateRanking{kMode72},
+            RefreshRateRanking{kMode60},  RefreshRateRanking{kMode30},
+    };
+
+    std::vector<RefreshRateRanking> actualOrder =
+            configs.getRankedRefreshRatesAndSignals(layers, {}).first;
+    ASSERT_EQ(expectedRankings.size(), actualOrder.size());
+    for (size_t i = 0; i < expectedRankings.size(); ++i) {
+        EXPECT_EQ(expectedRankings[i].displayModePtr, actualOrder[i].displayModePtr)
+                << "Expected fps " << expectedRankings[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << actualOrder[i].displayModePtr->getFps().getIntValue();
+    }
+
+    lr1.vote = LayerVoteType::Max;
+    lr1.name = "Max";
+
+    lr2.desiredRefreshRate = 60_Hz;
+    lr2.name = "60Hz";
+
+    lr3.desiredRefreshRate = 72_Hz;
+    lr3.name = "72Hz";
+
+    lr4.desiredRefreshRate = 90_Hz;
+    lr4.name = "90Hz";
+
+    lr5.desiredRefreshRate = 120_Hz;
+    lr5.name = "120Hz";
+
+    expectedRankings = {
+            RefreshRateRanking{kMode120}, RefreshRateRanking{kMode90}, RefreshRateRanking{kMode72},
+            RefreshRateRanking{kMode60},  RefreshRateRanking{kMode30},
+    };
+
+    actualOrder = configs.getRankedRefreshRatesAndSignals(layers, {}).first;
+
+    ASSERT_EQ(expectedRankings.size(), actualOrder.size());
+    for (size_t i = 0; i < expectedRankings.size(); ++i) {
+        EXPECT_EQ(expectedRankings[i].displayModePtr, actualOrder[i].displayModePtr)
+                << "Expected fps " << expectedRankings[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << actualOrder[i].displayModePtr->getFps().getIntValue();
+    }
+
+    lr1.vote = LayerVoteType::Heuristic;
+    lr1.desiredRefreshRate = 30_Hz;
+    lr1.name = "30Hz";
+
+    lr2.desiredRefreshRate = 120_Hz;
+    lr2.name = "120Hz";
+
+    lr3.desiredRefreshRate = 60_Hz;
+    lr3.name = "60Hz";
+
+    lr5.desiredRefreshRate = 72_Hz;
+    lr5.name = "72Hz";
+
+    expectedRankings = {
+            RefreshRateRanking{kMode30},  RefreshRateRanking{kMode60}, RefreshRateRanking{kMode90},
+            RefreshRateRanking{kMode120}, RefreshRateRanking{kMode72},
+    };
+
+    actualOrder = configs.getRankedRefreshRatesAndSignals(layers, {}).first;
+    ASSERT_EQ(expectedRankings.size(), actualOrder.size());
+    for (size_t i = 0; i < expectedRankings.size(); ++i) {
+        EXPECT_EQ(expectedRankings[i].displayModePtr, actualOrder[i].displayModePtr)
+                << "Expected fps " << expectedRankings[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << actualOrder[i].displayModePtr->getFps().getIntValue();
+    }
+
+    lr1.desiredRefreshRate = 120_Hz;
+    lr1.name = "120Hz";
+    lr1.weight = 0.0f;
+
+    lr2.desiredRefreshRate = 60_Hz;
+    lr2.name = "60Hz";
+    lr2.vote = LayerVoteType::NoVote;
+
+    lr3.name = "60Hz-2";
+    lr3.vote = LayerVoteType::Heuristic;
+
+    lr4.vote = LayerVoteType::ExplicitExact;
+
+    lr5.desiredRefreshRate = 120_Hz;
+    lr5.name = "120Hz-2";
+
+    expectedRankings = {
+            RefreshRateRanking{kMode90}, RefreshRateRanking{kMode60}, RefreshRateRanking{kMode120},
+            RefreshRateRanking{kMode72}, RefreshRateRanking{kMode30},
+    };
+
+    actualOrder = configs.getRankedRefreshRatesAndSignals(layers, {}).first;
+    ASSERT_EQ(expectedRankings.size(), actualOrder.size());
+    for (size_t i = 0; i < expectedRankings.size(); ++i) {
+        EXPECT_EQ(expectedRankings[i].displayModePtr, actualOrder[i].displayModePtr)
+                << "Expected fps " << expectedRankings[i].displayModePtr->getFps().getIntValue()
+                << " Actual fps " << actualOrder[i].displayModePtr->getFps().getIntValue();
+    }
+}
+
 TEST_F(RefreshRateConfigsTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_onlySwitchesRatesForExplicitFocusedLayers) {
     TestableRefreshRateConfigs configs(kModes_60_90, kModeId90);
 
     EXPECT_GE(configs.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}, {60_Hz, 90_Hz}}), 0);
 
-    const auto [mode, signals] = configs.getBestRefreshRateAndSignals({}, {});
-    EXPECT_EQ(mode, kMode90);
+    const auto [mode, signals] = configs.getRankedRefreshRatesAndSignals({}, {});
+    EXPECT_EQ(mode.front().displayModePtr, kMode90);
     EXPECT_FALSE(signals.touch);
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
@@ -1593,11 +1852,12 @@ TEST_F(RefreshRateConfigsTest, idle) {
         layers[0].desiredRefreshRate = 90_Hz;
 
         const auto [refreshRate, signals] =
-                configs.getBestRefreshRateAndSignals(layers, {.touch = touchActive, .idle = true});
+                configs.getRankedRefreshRatesAndSignals(layers,
+                                                        {.touch = touchActive, .idle = true});
 
         // Refresh rate will be chosen by either touch state or idle state.
         EXPECT_EQ(!touchActive, signals.idle);
-        return refreshRate->getId();
+        return refreshRate.front().displayModePtr->getId();
     };
 
     EXPECT_GE(configs.setDisplayManagerPolicy({kModeId60, {60_Hz, 90_Hz}, {60_Hz, 90_Hz}}), 0);
@@ -1756,24 +2016,26 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ReadsCache) {
     using GlobalSignals = RefreshRateConfigs::GlobalSignals;
     const auto args = std::make_pair(std::vector<LayerRequirement>{},
                                      GlobalSignals{.touch = true, .idle = true});
-    const auto result = std::make_pair(kMode90, GlobalSignals{.touch = true});
 
-    configs.mutableGetBestRefreshRateCache() = {args, result};
+    const auto result = std::make_pair(std::vector<RefreshRateRanking>{RefreshRateRanking{kMode90}},
+                                       GlobalSignals{.touch = true});
 
-    EXPECT_EQ(result, configs.getBestRefreshRateAndSignals(args.first, args.second));
+    configs.mutableGetRankedRefreshRatesCache() = {args, result};
+
+    EXPECT_EQ(result, configs.getRankedRefreshRatesAndSignals(args.first, args.second));
 }
 
 TEST_F(RefreshRateConfigsTest, getBestRefreshRate_WritesCache) {
     TestableRefreshRateConfigs configs(kModes_30_60_72_90_120, kModeId60);
 
-    EXPECT_FALSE(configs.mutableGetBestRefreshRateCache());
+    EXPECT_FALSE(configs.mutableGetRankedRefreshRatesCache());
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 0.5f}};
     RefreshRateConfigs::GlobalSignals globalSignals{.touch = true, .idle = true};
 
-    const auto result = configs.getBestRefreshRateAndSignals(layers, globalSignals);
+    const auto result = configs.getRankedRefreshRatesAndSignals(layers, globalSignals);
 
-    const auto& cache = configs.mutableGetBestRefreshRateCache();
+    const auto& cache = configs.mutableGetRankedRefreshRatesCache();
     ASSERT_TRUE(cache);
 
     EXPECT_EQ(cache->arguments, std::make_pair(layers, globalSignals));

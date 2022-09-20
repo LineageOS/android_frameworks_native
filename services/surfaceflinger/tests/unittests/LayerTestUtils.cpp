@@ -29,7 +29,7 @@ sp<Layer> BufferStateLayerFactory::createLayer(TestableSurfaceFlinger& flinger) 
     sp<Client> client;
     LayerCreationArgs args(flinger.flinger(), client, "buffer-state-layer", LAYER_FLAGS,
                            LayerMetadata());
-    return sp<BufferStateLayer>::make(args);
+    return sp<Layer>::make(args);
 }
 
 sp<Layer> EffectLayerFactory::createLayer(TestableSurfaceFlinger& flinger) {

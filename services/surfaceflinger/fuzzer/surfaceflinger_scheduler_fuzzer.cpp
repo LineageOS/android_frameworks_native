@@ -322,7 +322,7 @@ void SchedulerFuzzer::fuzzRefreshRateSelection() {
     LayerCreationArgs args(flinger.flinger(), client,
                            mFdp.ConsumeRandomLengthString(kRandomStringLength) /*name*/,
                            mFdp.ConsumeIntegral<uint16_t>() /*layerFlags*/, LayerMetadata());
-    sp<Layer> layer = sp<BufferStateLayer>::make(args);
+    sp<Layer> layer = sp<Layer>::make(args);
 
     layer->setFrameRateSelectionPriority(mFdp.ConsumeIntegral<int16_t>());
 }
@@ -350,7 +350,7 @@ void SchedulerFuzzer::fuzzRefreshRateConfigs() {
     const RefreshRateConfigs::GlobalSignals globalSignals = {.touch = false, .idle = false};
     std::vector<LayerRequirement> layers = {{.weight = mFdp.ConsumeFloatingPoint<float>()}};
 
-    refreshRateConfigs.getBestRefreshRate(layers, globalSignals);
+    refreshRateConfigs.getRankedRefreshRates(layers, globalSignals);
 
     layers[0].name = mFdp.ConsumeRandomLengthString(kRandomStringLength);
     layers[0].ownerUid = mFdp.ConsumeIntegral<uint16_t>();

@@ -333,7 +333,6 @@ protected:
 
 private:
     friend class BufferLayer;
-    friend class BufferStateLayer;
     friend class Client;
     friend class FpsReporter;
     friend class TunnelModeEnabledReporter;
@@ -374,7 +373,20 @@ private:
 
         const LayerVector::StateSet stateSet = LayerVector::StateSet::Invalid;
         LayerVector layersSortedByZ;
-        DefaultKeyedVector< wp<IBinder>, DisplayDeviceState> displays;
+
+        // TODO(b/241285876): Replace deprecated DefaultKeyedVector with ftl::SmallMap.
+        DefaultKeyedVector<wp<IBinder>, DisplayDeviceState> displays;
+
+        std::optional<size_t> getDisplayIndex(PhysicalDisplayId displayId) const {
+            for (size_t i = 0; i < displays.size(); i++) {
+                const auto& state = displays.valueAt(i);
+                if (state.physical && state.physical->id == displayId) {
+                    return i;
+                }
+            }
+
+            return {};
+        }
 
         bool colorMatrixChanged = true;
         mat4 colorMatrix;
@@ -695,7 +707,7 @@ private:
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
-    void initScheduler(const sp<DisplayDevice>& display) REQUIRES(mStateLock);
+    void initScheduler(const sp<const DisplayDevice>&) REQUIRES(mStateLock);
     void updatePhaseConfiguration(const Fps&) REQUIRES(mStateLock);
     void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 
@@ -1027,7 +1039,7 @@ private:
     void onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay)
             REQUIRES(mStateLock, kMainThreadContext);
 
-    void onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeDisplay);
+    void onActiveDisplaySizeChanged(const sp<const DisplayDevice>&);
 
     /*
      * Debugging & dumpsys

@@ -133,7 +133,7 @@ struct layer_state_t {
         eLayerOpaque = 0x02,         // SURFACE_OPAQUE
         eLayerSkipScreenshot = 0x40, // SKIP_SCREENSHOT
         eLayerSecure = 0x80,         // SECURE
-        // Queue up BufferStateLayer buffers instead of dropping the oldest buffer when this flag is
+        // Queue up layer buffers instead of dropping the oldest buffer when this flag is
         // set. This blocks the client until all the buffers have been presented. If the buffers
         // have presentation timestamps, then we may drop buffers.
         eEnableBackpressure = 0x100,       // ENABLE_BACKPRESSURE

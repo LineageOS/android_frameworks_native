@@ -56,11 +56,10 @@ public:
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
     }
 
-    sp<BufferStateLayer> createBufferStateLayer() {
+    sp<Layer> createLayer() {
         sp<Client> client;
-        LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", 0,
-                               LayerMetadata());
-        return sp<BufferStateLayer>::make(args);
+        LayerCreationArgs args(mFlinger.flinger(), client, "layer", 0, LayerMetadata());
+        return sp<Layer>::make(args);
     }
 
     void commitTransaction(Layer* layer) {
@@ -101,7 +100,7 @@ public:
     FenceToFenceTimeMap fenceFactory;
 
     void PresentedSurfaceFrameForBufferlessTransaction() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
         FrameTimelineInfo ftInfo;
         ftInfo.vsyncId = 1;
         ftInfo.inputEventId = 0;
@@ -116,7 +115,7 @@ public:
     }
 
     void PresentedSurfaceFrameForBufferTransaction() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
         sp<Fence> fence(sp<Fence>::make());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
         BufferData bufferData;
@@ -150,7 +149,7 @@ public:
     }
 
     void DroppedSurfaceFrameForBufferTransaction() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
 
         sp<Fence> fence1(sp<Fence>::make());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
@@ -208,7 +207,7 @@ public:
     }
 
     void BufferlessSurfaceFramePromotedToBufferSurfaceFrame() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
         FrameTimelineInfo ftInfo;
         ftInfo.vsyncId = 1;
         ftInfo.inputEventId = 0;
@@ -249,7 +248,7 @@ public:
     }
 
     void BufferlessSurfaceFrameNotCreatedIfBufferSufaceFrameExists() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
         sp<Fence> fence(sp<Fence>::make());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
         BufferData bufferData;
@@ -275,7 +274,7 @@ public:
     }
 
     void MultipleSurfaceFramesPresentedTogether() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
         FrameTimelineInfo ftInfo;
         ftInfo.vsyncId = 1;
         ftInfo.inputEventId = 0;
@@ -336,7 +335,7 @@ public:
     }
 
     void PendingSurfaceFramesRemovedAfterClassification() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
 
         sp<Fence> fence1(sp<Fence>::make());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
@@ -388,7 +387,7 @@ public:
     }
 
     void BufferSurfaceFrame_ReplaceValidTokenBufferWithInvalidTokenBuffer() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
 
         sp<Fence> fence1(sp<Fence>::make());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
@@ -477,7 +476,7 @@ public:
     }
 
     void MultipleCommitsBeforeLatch() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
+        sp<Layer> layer = createLayer();
         uint32_t surfaceFramesPendingClassification = 0;
         std::vector<std::shared_ptr<frametimeline::SurfaceFrame>> bufferlessSurfaceFrames;
         for (int i = 0; i < 10; i += 2) {

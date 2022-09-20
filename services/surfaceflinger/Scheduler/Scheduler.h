@@ -95,8 +95,8 @@ protected:
     ~ISchedulerCallback() = default;
 };
 
-class Scheduler : impl::MessageQueue {
-    using Impl = impl::MessageQueue;
+class Scheduler : android::impl::MessageQueue {
+    using Impl = android::impl::MessageQueue;
 
 public:
     Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags);
@@ -130,7 +130,7 @@ public:
     ConnectionHandle createConnection(const char* connectionName, frametimeline::TokenManager*,
                                       std::chrono::nanoseconds workDuration,
                                       std::chrono::nanoseconds readyDuration,
-                                      impl::EventThread::InterceptVSyncsCallback);
+                                      android::impl::EventThread::InterceptVSyncsCallback);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ConnectionHandle, EventRegistrationFlags eventRegistration = {});
@@ -269,16 +269,18 @@ private:
     template <typename S, typename T>
     GlobalSignals applyPolicy(S Policy::*, T&&) EXCLUDES(mPolicyLock);
 
-    // Returns the display mode that fulfills the policy, and the signals that were considered.
-    std::pair<DisplayModePtr, GlobalSignals> chooseDisplayMode() REQUIRES(mPolicyLock);
+    // Returns the list of display modes in descending order of their priority that fulfills the
+    // policy, and the signals that were considered.
+    std::pair<std::vector<RefreshRateRanking>, GlobalSignals> getRankedDisplayModes()
+            REQUIRES(mPolicyLock);
 
     bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
 
     void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mRefreshRateConfigsLock);
 
-    impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const
+    android::impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const
             EXCLUDES(mRefreshRateConfigsLock);
-    impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
+    android::impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
 
     std::shared_ptr<RefreshRateConfigs> holdRefreshRateConfigs() const
             EXCLUDES(mRefreshRateConfigsLock) {

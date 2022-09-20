@@ -31,7 +31,6 @@ namespace android {
 typedef int32_t PixelFormat;
 
 class BufferLayerConsumer;
-class BufferStateLayer;
 class DisplayDevice;
 class FrameTracer;
 class GraphicBuffer;
@@ -89,7 +88,7 @@ public:
 
     virtual std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() = 0;
 
-    virtual sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
+    virtual sp<Layer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
     virtual sp<Layer> createEffectLayer(const LayerCreationArgs& args) = 0;
     virtual std::unique_ptr<FrameTracer> createFrameTracer() = 0;
     virtual std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(

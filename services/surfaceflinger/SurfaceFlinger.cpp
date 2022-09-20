@@ -106,7 +106,6 @@
 
 #include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
-#include "BufferStateLayer.h"
 #include "Client.h"
 #include "Colorizer.h"
 #include "Display/DisplayMap.h"
@@ -814,15 +813,36 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
         enableHalVirtualDisplays(true);
     }
 
-    // Process any initial hotplug and resulting display changes.
+    // Process hotplug for displays connected at boot.
     LOG_ALWAYS_FATAL_IF(!configureLocked(),
                         "Initial display configuration failed: HWC did not hotplug");
-    processDisplayChangesLocked();
 
-    const auto display = getDefaultDisplayDeviceLocked();
+    // Commit primary display.
+    sp<const DisplayDevice> display;
+    if (const auto indexOpt = mCurrentState.getDisplayIndex(getPrimaryDisplayIdLocked())) {
+        const auto& displays = mCurrentState.displays;
+
+        const auto& token = displays.keyAt(*indexOpt);
+        const auto& state = displays.valueAt(*indexOpt);
+
+        processDisplayAdded(token, state);
+        mDrawingState.displays.add(token, state);
+
+        display = getDefaultDisplayDeviceLocked();
+    }
+
     LOG_ALWAYS_FATAL_IF(!display, "Failed to configure the primary display");
     LOG_ALWAYS_FATAL_IF(!getHwComposer().isConnected(display->getPhysicalId()),
                         "Primary display is disconnected");
+
+    // TODO(b/241285876): The Scheduler needlessly depends on creating the CompositionEngine part of
+    // the DisplayDevice, hence the above commit of the primary display. Remove that special case by
+    // initializing the Scheduler after configureLocked, once decoupled from DisplayDevice.
+    initScheduler(display);
+    dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
+
+    // Commit secondary display(s).
+    processDisplayChangesLocked();
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
@@ -2953,10 +2973,13 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     LOG_FATAL_IF(!displaySurface);
     auto display = setupNewDisplayDeviceInternal(displayToken, std::move(compositionDisplay), state,
                                                  displaySurface, producer);
-    if (display->isPrimary()) {
-        initScheduler(display);
-    }
-    if (!state.isVirtual()) {
+
+    if (mScheduler && !display->isVirtual()) {
+        // Display modes are reloaded on hotplug reconnect.
+        if (display->isPrimary()) {
+            mScheduler->setRefreshRateConfigs(display->holdRefreshRateConfigs());
+        }
+
         dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
     }
 
@@ -3368,15 +3391,9 @@ void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
     mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
 }
 
-void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
-    if (mScheduler) {
-        // If the scheduler is already initialized, this means that we received
-        // a hotplug(connected) on the primary display. In that case we should
-        // update the scheduler with the most recent display information.
-        ALOGW("Scheduler already initialized, updating instead");
-        mScheduler->setRefreshRateConfigs(display->holdRefreshRateConfigs());
-        return;
-    }
+void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
+    LOG_ALWAYS_FATAL_IF(mScheduler);
+
     const auto currRefreshRate = display->getActiveMode()->getFps();
     mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, currRefreshRate,
                                                                       hal::PowerMode::OFF);
@@ -7077,7 +7094,7 @@ void SurfaceFlinger::sample() {
     mRegionSamplingThread->onCompositionComplete(mScheduler->getScheduledFrameTime());
 }
 
-void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeDisplay) {
+void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<const DisplayDevice>& activeDisplay) {
     mScheduler->onActiveDisplayAreaChanged(activeDisplay->getWidth() * activeDisplay->getHeight());
     getRenderEngine().onActiveDisplaySizeChanged(activeDisplay->getSize());
 }
