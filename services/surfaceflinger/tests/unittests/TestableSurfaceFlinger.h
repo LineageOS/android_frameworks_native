@@ -285,7 +285,7 @@ public:
                                        const sp<NativeHandle>& sidebandStream) {
         layer->mDrawingState.sidebandStream = sidebandStream;
         layer->mSidebandStream = sidebandStream;
-        layer->editCompositionState()->sidebandStream = sidebandStream;
+        layer->editLayerSnapshot()->sidebandStream = sidebandStream;
     }
 
     void setLayerCompositionType(const sp<Layer>& layer,

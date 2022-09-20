@@ -38,6 +38,7 @@
 #include <utils/Timers.h>
 
 #include <compositionengine/LayerFE.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <scheduler/Fps.h>
 #include <scheduler/Seamlessness.h>
 
@@ -142,6 +143,29 @@ public:
         // Radius of the rounded rectangle.
         vec2 radius;
         bool hasRoundedCorners() const { return radius.x > 0.0f && radius.y > 0.0f; }
+    };
+
+    // LayerSnapshot stores Layer state used by Composition Engine and Render Engine. Composition
+    // Engine uses a pointer to LayerSnapshot (as LayerFECompositionState*) and the LayerSettings
+    // passed to Render Engine are created using properties stored on this struct.
+    //
+    // TODO(b/238781169) Implement LayerFE as a separate subclass. Migrate LayerSnapshot to that
+    // LayerFE subclass.
+    struct LayerSnapshot : public compositionengine::LayerFECompositionState {
+        int32_t sequence;
+        std::string name;
+        uint32_t textureName;
+        bool contentOpaque;
+        RoundedCornerState roundedCorner;
+        StretchEffect stretchEffect;
+        FloatRect transformedBounds;
+        renderengine::ShadowSettings shadowSettings;
+        bool premultipliedAlpha;
+        bool isHdrY410;
+        bool bufferNeedsFiltering;
+        ui::Transform transform;
+        Rect bufferSize;
+        std::shared_ptr<renderengine::ExternalTexture> externalTexture;
     };
 
     using FrameRate = scheduler::LayerInfo::FrameRate;
@@ -392,7 +416,9 @@ public:
     ui::Dataspace getRequestedDataSpace() const;
 
     virtual sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const;
-    compositionengine::LayerFECompositionState* editCompositionState();
+
+    const LayerSnapshot* getLayerSnapshot() const;
+    LayerSnapshot* editLayerSnapshot();
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
@@ -867,6 +893,13 @@ public:
     bool simpleBufferUpdate(const layer_state_t&) const;
 
     static bool isOpaqueFormat(PixelFormat format);
+
+    // Updates the LayerSnapshot. This must be called prior to sending layer data to
+    // CompositionEngine or RenderEngine (i.e. before calling CompositionEngine::present or
+    // Layer::prepareClientComposition).
+    //
+    // TODO(b/238781169) Remove direct calls to RenderEngine::drawLayers that don't go through
+    // CompositionEngine to create a single path for composing layers.
     void updateSnapshot(bool updateGeometry);
 
 protected:
@@ -1166,8 +1199,6 @@ private:
     // the mStateLock.
     ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
 
-    std::unique_ptr<compositionengine::LayerFECompositionState> mCompositionState;
-
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
 
@@ -1200,6 +1231,8 @@ private:
     ui::Transform mRequestedTransform;
 
     sp<HwcSlotGenerator> mHwcSlotGenerator;
+
+    std::unique_ptr<LayerSnapshot> mSnapshot = std::make_unique<LayerSnapshot>();
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);
