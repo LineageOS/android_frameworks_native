@@ -350,7 +350,7 @@ void SchedulerFuzzer::fuzzRefreshRateConfigs() {
     const RefreshRateConfigs::GlobalSignals globalSignals = {.touch = false, .idle = false};
     std::vector<LayerRequirement> layers = {{.weight = mFdp.ConsumeFloatingPoint<float>()}};
 
-    refreshRateConfigs.getBestRefreshRate(layers, globalSignals);
+    refreshRateConfigs.getRankedRefreshRates(layers, globalSignals);
 
     layers[0].name = mFdp.ConsumeRandomLengthString(kRandomStringLength);
     layers[0].ownerUid = mFdp.ConsumeIntegral<uint16_t>();

@@ -44,6 +44,15 @@ inline DisplayModeEvent operator|(DisplayModeEvent lhs, DisplayModeEvent rhs) {
     return static_cast<DisplayModeEvent>(static_cast<T>(lhs) | static_cast<T>(rhs));
 }
 
+struct RefreshRateRanking {
+    DisplayModePtr displayModePtr;
+    float score = 0.0f;
+
+    bool operator==(const RefreshRateRanking& ranking) const {
+        return displayModePtr == ranking.displayModePtr && score == ranking.score;
+    }
+};
+
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
 /**
@@ -195,9 +204,9 @@ public:
         }
     };
 
-    // Returns the refresh rate that best fits the given layers, and whether the refresh rate was
-    // chosen based on touch boost and/or idle timer.
-    std::pair<DisplayModePtr, GlobalSignals> getBestRefreshRate(
+    // Returns the list in the descending order of refresh rates desired
+    // based on their overall score, and the GlobalSignals that were considered.
+    std::pair<std::vector<RefreshRateRanking>, GlobalSignals> getRankedRefreshRates(
             const std::vector<LayerRequirement>&, GlobalSignals) const EXCLUDES(mLock);
 
     FpsRange getSupportedRefreshRateRange() const EXCLUDES(mLock) {
@@ -207,10 +216,6 @@ public:
 
     std::optional<Fps> onKernelTimerChanged(std::optional<DisplayModeId> desiredActiveModeId,
                                             bool timerExpired) const EXCLUDES(mLock);
-
-    // Returns the highest refresh rate according to the current policy. May change at runtime. Only
-    // uses the primary range, not the app request range.
-    DisplayModePtr getMaxRefreshRateByPolicy() const EXCLUDES(mLock);
 
     void setActiveModeId(DisplayModeId) EXCLUDES(mLock) REQUIRES(kMainThreadContext);
 
@@ -343,7 +348,7 @@ private:
     // See mActiveModeIt for thread safety.
     DisplayModeIterator getActiveModeItLocked() const REQUIRES(mLock);
 
-    std::pair<DisplayModePtr, GlobalSignals> getBestRefreshRateLocked(
+    std::pair<std::vector<RefreshRateRanking>, GlobalSignals> getRankedRefreshRatesLocked(
             const std::vector<LayerRequirement>&, GlobalSignals) const REQUIRES(mLock);
 
     // Returns number of display frames and remainder when dividing the layer refresh period by
@@ -356,12 +361,23 @@ private:
 
     // Returns the highest refresh rate according to the current policy. May change at runtime. Only
     // uses the primary range, not the app request range.
-    const DisplayModePtr& getMaxRefreshRateByPolicyLocked() const REQUIRES(mLock);
     const DisplayModePtr& getMaxRefreshRateByPolicyLocked(int anchorGroup) const REQUIRES(mLock);
+
+    struct RefreshRateScoreComparator;
+
+    enum class RefreshRateOrder { Ascending, Descending };
+
+    // Returns the rankings in RefreshRateOrder. May change at runtime.
+    // Only uses the primary range, not the app request range.
+    std::vector<RefreshRateRanking> getRefreshRatesByPolicyLocked(std::optional<int> anchorGroupOpt,
+                                                                  RefreshRateOrder) const
+            REQUIRES(mLock);
 
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
 
+    // Returns the refresh rate score as a ratio to max refresh rate, which has a score of 1.
+    float calculateRefreshRateScoreForFps(Fps refreshRate) const REQUIRES(mLock);
     // calculates a score for a layer. Used to determine the display refresh rate
     // and the frame rate override for certains applications.
     float calculateLayerScoreLocked(const LayerRequirement&, Fps refreshRate,
@@ -410,11 +426,11 @@ private:
     const Config mConfig;
     bool mSupportsFrameRateOverrideByContent;
 
-    struct GetBestRefreshRateCache {
+    struct GetRankedRefreshRatesCache {
         std::pair<std::vector<LayerRequirement>, GlobalSignals> arguments;
-        std::pair<DisplayModePtr, GlobalSignals> result;
+        std::pair<std::vector<RefreshRateRanking>, GlobalSignals> result;
     };
-    mutable std::optional<GetBestRefreshRateCache> mGetBestRefreshRateCache GUARDED_BY(mLock);
+    mutable std::optional<GetRankedRefreshRatesCache> mGetRankedRefreshRatesCache GUARDED_BY(mLock);
 
     // Declare mIdleTimer last to ensure its thread joins before the mutex/callbacks are destroyed.
     std::mutex mIdleTimerCallbacksMutex;
