@@ -29,6 +29,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     auto accessPtr = std::make_unique<Access>();
     auto serviceManager = sp<ServiceManager>::make(std::move(accessPtr));
     fuzzService(serviceManager, FuzzedDataProvider(data, size));
+    serviceManager->clear();
 
     return 0;
 }

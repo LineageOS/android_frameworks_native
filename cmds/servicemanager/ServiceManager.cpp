@@ -762,4 +762,10 @@ Status ServiceManager::getServiceDebugInfo(std::vector<ServiceDebugInfo>* outRet
     return Status::ok();
 }
 
+void ServiceManager::clear() {
+    mNameToService.clear();
+    mNameToRegistrationCallback.clear();
+    mNameToClientCallback.clear();
+}
+
 }  // namespace android
