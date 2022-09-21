@@ -192,17 +192,16 @@ bool DisplayDevice::isPoweredOn() const {
 }
 
 void DisplayDevice::setActiveMode(DisplayModeId modeId, const display::DisplaySnapshot& snapshot) {
-    const auto modeOpt = snapshot.displayModes().get(modeId);
-    LOG_ALWAYS_FATAL_IF(!modeOpt, "Unknown mode");
+    const auto fpsOpt = snapshot.displayModes().get(modeId).transform(
+            [](const DisplayModePtr& mode) { return mode->getFps(); });
 
-    mActiveMode = modeOpt->get();
-    const Fps fps = mActiveMode->getFps();
+    LOG_ALWAYS_FATAL_IF(!fpsOpt, "Unknown mode");
+    const Fps fps = *fpsOpt;
 
     ATRACE_INT(mActiveModeFPSTrace.c_str(), fps.getIntValue());
 
-    if (mRefreshRateConfigs) {
-        mRefreshRateConfigs->setActiveModeId(modeId);
-    }
+    mRefreshRateConfigs->setActiveModeId(modeId);
+
     if (mRefreshRateOverlay) {
         mRefreshRateOverlay->changeRefreshRate(fps);
     }
@@ -224,10 +223,6 @@ status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
                                                     constraints, outTimeline);
 }
 
-const DisplayModePtr& DisplayDevice::getActiveMode() const {
-    return mActiveMode;
-}
-
 nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
     const auto physicalId = getPhysicalId();
     if (!mHwComposer.isConnected(physicalId)) {
@@ -240,7 +235,7 @@ nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
         return vsyncPeriod;
     }
 
-    return getActiveMode()->getFps().getPeriodNsecs();
+    return refreshRateConfigs().getActiveModePtr()->getVsyncPeriod();
 }
 
 nsecs_t DisplayDevice::getRefreshTimestamp() const {
@@ -451,7 +446,7 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {
     mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(fpsRange, showSpinnner);
     mRefreshRateOverlay->setLayerStack(getLayerStack());
     mRefreshRateOverlay->setViewport(getSize());
-    mRefreshRateOverlay->changeRefreshRate(getActiveMode()->getFps());
+    mRefreshRateOverlay->changeRefreshRate(getActiveMode().getFps());
 }
 
 bool DisplayDevice::onKernelTimerChanged(std::optional<DisplayModeId> desiredModeId,
@@ -492,7 +487,7 @@ bool DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info) {
     }
 
     // Check if we are already at the desired mode
-    if (getActiveMode()->getId() == info.mode->getId()) {
+    if (refreshRateConfigs().getActiveModePtr()->getId() == info.mode->getId()) {
         return false;
     }
 

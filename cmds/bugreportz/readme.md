@@ -1,6 +1,6 @@
 # bugreportz protocol
 
-`bugreportz` is used to generate a zippped bugreport whose path is passed back to `adb`, using
+`bugreportz` is used to generate a zipped bugreport whose path is passed back to `adb`, using
 the simple protocol defined below.
 
 # Version 1.1

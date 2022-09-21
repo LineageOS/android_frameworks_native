@@ -53,11 +53,10 @@ public:
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
     }
 
-    sp<BufferStateLayer> createBufferStateLayer() {
+    sp<Layer> createLayer() {
         sp<Client> client;
-        LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", 0,
-                               LayerMetadata());
-        return sp<BufferStateLayer>::make(args);
+        LayerCreationArgs args(mFlinger.flinger(), client, "layer", 0, LayerMetadata());
+        return sp<Layer>::make(args);
     }
 
     void setupScheduler() {
@@ -108,9 +107,9 @@ public:
 };
 
 TEST_F(GameModeTest, SetGameModeSetsForAllCurrentChildren) {
-    sp<BufferStateLayer> rootLayer = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer1 = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer2 = createBufferStateLayer();
+    sp<Layer> rootLayer = createLayer();
+    sp<Layer> childLayer1 = createLayer();
+    sp<Layer> childLayer2 = createLayer();
     rootLayer->addChild(childLayer1);
     rootLayer->addChild(childLayer2);
     rootLayer->setGameModeForTree(GameMode::Performance);
@@ -121,8 +120,8 @@ TEST_F(GameModeTest, SetGameModeSetsForAllCurrentChildren) {
 }
 
 TEST_F(GameModeTest, AddChildAppliesGameModeFromParent) {
-    sp<BufferStateLayer> rootLayer = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer = createBufferStateLayer();
+    sp<Layer> rootLayer = createLayer();
+    sp<Layer> childLayer = createLayer();
     rootLayer->setGameModeForTree(GameMode::Performance);
     rootLayer->addChild(childLayer);
 
@@ -131,8 +130,8 @@ TEST_F(GameModeTest, AddChildAppliesGameModeFromParent) {
 }
 
 TEST_F(GameModeTest, RemoveChildResetsGameMode) {
-    sp<BufferStateLayer> rootLayer = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer = createBufferStateLayer();
+    sp<Layer> rootLayer = createLayer();
+    sp<Layer> childLayer = createLayer();
     rootLayer->setGameModeForTree(GameMode::Performance);
     rootLayer->addChild(childLayer);
 
@@ -144,9 +143,9 @@ TEST_F(GameModeTest, RemoveChildResetsGameMode) {
 }
 
 TEST_F(GameModeTest, ReparentingDoesNotOverrideMetadata) {
-    sp<BufferStateLayer> rootLayer = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer1 = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer2 = createBufferStateLayer();
+    sp<Layer> rootLayer = createLayer();
+    sp<Layer> childLayer1 = createLayer();
+    sp<Layer> childLayer2 = createLayer();
     rootLayer->setGameModeForTree(GameMode::Standard);
     rootLayer->addChild(childLayer1);
 

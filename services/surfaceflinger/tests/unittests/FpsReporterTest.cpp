@@ -24,7 +24,6 @@
 #include <gtest/gtest.h>
 #include <gui/LayerMetadata.h>
 
-#include "BufferStateLayer.h"
 #include "FpsReporter.h"
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"
@@ -79,7 +78,7 @@ protected:
     static constexpr int32_t PRIORITY_UNSET = -1;
 
     void setupScheduler();
-    sp<BufferStateLayer> createBufferStateLayer(LayerMetadata metadata);
+    sp<Layer> createBufferStateLayer(LayerMetadata metadata);
 
     TestableSurfaceFlinger mFlinger;
     mock::FrameTimeline mFrameTimeline =
@@ -115,10 +114,10 @@ FpsReporterTest::~FpsReporterTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-sp<BufferStateLayer> FpsReporterTest::createBufferStateLayer(LayerMetadata metadata = {}) {
+sp<Layer> FpsReporterTest::createBufferStateLayer(LayerMetadata metadata = {}) {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", LAYER_FLAGS, metadata);
-    return sp<BufferStateLayer>::make(args);
+    return sp<Layer>::make(args);
 }
 
 void FpsReporterTest::setupScheduler() {

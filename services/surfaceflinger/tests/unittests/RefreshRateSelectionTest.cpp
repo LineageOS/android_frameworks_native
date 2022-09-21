@@ -21,7 +21,6 @@
 #include <gtest/gtest.h>
 #include <gui/LayerMetadata.h>
 
-#include "BufferStateLayer.h"
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
@@ -58,7 +57,7 @@ protected:
     static constexpr int32_t PRIORITY_UNSET = -1;
 
     void setupScheduler();
-    sp<BufferStateLayer> createBufferStateLayer();
+    sp<Layer> createBufferStateLayer();
     sp<Layer> createEffectLayer();
 
     void setParent(Layer* child, Layer* parent);
@@ -87,12 +86,11 @@ RefreshRateSelectionTest::~RefreshRateSelectionTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-
-sp<BufferStateLayer> RefreshRateSelectionTest::createBufferStateLayer() {
+sp<Layer> RefreshRateSelectionTest::createBufferStateLayer() {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "buffer-queue-layer", LAYER_FLAGS,
                            LayerMetadata());
-    return sp<BufferStateLayer>::make(args);
+    return sp<Layer>::make(args);
 }
 
 sp<Layer> RefreshRateSelectionTest::createEffectLayer() {

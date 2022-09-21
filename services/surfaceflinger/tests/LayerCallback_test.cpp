@@ -51,7 +51,7 @@ public:
         LayerTransactionTest::TearDown();
     }
 
-    virtual sp<SurfaceControl> createBufferStateLayer() {
+    virtual sp<SurfaceControl> createLayerWithBuffer() {
         return createLayer(mClient, "test", 0, 0, ISurfaceComposerClient::eFXSurfaceBufferState);
     }
 
@@ -164,7 +164,7 @@ public:
 
 TEST_F(LayerCallbackTest, BufferColor) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -183,7 +183,7 @@ TEST_F(LayerCallbackTest, BufferColor) {
 
 TEST_F(LayerCallbackTest, NoBufferNoColor) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -206,7 +206,7 @@ TEST_F(LayerCallbackTest, NoBufferNoColor) {
 
 TEST_F(LayerCallbackTest, BufferNoColor) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -228,7 +228,7 @@ TEST_F(LayerCallbackTest, BufferNoColor) {
 
 TEST_F(LayerCallbackTest, NoBufferColor) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -266,7 +266,7 @@ TEST_F(LayerCallbackTest, NoStateChange) {
 
 TEST_F(LayerCallbackTest, OffScreen) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -288,8 +288,8 @@ TEST_F(LayerCallbackTest, OffScreen) {
 
 TEST_F(LayerCallbackTest, MergeBufferNoColor) {
     sp<SurfaceControl> layer1, layer2;
-    ASSERT_NO_FATAL_FAILURE(layer1 = createBufferStateLayer());
-    ASSERT_NO_FATAL_FAILURE(layer2 = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer1 = createLayerWithBuffer());
+    ASSERT_NO_FATAL_FAILURE(layer2 = createLayerWithBuffer());
 
     Transaction transaction1, transaction2;
     CallbackHelper callback1, callback2;
@@ -322,8 +322,8 @@ TEST_F(LayerCallbackTest, MergeBufferNoColor) {
 
 TEST_F(LayerCallbackTest, MergeNoBufferColor) {
     sp<SurfaceControl> layer1, layer2;
-    ASSERT_NO_FATAL_FAILURE(layer1 = createBufferStateLayer());
-    ASSERT_NO_FATAL_FAILURE(layer2 = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer1 = createLayerWithBuffer());
+    ASSERT_NO_FATAL_FAILURE(layer2 = createLayerWithBuffer());
 
     Transaction transaction1, transaction2;
     CallbackHelper callback1, callback2;
@@ -357,8 +357,8 @@ TEST_F(LayerCallbackTest, MergeNoBufferColor) {
 
 TEST_F(LayerCallbackTest, MergeOneBufferOneColor) {
     sp<SurfaceControl> layer1, layer2;
-    ASSERT_NO_FATAL_FAILURE(layer1 = createBufferStateLayer());
-    ASSERT_NO_FATAL_FAILURE(layer2 = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer1 = createLayerWithBuffer());
+    ASSERT_NO_FATAL_FAILURE(layer2 = createLayerWithBuffer());
 
     Transaction transaction1, transaction2;
     CallbackHelper callback1, callback2;
@@ -392,8 +392,8 @@ TEST_F(LayerCallbackTest, MergeOneBufferOneColor) {
 }
 TEST_F(LayerCallbackTest, Merge_SameCallback) {
     sp<SurfaceControl> layer1, layer2;
-    ASSERT_NO_FATAL_FAILURE(layer1 = createBufferStateLayer());
-    ASSERT_NO_FATAL_FAILURE(layer2 = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer1 = createLayerWithBuffer());
+    ASSERT_NO_FATAL_FAILURE(layer2 = createLayerWithBuffer());
 
     Transaction transaction1, transaction2;
     CallbackHelper callback;
@@ -418,7 +418,7 @@ TEST_F(LayerCallbackTest, Merge_SameCallback) {
 
 TEST_F(LayerCallbackTest, Merge_SameLayer) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction1, transaction2;
     CallbackHelper callback1, callback2;
@@ -485,7 +485,7 @@ TEST_F(LayerCallbackTest, Merge_DifferentClients) {
 
 TEST_F(LayerCallbackTest, MultipleTransactions) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -510,7 +510,7 @@ TEST_F(LayerCallbackTest, MultipleTransactions) {
 
 TEST_F(LayerCallbackTest, MultipleTransactions_NoStateChange) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -541,7 +541,7 @@ TEST_F(LayerCallbackTest, MultipleTransactions_NoStateChange) {
 
 TEST_F(LayerCallbackTest, MultipleTransactions_SameStateChange) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -579,8 +579,8 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SameStateChange) {
 
 TEST_F(LayerCallbackTest, MultipleTransactions_Merge) {
     sp<SurfaceControl> layer1, layer2;
-    ASSERT_NO_FATAL_FAILURE(layer1 = createBufferStateLayer());
-    ASSERT_NO_FATAL_FAILURE(layer2 = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer1 = createLayerWithBuffer());
+    ASSERT_NO_FATAL_FAILURE(layer2 = createLayerWithBuffer());
 
     Transaction transaction1, transaction2;
     CallbackHelper callback1, callback2;
@@ -799,7 +799,7 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients_SameStateC
 // TODO (b/183181768): Fix & re-enable
 TEST_F(LayerCallbackTest, DISABLED_MultipleTransactions_SingleFrame) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -823,7 +823,7 @@ TEST_F(LayerCallbackTest, DISABLED_MultipleTransactions_SingleFrame) {
 
 TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame_NoStateChange) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     // Normal call to set up test
     Transaction transaction;
@@ -858,7 +858,7 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame_NoStateChange) {
 
 TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame_SameStateChange) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     // Normal call to set up test
     Transaction transaction;
@@ -901,7 +901,7 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame_SameStateChange) {
 
 TEST_F(LayerCallbackTest, DesiredPresentTime) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -925,7 +925,7 @@ TEST_F(LayerCallbackTest, DesiredPresentTime) {
 
 TEST_F(LayerCallbackTest, DesiredPresentTime_Multiple) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback1;
@@ -971,7 +971,7 @@ TEST_F(LayerCallbackTest, DesiredPresentTime_Multiple) {
 // TODO (b/183181768): Fix & re-enable
 TEST_F(LayerCallbackTest, DISABLED_DesiredPresentTime_OutOfOrder) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback1;
@@ -1015,7 +1015,7 @@ TEST_F(LayerCallbackTest, DISABLED_DesiredPresentTime_OutOfOrder) {
 
 TEST_F(LayerCallbackTest, DesiredPresentTime_Past) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -1039,7 +1039,7 @@ TEST_F(LayerCallbackTest, DesiredPresentTime_Past) {
 
 TEST_F(LayerCallbackTest, ExpectedPresentTime) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -1065,8 +1065,8 @@ TEST_F(LayerCallbackTest, ExpectedPresentTime) {
 // b202394221
 TEST_F(LayerCallbackTest, EmptyBufferStateChanges) {
     sp<SurfaceControl> bufferLayer, emptyBufferLayer;
-    ASSERT_NO_FATAL_FAILURE(bufferLayer = createBufferStateLayer());
-    ASSERT_NO_FATAL_FAILURE(emptyBufferLayer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayerWithBuffer());
+    ASSERT_NO_FATAL_FAILURE(emptyBufferLayer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;
@@ -1120,7 +1120,7 @@ TEST_F(LayerCallbackTest, DISABLED_NonBufferLayerStateChanges) {
 
 TEST_F(LayerCallbackTest, CommitCallbackOffscreenLayer) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
     sp<SurfaceControl> offscreenLayer =
             createSurface(mClient, "Offscreen Layer", 0, 0, PIXEL_FORMAT_RGBA_8888,
                           ISurfaceComposerClient::eFXSurfaceBufferState, layer.get());
@@ -1151,7 +1151,7 @@ TEST_F(LayerCallbackTest, CommitCallbackOffscreenLayer) {
 
 TEST_F(LayerCallbackTest, TransactionCommittedCallback_BSL) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
 
     Transaction transaction;
     CallbackHelper callback;

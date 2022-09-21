@@ -106,7 +106,6 @@
 
 #include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
-#include "BufferStateLayer.h"
 #include "Client.h"
 #include "Colorizer.h"
 #include "Display/DisplayMap.h"
@@ -681,7 +680,7 @@ void SurfaceFlinger::bootFinished() {
 
     sp<IBinder> input(defaultServiceManager()->getService(String16("inputflinger")));
 
-    static_cast<void>(mScheduler->schedule([=] {
+    static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(kMainThreadContext) {
         if (input == nullptr) {
             ALOGE("Failed to link to input service");
         } else {
@@ -709,8 +708,9 @@ void SurfaceFlinger::bootFinished() {
 
         mBootStage = BootStage::FINISHED;
 
-        if (property_get_bool("sf.debug.show_refresh_rate_overlay", false)) {
-            FTL_FAKE_GUARD(mStateLock, enableRefreshRateOverlay(true));
+        if (base::GetBoolProperty("sf.debug.show_refresh_rate_overlay"s, false)) {
+            ftl::FakeGuard guard(mStateLock);
+            enableRefreshRateOverlay(true);
         }
     }));
 }
@@ -814,15 +814,36 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
         enableHalVirtualDisplays(true);
     }
 
-    // Process any initial hotplug and resulting display changes.
+    // Process hotplug for displays connected at boot.
     LOG_ALWAYS_FATAL_IF(!configureLocked(),
                         "Initial display configuration failed: HWC did not hotplug");
-    processDisplayChangesLocked();
 
-    const auto display = getDefaultDisplayDeviceLocked();
+    // Commit primary display.
+    sp<const DisplayDevice> display;
+    if (const auto indexOpt = mCurrentState.getDisplayIndex(getPrimaryDisplayIdLocked())) {
+        const auto& displays = mCurrentState.displays;
+
+        const auto& token = displays.keyAt(*indexOpt);
+        const auto& state = displays.valueAt(*indexOpt);
+
+        processDisplayAdded(token, state);
+        mDrawingState.displays.add(token, state);
+
+        display = getDefaultDisplayDeviceLocked();
+    }
+
     LOG_ALWAYS_FATAL_IF(!display, "Failed to configure the primary display");
     LOG_ALWAYS_FATAL_IF(!getHwComposer().isConnected(display->getPhysicalId()),
                         "Primary display is disconnected");
+
+    // TODO(b/241285876): The Scheduler needlessly depends on creating the CompositionEngine part of
+    // the DisplayDevice, hence the above commit of the primary display. Remove that special case by
+    // initializing the Scheduler after configureLocked, once decoupled from DisplayDevice.
+    initScheduler(display);
+    dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
+
+    // Commit secondary display(s).
+    processDisplayChangesLocked();
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
@@ -1039,7 +1060,7 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
 
     const PhysicalDisplayId displayId = snapshot.displayId();
 
-    info->activeDisplayModeId = display->getActiveMode()->getId().value();
+    info->activeDisplayModeId = display->refreshRateConfigs().getActiveModePtr()->getId().value();
     info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
     info->supportedColorModes = getDisplayColorModes(displayId);
     info->hdrCapabilities = display->getHdrCapabilities();
@@ -1163,7 +1184,7 @@ void SurfaceFlinger::updateInternalStateWithChangedMode() {
         return;
     }
 
-    if (display->getActiveMode()->getResolution() != upcomingModeInfo.mode->getResolution()) {
+    if (display->getActiveMode().getResolution() != upcomingModeInfo.mode->getResolution()) {
         auto& state = mCurrentState.displays.editValueFor(display->getDisplayToken());
         // We need to generate new sequenceId in order to recreate the display (and this
         // way the framebuffer).
@@ -1249,7 +1270,7 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
         ALOGV("%s changing active mode to %d(%s) for display %s", __func__, desiredModeId.value(),
               to_string(*refreshRateOpt).c_str(), to_string(display->getId()).c_str());
 
-        if (display->getActiveMode()->getId() == desiredModeId) {
+        if (display->getActiveMode().getId() == desiredModeId) {
             // we are already in the requested mode, there is nothing left to do
             desiredActiveModeChangeDone(display);
             continue;
@@ -1298,7 +1319,7 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
         const auto display = getDisplayDeviceLocked(*displayToUpdateImmediately);
         const auto desiredActiveMode = display->getDesiredActiveMode();
         if (desiredActiveMode &&
-            display->getActiveMode()->getId() == desiredActiveMode->mode->getId()) {
+            display->getActiveMode().getId() == desiredActiveMode->mode->getId()) {
             desiredActiveModeChangeDone(display);
         }
     }
@@ -2087,7 +2108,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
             activeDisplay->getPowerMode() == hal::PowerMode::ON;
     if (mPowerHintSessionEnabled) {
         const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
-        const Period vsyncPeriod = Period::fromNs(display->getActiveMode()->getVsyncPeriod());
+        const Period vsyncPeriod = Period::fromNs(display->getActiveMode().getVsyncPeriod());
         mPowerAdvisor->setCommitStart(frameTime);
         mPowerAdvisor->setExpectedPresentTime(mExpectedPresentTime);
 
@@ -2953,10 +2974,13 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     LOG_FATAL_IF(!displaySurface);
     auto display = setupNewDisplayDeviceInternal(displayToken, std::move(compositionDisplay), state,
                                                  displaySurface, producer);
-    if (display->isPrimary()) {
-        initScheduler(display);
-    }
-    if (!state.isVirtual()) {
+
+    if (mScheduler && !display->isVirtual()) {
+        // Display modes are reloaded on hotplug reconnect.
+        if (display->isPrimary()) {
+            mScheduler->setRefreshRateConfigs(display->holdRefreshRateConfigs());
+        }
+
         dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
     }
 
@@ -3061,7 +3085,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
 
 void SurfaceFlinger::updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay) {
     mVsyncConfiguration->reset();
-    const Fps refreshRate = activeDisplay->refreshRateConfigs().getActiveMode().getFps();
+    const Fps refreshRate = activeDisplay->getActiveMode().getFps();
     updatePhaseConfiguration(refreshRate);
     mRefreshRateStats->setRefreshRate(refreshRate);
 }
@@ -3368,20 +3392,16 @@ void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
     mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
 }
 
-void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
-    if (mScheduler) {
-        // If the scheduler is already initialized, this means that we received
-        // a hotplug(connected) on the primary display. In that case we should
-        // update the scheduler with the most recent display information.
-        ALOGW("Scheduler already initialized, updating instead");
-        mScheduler->setRefreshRateConfigs(display->holdRefreshRateConfigs());
-        return;
-    }
-    const auto currRefreshRate = display->getActiveMode()->getFps();
-    mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, currRefreshRate,
-                                                                      hal::PowerMode::OFF);
+void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
+    LOG_ALWAYS_FATAL_IF(mScheduler);
 
-    mVsyncConfiguration = getFactory().createVsyncConfiguration(currRefreshRate);
+    const auto activeModePtr = display->refreshRateConfigs().getActiveModePtr();
+    const Fps activeRefreshRate = activeModePtr->getFps();
+    mRefreshRateStats =
+            std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, activeRefreshRate,
+                                                          hal::PowerMode::OFF);
+
+    mVsyncConfiguration = getFactory().createVsyncConfiguration(activeRefreshRate);
     mVsyncModulator = sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs());
 
     using Feature = scheduler::Feature;
@@ -3414,7 +3434,7 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
     mScheduler->startTimers();
 
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
-    const nsecs_t vsyncPeriod = currRefreshRate.getPeriodNsecs();
+    const nsecs_t vsyncPeriod = activeRefreshRate.getPeriodNsecs();
     mAppConnectionHandle =
             mScheduler->createConnection("app", mFrameTimeline->getTokenManager(),
                                          /*workDuration=*/configs.late.appWorkDuration,
@@ -3442,7 +3462,7 @@ void SurfaceFlinger::initScheduler(const sp<DisplayDevice>& display) {
     // This is a bit hacky, but this avoids a back-pointer into the main SF
     // classes from EventThread, and there should be no run-time binder cost
     // anyway since there are no connected apps at this point.
-    mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, display->getActiveMode());
+    mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, activeModePtr);
 }
 
 void SurfaceFlinger::updatePhaseConfiguration(const Fps& refreshRate) {
@@ -5331,10 +5351,10 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
 
     if (const auto display = getDefaultDisplayDeviceLocked()) {
         std::string fps, xDpi, yDpi;
-        if (const auto activeMode = display->getActiveMode()) {
-            fps = to_string(activeMode->getFps());
+        if (const auto activeModePtr = display->refreshRateConfigs().getActiveModePtr()) {
+            fps = to_string(activeModePtr->getFps());
 
-            const auto dpi = activeMode->getDpi();
+            const auto dpi = activeModePtr->getDpi();
             xDpi = base::StringPrintf("%.2f", dpi.x);
             yDpi = base::StringPrintf("%.2f", dpi.y);
         } else {
@@ -5834,19 +5854,17 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1034: {
-                auto future = mScheduler->schedule([&] {
-                    switch (n = data.readInt32()) {
-                        case 0:
-                        case 1:
-                            FTL_FAKE_GUARD(mStateLock,
-                                           enableRefreshRateOverlay(static_cast<bool>(n)));
-                            break;
-                        default: {
-                            reply->writeBool(
-                                    FTL_FAKE_GUARD(mStateLock, isRefreshRateOverlayEnabled()));
-                        }
-                    }
-                });
+                auto future = mScheduler->schedule(
+                        [&]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(kMainThreadContext) {
+                            switch (n = data.readInt32()) {
+                                case 0:
+                                case 1:
+                                    enableRefreshRateOverlay(static_cast<bool>(n));
+                                    break;
+                                default:
+                                    reply->writeBool(isRefreshRateOverlayEnabled());
+                            }
+                        });
 
                 future.wait();
                 return NO_ERROR;
@@ -6636,6 +6654,11 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     std::vector<Layer*> renderedLayers;
     bool disableBlurs = false;
     traverseLayers([&](Layer* layer) {
+        // Layer::prepareClientComposition uses the layer's snapshot to populate the resulting
+        // LayerSettings. Calling Layer::updateSnapshot ensures that LayerSettings are
+        // generated with the layer's current buffer and geometry.
+        layer->updateSnapshot(true /* updateGeometry */);
+
         disableBlurs |= layer->getDrawingState().sidebandStream != nullptr;
 
         Region clip(renderArea.getBounds());
@@ -6782,12 +6805,12 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
 
     // TODO(b/140204874): Leave the event in until we do proper testing with all apps that might
     // be depending in this callback.
-    const auto activeMode = display->getActiveMode();
+    const auto activeModePtr = display->refreshRateConfigs().getActiveModePtr();
     if (isDisplayActiveLocked(display)) {
-        mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, activeMode);
+        mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, activeModePtr);
         toggleKernelIdleTimer();
     } else {
-        mScheduler->onNonPrimaryDisplayModeChanged(mAppConnectionHandle, activeMode);
+        mScheduler->onNonPrimaryDisplayModeChanged(mAppConnectionHandle, activeModePtr);
     }
 
     auto preferredModeOpt =
@@ -7077,7 +7100,7 @@ void SurfaceFlinger::sample() {
     mRegionSamplingThread->onCompositionComplete(mScheduler->getScheduledFrameTime());
 }
 
-void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeDisplay) {
+void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<const DisplayDevice>& activeDisplay) {
     mScheduler->onActiveDisplayAreaChanged(activeDisplay->getWidth() * activeDisplay->getHeight());
     getRenderEngine().onActiveDisplaySizeChanged(activeDisplay->getSize());
 }

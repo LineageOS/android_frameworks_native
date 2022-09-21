@@ -65,7 +65,6 @@
 #include <mutex>
 #include <sstream>
 
-#include "BufferStateLayer.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWComposer.h"
 #include "FrameTimeline.h"
@@ -165,7 +164,6 @@ Layer::Layer(const LayerCreationArgs& args)
         mLayerCreationFlags(args.flags),
         mBorderEnabled(false),
         mTextureName(args.textureName),
-        mCompositionState{mFlinger->getCompositionEngine().createLayerFECompositionState()},
         mHwcSlotGenerator(sp<HwcSlotGenerator>::make()) {
     ALOGV("Creating Layer %s", getDebugName());
 
@@ -239,6 +237,12 @@ Layer::Layer(const LayerCreationArgs& args)
     mPotentialCursor = args.flags & ISurfaceComposerClient::eCursorWindow;
     mProtectedByApp = args.flags & ISurfaceComposerClient::eProtectedByApp;
     mDrawingState.dataspace = ui::Dataspace::V0_SRGB;
+
+    mSnapshot->sequence = sequence;
+    mSnapshot->name = getDebugName();
+    mSnapshot->textureName = mTextureName;
+    mSnapshot->premultipliedAlpha = mPremultipliedAlpha;
+    mSnapshot->transform = {};
 }
 
 void Layer::onFirstRef() {
@@ -504,40 +508,40 @@ void Layer::prepareBasicGeometryCompositionState() {
                                         : Hwc2::IComposerClient::BlendMode::COVERAGE;
     }
 
-    auto* compositionState = editCompositionState();
-    compositionState->outputFilter = getOutputFilter();
-    compositionState->isVisible = isVisible();
-    compositionState->isOpaque = opaque && !usesRoundedCorners && alpha == 1.f;
-    compositionState->shadowRadius = mEffectiveShadowRadius;
+    auto* snapshot = editLayerSnapshot();
+    snapshot->outputFilter = getOutputFilter();
+    snapshot->isVisible = isVisible();
+    snapshot->isOpaque = opaque && !usesRoundedCorners && alpha == 1.f;
+    snapshot->shadowRadius = mEffectiveShadowRadius;
 
-    compositionState->contentDirty = contentDirty;
+    snapshot->contentDirty = contentDirty;
     contentDirty = false;
 
-    compositionState->geomLayerBounds = mBounds;
-    compositionState->geomLayerTransform = getTransform();
-    compositionState->geomInverseLayerTransform = compositionState->geomLayerTransform.inverse();
-    compositionState->transparentRegionHint = getActiveTransparentRegion(drawingState);
+    snapshot->geomLayerBounds = mBounds;
+    snapshot->geomLayerTransform = getTransform();
+    snapshot->geomInverseLayerTransform = snapshot->geomLayerTransform.inverse();
+    snapshot->transparentRegionHint = getActiveTransparentRegion(drawingState);
 
-    compositionState->blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
-    compositionState->alpha = alpha;
-    compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
-    compositionState->blurRegions = drawingState.blurRegions;
-    compositionState->stretchEffect = getStretchEffect();
+    snapshot->blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
+    snapshot->alpha = alpha;
+    snapshot->backgroundBlurRadius = drawingState.backgroundBlurRadius;
+    snapshot->blurRegions = drawingState.blurRegions;
+    snapshot->stretchEffect = getStretchEffect();
 }
 
 void Layer::prepareGeometryCompositionState() {
     const auto& drawingState{getDrawingState()};
-    auto* compositionState = editCompositionState();
+    auto* snapshot = editLayerSnapshot();
 
-    compositionState->geomBufferSize = getBufferSize(drawingState);
-    compositionState->geomContentCrop = getBufferCrop();
-    compositionState->geomCrop = getCrop(drawingState);
-    compositionState->geomBufferTransform = getBufferTransform();
-    compositionState->geomBufferUsesDisplayInverseTransform = getTransformToDisplayInverse();
-    compositionState->geomUsesSourceCrop = usesSourceCrop();
-    compositionState->isSecure = isSecure();
+    snapshot->geomBufferSize = getBufferSize(drawingState);
+    snapshot->geomContentCrop = getBufferCrop();
+    snapshot->geomCrop = getCrop(drawingState);
+    snapshot->geomBufferTransform = getBufferTransform();
+    snapshot->geomBufferUsesDisplayInverseTransform = getTransformToDisplayInverse();
+    snapshot->geomUsesSourceCrop = usesSourceCrop();
+    snapshot->isSecure = isSecure();
 
-    compositionState->metadata.clear();
+    snapshot->metadata.clear();
     const auto& supportedMetadata = mFlinger->getHwComposer().getSupportedLayerGenericMetadata();
     for (const auto& [key, mandatory] : supportedMetadata) {
         const auto& genericLayerMetadataCompatibilityMap =
@@ -553,45 +557,45 @@ void Layer::prepareGeometryCompositionState() {
             continue;
         }
 
-        compositionState->metadata
-                .emplace(key, compositionengine::GenericLayerMetadataEntry{mandatory, it->second});
+        snapshot->metadata.emplace(key,
+                                   compositionengine::GenericLayerMetadataEntry{mandatory,
+                                                                                it->second});
     }
 }
 
 void Layer::preparePerFrameCompositionState() {
     const auto& drawingState{getDrawingState()};
-    auto* compositionState = editCompositionState();
+    auto* snapshot = editLayerSnapshot();
 
-    compositionState->forceClientComposition = false;
+    snapshot->forceClientComposition = false;
 
-    compositionState->isColorspaceAgnostic = isColorSpaceAgnostic();
-    compositionState->dataspace = getDataSpace();
-    compositionState->colorTransform = getColorTransform();
-    compositionState->colorTransformIsIdentity = !hasColorTransform();
-    compositionState->surfaceDamage = surfaceDamageRegion;
-    compositionState->hasProtectedContent = isProtected();
-    compositionState->dimmingEnabled = isDimmingEnabled();
+    snapshot->isColorspaceAgnostic = isColorSpaceAgnostic();
+    snapshot->dataspace = getDataSpace();
+    snapshot->colorTransform = getColorTransform();
+    snapshot->colorTransformIsIdentity = !hasColorTransform();
+    snapshot->surfaceDamage = surfaceDamageRegion;
+    snapshot->hasProtectedContent = isProtected();
+    snapshot->dimmingEnabled = isDimmingEnabled();
 
     const bool usesRoundedCorners = hasRoundedCorners();
 
-    compositionState->isOpaque =
-            isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
+    snapshot->isOpaque = isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
 
     // Force client composition for special cases known only to the front-end.
     // Rounded corners no longer force client composition, since we may use a
     // hole punch so that the layer will appear to have rounded corners.
     if (isHdrY410() || drawShadows() || drawingState.blurRegions.size() > 0 ||
-        compositionState->stretchEffect.hasEffect()) {
-        compositionState->forceClientComposition = true;
+        snapshot->stretchEffect.hasEffect()) {
+        snapshot->forceClientComposition = true;
     }
     // If there are no visible region changes, we still need to update blur parameters.
-    compositionState->blurRegions = drawingState.blurRegions;
-    compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
+    snapshot->blurRegions = drawingState.blurRegions;
+    snapshot->backgroundBlurRadius = drawingState.backgroundBlurRadius;
 
     // Layer framerate is used in caching decisions.
     // Retrieve it from the scheduler which maintains an instance of LayerHistory, and store it in
     // LayerFECompositionState where it would be visible to Flattener.
-    compositionState->fps = mFlinger->getLayerFramerate(systemTime(), getSequence());
+    snapshot->fps = mFlinger->getLayerFramerate(systemTime(), getSequence());
 
     if (hasBufferOrSidebandStream()) {
         preparePerFrameBufferCompositionState();
@@ -602,41 +606,41 @@ void Layer::preparePerFrameCompositionState() {
 
 void Layer::preparePerFrameBufferCompositionState() {
     // Sideband layers
-    auto* compositionState = editCompositionState();
-    if (compositionState->sidebandStream.get() && !compositionState->sidebandStreamHasFrame) {
-        compositionState->compositionType =
+    auto* snapshot = editLayerSnapshot();
+    if (snapshot->sidebandStream.get() && !snapshot->sidebandStreamHasFrame) {
+        snapshot->compositionType =
                 aidl::android::hardware::graphics::composer3::Composition::SIDEBAND;
         return;
     } else if ((mDrawingState.flags & layer_state_t::eLayerIsDisplayDecoration) != 0) {
-        compositionState->compositionType =
+        snapshot->compositionType =
                 aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION;
     } else {
         // Normal buffer layers
-        compositionState->hdrMetadata = mBufferInfo.mHdrMetadata;
-        compositionState->compositionType = mPotentialCursor
+        snapshot->hdrMetadata = mBufferInfo.mHdrMetadata;
+        snapshot->compositionType = mPotentialCursor
                 ? aidl::android::hardware::graphics::composer3::Composition::CURSOR
                 : aidl::android::hardware::graphics::composer3::Composition::DEVICE;
     }
 
-    compositionState->buffer = getBuffer();
-    compositionState->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
+    snapshot->buffer = getBuffer();
+    snapshot->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
             ? 0
             : mBufferInfo.mBufferSlot;
-    compositionState->acquireFence = mBufferInfo.mFence;
-    compositionState->frameNumber = mBufferInfo.mFrameNumber;
-    compositionState->sidebandStreamHasFrame = false;
+    snapshot->acquireFence = mBufferInfo.mFence;
+    snapshot->frameNumber = mBufferInfo.mFrameNumber;
+    snapshot->sidebandStreamHasFrame = false;
 }
 
 void Layer::preparePerFrameEffectsCompositionState() {
-    auto* compositionState = editCompositionState();
-    compositionState->color = getColor();
-    compositionState->compositionType =
+    auto* snapshot = editLayerSnapshot();
+    snapshot->color = getColor();
+    snapshot->compositionType =
             aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR;
 }
 
 void Layer::prepareCursorCompositionState() {
     const State& drawingState{getDrawingState()};
-    auto* compositionState = editCompositionState();
+    auto* snapshot = editLayerSnapshot();
 
     // Apply the layer's transform, followed by the display's global transform
     // Here we're guaranteed that the layer's transform preserves rects
@@ -645,7 +649,7 @@ void Layer::prepareCursorCompositionState() {
     Rect bounds = reduce(win, getActiveTransparentRegion(drawingState));
     Rect frame(getTransform().transform(bounds));
 
-    compositionState->cursorFrame = frame;
+    snapshot->cursorFrame = frame;
 }
 
 sp<compositionengine::LayerFE> Layer::asLayerFE() const {
@@ -687,31 +691,30 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) const {
     ATRACE_CALL();
 
-    if (!getCompositionState()) {
+    const auto* snapshot = getLayerSnapshot();
+    if (!snapshot) {
         return {};
     }
 
-    FloatRect bounds = getBounds();
-    half alpha = getAlpha();
-
     compositionengine::LayerFE::LayerSettings layerSettings;
-    layerSettings.geometry.boundaries = bounds;
-    layerSettings.geometry.positionTransform = getTransform().asMatrix4();
+    layerSettings.geometry.boundaries =
+            reduce(snapshot->geomLayerBounds, snapshot->transparentRegionHint);
+    layerSettings.geometry.positionTransform = snapshot->geomLayerTransform.asMatrix4();
 
     // skip drawing content if the targetSettings indicate the content will be occluded
     const bool drawContent = targetSettings.realContentIsVisible || targetSettings.clearContent;
     layerSettings.skipContentDraw = !drawContent;
 
     if (hasColorTransform()) {
-        layerSettings.colorTransform = getColorTransform();
+        layerSettings.colorTransform = snapshot->colorTransform;
     }
 
-    const auto roundedCornerState = getRoundedCornerState();
+    const auto& roundedCornerState = snapshot->roundedCorner;
     layerSettings.geometry.roundedCornersRadius = roundedCornerState.radius;
     layerSettings.geometry.roundedCornersCrop = roundedCornerState.cropRect;
 
-    layerSettings.alpha = alpha;
-    layerSettings.sourceDataspace = getDataSpace();
+    layerSettings.alpha = snapshot->alpha;
+    layerSettings.sourceDataspace = snapshot->dataspace;
 
     // Override the dataspace transfer from 170M to sRGB if the device configuration requests this.
     // We do this here instead of in buffer info so that dumpsys can still report layers that are
@@ -728,26 +731,24 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
     layerSettings.whitePointNits = targetSettings.whitePointNits;
     switch (targetSettings.blurSetting) {
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled:
-            layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
-            layerSettings.blurRegions = getBlurRegions();
-            layerSettings.blurRegionTransform =
-                    getActiveTransform(getDrawingState()).inverse().asMatrix4();
+            layerSettings.backgroundBlurRadius = snapshot->backgroundBlurRadius;
+            layerSettings.blurRegions = snapshot->blurRegions;
+            layerSettings.blurRegionTransform = snapshot->geomInverseLayerTransform.asMatrix4();
             break;
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::BackgroundBlurOnly:
-            layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
+            layerSettings.backgroundBlurRadius = snapshot->backgroundBlurRadius;
             break;
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::BlurRegionsOnly:
-            layerSettings.blurRegions = getBlurRegions();
-            layerSettings.blurRegionTransform =
-                    getActiveTransform(getDrawingState()).inverse().asMatrix4();
+            layerSettings.blurRegions = snapshot->blurRegions;
+            layerSettings.blurRegionTransform = snapshot->geomInverseLayerTransform.asMatrix4();
             break;
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::Disabled:
         default:
             break;
     }
-    layerSettings.stretchEffect = getStretchEffect();
+    layerSettings.stretchEffect = snapshot->stretchEffect;
     // Record the name of the layer for debugging further down the stack.
-    layerSettings.name = getName();
+    layerSettings.name = snapshot->name;
 
     if (hasEffect() && !hasBufferOrSidebandStream()) {
         prepareEffectsClientComposition(layerSettings, targetSettings);
@@ -768,7 +769,7 @@ void Layer::prepareClearClientComposition(LayerFE::LayerSettings& layerSettings,
 
     // If layer is blacked out, force alpha to 1 so that we draw a black color layer.
     layerSettings.alpha = blackout ? 1.0f : 0.0f;
-    layerSettings.name = getName();
+    layerSettings.name = getLayerSnapshot()->name;
 }
 
 void Layer::prepareEffectsClientComposition(
@@ -786,39 +787,41 @@ void Layer::prepareEffectsClientComposition(
 void Layer::prepareBufferStateClientComposition(
         compositionengine::LayerFE::LayerSettings& layerSettings,
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) const {
-    if (CC_UNLIKELY(!mBufferInfo.mBuffer)) {
-        // For surfaceview of tv sideband, there is no activeBuffer
-        // in bufferqueue, we need return LayerSettings.
+    ATRACE_CALL();
+    const auto* snapshot = getLayerSnapshot();
+    if (CC_UNLIKELY(!snapshot->externalTexture)) {
+        // If there is no buffer for the layer or we have sidebandstream where there is no
+        // activeBuffer, then we need to return LayerSettings.
         return;
     }
-    const bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
-            ((isSecure() || isProtected()) && !targetSettings.isSecure);
+    const bool blackOutLayer =
+            (snapshot->hasProtectedContent && !targetSettings.supportsProtectedContent) ||
+            ((snapshot->isSecure || snapshot->hasProtectedContent) && !targetSettings.isSecure);
     const bool bufferCanBeUsedAsHwTexture =
-            mBufferInfo.mBuffer->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE;
+            snapshot->externalTexture->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE;
     if (blackOutLayer || !bufferCanBeUsedAsHwTexture) {
         ALOGE_IF(!bufferCanBeUsedAsHwTexture, "%s is blacked out as buffer is not gpu readable",
-                 mName.c_str());
+                 snapshot->name.c_str());
         prepareClearClientComposition(layerSettings, true /* blackout */);
         return;
     }
 
-    const State& s(getDrawingState());
-    layerSettings.source.buffer.buffer = mBufferInfo.mBuffer;
-    layerSettings.source.buffer.isOpaque = isOpaque(s);
-    layerSettings.source.buffer.fence = mBufferInfo.mFence;
-    layerSettings.source.buffer.textureName = mTextureName;
-    layerSettings.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
-    layerSettings.source.buffer.isY410BT2020 = isHdrY410();
-    bool hasSmpte2086 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::SMPTE2086;
-    bool hasCta861_3 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::CTA861_3;
+    layerSettings.source.buffer.buffer = snapshot->externalTexture;
+    layerSettings.source.buffer.isOpaque = snapshot->contentOpaque;
+    layerSettings.source.buffer.fence = snapshot->acquireFence;
+    layerSettings.source.buffer.textureName = snapshot->textureName;
+    layerSettings.source.buffer.usePremultipliedAlpha = snapshot->premultipliedAlpha;
+    layerSettings.source.buffer.isY410BT2020 = snapshot->isHdrY410;
+    bool hasSmpte2086 = snapshot->hdrMetadata.validTypes & HdrMetadata::SMPTE2086;
+    bool hasCta861_3 = snapshot->hdrMetadata.validTypes & HdrMetadata::CTA861_3;
     float maxLuminance = 0.f;
     if (hasSmpte2086 && hasCta861_3) {
-        maxLuminance = std::min(mBufferInfo.mHdrMetadata.smpte2086.maxLuminance,
-                                mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel);
+        maxLuminance = std::min(snapshot->hdrMetadata.smpte2086.maxLuminance,
+                                snapshot->hdrMetadata.cta8613.maxContentLightLevel);
     } else if (hasSmpte2086) {
-        maxLuminance = mBufferInfo.mHdrMetadata.smpte2086.maxLuminance;
+        maxLuminance = snapshot->hdrMetadata.smpte2086.maxLuminance;
     } else if (hasCta861_3) {
-        maxLuminance = mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel;
+        maxLuminance = snapshot->hdrMetadata.cta8613.maxContentLightLevel;
     } else {
         switch (layerSettings.sourceDataspace & HAL_DATASPACE_TRANSFER_MASK) {
             case HAL_DATASPACE_TRANSFER_ST2084:
@@ -829,17 +832,17 @@ void Layer::prepareBufferStateClientComposition(
         }
     }
     layerSettings.source.buffer.maxLuminanceNits = maxLuminance;
-    layerSettings.frameNumber = mCurrentFrameNumber;
-    layerSettings.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getId() : 0;
+    layerSettings.frameNumber = snapshot->frameNumber;
+    layerSettings.bufferId = snapshot->externalTexture->getId();
 
-    const bool useFiltering =
-            targetSettings.needsFiltering || mNeedsFiltering || bufferNeedsFiltering();
+    const bool useFiltering = targetSettings.needsFiltering ||
+            snapshot->geomLayerTransform.needsBilinearFiltering() || snapshot->bufferNeedsFiltering;
 
     // Query the texture matrix given our current filtering mode.
     float textureMatrix[16];
     getDrawingTransformMatrix(useFiltering, textureMatrix);
 
-    if (getTransformToDisplayInverse()) {
+    if (snapshot->geomBufferUsesDisplayInverseTransform) {
         /*
          * the code below applies the primary display's inverse transform to
          * the texture transform
@@ -856,25 +859,22 @@ void Layer::prepareBufferStateClientComposition(
          * of a camera where the buffer remains in native orientation,
          * we want the pixels to always be upright.
          */
-        sp<Layer> p = mDrawingParent.promote();
-        if (p != nullptr) {
-            const auto parentTransform = p->getTransform();
-            tr = tr * inverseOrientation(parentTransform.getOrientation());
-        }
+        const auto parentTransform = snapshot->transform;
+        tr = tr * inverseOrientation(parentTransform.getOrientation());
 
         // and finally apply it to the original texture matrix
         const mat4 texTransform(mat4(static_cast<const float*>(textureMatrix)) * tr);
         memcpy(textureMatrix, texTransform.asArray(), sizeof(textureMatrix));
     }
 
-    const Rect win{getBounds()};
-    float bufferWidth = getBufferSize(s).getWidth();
-    float bufferHeight = getBufferSize(s).getHeight();
+    const Rect win{layerSettings.geometry.boundaries};
+    float bufferWidth = snapshot->bufferSize.getWidth();
+    float bufferHeight = snapshot->bufferSize.getHeight();
 
-    // BufferStateLayers can have a "buffer size" of [0, 0, -1, -1] when no display frame has
+    // Layers can have a "buffer size" of [0, 0, -1, -1] when no display frame has
     // been set and there is no parent layer bounds. In that case, the scale is meaningless so
     // ignore them.
-    if (!getBufferSize(s).isValid()) {
+    if (!snapshot->bufferSize.isValid()) {
         bufferWidth = float(win.right) - float(win.left);
         bufferHeight = float(win.bottom) - float(win.top);
     }
@@ -2182,35 +2182,17 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
 
 void Layer::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
                                            const Rect& layerStackRect) const {
-    renderengine::ShadowSettings state = mFlinger->mDrawingState.globalShadowSettings;
-
-    // Note: this preserves existing behavior of shadowing the entire layer and not cropping it if
-    // transparent regions are present. This may not be necessary since shadows are typically cast
-    // by layers without transparent regions.
-    state.boundaries = mBounds;
+    const auto* snapshot = getLayerSnapshot();
+    renderengine::ShadowSettings state = snapshot->shadowSettings;
+    if (state.length <= 0.f || (state.ambientColor.a <= 0.f && state.spotColor.a <= 0.f)) {
+        return;
+    }
 
     // Shift the spot light x-position to the middle of the display and then
     // offset it by casting layer's screen pos.
-    state.lightPos.x = (layerStackRect.width() / 2.f) - mScreenBounds.left;
-    state.lightPos.y -= mScreenBounds.top;
-
-    state.length = mEffectiveShadowRadius;
-
-    if (state.length > 0.f) {
-        const float casterAlpha = caster.alpha;
-        const bool casterIsOpaque =
-                ((caster.source.buffer.buffer != nullptr) && caster.source.buffer.isOpaque);
-
-        // If the casting layer is translucent, we need to fill in the shadow underneath the layer.
-        // Otherwise the generated shadow will only be shown around the casting layer.
-        state.casterIsTranslucent = !casterIsOpaque || (casterAlpha < 1.0f);
-        state.ambientColor *= casterAlpha;
-        state.spotColor *= casterAlpha;
-
-        if (state.ambientColor.a > 0.f && state.spotColor.a > 0.f) {
-            caster.shadow = state;
-        }
-    }
+    state.lightPos.x = (layerStackRect.width() / 2.f) - snapshot->transformedBounds.left;
+    state.lightPos.y -= snapshot->transformedBounds.top;
+    caster.shadow = state;
 }
 
 bool Layer::findInHierarchy(const sp<Layer>& l) {
@@ -3419,13 +3401,14 @@ void Layer::setAutoRefresh(bool autoRefresh) {
 
 bool Layer::latchSidebandStream(bool& recomputeVisibleRegions) {
     // We need to update the sideband stream if the layer has both a buffer and a sideband stream.
-    editCompositionState()->sidebandStreamHasFrame = hasFrameUpdate() && mSidebandStream.get();
+    auto* snapshot = editLayerSnapshot();
+    snapshot->sidebandStreamHasFrame = hasFrameUpdate() && mSidebandStream.get();
 
     if (mSidebandStreamChanged.exchange(false)) {
         const State& s(getDrawingState());
         // mSidebandStreamChanged was true
         mSidebandStream = s.sidebandStream;
-        editCompositionState()->sidebandStream = mSidebandStream;
+        snapshot->sidebandStream = mSidebandStream;
         if (mSidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
@@ -3538,7 +3521,7 @@ Rect Layer::computeBufferCrop(const State& s) {
 sp<Layer> Layer::createClone() {
     LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0, LayerMetadata());
     args.textureName = mTextureName;
-    sp<BufferStateLayer> layer = mFlinger->getFactory().createBufferStateLayer(args);
+    sp<Layer> layer = mFlinger->getFactory().createBufferStateLayer(args);
     layer->mHwcSlotGenerator = mHwcSlotGenerator;
     layer->setInitialValuesForClone(sp<Layer>::fromExisting(this));
     return layer;
@@ -3825,12 +3808,15 @@ sp<compositionengine::LayerFE> Layer::getCompositionEngineLayerFE() const {
     }
 }
 
-compositionengine::LayerFECompositionState* Layer::editCompositionState() {
-    return mCompositionState.get();
+const Layer::LayerSnapshot* Layer::getLayerSnapshot() const {
+    return mSnapshot.get();
 }
 
+Layer::LayerSnapshot* Layer::editLayerSnapshot() {
+    return mSnapshot.get();
+}
 const compositionengine::LayerFECompositionState* Layer::getCompositionState() const {
-    return mCompositionState.get();
+    return mSnapshot.get();
 }
 
 void Layer::useSurfaceDamage() {
@@ -4225,10 +4211,44 @@ void Layer::updateSnapshot(bool updateGeometry) {
         return;
     }
 
+    auto* snapshot = editLayerSnapshot();
     if (updateGeometry) {
         prepareBasicGeometryCompositionState();
         prepareGeometryCompositionState();
+        snapshot->roundedCorner = getRoundedCornerState();
+        snapshot->stretchEffect = getStretchEffect();
+        snapshot->transformedBounds = mScreenBounds;
+        if (mEffectiveShadowRadius > 0.f) {
+            snapshot->shadowSettings = mFlinger->mDrawingState.globalShadowSettings;
+
+            // Note: this preserves existing behavior of shadowing the entire layer and not cropping
+            // it if transparent regions are present. This may not be necessary since shadows are
+            // typically cast by layers without transparent regions.
+            snapshot->shadowSettings.boundaries = mBounds;
+
+            const float casterAlpha = snapshot->alpha;
+            const bool casterIsOpaque =
+                    ((mBufferInfo.mBuffer != nullptr) && isOpaque(mDrawingState));
+
+            // If the casting layer is translucent, we need to fill in the shadow underneath the
+            // layer. Otherwise the generated shadow will only be shown around the casting layer.
+            snapshot->shadowSettings.casterIsTranslucent = !casterIsOpaque || (casterAlpha < 1.0f);
+            snapshot->shadowSettings.ambientColor *= casterAlpha;
+            snapshot->shadowSettings.spotColor *= casterAlpha;
+        }
+        snapshot->shadowSettings.length = mEffectiveShadowRadius;
     }
+    snapshot->contentOpaque = isOpaque(mDrawingState);
+    snapshot->isHdrY410 = isHdrY410();
+    snapshot->bufferNeedsFiltering = bufferNeedsFiltering();
+    sp<Layer> p = mDrawingParent.promote();
+    if (p != nullptr) {
+        snapshot->transform = p->getTransform();
+    } else {
+        snapshot->transform.reset();
+    }
+    snapshot->bufferSize = getBufferSize(mDrawingState);
+    snapshot->externalTexture = mBufferInfo.mBuffer;
     preparePerFrameCompositionState();
 }
 

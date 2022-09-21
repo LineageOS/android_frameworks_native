@@ -189,8 +189,6 @@ public:
     /* ------------------------------------------------------------------------
      * Display mode management.
      */
-    const DisplayModePtr& getActiveMode() const;
-
     struct ActiveModeInfo {
         DisplayModePtr mode;
         scheduler::DisplayModeEvent event = scheduler::DisplayModeEvent::None;
@@ -205,6 +203,10 @@ public:
     void clearDesiredActiveModeState() EXCLUDES(mActiveModeLock);
     ActiveModeInfo getUpcomingActiveMode() const REQUIRES(kMainThreadContext) {
         return mUpcomingActiveMode;
+    }
+
+    const DisplayMode& getActiveMode() const REQUIRES(kMainThreadContext) {
+        return mRefreshRateConfigs->getActiveMode();
     }
 
     // Precondition: DisplaySnapshot must contain a mode with DisplayModeId.
@@ -226,7 +228,7 @@ public:
     }
 
     // Enables an overlay to be displayed with the current refresh rate
-    void enableRefreshRateOverlay(bool enable, bool showSpinner);
+    void enableRefreshRateOverlay(bool enable, bool showSpinner) REQUIRES(kMainThreadContext);
     bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
     bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
     void animateRefreshRateOverlay();
@@ -265,10 +267,10 @@ private:
 
     static ui::Transform::RotationFlags sPrimaryDisplayRotationFlags;
 
-    // allow initial power mode as null.
+    // Allow nullopt as initial power mode.
     std::optional<hardware::graphics::composer::hal::PowerMode> mPowerMode;
-    DisplayModePtr mActiveMode;
-    std::optional<float> mStagedBrightness = std::nullopt;
+
+    std::optional<float> mStagedBrightness;
     float mBrightness = -1.f;
 
     std::atomic<nsecs_t> mLastHwVsync = 0;

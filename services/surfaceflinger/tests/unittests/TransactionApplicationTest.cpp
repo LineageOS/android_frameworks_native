@@ -347,8 +347,7 @@ public:
         state.state.bufferData->acquireFence = std::move(fence);
         state.state.layerId = layerId;
         state.state.surface =
-                sp<BufferStateLayer>::make(
-                        LayerCreationArgs(mFlinger.flinger(), nullptr, "TestLayer", 0, {}))
+                sp<Layer>::make(LayerCreationArgs(mFlinger.flinger(), nullptr, "TestLayer", 0, {}))
                         ->getHandle();
         state.state.bufferData->flags = BufferData::BufferDataChange::fenceChanged;
 
