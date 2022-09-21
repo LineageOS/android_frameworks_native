@@ -106,40 +106,6 @@ TEST_F(RegionSamplingTest, bounds_checking) {
                 testing::Eq(0.0));
 }
 
-// workaround for b/133849373
-TEST_F(RegionSamplingTest, orientation_90) {
-    std::generate(buffer.begin(), buffer.end(),
-                  [n = 0]() mutable { return (n++ > (kStride * kHeight >> 1)) ? kBlack : kWhite; });
-
-    Rect tl_region{0, 0, 4, 4};
-    EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, ui::Transform::ROT_0,
-                           tl_region),
-                testing::Eq(1.0));
-    EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, ui::Transform::ROT_180,
-                           tl_region),
-                testing::Eq(1.0));
-    EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, ui::Transform::ROT_90,
-                           tl_region),
-                testing::Eq(0.0));
-    EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, ui::Transform::ROT_270,
-                           tl_region),
-                testing::Eq(0.0));
-
-    Rect br_region{kWidth - 4, kHeight - 4, kWidth, kHeight};
-    EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, ui::Transform::ROT_0,
-                           br_region),
-                testing::Eq(0.0));
-    EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, ui::Transform::ROT_180,
-                           br_region),
-                testing::Eq(0.0));
-    EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, ui::Transform::ROT_90,
-                           br_region),
-                testing::Eq(1.0));
-    EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, ui::Transform::ROT_270,
-                           br_region),
-                testing::Eq(1.0));
-}
-
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
