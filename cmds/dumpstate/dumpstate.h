@@ -619,9 +619,6 @@ void show_wchan(int pid, int tid, const char *name);
 /* Displays a processes times */
 void show_showtime(int pid, const char *name);
 
-/* Runs "showmap" for a process */
-void do_showmap(int pid, const char *name);
-
 /* Gets the dmesg output for the kernel */
 void do_dmesg();
 
