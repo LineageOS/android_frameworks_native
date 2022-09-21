@@ -58,6 +58,12 @@ public:
     void binderDied(const wp<IBinder>& who) override;
     void handleClientCallbacks();
 
+    /**
+     *  This API is added for debug purposes. It clears members which hold service and callback
+     * information.
+     */
+    void clear();
+
 protected:
     virtual void tryStartService(const std::string& name);
 
