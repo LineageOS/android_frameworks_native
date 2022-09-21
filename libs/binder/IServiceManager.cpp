@@ -380,6 +380,13 @@ sp<IBinder> ServiceManagerShim::waitForService(const String16& name16)
     if (Status status = realGetService(name, &out); !status.isOk()) {
         ALOGW("Failed to getService in waitForService for %s: %s", name.c_str(),
               status.toString8().c_str());
+        if (0 == ProcessState::self()->getThreadPoolMaxTotalThreadCount()) {
+            ALOGW("Got service, but may be racey because we could not wait efficiently for it. "
+                  "Threadpool has 0 guaranteed threads. "
+                  "Is the threadpool configured properly? "
+                  "See ProcessState::startThreadPool and "
+                  "ProcessState::setThreadPoolMaxThreadCount.");
+        }
         return nullptr;
     }
     if (out != nullptr) return out;
@@ -410,7 +417,9 @@ sp<IBinder> ServiceManagerShim::waitForService(const String16& name16)
             if (waiter->mBinder != nullptr) return waiter->mBinder;
         }
 
-        ALOGW("Waited one second for %s (is service started? are binder threads started and available?)", name.c_str());
+        ALOGW("Waited one second for %s (is service started? Number of threads started in the "
+              "threadpool: %zu. Are binder threads started and available?)",
+              name.c_str(), ProcessState::self()->getThreadPoolMaxTotalThreadCount());
 
         // Handle race condition for lazy services. Here is what can happen:
         // - the service dies (not processed by init yet).
