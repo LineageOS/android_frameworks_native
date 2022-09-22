@@ -296,7 +296,7 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
     /// Must be called with a valid pointer to a `T` object. After this call,
     /// the pointer will be invalid and should not be dereferenced.
     unsafe extern "C" fn on_destroy(object: *mut c_void) {
-        Box::from_raw(object as *mut T);
+        drop(Box::from_raw(object as *mut T));
     }
 
     /// Called whenever a new, local `AIBinder` object is needed of a specific
