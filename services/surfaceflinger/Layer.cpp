@@ -3017,17 +3017,6 @@ void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
 
     mFlinger->getTransactionCallbackInvoker().addCallbackHandles(mDrawingState.callbackHandles,
                                                                  jankData);
-
-    sp<Fence> releaseFence = Fence::NO_FENCE;
-    for (auto& handle : mDrawingState.callbackHandles) {
-        if (handle->releasePreviousBuffer &&
-            mDrawingState.releaseBufferEndpoint == handle->listener) {
-            releaseFence =
-                    handle->previousReleaseFence ? handle->previousReleaseFence : Fence::NO_FENCE;
-            break;
-        }
-    }
-
     mDrawingState.callbackHandles = {};
 }
 
