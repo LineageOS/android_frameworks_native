@@ -160,8 +160,12 @@ private:
 
     void configureStrategy(int32_t axis);
 
+    // Generates a VelocityTrackerStrategy instance for the given Strategy type.
+    // The `deltaValues` parameter indicates whether or not the created strategy should treat motion
+    // values as deltas (and not as absolute values). This the parameter is applicable only for
+    // strategies that support differential axes.
     static std::unique_ptr<VelocityTrackerStrategy> createStrategy(const Strategy strategy,
-                                                                   bool isCumulative);
+                                                                   bool deltaValues);
 };
 
 
