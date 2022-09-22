@@ -143,9 +143,10 @@ std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
     return std::nullopt;
 }
 
-void KeyboardInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                                    uint32_t changes) {
-    InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> KeyboardInputMapper::configure(nsecs_t when,
+                                                     const InputReaderConfiguration* config,
+                                                     uint32_t changes) {
+    std::list<NotifyArgs> out = InputMapper::configure(when, config, changes);
 
     if (!changes) { // first time only
         // Configure basic parameters.
@@ -155,6 +156,7 @@ void KeyboardInputMapper::configure(nsecs_t when, const InputReaderConfiguration
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         mViewport = findViewport(when, config);
     }
+    return out;
 }
 
 static void mapStemKey(int32_t keyCode, const PropertyMap& config, char const* property) {
@@ -194,16 +196,18 @@ void KeyboardInputMapper::dumpParameters(std::string& dump) {
     dump += StringPrintf(INDENT4 "HandlesKeyRepeat: %s\n", toString(mParameters.handlesKeyRepeat));
 }
 
-void KeyboardInputMapper::reset(nsecs_t when) {
-    cancelAllDownKeys(when);
+std::list<NotifyArgs> KeyboardInputMapper::reset(nsecs_t when) {
+    std::list<NotifyArgs> out = cancelAllDownKeys(when);
     mCurrentHidUsage = 0;
 
     resetLedState();
 
-    InputMapper::reset(when);
+    out += InputMapper::reset(when);
+    return out;
 }
 
-void KeyboardInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> KeyboardInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out;
     switch (rawEvent->type) {
         case EV_KEY: {
             int32_t scanCode = rawEvent->code;
@@ -211,8 +215,8 @@ void KeyboardInputMapper::process(const RawEvent* rawEvent) {
             mCurrentHidUsage = 0;
 
             if (isKeyboardOrGamepadKey(scanCode)) {
-                processKey(rawEvent->when, rawEvent->readTime, rawEvent->value != 0, scanCode,
-                           usageCode);
+                out += processKey(rawEvent->when, rawEvent->readTime, rawEvent->value != 0,
+                                  scanCode, usageCode);
             }
             break;
         }
@@ -228,6 +232,7 @@ void KeyboardInputMapper::process(const RawEvent* rawEvent) {
             }
         }
     }
+    return out;
 }
 
 bool KeyboardInputMapper::isKeyboardOrGamepadKey(int32_t scanCode) {
@@ -265,8 +270,9 @@ bool KeyboardInputMapper::isMediaKey(int32_t keyCode) {
     return false;
 }
 
-void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, int32_t scanCode,
-                                     int32_t usageCode) {
+std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down,
+                                                      int32_t scanCode, int32_t usageCode) {
+    std::list<NotifyArgs> out;
     int32_t keyCode;
     int32_t keyMetaState;
     uint32_t policyFlags;
@@ -295,10 +301,10 @@ void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, 
             // key down
             if ((policyFlags & POLICY_FLAG_VIRTUAL) &&
                 getContext()->shouldDropVirtualKey(when, keyCode, scanCode)) {
-                return;
+                return out;
             }
             if (policyFlags & POLICY_FLAG_GESTURE) {
-                getDeviceContext().cancelTouch(when, readTime);
+                out += getDeviceContext().cancelTouch(when, readTime);
             }
 
             KeyDown keyDown;
@@ -320,7 +326,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, 
             ALOGI("Dropping key up from device %s because the key was not down.  "
                   "keyCode=%d, scanCode=%d",
                   getDeviceName().c_str(), keyCode, scanCode);
-            return;
+            return out;
         }
     }
 
@@ -347,11 +353,12 @@ void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, 
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    NotifyKeyArgs args(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
-                       getDisplayId(), policyFlags,
-                       down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
-                       AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
-    getListener().notifyKey(&args);
+    out.push_back(NotifyKeyArgs(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
+                                getDisplayId(), policyFlags,
+                                down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
+                                AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState,
+                                downTime));
+    return out;
 }
 
 ssize_t KeyboardInputMapper::findKeyDown(int32_t scanCode) {
@@ -470,19 +477,20 @@ std::optional<int32_t> KeyboardInputMapper::getAssociatedDisplayId() {
     return std::nullopt;
 }
 
-void KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
+std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
+    std::list<NotifyArgs> out;
     size_t n = mKeyDowns.size();
     for (size_t i = 0; i < n; i++) {
-        NotifyKeyArgs args(getContext()->getNextId(), when, systemTime(SYSTEM_TIME_MONOTONIC),
-                           getDeviceId(), mSource, getDisplayId(), 0 /*policyFlags*/,
-                           AKEY_EVENT_ACTION_UP,
-                           AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED,
-                           mKeyDowns[i].keyCode, mKeyDowns[i].scanCode, AMETA_NONE,
-                           mKeyDowns[i].downTime);
-        getListener().notifyKey(&args);
+        out.push_back(NotifyKeyArgs(getContext()->getNextId(), when,
+                                    systemTime(SYSTEM_TIME_MONOTONIC), getDeviceId(), mSource,
+                                    getDisplayId(), 0 /*policyFlags*/, AKEY_EVENT_ACTION_UP,
+                                    AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED,
+                                    mKeyDowns[i].keyCode, mKeyDowns[i].scanCode, AMETA_NONE,
+                                    mKeyDowns[i].downTime));
     }
     mKeyDowns.clear();
     mMetaState = AMETA_NONE;
+    return out;
 }
 
 } // namespace android

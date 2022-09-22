@@ -78,10 +78,13 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {
-                    mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig,
-                                     fdp->ConsumeIntegral<uint32_t>());
+                    std::list<NotifyArgs> unused =
+                            mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig,
+                                             fdp->ConsumeIntegral<uint32_t>());
                 },
-                [&]() -> void { mapper.reset(fdp->ConsumeIntegral<nsecs_t>()); },
+                [&]() -> void {
+                    std::list<NotifyArgs> unused = mapper.reset(fdp->ConsumeIntegral<nsecs_t>());
+                },
                 [&]() -> void {
                     int32_t type = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidTypes)
                                                       : fdp->ConsumeIntegral<int32_t>();
@@ -93,7 +96,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                                       type,
                                       code,
                                       fdp->ConsumeIntegral<int32_t>()};
-                    mapper.process(&rawEvent);
+                    std::list<NotifyArgs> unused = mapper.process(&rawEvent);
                 },
                 [&]() -> void {
                     mapper.getKeyCodeState(fdp->ConsumeIntegral<uint32_t>(),
@@ -113,16 +116,20 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                                                  nullptr);
                 },
                 [&]() -> void {
-                    mapper.cancelTouch(fdp->ConsumeIntegral<nsecs_t>(),
-                                       fdp->ConsumeIntegral<nsecs_t>());
+                    std::list<NotifyArgs> unused =
+                            mapper.cancelTouch(fdp->ConsumeIntegral<nsecs_t>(),
+                                               fdp->ConsumeIntegral<nsecs_t>());
                 },
-                [&]() -> void { mapper.timeoutExpired(fdp->ConsumeIntegral<nsecs_t>()); },
+                [&]() -> void {
+                    std::list<NotifyArgs> unused =
+                            mapper.timeoutExpired(fdp->ConsumeIntegral<nsecs_t>());
+                },
                 [&]() -> void {
                     StylusState state{fdp->ConsumeIntegral<nsecs_t>(),
                                       fdp->ConsumeFloatingPoint<float>(),
                                       fdp->ConsumeIntegral<uint32_t>(),
                                       fdp->ConsumeIntegral<int32_t>()};
-                    mapper.updateExternalStylusState(state);
+                    std::list<NotifyArgs> unused = mapper.updateExternalStylusState(state);
                 },
                 [&]() -> void { mapper.getAssociatedDisplayId(); },
         })();

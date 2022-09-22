@@ -126,9 +126,10 @@ void CursorInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
-void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                                  uint32_t changes) {
-    InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> CursorInputMapper::configure(nsecs_t when,
+                                                   const InputReaderConfiguration* config,
+                                                   uint32_t changes) {
+    std::list<NotifyArgs> out = InputMapper::configure(when, config, changes);
 
     if (!changes) { // first time only
         mCursorScrollAccumulator.configure(getDeviceContext());
@@ -187,8 +188,7 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         }
         bumpGeneration();
         if (changes) {
-            NotifyDeviceResetArgs args(getContext()->getNextId(), when, getDeviceId());
-            getListener().notifyDeviceReset(&args);
+            out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
         }
     }
 
@@ -241,6 +241,7 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
 
         bumpGeneration();
     }
+    return out;
 }
 
 void CursorInputMapper::configureParameters() {
@@ -272,7 +273,7 @@ void CursorInputMapper::dumpParameters(std::string& dump) {
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
 }
 
-void CursorInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> CursorInputMapper::reset(nsecs_t when) {
     mButtonState = 0;
     mDownTime = 0;
 
@@ -284,23 +285,26 @@ void CursorInputMapper::reset(nsecs_t when) {
     mCursorMotionAccumulator.reset(getDeviceContext());
     mCursorScrollAccumulator.reset(getDeviceContext());
 
-    InputMapper::reset(when);
+    return InputMapper::reset(when);
 }
 
-void CursorInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> CursorInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out;
     mCursorButtonAccumulator.process(rawEvent);
     mCursorMotionAccumulator.process(rawEvent);
     mCursorScrollAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        sync(rawEvent->when, rawEvent->readTime);
+        out += sync(rawEvent->when, rawEvent->readTime);
     }
+    return out;
 }
 
-void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+    std::list<NotifyArgs> out;
     if (!mDisplayId) {
         // Ignore events when there is no target display configured.
-        return;
+        return out;
     }
 
     int32_t lastButtonState = mButtonState;
@@ -391,8 +395,9 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     }
 
     // Synthesize key down from buttons if needed.
-    synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_DOWN, when, readTime, getDeviceId(),
-                         mSource, *mDisplayId, policyFlags, lastButtonState, currentButtonState);
+    out += synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_DOWN, when, readTime, getDeviceId(),
+                                mSource, *mDisplayId, policyFlags, lastButtonState,
+                                currentButtonState);
 
     // Send motion event.
     if (downChanged || moved || scrolled || buttonsChanged) {
@@ -412,40 +417,38 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             while (!released.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(released.clearFirstMarkedBit());
                 buttonState &= ~actionButton;
-                NotifyMotionArgs releaseArgs(getContext()->getNextId(), when, readTime,
-                                             getDeviceId(), mSource, *mDisplayId, policyFlags,
-                                             AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
-                                             metaState, buttonState, MotionClassification::NONE,
-                                             AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                             &pointerCoords, mXPrecision, mYPrecision,
-                                             xCursorPosition, yCursorPosition, downTime,
-                                             /* videoFrames */ {});
-                getListener().notifyMotion(&releaseArgs);
+                out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime,
+                                               getDeviceId(), mSource, *mDisplayId, policyFlags,
+                                               AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
+                                               metaState, buttonState, MotionClassification::NONE,
+                                               AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                               &pointerCoords, mXPrecision, mYPrecision,
+                                               xCursorPosition, yCursorPosition, downTime,
+                                               /* videoFrames */ {}));
             }
         }
 
-        NotifyMotionArgs args(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
-                              *mDisplayId, policyFlags, motionEventAction, 0, 0, metaState,
-                              currentButtonState, MotionClassification::NONE,
-                              AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties, &pointerCoords,
-                              mXPrecision, mYPrecision, xCursorPosition, yCursorPosition, downTime,
-                              /* videoFrames */ {});
-        getListener().notifyMotion(&args);
+        out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
+                                       mSource, *mDisplayId, policyFlags, motionEventAction, 0, 0,
+                                       metaState, currentButtonState, MotionClassification::NONE,
+                                       AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                       &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
+                                       yCursorPosition, downTime,
+                                       /* videoFrames */ {}));
 
         if (buttonsPressed) {
             BitSet32 pressed(buttonsPressed);
             while (!pressed.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(pressed.clearFirstMarkedBit());
                 buttonState |= actionButton;
-                NotifyMotionArgs pressArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                           mSource, *mDisplayId, policyFlags,
-                                           AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0,
-                                           metaState, buttonState, MotionClassification::NONE,
-                                           AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                           &pointerCoords, mXPrecision, mYPrecision,
-                                           xCursorPosition, yCursorPosition, downTime,
-                                           /* videoFrames */ {});
-                getListener().notifyMotion(&pressArgs);
+                out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime,
+                                               getDeviceId(), mSource, *mDisplayId, policyFlags,
+                                               AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0,
+                                               metaState, buttonState, MotionClassification::NONE,
+                                               AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                               &pointerCoords, mXPrecision, mYPrecision,
+                                               xCursorPosition, yCursorPosition, downTime,
+                                               /* videoFrames */ {}));
             }
         }
 
@@ -453,14 +456,14 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
 
         // Send hover move after UP to tell the application that the mouse is hovering now.
         if (motionEventAction == AMOTION_EVENT_ACTION_UP && (mSource == AINPUT_SOURCE_MOUSE)) {
-            NotifyMotionArgs hoverArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                       mSource, *mDisplayId, policyFlags,
-                                       AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
-                                       currentButtonState, MotionClassification::NONE,
-                                       AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                       &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
-                                       yCursorPosition, downTime, /* videoFrames */ {});
-            getListener().notifyMotion(&hoverArgs);
+            out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
+                                           mSource, *mDisplayId, policyFlags,
+                                           AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
+                                           currentButtonState, MotionClassification::NONE,
+                                           AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                           &pointerCoords, mXPrecision, mYPrecision,
+                                           xCursorPosition, yCursorPosition, downTime,
+                                           /* videoFrames */ {}));
         }
 
         // Send scroll events.
@@ -468,23 +471,25 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-            NotifyMotionArgs scrollArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                        mSource, *mDisplayId, policyFlags,
-                                        AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
-                                        currentButtonState, MotionClassification::NONE,
-                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                        &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
-                                        yCursorPosition, downTime, /* videoFrames */ {});
-            getListener().notifyMotion(&scrollArgs);
+            out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
+                                           mSource, *mDisplayId, policyFlags,
+                                           AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
+                                           currentButtonState, MotionClassification::NONE,
+                                           AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                           &pointerCoords, mXPrecision, mYPrecision,
+                                           xCursorPosition, yCursorPosition, downTime,
+                                           /* videoFrames */ {}));
         }
     }
 
     // Synthesize key up from buttons if needed.
-    synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_UP, when, readTime, getDeviceId(), mSource,
-                         *mDisplayId, policyFlags, lastButtonState, currentButtonState);
+    out += synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_UP, when, readTime, getDeviceId(),
+                                mSource, *mDisplayId, policyFlags, lastButtonState,
+                                currentButtonState);
 
     mCursorMotionAccumulator.finishSync();
     mCursorScrollAccumulator.finishSync();
+    return out;
 }
 
 int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode) {

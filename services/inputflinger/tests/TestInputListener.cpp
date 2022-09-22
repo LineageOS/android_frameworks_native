@@ -147,7 +147,7 @@ void TestInputListener::assertNotCalled(std::string message) {
 }
 
 template <class NotifyArgsType>
-void TestInputListener::notify(const NotifyArgsType* args) {
+void TestInputListener::addToQueue(const NotifyArgsType* args) {
     std::scoped_lock<std::mutex> lock(mLock);
 
     std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
@@ -156,35 +156,35 @@ void TestInputListener::notify(const NotifyArgsType* args) {
 }
 
 void TestInputListener::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
-    notify<NotifyConfigurationChangedArgs>(args);
+    addToQueue<NotifyConfigurationChangedArgs>(args);
 }
 
 void TestInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
-    notify<NotifyDeviceResetArgs>(args);
+    addToQueue<NotifyDeviceResetArgs>(args);
 }
 
 void TestInputListener::notifyKey(const NotifyKeyArgs* args) {
-    notify<NotifyKeyArgs>(args);
+    addToQueue<NotifyKeyArgs>(args);
 }
 
 void TestInputListener::notifyMotion(const NotifyMotionArgs* args) {
-    notify<NotifyMotionArgs>(args);
+    addToQueue<NotifyMotionArgs>(args);
 }
 
 void TestInputListener::notifySwitch(const NotifySwitchArgs* args) {
-    notify<NotifySwitchArgs>(args);
+    addToQueue<NotifySwitchArgs>(args);
 }
 
 void TestInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
-    notify<NotifyPointerCaptureChangedArgs>(args);
+    addToQueue<NotifyPointerCaptureChangedArgs>(args);
 }
 
 void TestInputListener::notifySensor(const NotifySensorArgs* args) {
-    notify<NotifySensorArgs>(args);
+    addToQueue<NotifySensorArgs>(args);
 }
 
 void TestInputListener::notifyVibratorState(const NotifyVibratorStateArgs* args) {
-    notify<NotifyVibratorStateArgs>(args);
+    addToQueue<NotifyVibratorStateArgs>(args);
 }
 
 } // namespace android

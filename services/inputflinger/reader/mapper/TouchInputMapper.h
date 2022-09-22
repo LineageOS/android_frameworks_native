@@ -140,18 +140,21 @@ public:
     uint32_t getSources() const override;
     void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     void dump(std::string& dump) override;
-    void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes) override;
-    void reset(nsecs_t when) override;
-    void process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
+                                                  const InputReaderConfiguration* config,
+                                                  uint32_t changes) override;
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
     int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode) override;
     int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
     bool markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
                                uint8_t* outFlags) override;
 
-    void cancelTouch(nsecs_t when, nsecs_t readTime) override;
-    void timeoutExpired(nsecs_t when) override;
-    void updateExternalStylusState(const StylusState& state) override;
+    [[nodiscard]] std::list<NotifyArgs> cancelTouch(nsecs_t when, nsecs_t readTime) override;
+    [[nodiscard]] std::list<NotifyArgs> timeoutExpired(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> updateExternalStylusState(
+            const StylusState& state) override;
     std::optional<int32_t> getAssociatedDisplayId() override;
 
 protected:
@@ -728,30 +731,42 @@ private:
     void initializeOrientedRanges();
     void initializeSizeRanges();
 
-    void sync(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when, nsecs_t readTime);
 
-    bool consumeRawTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
-    void processRawTouches(bool timeout);
-    void cookAndDispatch(nsecs_t when, nsecs_t readTime);
-    void dispatchVirtualKey(nsecs_t when, nsecs_t readTime, uint32_t policyFlags,
-                            int32_t keyEventAction, int32_t keyEventFlags);
+    [[nodiscard]] std::list<NotifyArgs> consumeRawTouches(nsecs_t when, nsecs_t readTime,
+                                                          uint32_t policyFlags, bool& outConsumed);
+    [[nodiscard]] std::list<NotifyArgs> processRawTouches(bool timeout);
+    [[nodiscard]] std::list<NotifyArgs> cookAndDispatch(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] NotifyKeyArgs dispatchVirtualKey(nsecs_t when, nsecs_t readTime,
+                                                   uint32_t policyFlags, int32_t keyEventAction,
+                                                   int32_t keyEventFlags);
 
-    void dispatchTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
-    void dispatchHoverExit(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
-    void dispatchHoverEnterAndMove(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
-    void dispatchButtonRelease(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
-    void dispatchButtonPress(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchTouches(nsecs_t when, nsecs_t readTime,
+                                                        uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchHoverExit(nsecs_t when, nsecs_t readTime,
+                                                          uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchHoverEnterAndMove(nsecs_t when, nsecs_t readTime,
+                                                                  uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchButtonRelease(nsecs_t when, nsecs_t readTime,
+                                                              uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchButtonPress(nsecs_t when, nsecs_t readTime,
+                                                            uint32_t policyFlags);
     const BitSet32& findActiveIdBits(const CookedPointerData& cookedPointerData);
     void cookPointerData();
-    void abortTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> abortTouches(nsecs_t when, nsecs_t readTime,
+                                                     uint32_t policyFlags);
 
-    void dispatchPointerUsage(nsecs_t when, nsecs_t readTime, uint32_t policyFlags,
-                              PointerUsage pointerUsage);
-    void abortPointerUsage(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchPointerUsage(nsecs_t when, nsecs_t readTime,
+                                                             uint32_t policyFlags,
+                                                             PointerUsage pointerUsage);
+    [[nodiscard]] std::list<NotifyArgs> abortPointerUsage(nsecs_t when, nsecs_t readTime,
+                                                          uint32_t policyFlags);
 
-    void dispatchPointerGestures(nsecs_t when, nsecs_t readTime, uint32_t policyFlags,
-                                 bool isTimeout);
-    void abortPointerGestures(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchPointerGestures(nsecs_t when, nsecs_t readTime,
+                                                                uint32_t policyFlags,
+                                                                bool isTimeout);
+    [[nodiscard]] std::list<NotifyArgs> abortPointerGestures(nsecs_t when, nsecs_t readTime,
+                                                             uint32_t policyFlags);
     bool preparePointerGestures(nsecs_t when, bool* outCancelPreviousGesture,
                                 bool* outFinishPreviousGesture, bool isTimeout);
 
@@ -759,15 +774,21 @@ private:
     // between the last and current events. Uses a relative motion.
     void moveMousePointerFromPointerDelta(nsecs_t when, uint32_t pointerId);
 
-    void dispatchPointerStylus(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
-    void abortPointerStylus(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchPointerStylus(nsecs_t when, nsecs_t readTime,
+                                                              uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> abortPointerStylus(nsecs_t when, nsecs_t readTime,
+                                                           uint32_t policyFlags);
 
-    void dispatchPointerMouse(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
-    void abortPointerMouse(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchPointerMouse(nsecs_t when, nsecs_t readTime,
+                                                             uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> abortPointerMouse(nsecs_t when, nsecs_t readTime,
+                                                          uint32_t policyFlags);
 
-    void dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uint32_t policyFlags, bool down,
-                               bool hovering);
-    void abortPointerSimple(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchPointerSimple(nsecs_t when, nsecs_t readTime,
+                                                              uint32_t policyFlags, bool down,
+                                                              bool hovering);
+    [[nodiscard]] std::list<NotifyArgs> abortPointerSimple(nsecs_t when, nsecs_t readTime,
+                                                           uint32_t policyFlags);
 
     bool assignExternalStylusId(const RawState& state, bool timeout);
     void applyExternalStylusButtonState(nsecs_t when);
@@ -777,12 +798,12 @@ private:
     // If the changedId is >= 0 and the action is POINTER_DOWN or POINTER_UP, the
     // method will take care of setting the index and transmuting the action to DOWN or UP
     // it is the first / last pointer to go down / up.
-    void dispatchMotion(nsecs_t when, nsecs_t readTime, uint32_t policyFlags, uint32_t source,
-                        int32_t action, int32_t actionButton, int32_t flags, int32_t metaState,
-                        int32_t buttonState, int32_t edgeFlags, const PointerProperties* properties,
-                        const PointerCoords* coords, const uint32_t* idToIndex, BitSet32 idBits,
-                        int32_t changedId, float xPrecision, float yPrecision, nsecs_t downTime,
-                        MotionClassification classification);
+    [[nodiscard]] NotifyMotionArgs dispatchMotion(
+            nsecs_t when, nsecs_t readTime, uint32_t policyFlags, uint32_t source, int32_t action,
+            int32_t actionButton, int32_t flags, int32_t metaState, int32_t buttonState,
+            int32_t edgeFlags, const PointerProperties* properties, const PointerCoords* coords,
+            const uint32_t* idToIndex, BitSet32 idBits, int32_t changedId, float xPrecision,
+            float yPrecision, nsecs_t downTime, MotionClassification classification);
 
     // Updates pointer coords and properties for pointers with specified ids that have moved.
     // Returns true if any of them changed.

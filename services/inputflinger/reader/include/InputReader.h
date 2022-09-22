@@ -142,10 +142,9 @@ protected:
         int32_t bumpGeneration() NO_THREAD_SAFETY_ANALYSIS override;
         void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices)
                 REQUIRES(mReader->mLock) override;
-        void dispatchExternalStylusState(const StylusState& outState)
+        [[nodiscard]] std::list<NotifyArgs> dispatchExternalStylusState(const StylusState& outState)
                 REQUIRES(mReader->mLock) override;
         InputReaderPolicyInterface* getPolicy() REQUIRES(mReader->mLock) override;
-        InputListenerInterface& getListener() REQUIRES(mReader->mLock) override;
         EventHubInterface* getEventHub() REQUIRES(mReader->mLock) override;
         int32_t getNextId() NO_THREAD_SAFETY_ANALYSIS override;
         void updateLedMetaState(int32_t metaState) REQUIRES(mReader->mLock) override;
@@ -181,13 +180,15 @@ private:
             mDeviceToEventHubIdsMap GUARDED_BY(mLock);
 
     // low-level input event decoding and device management
-    void processEventsLocked(const RawEvent* rawEvents, size_t count) REQUIRES(mLock);
+    [[nodiscard]] std::list<NotifyArgs> processEventsLocked(const RawEvent* rawEvents, size_t count)
+            REQUIRES(mLock);
 
     void addDeviceLocked(nsecs_t when, int32_t eventHubId) REQUIRES(mLock);
     void removeDeviceLocked(nsecs_t when, int32_t eventHubId) REQUIRES(mLock);
-    void processEventsForDeviceLocked(int32_t eventHubId, const RawEvent* rawEvents, size_t count)
-            REQUIRES(mLock);
-    void timeoutExpiredLocked(nsecs_t when) REQUIRES(mLock);
+    [[nodiscard]] std::list<NotifyArgs> processEventsForDeviceLocked(int32_t eventHubId,
+                                                                     const RawEvent* rawEvents,
+                                                                     size_t count) REQUIRES(mLock);
+    [[nodiscard]] std::list<NotifyArgs> timeoutExpiredLocked(nsecs_t when) REQUIRES(mLock);
 
     void handleConfigurationChangedLocked(nsecs_t when) REQUIRES(mLock);
 
@@ -201,7 +202,8 @@ private:
 
     void notifyExternalStylusPresenceChangedLocked() REQUIRES(mLock);
     void getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices) REQUIRES(mLock);
-    void dispatchExternalStylusStateLocked(const StylusState& state) REQUIRES(mLock);
+    [[nodiscard]] std::list<NotifyArgs> dispatchExternalStylusStateLocked(const StylusState& state)
+            REQUIRES(mLock);
 
     // The PointerController that is shared among all the input devices that need it.
     std::weak_ptr<PointerControllerInterface> mPointerController;
@@ -227,6 +229,8 @@ private:
 
     uint32_t mConfigurationChangesToRefresh GUARDED_BY(mLock);
     void refreshConfigurationLocked(uint32_t changes) REQUIRES(mLock);
+
+    void notifyAll(std::list<NotifyArgs>&& argsList);
 
     PointerCaptureRequest mCurrentPointerCaptureRequest GUARDED_BY(mLock);
 
