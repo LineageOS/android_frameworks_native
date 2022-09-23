@@ -170,7 +170,11 @@ cc_library_shared {
         "libEGL_getProcAddress",
         "libEGL_blobCache",
     ],
-    ldflags: ["-Wl,--exclude-libs=ALL,--Bsymbolic-functions"],
+    ldflags: [
+        "-Wl,--exclude-libs=libEGL_getProcAddress.a",
+        "-Wl,--exclude-libs=libEGL_blobCache.a",
+        "-Wl,--Bsymbolic-functions",
+    ],
     export_include_dirs: ["EGL/include"],
     stubs: {
         symbol_file: "libEGL.map.txt",
