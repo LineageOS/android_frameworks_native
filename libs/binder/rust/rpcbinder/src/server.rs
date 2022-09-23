@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-use binder::{unstable_api::AsNative, SpIBinder};
+use binder::{
+    unstable_api::{AIBinder, AsNative},
+    SpIBinder,
+};
 use std::{os::raw, ptr::null_mut};
 
 /// Runs a binder RPC server, serving the supplied binder service implementation on the given vsock
@@ -44,7 +47,7 @@ where
     F: FnOnce(),
 {
     fn run_server(&mut self, mut service: SpIBinder, port: u32) -> bool {
-        let service = service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder;
+        let service = service.as_native_mut();
         let param = self.as_void_ptr();
 
         // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
@@ -106,10 +109,7 @@ pub fn run_rpc_server_with_factory(
     }
 }
 
-unsafe extern "C" fn factory_wrapper(
-    cid: u32,
-    context: *mut raw::c_void,
-) -> *mut binder_rpc_unstable_bindgen::AIBinder {
+unsafe extern "C" fn factory_wrapper(cid: u32, context: *mut raw::c_void) -> *mut AIBinder {
     // SAFETY: `context` was created from an `&mut RpcServerFactoryRef` by
     // `run_rpc_server_with_factory`, and we are still within the lifetime of the value it is
     // pointing to.
@@ -117,7 +117,7 @@ unsafe extern "C" fn factory_wrapper(
     let factory = factory_ptr.as_mut().unwrap();
 
     if let Some(mut service) = factory(cid) {
-        service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder
+        service.as_native_mut()
     } else {
         null_mut()
     }
