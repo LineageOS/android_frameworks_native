@@ -22,4 +22,8 @@ namespace android {
 
 sp<IBinder> RpcTrustyConnect(const char* device, const char* port);
 
+sp<RpcSession> RpcTrustyConnectWithSessionInitializer(
+        const char* device, const char* port,
+        std::function<void(sp<RpcSession>&)> sessionInitializer);
+
 } // namespace android
