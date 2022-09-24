@@ -26,8 +26,12 @@ namespace android {
 
 using android::base::unique_fd;
 
-sp<IBinder> RpcTrustyConnect(const char* device, const char* port) {
+sp<RpcSession> RpcTrustyConnectWithSessionInitializer(
+        const char* device, const char* port,
+        std::function<void(sp<RpcSession>&)> sessionInitializer) {
     auto session = RpcSession::make(RpcTransportCtxFactoryTipcAndroid::make());
+    // using the callback to initialize the session
+    sessionInitializer(session);
     auto request = [=] {
         int tipcFd = tipc_connect(device, port);
         if (tipcFd < 0) {
@@ -40,6 +44,11 @@ sp<IBinder> RpcTrustyConnect(const char* device, const char* port) {
         LOG(ERROR) << "Failed to set up Trusty client. Error: " << statusToString(status).c_str();
         return nullptr;
     }
+    return session;
+}
+
+sp<IBinder> RpcTrustyConnect(const char* device, const char* port) {
+    auto session = RpcTrustyConnectWithSessionInitializer(device, port, [](auto) {});
     return session->getRootObject();
 }
 
