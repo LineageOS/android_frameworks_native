@@ -191,7 +191,16 @@ phony {
         "libinputservice_test",
         "Bug-115739809",
         "StructLayout_test",
+
+        // native fuzzers
         "inputflinger_latencytracker_fuzzer",
+        "inputflinger_cursor_input_fuzzer",
+        "inputflinger_keyboard_input_fuzzer",
+        "inputflinger_multitouch_input_fuzzer",
+        "inputflinger_switch_input_fuzzer",
+        "inputflinger_input_reader_fuzzer",
+        "inputflinger_blocking_queue_fuzzer",
+        "inputflinger_input_classifier_fuzzer",
 
         // Java/Kotlin targets
         "CtsWindowManagerDeviceTestCases",

@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-use binder::{
-    unstable_api::{new_spibinder, AIBinder},
-    FromIBinder, SpIBinder, StatusCode, Strong,
-};
+use binder::{unstable_api::new_spibinder, FromIBinder, SpIBinder, StatusCode, Strong};
 use std::os::{
     raw::{c_int, c_void},
     unix::io::RawFd,
@@ -27,7 +24,7 @@ use std::os::{
 pub fn get_vsock_rpc_service(cid: u32, port: u32) -> Option<SpIBinder> {
     // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can
     // safely be taken by new_spibinder.
-    unsafe { new_spibinder(binder_rpc_unstable_bindgen::RpcClient(cid, port) as *mut AIBinder) }
+    unsafe { new_spibinder(binder_rpc_unstable_bindgen::RpcClient(cid, port)) }
 }
 
 /// Connects to an RPC Binder server for a particular interface over vsock.
@@ -54,7 +51,7 @@ pub fn get_preconnected_rpc_service(
         new_spibinder(binder_rpc_unstable_bindgen::RpcPreconnectedClient(
             Some(request_fd_wrapper),
             param,
-        ) as *mut AIBinder)
+        ))
     }
 }
 
