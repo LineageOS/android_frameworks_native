@@ -24,14 +24,14 @@ using namespace android;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     FuzzedDataProvider fdp(data, size);
-    BitTube bittube(size);
+    sp<BitTube> bittube(new BitTube(size));
     Parcel parcel[5];
-    bittube.writeToParcel(parcel);
+    bittube->writeToParcel(parcel);
     sp<BitTube> tube(new BitTube(size));
-    bittube.sendObjects<uint8_t>(tube, data, size);
+    bittube->sendObjects<uint8_t>(tube, data, size);
     uint8_t recvData[size];
     for (int i = 0; i < size; i++) recvData[i] = fdp.ConsumeIntegral<uint8_t>();
-    bittube.recvObjects<uint8_t>(tube, recvData, size);
+    bittube->recvObjects<uint8_t>(tube, recvData, size);
 
     return 0;
 }
