@@ -58,6 +58,18 @@ static bool isSubDevice(const InputDeviceIdentifier& identifier1,
             identifier1.location == identifier2.location);
 }
 
+static bool isStylusPointerGestureStart(const NotifyMotionArgs& motionArgs) {
+    const auto actionMasked = MotionEvent::getActionMasked(motionArgs.action);
+    if (actionMasked != AMOTION_EVENT_ACTION_HOVER_ENTER &&
+        actionMasked != AMOTION_EVENT_ACTION_DOWN &&
+        actionMasked != AMOTION_EVENT_ACTION_POINTER_DOWN) {
+        return false;
+    }
+    const auto actionIndex = MotionEvent::getActionIndex(motionArgs.action);
+    return motionArgs.pointerProperties[actionIndex].toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS ||
+            motionArgs.pointerProperties[actionIndex].toolType == AMOTION_EVENT_TOOL_TYPE_ERASER;
+}
+
 // --- InputReader ---
 
 InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
@@ -101,8 +113,10 @@ status_t InputReader::stop() {
 void InputReader::loopOnce() {
     int32_t oldGeneration;
     int32_t timeoutMillis;
+    // Copy some state so that we can access it outside the lock later.
     bool inputDevicesChanged = false;
     std::vector<InputDeviceInfo> inputDevices;
+    std::list<NotifyArgs> notifyArgs;
     { // acquire lock
         std::scoped_lock _l(mLock);
 
@@ -127,7 +141,7 @@ void InputReader::loopOnce() {
         mReaderIsAliveCondition.notify_all();
 
         if (!events.empty()) {
-            notifyAll(processEventsLocked(events.data(), events.size()));
+            notifyArgs += processEventsLocked(events.data(), events.size());
         }
 
         if (mNextTimeout != LLONG_MAX) {
@@ -137,7 +151,7 @@ void InputReader::loopOnce() {
                     ALOGD("Timeout expired, latency=%0.3fms", (now - mNextTimeout) * 0.000001f);
                 }
                 mNextTimeout = LLONG_MAX;
-                notifyAll(timeoutExpiredLocked(now));
+                notifyArgs += timeoutExpiredLocked(now);
             }
         }
 
@@ -151,6 +165,16 @@ void InputReader::loopOnce() {
     if (inputDevicesChanged) {
         mPolicy->notifyInputDevicesChanged(inputDevices);
     }
+
+    // Notify the policy of the start of every new stylus gesture outside the lock.
+    for (const auto& args : notifyArgs) {
+        const auto* motionArgs = std::get_if<NotifyMotionArgs>(&args);
+        if (motionArgs != nullptr && isStylusPointerGestureStart(*motionArgs)) {
+            mPolicy->notifyStylusGestureStarted(motionArgs->deviceId, motionArgs->eventTime);
+        }
+    }
+
+    notifyAll(std::move(notifyArgs));
 
     // Flush queued events out to the listener.
     // This must happen outside of the lock because the listener could potentially call

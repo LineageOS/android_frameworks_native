@@ -244,6 +244,7 @@ class FakeInputReaderPolicy : public InputReaderPolicyInterface {
     bool mInputDevicesChanged GUARDED_BY(mLock){false};
     std::vector<DisplayViewport> mViewports;
     TouchAffineTransformation transform;
+    std::optional<int32_t /*deviceId*/> mStylusGestureNotified GUARDED_BY(mLock){};
 
 protected:
     virtual ~FakeInputReaderPolicy() {}
@@ -266,6 +267,18 @@ public:
                 FAIL() << "Expected notifyInputDevicesChanged() to not be called.";
             }
         });
+    }
+
+    void assertStylusGestureNotified(int32_t deviceId) {
+        std::scoped_lock lock(mLock);
+        ASSERT_TRUE(mStylusGestureNotified);
+        ASSERT_EQ(deviceId, *mStylusGestureNotified);
+        mStylusGestureNotified.reset();
+    }
+
+    void assertStylusGestureNotNotified() {
+        std::scoped_lock lock(mLock);
+        ASSERT_FALSE(mStylusGestureNotified);
     }
 
     virtual void clearViewports() {
@@ -427,6 +440,11 @@ private:
                 });
         ASSERT_NO_FATAL_FAILURE(processDevicesChanged(devicesChanged));
         mInputDevicesChanged = false;
+    }
+
+    void notifyStylusGestureStarted(int32_t deviceId, nsecs_t eventTime) override {
+        std::scoped_lock<std::mutex> lock(mLock);
+        mStylusGestureNotified = deviceId;
     }
 };
 
@@ -2329,6 +2347,15 @@ protected:
         mTestListener.reset();
         mFakePolicy.clear();
     }
+
+    std::optional<InputDeviceInfo> findDeviceByName(const std::string& name) {
+        const std::vector<InputDeviceInfo> inputDevices = mFakePolicy->getInputDevices();
+        const auto& it = std::find_if(inputDevices.begin(), inputDevices.end(),
+                                      [&name](const InputDeviceInfo& info) {
+                                          return info.getIdentifier().name == name;
+                                      });
+        return it != inputDevices.end() ? std::make_optional(*it) : std::nullopt;
+    }
 };
 
 TEST_F(InputReaderIntegrationTest, TestInvalidDevice) {
@@ -2450,6 +2477,9 @@ protected:
         mDevice = createUinputDevice<UinputTouchScreen>(Rect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT));
         ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
         ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+        const auto info = findDeviceByName(mDevice->getName());
+        ASSERT_TRUE(info);
+        mDeviceInfo = *info;
     }
 
     void setDisplayInfoAndReconfigure(int32_t displayId, int32_t width, int32_t height,
@@ -2473,6 +2503,7 @@ protected:
     }
 
     std::unique_ptr<UinputTouchScreen> mDevice;
+    InputDeviceInfo mDeviceInfo;
 };
 
 TEST_F(TouchIntegrationTest, InputEvent_ProcessSingleTouch) {
@@ -2687,6 +2718,58 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessPalm) {
 
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
+}
+
+TEST_F(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
+    const Point centerPoint = mDevice->getCenterPoint();
+
+    // Send down with the pen tool selected. The policy should be notified of the stylus presence.
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendToolType(MT_TOOL_PEN);
+    mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertStylusGestureNotified(mDeviceInfo.getId()));
+
+    // Release the stylus touch.
+    mDevice->sendUp();
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(
+            mTestListener->assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_UP)));
+
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertStylusGestureNotNotified());
+
+    // Touch down with the finger, without the pen tool selected. The policy is not notified.
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendToolType(MT_TOOL_FINGER);
+    mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER))));
+
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertStylusGestureNotNotified());
+
+    mDevice->sendUp();
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(
+            mTestListener->assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_UP)));
+
+    // Send a move event with the stylus tool without BTN_TOUCH to generate a hover enter.
+    // The policy should be notified of the stylus presence.
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendToolType(MT_TOOL_PEN);
+    mDevice->sendMove(centerPoint);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertStylusGestureNotified(mDeviceInfo.getId()));
 }
 
 // --- InputDeviceTest ---

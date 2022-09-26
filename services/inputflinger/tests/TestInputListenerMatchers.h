@@ -19,6 +19,7 @@
 #include <android/input.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <input/Input.h>
 
 namespace android {
 
@@ -60,6 +61,13 @@ MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {
     const auto argPressure = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE);
     *result_listener << "expected pressure " << pressure << ", but got " << pressure;
     return argPressure;
+}
+
+MATCHER_P(WithToolType, toolType, "InputEvent with specified tool type") {
+    const auto argToolType = arg.pointerProperties[0].toolType;
+    *result_listener << "expected tool type " << motionToolTypeToString(toolType) << ", but got "
+                     << motionToolTypeToString(argToolType);
+    return argToolType == toolType;
 }
 
 MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {

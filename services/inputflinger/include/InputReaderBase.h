@@ -393,6 +393,8 @@ public:
     /* Gets the affine calibration associated with the specified device. */
     virtual TouchAffineTransformation getTouchAffineTransformation(
             const std::string& inputDeviceDescriptor, int32_t surfaceRotation) = 0;
+    /* Notifies the input reader policy that a stylus gesture has started. */
+    virtual void notifyStylusGestureStarted(int32_t deviceId, nsecs_t eventTime) = 0;
 };
 
 } // namespace android
