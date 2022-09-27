@@ -384,8 +384,8 @@ private:
             REQUIRES(mLock);
     sp<android::gui::WindowInfoHandle> getFocusedWindowHandleLocked(int displayId) const
             REQUIRES(mLock);
-    bool hasResponsiveConnectionLocked(android::gui::WindowInfoHandle& windowHandle) const
-            REQUIRES(mLock);
+    bool canWindowReceiveMotionLocked(const sp<android::gui::WindowInfoHandle>& window,
+                                      const MotionEntry& motionEntry) const REQUIRES(mLock);
 
     // Returns all the input targets (with their respective input channels) from the window handles
     // passed as argument.
