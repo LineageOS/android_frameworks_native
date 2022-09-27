@@ -29,53 +29,56 @@ namespace android {
 
 /* Raw axis information from the driver. */
 struct RawPointerAxes {
-    RawAbsoluteAxisInfo x;
-    RawAbsoluteAxisInfo y;
-    RawAbsoluteAxisInfo pressure;
-    RawAbsoluteAxisInfo touchMajor;
-    RawAbsoluteAxisInfo touchMinor;
-    RawAbsoluteAxisInfo toolMajor;
-    RawAbsoluteAxisInfo toolMinor;
-    RawAbsoluteAxisInfo orientation;
-    RawAbsoluteAxisInfo distance;
-    RawAbsoluteAxisInfo tiltX;
-    RawAbsoluteAxisInfo tiltY;
-    RawAbsoluteAxisInfo trackingId;
-    RawAbsoluteAxisInfo slot;
+    RawAbsoluteAxisInfo x{};
+    RawAbsoluteAxisInfo y{};
+    RawAbsoluteAxisInfo pressure{};
+    RawAbsoluteAxisInfo touchMajor{};
+    RawAbsoluteAxisInfo touchMinor{};
+    RawAbsoluteAxisInfo toolMajor{};
+    RawAbsoluteAxisInfo toolMinor{};
+    RawAbsoluteAxisInfo orientation{};
+    RawAbsoluteAxisInfo distance{};
+    RawAbsoluteAxisInfo tiltX{};
+    RawAbsoluteAxisInfo tiltY{};
+    RawAbsoluteAxisInfo trackingId{};
+    RawAbsoluteAxisInfo slot{};
 
-    RawPointerAxes();
     inline int32_t getRawWidth() const { return x.maxValue - x.minValue + 1; }
     inline int32_t getRawHeight() const { return y.maxValue - y.minValue + 1; }
-    void clear();
+    inline void clear() { *this = RawPointerAxes(); }
 };
+
+using PropertiesArray = std::array<PointerProperties, MAX_POINTERS>;
+using CoordsArray = std::array<PointerCoords, MAX_POINTERS>;
+using IdToIndexArray = std::array<uint32_t, MAX_POINTER_ID + 1>;
 
 /* Raw data for a collection of pointers including a pointer id mapping table. */
 struct RawPointerData {
     struct Pointer {
-        uint32_t id;
-        int32_t x;
-        int32_t y;
-        int32_t pressure;
-        int32_t touchMajor;
-        int32_t touchMinor;
-        int32_t toolMajor;
-        int32_t toolMinor;
-        int32_t orientation;
-        int32_t distance;
-        int32_t tiltX;
-        int32_t tiltY;
-        int32_t toolType; // a fully decoded AMOTION_EVENT_TOOL_TYPE constant
-        bool isHovering;
+        uint32_t id{0xFFFFFFFF};
+        int32_t x{};
+        int32_t y{};
+        int32_t pressure{};
+        int32_t touchMajor{};
+        int32_t touchMinor{};
+        int32_t toolMajor{};
+        int32_t toolMinor{};
+        int32_t orientation{};
+        int32_t distance{};
+        int32_t tiltX{};
+        int32_t tiltY{};
+        // A fully decoded AMOTION_EVENT_TOOL_TYPE constant.
+        int32_t toolType{AMOTION_EVENT_TOOL_TYPE_UNKNOWN};
+        bool isHovering{false};
     };
 
-    uint32_t pointerCount;
-    Pointer pointers[MAX_POINTERS];
-    BitSet32 hoveringIdBits, touchingIdBits, canceledIdBits;
-    uint32_t idToIndex[MAX_POINTER_ID + 1];
+    uint32_t pointerCount{};
+    std::array<Pointer, MAX_POINTERS> pointers{};
+    BitSet32 hoveringIdBits{}, touchingIdBits{}, canceledIdBits{};
+    IdToIndexArray idToIndex{};
 
-    RawPointerData();
-    void clear();
-    void copyFrom(const RawPointerData& other);
+    inline void clear() { *this = RawPointerData(); }
+
     void getCentroidOfTouchingPointers(float* outX, float* outY) const;
 
     inline void markIdBit(uint32_t id, bool isHovering) {
@@ -99,15 +102,13 @@ struct RawPointerData {
 
 /* Cooked data for a collection of pointers including a pointer id mapping table. */
 struct CookedPointerData {
-    uint32_t pointerCount;
-    PointerProperties pointerProperties[MAX_POINTERS];
-    PointerCoords pointerCoords[MAX_POINTERS];
-    BitSet32 hoveringIdBits, touchingIdBits, canceledIdBits, validIdBits;
-    uint32_t idToIndex[MAX_POINTER_ID + 1];
+    uint32_t pointerCount{};
+    PropertiesArray pointerProperties{};
+    CoordsArray pointerCoords{};
+    BitSet32 hoveringIdBits{}, touchingIdBits{}, canceledIdBits{}, validIdBits{};
+    IdToIndexArray idToIndex{};
 
-    CookedPointerData();
-    void clear();
-    void copyFrom(const CookedPointerData& other);
+    inline void clear() { *this = CookedPointerData(); }
 
     inline const PointerCoords& pointerCoordsForId(uint32_t id) const {
         return pointerCoords[idToIndex[id]];
@@ -314,65 +315,33 @@ protected:
     RawPointerAxes mRawPointerAxes;
 
     struct RawState {
-        nsecs_t when;
-        nsecs_t readTime;
+        nsecs_t when{};
+        nsecs_t readTime{};
 
         // Raw pointer sample data.
-        RawPointerData rawPointerData;
+        RawPointerData rawPointerData{};
 
-        int32_t buttonState;
+        int32_t buttonState{};
 
         // Scroll state.
-        int32_t rawVScroll;
-        int32_t rawHScroll;
+        int32_t rawVScroll{};
+        int32_t rawHScroll{};
 
-        explicit inline RawState() { clear(); }
-
-        void copyFrom(const RawState& other) {
-            when = other.when;
-            readTime = other.readTime;
-            rawPointerData.copyFrom(other.rawPointerData);
-            buttonState = other.buttonState;
-            rawVScroll = other.rawVScroll;
-            rawHScroll = other.rawHScroll;
-        }
-
-        void clear() {
-            when = 0;
-            readTime = 0;
-            rawPointerData.clear();
-            buttonState = 0;
-            rawVScroll = 0;
-            rawHScroll = 0;
-        }
+        inline void clear() { *this = RawState(); }
     };
 
     struct CookedState {
         // Cooked pointer sample data.
-        CookedPointerData cookedPointerData;
+        CookedPointerData cookedPointerData{};
 
         // Id bits used to differentiate fingers, stylus and mouse tools.
-        BitSet32 fingerIdBits;
-        BitSet32 stylusIdBits;
-        BitSet32 mouseIdBits;
+        BitSet32 fingerIdBits{};
+        BitSet32 stylusIdBits{};
+        BitSet32 mouseIdBits{};
 
-        int32_t buttonState;
+        int32_t buttonState{};
 
-        void copyFrom(const CookedState& other) {
-            cookedPointerData.copyFrom(other.cookedPointerData);
-            fingerIdBits = other.fingerIdBits;
-            stylusIdBits = other.stylusIdBits;
-            mouseIdBits = other.mouseIdBits;
-            buttonState = other.buttonState;
-        }
-
-        void clear() {
-            cookedPointerData.clear();
-            fingerIdBits.clear();
-            stylusIdBits.clear();
-            mouseIdBits.clear();
-            buttonState = 0;
-        }
+        inline void clear() { *this = CookedState(); }
     };
 
     std::vector<RawState> mRawStatesPending;
@@ -528,9 +497,9 @@ private:
     float mPointerGestureMaxSwipeWidth;
 
     struct PointerDistanceHeapElement {
-        uint32_t currentPointerIndex : 8;
-        uint32_t lastPointerIndex : 8;
-        uint64_t distance : 48; // squared distance
+        uint32_t currentPointerIndex : 8 {};
+        uint32_t lastPointerIndex : 8 {};
+        uint64_t distance : 48 {}; // squared distance
     };
 
     enum class PointerUsage {
@@ -627,15 +596,15 @@ private:
         // Pointer coords and ids for the current and previous pointer gesture.
         Mode currentGestureMode;
         BitSet32 currentGestureIdBits;
-        uint32_t currentGestureIdToIndex[MAX_POINTER_ID + 1];
-        PointerProperties currentGestureProperties[MAX_POINTERS];
-        PointerCoords currentGestureCoords[MAX_POINTERS];
+        IdToIndexArray currentGestureIdToIndex{};
+        PropertiesArray currentGestureProperties{};
+        CoordsArray currentGestureCoords{};
 
         Mode lastGestureMode;
         BitSet32 lastGestureIdBits;
-        uint32_t lastGestureIdToIndex[MAX_POINTER_ID + 1];
-        PointerProperties lastGestureProperties[MAX_POINTERS];
-        PointerCoords lastGestureCoords[MAX_POINTERS];
+        IdToIndexArray lastGestureIdToIndex{};
+        PropertiesArray lastGestureProperties{};
+        CoordsArray lastGestureCoords{};
 
         // Time the pointer gesture last went down.
         nsecs_t downTime;
@@ -812,16 +781,9 @@ private:
     [[nodiscard]] NotifyMotionArgs dispatchMotion(
             nsecs_t when, nsecs_t readTime, uint32_t policyFlags, uint32_t source, int32_t action,
             int32_t actionButton, int32_t flags, int32_t metaState, int32_t buttonState,
-            int32_t edgeFlags, const PointerProperties* properties, const PointerCoords* coords,
-            const uint32_t* idToIndex, BitSet32 idBits, int32_t changedId, float xPrecision,
+            int32_t edgeFlags, const PropertiesArray& properties, const CoordsArray& coords,
+            const IdToIndexArray& idToIndex, BitSet32 idBits, int32_t changedId, float xPrecision,
             float yPrecision, nsecs_t downTime, MotionClassification classification);
-
-    // Updates pointer coords and properties for pointers with specified ids that have moved.
-    // Returns true if any of them changed.
-    bool updateMovedPointers(const PointerProperties* inProperties, const PointerCoords* inCoords,
-                             const uint32_t* inIdToIndex, PointerProperties* outProperties,
-                             PointerCoords* outCoords, const uint32_t* outIdToIndex,
-                             BitSet32 idBits) const;
 
     // Returns if this touch device is a touch screen with an associated display.
     bool isTouchScreen();
@@ -834,7 +796,6 @@ private:
 
     static void assignPointerIds(const RawState& last, RawState& current);
 
-    const char* modeToString(DeviceMode deviceMode);
     void rotateAndScale(float& x, float& y) const;
 };
 
