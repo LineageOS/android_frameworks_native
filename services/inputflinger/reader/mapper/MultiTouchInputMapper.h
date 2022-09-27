@@ -71,7 +71,6 @@ public:
     ~MultiTouchMotionAccumulator();
 
     void configure(InputDeviceContext& deviceContext, size_t slotCount, bool usingSlotsProtocol);
-    void reset(InputDeviceContext& deviceContext);
     void process(const RawEvent* rawEvent);
     void finishSync();
     bool hasStylus() const;
@@ -86,7 +85,7 @@ private:
     bool mUsingSlotsProtocol;
     bool mHaveStylus;
 
-    void clearSlots(int32_t initialSlot);
+    void resetSlots();
     void warnIfNotInUse(const RawEvent& event, const Slot& slot);
 };
 
