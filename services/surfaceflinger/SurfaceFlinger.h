@@ -1044,7 +1044,8 @@ private:
     /*
      * Debugging & dumpsys
      */
-    void dumpAllLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
+    void dumpAllLocked(const DumpArgs& args, const std::string& compositionLayers,
+                       std::string& result) const REQUIRES(mStateLock);
     void dumpHwcLayersMinidumpLocked(std::string& result) const REQUIRES(mStateLock);
 
     void appendSfConfigString(std::string& result) const;
