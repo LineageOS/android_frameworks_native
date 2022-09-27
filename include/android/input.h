@@ -840,6 +840,12 @@ enum AMotionClassification : uint32_t {
      * This classification type should be used to accelerate the long press behaviour.
      */
     AMOTION_EVENT_CLASSIFICATION_DEEP_PRESS = 2,
+    /**
+     * Classification constant: touchpad two-finger swipe.
+     *
+     * The current event stream represents the user swiping with two fingers on a touchpad.
+     */
+    AMOTION_EVENT_CLASSIFICATION_TWO_FINGER_SWIPE = 3,
 };
 
 /**

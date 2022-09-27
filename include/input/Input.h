@@ -289,6 +289,10 @@ enum class MotionClassification : uint8_t {
      * The current gesture likely represents a user intentionally exerting force on the touchscreen.
      */
     DEEP_PRESS = AMOTION_EVENT_CLASSIFICATION_DEEP_PRESS,
+    /**
+     * The current gesture represents the user swiping with two fingers on a touchpad.
+     */
+    TWO_FINGER_SWIPE = AMOTION_EVENT_CLASSIFICATION_TWO_FINGER_SWIPE,
 };
 
 /**
