@@ -1638,11 +1638,9 @@ std::optional<int32_t> EventHub::getBatteryStatus(int32_t deviceId, int32_t batt
 std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
     std::scoped_lock _l(mLock);
 
-    constexpr size_t bufferSize = EVENT_BUFFER_SIZE;
-    struct input_event readBuffer[bufferSize];
+    std::array<input_event, EVENT_BUFFER_SIZE> readBuffer;
 
     std::vector<RawEvent> events;
-    size_t capacity = bufferSize;
     bool awoken = false;
     for (;;) {
         nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
@@ -1672,7 +1670,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
             });
             it = mClosingDevices.erase(it);
             mNeedToSendFinishedDeviceScan = true;
-            if (events.size() == capacity) {
+            if (events.size() == EVENT_BUFFER_SIZE) {
                 break;
             }
         }
@@ -1710,7 +1708,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
                 ALOGW("Device id %d exists, replaced.", device->id);
             }
             mNeedToSendFinishedDeviceScan = true;
-            if (events.size() == capacity) {
+            if (events.size() == EVENT_BUFFER_SIZE) {
                 break;
             }
         }
@@ -1721,7 +1719,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
                     .when = now,
                     .type = FINISHED_DEVICE_SCAN,
             });
-            if (events.size() == capacity) {
+            if (events.size() == EVENT_BUFFER_SIZE) {
                 break;
             }
         }
@@ -1785,12 +1783,13 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
             // This must be an input event
             if (eventItem.events & EPOLLIN) {
                 int32_t readSize =
-                        read(device->fd, readBuffer, sizeof(struct input_event) * capacity);
+                        read(device->fd, readBuffer.data(),
+                             sizeof(decltype(readBuffer)::value_type) * readBuffer.size());
                 if (readSize == 0 || (readSize < 0 && errno == ENODEV)) {
                     // Device was removed before INotify noticed.
                     ALOGW("could not get event, removed? (fd: %d size: %" PRId32
-                          " bufferSize: %zu capacity: %zu errno: %d)\n",
-                          device->fd, readSize, bufferSize, capacity, errno);
+                          " capacity: %zu errno: %d)\n",
+                          device->fd, readSize, readBuffer.size(), errno);
                     deviceChanged = true;
                     closeDeviceLocked(*device);
                 } else if (readSize < 0) {
@@ -1814,7 +1813,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
                                 .value = iev.value,
                         });
                     }
-                    if (events.size() >= capacity) {
+                    if (events.size() >= EVENT_BUFFER_SIZE) {
                         // The result buffer is full.  Reset the pending event index
                         // so we will try to read the device again on the next iteration.
                         mPendingEventIndex -= 1;
