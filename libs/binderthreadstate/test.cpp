@@ -73,6 +73,15 @@ static void callAidl(size_t id, int32_t idx) {
     CHECK(ret.isOk()) << ret;
 }
 
+static std::string getStackPointerDebugInfo() {
+    const void* hwbinderSp = android::hardware::IPCThreadState::self()->getServingStackPointer();
+    const void* binderSp = android::IPCThreadState::self()->getServingStackPointer();
+
+    std::stringstream ss;
+    ss << "(hwbinder sp: " << hwbinderSp << " binder sp: " << binderSp << ")";
+    return ss.str();
+}
+
 static inline std::ostream& operator<<(std::ostream& o, const BinderCallType& s) {
     return o << static_cast<std::underlying_type_t<BinderCallType>>(s);
 }
@@ -88,17 +97,21 @@ public:
         return android::hardware::Status::ok();
     }
     Return<void> call(int32_t idx) {
+        bool doCallHidl = thisId == kP1Id && idx % 4 < 2;
+
         LOG(INFO) << "HidlServer CALL " << thisId << " to " << otherId << " at idx: " << idx
-                  << " with tid: " << gettid();
-        CHECK_EQ(BinderCallType::HWBINDER, getCurrentServingCall());
+                  << " with tid: " << gettid() << " calling " << (doCallHidl ? "HIDL" : "AIDL");
+        CHECK_EQ(BinderCallType::HWBINDER, getCurrentServingCall())
+                << " before call " << getStackPointerDebugInfo();
         if (idx > 0) {
-            if (thisId == kP1Id && idx % 4 < 2) {
+            if (doCallHidl) {
                 callHidl(otherId, idx - 1);
             } else {
                 callAidl(otherId, idx - 1);
             }
         }
-        CHECK_EQ(BinderCallType::HWBINDER, getCurrentServingCall());
+        CHECK_EQ(BinderCallType::HWBINDER, getCurrentServingCall())
+                << " after call " << getStackPointerDebugInfo();
         return android::hardware::Status::ok();
     }
 };
@@ -113,17 +126,20 @@ public:
         return Status::ok();
     }
     Status call(int32_t idx) {
+        bool doCallHidl = thisId == kP2Id && idx % 4 < 2;
         LOG(INFO) << "AidlServer CALL " << thisId << " to " << otherId << " at idx: " << idx
-                  << " with tid: " << gettid();
-        CHECK_EQ(BinderCallType::BINDER, getCurrentServingCall());
+                  << " with tid: " << gettid() << " calling " << (doCallHidl ? "HIDL" : "AIDL");
+        CHECK_EQ(BinderCallType::BINDER, getCurrentServingCall())
+                << " before call " << getStackPointerDebugInfo();
         if (idx > 0) {
-            if (thisId == kP2Id && idx % 4 < 2) {
+            if (doCallHidl) {
                 callHidl(otherId, idx - 1);
             } else {
                 callAidl(otherId, idx - 1);
             }
         }
-        CHECK_EQ(BinderCallType::BINDER, getCurrentServingCall());
+        CHECK_EQ(BinderCallType::BINDER, getCurrentServingCall())
+                << " after call " << getStackPointerDebugInfo();
         return Status::ok();
     }
 };

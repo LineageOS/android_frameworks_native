@@ -44,10 +44,11 @@ cc_library {
 }
 
 java_library_static {
-    name: "layersprotosnano",
+    name: "layersprotoslite",
     host_supported: true,
     proto: {
-        type: "nano",
+        type: "lite",
+        include_dirs: ["external/protobuf/src"],
     },
     srcs: ["*.proto"],
     sdk_version: "core_platform",
@@ -56,7 +57,7 @@ java_library_static {
             jarjar_rules: "jarjar-rules.txt",
         },
         host: {
-            static_libs: ["libprotobuf-java-nano"],
+            static_libs: ["libprotobuf-java-lite"],
         },
     },
 }
