@@ -363,7 +363,6 @@ struct DisplayDeviceCreationArgs {
     hardware::graphics::composer::hal::PowerMode initialPowerMode{
             hardware::graphics::composer::hal::PowerMode::OFF};
     bool isPrimary{false};
-    DisplayModeId activeModeId;
     // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only
     Fps requestedRefreshRate;
 };

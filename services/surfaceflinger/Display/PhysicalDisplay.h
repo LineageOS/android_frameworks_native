@@ -25,6 +25,7 @@
 #include <utils/StrongPointer.h>
 
 #include "DisplaySnapshot.h"
+#include "DisplaySnapshotRef.h"
 
 namespace android::display {
 
@@ -45,8 +46,7 @@ public:
 
     // Transformers for PhysicalDisplays::get.
 
-    using SnapshotRef = std::reference_wrapper<const DisplaySnapshot>;
-    SnapshotRef snapshotRef() const { return std::cref(mSnapshot); }
+    DisplaySnapshotRef snapshotRef() const { return std::cref(mSnapshot); }
 
     bool isInternal() const {
         return mSnapshot.connectionType() == ui::DisplayConnectionType::Internal;
