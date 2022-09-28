@@ -326,16 +326,41 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "linkToDeath failure");
     }
 
+    auto it = mNameToService.find(name);
+    if (it != mNameToService.end()) {
+        const Service& existing = it->second;
+
+        // We could do better than this because if the other service dies, it
+        // may not have an entry here. However, this case is unlikely. We are
+        // only trying to detect when two different services are accidentally installed.
+
+        if (existing.ctx.uid != ctx.uid) {
+            LOG(WARNING) << "Service '" << name << "' originally registered from UID "
+                         << existing.ctx.uid << " but it is now being registered from UID "
+                         << ctx.uid << ". Multiple instances installed?";
+        }
+
+        if (existing.ctx.sid != ctx.sid) {
+            LOG(WARNING) << "Service '" << name << "' originally registered from SID "
+                         << existing.ctx.sid << " but it is now being registered from SID "
+                         << ctx.sid << ". Multiple instances installed?";
+        }
+
+        LOG(INFO) << "Service '" << name << "' originally registered from PID "
+                  << existing.ctx.debugPid << " but it is being registered again from PID "
+                  << ctx.debugPid
+                  << ". Bad state? Late death notification? Multiple instances installed?";
+    }
+
     // Overwrite the old service if it exists
-    mNameToService[name] = Service {
-        .binder = binder,
-        .allowIsolated = allowIsolated,
-        .dumpPriority = dumpPriority,
-        .debugPid = ctx.debugPid,
+    mNameToService[name] = Service{
+            .binder = binder,
+            .allowIsolated = allowIsolated,
+            .dumpPriority = dumpPriority,
+            .ctx = ctx,
     };
 
-    auto it = mNameToRegistrationCallback.find(name);
-    if (it != mNameToRegistrationCallback.end()) {
+    if (auto it = mNameToRegistrationCallback.find(name); it != mNameToRegistrationCallback.end()) {
         for (const sp<IServiceCallback>& cb : it->second) {
             mNameToService[name].guaranteeClient = true;
             // permission checked in registerForNotifications
@@ -571,7 +596,7 @@ Status ServiceManager::registerClientCallback(const std::string& name, const sp<
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
     }
 
-    if (serviceIt->second.debugPid != IPCThreadState::self()->getCallingPid()) {
+    if (serviceIt->second.ctx.debugPid != IPCThreadState::self()->getCallingPid()) {
         LOG(WARNING) << "Only a server can register for client callbacks (for " << name << ")";
         return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION);
     }
@@ -707,7 +732,7 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
-    if (serviceIt->second.debugPid != IPCThreadState::self()->getCallingPid()) {
+    if (serviceIt->second.ctx.debugPid != IPCThreadState::self()->getCallingPid()) {
         LOG(WARNING) << "Only a server can unregister itself (for " << name << ")";
         return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION);
     }
@@ -754,7 +779,7 @@ Status ServiceManager::getServiceDebugInfo(std::vector<ServiceDebugInfo>* outRet
     for (auto const& [name, service] : mNameToService) {
         ServiceDebugInfo info;
         info.name = name;
-        info.debugPid = service.debugPid;
+        info.debugPid = service.ctx.debugPid;
 
         outReturn->push_back(std::move(info));
     }
