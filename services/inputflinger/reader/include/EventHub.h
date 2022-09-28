@@ -174,6 +174,8 @@ enum class InputLightClass : uint32_t {
     MULTI_INTENSITY = 0x00000040,
     /* The input light has max brightness node. */
     MAX_BRIGHTNESS = 0x00000080,
+    /* The input light has kbd_backlight name */
+    KEYBOARD_BACKLIGHT = 0x00000100,
 };
 
 enum class InputBatteryClass : uint32_t {
