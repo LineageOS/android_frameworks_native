@@ -114,30 +114,12 @@ class FuzzEventHub : public EventHubInterface {
     InputDeviceIdentifier mIdentifier;
     std::vector<TouchVideoFrame> mVideoFrames;
     PropertyMap mFuzzConfig;
-    size_t mCount = 0;
-    std::array<RawEvent, kMaxSize> mBuf;
     std::shared_ptr<FuzzedDataProvider> mFdp;
 
 public:
     FuzzEventHub(std::shared_ptr<FuzzedDataProvider> fdp) : mFdp(std::move(fdp)) {}
     ~FuzzEventHub() {}
     void addProperty(std::string key, std::string value) { mFuzzConfig.addProperty(key, value); }
-    void addEvents(std::shared_ptr<FuzzedDataProvider> fdp) {
-        mCount = fdp->ConsumeIntegralInRange<size_t>(0, kMaxSize);
-
-        for (size_t i = 0; i < mCount; ++i) {
-            int32_t type = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidTypes)
-                                              : fdp->ConsumeIntegral<int32_t>();
-            int32_t code = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidCodes)
-                                              : fdp->ConsumeIntegral<int32_t>();
-            mBuf[i] = {fdp->ConsumeIntegral<nsecs_t>(),
-                       fdp->ConsumeIntegral<nsecs_t>(),
-                       fdp->ConsumeIntegral<int32_t>(),
-                       type,
-                       code,
-                       fdp->ConsumeIntegral<int32_t>()};
-        }
-    }
 
     ftl::Flags<InputDeviceClass> getDeviceClasses(int32_t deviceId) const override {
         return ftl::Flags<InputDeviceClass>(mFdp->ConsumeIntegral<uint32_t>());
@@ -168,10 +150,24 @@ public:
         return mFdp->ConsumeIntegral<status_t>();
     }
     void setExcludedDevices(const std::vector<std::string>& devices) override {}
-    size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) override {
-        for (size_t i = 0; i < mCount; ++i) buffer[i] = mBuf[i];
-
-        return mCount;
+    std::vector<RawEvent> getEvents(int timeoutMillis) override {
+        std::vector<RawEvent> events;
+        const size_t count = mFdp->ConsumeIntegralInRange<size_t>(0, kMaxSize);
+        for (size_t i = 0; i < count; ++i) {
+            int32_t type = mFdp->ConsumeBool() ? mFdp->PickValueInArray(kValidTypes)
+                                               : mFdp->ConsumeIntegral<int32_t>();
+            int32_t code = mFdp->ConsumeBool() ? mFdp->PickValueInArray(kValidCodes)
+                                               : mFdp->ConsumeIntegral<int32_t>();
+            events.push_back({
+                    .when = mFdp->ConsumeIntegral<nsecs_t>(),
+                    .readTime = mFdp->ConsumeIntegral<nsecs_t>(),
+                    .deviceId = mFdp->ConsumeIntegral<int32_t>(),
+                    .type = type,
+                    .code = code,
+                    .value = mFdp->ConsumeIntegral<int32_t>(),
+            });
+        }
+        return events;
     }
     std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) override { return mVideoFrames; }
 

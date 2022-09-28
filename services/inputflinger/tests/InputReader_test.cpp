@@ -826,15 +826,14 @@ private:
         mExcludedDevices = devices;
     }
 
-    size_t getEvents(int, RawEvent* buffer, size_t bufferSize) override {
+    std::vector<RawEvent> getEvents(int) override {
         std::scoped_lock lock(mLock);
 
-        const size_t filledSize = std::min(mEvents.size(), bufferSize);
-        std::copy(mEvents.begin(), mEvents.begin() + filledSize, buffer);
+        std::vector<RawEvent> buffer;
+        std::swap(buffer, mEvents);
 
-        mEvents.erase(mEvents.begin(), mEvents.begin() + filledSize);
         mEventsCondition.notify_all();
-        return filledSize;
+        return buffer;
     }
 
     std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) override {
