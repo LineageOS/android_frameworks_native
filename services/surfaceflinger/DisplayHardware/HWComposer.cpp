@@ -144,7 +144,7 @@ bool HWComposer::updatesDeviceProductInfoOnHotplugReconnect() const {
     return mUpdateDeviceProductInfoOnHotplugReconnect;
 }
 
-bool HWComposer::onVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp) {
+bool HWComposer::onVsync(hal::HWDisplayId hwcDisplayId, nsecs_t timestamp) {
     const auto displayId = toPhysicalDisplayId(hwcDisplayId);
     if (!displayId) {
         LOG_HWC_DISPLAY_ERROR(hwcDisplayId, "Invalid HWC display");
@@ -160,13 +160,13 @@ bool HWComposer::onVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp) {
         // with the same timestamp when turning the display off and on. This
         // is a bug in the HWC implementation, but filter the extra events
         // out here so they don't cause havoc downstream.
-        if (timestamp == displayData.lastHwVsync) {
+        if (timestamp == displayData.lastPresentTimestamp) {
             ALOGW("Ignoring duplicate VSYNC event from HWC for display %s (t=%" PRId64 ")",
                   to_string(*displayId).c_str(), timestamp);
             return false;
         }
 
-        displayData.lastHwVsync = timestamp;
+        displayData.lastPresentTimestamp = timestamp;
     }
 
     const auto tag = "HW_VSYNC_" + to_string(*displayId);
@@ -483,6 +483,11 @@ status_t HWComposer::getDeviceCompositionChanges(
 sp<Fence> HWComposer::getPresentFence(HalDisplayId displayId) const {
     RETURN_IF_INVALID_DISPLAY(displayId, Fence::NO_FENCE);
     return mDisplayData.at(displayId).lastPresentFence;
+}
+
+nsecs_t HWComposer::getPresentTimestamp(PhysicalDisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, 0);
+    return mDisplayData.at(displayId).lastPresentTimestamp;
 }
 
 sp<Fence> HWComposer::getLayerReleaseFence(HalDisplayId displayId, HWC2::Layer* layer) const {

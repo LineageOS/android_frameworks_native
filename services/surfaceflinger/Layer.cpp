@@ -3918,9 +3918,14 @@ void Layer::onPostComposition(const DisplayDevice* display,
             mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
         } else if (const auto displayId = PhysicalDisplayId::tryCast(display->getId());
                    displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
-            // The HWC doesn't support present fences, so use the refresh
-            // timestamp instead.
-            const nsecs_t actualPresentTime = display->getRefreshTimestamp();
+            // The HWC doesn't support present fences, so use the present timestamp instead.
+            const nsecs_t presentTimestamp =
+                    mFlinger->getHwComposer().getPresentTimestamp(*displayId);
+
+            const nsecs_t now = systemTime(CLOCK_MONOTONIC);
+            const nsecs_t vsyncPeriod = display->getVsyncPeriodFromHWC();
+            const nsecs_t actualPresentTime = now - ((now - presentTimestamp) % vsyncPeriod);
+
             mFlinger->mTimeStats->setPresentTime(layerId, mCurrentFrameNumber, actualPresentTime,
                                                  refreshRate, renderRate, vote, gameMode);
             mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(),
