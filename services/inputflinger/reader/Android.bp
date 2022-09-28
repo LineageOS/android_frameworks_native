@@ -69,12 +69,12 @@ cc_defaults {
         "libinput",
         "liblog",
         "libstatslog",
-        "libui",
         "libutils",
         "libPlatformProperties",
     ],
     static_libs: [
         "libc++fs",
+        "libui-types",
     ],
     header_libs: [
         "libbatteryservice_headers",

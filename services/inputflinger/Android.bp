@@ -85,12 +85,12 @@ cc_defaults {
         "libstatspull",
         "libstatssocket",
         "libutils",
-        "libui",
         "server_configurable_flags",
     ],
     static_libs: [
         "libattestation",
         "libpalmrejection",
+        "libui-types",
     ],
 }
 
@@ -152,7 +152,6 @@ cc_defaults {
         "libcutils",
         "libinput",
         "liblog",
-        "libui",
         "libutils",
     ],
     header_libs: [
