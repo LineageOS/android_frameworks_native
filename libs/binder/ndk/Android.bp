@@ -182,4 +182,8 @@ ndk_library {
     name: "libbinder_ndk",
     symbol_file: "libbinder_ndk.map.txt",
     first_version: "29",
+    export_header_libs: [
+        "libbinder_ndk_headers",
+        "libbinder_ndk_helper_headers",
+    ],
 }
