@@ -12,7 +12,10 @@ cc_library {
     name: "libETC1",
     srcs: ["ETC1/etc1.cpp"],
     host_supported: true,
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 
     target: {
         android: {
@@ -37,6 +40,9 @@ ndk_library {
     symbol_file: "libEGL.map.txt",
     first_version: "9",
     unversioned_until: "current",
+    export_header_libs: [
+        "libEGL_headers",
+    ],
 }
 
 ndk_library {
@@ -44,6 +50,9 @@ ndk_library {
     symbol_file: "libGLESv1_CM.map.txt",
     first_version: "9",
     unversioned_until: "current",
+    export_header_libs: [
+        "libGLESv1_CM_headers",
+    ],
 }
 
 ndk_library {
@@ -51,6 +60,9 @@ ndk_library {
     symbol_file: "libGLESv2.map.txt",
     first_version: "9",
     unversioned_until: "current",
+    export_header_libs: [
+        "libGLESv2_headers",
+    ],
 }
 
 ndk_library {
@@ -58,6 +70,9 @@ ndk_library {
     symbol_file: "libGLESv3.map.txt",
     first_version: "18",
     unversioned_until: "current",
+    export_header_libs: [
+        "libGLESv3_headers",
+    ],
 }
 
 cc_defaults {

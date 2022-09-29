@@ -169,7 +169,6 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     std::shared_ptr<FuzzEventHub> fuzzEventHub = std::make_shared<FuzzEventHub>(fdp);
     std::unique_ptr<FuzzInputReader> reader =
             std::make_unique<FuzzInputReader>(fuzzEventHub, fuzzPolicy, fuzzListener);
-    fuzzEventHub->addEvents(fdp);
     size_t patternCount = fdp->ConsumeIntegralInRange<size_t>(1, 260);
     VibrationSequence pattern(patternCount);
     for (size_t i = 0; i < patternCount; ++i) {
