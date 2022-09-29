@@ -193,9 +193,8 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/ext4/ext4_da_write_end/enable" },
         { OPT,      "events/ext4/ext4_sync_file_enter/enable" },
         { OPT,      "events/ext4/ext4_sync_file_exit/enable" },
-        { REQ,      "events/block/block_bio_queue/enable" },
-        { REQ,      "events/block/block_bio_complete/enable" },
-        { REQ,      "events/ufs/ufshcd_command/enable" },
+        { REQ,      "events/block/block_rq_issue/enable" },
+        { REQ,      "events/block/block_rq_complete/enable" },
     } },
     { "mmc",        "eMMC commands",    0, {
         { REQ,      "events/mmc/enable" },
