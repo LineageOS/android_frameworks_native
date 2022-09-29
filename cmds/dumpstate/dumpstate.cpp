@@ -183,6 +183,7 @@ void add_mountinfo();
 #define PACKAGE_DEX_USE_LIST "/data/system/package-dex-usage.list"
 #define SYSTEM_TRACE_SNAPSHOT "/data/misc/perfetto-traces/bugreport/systrace.pftrace"
 #define CGROUPFS_DIR "/sys/fs/cgroup"
+#define SDK_EXT_INFO "/apex/com.android.sdkext/bin/derive_sdk"
 
 // TODO(narayan): Since this information has to be kept in sync
 // with tombstoned, we should just put it in a common header.
@@ -765,7 +766,7 @@ uint64_t Dumpstate::ConsentCallback::getElapsedTimeMs() const {
 }
 
 void Dumpstate::PrintHeader() const {
-    std::string build, fingerprint, radio, bootloader, network;
+    std::string build, fingerprint, radio, bootloader, network, sdkversion;
     char date[80];
 
     build = android::base::GetProperty("ro.build.display.id", "(unknown)");
@@ -773,6 +774,7 @@ void Dumpstate::PrintHeader() const {
     radio = android::base::GetProperty("gsm.version.baseband", "(unknown)");
     bootloader = android::base::GetProperty("ro.bootloader", "(unknown)");
     network = android::base::GetProperty("gsm.operator.alpha", "(unknown)");
+    sdkversion = android::base::GetProperty("ro.build.version.sdk", "(unknown)");
     strftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S", localtime(&now_));
 
     printf("========================================================\n");
@@ -790,9 +792,10 @@ void Dumpstate::PrintHeader() const {
     if (module_metadata_version != 0) {
         printf("Module Metadata version: %" PRId64 "\n", module_metadata_version);
     }
-    printf("SDK extension versions [r=%s s=%s]\n",
-           android::base::GetProperty("build.version.extensions.r", "-").c_str(),
-           android::base::GetProperty("build.version.extensions.s", "-").c_str());
+    printf("Android SDK version: %s\n", sdkversion.c_str());
+    printf("SDK extensions: ");
+    RunCommandToFd(STDOUT_FILENO, "", {SDK_EXT_INFO, "--header"},
+                   CommandOptions::WithTimeout(1).Always().DropRoot().Build());
 
     printf("Kernel: ");
     DumpFileToFd(STDOUT_FILENO, "", "/proc/version");
@@ -1858,6 +1861,9 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     DumpFile("PSI cpu", "/proc/pressure/cpu");
     DumpFile("PSI memory", "/proc/pressure/memory");
     DumpFile("PSI io", "/proc/pressure/io");
+
+    RunCommand("SDK EXTENSIONS", {SDK_EXT_INFO, "--dump"},
+               CommandOptions::WithTimeout(10).Always().DropRoot().Build());
 
     if (dump_pool_) {
         RETURN_IF_USER_DENIED_CONSENT();
