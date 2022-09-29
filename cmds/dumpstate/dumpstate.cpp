@@ -1405,7 +1405,9 @@ static void DumpHals(int out_fd = STDOUT_FILENO) {
 // Dump all of the files that make up the vendor interface.
 // See the files listed in dumpFileList() for the latest list of files.
 static void DumpVintf() {
-    const auto vintfFiles = android::vintf::details::dumpFileList();
+
+    const std::string sku = android::base::GetProperty("ro.boot.product.hardware.sku", "");
+    const auto vintfFiles = android::vintf::details::dumpFileList(sku);
     for (const auto vintfFile : vintfFiles) {
         struct stat st;
         if (stat(vintfFile.c_str(), &st) == 0) {
