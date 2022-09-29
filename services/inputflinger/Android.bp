@@ -139,6 +139,7 @@ filegroup {
         "InputListener.cpp",
         "InputReaderBase.cpp",
         "InputThread.cpp",
+        "NotifyArgs.cpp",
         "VibrationElement.cpp",
     ],
 }
