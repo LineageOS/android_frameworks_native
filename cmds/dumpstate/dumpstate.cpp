@@ -1029,7 +1029,7 @@ static void DumpIncidentReport() {
         MYLOGE("Could not open %s to dump incident report.\n", path.c_str());
         return;
     }
-    RunCommandToFd(fd, "", {"incident", "-u"}, CommandOptions::WithTimeout(120).Build());
+    RunCommandToFd(fd, "", {"incident", "-u"}, CommandOptions::WithTimeout(20).Build());
     bool empty = 0 == lseek(fd, 0, SEEK_END);
     if (!empty) {
         // Use a different name from "incident.proto"
@@ -1087,7 +1087,7 @@ static void DumpVisibleWindowViews() {
         return;
     }
     RunCommandToFd(fd, "", {"cmd", "window", "dump-visible-window-views"},
-                   CommandOptions::WithTimeout(120).Build());
+                   CommandOptions::WithTimeout(10).Build());
     bool empty = 0 == lseek(fd, 0, SEEK_END);
     if (!empty) {
         ds.AddZipEntry("visible_windows.zip", path);
