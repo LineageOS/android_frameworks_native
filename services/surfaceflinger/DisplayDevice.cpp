@@ -238,16 +238,6 @@ nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
     return refreshRateConfigs().getActiveModePtr()->getVsyncPeriod();
 }
 
-nsecs_t DisplayDevice::getRefreshTimestamp() const {
-    const nsecs_t now = systemTime(CLOCK_MONOTONIC);
-    const auto vsyncPeriodNanos = getVsyncPeriodFromHWC();
-    return now - ((now - mLastHwVsync) % vsyncPeriodNanos);
-}
-
-void DisplayDevice::onVsync(nsecs_t timestamp) {
-    mLastHwVsync = timestamp;
-}
-
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
     return mCompositionDisplay->getState().dataspace;
 }

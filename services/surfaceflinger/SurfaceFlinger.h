@@ -608,7 +608,7 @@ private:
     void binderDied(const wp<IBinder>& who) override;
 
     // HWC2::ComposerCallback overrides:
-    void onComposerHalVsync(hal::HWDisplayId, int64_t timestamp,
+    void onComposerHalVsync(hal::HWDisplayId, nsecs_t timestamp,
                             std::optional<hal::VsyncPeriodNanos>) override;
     void onComposerHalHotplug(hal::HWDisplayId, hal::Connection) override;
     void onComposerHalRefresh(hal::HWDisplayId) override;

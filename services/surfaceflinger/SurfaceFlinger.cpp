@@ -1893,17 +1893,12 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
     ATRACE_FORMAT("onComposerHalVsync%s", tracePeriod.c_str());
 
     Mutex::Autolock lock(mStateLock);
-    const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
-    if (displayId) {
-        const auto token = getPhysicalDisplayTokenLocked(*displayId);
-        const auto display = getDisplayDeviceLocked(token);
-        display->onVsync(timestamp);
-    }
 
     if (!getHwComposer().onVsync(hwcDisplayId, timestamp)) {
         return;
     }
 
+    const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
     const bool isActiveDisplay =
             displayId && getPhysicalDisplayTokenLocked(*displayId) == mActiveDisplayToken;
     if (!isActiveDisplay) {
