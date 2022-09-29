@@ -210,8 +210,9 @@ struct SensorEntry : EventEntry {
 
 struct TouchModeEntry : EventEntry {
     bool inTouchMode;
+    int32_t displayId;
 
-    TouchModeEntry(int32_t id, nsecs_t eventTime, bool inTouchMode);
+    TouchModeEntry(int32_t id, nsecs_t eventTime, bool inTouchMode, int32_t displayId);
     std::string getDescription() const override;
 
     ~TouchModeEntry() override;

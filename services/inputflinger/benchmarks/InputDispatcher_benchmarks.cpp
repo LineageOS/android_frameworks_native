@@ -112,8 +112,6 @@ private:
 
     void notifyDropWindow(const sp<IBinder>&, float x, float y) override {}
 
-    bool isPerDisplayTouchModeEnabled() override { return false; }
-
     InputDispatcherConfiguration mConfig;
 };
 
