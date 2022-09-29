@@ -5005,6 +5005,25 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
 
+        // Traversal of drawing state must happen on the main thread.
+        // Otherwise, SortedVector may have shared ownership during concurrent
+        // traversals, which can result in use-after-frees.
+        std::string compositionLayers;
+        mScheduler
+                ->schedule([&] {
+                    StringAppendF(&compositionLayers, "Composition layers\n");
+                    mDrawingState.traverseInZOrder([&](Layer* layer) {
+                        auto* compositionState = layer->getCompositionState();
+                        if (!compositionState || !compositionState->isVisible) return;
+
+                        android::base::StringAppendF(&compositionLayers, "* Layer %p (%s)\n", layer,
+                                                     layer->getDebugName() ? layer->getDebugName()
+                                                                           : "<unknown>");
+                        compositionState->dump(compositionLayers);
+                    });
+                })
+                .get();
+
         bool dumpLayers = true;
         {
             TimedLock lock(mStateLock, s2ns(1), __func__);
@@ -5017,7 +5036,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 (it->second)(args, asProto, result);
                 dumpLayers = false;
             } else if (!asProto) {
-                dumpAllLocked(args, result);
+                dumpAllLocked(args, compositionLayers, result);
             }
         }
 
@@ -5316,7 +5335,8 @@ void SurfaceFlinger::dumpOffscreenLayers(std::string& result) {
     result.append(future.get());
 }
 
-void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) const {
+void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& compositionLayers,
+                                   std::string& result) const {
     const bool colorize = !args.empty() && args[0] == String16("--color");
     Colorizer colorizer(colorize);
 
@@ -5367,18 +5387,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     StringAppendF(&result, "Visible layers (count = %zu)\n", mNumLayers.load());
     colorizer.reset(result);
 
-    {
-        StringAppendF(&result, "Composition layers\n");
-        mDrawingState.traverseInZOrder([&](Layer* layer) {
-            auto* compositionState = layer->getCompositionState();
-            if (!compositionState || !compositionState->isVisible) return;
-
-            android::base::StringAppendF(&result, "* Layer %p (%s)\n", layer,
-                                         layer->getDebugName() ? layer->getDebugName()
-                                                               : "<unknown>");
-            compositionState->dump(result);
-        });
-    }
+    result.append(compositionLayers);
 
     colorizer.bold(result);
     StringAppendF(&result, "Displays (%zu entries)\n", mDisplays.size());
