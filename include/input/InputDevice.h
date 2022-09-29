@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android/sensor.h>
+#include <ftl/flags.h>
 #include <input/Input.h>
 #include <input/KeyCharacterMap.h>
 #include <unordered_map>
@@ -105,12 +106,18 @@ enum class InputDeviceSensorReportingMode : int32_t {
 };
 
 enum class InputDeviceLightType : int32_t {
-    MONO = 0,
+    INPUT = 0,
     PLAYER_ID = 1,
-    RGB = 2,
-    MULTI_COLOR = 3,
+    KEYBOARD_BACKLIGHT = 2,
 
-    ftl_last = MULTI_COLOR
+    ftl_last = KEYBOARD_BACKLIGHT
+};
+
+enum class InputDeviceLightCapability : uint32_t {
+    /** Capability to change brightness of the light */
+    BRIGHTNESS = 0x00000001,
+    /** Capability to change color of the light */
+    RGB = 0x00000002,
 };
 
 struct InputDeviceSensorInfo {
@@ -171,14 +178,17 @@ struct InputDeviceSensorInfo {
 
 struct InputDeviceLightInfo {
     explicit InputDeviceLightInfo(std::string name, int32_t id, InputDeviceLightType type,
+                                  ftl::Flags<InputDeviceLightCapability> capabilityFlags,
                                   int32_t ordinal)
-          : name(name), id(id), type(type), ordinal(ordinal) {}
+          : name(name), id(id), type(type), capabilityFlags(capabilityFlags), ordinal(ordinal) {}
     // Name string of the light.
     std::string name;
     // Light id
     int32_t id;
     // Type of the light.
     InputDeviceLightType type;
+    // Light capabilities.
+    ftl::Flags<InputDeviceLightCapability> capabilityFlags;
     // Ordinal of the light
     int32_t ordinal;
 };

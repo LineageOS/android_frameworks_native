@@ -912,8 +912,9 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     uncacheBuffer.token = BufferCache::getInstance().getToken();
     uncacheBuffer.id = cacheId;
 
-    sf->setTransactionState(FrameTimelineInfo{}, {}, {}, 0, Transaction::getDefaultApplyToken(), {},
-                            systemTime(), true, uncacheBuffer, false, {}, generateId());
+    sf->setTransactionState(FrameTimelineInfo{}, {}, {}, ISurfaceComposer::eOneWay,
+                            Transaction::getDefaultApplyToken(), {}, systemTime(), true,
+                            uncacheBuffer, false, {}, generateId());
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {
