@@ -41,7 +41,7 @@ using base::StringPrintf;
 #if RPC_FLAKE_PRONE
 void rpcMaybeWaitToFlake() {
     [[clang::no_destroy]] static std::random_device r;
-    [[clang::no_destroy]] static std::mutex m;
+    [[clang::no_destroy]] static RpcMutex m;
     unsigned num;
     {
         RpcMutexLockGuard lock(m);
