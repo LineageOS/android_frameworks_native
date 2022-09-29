@@ -89,7 +89,6 @@ cc_library {
             shared_libs: [
                 "libutils",
                 "libbinder",
-                "libui",
             ],
 
             static_libs: [
