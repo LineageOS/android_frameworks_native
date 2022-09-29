@@ -3228,7 +3228,6 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
     }
 
     doCommitTransactions();
-    signalSynchronousTransactions(CountDownLatch::eSyncTransaction);
 }
 
 void SurfaceFlinger::updateInputFlinger() {
@@ -3825,10 +3824,6 @@ bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactio
                                       transaction.permissions, transaction.hasListenerCallbacks,
                                       transaction.listenerCallbacks, transaction.originPid,
                                       transaction.originUid, transaction.id);
-        if (transaction.transactionCommittedSignal) {
-            mTransactionCommittedSignals.emplace_back(
-                    std::move(transaction.transactionCommittedSignal));
-        }
     }
 
     if (mTransactionTracing) {
@@ -4004,12 +3999,6 @@ auto SurfaceFlinger::transactionIsReadyToBeApplied(
 }
 
 void SurfaceFlinger::queueTransaction(TransactionState& state) {
-    // Generate a CountDownLatch pending state if this is a synchronous transaction.
-    if (state.flags & eSynchronous) {
-        state.transactionCommittedSignal =
-                std::make_shared<CountDownLatch>(CountDownLatch::eSyncTransaction);
-    }
-
     mLocklessTransactionQueue.push(state);
     mPendingTransactionCount++;
     ATRACE_INT("TransactionQueue", mPendingTransactionCount.load());
@@ -4023,28 +4012,6 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
     const auto frameHint = state.isFrameActive() ? FrameHint::kActive : FrameHint::kNone;
 
     setTransactionFlags(eTransactionFlushNeeded, schedule, state.applyToken, frameHint);
-}
-
-void SurfaceFlinger::waitForSynchronousTransaction(
-        const CountDownLatch& transactionCommittedSignal) {
-    // applyTransactionState is called on the main SF thread.  While a given process may wish
-    // to wait on synchronous transactions, the main SF thread should apply the transaction and
-    // set the value to notify this after committed.
-    if (!transactionCommittedSignal.wait_until(
-                std::chrono::nanoseconds(mAnimationTransactionTimeout))) {
-        ALOGE("setTransactionState timed out!");
-    }
-}
-
-void SurfaceFlinger::signalSynchronousTransactions(const uint32_t flag) {
-    for (auto it = mTransactionCommittedSignals.begin();
-         it != mTransactionCommittedSignals.end();) {
-        if ((*it)->countDown(flag)) {
-            it = mTransactionCommittedSignals.erase(it);
-        } else {
-            it++;
-        }
-    }
 }
 
 status_t SurfaceFlinger::setTransactionState(
@@ -4098,11 +4065,6 @@ status_t SurfaceFlinger::setTransactionState(
         mTransactionTracing->addQueuedTransaction(state);
     }
     queueTransaction(state);
-
-    // Check the pending state to make sure the transaction is synchronous.
-    if (state.transactionCommittedSignal) {
-        waitForSynchronousTransaction(*state.transactionCommittedSignal);
-    }
 
     return NO_ERROR;
 }
@@ -4160,8 +4122,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     // anyway. This can be used as a flush mechanism for previous async transactions.
     // Empty animation transaction can be used to simulate back-pressure, so also force a
     // transaction for empty animation transactions.
-    if (transactionFlags == 0 &&
-            ((flags & eSynchronous) || (flags & eAnimation))) {
+    if (transactionFlags == 0 && (flags & eAnimation)) {
         transactionFlags = eTransactionNeeded;
     }
 

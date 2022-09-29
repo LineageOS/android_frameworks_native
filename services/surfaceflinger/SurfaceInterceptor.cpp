@@ -127,7 +127,6 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
 {
     Transaction* transaction(increment->mutable_transaction());
     const uint32_t layerFlags = layer->getTransactionFlags();
-    transaction->set_synchronous(layerFlags & BnSurfaceComposer::eSynchronous);
     transaction->set_animation(layerFlags & BnSurfaceComposer::eAnimation);
 
     const int32_t layerId(getLayerId(layer));
@@ -495,7 +494,6 @@ void SurfaceInterceptor::addTransactionLocked(
         const Vector<DisplayState>& changedDisplays, uint32_t transactionFlags, int originPid,
         int originUid, uint64_t transactionId) {
     Transaction* transaction(increment->mutable_transaction());
-    transaction->set_synchronous(transactionFlags & BnSurfaceComposer::eSynchronous);
     transaction->set_animation(transactionFlags & BnSurfaceComposer::eAnimation);
     setTransactionOriginLocked(transaction, originPid, originUid);
     transaction->set_id(transactionId);

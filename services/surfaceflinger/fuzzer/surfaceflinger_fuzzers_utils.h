@@ -455,10 +455,6 @@ public:
         mFlinger->calculateColorMatrix(fdp->ConsumeFloatingPoint<float>());
         mFlinger->updateColorMatrixLocked();
         mFlinger->CheckTransactCodeCredentials(fdp->ConsumeIntegral<uint32_t>());
-
-        const CountDownLatch transactionCommittedSignal(fdp->ConsumeIntegral<uint32_t>());
-        mFlinger->waitForSynchronousTransaction(transactionCommittedSignal);
-        mFlinger->signalSynchronousTransactions(fdp->ConsumeIntegral<uint32_t>());
     }
 
     void getCompositionPreference() {
