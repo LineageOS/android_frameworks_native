@@ -63,7 +63,6 @@ cc_defaults {
         "libstatslog",
         "libstatspull",
         "libstatssocket",
-        "libui",
         "libgui",
         "libutils",
         "server_configurable_flags",

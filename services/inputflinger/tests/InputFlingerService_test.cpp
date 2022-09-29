@@ -33,8 +33,6 @@
 #include <inttypes.h>
 #include <linux/uinput.h>
 #include <log/log.h>
-#include <ui/Rect.h>
-#include <ui/Region.h>
 #include <chrono>
 #include <thread>
 #include <unordered_map>
