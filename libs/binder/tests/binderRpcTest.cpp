@@ -85,6 +85,11 @@ static std::string WaitStatusToString(int wstatus) {
     return base::StringPrintf("unexpected state %d", wstatus);
 }
 
+static void debugBacktrace(pid_t pid) {
+    std::cerr << "TAKING BACKTRACE FOR PID " << pid << std::endl;
+    system((std::string("debuggerd -b ") + std::to_string(pid)).c_str());
+}
+
 class Process {
 public:
     Process(Process&&) = default;
@@ -124,6 +129,8 @@ public:
 
     // Kill the process. Avoid if possible. Shutdown gracefully via an RPC instead.
     void terminate() { kill(mPid, SIGTERM); }
+
+    pid_t getPid() { return mPid; }
 
 private:
     std::function<void(int wstatus)> mCustomExitStatusCheck;
@@ -173,7 +180,9 @@ struct ProcessSession {
 
             wp<RpcSession> weakSession = session;
             session = nullptr;
-            EXPECT_EQ(nullptr, weakSession.promote()) << "Leaked session";
+
+            EXPECT_EQ(nullptr, weakSession.promote())
+                    << (debugBacktrace(host.getPid()), debugBacktrace(getpid()), "Leaked session");
         }
     }
 };
