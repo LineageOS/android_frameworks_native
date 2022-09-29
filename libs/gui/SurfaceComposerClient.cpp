@@ -627,7 +627,6 @@ SurfaceComposerClient::Transaction::Transaction() {
 
 SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
       : mId(other.mId),
-        mForceSynchronous(other.mForceSynchronous),
         mTransactionNestCount(other.mTransactionNestCount),
         mAnimation(other.mAnimation),
         mEarlyWakeupStart(other.mEarlyWakeupStart),
@@ -662,7 +661,6 @@ SurfaceComposerClient::Transaction::createFromParcel(const Parcel* parcel) {
 
 status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel) {
     const uint64_t transactionId = parcel->readUint64();
-    const uint32_t forceSynchronous = parcel->readUint32();
     const uint32_t transactionNestCount = parcel->readUint32();
     const bool animation = parcel->readBool();
     const bool earlyWakeupStart = parcel->readBool();
@@ -739,7 +737,6 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
 
     // Parsing was successful. Update the object.
     mId = transactionId;
-    mForceSynchronous = forceSynchronous;
     mTransactionNestCount = transactionNestCount;
     mAnimation = animation;
     mEarlyWakeupStart = earlyWakeupStart;
@@ -770,7 +767,6 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     const_cast<SurfaceComposerClient::Transaction*>(this)->cacheBuffers();
 
     parcel->writeUint64(mId);
-    parcel->writeUint32(mForceSynchronous);
     parcel->writeUint32(mTransactionNestCount);
     parcel->writeBool(mAnimation);
     parcel->writeBool(mEarlyWakeupStart);
@@ -890,7 +886,6 @@ void SurfaceComposerClient::Transaction::clear() {
     mListenerCallbacks.clear();
     mInputWindowCommands.clear();
     mMayContainBuffer = false;
-    mForceSynchronous = 0;
     mTransactionNestCount = 0;
     mAnimation = false;
     mEarlyWakeupStart = false;
@@ -1002,27 +997,25 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
     Vector<DisplayState> displayStates;
     uint32_t flags = 0;
 
-    mForceSynchronous |= synchronous;
-
     for (auto const& kv : mComposerStates){
         composerStates.add(kv.second);
     }
 
     displayStates = std::move(mDisplayStates);
 
-    if (mForceSynchronous) {
+    if (synchronous) {
         flags |= ISurfaceComposer::eSynchronous;
     }
     if (mAnimation) {
         flags |= ISurfaceComposer::eAnimation;
     }
     if (oneWay) {
-      if (mForceSynchronous) {
-          ALOGE("Transaction attempted to set synchronous and one way at the same time"
-                " this is an invalid request. Synchronous will win for safety");
-      } else {
-          flags |= ISurfaceComposer::eOneWay;
-      }
+        if (synchronous) {
+            ALOGE("Transaction attempted to set synchronous and one way at the same time"
+                  " this is an invalid request. Synchronous will win for safety");
+        } else {
+            flags |= ISurfaceComposer::eOneWay;
+        }
     }
 
     // If both mEarlyWakeupStart and mEarlyWakeupEnd are set
@@ -2020,7 +2013,6 @@ void SurfaceComposerClient::Transaction::setDisplayProjection(const sp<IBinder>&
     s.layerStackSpaceRect = layerStackRect;
     s.orientedDisplaySpaceRect = displayRect;
     s.what |= DisplayState::eDisplayProjectionChanged;
-    mForceSynchronous = true; // TODO: do we actually still need this?
 }
 
 void SurfaceComposerClient::Transaction::setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height) {

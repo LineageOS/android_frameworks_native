@@ -403,7 +403,6 @@ public:
 
         uint64_t mId;
 
-        uint32_t mForceSynchronous = 0;
         uint32_t mTransactionNestCount = 0;
         bool mAnimation = false;
         bool mEarlyWakeupStart = false;
