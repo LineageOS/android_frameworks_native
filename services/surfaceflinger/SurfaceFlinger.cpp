@@ -497,14 +497,13 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
     // the window manager died on us. prepare its eulogy.
     mBootFinished = false;
 
-    // Sever the link to inputflinger since it's gone as well.
-    static_cast<void>(mScheduler->schedule(
-            [this] { mInputFlinger.clear(); }));
+    static_cast<void>(mScheduler->schedule([this]() FTL_FAKE_GUARD(kMainThreadContext) {
+        // Sever the link to inputflinger since it's gone as well.
+        mInputFlinger.clear();
 
-    // restore initial conditions (default device unblank, etc)
-    initializeDisplays();
+        initializeDisplays();
+    }));
 
-    // restart the boot-animation
     startBootAnim();
 }
 
@@ -873,7 +872,9 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     mDrawingState = mCurrentState;
 
     onActiveDisplayChangedLocked(nullptr, *display);
-    initializeDisplays();
+
+    static_cast<void>(mScheduler->schedule(
+            [this]() FTL_FAKE_GUARD(kMainThreadContext) { initializeDisplays(); }));
 
     mPowerAdvisor->init();
 
@@ -5245,7 +5246,7 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32
     setTransactionFlags(eTransactionFlushNeeded);
 }
 
-void SurfaceFlinger::onInitializeDisplays() {
+void SurfaceFlinger::initializeDisplays() {
     const auto display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
     if (!display) return;
 
@@ -5290,12 +5291,6 @@ void SurfaceFlinger::onInitializeDisplays() {
         ftl::FakeGuard guard(mStateLock);
         setPowerModeInternal(display, hal::PowerMode::ON);
     }
-}
-
-void SurfaceFlinger::initializeDisplays() {
-    // Async since we may be called from the main thread.
-    static_cast<void>(mScheduler->schedule(
-            [this]() FTL_FAKE_GUARD(kMainThreadContext) { onInitializeDisplays(); }));
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {
