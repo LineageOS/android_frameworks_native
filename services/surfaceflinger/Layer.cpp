@@ -4241,6 +4241,38 @@ void Layer::updateSnapshot(bool updateGeometry) {
     preparePerFrameCompositionState();
 }
 
+void Layer::updateMetadataSnapshot(const LayerMetadata& parentMetadata) {
+    mSnapshot->layerMetadata = parentMetadata;
+    mSnapshot->layerMetadata.merge(mDrawingState.metadata);
+    for (const sp<Layer>& child : mDrawingChildren) {
+        child->updateMetadataSnapshot(mSnapshot->layerMetadata);
+    }
+}
+
+void Layer::updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMetadata,
+                                           std::unordered_set<Layer*>& visited) {
+    if (visited.find(this) != visited.end()) {
+        ALOGW("Cycle containing layer %s detected in z-order relatives", getDebugName());
+        return;
+    }
+    visited.insert(this);
+
+    mSnapshot->relativeLayerMetadata = relativeLayerMetadata;
+
+    if (mDrawingState.zOrderRelatives.empty()) {
+        return;
+    }
+    LayerMetadata childRelativeLayerMetadata = mSnapshot->relativeLayerMetadata;
+    childRelativeLayerMetadata.merge(mSnapshot->layerMetadata);
+    for (wp<Layer> weakRelative : mDrawingState.zOrderRelatives) {
+        sp<Layer> relative = weakRelative.promote();
+        if (!relative) {
+            continue;
+        }
+        relative->updateRelativeMetadataSnapshot(childRelativeLayerMetadata, visited);
+    }
+}
+
 // ---------------------------------------------------------------------------
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate) {

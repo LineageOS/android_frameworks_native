@@ -477,6 +477,8 @@ public:
         return mFlinger->mirrorLayer(args, mirrorFromHandle, outHandle, outLayerId);
     }
 
+    void updateLayerMetadataSnapshot() { mFlinger->updateLayerMetadataSnapshot(); }
+
     /* ------------------------------------------------------------------------
      * Read-only access to private data to assert post-conditions.
      */

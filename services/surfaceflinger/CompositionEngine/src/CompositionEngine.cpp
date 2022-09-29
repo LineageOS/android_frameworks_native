@@ -140,6 +140,10 @@ void CompositionEngine::preComposition(CompositionRefreshArgs& args) {
     mNeedsAnotherUpdate = needsAnotherUpdate;
 }
 
+FeatureFlags CompositionEngine::getFeatureFlags() const {
+    return {};
+}
+
 void CompositionEngine::dump(std::string&) const {
     // The base class has no state to dump, but derived classes might.
 }

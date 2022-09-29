@@ -699,6 +699,7 @@ private:
     bool latchBuffers();
 
     void updateLayerGeometry();
+    void updateLayerMetadataSnapshot();
 
     void updateInputFlinger();
     void persistDisplayBrightness(bool needsComposite) REQUIRES(kMainThreadContext);
@@ -1175,6 +1176,9 @@ private:
     bool mSomeChildrenChanged;
     bool mSomeDataspaceChanged = false;
     bool mForceTransactionDisplayChange = false;
+
+    // Set if LayerMetadata has changed since the last LayerMetadata snapshot.
+    bool mLayerMetadataSnapshotNeeded = false;
 
     // Tracks layers that have pending frames which are candidates for being
     // latched.

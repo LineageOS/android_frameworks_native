@@ -39,6 +39,10 @@ namespace android {
 
 class Fence;
 
+namespace gui {
+struct LayerMetadata;
+}
+
 namespace compositionengine {
 
 struct LayerFECompositionState;
@@ -144,6 +148,8 @@ public:
     // Whether the layer should be rendered with rounded corners.
     virtual bool hasRoundedCorners() const = 0;
     virtual void setWasClientComposed(const sp<Fence>&) {}
+    virtual const gui::LayerMetadata* getMetadata() const = 0;
+    virtual const gui::LayerMetadata* getRelativeMetadata() const = 0;
 };
 
 // TODO(b/121291683): Specialize std::hash<> for sp<T> so these and others can
