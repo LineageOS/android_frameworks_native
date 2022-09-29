@@ -595,7 +595,7 @@ public:
     // uid.
     uid_t               readCallingWorkSourceUid() const;
 
-    void                print(TextOutput& to, uint32_t flags = 0) const;
+    void print(std::ostream& to, uint32_t flags = 0) const;
 
 private:
     // `objects` and `objectsSize` always 0 for RPC Parcels.
@@ -1594,8 +1594,7 @@ status_t Parcel::readNullableStrongBinder(sp<T>* val) const {
 
 // ---------------------------------------------------------------------------
 
-inline TextOutput& operator<<(TextOutput& to, const Parcel& parcel)
-{
+inline std::ostream& operator<<(std::ostream& to, const Parcel& parcel) {
     parcel.print(to);
     return to;
 }
