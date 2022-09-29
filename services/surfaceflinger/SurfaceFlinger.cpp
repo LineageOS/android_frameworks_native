@@ -4224,7 +4224,7 @@ bool SurfaceFlinger::flushTransactionQueues(VsyncId vsyncId) {
 
 bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactions,
                                        VsyncId vsyncId) {
-    Mutex::Autolock _l(mStateLock);
+    Mutex::Autolock lock(mStateLock);
     return applyTransactionsLocked(transactions, vsyncId);
 }
 
@@ -4505,7 +4505,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
 
 bool SurfaceFlinger::applyAndCommitDisplayTransactionStates(
         std::vector<TransactionState>& transactions) {
-    Mutex::Autolock _l(mStateLock);
+    Mutex::Autolock lock(mStateLock);
     bool needsTraversal = false;
     uint32_t transactionFlags = 0;
     for (auto& transaction : transactions) {
@@ -5246,7 +5246,7 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32
 }
 
 void SurfaceFlinger::onInitializeDisplays() {
-    const auto display = getDefaultDisplayDeviceLocked();
+    const auto display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
     if (!display) return;
 
     const sp<IBinder> token = display->getDisplayToken().promote();
@@ -5254,13 +5254,13 @@ void SurfaceFlinger::onInitializeDisplays() {
 
     TransactionState state;
     state.inputWindowCommands = mInputWindowCommands;
-    nsecs_t now = systemTime();
+    const nsecs_t now = systemTime();
     state.desiredPresentTime = now;
     state.postTime = now;
     state.permissions = layer_state_t::ACCESS_SURFACE_FLINGER;
     state.originPid = mPid;
     state.originUid = static_cast<int>(getuid());
-    uint64_t transactionId = (((uint64_t)mPid) << 32) | mUniqueTransactionId++;
+    const uint64_t transactionId = (static_cast<uint64_t>(mPid) << 32) | mUniqueTransactionId++;
     state.id = transactionId;
 
     // reset screen orientation and use primary layer stack
@@ -5280,21 +5280,22 @@ void SurfaceFlinger::onInitializeDisplays() {
     std::vector<TransactionState> transactions;
     transactions.emplace_back(state);
 
-    // It should be on the main thread, apply it directly.
     if (mLegacyFrontEndEnabled) {
-        applyTransactionsLocked(transactions, /*vsyncId=*/{0});
+        applyTransactions(transactions, VsyncId{0});
     } else {
         applyAndCommitDisplayTransactionStates(transactions);
     }
 
-    setPowerModeInternal(display, hal::PowerMode::ON);
+    {
+        ftl::FakeGuard guard(mStateLock);
+        setPowerModeInternal(display, hal::PowerMode::ON);
+    }
 }
 
 void SurfaceFlinger::initializeDisplays() {
     // Async since we may be called from the main thread.
     static_cast<void>(mScheduler->schedule(
-            [this]() FTL_FAKE_GUARD(mStateLock)
-                    FTL_FAKE_GUARD(kMainThreadContext) { onInitializeDisplays(); }));
+            [this]() FTL_FAKE_GUARD(kMainThreadContext) { onInitializeDisplays(); }));
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {

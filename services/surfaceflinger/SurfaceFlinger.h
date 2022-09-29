@@ -857,7 +857,7 @@ private:
 
     // Called during boot, and restart after system_server death.
     void initializeDisplays();
-    void onInitializeDisplays() REQUIRES(mStateLock, kMainThreadContext);
+    void onInitializeDisplays() REQUIRES(kMainThreadContext);
 
     sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) const
             REQUIRES(mStateLock) {
