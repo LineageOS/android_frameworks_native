@@ -204,13 +204,12 @@ void Display::setReleasedLayers(const compositionengine::CompositionRefreshArgs&
     setReleasedLayers(std::move(releasedLayers));
 }
 
-void Display::applyDisplayBrightness(const bool applyImmediately) {
-    auto& hwc = getCompositionEngine().getHwComposer();
-    const auto halDisplayId = HalDisplayId::tryCast(*getDisplayId());
-    if (const auto physicalDisplayId = PhysicalDisplayId::tryCast(*halDisplayId);
-        physicalDisplayId && getState().displayBrightness) {
+void Display::applyDisplayBrightness(bool applyImmediately) {
+    if (const auto displayId = ftl::Optional(getDisplayId()).and_then(PhysicalDisplayId::tryCast);
+        displayId && getState().displayBrightness) {
+        auto& hwc = getCompositionEngine().getHwComposer();
         const status_t result =
-                hwc.setDisplayBrightness(*physicalDisplayId, *getState().displayBrightness,
+                hwc.setDisplayBrightness(*displayId, *getState().displayBrightness,
                                          getState().displayBrightnessNits,
                                          Hwc2::Composer::DisplayBrightnessOptions{
                                                  .applyImmediately = applyImmediately})
