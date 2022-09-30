@@ -158,7 +158,6 @@ public:
         if (!mFlinger) {
             mFlinger = sp<SurfaceFlinger>::make(mFactory, SurfaceFlinger::SkipInitialization);
         }
-        mFlinger->mAnimationTransactionTimeout = ms2ns(10);
     }
 
     SurfaceFlinger* flinger() { return mFlinger.get(); }
@@ -420,7 +419,6 @@ public:
 
     auto& getTransactionQueue() { return mFlinger->mLocklessTransactionQueue; }
     auto& getPendingTransactionQueue() { return mFlinger->mPendingTransactionQueues; }
-    auto& getTransactionCommittedSignals() { return mFlinger->mTransactionCommittedSignals; }
 
     auto setTransactionState(
             const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
@@ -491,10 +489,6 @@ public:
 
     mock::FrameTracer* getFrameTracer() const {
         return static_cast<mock::FrameTracer*>(mFlinger->mFrameTracer.get());
-    }
-
-    nsecs_t getAnimationTransactionTimeout() const {
-        return mFlinger->mAnimationTransactionTimeout;
     }
 
     /* ------------------------------------------------------------------------

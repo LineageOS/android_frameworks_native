@@ -1095,8 +1095,6 @@ private:
 
     // Add transaction to the Transaction Queue
     void queueTransaction(TransactionState& state);
-    void waitForSynchronousTransaction(const CountDownLatch& transactionCommittedSignal);
-    void signalSynchronousTransactions(const uint32_t flag);
 
     /*
      * Generic Layer Metadata
@@ -1129,7 +1127,6 @@ private:
     mutable Mutex mStateLock;
     State mCurrentState{LayerVector::StateSet::Current};
     std::atomic<int32_t> mTransactionFlags = 0;
-    std::vector<std::shared_ptr<CountDownLatch>> mTransactionCommittedSignals;
     std::atomic<uint32_t> mUniqueTransactionId = 1;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
 
@@ -1417,8 +1414,6 @@ private:
         bool late = false;
         bool early = false;
     } mPowerHintSessionMode;
-
-    nsecs_t mAnimationTransactionTimeout = s2ns(5);
 
     friend class SurfaceComposerAIDL;
 };
