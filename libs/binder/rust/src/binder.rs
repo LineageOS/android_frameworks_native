@@ -1091,7 +1091,7 @@ macro_rules! declare_binder_enum {
         }
     } => {
         $( #[$attr] )*
-        #[derive(Debug, Default, Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
+        #[derive(Default, Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
         #[allow(missing_docs)]
         pub struct $enum(pub $backing);
         impl $enum {
@@ -1101,6 +1101,15 @@ macro_rules! declare_binder_enum {
             #[allow(missing_docs)]
             pub const fn enum_values() -> [Self; $size] {
                 [$(Self::$name),*]
+            }
+        }
+
+        impl std::fmt::Debug for $enum {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self.0 {
+                    $($value => f.write_str(stringify!($name)),)*
+                    _ => f.write_fmt(format_args!("{}", self.0))
+                }
             }
         }
 
