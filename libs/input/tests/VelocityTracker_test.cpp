@@ -223,10 +223,10 @@ static std::vector<MotionEvent> createTouchMotionEventStream(
     return events;
 }
 
-static void computeAndCheckVelocity(const VelocityTracker::Strategy strategy,
-                                    const std::vector<PlanarMotionEventEntry>& motions,
-                                    int32_t axis, float targetVelocity,
-                                    uint32_t pointerId = DEFAULT_POINTER_ID) {
+static std::optional<float> computePlanarVelocity(
+        const VelocityTracker::Strategy strategy,
+        const std::vector<PlanarMotionEventEntry>& motions, int32_t axis,
+        uint32_t pointerId = DEFAULT_POINTER_ID) {
     VelocityTracker vt(strategy);
 
     std::vector<MotionEvent> events = createTouchMotionEventStream(motions);
@@ -234,21 +234,45 @@ static void computeAndCheckVelocity(const VelocityTracker::Strategy strategy,
         vt.addMovement(&event);
     }
 
-    checkVelocity(vt.getVelocity(axis, pointerId).value_or(0), targetVelocity);
+    return vt.getVelocity(axis, pointerId);
+}
+
+static std::vector<MotionEvent> createMotionEventStream(
+        int32_t axis, const std::vector<std::pair<std::chrono::nanoseconds, float>>& motion) {
+    switch (axis) {
+        case AMOTION_EVENT_AXIS_SCROLL:
+            return createAxisScrollMotionEventStream(motion);
+        default:
+            ADD_FAILURE() << "Axis " << axis << " is not supported";
+            return {};
+    }
+}
+
+static std::optional<float> computeVelocity(
+        const VelocityTracker::Strategy strategy,
+        const std::vector<std::pair<std::chrono::nanoseconds, float>>& motions, int32_t axis) {
+    VelocityTracker vt(strategy);
+
+    for (const MotionEvent& event : createMotionEventStream(axis, motions)) {
+        vt.addMovement(&event);
+    }
+
+    return vt.getVelocity(axis, DEFAULT_POINTER_ID);
+}
+
+static void computeAndCheckVelocity(const VelocityTracker::Strategy strategy,
+                                    const std::vector<PlanarMotionEventEntry>& motions,
+                                    int32_t axis, float targetVelocity,
+                                    uint32_t pointerId = DEFAULT_POINTER_ID) {
+    checkVelocity(computePlanarVelocity(strategy, motions, axis, pointerId).value_or(0),
+                  targetVelocity);
 }
 
 static void computeAndCheckAxisScrollVelocity(
         const VelocityTracker::Strategy strategy,
         const std::vector<std::pair<std::chrono::nanoseconds, float>>& motions,
         std::optional<float> targetVelocity) {
-    VelocityTracker vt(strategy);
-
-    std::vector<MotionEvent> events = createAxisScrollMotionEventStream(motions);
-    for (const MotionEvent& event : events) {
-        vt.addMovement(&event);
-    }
-
-    std::optional<float> velocity = vt.getVelocity(AMOTION_EVENT_AXIS_SCROLL, DEFAULT_POINTER_ID);
+    std::optional<float> velocity = computeVelocity(strategy, motions, AMOTION_EVENT_AXIS_SCROLL);
     if (velocity && !targetVelocity) {
         FAIL() << "Expected no velocity, but found " << *velocity;
     }
@@ -280,6 +304,20 @@ static void computeAndCheckQuadraticEstimate(const std::vector<PlanarMotionEvent
 /*
  * ================== VelocityTracker tests generated manually =====================================
  */
+TEST_F(VelocityTrackerTest, TestDefaultStrategiesForPlanarAxes) {
+    std::vector<PlanarMotionEventEntry> motions = {{10ms, {{2, 4}}},
+                                                   {20ms, {{4, 12}}},
+                                                   {30ms, {{6, 20}}},
+                                                   {40ms, {{10, 30}}}};
+
+    EXPECT_EQ(computePlanarVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X),
+              computePlanarVelocity(VelocityTracker::Strategy::DEFAULT, motions,
+                                    AMOTION_EVENT_AXIS_X));
+    EXPECT_EQ(computePlanarVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_Y),
+              computePlanarVelocity(VelocityTracker::Strategy::DEFAULT, motions,
+                                    AMOTION_EVENT_AXIS_Y));
+}
+
 TEST_F(VelocityTrackerTest, TestComputedVelocity) {
     VelocityTracker::ComputedVelocity computedVelocity;
 
@@ -1227,6 +1265,20 @@ TEST_F(VelocityTrackerTest, AxisScrollVelocity_ScrollDown_ThenUp_ThenDown) {
 }
 
 // ------------------------------- Hand generated test cases ---------------------------------------
+TEST_F(VelocityTrackerTest, TestDefaultStrategyForAxisScroll) {
+    std::vector<std::pair<std::chrono::nanoseconds, float>> motions = {
+            {10ms, 20},
+            {20ms, 25},
+            {30ms, 50},
+            {40ms, 100},
+    };
+
+    EXPECT_EQ(computeVelocity(VelocityTracker::Strategy::IMPULSE, motions,
+                              AMOTION_EVENT_AXIS_SCROLL),
+              computeVelocity(VelocityTracker::Strategy::DEFAULT, motions,
+                              AMOTION_EVENT_AXIS_SCROLL));
+}
+
 TEST_F(VelocityTrackerTest, AxisScrollVelocity_SimilarDifferentialValues) {
     std::vector<std::pair<std::chrono::nanoseconds, float>> motions = {{1ns, 2.12},  {3ns, 2.12},
                                                                        {7ns, 2.12},  {8ns, 2.12},
