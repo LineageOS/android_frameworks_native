@@ -1418,17 +1418,28 @@ std::shared_ptr<const EventHub::AssociatedDevice> EventHub::obtainAssociatedDevi
     }
 
     const auto& path = *sysfsRootPathOpt;
-    for (const auto& [id, dev] : mDevices) {
-        if (dev->associatedDevice && dev->associatedDevice->sysfsRootPath == path) {
-            return dev->associatedDevice;
-        }
-    }
 
-    return std::make_shared<AssociatedDevice>(
+    std::shared_ptr<const AssociatedDevice> associatedDevice = std::make_shared<AssociatedDevice>(
             AssociatedDevice{.sysfsRootPath = path,
                              .countryCode = readCountryCodeLocked(path),
                              .batteryInfos = readBatteryConfiguration(path),
                              .lightInfos = readLightsConfiguration(path)});
+
+    bool associatedDeviceChanged = false;
+    for (const auto& [id, dev] : mDevices) {
+        if (dev->associatedDevice && dev->associatedDevice->sysfsRootPath == path) {
+            if (*associatedDevice != *dev->associatedDevice) {
+                associatedDeviceChanged = true;
+                dev->associatedDevice = associatedDevice;
+            }
+            associatedDevice = dev->associatedDevice;
+        }
+    }
+    ALOGI_IF(associatedDeviceChanged,
+             "The AssociatedDevice changed for path '%s'. Using new AssociatedDevice: %s",
+             path.c_str(), associatedDevice->dump().c_str());
+
+    return associatedDevice;
 }
 
 void EventHub::vibrate(int32_t deviceId, const VibrationElement& element) {
@@ -1638,11 +1649,9 @@ std::optional<int32_t> EventHub::getBatteryStatus(int32_t deviceId, int32_t batt
 std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
     std::scoped_lock _l(mLock);
 
-    constexpr size_t bufferSize = EVENT_BUFFER_SIZE;
-    struct input_event readBuffer[bufferSize];
+    std::array<input_event, EVENT_BUFFER_SIZE> readBuffer;
 
     std::vector<RawEvent> events;
-    size_t capacity = bufferSize;
     bool awoken = false;
     for (;;) {
         nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
@@ -1672,7 +1681,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
             });
             it = mClosingDevices.erase(it);
             mNeedToSendFinishedDeviceScan = true;
-            if (events.size() == capacity) {
+            if (events.size() == EVENT_BUFFER_SIZE) {
                 break;
             }
         }
@@ -1710,7 +1719,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
                 ALOGW("Device id %d exists, replaced.", device->id);
             }
             mNeedToSendFinishedDeviceScan = true;
-            if (events.size() == capacity) {
+            if (events.size() == EVENT_BUFFER_SIZE) {
                 break;
             }
         }
@@ -1721,7 +1730,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
                     .when = now,
                     .type = FINISHED_DEVICE_SCAN,
             });
-            if (events.size() == capacity) {
+            if (events.size() == EVENT_BUFFER_SIZE) {
                 break;
             }
         }
@@ -1785,12 +1794,13 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
             // This must be an input event
             if (eventItem.events & EPOLLIN) {
                 int32_t readSize =
-                        read(device->fd, readBuffer, sizeof(struct input_event) * capacity);
+                        read(device->fd, readBuffer.data(),
+                             sizeof(decltype(readBuffer)::value_type) * readBuffer.size());
                 if (readSize == 0 || (readSize < 0 && errno == ENODEV)) {
                     // Device was removed before INotify noticed.
                     ALOGW("could not get event, removed? (fd: %d size: %" PRId32
-                          " bufferSize: %zu capacity: %zu errno: %d)\n",
-                          device->fd, readSize, bufferSize, capacity, errno);
+                          " capacity: %zu errno: %d)\n",
+                          device->fd, readSize, readBuffer.size(), errno);
                     deviceChanged = true;
                     closeDeviceLocked(*device);
                 } else if (readSize < 0) {
@@ -1814,7 +1824,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
                                 .value = iev.value,
                         });
                     }
-                    if (events.size() >= capacity) {
+                    if (events.size() >= EVENT_BUFFER_SIZE) {
                         // The result buffer is full.  Reset the pending event index
                         // so we will try to read the device again on the next iteration.
                         mPendingEventIndex -= 1;
@@ -2649,6 +2659,11 @@ void EventHub::dump(std::string& dump) const {
 void EventHub::monitor() const {
     // Acquire and release the lock to ensure that the event hub has not deadlocked.
     std::unique_lock<std::mutex> lock(mLock);
+}
+
+std::string EventHub::AssociatedDevice::dump() const {
+    return StringPrintf("path=%s, numBatteries=%zu, numLight=%zu", sysfsRootPath.c_str(),
+                        batteryInfos.size(), lightInfos.size());
 }
 
 } // namespace android

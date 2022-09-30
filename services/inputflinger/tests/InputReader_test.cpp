@@ -2971,6 +2971,21 @@ TEST_F(InputDeviceTest, Configure_UniqueId_CorrectlyMatches) {
     ASSERT_EQ(DISPLAY_UNIQUE_ID, mDevice->getAssociatedDisplayUniqueId());
 }
 
+/**
+ * This test reproduces a crash caused by a dangling reference that remains after device is added
+ * and removed. The reference is accessed in InputDevice::dump(..);
+ */
+TEST_F(InputDeviceTest, DumpDoesNotCrash) {
+    constexpr int32_t TEST_EVENTHUB_ID = 10;
+    mFakeEventHub->addDevice(TEST_EVENTHUB_ID, "Test EventHub device", InputDeviceClass::BATTERY);
+
+    InputDevice device(mReader->getContext(), 1 /*id*/, 2 /*generation*/, {} /*identifier*/);
+    device.addEventHubDevice(TEST_EVENTHUB_ID, true /*populateMappers*/);
+    device.removeEventHubDevice(TEST_EVENTHUB_ID);
+    std::string dumpStr, eventHubDevStr;
+    device.dump(dumpStr, eventHubDevStr);
+}
+
 // --- InputMapperTest ---
 
 class InputMapperTest : public testing::Test {

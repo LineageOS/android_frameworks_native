@@ -21,7 +21,6 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-
 cc_fuzz {
     name: "inputflinger_latencytracker_fuzzer",
     defaults: [
@@ -34,7 +33,6 @@ cc_fuzz {
         "libbase",
         "libbinder",
         "liblog",
-        "libui",
         "libutils",
         "libinput",
         "libinputflinger",
@@ -43,7 +41,7 @@ cc_fuzz {
         "LatencyTrackerFuzzer.cpp",
     ],
     fuzz_config: {
-       cc: ["android-framework-input@google.com"],
+        cc: ["android-framework-input@google.com"],
     },
 }
 
@@ -63,7 +61,6 @@ cc_defaults {
         "libcutils",
         "liblog",
         "libutils",
-        "libui",
         "libinput",
         "libinputflinger",
         "libinputreader",
@@ -75,7 +72,7 @@ cc_defaults {
         "libinputreader_headers",
     ],
     fuzz_config: {
-       cc: ["android-framework-input@google.com"],
+        cc: ["android-framework-input@google.com"],
     },
 }
 

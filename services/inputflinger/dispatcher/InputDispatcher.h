@@ -41,7 +41,6 @@
 #include <input/InputTransport.h>
 #include <limits.h>
 #include <stddef.h>
-#include <ui/Region.h>
 #include <unistd.h>
 #include <utils/BitSet.h>
 #include <utils/Looper.h>

@@ -1893,17 +1893,12 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
     ATRACE_FORMAT("onComposerHalVsync%s", tracePeriod.c_str());
 
     Mutex::Autolock lock(mStateLock);
-    const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
-    if (displayId) {
-        const auto token = getPhysicalDisplayTokenLocked(*displayId);
-        const auto display = getDisplayDeviceLocked(token);
-        display->onVsync(timestamp);
-    }
 
     if (!getHwComposer().onVsync(hwcDisplayId, timestamp)) {
         return;
     }
 
+    const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
     const bool isActiveDisplay =
             displayId && getPhysicalDisplayTokenLocked(*displayId) == mActiveDisplayToken;
     if (!isActiveDisplay) {
@@ -2210,6 +2205,13 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         displayIds.push_back(display->getId());
     }
     mPowerAdvisor->setDisplays(displayIds);
+
+    const bool updateTaskMetadata = mCompositionEngine->getFeatureFlags().test(
+            compositionengine::Feature::kSnapshotLayerMetadata);
+    if (updateTaskMetadata && (mVisibleRegionsDirty || mLayerMetadataSnapshotNeeded)) {
+        updateLayerMetadataSnapshot();
+        mLayerMetadataSnapshotNeeded = false;
+    }
 
     if (DOES_CONTAIN_BORDER) {
         refreshArgs.borderInfoList.clear();
@@ -4445,7 +4447,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             layer->setGameModeForTree(static_cast<GameMode>(gameMode));
         }
 
-        if (layer->setMetadata(s.metadata)) flags |= eTraversalNeeded;
+        if (layer->setMetadata(s.metadata)) {
+            flags |= eTraversalNeeded;
+            mLayerMetadataSnapshotNeeded = true;
+        }
     }
     if (what & layer_state_t::eColorSpaceAgnosticChanged) {
         if (layer->setColorSpaceAgnostic(s.colorSpaceAgnostic)) {
@@ -7238,6 +7243,31 @@ bool SurfaceFlinger::commitCreatedLayers(VsyncId vsyncId) {
     createdLayers.clear();
     mLayersAdded = true;
     return true;
+}
+
+void SurfaceFlinger::updateLayerMetadataSnapshot() {
+    LayerMetadata parentMetadata;
+    for (const auto& layer : mDrawingState.layersSortedByZ) {
+        layer->updateMetadataSnapshot(parentMetadata);
+    }
+
+    std::unordered_set<Layer*> visited;
+    mDrawingState.traverse([&visited](Layer* layer) {
+        if (visited.find(layer) != visited.end()) {
+            return;
+        }
+
+        // If the layer isRelativeOf, then either it's relative metadata will be set
+        // recursively when updateRelativeMetadataSnapshot is called on its relative parent or
+        // it's relative parent has been deleted. Clear the layer's relativeLayerMetadata to ensure
+        // that layers with deleted relative parents don't hold stale relativeLayerMetadata.
+        if (layer->getDrawingState().isRelativeOf) {
+            layer->editLayerSnapshot()->relativeLayerMetadata = {};
+            return;
+        }
+
+        layer->updateRelativeMetadataSnapshot({}, visited);
+    });
 }
 
 // gui::ISurfaceComposer

@@ -85,12 +85,12 @@ cc_defaults {
         "libstatspull",
         "libstatssocket",
         "libutils",
-        "libui",
         "server_configurable_flags",
     ],
     static_libs: [
         "libattestation",
         "libpalmrejection",
+        "libui-types",
     ],
 }
 
@@ -139,6 +139,7 @@ filegroup {
         "InputListener.cpp",
         "InputReaderBase.cpp",
         "InputThread.cpp",
+        "NotifyArgs.cpp",
         "VibrationElement.cpp",
     ],
 }
@@ -152,7 +153,6 @@ cc_defaults {
         "libcutils",
         "libinput",
         "liblog",
-        "libui",
         "libutils",
     ],
     header_libs: [

@@ -608,7 +608,7 @@ private:
     void binderDied(const wp<IBinder>& who) override;
 
     // HWC2::ComposerCallback overrides:
-    void onComposerHalVsync(hal::HWDisplayId, int64_t timestamp,
+    void onComposerHalVsync(hal::HWDisplayId, nsecs_t timestamp,
                             std::optional<hal::VsyncPeriodNanos>) override;
     void onComposerHalHotplug(hal::HWDisplayId, hal::Connection) override;
     void onComposerHalRefresh(hal::HWDisplayId) override;
@@ -699,6 +699,7 @@ private:
     bool latchBuffers();
 
     void updateLayerGeometry();
+    void updateLayerMetadataSnapshot();
 
     void updateInputFlinger();
     void persistDisplayBrightness(bool needsComposite) REQUIRES(kMainThreadContext);
@@ -1175,6 +1176,9 @@ private:
     bool mSomeChildrenChanged;
     bool mSomeDataspaceChanged = false;
     bool mForceTransactionDisplayChange = false;
+
+    // Set if LayerMetadata has changed since the last LayerMetadata snapshot.
+    bool mLayerMetadataSnapshotNeeded = false;
 
     // Tracks layers that have pending frames which are candidates for being
     // latched.
