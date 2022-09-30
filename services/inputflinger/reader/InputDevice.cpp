@@ -232,6 +232,10 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
 }
 
 void InputDevice::removeEventHubDevice(int32_t eventHubId) {
+    if (mController != nullptr && mController->getEventHubId() == eventHubId) {
+        // Delete mController, since the corresponding eventhub device is going away
+        mController = nullptr;
+    }
     mDevices.erase(eventHubId);
 }
 
