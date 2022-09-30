@@ -135,7 +135,8 @@ private:
         void verifySurfaceControlStats(const SurfaceControlStats& surfaceControlStats,
                                        nsecs_t latchTime) const {
             const auto& [surfaceControl, latch, acquireTimeOrFence, presentFence,
-                         previousReleaseFence, transformHint, frameEvents] = surfaceControlStats;
+                         previousReleaseFence, transformHint, frameEvents, ignore] =
+                surfaceControlStats;
 
             ASSERT_TRUE(std::holds_alternative<nsecs_t>(acquireTimeOrFence));
             ASSERT_EQ(std::get<nsecs_t>(acquireTimeOrFence) > 0,
