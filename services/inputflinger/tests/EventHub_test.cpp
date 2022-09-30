@@ -68,12 +68,18 @@ protected:
     int32_t mDeviceId;
 
     virtual void SetUp() override {
+#if !defined(__ANDROID__)
+        GTEST_SKIP() << "It's only possible to interact with uinput on device";
+#endif
         mEventHub = std::make_unique<EventHub>();
         consumeInitialDeviceAddedEvents();
         mKeyboard = createUinputDevice<UinputHomeKey>();
         ASSERT_NO_FATAL_FAILURE(mDeviceId = waitForDeviceCreation());
     }
     virtual void TearDown() override {
+#if !defined(__ANDROID__)
+        return;
+#endif
         mKeyboard.reset();
         waitForDeviceClose(mDeviceId);
         assertNoMoreEvents();

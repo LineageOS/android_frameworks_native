@@ -41,7 +41,9 @@ cc_defaults {
         "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
     ],
     sanitize: {
-        misc_undefined: ["bounds"],
+        misc_undefined: [
+            "bounds",
+        ],
     },
     tidy: true,
     tidy_checks: [
@@ -57,11 +59,11 @@ cc_defaults {
 filegroup {
     name: "libinputflinger_sources",
     srcs: [
-        "InputProcessor.cpp",
         "InputCommonConverter.cpp",
+        "InputManager.cpp",
+        "InputProcessor.cpp",
         "PreferStylusOverTouchBlocker.cpp",
         "UnwantedInteractionBlocker.cpp",
-        "InputManager.cpp",
     ],
 }
 
@@ -77,13 +79,10 @@ cc_defaults {
         "libcrypto",
         "libcutils",
         "libhidlbase",
-        "libinput",
         "libkll",
         "liblog",
         "libprotobuf-cpp-lite",
         "libstatslog",
-        "libstatspull",
-        "libstatssocket",
         "libutils",
         "server_configurable_flags",
     ],
@@ -92,6 +91,23 @@ cc_defaults {
         "libpalmrejection",
         "libui-types",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "libgui",
+                "libinput",
+                "libstatspull",
+                "libstatssocket",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libinput",
+                "libstatspull",
+                "libstatssocket",
+            ],
+        },
+    },
 }
 
 cc_library_shared {
@@ -108,9 +124,8 @@ cc_library_shared {
         // This should consist only of dependencies from inputflinger. Other dependencies should be
         // in cc_defaults so that they are included in the tests.
         "libinputflinger_base",
-        "libinputreporter",
         "libinputreader",
-        "libgui",
+        "libinputreporter",
     ],
     static_libs: [
         "libinputdispatcher",
@@ -130,6 +145,7 @@ cc_library_shared {
 
 cc_library_headers {
     name: "libinputflinger_headers",
+    host_supported: true,
     export_include_dirs: ["include"],
 }
 
@@ -151,17 +167,29 @@ cc_defaults {
         "libbase",
         "libbinder",
         "libcutils",
-        "libinput",
         "liblog",
         "libutils",
     ],
     header_libs: [
         "libinputflinger_headers",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "libinput",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libinput",
+            ],
+        },
+    },
 }
 
 cc_library_shared {
     name: "libinputflinger_base",
+    host_supported: true,
     defaults: [
         "inputflinger_defaults",
         "libinputflinger_base_defaults",

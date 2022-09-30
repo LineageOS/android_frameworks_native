@@ -23,6 +23,7 @@ package {
 
 cc_library_headers {
     name: "libinputreader_headers",
+    host_supported: true,
     export_include_dirs: [
         "controller",
         "include",
@@ -36,11 +37,9 @@ filegroup {
     srcs: [
         "EventHub.cpp",
         "InputDevice.cpp",
+        "InputReader.cpp",
+        "TouchVideoDevice.cpp",
         "controller/PeripheralController.cpp",
-        "mapper/accumulator/CursorButtonAccumulator.cpp",
-        "mapper/accumulator/CursorScrollAccumulator.cpp",
-        "mapper/accumulator/SingleTouchMotionAccumulator.cpp",
-        "mapper/accumulator/TouchButtonAccumulator.cpp",
         "mapper/CursorInputMapper.cpp",
         "mapper/ExternalStylusInputMapper.cpp",
         "mapper/InputMapper.cpp",
@@ -53,8 +52,10 @@ filegroup {
         "mapper/SwitchInputMapper.cpp",
         "mapper/TouchInputMapper.cpp",
         "mapper/VibratorInputMapper.cpp",
-        "InputReader.cpp",
-        "TouchVideoDevice.cpp",
+        "mapper/accumulator/CursorButtonAccumulator.cpp",
+        "mapper/accumulator/CursorScrollAccumulator.cpp",
+        "mapper/accumulator/SingleTouchMotionAccumulator.cpp",
+        "mapper/accumulator/TouchButtonAccumulator.cpp",
     ],
 }
 
@@ -66,11 +67,9 @@ cc_defaults {
         "libcap",
         "libcrypto",
         "libcutils",
-        "libinput",
         "liblog",
         "libstatslog",
         "libutils",
-        "libPlatformProperties",
     ],
     static_libs: [
         "libc++fs",
@@ -80,10 +79,24 @@ cc_defaults {
         "libbatteryservice_headers",
         "libinputreader_headers",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "libPlatformProperties",
+                "libinput",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libinput",
+            ],
+        },
+    },
 }
 
 cc_library_shared {
     name: "libinputreader",
+    host_supported: true,
     defaults: [
         "inputflinger_defaults",
         "libinputreader_defaults",
@@ -99,6 +112,14 @@ cc_library_shared {
     export_header_lib_headers: [
         "libinputreader_headers",
     ],
+    target: {
+        host: {
+            include_dirs: [
+                "bionic/libc/kernel/android/uapi/",
+                "bionic/libc/kernel/uapi",
+            ],
+        },
+    },
     static_libs: [
         "libc++fs",
     ],

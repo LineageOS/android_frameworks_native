@@ -2300,6 +2300,9 @@ protected:
     std::shared_ptr<FakePointerController> mFakePointerController;
 
     void SetUp() override {
+#if !defined(__ANDROID__)
+        GTEST_SKIP();
+#endif
         mFakePolicy = sp<FakeInputReaderPolicy>::make();
         mFakePointerController = std::make_shared<FakePointerController>();
         mFakePolicy->setPointerController(mFakePointerController);
@@ -2318,6 +2321,9 @@ protected:
     }
 
     void TearDown() override {
+#if !defined(__ANDROID__)
+        return;
+#endif
         ASSERT_EQ(mReader->stop(), OK);
         mReader.reset();
         mTestListener.reset();
@@ -2432,6 +2438,9 @@ protected:
     const std::string UNIQUE_ID = "local:0";
 
     void SetUp() override {
+#if !defined(__ANDROID__)
+        GTEST_SKIP();
+#endif
         InputReaderIntegrationTest::SetUp();
         // At least add an internal display.
         setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,

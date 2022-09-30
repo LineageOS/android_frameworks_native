@@ -21,7 +21,6 @@ cc_benchmark {
         "libbinder",
         "libcrypto",
         "libcutils",
-        "libinput",
         "libinputflinger_base",
         "libinputreporter",
         "liblog",
