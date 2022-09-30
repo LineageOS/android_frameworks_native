@@ -18,6 +18,7 @@
 
 #include <optional>
 
+#include <ui/ColorMode.h>
 #include <ui/DisplayId.h>
 #include <ui/StaticDisplayInfo.h>
 
@@ -29,7 +30,7 @@ namespace android::display {
 // Immutable state of a physical display, captured on hotplug.
 class DisplaySnapshot {
 public:
-    DisplaySnapshot(PhysicalDisplayId, ui::DisplayConnectionType, DisplayModes&&,
+    DisplaySnapshot(PhysicalDisplayId, ui::DisplayConnectionType, DisplayModes&&, ui::ColorModes&&,
                     std::optional<DeviceProductInfo>&&);
 
     DisplaySnapshot(const DisplaySnapshot&) = delete;
@@ -41,7 +42,10 @@ public:
     std::optional<DisplayModeId> translateModeId(hal::HWConfigId) const;
 
     const auto& displayModes() const { return mDisplayModes; }
+    const auto& colorModes() const { return mColorModes; }
     const auto& deviceProductInfo() const { return mDeviceProductInfo; }
+
+    ui::ColorModes filterColorModes(bool supportsWideColor) const;
 
     void dump(utils::Dumper&) const;
 
@@ -51,6 +55,7 @@ private:
 
     // Effectively const except in move constructor.
     DisplayModes mDisplayModes;
+    ui::ColorModes mColorModes;
     std::optional<DeviceProductInfo> mDeviceProductInfo;
 };
 

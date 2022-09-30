@@ -505,7 +505,7 @@ public:
     const auto& hwcPhysicalDisplayIdMap() const { return getHwComposer().mPhysicalDisplayIdMap; }
     const auto& hwcDisplayData() const { return getHwComposer().mDisplayData; }
 
-    auto& mutableHasWideColorDisplay() { return SurfaceFlinger::hasWideColorDisplay; }
+    auto& mutableSupportsWideColor() { return mFlinger->mSupportsWideColor; }
 
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
     auto& mutableDisplayColorSetting() { return mFlinger->mDisplayColorSetting; }
@@ -857,7 +857,7 @@ public:
                 const auto it = mFlinger.mutablePhysicalDisplays()
                                         .emplace_or_replace(*physicalId, mDisplayToken, *physicalId,
                                                             *mConnectionType, std::move(modes),
-                                                            std::nullopt)
+                                                            ui::ColorModes(), std::nullopt)
                                         .first;
 
                 display->setActiveMode(activeModeId, it->second.snapshot());
