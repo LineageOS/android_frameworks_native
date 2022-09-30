@@ -39,7 +39,6 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
-#include "Static.h"
 #include "binder_module.h"
 
 #if LOG_NDEBUG
@@ -124,46 +123,43 @@ static const char* getReturnString(uint32_t cmd)
         return "unknown";
 }
 
-static const void* printBinderTransactionData(TextOutput& out, const void* data)
-{
+static const void* printBinderTransactionData(std::ostream& out, const void* data) {
     const binder_transaction_data* btd =
         (const binder_transaction_data*)data;
     if (btd->target.handle < 1024) {
         /* want to print descriptors in decimal; guess based on value */
-        out << "target.desc=" << btd->target.handle;
+        out << "\ttarget.desc=" << btd->target.handle;
     } else {
-        out << "target.ptr=" << btd->target.ptr;
+        out << "\ttarget.ptr=" << btd->target.ptr;
     }
-    out << " (cookie " << btd->cookie << ")" << endl
-        << "code=" << TypeCode(btd->code) << ", flags=" << (void*)(uint64_t)btd->flags << endl
-        << "data=" << btd->data.ptr.buffer << " (" << (void*)btd->data_size
-        << " bytes)" << endl
-        << "offsets=" << btd->data.ptr.offsets << " (" << (void*)btd->offsets_size
-        << " bytes)";
+    out << "\t (cookie " << btd->cookie << ")"
+        << "\n"
+        << "\tcode=" << TypeCode(btd->code) << ", flags=" << (void*)(uint64_t)btd->flags << "\n"
+        << "\tdata=" << btd->data.ptr.buffer << " (" << (void*)btd->data_size << " bytes)"
+        << "\n"
+        << "\toffsets=" << btd->data.ptr.offsets << " (" << (void*)btd->offsets_size << " bytes)";
     return btd+1;
 }
 
-static const void* printReturnCommand(TextOutput& out, const void* _cmd)
-{
+static const void* printReturnCommand(std::ostream& out, const void* _cmd) {
     static const size_t N = sizeof(kReturnStrings)/sizeof(kReturnStrings[0]);
     const int32_t* cmd = (const int32_t*)_cmd;
     uint32_t code = (uint32_t)*cmd++;
     size_t cmdIndex = code & 0xff;
     if (code == BR_ERROR) {
-        out << "BR_ERROR: " << (void*)(uint64_t)(*cmd++) << endl;
+        out << "\tBR_ERROR: " << (void*)(uint64_t)(*cmd++) << "\n";
         return cmd;
     } else if (cmdIndex >= N) {
-        out << "Unknown reply: " << code << endl;
+        out << "\tUnknown reply: " << code << "\n";
         return cmd;
     }
-    out << kReturnStrings[cmdIndex];
+    out << "\t" << kReturnStrings[cmdIndex];
 
     switch (code) {
         case BR_TRANSACTION:
         case BR_REPLY: {
-            out << ": " << indent;
-            cmd = (const int32_t *)printBinderTransactionData(out, cmd);
-            out << dedent;
+            out << ": ";
+            cmd = (const int32_t*)printBinderTransactionData(out, cmd);
         } break;
 
         case BR_ACQUIRE_RESULT: {
@@ -200,19 +196,18 @@ static const void* printReturnCommand(TextOutput& out, const void* _cmd)
             break;
     }
 
-    out << endl;
+    out << "\n";
     return cmd;
 }
 
-static const void* printCommand(TextOutput& out, const void* _cmd)
-{
+static const void* printCommand(std::ostream& out, const void* _cmd) {
     static const size_t N = sizeof(kCommandStrings)/sizeof(kCommandStrings[0]);
     const int32_t* cmd = (const int32_t*)_cmd;
     uint32_t code = (uint32_t)*cmd++;
     size_t cmdIndex = code & 0xff;
 
     if (cmdIndex >= N) {
-        out << "Unknown command: " << code << endl;
+        out << "Unknown command: " << code << "\n";
         return cmd;
     }
     out << kCommandStrings[cmdIndex];
@@ -220,9 +215,8 @@ static const void* printCommand(TextOutput& out, const void* _cmd)
     switch (code) {
         case BC_TRANSACTION:
         case BC_REPLY: {
-            out << ": " << indent;
-            cmd = (const int32_t *)printBinderTransactionData(out, cmd);
-            out << dedent;
+            out << ": ";
+            cmd = (const int32_t*)printBinderTransactionData(out, cmd);
         } break;
 
         case BC_ACQUIRE_RESULT: {
@@ -274,7 +268,7 @@ static const void* printCommand(TextOutput& out, const void* _cmd)
             break;
     }
 
-    out << endl;
+    out << "\n";
     return cmd;
 }
 
@@ -548,8 +542,10 @@ status_t IPCThreadState::getAndExecuteCommand()
         if (IN < sizeof(int32_t)) return result;
         cmd = mIn.readInt32();
         IF_LOG_COMMANDS() {
-            alog << "Processing top-level Command: "
-                 << getReturnString(cmd) << endl;
+            std::ostringstream logStream;
+            logStream << "Processing top-level Command: " << getReturnString(cmd) << "\n";
+            std::string message = logStream.str();
+            ALOGI("%s", message.c_str());
         }
 
         pthread_mutex_lock(&mProcess->mThreadCountLock);
@@ -726,10 +722,11 @@ status_t IPCThreadState::transact(int32_t handle,
     flags |= TF_ACCEPT_FDS;
 
     IF_LOG_TRANSACTIONS() {
-        TextOutput::Bundle _b(alog);
-        alog << "BC_TRANSACTION thr " << (void*)pthread_self() << " / hand "
-            << handle << " / code " << TypeCode(code) << ": "
-            << indent << data << dedent << endl;
+        std::ostringstream logStream;
+        logStream << "BC_TRANSACTION thr " << (void*)pthread_self() << " / hand " << handle
+                  << " / code " << TypeCode(code) << ": \t" << data << "\n";
+        std::string message = logStream.str();
+        ALOGI("%s", message.c_str());
     }
 
     LOG_ONEWAY(">>>> SEND from pid %d uid %d %s", getpid(), getuid(),
@@ -774,11 +771,15 @@ status_t IPCThreadState::transact(int32_t handle,
         #endif
 
         IF_LOG_TRANSACTIONS() {
-            TextOutput::Bundle _b(alog);
-            alog << "BR_REPLY thr " << (void*)pthread_self() << " / hand "
-                << handle << ": ";
-            if (reply) alog << indent << *reply << dedent << endl;
-            else alog << "(none requested)" << endl;
+            std::ostringstream logStream;
+            logStream << "BR_REPLY thr " << (void*)pthread_self() << " / hand " << handle << ": ";
+            if (reply)
+                logStream << "\t" << *reply << "\n";
+            else
+                logStream << "(none requested)"
+                          << "\n";
+            std::string message = logStream.str();
+            ALOGI("%s", message.c_str());
         }
     } else {
         err = waitForResponse(nullptr, nullptr);
@@ -920,8 +921,10 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
         cmd = (uint32_t)mIn.readInt32();
 
         IF_LOG_COMMANDS() {
-            alog << "Processing waitForResponse Command: "
-                << getReturnString(cmd) << endl;
+            std::ostringstream logStream;
+            logStream << "Processing waitForResponse Command: " << getReturnString(cmd) << "\n";
+            std::string message = logStream.str();
+            ALOGI("%s", message.c_str());
         }
 
         switch (cmd) {
@@ -1033,17 +1036,19 @@ status_t IPCThreadState::talkWithDriver(bool doReceive)
     }
 
     IF_LOG_COMMANDS() {
-        TextOutput::Bundle _b(alog);
+        std::ostringstream logStream;
         if (outAvail != 0) {
-            alog << "Sending commands to driver: " << indent;
+            logStream << "Sending commands to driver: ";
             const void* cmds = (const void*)bwr.write_buffer;
-            const void* end = ((const uint8_t*)cmds)+bwr.write_size;
-            alog << HexDump(cmds, bwr.write_size) << endl;
-            while (cmds < end) cmds = printCommand(alog, cmds);
-            alog << dedent;
+            const void* end = ((const uint8_t*)cmds) + bwr.write_size;
+            logStream << "\t" << HexDump(cmds, bwr.write_size) << "\n";
+            while (cmds < end) cmds = printCommand(logStream, cmds);
         }
-        alog << "Size of receive buffer: " << bwr.read_size
-            << ", needRead: " << needRead << ", doReceive: " << doReceive << endl;
+        logStream << "Size of receive buffer: " << bwr.read_size << ", needRead: " << needRead
+                  << ", doReceive: " << doReceive << "\n";
+
+        std::string message = logStream.str();
+        ALOGI("%s", message.c_str());
     }
 
     // Return immediately if there is nothing to do.
@@ -1054,7 +1059,10 @@ status_t IPCThreadState::talkWithDriver(bool doReceive)
     status_t err;
     do {
         IF_LOG_COMMANDS() {
-            alog << "About to read/write, write size = " << mOut.dataSize() << endl;
+            std::ostringstream logStream;
+            logStream << "About to read/write, write size = " << mOut.dataSize() << "\n";
+            std::string message = logStream.str();
+            ALOGI("%s", message.c_str());
         }
 #if defined(__ANDROID__)
         if (ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr) >= 0)
@@ -1068,14 +1076,20 @@ status_t IPCThreadState::talkWithDriver(bool doReceive)
             err = -EBADF;
         }
         IF_LOG_COMMANDS() {
-            alog << "Finished read/write, write size = " << mOut.dataSize() << endl;
+            std::ostringstream logStream;
+            logStream << "Finished read/write, write size = " << mOut.dataSize() << "\n";
+            std::string message = logStream.str();
+            ALOGI("%s", message.c_str());
         }
     } while (err == -EINTR);
 
     IF_LOG_COMMANDS() {
-        alog << "Our err: " << (void*)(intptr_t)err << ", write consumed: "
-            << bwr.write_consumed << " (of " << mOut.dataSize()
-                        << "), read consumed: " << bwr.read_consumed << endl;
+        std::ostringstream logStream;
+        logStream << "Our err: " << (void*)(intptr_t)err
+                  << ", write consumed: " << bwr.write_consumed << " (of " << mOut.dataSize()
+                  << "), read consumed: " << bwr.read_consumed << "\n";
+        std::string message = logStream.str();
+        ALOGI("%s", message.c_str());
     }
 
     if (err >= NO_ERROR) {
@@ -1096,14 +1110,15 @@ status_t IPCThreadState::talkWithDriver(bool doReceive)
             mIn.setDataPosition(0);
         }
         IF_LOG_COMMANDS() {
-            TextOutput::Bundle _b(alog);
-            alog << "Remaining data size: " << mOut.dataSize() << endl;
-            alog << "Received commands from driver: " << indent;
+            std::ostringstream logStream;
+            logStream << "Remaining data size: " << mOut.dataSize() << "\n";
+            logStream << "Received commands from driver: ";
             const void* cmds = mIn.data();
             const void* end = mIn.data() + mIn.dataSize();
-            alog << HexDump(cmds, mIn.dataSize()) << endl;
-            while (cmds < end) cmds = printReturnCommand(alog, cmds);
-            alog << dedent;
+            logStream << "\t" << HexDump(cmds, mIn.dataSize()) << "\n";
+            while (cmds < end) cmds = printReturnCommand(logStream, cmds);
+            std::string message = logStream.str();
+            ALOGI("%s", message.c_str());
         }
         return NO_ERROR;
     }
@@ -1285,15 +1300,15 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
             Parcel reply;
             status_t error;
             IF_LOG_TRANSACTIONS() {
-                TextOutput::Bundle _b(alog);
-                alog << "BR_TRANSACTION thr " << (void*)pthread_self()
-                    << " / obj " << tr.target.ptr << " / code "
-                    << TypeCode(tr.code) << ": " << indent << buffer
-                    << dedent << endl
-                    << "Data addr = "
-                    << reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer)
-                    << ", offsets addr="
-                    << reinterpret_cast<const size_t*>(tr.data.ptr.offsets) << endl;
+                std::ostringstream logStream;
+                logStream << "BR_TRANSACTION thr " << (void*)pthread_self() << " / obj "
+                          << tr.target.ptr << " / code " << TypeCode(tr.code) << ": \t" << buffer
+                          << "\n"
+                          << "Data addr = " << reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer)
+                          << ", offsets addr="
+                          << reinterpret_cast<const size_t*>(tr.data.ptr.offsets) << "\n";
+                std::string message = logStream.str();
+                ALOGI("%s", message.c_str());
             }
             if (tr.target.ptr) {
                 // We only have a weak reference on the target object, so we must first try to
@@ -1329,21 +1344,21 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
                 sendReply(reply, (tr.flags & kForwardReplyFlags));
             } else {
                 if (error != OK) {
-                    alog << "oneway function results for code " << tr.code
-                         << " on binder at "
-                         << reinterpret_cast<void*>(tr.target.ptr)
-                         << " will be dropped but finished with status "
-                         << statusToString(error);
+                    std::ostringstream logStream;
+                    logStream << "oneway function results for code " << tr.code << " on binder at "
+                              << reinterpret_cast<void*>(tr.target.ptr)
+                              << " will be dropped but finished with status "
+                              << statusToString(error);
 
                     // ideally we could log this even when error == OK, but it
                     // causes too much logspam because some manually-written
                     // interfaces have clients that call methods which always
                     // write results, sometimes as oneway methods.
                     if (reply.dataSize() != 0) {
-                         alog << " and reply parcel size " << reply.dataSize();
+                        logStream << " and reply parcel size " << reply.dataSize();
                     }
-
-                    alog << endl;
+                    std::string message = logStream.str();
+                    ALOGI("%s", message.c_str());
                 }
                 LOG_ONEWAY("NOT sending reply to %d!", mCallingPid);
             }
@@ -1358,9 +1373,11 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
             mPropagateWorkSource = origPropagateWorkSet;
 
             IF_LOG_TRANSACTIONS() {
-                TextOutput::Bundle _b(alog);
-                alog << "BC_REPLY thr " << (void*)pthread_self() << " / obj "
-                    << tr.target.ptr << ": " << indent << reply << dedent << endl;
+                std::ostringstream logStream;
+                logStream << "BC_REPLY thr " << (void*)pthread_self() << " / obj " << tr.target.ptr
+                          << ": \t" << reply << "\n";
+                std::string message = logStream.str();
+                ALOGI("%s", message.c_str());
             }
 
         }
@@ -1481,7 +1498,10 @@ void IPCThreadState::freeBuffer(const uint8_t* data, size_t /*dataSize*/,
                                 const binder_size_t* /*objects*/, size_t /*objectsSize*/) {
     //ALOGI("Freeing parcel %p", &parcel);
     IF_LOG_COMMANDS() {
-        alog << "Writing BC_FREE_BUFFER for " << data << endl;
+        std::ostringstream logStream;
+        logStream << "Writing BC_FREE_BUFFER for " << data << "\n";
+        std::string message = logStream.str();
+        ALOGI("%s", message.c_str());
     }
     ALOG_ASSERT(data != NULL, "Called with NULL data");
     IPCThreadState* state = self();
