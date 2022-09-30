@@ -49,14 +49,14 @@ static std::vector<ManifestWithDescription> GetManifestsWithDescription() {
 #ifdef __ANDROID_RECOVERY__
     auto vintfObject = vintf::VintfObjectRecovery::GetInstance();
     if (vintfObject == nullptr) {
-        LOG(ERROR) << "NULL VintfObjectRecovery!";
+        ALOGE("NULL VintfObjectRecovery!");
         return {};
     }
     return {ManifestWithDescription{vintfObject->getRecoveryHalManifest(), "recovery"}};
 #else
     auto vintfObject = vintf::VintfObject::GetInstance();
     if (vintfObject == nullptr) {
-        LOG(ERROR) << "NULL VintfObject!";
+        ALOGE("NULL VintfObject!");
         return {};
     }
     return {ManifestWithDescription{vintfObject->getDeviceHalManifest(), "device"},
@@ -68,10 +68,10 @@ static std::vector<ManifestWithDescription> GetManifestsWithDescription() {
 static bool forEachManifest(const std::function<bool(const ManifestWithDescription&)>& func) {
     for (const ManifestWithDescription& mwd : GetManifestsWithDescription()) {
         if (mwd.manifest == nullptr) {
-          LOG(ERROR) << "NULL VINTF MANIFEST!: " << mwd.description;
-          // note, we explicitly do not retry here, so that we can detect VINTF
-          // or other bugs (b/151696835)
-          continue;
+            ALOGE("NULL VINTF MANIFEST!: %s", mwd.description);
+            // note, we explicitly do not retry here, so that we can detect VINTF
+            // or other bugs (b/151696835)
+            continue;
         }
         if (func(mwd)) return true;
     }
@@ -87,8 +87,9 @@ struct AidlName {
         size_t firstSlash = name.find('/');
         size_t lastDot = name.rfind('.', firstSlash);
         if (firstSlash == std::string::npos || lastDot == std::string::npos) {
-            LOG(ERROR) << "VINTF HALs require names in the format type/instance (e.g. "
-                       << "some.package.foo.IFoo/default) but got: " << name;
+            ALOGE("VINTF HALs require names in the format type/instance (e.g. "
+                  "some.package.foo.IFoo/default) but got: %s",
+                  name.c_str());
             return false;
         }
         aname->package = name.substr(0, lastDot);
@@ -104,7 +105,7 @@ static bool isVintfDeclared(const std::string& name) {
 
     bool found = forEachManifest([&](const ManifestWithDescription& mwd) {
         if (mwd.manifest->hasAidlInstance(aname.package, aname.iface, aname.instance)) {
-            LOG(INFO) << "Found " << name << " in " << mwd.description << " VINTF manifest.";
+            ALOGI("Found %s in %s VINTF manifest.", name.c_str(), mwd.description);
             return true; // break
         }
         return false;  // continue
@@ -113,8 +114,8 @@ static bool isVintfDeclared(const std::string& name) {
     if (!found) {
         // Although it is tested, explicitly rebuilding qualified name, in case it
         // becomes something unexpected.
-        LOG(INFO) << "Could not find " << aname.package << "." << aname.iface << "/"
-                  << aname.instance << " in the VINTF manifest.";
+        ALOGI("Could not find %s.%s/%s in the VINTF manifest.", aname.package.c_str(),
+              aname.iface.c_str(), aname.instance.c_str());
     }
 
     return found;
@@ -173,7 +174,9 @@ static std::optional<ConnectionInfo> getVintfConnectionInfo(const std::string& n
 static std::vector<std::string> getVintfInstances(const std::string& interface) {
     size_t lastDot = interface.rfind('.');
     if (lastDot == std::string::npos) {
-        LOG(ERROR) << "VINTF interfaces require names in Java package format (e.g. some.package.foo.IFoo) but got: " << interface;
+        ALOGE("VINTF interfaces require names in Java package format (e.g. some.package.foo.IFoo) "
+              "but got: %s",
+              interface.c_str());
         return {};
     }
     const std::string package = interface.substr(0, lastDot);
@@ -308,7 +311,7 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
     }
 
     if (!isValidServiceName(name)) {
-        LOG(ERROR) << "Invalid service name: " << name;
+        ALOGE("Invalid service name: %s", name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Invalid service name");
     }
 
@@ -322,7 +325,7 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
     // implicitly unlinked when the binder is removed
     if (binder->remoteBinder() != nullptr &&
         binder->linkToDeath(sp<ServiceManager>::fromExisting(this)) != OK) {
-        LOG(ERROR) << "Could not linkToDeath when adding " << name;
+        ALOGE("Could not linkToDeath when adding %s", name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "linkToDeath failure");
     }
 
@@ -335,21 +338,20 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
         // only trying to detect when two different services are accidentally installed.
 
         if (existing.ctx.uid != ctx.uid) {
-            LOG(WARNING) << "Service '" << name << "' originally registered from UID "
-                         << existing.ctx.uid << " but it is now being registered from UID "
-                         << ctx.uid << ". Multiple instances installed?";
+            ALOGW("Service '%s' originally registered from UID %u but it is now being registered "
+                  "from UID %u. Multiple instances installed?",
+                  name.c_str(), existing.ctx.uid, ctx.uid);
         }
 
         if (existing.ctx.sid != ctx.sid) {
-            LOG(WARNING) << "Service '" << name << "' originally registered from SID "
-                         << existing.ctx.sid << " but it is now being registered from SID "
-                         << ctx.sid << ". Multiple instances installed?";
+            ALOGW("Service '%s' originally registered from SID %s but it is now being registered "
+                  "from SID %s. Multiple instances installed?",
+                  name.c_str(), existing.ctx.sid.c_str(), ctx.sid.c_str());
         }
 
-        LOG(INFO) << "Service '" << name << "' originally registered from PID "
-                  << existing.ctx.debugPid << " but it is being registered again from PID "
-                  << ctx.debugPid
-                  << ". Bad state? Late death notification? Multiple instances installed?";
+        ALOGI("Service '%s' originally registered from PID %d but it is being registered again "
+              "from PID %d. Bad state? Late death notification? Multiple instances installed?",
+              name.c_str(), existing.ctx.debugPid, ctx.debugPid);
     }
 
     // Overwrite the old service if it exists
@@ -406,7 +408,7 @@ Status ServiceManager::registerForNotifications(
     }
 
     if (!isValidServiceName(name)) {
-        LOG(ERROR) << "Invalid service name: " << name;
+        ALOGE("Invalid service name: %s", name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
     }
 
@@ -417,7 +419,7 @@ Status ServiceManager::registerForNotifications(
     if (OK !=
         IInterface::asBinder(callback)->linkToDeath(
                 sp<ServiceManager>::fromExisting(this))) {
-        LOG(ERROR) << "Could not linkToDeath when adding " << name;
+        ALOGE("Could not linkToDeath when adding %s", name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
@@ -449,7 +451,7 @@ Status ServiceManager::unregisterForNotifications(
     }
 
     if (!found) {
-        LOG(ERROR) << "Trying to unregister callback, but none exists " << name;
+        ALOGE("Trying to unregister callback, but none exists %s", name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
@@ -571,10 +573,11 @@ void ServiceManager::tryStartService(const std::string& name) {
 
     std::thread([=] {
         if (!base::SetProperty("ctl.interface_start", "aidl/" + name)) {
-            LOG(INFO) << "Tried to start aidl service " << name
-                      << " as a lazy service, but was unable to. Usually this happens when a "
-                         "service is not installed, but if the service is intended to be used as a "
-                         "lazy service, then it may be configured incorrectly.";
+            ALOGI("Tried to start aidl service %s as a lazy service, but was unable to. Usually "
+                  "this happens when a "
+                  "service is not installed, but if the service is intended to be used as a "
+                  "lazy service, then it may be configured incorrectly.",
+                  name.c_str());
         }
     }).detach();
 }
@@ -592,24 +595,25 @@ Status ServiceManager::registerClientCallback(const std::string& name, const sp<
 
     auto serviceIt = mNameToService.find(name);
     if (serviceIt == mNameToService.end()) {
-        LOG(ERROR) << "Could not add callback for nonexistent service: " << name;
+        ALOGE("Could not add callback for nonexistent service: %s", name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
     }
 
     if (serviceIt->second.ctx.debugPid != IPCThreadState::self()->getCallingPid()) {
-        LOG(WARNING) << "Only a server can register for client callbacks (for " << name << ")";
+        ALOGW("Only a server can register for client callbacks (for %s)", name.c_str());
         return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION);
     }
 
     if (serviceIt->second.binder != service) {
-        LOG(WARNING) << "Tried to register client callback for " << name
-            << " but a different service is registered under this name.";
+        ALOGW("Tried to register client callback for %s but a different service is registered "
+              "under this name.",
+              name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
     }
 
     if (OK !=
         IInterface::asBinder(cb)->linkToDeath(sp<ServiceManager>::fromExisting(this))) {
-        LOG(ERROR) << "Could not linkToDeath when adding client callback for " << name;
+        ALOGE("Could not linkToDeath when adding client callback for %s", name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
@@ -694,7 +698,7 @@ ssize_t ServiceManager::handleServiceClientCallback(const std::string& serviceNa
 void ServiceManager::sendClientCallbackNotifications(const std::string& serviceName, bool hasClients) {
     auto serviceIt = mNameToService.find(serviceName);
     if (serviceIt == mNameToService.end()) {
-        LOG(WARNING) << "sendClientCallbackNotifications could not find service " << serviceName;
+        ALOGW("sendClientCallbackNotifications could not find service %s", serviceName.c_str());
         return;
     }
     Service& service = serviceIt->second;
@@ -702,7 +706,7 @@ void ServiceManager::sendClientCallbackNotifications(const std::string& serviceN
     CHECK(hasClients != service.hasClients) << "Record shows: " << service.hasClients
         << " so we can't tell clients again that we have client: " << hasClients;
 
-    LOG(INFO) << "Notifying " << serviceName << " they have clients: " << hasClients;
+    ALOGI("Notifying %s they have clients: %d", serviceName.c_str(), hasClients);
 
     auto ccIt = mNameToClientCallback.find(serviceName);
     CHECK(ccIt != mNameToClientCallback.end())
@@ -727,26 +731,26 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
 
     auto serviceIt = mNameToService.find(name);
     if (serviceIt == mNameToService.end()) {
-        LOG(WARNING) << "Tried to unregister " << name
-            << ", but that service wasn't registered to begin with.";
+        ALOGW("Tried to unregister %s, but that service wasn't registered to begin with.",
+              name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
     if (serviceIt->second.ctx.debugPid != IPCThreadState::self()->getCallingPid()) {
-        LOG(WARNING) << "Only a server can unregister itself (for " << name << ")";
+        ALOGW("Only a server can unregister itself (for %s)", name.c_str());
         return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION);
     }
 
     sp<IBinder> storedBinder = serviceIt->second.binder;
 
     if (binder != storedBinder) {
-        LOG(WARNING) << "Tried to unregister " << name
-            << ", but a different service is registered under this name.";
+        ALOGW("Tried to unregister %s, but a different service is registered under this name.",
+              name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
     if (serviceIt->second.guaranteeClient) {
-        LOG(INFO) << "Tried to unregister " << name << ", but there is about to be a client.";
+        ALOGI("Tried to unregister %s, but there is about to be a client.", name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
@@ -759,7 +763,7 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
     // So, if clients > 2, then at least one other service on the system must hold a refcount.
     if (clients < 0 || clients > 2) {
         // client callbacks are either disabled or there are other clients
-        LOG(INFO) << "Tried to unregister " << name << ", but there are clients: " << clients;
+        ALOGI("Tried to unregister %s, but there are clients: %d", name.c_str(), clients);
         // Set this flag to ensure the clients are acknowledged in the next callback
         serviceIt->second.guaranteeClient = true;
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
