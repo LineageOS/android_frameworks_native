@@ -524,6 +524,21 @@ std::optional<std::string> verifyTargetedInjection(const sp<WindowInfoHandle>& w
     return {};
 }
 
+Point resolveTouchedPosition(const MotionEntry& entry) {
+    const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
+    // Always dispatch mouse events to cursor position.
+    if (isFromMouse) {
+        return Point(static_cast<int32_t>(entry.xCursorPosition),
+                     static_cast<int32_t>(entry.yCursorPosition));
+    }
+
+    const int32_t pointerIndex = getMotionEventActionPointerIndex(entry.action);
+    return Point(static_cast<int32_t>(
+                         entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_X)),
+                 static_cast<int32_t>(
+                         entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_Y)));
+}
+
 } // namespace
 
 // --- InputDispatcher ---
@@ -2067,18 +2082,8 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
 
     if (newGesture || (isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN)) {
         /* Case 1: New splittable pointer going down, or need target for hover or scroll. */
-
-        int32_t x;
-        int32_t y;
+        const auto [x, y] = resolveTouchedPosition(entry);
         const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
-        // Always dispatch mouse events to cursor position.
-        if (isFromMouse) {
-            x = int32_t(entry.xCursorPosition);
-            y = int32_t(entry.yCursorPosition);
-        } else {
-            x = int32_t(entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_X));
-            y = int32_t(entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_Y));
-        }
         const bool isDown = maskedAction == AMOTION_EVENT_ACTION_DOWN;
         const bool isStylus = isPointerFromStylus(entry, pointerIndex);
         newTouchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y, &tempTouchState,
@@ -2141,43 +2146,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
         }
 
         for (const sp<WindowInfoHandle>& windowHandle : newTouchedWindows) {
-            const WindowInfo& info = *windowHandle->getInfo();
-
-            // Skip spy window targets that are not valid for targeted injection.
-            if (const auto err = verifyTargetedInjection(windowHandle, entry); err) {
-                continue;
-            }
-
-            if (info.inputConfig.test(WindowInfo::InputConfig::PAUSE_DISPATCHING)) {
-                ALOGI("Not sending touch event to %s because it is paused",
-                      windowHandle->getName().c_str());
-                continue;
-            }
-
-            // Ensure the window has a connection and the connection is responsive
-            const bool isResponsive = hasResponsiveConnectionLocked(*windowHandle);
-            if (!isResponsive) {
-                ALOGW("Not sending touch gesture to %s because it is not responsive",
-                      windowHandle->getName().c_str());
-                continue;
-            }
-
-            // Drop events that can't be trusted due to occlusion
-            TouchOcclusionInfo occlusionInfo = computeTouchOcclusionInfoLocked(windowHandle, x, y);
-            if (!isTouchTrustedLocked(occlusionInfo)) {
-                if (DEBUG_TOUCH_OCCLUSION) {
-                    ALOGD("Stack of obscuring windows during untrusted touch (%d, %d):", x, y);
-                    for (const auto& log : occlusionInfo.debugInfo) {
-                        ALOGD("%s", log.c_str());
-                    }
-                }
-                ALOGW("Dropping untrusted touch event due to %s/%d",
-                      occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid);
-                continue;
-            }
-
-            // Drop touch events if requested by input feature
-            if (shouldDropInput(entry, windowHandle)) {
+            if (!canWindowReceiveMotionLocked(windowHandle, entry)) {
                 continue;
             }
 
@@ -4607,26 +4576,58 @@ sp<WindowInfoHandle> InputDispatcher::getFocusedWindowHandleLocked(int displayId
     return getWindowHandleLocked(focusedToken, displayId);
 }
 
-bool InputDispatcher::hasResponsiveConnectionLocked(WindowInfoHandle& windowHandle) const {
-    sp<Connection> connection = getConnectionLocked(windowHandle.getToken());
-    const bool noInputChannel =
-            windowHandle.getInfo()->inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL);
-    if (connection != nullptr && noInputChannel) {
-        ALOGW("%s has feature NO_INPUT_CHANNEL, but it matched to connection %s",
-              windowHandle.getName().c_str(), connection->inputChannel->getName().c_str());
+bool InputDispatcher::canWindowReceiveMotionLocked(const sp<WindowInfoHandle>& window,
+                                                   const MotionEntry& motionEntry) const {
+    const WindowInfo& info = *window->getInfo();
+
+    // Skip spy window targets that are not valid for targeted injection.
+    if (const auto err = verifyTargetedInjection(window, motionEntry); err) {
         return false;
     }
 
+    if (info.inputConfig.test(WindowInfo::InputConfig::PAUSE_DISPATCHING)) {
+        ALOGI("Not sending touch event to %s because it is paused", window->getName().c_str());
+        return false;
+    }
+
+    if (info.inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL)) {
+        ALOGW("Not sending touch gesture to %s because it has config NO_INPUT_CHANNEL",
+              window->getName().c_str());
+        return false;
+    }
+
+    sp<Connection> connection = getConnectionLocked(window->getToken());
     if (connection == nullptr) {
-        if (!noInputChannel) {
-            ALOGI("Could not find connection for %s", windowHandle.getName().c_str());
-        }
+        ALOGW("Not sending touch to %s because there's no corresponding connection",
+              window->getName().c_str());
         return false;
     }
+
     if (!connection->responsive) {
-        ALOGW("Window %s is not responsive", windowHandle.getName().c_str());
+        ALOGW("Not sending touch to %s because it is not responsive", window->getName().c_str());
         return false;
     }
+
+    // Drop events that can't be trusted due to occlusion
+    const auto [x, y] = resolveTouchedPosition(motionEntry);
+    TouchOcclusionInfo occlusionInfo = computeTouchOcclusionInfoLocked(window, x, y);
+    if (!isTouchTrustedLocked(occlusionInfo)) {
+        if (DEBUG_TOUCH_OCCLUSION) {
+            ALOGD("Stack of obscuring windows during untrusted touch (%d, %d):", x, y);
+            for (const auto& log : occlusionInfo.debugInfo) {
+                ALOGD("%s", log.c_str());
+            }
+        }
+        ALOGW("Dropping untrusted touch event due to %s/%d", occlusionInfo.obscuringPackage.c_str(),
+              occlusionInfo.obscuringUid);
+        return false;
+    }
+
+    // Drop touch events if requested by input feature
+    if (shouldDropInput(motionEntry, window)) {
+        return false;
+    }
+
     return true;
 }
 
