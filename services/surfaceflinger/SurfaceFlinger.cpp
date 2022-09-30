@@ -142,6 +142,7 @@
 #include "SurfaceInterceptor.h"
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
+#include "Utils/Dumper.h"
 #include "WindowInfosListenerInvoker.h"
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
@@ -5101,18 +5102,22 @@ void SurfaceFlinger::dumpCompositionDisplays(std::string& result) const {
 }
 
 void SurfaceFlinger::dumpDisplays(std::string& result) const {
+    utils::Dumper dumper{result};
+
     for (const auto& [id, display] : mPhysicalDisplays) {
         if (const auto device = getDisplayDeviceLocked(id)) {
-            device->dump(result);
+            device->dump(dumper);
         }
-        display.snapshot().dump(result);
-        result += '\n';
+
+        utils::Dumper::Indent indent(dumper);
+        display.snapshot().dump(dumper);
+        dumper.eol();
     }
 
     for (const auto& [token, display] : mDisplays) {
         if (display->isVirtual()) {
-            display->dump(result);
-            result += '\n';
+            display->dump(dumper);
+            dumper.eol();
         }
     }
 }

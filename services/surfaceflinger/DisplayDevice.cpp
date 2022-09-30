@@ -328,17 +328,16 @@ std::string DisplayDevice::getDebugName() const {
     return name + ", \""s + mDisplayName + "\")"s;
 }
 
-void DisplayDevice::dump(std::string& result) const {
-    using namespace std::string_literals;
+void DisplayDevice::dump(utils::Dumper& dumper) const {
+    using namespace std::string_view_literals;
 
-    result += getDebugName();
+    dumper.dump({}, getDebugName());
 
-    result += "\n   powerMode="s;
-    result += mPowerMode.has_value() ? to_string(mPowerMode.value()) : "OFF(reset)";
-    result += '\n';
+    utils::Dumper::Indent indent(dumper);
+    dumper.dump("powerMode"sv, mPowerMode);
 
     if (mRefreshRateConfigs) {
-        mRefreshRateConfigs->dump(result);
+        mRefreshRateConfigs->dump(dumper);
     }
 }
 
