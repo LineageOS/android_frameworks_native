@@ -65,8 +65,15 @@ static void EXPECT_NEAR_BY_FRACTION(float actual, float target, float fraction) 
     EXPECT_NEAR(actual, target, tolerance);
 }
 
-static void checkVelocity(float Vactual, float Vtarget) {
-    EXPECT_NEAR_BY_FRACTION(Vactual, Vtarget, VELOCITY_TOLERANCE);
+static void checkVelocity(std::optional<float> Vactual, std::optional<float> Vtarget) {
+    if (Vactual != std::nullopt) {
+        if (Vtarget == std::nullopt) {
+            FAIL() << "Expected no velocity, but found " << *Vactual;
+        }
+        EXPECT_NEAR_BY_FRACTION(*Vactual, *Vtarget, VELOCITY_TOLERANCE);
+    } else if (Vtarget != std::nullopt) {
+        FAIL() << "Expected  velocity, but found no velocity";
+    }
 }
 
 static void checkCoefficient(float actual, float target) {
@@ -262,26 +269,16 @@ static std::optional<float> computeVelocity(
 
 static void computeAndCheckVelocity(const VelocityTracker::Strategy strategy,
                                     const std::vector<PlanarMotionEventEntry>& motions,
-                                    int32_t axis, float targetVelocity,
+                                    int32_t axis, std::optional<float> targetVelocity,
                                     uint32_t pointerId = DEFAULT_POINTER_ID) {
-    checkVelocity(computePlanarVelocity(strategy, motions, axis, pointerId).value_or(0),
-                  targetVelocity);
+    checkVelocity(computePlanarVelocity(strategy, motions, axis, pointerId), targetVelocity);
 }
 
 static void computeAndCheckAxisScrollVelocity(
         const VelocityTracker::Strategy strategy,
         const std::vector<std::pair<std::chrono::nanoseconds, float>>& motions,
         std::optional<float> targetVelocity) {
-    std::optional<float> velocity = computeVelocity(strategy, motions, AMOTION_EVENT_AXIS_SCROLL);
-    if (velocity && !targetVelocity) {
-        FAIL() << "Expected no velocity, but found " << *velocity;
-    }
-    if (!velocity && targetVelocity) {
-        FAIL() << "Expected  velocity, but found no velocity";
-    }
-    if (velocity) {
-        checkVelocity(*velocity, *targetVelocity);
-    }
+    checkVelocity(computeVelocity(strategy, motions, AMOTION_EVENT_AXIS_SCROLL), targetVelocity);
 }
 
 static void computeAndCheckQuadraticEstimate(const std::vector<PlanarMotionEventEntry>& motions,
@@ -1013,7 +1010,7 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFast3) {
 /**
  * ================== Multiple pointers ============================================================
  *
- * Three fingers quickly tap the screen. Since this is a tap, the velocities should be zero.
+ * Three fingers quickly tap the screen. Since this is a tap, the velocities should be empty.
  * If the events with POINTER_UP or POINTER_DOWN are not handled correctly (these should not be
  * part of the fitted data), this can cause large velocity values to be reported instead.
  */
@@ -1027,12 +1024,14 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_ThreeFi
         { 272700us, {{1063, 1128}, {NAN, NAN}, {NAN, NAN}} },
     };
 
-    // Velocity should actually be zero, but we expect 0.016 here instead.
-    // This is close enough to zero, and is likely caused by division by a very small number.
-    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 0);
-    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_Y, 0);
-    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 0);
-    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_Y, 0);
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X,
+                            std::nullopt);
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_Y,
+                            std::nullopt);
+    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X,
+                            std::nullopt);
+    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_Y,
+                            std::nullopt);
 }
 
 /**
@@ -1055,7 +1054,7 @@ TEST_F(VelocityTrackerTest, ShortDelayBeforeActionUp) {
 
 /**
  * The last movement of a single pointer is ACTION_UP. If there's a long delay between the last
- * ACTION_MOVE and the final ACTION_UP, velocity should be reported as zero because the pointer
+ * ACTION_MOVE and the final ACTION_UP, velocity should be reported as empty because the pointer
  * should be assumed to have stopped.
  */
 TEST_F(VelocityTrackerTest, LongDelayBeforeActionUp) {
@@ -1065,14 +1064,16 @@ TEST_F(VelocityTrackerTest, LongDelayBeforeActionUp) {
             {20ms, {{30, 0}}},
             {3000ms, {{30, 0}}}, // ACTION_UP
     };
-    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 0);
-    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 0);
+    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X,
+                            std::nullopt);
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X,
+                            std::nullopt);
 }
 
 /**
  * The last movement of a pointer is always ACTION_POINTER_UP or ACTION_UP. If there's a long delay
  * before ACTION_POINTER_UP event, the movement should be assumed to have stopped.
- * The final velocity should be reported as zero for all pointers.
+ * The final velocity should be reported as empty for all pointers.
  */
 TEST_F(VelocityTrackerTest, LongDelayBeforeActionPointerUp) {
     std::vector<PlanarMotionEventEntry> motions = {
@@ -1083,13 +1084,17 @@ TEST_F(VelocityTrackerTest, LongDelayBeforeActionPointerUp) {
             {40ms, {{30, 0}, {400, 0}}},
             {3000ms, {{30, 0}}}, // ACTION_POINTER_UP
     };
-    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 0,
+    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X,
+                            std::nullopt,
                             /*pointerId*/ 0);
-    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 0,
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X,
+                            std::nullopt,
                             /*pointerId*/ 0);
-    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 0,
+    computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X,
+                            std::nullopt,
                             /*pointerId*/ 1);
-    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 0,
+    computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X,
+                            std::nullopt,
                             /*pointerId*/ 1);
 }
 
