@@ -195,9 +195,10 @@ void KeyEntry::recycle() {
 
 // --- TouchModeEntry ---
 
-TouchModeEntry::TouchModeEntry(int32_t id, nsecs_t eventTime, bool inTouchMode)
+TouchModeEntry::TouchModeEntry(int32_t id, nsecs_t eventTime, bool inTouchMode, int displayId)
       : EventEntry(id, Type::TOUCH_MODE_CHANGED, eventTime, POLICY_FLAG_PASS_TO_USER),
-        inTouchMode(inTouchMode) {}
+        inTouchMode(inTouchMode),
+        displayId(displayId) {}
 
 TouchModeEntry::~TouchModeEntry() {}
 

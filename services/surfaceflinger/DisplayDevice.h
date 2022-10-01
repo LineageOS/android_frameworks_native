@@ -47,6 +47,7 @@
 #include "Scheduler/RefreshRateConfigs.h"
 #include "ThreadContext.h"
 #include "TracedOrdinal.h"
+#include "Utils/Dumper.h"
 
 namespace android {
 
@@ -233,9 +234,7 @@ public:
     bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
     void animateRefreshRateOverlay();
 
-    void onVsync(nsecs_t timestamp);
     nsecs_t getVsyncPeriodFromHWC() const;
-    nsecs_t getRefreshTimestamp() const;
 
     status_t setRefreshRatePolicy(
             const std::optional<scheduler::RefreshRateConfigs::Policy>& policy,
@@ -248,7 +247,7 @@ public:
      * Debugging
      */
     std::string getDebugName() const;
-    void dump(std::string& result) const;
+    void dump(utils::Dumper&) const;
 
 private:
     const sp<SurfaceFlinger> mFlinger;
@@ -272,8 +271,6 @@ private:
 
     std::optional<float> mStagedBrightness;
     float mBrightness = -1.f;
-
-    std::atomic<nsecs_t> mLastHwVsync = 0;
 
     // TODO(b/182939859): Remove special cases for primary display.
     const bool mIsPrimary;

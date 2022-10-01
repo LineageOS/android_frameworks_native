@@ -53,6 +53,8 @@ public:
 
     MOCK_METHOD1(preComposition, void(CompositionRefreshArgs&));
 
+    MOCK_CONST_METHOD0(getFeatureFlags, FeatureFlags());
+
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 

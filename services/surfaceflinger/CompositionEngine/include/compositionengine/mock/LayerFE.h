@@ -53,6 +53,8 @@ public:
     MOCK_CONST_METHOD0(getDebugName, const char*());
     MOCK_CONST_METHOD0(getSequence, int32_t());
     MOCK_CONST_METHOD0(hasRoundedCorners, bool());
+    MOCK_CONST_METHOD0(getMetadata, gui::LayerMetadata*());
+    MOCK_CONST_METHOD0(getRelativeMetadata, gui::LayerMetadata*());
 };
 
 } // namespace android::compositionengine::mock

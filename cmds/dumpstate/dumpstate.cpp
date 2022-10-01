@@ -1029,7 +1029,7 @@ static void DumpIncidentReport() {
         MYLOGE("Could not open %s to dump incident report.\n", path.c_str());
         return;
     }
-    RunCommandToFd(fd, "", {"incident", "-u"}, CommandOptions::WithTimeout(120).Build());
+    RunCommandToFd(fd, "", {"incident", "-u"}, CommandOptions::WithTimeout(20).Build());
     bool empty = 0 == lseek(fd, 0, SEEK_END);
     if (!empty) {
         // Use a different name from "incident.proto"
@@ -1087,7 +1087,7 @@ static void DumpVisibleWindowViews() {
         return;
     }
     RunCommandToFd(fd, "", {"cmd", "window", "dump-visible-window-views"},
-                   CommandOptions::WithTimeout(120).Build());
+                   CommandOptions::WithTimeout(10).Build());
     bool empty = 0 == lseek(fd, 0, SEEK_END);
     if (!empty) {
         ds.AddZipEntry("visible_windows.zip", path);
@@ -1426,7 +1426,9 @@ static void DumpHals(int out_fd = STDOUT_FILENO) {
 // Dump all of the files that make up the vendor interface.
 // See the files listed in dumpFileList() for the latest list of files.
 static void DumpVintf() {
-    const auto vintfFiles = android::vintf::details::dumpFileList();
+
+    const std::string sku = android::base::GetProperty("ro.boot.product.hardware.sku", "");
+    const auto vintfFiles = android::vintf::details::dumpFileList(sku);
     for (const auto vintfFile : vintfFiles) {
         struct stat st;
         if (stat(vintfFile.c_str(), &st) == 0) {

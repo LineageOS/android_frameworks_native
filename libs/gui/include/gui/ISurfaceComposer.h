@@ -95,7 +95,6 @@ public:
 
     // flags for setTransactionState()
     enum {
-        eSynchronous = 0x01,
         eAnimation = 0x02,
 
         // Explicit indication that this transaction and others to follow will likely result in a

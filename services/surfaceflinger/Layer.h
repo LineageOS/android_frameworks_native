@@ -166,6 +166,8 @@ public:
         ui::Transform transform;
         Rect bufferSize;
         std::shared_ptr<renderengine::ExternalTexture> externalTexture;
+        LayerMetadata layerMetadata;
+        LayerMetadata relativeLayerMetadata;
     };
 
     using FrameRate = scheduler::LayerInfo::FrameRate;
@@ -611,6 +613,12 @@ public:
         mClearClientCompositionFenceOnLayerDisplayed = false;
     }
 
+    const LayerMetadata* getMetadata() const override { return &mSnapshot->layerMetadata; }
+
+    const LayerMetadata* getRelativeMetadata() const override {
+        return &mSnapshot->relativeLayerMetadata;
+    }
+
     const char* getDebugName() const override;
 
     bool setShadowRadius(float shadowRadius);
@@ -901,6 +909,9 @@ public:
     // TODO(b/238781169) Remove direct calls to RenderEngine::drawLayers that don't go through
     // CompositionEngine to create a single path for composing layers.
     void updateSnapshot(bool updateGeometry);
+    void updateMetadataSnapshot(const LayerMetadata& parentMetadata);
+    void updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMetadata,
+                                        std::unordered_set<Layer*>& visited);
 
 protected:
     friend class impl::SurfaceInterceptor;

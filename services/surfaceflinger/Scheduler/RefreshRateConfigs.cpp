@@ -1037,47 +1037,45 @@ bool RefreshRateConfigs::isFractionalPairOrMultiple(Fps smaller, Fps bigger) {
             isApproxEqual(bigger, Fps::fromValue(smaller.getValue() * multiplier * kCoef));
 }
 
-void RefreshRateConfigs::dump(std::string& result) const {
-    using namespace std::string_literals;
+void RefreshRateConfigs::dump(utils::Dumper& dumper) const {
+    using namespace std::string_view_literals;
 
     std::lock_guard lock(mLock);
 
     const auto activeModeId = getActiveModeItLocked()->first;
-    result += "   activeModeId="s;
-    result += std::to_string(activeModeId.value());
+    dumper.dump("activeModeId"sv, std::to_string(activeModeId.value()));
 
-    result += "\n   displayModes=\n"s;
-    for (const auto& [id, mode] : mDisplayModes) {
-        result += "      "s;
-        result += to_string(*mode);
-        result += '\n';
+    dumper.dump("displayModes"sv);
+    {
+        utils::Dumper::Indent indent(dumper);
+        for (const auto& [id, mode] : mDisplayModes) {
+            dumper.dump({}, to_string(*mode));
+        }
     }
 
-    base::StringAppendF(&result, "   displayManagerPolicy=%s\n",
-                        mDisplayManagerPolicy.toString().c_str());
+    dumper.dump("displayManagerPolicy"sv, mDisplayManagerPolicy.toString());
 
     if (const Policy& currentPolicy = *getCurrentPolicyLocked();
         mOverridePolicy && currentPolicy != mDisplayManagerPolicy) {
-        base::StringAppendF(&result, "   overridePolicy=%s\n", currentPolicy.toString().c_str());
+        dumper.dump("overridePolicy"sv, currentPolicy.toString());
     }
 
-    base::StringAppendF(&result, "   supportsFrameRateOverrideByContent=%s\n",
-                        mSupportsFrameRateOverrideByContent ? "true" : "false");
+    dumper.dump("supportsFrameRateOverrideByContent"sv, mSupportsFrameRateOverrideByContent);
 
-    result += "   idleTimer="s;
+    std::string idleTimer;
     if (mIdleTimer) {
-        result += mIdleTimer->dump();
+        idleTimer = mIdleTimer->dump();
     } else {
-        result += "off"s;
+        idleTimer = "off"sv;
     }
 
     if (const auto controller = mConfig.kernelIdleTimerController) {
-        base::StringAppendF(&result, " (kernel via %s)", ftl::enum_string(*controller).c_str());
+        base::StringAppendF(&idleTimer, " (kernel via %s)", ftl::enum_string(*controller).c_str());
     } else {
-        result += " (platform)"s;
+        idleTimer += " (platform)"sv;
     }
 
-    result += '\n';
+    dumper.dump("idleTimer"sv, idleTimer);
 }
 
 std::chrono::milliseconds RefreshRateConfigs::getIdleTimerTimeout() {

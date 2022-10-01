@@ -68,9 +68,9 @@ static void logInfo(PlatformMethods* /*platform*/, const char* infoMessage) {
 
 static TraceEventHandle addTraceEvent(
         PlatformMethods* /**platform*/, char phase, const unsigned char* /*category_group_enabled*/,
-        const char* name, unsigned long long /*id*/, double /*timestamp*/, int /*num_args*/,
-        const char** /*arg_names*/, const unsigned char* /*arg_types*/,
-        const unsigned long long* /*arg_values*/, unsigned char /*flags*/) {
+        const char* name, unsigned long long /*id*/, double /*timestamp*/, int num_args,
+        const char** arg_names, const unsigned char* /*arg_types*/,
+        const unsigned long long* arg_values, unsigned char /*flags*/) {
     switch (phase) {
         case 'B': {
             ATRACE_BEGIN(name);
@@ -83,6 +83,13 @@ static TraceEventHandle addTraceEvent(
         case 'I': {
             ATRACE_NAME(name);
             break;
+        }
+       case 'C': {
+             for(int i=0; i<num_args ; i++)
+             {
+                 ATRACE_INT(arg_names[i],arg_values[i]);
+             }
+             break;
         }
         default:
             // Could handle other event types here

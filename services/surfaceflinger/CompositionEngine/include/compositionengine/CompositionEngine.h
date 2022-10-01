@@ -18,8 +18,9 @@
 
 #include <TimeStats/TimeStats.h>
 #include <utils/Timers.h>
-
 #include <memory>
+
+#include "Feature.h"
 
 namespace android {
 
@@ -71,6 +72,8 @@ public:
 
     // TODO(b/121291683): These will become private/internal
     virtual void preComposition(CompositionRefreshArgs&) = 0;
+
+    virtual FeatureFlags getFeatureFlags() const = 0;
 
     // Debugging
     virtual void dump(std::string&) const = 0;

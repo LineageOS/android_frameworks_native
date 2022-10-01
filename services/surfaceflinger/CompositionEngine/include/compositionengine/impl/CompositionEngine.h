@@ -48,6 +48,8 @@ public:
 
     void preComposition(CompositionRefreshArgs&) override;
 
+    FeatureFlags getFeatureFlags() const override;
+
     // Debugging
     void dump(std::string&) const override;
 

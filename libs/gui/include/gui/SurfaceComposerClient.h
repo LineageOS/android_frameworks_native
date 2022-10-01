@@ -69,14 +69,16 @@ struct SurfaceControlStats {
     SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime,
                         std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence,
                         const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
-                        uint32_t hint, FrameEventHistoryStats eventStats)
+                        uint32_t hint, FrameEventHistoryStats eventStats,
+                        uint32_t currentMaxAcquiredBufferCount)
           : surfaceControl(sc),
             latchTime(latchTime),
             acquireTimeOrFence(std::move(acquireTimeOrFence)),
             presentFence(presentFence),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
-            frameEventStats(eventStats) {}
+            frameEventStats(eventStats),
+            currentMaxAcquiredBufferCount(currentMaxAcquiredBufferCount) {}
 
     sp<SurfaceControl> surfaceControl;
     nsecs_t latchTime = -1;
@@ -85,6 +87,7 @@ struct SurfaceControlStats {
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
     FrameEventHistoryStats frameEventStats;
+    uint32_t currentMaxAcquiredBufferCount = 0;
 };
 
 using TransactionCompletedCallbackTakesContext =
@@ -403,7 +406,6 @@ public:
 
         uint64_t mId;
 
-        uint32_t mForceSynchronous = 0;
         uint32_t mTransactionNestCount = 0;
         bool mAnimation = false;
         bool mEarlyWakeupStart = false;

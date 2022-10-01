@@ -16,6 +16,7 @@
 
 #define LOG_TAG "SurfaceComposerClient"
 
+#include <semaphore.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -356,7 +357,8 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                                       transactionStats.latchTime, surfaceStats.acquireTimeOrFence,
                                       transactionStats.presentFence,
                                       surfaceStats.previousReleaseFence, surfaceStats.transformHint,
-                                      surfaceStats.eventStats);
+                                      surfaceStats.eventStats,
+                                      surfaceStats.currentMaxAcquiredBufferCount);
             }
 
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
@@ -381,7 +383,8 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                                       transactionStats.latchTime, surfaceStats.acquireTimeOrFence,
                                       transactionStats.presentFence,
                                       surfaceStats.previousReleaseFence, surfaceStats.transformHint,
-                                      surfaceStats.eventStats);
+                                      surfaceStats.eventStats,
+                                      surfaceStats.currentMaxAcquiredBufferCount);
                 if (callbacksMap[callbackId].surfaceControls[surfaceStats.surfaceControl]) {
                     callbacksMap[callbackId]
                             .surfaceControls[surfaceStats.surfaceControl]
@@ -627,7 +630,6 @@ SurfaceComposerClient::Transaction::Transaction() {
 
 SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
       : mId(other.mId),
-        mForceSynchronous(other.mForceSynchronous),
         mTransactionNestCount(other.mTransactionNestCount),
         mAnimation(other.mAnimation),
         mEarlyWakeupStart(other.mEarlyWakeupStart),
@@ -662,7 +664,6 @@ SurfaceComposerClient::Transaction::createFromParcel(const Parcel* parcel) {
 
 status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel) {
     const uint64_t transactionId = parcel->readUint64();
-    const uint32_t forceSynchronous = parcel->readUint32();
     const uint32_t transactionNestCount = parcel->readUint32();
     const bool animation = parcel->readBool();
     const bool earlyWakeupStart = parcel->readBool();
@@ -739,7 +740,6 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
 
     // Parsing was successful. Update the object.
     mId = transactionId;
-    mForceSynchronous = forceSynchronous;
     mTransactionNestCount = transactionNestCount;
     mAnimation = animation;
     mEarlyWakeupStart = earlyWakeupStart;
@@ -770,7 +770,6 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     const_cast<SurfaceComposerClient::Transaction*>(this)->cacheBuffers();
 
     parcel->writeUint64(mId);
-    parcel->writeUint32(mForceSynchronous);
     parcel->writeUint32(mTransactionNestCount);
     parcel->writeBool(mAnimation);
     parcel->writeBool(mEarlyWakeupStart);
@@ -890,7 +889,6 @@ void SurfaceComposerClient::Transaction::clear() {
     mListenerCallbacks.clear();
     mInputWindowCommands.clear();
     mMayContainBuffer = false;
-    mForceSynchronous = 0;
     mTransactionNestCount = 0;
     mAnimation = false;
     mEarlyWakeupStart = false;
@@ -963,12 +961,55 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
     }
 }
 
+class SyncCallback {
+public:
+    static void function(void* callbackContext, nsecs_t /* latchTime */,
+                         const sp<Fence>& /* presentFence */,
+                         const std::vector<SurfaceControlStats>& /* stats */) {
+        if (!callbackContext) {
+            ALOGE("failed to get callback context for SyncCallback");
+        }
+        SyncCallback* helper = static_cast<SyncCallback*>(callbackContext);
+        LOG_ALWAYS_FATAL_IF(sem_post(&helper->mSemaphore), "sem_post failed");
+    }
+    ~SyncCallback() {
+        if (mInitialized) {
+            LOG_ALWAYS_FATAL_IF(sem_destroy(&mSemaphore), "sem_destroy failed");
+        }
+    }
+    void init() {
+        LOG_ALWAYS_FATAL_IF(clock_gettime(CLOCK_MONOTONIC, &mTimeoutTimespec) == -1,
+                            "clock_gettime() fail! in SyncCallback::init");
+        mTimeoutTimespec.tv_sec += 4;
+        LOG_ALWAYS_FATAL_IF(sem_init(&mSemaphore, 0, 0), "sem_init failed");
+        mInitialized = true;
+    }
+    void wait() {
+        int result = sem_clockwait(&mSemaphore, CLOCK_MONOTONIC, &mTimeoutTimespec);
+        if (result && errno != ETIMEDOUT && errno != EINTR) {
+            LOG_ALWAYS_FATAL("sem_clockwait failed(%d)", errno);
+        } else if (errno == ETIMEDOUT) {
+            ALOGW("Sync transaction timed out waiting for commit callback.");
+        }
+    }
+    void* getContext() { return static_cast<void*>(this); }
+
+private:
+    sem_t mSemaphore;
+    bool mInitialized = false;
+    timespec mTimeoutTimespec;
+};
+
 status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay) {
     if (mStatus != NO_ERROR) {
         return mStatus;
     }
 
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    SyncCallback syncCallback;
+    if (synchronous) {
+        syncCallback.init();
+        addTransactionCommittedCallback(syncCallback.function, syncCallback.getContext());
+    }
 
     bool hasListenerCallbacks = !mListenerCallbacks.empty();
     std::vector<ListenerCallbacks> listenerCallbacks;
@@ -1003,27 +1044,22 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
     Vector<DisplayState> displayStates;
     uint32_t flags = 0;
 
-    mForceSynchronous |= synchronous;
-
-    for (auto const& kv : mComposerStates){
+    for (auto const& kv : mComposerStates) {
         composerStates.add(kv.second);
     }
 
     displayStates = std::move(mDisplayStates);
 
-    if (mForceSynchronous) {
-        flags |= ISurfaceComposer::eSynchronous;
-    }
     if (mAnimation) {
         flags |= ISurfaceComposer::eAnimation;
     }
     if (oneWay) {
-      if (mForceSynchronous) {
-          ALOGE("Transaction attempted to set synchronous and one way at the same time"
-                " this is an invalid request. Synchronous will win for safety");
-      } else {
-          flags |= ISurfaceComposer::eOneWay;
-      }
+        if (synchronous) {
+            ALOGE("Transaction attempted to set synchronous and one way at the same time"
+                  " this is an invalid request. Synchronous will win for safety");
+        } else {
+            flags |= ISurfaceComposer::eOneWay;
+        }
     }
 
     // If both mEarlyWakeupStart and mEarlyWakeupEnd are set
@@ -1037,6 +1073,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
 
     sp<IBinder> applyToken = mApplyToken ? mApplyToken : sApplyToken;
 
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     sf->setTransactionState(mFrameTimelineInfo, composerStates, displayStates, flags, applyToken,
                             mInputWindowCommands, mDesiredPresentTime, mIsAutoTimestamp,
                             {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
@@ -1045,6 +1082,10 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
 
     // Clear the current states and flags
     clear();
+
+    if (synchronous) {
+        syncCallback.wait();
+    }
 
     mStatus = NO_ERROR;
     return NO_ERROR;
@@ -2021,7 +2062,6 @@ void SurfaceComposerClient::Transaction::setDisplayProjection(const sp<IBinder>&
     s.layerStackSpaceRect = layerStackRect;
     s.orientedDisplaySpaceRect = displayRect;
     s.what |= DisplayState::eDisplayProjectionChanged;
-    mForceSynchronous = true; // TODO: do we actually still need this?
 }
 
 void SurfaceComposerClient::Transaction::setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height) {
