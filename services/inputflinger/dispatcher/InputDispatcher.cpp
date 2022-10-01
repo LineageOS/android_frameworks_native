@@ -936,13 +936,10 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
     // If the application takes too long to catch up then we drop all events preceding
     // the touch into the other window.
     if (isPointerDownEvent && mAwaitedFocusedApplication != nullptr) {
-        int32_t displayId = motionEntry.displayId;
-        int32_t x = static_cast<int32_t>(
-                motionEntry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
-        int32_t y = static_cast<int32_t>(
-                motionEntry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
-
+        const int32_t displayId = motionEntry.displayId;
+        const auto [x, y] = resolveTouchedPosition(motionEntry);
         const bool isStylus = isPointerFromStylus(motionEntry, 0 /*pointerIndex*/);
+
         sp<WindowInfoHandle> touchedWindowHandle =
                 findTouchedWindowAtLocked(displayId, x, y, nullptr, isStylus);
         if (touchedWindowHandle != nullptr &&
@@ -2202,9 +2199,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
         // Check whether touches should slip outside of the current foreground window.
         if (maskedAction == AMOTION_EVENT_ACTION_MOVE && entry.pointerCount == 1 &&
             tempTouchState.isSlippery()) {
-            const int32_t x = int32_t(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
-            const int32_t y = int32_t(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
-
+            const auto [x, y] = resolveTouchedPosition(entry);
             const bool isStylus = isPointerFromStylus(entry, 0 /*pointerIndex*/);
             sp<WindowInfoHandle> oldTouchedWindowHandle =
                     tempTouchState.getFirstForegroundWindowHandle();
