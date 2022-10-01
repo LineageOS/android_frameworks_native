@@ -342,8 +342,12 @@ private:
     bool mDispatchEnabled GUARDED_BY(mLock);
     bool mDispatchFrozen GUARDED_BY(mLock);
     bool mInputFilterEnabled GUARDED_BY(mLock);
-    bool mInTouchMode GUARDED_BY(mLock);
     float mMaximumObscuringOpacityForTouch GUARDED_BY(mLock);
+
+    // This map is not really needed, but it helps a lot with debugging (dumpsys input).
+    // In the java layer, touch mode states are spread across multiple DisplayContent objects,
+    // making harder to snapshot and retrieve them.
+    std::map<int32_t /*displayId*/, bool /*inTouchMode*/> mTouchModePerDisplay GUARDED_BY(mLock);
 
     class DispatcherWindowListener : public gui::WindowInfosListener {
     public:
@@ -380,10 +384,10 @@ private:
             REQUIRES(mLock);
     sp<android::gui::WindowInfoHandle> getFocusedWindowHandleLocked(int displayId) const
             REQUIRES(mLock);
-    bool hasResponsiveConnectionLocked(android::gui::WindowInfoHandle& windowHandle) const
-            REQUIRES(mLock);
+    bool canWindowReceiveMotionLocked(const sp<android::gui::WindowInfoHandle>& window,
+                                      const MotionEntry& motionEntry) const REQUIRES(mLock);
 
-    // Gets all the input targets (with their respective input channels) from the window handles
+    // Returns all the input targets (with their respective input channels) from the window handles
     // passed as argument.
     std::vector<InputTarget> getInputTargetsFromWindowHandlesLocked(
             const std::vector<sp<android::gui::WindowInfoHandle>>& windowHandles) const
@@ -683,9 +687,6 @@ private:
     // Check window ownership
     bool focusedWindowIsOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
     bool recentWindowsAreOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
-
-    // Per display touch mode enabled
-    const bool kPerDisplayTouchModeEnabled;
 
     sp<InputReporterInterface> mReporter;
 };

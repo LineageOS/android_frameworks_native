@@ -17,19 +17,20 @@
 #pragma once
 
 #include <optional>
-#include <string>
 
+#include <ui/ColorMode.h>
 #include <ui/DisplayId.h>
 #include <ui/StaticDisplayInfo.h>
 
-#include "../DisplayHardware/DisplayMode.h"
+#include "DisplayHardware/DisplayMode.h"
+#include "Utils/Dumper.h"
 
 namespace android::display {
 
 // Immutable state of a physical display, captured on hotplug.
 class DisplaySnapshot {
 public:
-    DisplaySnapshot(PhysicalDisplayId, ui::DisplayConnectionType, DisplayModes&&,
+    DisplaySnapshot(PhysicalDisplayId, ui::DisplayConnectionType, DisplayModes&&, ui::ColorModes&&,
                     std::optional<DeviceProductInfo>&&);
 
     DisplaySnapshot(const DisplaySnapshot&) = delete;
@@ -41,9 +42,12 @@ public:
     std::optional<DisplayModeId> translateModeId(hal::HWConfigId) const;
 
     const auto& displayModes() const { return mDisplayModes; }
+    const auto& colorModes() const { return mColorModes; }
     const auto& deviceProductInfo() const { return mDeviceProductInfo; }
 
-    void dump(std::string&) const;
+    ui::ColorModes filterColorModes(bool supportsWideColor) const;
+
+    void dump(utils::Dumper&) const;
 
 private:
     const PhysicalDisplayId mDisplayId;
@@ -51,6 +55,7 @@ private:
 
     // Effectively const except in move constructor.
     DisplayModes mDisplayModes;
+    ui::ColorModes mColorModes;
     std::optional<DeviceProductInfo> mDeviceProductInfo;
 };
 

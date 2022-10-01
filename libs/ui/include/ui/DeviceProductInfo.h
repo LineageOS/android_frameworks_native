@@ -61,8 +61,8 @@ struct DeviceProductInfo {
     // address is unavailable.
     // For example, for HDMI connected device this will be the physical address.
     std::vector<uint8_t> relativeAddress;
-
-    void dump(std::string& result) const;
 };
+
+std::string to_string(const DeviceProductInfo&);
 
 } // namespace android

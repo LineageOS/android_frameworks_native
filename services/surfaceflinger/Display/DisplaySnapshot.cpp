@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <functional>
 #include <utility>
 
 #include <ftl/algorithm.h>
 #include <ftl/enum.h>
+#include <ui/DebugUtils.h>
 
 #include "DisplaySnapshot.h"
 
@@ -26,11 +28,12 @@ namespace android::display {
 
 DisplaySnapshot::DisplaySnapshot(PhysicalDisplayId displayId,
                                  ui::DisplayConnectionType connectionType,
-                                 DisplayModes&& displayModes,
+                                 DisplayModes&& displayModes, ui::ColorModes&& colorModes,
                                  std::optional<DeviceProductInfo>&& deviceProductInfo)
       : mDisplayId(displayId),
         mConnectionType(connectionType),
         mDisplayModes(std::move(displayModes)),
+        mColorModes(std::move(colorModes)),
         mDeviceProductInfo(std::move(deviceProductInfo)) {}
 
 std::optional<DisplayModeId> DisplaySnapshot::translateModeId(hal::HWConfigId hwcId) const {
@@ -41,18 +44,35 @@ std::optional<DisplayModeId> DisplaySnapshot::translateModeId(hal::HWConfigId hw
             .transform(&ftl::to_key<DisplayModes>);
 }
 
-void DisplaySnapshot::dump(std::string& out) const {
-    using namespace std::string_literals;
+ui::ColorModes DisplaySnapshot::filterColorModes(bool supportsWideColor) const {
+    ui::ColorModes modes = mColorModes;
 
-    out += "   connectionType="s;
-    out += ftl::enum_string(mConnectionType);
-
-    out += "\n   deviceProductInfo="s;
-    if (mDeviceProductInfo) {
-        mDeviceProductInfo->dump(out);
-    } else {
-        out += "{}"s;
+    // If the display is internal and the configuration claims it's not wide color capable, filter
+    // out all wide color modes. The typical reason why this happens is that the hardware is not
+    // good enough to support GPU composition of wide color, and thus the OEMs choose to disable
+    // this capability.
+    if (mConnectionType == ui::DisplayConnectionType::Internal && !supportsWideColor) {
+        const auto it = std::remove_if(modes.begin(), modes.end(), ui::isWideColorMode);
+        modes.erase(it, modes.end());
     }
+
+    return modes;
+}
+
+void DisplaySnapshot::dump(utils::Dumper& dumper) const {
+    using namespace std::string_view_literals;
+
+    dumper.dump("connectionType"sv, ftl::enum_string(mConnectionType));
+
+    dumper.dump("colorModes"sv);
+    {
+        utils::Dumper::Indent indent(dumper);
+        for (const auto mode : mColorModes) {
+            dumper.dump({}, decodeColorMode(mode));
+        }
+    }
+
+    dumper.dump("deviceProductInfo"sv, mDeviceProductInfo);
 }
 
 } // namespace android::display

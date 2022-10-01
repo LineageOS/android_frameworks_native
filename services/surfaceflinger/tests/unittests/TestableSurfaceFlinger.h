@@ -158,7 +158,6 @@ public:
         if (!mFlinger) {
             mFlinger = sp<SurfaceFlinger>::make(mFactory, SurfaceFlinger::SkipInitialization);
         }
-        mFlinger->mAnimationTransactionTimeout = ms2ns(10);
     }
 
     SurfaceFlinger* flinger() { return mFlinger.get(); }
@@ -420,7 +419,6 @@ public:
 
     auto& getTransactionQueue() { return mFlinger->mLocklessTransactionQueue; }
     auto& getPendingTransactionQueue() { return mFlinger->mPendingTransactionQueues; }
-    auto& getTransactionCommittedSignals() { return mFlinger->mTransactionCommittedSignals; }
 
     auto setTransactionState(
             const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
@@ -493,10 +491,6 @@ public:
         return static_cast<mock::FrameTracer*>(mFlinger->mFrameTracer.get());
     }
 
-    nsecs_t getAnimationTransactionTimeout() const {
-        return mFlinger->mAnimationTransactionTimeout;
-    }
-
     /* ------------------------------------------------------------------------
      * Read-write access to private data to set up preconditions and assert
      * post-conditions.
@@ -511,7 +505,7 @@ public:
     const auto& hwcPhysicalDisplayIdMap() const { return getHwComposer().mPhysicalDisplayIdMap; }
     const auto& hwcDisplayData() const { return getHwComposer().mDisplayData; }
 
-    auto& mutableHasWideColorDisplay() { return SurfaceFlinger::hasWideColorDisplay; }
+    auto& mutableSupportsWideColor() { return mFlinger->mSupportsWideColor; }
 
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
     auto& mutableDisplayColorSetting() { return mFlinger->mDisplayColorSetting; }
@@ -863,7 +857,7 @@ public:
                 const auto it = mFlinger.mutablePhysicalDisplays()
                                         .emplace_or_replace(*physicalId, mDisplayToken, *physicalId,
                                                             *mConnectionType, std::move(modes),
-                                                            std::nullopt)
+                                                            ui::ColorModes(), std::nullopt)
                                         .first;
 
                 display->setActiveMode(activeModeId, it->second.snapshot());

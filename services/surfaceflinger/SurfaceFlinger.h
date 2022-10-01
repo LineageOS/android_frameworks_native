@@ -214,10 +214,6 @@ public:
     static uint32_t maxGraphicsWidth;
     static uint32_t maxGraphicsHeight;
 
-    // Indicate if a device has wide color gamut display. This is typically
-    // found on devices with wide color gamut (e.g. Display-P3) display.
-    static bool hasWideColorDisplay;
-
     // Indicate if device wants color management on its display.
     static const constexpr bool useColorManagement = true;
 
@@ -1095,18 +1091,11 @@ private:
 
     // Add transaction to the Transaction Queue
     void queueTransaction(TransactionState& state);
-    void waitForSynchronousTransaction(const CountDownLatch& transactionCommittedSignal);
-    void signalSynchronousTransactions(const uint32_t flag);
 
     /*
      * Generic Layer Metadata
      */
     const std::unordered_map<std::string, uint32_t>& getGenericLayerMetadataKeyMap() const;
-
-    /*
-     * Misc
-     */
-    std::vector<ui::ColorMode> getDisplayColorModes(PhysicalDisplayId) REQUIRES(mStateLock);
 
     static int calculateMaxAcquiredBufferCount(Fps refreshRate,
                                                std::chrono::nanoseconds presentLatency);
@@ -1129,7 +1118,6 @@ private:
     mutable Mutex mStateLock;
     State mCurrentState{LayerVector::StateSet::Current};
     std::atomic<int32_t> mTransactionFlags = 0;
-    std::vector<std::shared_ptr<CountDownLatch>> mTransactionCommittedSignals;
     std::atomic<uint32_t> mUniqueTransactionId = 1;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
 
@@ -1285,6 +1273,10 @@ private:
     // This property can be used to force SurfaceFlinger to always pick a certain color mode.
     ui::ColorMode mForceColorMode = ui::ColorMode::NATIVE;
 
+    // Whether to enable wide color gamut (e.g. Display P3) for internal displays that support it.
+    // If false, wide color modes are filtered out for all internal displays.
+    bool mSupportsWideColor = false;
+
     ui::Dataspace mDefaultCompositionDataspace;
     ui::Dataspace mWideColorGamutCompositionDataspace;
     ui::Dataspace mColorSpaceAgnosticDataspace;
@@ -1417,8 +1409,6 @@ private:
         bool late = false;
         bool early = false;
     } mPowerHintSessionMode;
-
-    nsecs_t mAnimationTransactionTimeout = s2ns(5);
 
     friend class SurfaceComposerAIDL;
 };

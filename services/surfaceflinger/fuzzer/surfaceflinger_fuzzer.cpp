@@ -130,7 +130,7 @@ void SurfaceFlingerFuzzer::invokeFlinger() {
     mFlinger->maxFrameBufferAcquiredBuffers = mFdp.ConsumeIntegral<int64_t>();
     mFlinger->maxGraphicsWidth = mFdp.ConsumeIntegral<uint32_t>();
     mFlinger->maxGraphicsHeight = mFdp.ConsumeIntegral<uint32_t>();
-    mFlinger->hasWideColorDisplay = mFdp.ConsumeBool();
+    mTestableFlinger.mutableSupportsWideColor() = mFdp.ConsumeBool();
     mFlinger->useContextPriority = mFdp.ConsumeBool();
 
     mFlinger->defaultCompositionDataspace = mFdp.PickValueInArray(kDataspaces);

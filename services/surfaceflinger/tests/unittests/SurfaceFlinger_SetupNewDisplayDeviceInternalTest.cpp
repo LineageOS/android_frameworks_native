@@ -36,16 +36,13 @@ struct WideColorP3ColorimetricSupportedVariant {
     static constexpr bool WIDE_COLOR_SUPPORTED = true;
 
     static void injectConfigChange(DisplayTransactionTest* test) {
-        test->mFlinger.mutableHasWideColorDisplay() = true;
+        test->mFlinger.mutableSupportsWideColor() = true;
         test->mFlinger.mutableDisplayColorSetting() = DisplayColorSetting::kUnmanaged;
     }
 
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mNativeWindow, perform(NATIVE_WINDOW_SET_BUFFERS_DATASPACE)).Times(1);
 
-        EXPECT_CALL(*test->mComposer, getColorModes(Display::HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<ColorMode>({ColorMode::DISPLAY_P3})),
-                                Return(Error::NONE)));
         EXPECT_CALL(*test->mComposer,
                     getRenderIntents(Display::HWC_DISPLAY_ID, ColorMode::DISPLAY_P3, _))
                 .WillOnce(DoAll(SetArgPointee<2>(
@@ -253,9 +250,15 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
                           .hwcDisplayId = *hwcDisplayId,
                           .activeMode = activeMode};
 
+        ui::ColorModes colorModes;
+        if constexpr (Case::WideColorSupport::WIDE_COLOR_SUPPORTED) {
+            colorModes.push_back(ColorMode::DISPLAY_P3);
+        }
+
         mFlinger.mutablePhysicalDisplays().emplace_or_replace(*displayId, displayToken, *displayId,
                                                               *connectionType,
-                                                              makeModes(activeMode), std::nullopt);
+                                                              makeModes(activeMode),
+                                                              std::move(colorModes), std::nullopt);
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);

@@ -145,7 +145,8 @@ void BufferQueueFuzzer::invokeBlastBufferQueue() {
     sp<Fence> presentFence = new Fence(memfd_create("fd", MFD_ALLOW_SEALING));
     SurfaceControlStats controlStats(surface, mFdp.ConsumeIntegral<int64_t>(),
                                      mFdp.ConsumeIntegral<int64_t>(), presentFence, previousFence,
-                                     mFdp.ConsumeIntegral<uint32_t>(), frameStats);
+                                     mFdp.ConsumeIntegral<uint32_t>(), frameStats,
+                                     mFdp.ConsumeIntegral<uint32_t>());
     stats.push_back(controlStats);
 }
 
