@@ -182,7 +182,8 @@ struct ProcessSession {
             session = nullptr;
 
             EXPECT_EQ(nullptr, weakSession.promote())
-                    << (debugBacktrace(host.getPid()), debugBacktrace(getpid()), "Leaked session");
+                    << (debugBacktrace(host.getPid()), debugBacktrace(getpid()), "Leaked sess: ")
+                    << session->getStrongCount();
         }
     }
 };
