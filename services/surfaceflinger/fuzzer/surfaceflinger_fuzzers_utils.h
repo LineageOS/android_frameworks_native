@@ -419,7 +419,7 @@ public:
 
     void onPullAtom(FuzzedDataProvider *fdp) {
         const int32_t atomId = fdp->ConsumeIntegral<uint8_t>();
-        std::string pulledData = fdp->ConsumeRandomLengthString().c_str();
+        std::vector<uint8_t> pulledData = fdp->ConsumeRemainingBytes<uint8_t>();
         bool success = fdp->ConsumeBool();
         mFlinger->onPullAtom(atomId, &pulledData, &success);
     }
