@@ -2085,7 +2085,11 @@ bool SurfaceFlinger::commit(nsecs_t frameTime, int64_t vsyncId, nsecs_t expected
     }
 
     // Save this once per commit + composite to ensure consistency
-    mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession();
+    // TODO (b/240619471): consider removing active display check once AOD is fixed
+    const auto activeDisplay =
+            FTL_FAKE_GUARD(mStateLock, getDisplayDeviceLocked(mActiveDisplayToken));
+    mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession() && activeDisplay &&
+            activeDisplay->getPowerMode() == hal::PowerMode::ON;
     if (mPowerHintSessionEnabled) {
         const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
         // get stable vsync period from display mode
@@ -2242,7 +2246,8 @@ void SurfaceFlinger::composite(nsecs_t frameTime, int64_t vsyncId)
 
     // Send a power hint hint after presentation is finished
     if (mPowerHintSessionEnabled) {
-        mPowerAdvisor->setPresentFenceTime(mPreviousPresentFences[0].fenceTime->getSignalTime());
+        mPowerAdvisor->setSfPresentTiming(mPreviousPresentFences[0].fenceTime->getSignalTime(),
+                                          systemTime());
         if (mPowerHintSessionMode.late) {
             mPowerAdvisor->sendActualWorkDuration();
         }
@@ -2884,7 +2889,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     ALOGV("Display Orientation: %s", toCString(creationArgs.physicalOrientation));
 
     // virtual displays are always considered enabled
-    creationArgs.initialPowerMode = state.isVirtual() ? hal::PowerMode::ON : hal::PowerMode::OFF;
+    creationArgs.initialPowerMode =
+            state.isVirtual() ? std::make_optional(hal::PowerMode::ON) : std::nullopt;
 
     sp<DisplayDevice> display = getFactory().createDisplayDevice(creationArgs);
 
@@ -4865,8 +4871,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     const auto displayId = display->getPhysicalId();
     ALOGD("Setting power mode %d on display %s", mode, to_string(displayId).c_str());
 
-    const hal::PowerMode currentMode = display->getPowerMode();
-    if (mode == currentMode) {
+    std::optional<hal::PowerMode> currentMode = display->getPowerMode();
+    if (currentMode.has_value() && mode == *currentMode) {
         return;
     }
 
@@ -4882,7 +4888,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         mInterceptor->savePowerModeUpdate(display->getSequenceId(), static_cast<int32_t>(mode));
     }
     const auto refreshRate = display->refreshRateConfigs().getActiveMode()->getFps();
-    if (currentMode == hal::PowerMode::OFF) {
+    if (*currentMode == hal::PowerMode::OFF) {
         // Turn on the display
         if (display->isInternal() && (!activeDisplay || !activeDisplay->isPoweredOn())) {
             onActiveDisplayChangedLocked(display);
@@ -4913,7 +4919,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         if (SurfaceFlinger::setSchedAttr(false) != NO_ERROR) {
             ALOGW("Couldn't set uclamp.min on display off: %s\n", strerror(errno));
         }
-        if (isDisplayActiveLocked(display) && currentMode != hal::PowerMode::DOZE_SUSPEND) {
+        if (isDisplayActiveLocked(display) && *currentMode != hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
         }
@@ -4927,7 +4933,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
         // Update display while dozing
         getHwComposer().setPowerMode(displayId, mode);
-        if (isDisplayActiveLocked(display) && currentMode == hal::PowerMode::DOZE_SUSPEND) {
+        if (isDisplayActiveLocked(display) && *currentMode == hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, refreshRate);
         }
@@ -4999,6 +5005,25 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
 
+        // Traversal of drawing state must happen on the main thread.
+        // Otherwise, SortedVector may have shared ownership during concurrent
+        // traversals, which can result in use-after-frees.
+        std::string compositionLayers;
+        mScheduler
+                ->schedule([&] {
+                    StringAppendF(&compositionLayers, "Composition layers\n");
+                    mDrawingState.traverseInZOrder([&](Layer* layer) {
+                        auto* compositionState = layer->getCompositionState();
+                        if (!compositionState || !compositionState->isVisible) return;
+
+                        android::base::StringAppendF(&compositionLayers, "* Layer %p (%s)\n", layer,
+                                                     layer->getDebugName() ? layer->getDebugName()
+                                                                           : "<unknown>");
+                        compositionState->dump(compositionLayers);
+                    });
+                })
+                .get();
+
         bool dumpLayers = true;
         {
             TimedLock lock(mStateLock, s2ns(1), __func__);
@@ -5011,7 +5036,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 (it->second)(args, asProto, result);
                 dumpLayers = false;
             } else if (!asProto) {
-                dumpAllLocked(args, result);
+                dumpAllLocked(args, compositionLayers, result);
             }
         }
 
@@ -5310,7 +5335,8 @@ void SurfaceFlinger::dumpOffscreenLayers(std::string& result) {
     result.append(future.get());
 }
 
-void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) const {
+void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& compositionLayers,
+                                   std::string& result) const {
     const bool colorize = !args.empty() && args[0] == String16("--color");
     Colorizer colorizer(colorize);
 
@@ -5361,18 +5387,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     StringAppendF(&result, "Visible layers (count = %zu)\n", mNumLayers.load());
     colorizer.reset(result);
 
-    {
-        StringAppendF(&result, "Composition layers\n");
-        mDrawingState.traverseInZOrder([&](Layer* layer) {
-            auto* compositionState = layer->getCompositionState();
-            if (!compositionState || !compositionState->isVisible) return;
-
-            android::base::StringAppendF(&result, "* Layer %p (%s)\n", layer,
-                                         layer->getDebugName() ? layer->getDebugName()
-                                                               : "<unknown>");
-            compositionState->dump(result);
-        });
-    }
+    result.append(compositionLayers);
 
     colorizer.bold(result);
     StringAppendF(&result, "Displays (%zu entries)\n", mDisplays.size());

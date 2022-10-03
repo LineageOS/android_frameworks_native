@@ -353,9 +353,6 @@ private:
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
 
-    // Returns whether the layer is allowed to vote for the given refresh rate.
-    bool isVoteAllowed(const LayerRequirement&, Fps) const;
-
     // calculates a score for a layer. Used to determine the display refresh rate
     // and the frame rate override for certains applications.
     float calculateLayerScoreLocked(const LayerRequirement&, Fps refreshRate,

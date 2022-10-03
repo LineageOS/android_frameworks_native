@@ -110,7 +110,8 @@ void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
         dump += "<none>\n";
     }
     dump += StringPrintf(INDENT2 "HasMic:     %s\n", toString(mHasMic));
-    dump += StringPrintf(INDENT2 "Sources: 0x%08x\n", deviceInfo.getSources());
+    dump += StringPrintf(INDENT2 "Sources: %s\n",
+                         inputEventSourceToString(deviceInfo.getSources()).c_str());
     dump += StringPrintf(INDENT2 "KeyboardType: %d\n", deviceInfo.getKeyboardType());
     dump += StringPrintf(INDENT2 "ControllerNum: %d\n", deviceInfo.getControllerNumber());
 
@@ -128,10 +129,10 @@ void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
                 snprintf(name, sizeof(name), "%d", range.axis);
             }
             dump += StringPrintf(INDENT3
-                                 "%s: source=0x%08x, "
+                                 "%s: source=%s, "
                                  "min=%0.3f, max=%0.3f, flat=%0.3f, fuzz=%0.3f, resolution=%0.3f\n",
-                                 name, range.source, range.min, range.max, range.flat, range.fuzz,
-                                 range.resolution);
+                                 name, inputEventSourceToString(range.source).c_str(), range.min,
+                                 range.max, range.flat, range.fuzz, range.resolution);
         }
     }
 
@@ -231,6 +232,10 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
 }
 
 void InputDevice::removeEventHubDevice(int32_t eventHubId) {
+    if (mController != nullptr && mController->getEventHubId() == eventHubId) {
+        // Delete mController, since the corresponding eventhub device is going away
+        mController = nullptr;
+    }
     mDevices.erase(eventHubId);
 }
 

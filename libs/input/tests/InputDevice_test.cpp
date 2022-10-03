@@ -64,12 +64,10 @@ protected:
         mKeyMap.keyCharacterMapFile = path;
     }
 
-    virtual void SetUp() override {
+    void SetUp() override {
         loadKeyLayout("Generic");
         loadKeyCharacterMap("Generic");
     }
-
-    virtual void TearDown() override {}
 
     KeyMap mKeyMap;
 };
@@ -130,6 +128,22 @@ TEST_F(InputDeviceKeyMapTest, keyCharacteMapApplyMultipleOverlaysTest) {
     mKeyMap.keyCharacterMap->combine(*frenchOverlay->get());
     // Verify that the result is the same like after applying it initially
     ASSERT_EQ(*mKeyMap.keyCharacterMap, *frenchOverlaidKeyCharacterMap);
+}
+
+TEST(InputDeviceKeyLayoutTest, DoesNotLoadWhenRequiredKernelConfigIsMissing) {
+    std::string klPath = base::GetExecutableDirectory() + "/data/kl_with_required_fake_config.kl";
+    base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(klPath);
+    ASSERT_FALSE(ret.ok()) << "Should not be able to load KeyLayout at " << klPath;
+    // We assert error message here because it's used by 'validatekeymaps' tool
+    ASSERT_EQ("Missing kernel config", ret.error().message());
+}
+
+TEST(InputDeviceKeyLayoutTest, LoadsWhenRequiredKernelConfigIsPresent) {
+    std::string klPath = base::GetExecutableDirectory() + "/data/kl_with_required_real_config.kl";
+    base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(klPath);
+    ASSERT_TRUE(ret.ok()) << "Cannot load KeyLayout at " << klPath;
+    const std::shared_ptr<KeyLayoutMap>& map = *ret;
+    ASSERT_NE(nullptr, map) << "Map should be valid because CONFIG_UHID should always be present";
 }
 
 } // namespace android

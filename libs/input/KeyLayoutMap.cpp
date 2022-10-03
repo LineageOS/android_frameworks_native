@@ -21,24 +21,33 @@
 #include <input/InputEventLabels.h>
 #include <input/KeyLayoutMap.h>
 #include <input/Keyboard.h>
+#include <log/log.h>
 #include <utils/Errors.h>
-#include <utils/Log.h>
 #include <utils/Timers.h>
 #include <utils/Tokenizer.h>
+#include <vintf/RuntimeInfo.h>
+#include <vintf/VintfObject.h>
 
 #include <cstdlib>
 #include <string_view>
 #include <unordered_map>
 
-// Enables debug output for the parser.
-#define DEBUG_PARSER 0
+/**
+ * Log debug output for the parser.
+ * Enable this via "adb shell setprop log.tag.KeyLayoutMapParser DEBUG" (requires restart)
+ */
+const bool DEBUG_PARSER =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Parser", ANDROID_LOG_INFO);
 
 // Enables debug output for parser performance.
 #define DEBUG_PARSER_PERFORMANCE 0
 
-// Enables debug output for mapping.
-#define DEBUG_MAPPING 0
-
+/**
+ * Log debug output for mapping.
+ * Enable this via "adb shell setprop log.tag.KeyLayoutMapMapping DEBUG" (requires restart)
+ */
+const bool DEBUG_MAPPING =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Mapping", ANDROID_LOG_INFO);
 
 namespace android {
 namespace {
@@ -69,6 +78,29 @@ static const std::unordered_map<std::string_view, InputDeviceSensorType> SENSOR_
          sensorPair<InputDeviceSensorType::GYROSCOPE_UNCALIBRATED>(),
          sensorPair<InputDeviceSensorType::SIGNIFICANT_MOTION>()};
 
+bool kernelConfigsArePresent(const std::set<std::string>& configs) {
+    std::shared_ptr<const android::vintf::RuntimeInfo> runtimeInfo =
+            android::vintf::VintfObject::GetInstance()->getRuntimeInfo(
+                    vintf::RuntimeInfo::FetchFlag::CONFIG_GZ);
+    LOG_ALWAYS_FATAL_IF(runtimeInfo == nullptr, "Kernel configs could not be fetched");
+
+    const std::map<std::string, std::string>& kernelConfigs = runtimeInfo->kernelConfigs();
+    for (const std::string& requiredConfig : configs) {
+        const auto configIt = kernelConfigs.find(requiredConfig);
+        if (configIt == kernelConfigs.end()) {
+            ALOGI("Required kernel config %s is not found", requiredConfig.c_str());
+            return false;
+        }
+        const std::string& option = configIt->second;
+        if (option != "y" && option != "m") {
+            ALOGI("Required kernel config %s has option %s", requiredConfig.c_str(),
+                  option.c_str());
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 KeyLayoutMap::KeyLayoutMap() = default;
@@ -76,32 +108,34 @@ KeyLayoutMap::~KeyLayoutMap() = default;
 
 base::Result<std::shared_ptr<KeyLayoutMap>> KeyLayoutMap::loadContents(const std::string& filename,
                                                                        const char* contents) {
-    Tokenizer* tokenizer;
-    status_t status = Tokenizer::fromContents(String8(filename.c_str()), contents, &tokenizer);
-    if (status) {
-        ALOGE("Error %d opening key layout map.", status);
-        return Errorf("Error {} opening key layout map file {}.", status, filename.c_str());
-    }
-    std::unique_ptr<Tokenizer> t(tokenizer);
-    auto ret = load(t.get());
-    if (ret.ok()) {
-        (*ret)->mLoadFileName = filename;
-    }
-    return ret;
+    return load(filename, contents);
 }
 
-base::Result<std::shared_ptr<KeyLayoutMap>> KeyLayoutMap::load(const std::string& filename) {
+base::Result<std::shared_ptr<KeyLayoutMap>> KeyLayoutMap::load(const std::string& filename,
+                                                               const char* contents) {
     Tokenizer* tokenizer;
-    status_t status = Tokenizer::open(String8(filename.c_str()), &tokenizer);
+    status_t status;
+    if (contents == nullptr) {
+        status = Tokenizer::open(String8(filename.c_str()), &tokenizer);
+    } else {
+        status = Tokenizer::fromContents(String8(filename.c_str()), contents, &tokenizer);
+    }
     if (status) {
         ALOGE("Error %d opening key layout map file %s.", status, filename.c_str());
         return Errorf("Error {} opening key layout map file {}.", status, filename.c_str());
     }
     std::unique_ptr<Tokenizer> t(tokenizer);
     auto ret = load(t.get());
-    if (ret.ok()) {
-        (*ret)->mLoadFileName = filename;
+    if (!ret.ok()) {
+        return ret;
     }
+    const std::shared_ptr<KeyLayoutMap>& map = *ret;
+    LOG_ALWAYS_FATAL_IF(map == nullptr, "Returned map should not be null if there's no error");
+    if (!kernelConfigsArePresent(map->mRequiredKernelConfigs)) {
+        ALOGI("Not loading %s because the required kernel configs are not set", filename.c_str());
+        return Errorf("Missing kernel config");
+    }
+    map->mLoadFileName = filename;
     return ret;
 }
 
@@ -134,9 +168,8 @@ status_t KeyLayoutMap::mapKey(int32_t scanCode, int32_t usageCode,
         int32_t* outKeyCode, uint32_t* outFlags) const {
     const Key* key = getKey(scanCode, usageCode);
     if (!key) {
-#if DEBUG_MAPPING
-        ALOGD("mapKey: scanCode=%d, usageCode=0x%08x ~ Failed.", scanCode, usageCode);
-#endif
+        ALOGD_IF(DEBUG_MAPPING, "mapKey: scanCode=%d, usageCode=0x%08x ~ Failed.", scanCode,
+                 usageCode);
         *outKeyCode = AKEYCODE_UNKNOWN;
         *outFlags = 0;
         return NAME_NOT_FOUND;
@@ -145,10 +178,9 @@ status_t KeyLayoutMap::mapKey(int32_t scanCode, int32_t usageCode,
     *outKeyCode = key->keyCode;
     *outFlags = key->flags;
 
-#if DEBUG_MAPPING
-    ALOGD("mapKey: scanCode=%d, usageCode=0x%08x ~ Result keyCode=%d, outFlags=0x%08x.",
-            scanCode, usageCode, *outKeyCode, *outFlags);
-#endif
+    ALOGD_IF(DEBUG_MAPPING,
+             "mapKey: scanCode=%d, usageCode=0x%08x ~ Result keyCode=%d, outFlags=0x%08x.",
+             scanCode, usageCode, *outKeyCode, *outFlags);
     return NO_ERROR;
 }
 
@@ -156,17 +188,12 @@ status_t KeyLayoutMap::mapKey(int32_t scanCode, int32_t usageCode,
 base::Result<std::pair<InputDeviceSensorType, int32_t>> KeyLayoutMap::mapSensor(int32_t absCode) {
     auto it = mSensorsByAbsCode.find(absCode);
     if (it == mSensorsByAbsCode.end()) {
-#if DEBUG_MAPPING
-        ALOGD("mapSensor: absCode=%d, ~ Failed.", absCode);
-#endif
+        ALOGD_IF(DEBUG_MAPPING, "mapSensor: absCode=%d, ~ Failed.", absCode);
         return Errorf("Can't find abs code {}.", absCode);
     }
     const Sensor& sensor = it->second;
-
-#if DEBUG_MAPPING
-    ALOGD("mapSensor: absCode=%d, sensorType=%s, sensorDataIndex=0x%x.", absCode,
-          ftl::enum_string(sensor.sensorType).c_str(), sensor.sensorDataIndex);
-#endif
+    ALOGD_IF(DEBUG_MAPPING, "mapSensor: absCode=%d, sensorType=%s, sensorDataIndex=0x%x.", absCode,
+             ftl::enum_string(sensor.sensorType).c_str(), sensor.sensorDataIndex);
     return std::make_pair(sensor.sensorType, sensor.sensorDataIndex);
 }
 
@@ -200,21 +227,18 @@ status_t KeyLayoutMap::findScanCodesForKey(
 status_t KeyLayoutMap::mapAxis(int32_t scanCode, AxisInfo* outAxisInfo) const {
     ssize_t index = mAxes.indexOfKey(scanCode);
     if (index < 0) {
-#if DEBUG_MAPPING
-        ALOGD("mapAxis: scanCode=%d ~ Failed.", scanCode);
-#endif
+        ALOGD_IF(DEBUG_MAPPING, "mapAxis: scanCode=%d ~ Failed.", scanCode);
         return NAME_NOT_FOUND;
     }
 
     *outAxisInfo = mAxes.valueAt(index);
 
-#if DEBUG_MAPPING
-    ALOGD("mapAxis: scanCode=%d ~ Result mode=%d, axis=%d, highAxis=%d, "
-            "splitValue=%d, flatOverride=%d.",
-            scanCode,
-            outAxisInfo->mode, outAxisInfo->axis, outAxisInfo->highAxis,
-            outAxisInfo->splitValue, outAxisInfo->flatOverride);
-#endif
+    ALOGD_IF(DEBUG_MAPPING,
+             "mapAxis: scanCode=%d ~ Result mode=%d, axis=%d, highAxis=%d, "
+             "splitValue=%d, flatOverride=%d.",
+             scanCode, outAxisInfo->mode, outAxisInfo->axis, outAxisInfo->highAxis,
+             outAxisInfo->splitValue, outAxisInfo->flatOverride);
+
     return NO_ERROR;
 }
 
@@ -223,15 +247,12 @@ status_t KeyLayoutMap::findScanCodeForLed(int32_t ledCode, int32_t* outScanCode)
     for (size_t i = 0; i < N; i++) {
         if (mLedsByScanCode.valueAt(i).ledCode == ledCode) {
             *outScanCode = mLedsByScanCode.keyAt(i);
-#if DEBUG_MAPPING
-            ALOGD("findScanCodeForLed: ledCode=%d, scanCode=%d.", ledCode, *outScanCode);
-#endif
+            ALOGD_IF(DEBUG_MAPPING, "findScanCodeForLed: ledCode=%d, scanCode=%d.", ledCode,
+                     *outScanCode);
             return NO_ERROR;
         }
     }
-#if DEBUG_MAPPING
-            ALOGD("findScanCodeForLed: ledCode=%d ~ Not found.", ledCode);
-#endif
+    ALOGD_IF(DEBUG_MAPPING, "findScanCodeForLed: ledCode=%d ~ Not found.", ledCode);
     return NAME_NOT_FOUND;
 }
 
@@ -240,15 +261,12 @@ status_t KeyLayoutMap::findUsageCodeForLed(int32_t ledCode, int32_t* outUsageCod
     for (size_t i = 0; i < N; i++) {
         if (mLedsByUsageCode.valueAt(i).ledCode == ledCode) {
             *outUsageCode = mLedsByUsageCode.keyAt(i);
-#if DEBUG_MAPPING
-            ALOGD("findUsageForLed: ledCode=%d, usage=%x.", ledCode, *outUsageCode);
-#endif
+            ALOGD_IF(DEBUG_MAPPING, "%s: ledCode=%d, usage=%x.", __func__, ledCode, *outUsageCode);
             return NO_ERROR;
         }
     }
-#if DEBUG_MAPPING
-            ALOGD("findUsageForLed: ledCode=%d ~ Not found.", ledCode);
-#endif
+    ALOGD_IF(DEBUG_MAPPING, "%s: ledCode=%d ~ Not found.", __func__, ledCode);
+
     return NAME_NOT_FOUND;
 }
 
@@ -264,10 +282,8 @@ KeyLayoutMap::Parser::~Parser() {
 
 status_t KeyLayoutMap::Parser::parse() {
     while (!mTokenizer->isEof()) {
-#if DEBUG_PARSER
-        ALOGD("Parsing %s: '%s'.", mTokenizer->getLocation().string(),
-                mTokenizer->peekRemainderOfLine().string());
-#endif
+        ALOGD_IF(DEBUG_PARSER, "Parsing %s: '%s'.", mTokenizer->getLocation().string(),
+                 mTokenizer->peekRemainderOfLine().string());
 
         mTokenizer->skipDelimiters(WHITESPACE);
 
@@ -288,6 +304,10 @@ status_t KeyLayoutMap::Parser::parse() {
             } else if (keywordToken == "sensor") {
                 mTokenizer->skipDelimiters(WHITESPACE);
                 status_t status = parseSensor();
+                if (status) return status;
+            } else if (keywordToken == "requires_kernel_config") {
+                mTokenizer->skipDelimiters(WHITESPACE);
+                status_t status = parseRequiredKernelConfig();
                 if (status) return status;
             } else {
                 ALOGE("%s: Expected keyword, got '%s'.", mTokenizer->getLocation().string(),
@@ -361,10 +381,9 @@ status_t KeyLayoutMap::Parser::parseKey() {
         flags |= flag;
     }
 
-#if DEBUG_PARSER
-    ALOGD("Parsed key %s: code=%d, keyCode=%d, flags=0x%08x.",
-            mapUsage ? "usage" : "scan code", code, keyCode, flags);
-#endif
+    ALOGD_IF(DEBUG_PARSER, "Parsed key %s: code=%d, keyCode=%d, flags=0x%08x.",
+             mapUsage ? "usage" : "scan code", code, keyCode, flags);
+
     Key key;
     key.keyCode = keyCode;
     key.flags = flags;
@@ -462,13 +481,12 @@ status_t KeyLayoutMap::Parser::parseAxis() {
         }
     }
 
-#if DEBUG_PARSER
-    ALOGD("Parsed axis: scanCode=%d, mode=%d, axis=%d, highAxis=%d, "
-            "splitValue=%d, flatOverride=%d.",
-            scanCode,
-            axisInfo.mode, axisInfo.axis, axisInfo.highAxis,
-            axisInfo.splitValue, axisInfo.flatOverride);
-#endif
+    ALOGD_IF(DEBUG_PARSER,
+             "Parsed axis: scanCode=%d, mode=%d, axis=%d, highAxis=%d, "
+             "splitValue=%d, flatOverride=%d.",
+             scanCode, axisInfo.mode, axisInfo.axis, axisInfo.highAxis, axisInfo.splitValue,
+             axisInfo.flatOverride);
+
     mMap->mAxes.add(scanCode, axisInfo);
     return NO_ERROR;
 }
@@ -505,10 +523,8 @@ status_t KeyLayoutMap::Parser::parseLed() {
         return BAD_VALUE;
     }
 
-#if DEBUG_PARSER
-    ALOGD("Parsed led %s: code=%d, ledCode=%d.",
-            mapUsage ? "usage" : "scan code", code, ledCode);
-#endif
+    ALOGD_IF(DEBUG_PARSER, "Parsed led %s: code=%d, ledCode=%d.", mapUsage ? "usage" : "scan code",
+             code, ledCode);
 
     Led led;
     led.ledCode = ledCode;
@@ -584,15 +600,32 @@ status_t KeyLayoutMap::Parser::parseSensor() {
     }
     int32_t sensorDataIndex = indexOpt.value();
 
-#if DEBUG_PARSER
-    ALOGD("Parsed sensor: abs code=%d, sensorType=%s, sensorDataIndex=%d.", code,
-          ftl::enum_string(sensorType).c_str(), sensorDataIndex);
-#endif
+    ALOGD_IF(DEBUG_PARSER, "Parsed sensor: abs code=%d, sensorType=%s, sensorDataIndex=%d.", code,
+             ftl::enum_string(sensorType).c_str(), sensorDataIndex);
 
     Sensor sensor;
     sensor.sensorType = sensorType;
     sensor.sensorDataIndex = sensorDataIndex;
     map.emplace(code, sensor);
+    return NO_ERROR;
+}
+
+// Parse the name of a required kernel config.
+// The layout won't be used if the specified kernel config is not present
+// Examples:
+// requires_kernel_config CONFIG_HID_PLAYSTATION
+status_t KeyLayoutMap::Parser::parseRequiredKernelConfig() {
+    String8 codeToken = mTokenizer->nextToken(WHITESPACE);
+    std::string configName = codeToken.string();
+
+    const auto result = mMap->mRequiredKernelConfigs.emplace(configName);
+    if (!result.second) {
+        ALOGE("%s: Duplicate entry for required kernel config %s.",
+              mTokenizer->getLocation().string(), configName.c_str());
+        return BAD_VALUE;
+    }
+
+    ALOGD_IF(DEBUG_PARSER, "Parsed required kernel config: name=%s", configName.c_str());
     return NO_ERROR;
 }
 

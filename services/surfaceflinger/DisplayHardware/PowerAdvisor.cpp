@@ -315,7 +315,8 @@ void PowerAdvisor::setExpectedPresentTime(nsecs_t expectedPresentTime) {
     mExpectedPresentTimes.append(expectedPresentTime);
 }
 
-void PowerAdvisor::setPresentFenceTime(nsecs_t presentFenceTime) {
+void PowerAdvisor::setSfPresentTiming(nsecs_t presentFenceTime, nsecs_t presentEndTime) {
+    mLastSfPresentEndTime = presentEndTime;
     mLastPresentFenceTime = presentFenceTime;
 }
 
@@ -334,13 +335,7 @@ void PowerAdvisor::setCommitStart(nsecs_t commitStartTime) {
 }
 
 void PowerAdvisor::setCompositeEnd(nsecs_t compositeEnd) {
-    mLastCompositeEndTime = compositeEnd;
-    // calculate the postcomp time here as well
-    std::vector<DisplayId>&& displays = getOrderedDisplayIds(&DisplayTimingData::hwcPresentEndTime);
-    DisplayTimingData& timingData = mDisplayTimingData[displays.back()];
-    mLastPostcompDuration = compositeEnd -
-            (timingData.skippedValidate ? *timingData.hwcValidateEndTime
-                                        : *timingData.hwcPresentEndTime);
+    mLastPostcompDuration = compositeEnd - mLastSfPresentEndTime;
 }
 
 void PowerAdvisor::setDisplays(std::vector<DisplayId>& displayIds) {
@@ -399,7 +394,7 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
             getOrderedDisplayIds(&DisplayTimingData::hwcPresentStartTime);
     DisplayTimeline referenceTiming, estimatedTiming;
 
-    // Iterate over the displays in the same order they are presented
+    // Iterate over the displays that use hwc in the same order they are presented
     for (DisplayId displayId : displayIds) {
         if (mDisplayTimingData.count(displayId) == 0) {
             continue;
@@ -451,8 +446,11 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
     }
     ATRACE_INT64("Idle duration", idleDuration);
 
+    nsecs_t estimatedFlingerEndTime = earlyHint ? estimatedEndTime : mLastSfPresentEndTime;
+
     // Don't count time spent idly waiting in the estimate as we could do more work in that time
     estimatedEndTime -= idleDuration;
+    estimatedFlingerEndTime -= idleDuration;
 
     // We finish the frame when both present and the gpu are done, so wait for the later of the two
     // Also add the frame delay duration since the target did not move while we were delayed
@@ -460,7 +458,10 @@ std::optional<nsecs_t> PowerAdvisor::estimateWorkDuration(bool earlyHint) {
             std::max(estimatedEndTime, estimatedGpuEndTime.value_or(0)) - mCommitStartTimes[0];
 
     // We finish SurfaceFlinger when post-composition finishes, so add that in here
-    nsecs_t flingerDuration = estimatedEndTime + mLastPostcompDuration - mCommitStartTimes[0];
+    nsecs_t flingerDuration =
+            estimatedFlingerEndTime + mLastPostcompDuration - mCommitStartTimes[0];
+
+    // Combine the two timings into a single normalized one
     nsecs_t combinedDuration = combineTimingEstimates(totalDuration, flingerDuration);
 
     return std::make_optional(combinedDuration);
@@ -640,9 +641,8 @@ AidlPowerHalWrapper::AidlPowerHalWrapper(sp<IPower> powerHal) : mPowerHal(std::m
 
     mSupportsPowerHint = checkPowerHintSessionSupported();
 
-    mAllowedActualDeviation =
-            base::GetIntProperty<nsecs_t>("debug.sf.allowed_actual_deviation",
-                                          std::chrono::nanoseconds(250us).count());
+    // Currently set to 0 to disable rate limiter by default
+    mAllowedActualDeviation = base::GetIntProperty<nsecs_t>("debug.sf.allowed_actual_deviation", 0);
 }
 
 AidlPowerHalWrapper::~AidlPowerHalWrapper() {
@@ -838,10 +838,7 @@ const bool AidlPowerHalWrapper::sTraceHintSessionData =
         base::GetBoolProperty(std::string("debug.sf.trace_hint_sessions"), false);
 
 PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
-    static std::unique_ptr<HalWrapper> sHalWrapper = nullptr;
-    static bool sHasHal = true;
-
-    if (!sHasHal) {
+    if (!mHasHal) {
         return nullptr;
     }
 
@@ -849,57 +846,57 @@ PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
     std::vector<int32_t> oldPowerHintSessionThreadIds;
     std::optional<int64_t> oldTargetWorkDuration;
 
-    if (sHalWrapper != nullptr) {
-        oldPowerHintSessionThreadIds = sHalWrapper->getPowerHintSessionThreadIds();
-        oldTargetWorkDuration = sHalWrapper->getTargetWorkDuration();
+    if (mHalWrapper != nullptr) {
+        oldPowerHintSessionThreadIds = mHalWrapper->getPowerHintSessionThreadIds();
+        oldTargetWorkDuration = mHalWrapper->getTargetWorkDuration();
     }
 
     // If we used to have a HAL, but it stopped responding, attempt to reconnect
     if (mReconnectPowerHal) {
-        sHalWrapper = nullptr;
+        mHalWrapper = nullptr;
         mReconnectPowerHal = false;
     }
 
-    if (sHalWrapper != nullptr) {
-        auto wrapper = sHalWrapper.get();
+    if (mHalWrapper != nullptr) {
+        auto wrapper = mHalWrapper.get();
         // If the wrapper is fine, return it, but if it indicates a reconnect, remake it
         if (!wrapper->shouldReconnectHAL()) {
             return wrapper;
         }
         ALOGD("Reconnecting Power HAL");
-        sHalWrapper = nullptr;
+        mHalWrapper = nullptr;
     }
 
     // At this point, we know for sure there is no running session
     mPowerHintSessionRunning = false;
 
     // First attempt to connect to the AIDL Power HAL
-    sHalWrapper = AidlPowerHalWrapper::connect();
+    mHalWrapper = AidlPowerHalWrapper::connect();
 
     // If that didn't succeed, attempt to connect to the HIDL Power HAL
-    if (sHalWrapper == nullptr) {
-        sHalWrapper = HidlPowerHalWrapper::connect();
+    if (mHalWrapper == nullptr) {
+        mHalWrapper = HidlPowerHalWrapper::connect();
     } else {
         ALOGD("Successfully connecting AIDL Power HAL");
         // If AIDL, pass on any existing hint session values
-        sHalWrapper->setPowerHintSessionThreadIds(oldPowerHintSessionThreadIds);
+        mHalWrapper->setPowerHintSessionThreadIds(oldPowerHintSessionThreadIds);
         // Only set duration and start if duration is defined
         if (oldTargetWorkDuration.has_value()) {
-            sHalWrapper->setTargetWorkDuration(*oldTargetWorkDuration);
+            mHalWrapper->setTargetWorkDuration(*oldTargetWorkDuration);
             // Only start if possible to run and both threadids and duration are defined
             if (usePowerHintSession() && !oldPowerHintSessionThreadIds.empty()) {
-                mPowerHintSessionRunning = sHalWrapper->startPowerHintSession();
+                mPowerHintSessionRunning = mHalWrapper->startPowerHintSession();
             }
         }
     }
 
     // If we make it to this point and still don't have a HAL, it's unlikely we
     // will, so stop trying
-    if (sHalWrapper == nullptr) {
-        sHasHal = false;
+    if (mHalWrapper == nullptr) {
+        mHasHal = false;
     }
 
-    return sHalWrapper.get();
+    return mHalWrapper.get();
 }
 
 } // namespace impl

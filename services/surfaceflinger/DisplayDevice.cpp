@@ -104,7 +104,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
 
     mCompositionDisplay->getRenderSurface()->initialize();
 
-    setPowerMode(args.initialPowerMode);
+    if (args.initialPowerMode.has_value()) setPowerMode(args.initialPowerMode.value());
 
     // initialize the display orientation transform.
     setProjection(ui::ROTATION_0, Rect::INVALID_RECT, Rect::INVALID_RECT);
@@ -173,20 +173,31 @@ auto DisplayDevice::getInputInfo() const -> InputInfo {
 }
 
 void DisplayDevice::setPowerMode(hal::PowerMode mode) {
+    if (mode == hal::PowerMode::OFF || mode == hal::PowerMode::ON) {
+        if (mStagedBrightness && mBrightness != *mStagedBrightness) {
+            getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
+            mBrightness = *mStagedBrightness;
+        }
+        mStagedBrightness = std::nullopt;
+        getCompositionDisplay()->applyDisplayBrightness(true);
+    }
+
     mPowerMode = mode;
-    getCompositionDisplay()->setCompositionEnabled(mPowerMode != hal::PowerMode::OFF);
+
+    getCompositionDisplay()->setCompositionEnabled(mPowerMode.has_value() &&
+                                                   *mPowerMode != hal::PowerMode::OFF);
 }
 
 void DisplayDevice::enableLayerCaching(bool enable) {
     getCompositionDisplay()->setLayerCachingEnabled(enable);
 }
 
-hal::PowerMode DisplayDevice::getPowerMode() const {
+std::optional<hal::PowerMode> DisplayDevice::getPowerMode() const {
     return mPowerMode;
 }
 
 bool DisplayDevice::isPoweredOn() const {
-    return mPowerMode != hal::PowerMode::OFF;
+    return mPowerMode && *mPowerMode != hal::PowerMode::OFF;
 }
 
 void DisplayDevice::setActiveMode(DisplayModeId id) {
@@ -325,8 +336,10 @@ void DisplayDevice::stageBrightness(float brightness) {
 }
 
 void DisplayDevice::persistBrightness(bool needsComposite) {
-    if (needsComposite && mStagedBrightness && mBrightness != *mStagedBrightness) {
-        getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
+    if (mStagedBrightness && mBrightness != *mStagedBrightness) {
+        if (needsComposite) {
+            getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
+        }
         mBrightness = *mStagedBrightness;
     }
     mStagedBrightness = std::nullopt;
@@ -373,7 +386,7 @@ void DisplayDevice::dump(std::string& result) const {
     }
 
     result += "\n   powerMode="s;
-    result += to_string(mPowerMode);
+    result += mPowerMode.has_value() ? to_string(mPowerMode.value()) : "OFF(reset)";
     result += '\n';
 
     if (mRefreshRateConfigs) {
