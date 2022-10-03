@@ -23,13 +23,19 @@
 namespace android {
 
 MATCHER_P(WithMotionAction, action, "InputEvent with specified action") {
-    if (action == AMOTION_EVENT_ACTION_CANCEL) {
-        *result_listener << "expected FLAG_CANCELED to be set with ACTION_CANCEL, but was not set";
-        return (arg.flags & AMOTION_EVENT_FLAG_CANCELED) != 0;
+    bool matches = action == arg.action;
+    if (!matches) {
+        *result_listener << "expected action " << MotionEvent::actionToString(action)
+                         << ", but got " << MotionEvent::actionToString(arg.action);
     }
-    *result_listener << "expected action " << MotionEvent::actionToString(action) << ", but got "
-                     << MotionEvent::actionToString(arg.action);
-    return action == arg.action;
+    if (action == AMOTION_EVENT_ACTION_CANCEL) {
+        if (!matches) {
+            *result_listener << "; ";
+        }
+        *result_listener << "expected FLAG_CANCELED to be set with ACTION_CANCEL, but was not set";
+        matches &= (arg.flags & AMOTION_EVENT_FLAG_CANCELED) != 0;
+    }
+    return matches;
 }
 
 MATCHER_P(WithSource, source, "InputEvent with specified source") {

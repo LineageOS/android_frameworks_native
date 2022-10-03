@@ -395,13 +395,11 @@ std::list<NotifyArgs> TouchInputMapper::configure(nsecs_t when,
     }
 
     if (changes && resetNeeded) {
-        // If the device needs to be reset, cancel any ongoing gestures and reset the state.
-        out += cancelTouch(when, when);
         out += reset(when);
 
         // Send reset, unless this is the first time the device has been configured,
         // in which case the reader will call reset itself after all mappers are ready.
-        out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
+        out.emplace_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
     }
     return out;
 }
@@ -1440,6 +1438,9 @@ void TouchInputMapper::updateAffineTransformation() {
 }
 
 std::list<NotifyArgs> TouchInputMapper::reset(nsecs_t when) {
+    std::list<NotifyArgs> out = cancelTouch(when, when);
+    updateTouchSpots();
+
     mCursorButtonAccumulator.reset(getDeviceContext());
     mCursorScrollAccumulator.reset(getDeviceContext());
     mTouchButtonAccumulator.reset(getDeviceContext());
@@ -1470,7 +1471,7 @@ std::list<NotifyArgs> TouchInputMapper::reset(nsecs_t when) {
         mPointerController->clearSpots();
     }
 
-    return InputMapper::reset(when);
+    return out += InputMapper::reset(when);
 }
 
 void TouchInputMapper::resetExternalStylus() {
@@ -1554,10 +1555,7 @@ std::list<NotifyArgs> TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
 std::list<NotifyArgs> TouchInputMapper::processRawTouches(bool timeout) {
     std::list<NotifyArgs> out;
     if (mDeviceMode == DeviceMode::DISABLED) {
-        // Drop all input if the device is disabled.
-        out += cancelTouch(mCurrentRawState.when, mCurrentRawState.readTime);
-        mCurrentCookedState.clear();
-        updateTouchSpots();
+        // Do not process raw event while the device is disabled.
         return out;
     }
 
@@ -1976,8 +1974,8 @@ std::list<NotifyArgs> TouchInputMapper::abortTouches(nsecs_t when, nsecs_t readT
         int32_t metaState = getContext()->getGlobalMetaState();
         int32_t buttonState = mCurrentCookedState.buttonState;
         out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
-                                     AMOTION_EVENT_ACTION_CANCEL, 0, 0, metaState, buttonState,
-                                     AMOTION_EVENT_EDGE_FLAG_NONE,
+                                     AMOTION_EVENT_ACTION_CANCEL, 0, AMOTION_EVENT_FLAG_CANCELED,
+                                     metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                                      mCurrentCookedState.cookedPointerData.pointerProperties,
                                      mCurrentCookedState.cookedPointerData.pointerCoords,
                                      mCurrentCookedState.cookedPointerData.idToIndex, currentIdBits,
@@ -2617,8 +2615,9 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
     BitSet32 dispatchedGestureIdBits(mPointerGesture.lastGestureIdBits);
     if (!dispatchedGestureIdBits.isEmpty()) {
         if (cancelPreviousGesture) {
+            const uint32_t cancelFlags = flags | AMOTION_EVENT_FLAG_CANCELED;
             out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
-                                         AMOTION_EVENT_ACTION_CANCEL, 0, flags, metaState,
+                                         AMOTION_EVENT_ACTION_CANCEL, 0, cancelFlags, metaState,
                                          buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                                          mPointerGesture.lastGestureProperties,
                                          mPointerGesture.lastGestureCoords,
@@ -2754,8 +2753,8 @@ std::list<NotifyArgs> TouchInputMapper::abortPointerGestures(nsecs_t when, nsecs
         int32_t metaState = getContext()->getGlobalMetaState();
         int32_t buttonState = mCurrentRawState.buttonState;
         out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
-                                     AMOTION_EVENT_ACTION_CANCEL, 0, 0, metaState, buttonState,
-                                     AMOTION_EVENT_EDGE_FLAG_NONE,
+                                     AMOTION_EVENT_ACTION_CANCEL, 0, AMOTION_EVENT_FLAG_CANCELED,
+                                     metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                                      mPointerGesture.lastGestureProperties,
                                      mPointerGesture.lastGestureCoords,
                                      mPointerGesture.lastGestureIdToIndex,
