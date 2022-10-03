@@ -886,6 +886,7 @@ processTransactInternalTailCall:
                 it->second.asyncTodo.push(BinderNode::AsyncTodo{
                         .ref = target,
                         .data = std::move(transactionData),
+                        .ancillaryFds = std::move(ancillaryFds),
                         .asyncNumber = transaction->asyncNumber,
                 });
 
@@ -1046,6 +1047,7 @@ processTransactInternalTailCall:
 
                 // reset up arguments
                 transactionData = std::move(todo.data);
+                ancillaryFds = std::move(todo.ancillaryFds);
                 LOG_ALWAYS_FATAL_IF(target != todo.ref,
                                     "async list should be associated with a binder");
 
