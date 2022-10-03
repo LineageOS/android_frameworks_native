@@ -668,10 +668,11 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
         // VkSurfaceProtectedCapabilitiesKHR::supportsProtected.  The following
         // four values cannot be known without a surface.  Default values will
         // be supplied anyway, but cannot be relied upon.
-        width = 1000;
-        height = 1000;
-        transform_hint = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-        max_buffer_count = 10;
+        width = 0xFFFFFFFF;
+        height = 0xFFFFFFFF;
+        transform_hint = VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR;
+        capabilities->minImageCount = 0xFFFFFFFF;
+        capabilities->maxImageCount = 0xFFFFFFFF;
     } else {
         ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
 
@@ -703,9 +704,9 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
                   strerror(-err), err);
             return VK_ERROR_SURFACE_LOST_KHR;
         }
+        capabilities->minImageCount = std::min(max_buffer_count, 3);
+        capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
     }
-    capabilities->minImageCount = std::min(max_buffer_count, 3);
-    capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
 
     capabilities->currentExtent =
         VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
