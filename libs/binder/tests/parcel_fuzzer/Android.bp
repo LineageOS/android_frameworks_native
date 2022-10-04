@@ -84,6 +84,7 @@ cc_library_static {
         },
     },
     srcs: [
+        "random_binder.cpp",
         "random_fd.cpp",
         "random_parcel.cpp",
         "libbinder_driver.cpp",
