@@ -189,73 +189,73 @@ uint32_t TouchInputMapper::getSources() const {
 void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     InputMapper::populateDeviceInfo(info);
 
-    if (mDeviceMode != DeviceMode::DISABLED) {
-        info->addMotionRange(mOrientedRanges.x);
-        info->addMotionRange(mOrientedRanges.y);
-        info->addMotionRange(mOrientedRanges.pressure);
-
-        if (mDeviceMode == DeviceMode::UNSCALED && mSource == AINPUT_SOURCE_TOUCHPAD) {
-            // Populate RELATIVE_X and RELATIVE_Y motion ranges for touchpad capture mode.
-            //
-            // RELATIVE_X and RELATIVE_Y motion ranges should be the largest possible relative
-            // motion, i.e. the hardware dimensions, as the finger could move completely across the
-            // touchpad in one sample cycle.
-            const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
-            const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
-            info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, mSource, -x.max, x.max, x.flat,
-                                 x.fuzz, x.resolution);
-            info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, mSource, -y.max, y.max, y.flat,
-                                 y.fuzz, y.resolution);
-        }
-
-        if (mOrientedRanges.size) {
-            info->addMotionRange(*mOrientedRanges.size);
-        }
-
-        if (mOrientedRanges.touchMajor) {
-            info->addMotionRange(*mOrientedRanges.touchMajor);
-            info->addMotionRange(*mOrientedRanges.touchMinor);
-        }
-
-        if (mOrientedRanges.toolMajor) {
-            info->addMotionRange(*mOrientedRanges.toolMajor);
-            info->addMotionRange(*mOrientedRanges.toolMinor);
-        }
-
-        if (mOrientedRanges.orientation) {
-            info->addMotionRange(*mOrientedRanges.orientation);
-        }
-
-        if (mOrientedRanges.distance) {
-            info->addMotionRange(*mOrientedRanges.distance);
-        }
-
-        if (mOrientedRanges.tilt) {
-            info->addMotionRange(*mOrientedRanges.tilt);
-        }
-
-        if (mCursorScrollAccumulator.haveRelativeVWheel()) {
-            info->addMotionRange(AMOTION_EVENT_AXIS_VSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f,
-                                 0.0f);
-        }
-        if (mCursorScrollAccumulator.haveRelativeHWheel()) {
-            info->addMotionRange(AMOTION_EVENT_AXIS_HSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f,
-                                 0.0f);
-        }
-        if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
-            const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
-            const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
-            info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_1, mSource, x.min, x.max, x.flat,
-                                 x.fuzz, x.resolution);
-            info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_2, mSource, y.min, y.max, y.flat,
-                                 y.fuzz, y.resolution);
-            info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_3, mSource, x.min, x.max, x.flat,
-                                 x.fuzz, x.resolution);
-            info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_4, mSource, y.min, y.max, y.flat,
-                                 y.fuzz, y.resolution);
-        }
-        info->setButtonUnderPad(mParameters.hasButtonUnderPad);
+    if (mDeviceMode == DeviceMode::DISABLED) {
+        return;
     }
+
+    info->addMotionRange(mOrientedRanges.x);
+    info->addMotionRange(mOrientedRanges.y);
+    info->addMotionRange(mOrientedRanges.pressure);
+
+    if (mDeviceMode == DeviceMode::UNSCALED && mSource == AINPUT_SOURCE_TOUCHPAD) {
+        // Populate RELATIVE_X and RELATIVE_Y motion ranges for touchpad capture mode.
+        //
+        // RELATIVE_X and RELATIVE_Y motion ranges should be the largest possible relative
+        // motion, i.e. the hardware dimensions, as the finger could move completely across the
+        // touchpad in one sample cycle.
+        const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
+        const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
+        info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, mSource, -x.max, x.max, x.flat, x.fuzz,
+                             x.resolution);
+        info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, mSource, -y.max, y.max, y.flat, y.fuzz,
+                             y.resolution);
+    }
+
+    if (mOrientedRanges.size) {
+        info->addMotionRange(*mOrientedRanges.size);
+    }
+
+    if (mOrientedRanges.touchMajor) {
+        info->addMotionRange(*mOrientedRanges.touchMajor);
+        info->addMotionRange(*mOrientedRanges.touchMinor);
+    }
+
+    if (mOrientedRanges.toolMajor) {
+        info->addMotionRange(*mOrientedRanges.toolMajor);
+        info->addMotionRange(*mOrientedRanges.toolMinor);
+    }
+
+    if (mOrientedRanges.orientation) {
+        info->addMotionRange(*mOrientedRanges.orientation);
+    }
+
+    if (mOrientedRanges.distance) {
+        info->addMotionRange(*mOrientedRanges.distance);
+    }
+
+    if (mOrientedRanges.tilt) {
+        info->addMotionRange(*mOrientedRanges.tilt);
+    }
+
+    if (mCursorScrollAccumulator.haveRelativeVWheel()) {
+        info->addMotionRange(AMOTION_EVENT_AXIS_VSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
+    }
+    if (mCursorScrollAccumulator.haveRelativeHWheel()) {
+        info->addMotionRange(AMOTION_EVENT_AXIS_HSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
+    }
+    if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
+        const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
+        const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
+        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_1, mSource, x.min, x.max, x.flat, x.fuzz,
+                             x.resolution);
+        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_2, mSource, y.min, y.max, y.flat, y.fuzz,
+                             y.resolution);
+        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_3, mSource, x.min, x.max, x.flat, x.fuzz,
+                             x.resolution);
+        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_4, mSource, y.min, y.max, y.flat, y.fuzz,
+                             y.resolution);
+    }
+    info->setButtonUnderPad(mParameters.hasButtonUnderPad);
 }
 
 void TouchInputMapper::dump(std::string& dump) {
