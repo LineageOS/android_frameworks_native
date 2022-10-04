@@ -181,9 +181,10 @@ struct ProcessSession {
             wp<RpcSession> weakSession = session;
             session = nullptr;
 
-            EXPECT_EQ(nullptr, weakSession.promote())
+            sp<RpcSession> strongSession = weakSession.promote();
+            EXPECT_EQ(nullptr, strongSession)
                     << (debugBacktrace(host.getPid()), debugBacktrace(getpid()), "Leaked sess: ")
-                    << session->getStrongCount();
+                    << strongSession->getStrongCount();
         }
     }
 };
