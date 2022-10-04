@@ -50,6 +50,12 @@ MATCHER_P2(WithCoords, x, y, "InputEvent with specified coords") {
     return argX == x && argY == y;
 }
 
+MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {
+    const auto argPressure = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE);
+    *result_listener << "expected pressure " << pressure << ", but got " << pressure;
+    return argPressure;
+}
+
 MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {
     *result_listener << "expected flags " << flags << ", but got " << arg.flags;
     return arg.flags == flags;
