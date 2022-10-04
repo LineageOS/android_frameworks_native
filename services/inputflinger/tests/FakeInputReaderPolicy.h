@@ -55,6 +55,7 @@ public:
     bool updateViewport(const DisplayViewport& viewport);
     void addExcludedDeviceName(const std::string& deviceName);
     void addInputPortAssociation(const std::string& inputPort, uint8_t displayPort);
+    void addDeviceTypeAssociation(const std::string& inputPort, const std::string& type);
     void addInputUniqueIdAssociation(const std::string& inputUniqueId,
                                      const std::string& displayUniqueId);
     void addDisabledDevice(int32_t deviceId);

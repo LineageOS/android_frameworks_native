@@ -191,6 +191,9 @@ struct InputReaderConfiguration {
         // The set of disabled input devices (disabledDevices) has changed.
         CHANGE_ENABLED_STATE = 1 << 9,
 
+        // The device type has been updated.
+        CHANGE_DEVICE_TYPE = 1 << 10,
+
         // All devices must be reopened.
         CHANGE_MUST_REOPEN = 1 << 31,
     };
@@ -211,6 +214,10 @@ struct InputReaderConfiguration {
     // The associations between input device names and display unique ids.
     // Used to determine which DisplayViewport should be tied to which InputDevice.
     std::unordered_map<std::string, std::string> uniqueIdAssociations;
+
+    // The associations between input device ports device types.
+    // This is used to determine which device type and source should be tied to which InputDevice.
+    std::unordered_map<std::string, std::string> deviceTypeAssociations;
 
     // The suggested display ID to show the cursor.
     int32_t defaultPointerDisplayId;
@@ -325,7 +332,6 @@ struct InputReaderConfiguration {
     std::optional<DisplayViewport> getDisplayViewportByPort(uint8_t physicalPort) const;
     std::optional<DisplayViewport> getDisplayViewportById(int32_t displayId) const;
     void setDisplayViewports(const std::vector<DisplayViewport>& viewports);
-
 
     void dump(std::string& dump) const;
     void dumpViewport(std::string& dump, const DisplayViewport& viewport) const;

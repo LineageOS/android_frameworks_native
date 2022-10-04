@@ -392,32 +392,9 @@ void TouchInputMapper::configureParameters() {
         }
     }
 
-    if (getDeviceContext().hasInputProperty(INPUT_PROP_DIRECT)) {
-        // The device is a touch screen.
-        mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
-    } else if (getDeviceContext().hasInputProperty(INPUT_PROP_POINTER)) {
-        // The device is a pointing device like a track pad.
-        mParameters.deviceType = Parameters::DeviceType::POINTER;
-    } else {
-        // The device is a touch pad of unknown purpose.
-        mParameters.deviceType = Parameters::DeviceType::POINTER;
-    }
+    configureDeviceType();
 
     mParameters.hasButtonUnderPad = getDeviceContext().hasInputProperty(INPUT_PROP_BUTTONPAD);
-
-    std::string deviceTypeString;
-    if (getDeviceContext().getConfiguration().tryGetProperty("touch.deviceType",
-                                                             deviceTypeString)) {
-        if (deviceTypeString == "touchScreen") {
-            mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
-        } else if (deviceTypeString == "touchNavigation") {
-            mParameters.deviceType = Parameters::DeviceType::TOUCH_NAVIGATION;
-        } else if (deviceTypeString == "pointer") {
-            mParameters.deviceType = Parameters::DeviceType::POINTER;
-        } else if (deviceTypeString != "default") {
-            ALOGW("Invalid value for touch.deviceType: '%s'", deviceTypeString.c_str());
-        }
-    }
 
     mParameters.orientationAware = mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN;
     getDeviceContext().getConfiguration().tryGetProperty("touch.orientationAware",
@@ -444,7 +421,9 @@ void TouchInputMapper::configureParameters() {
     mParameters.associatedDisplayIsExternal = false;
     if (mParameters.orientationAware ||
         mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN ||
-        mParameters.deviceType == Parameters::DeviceType::POINTER) {
+        mParameters.deviceType == Parameters::DeviceType::POINTER ||
+        (mParameters.deviceType == Parameters::DeviceType::TOUCH_NAVIGATION &&
+         getDeviceContext().getAssociatedViewport())) {
         mParameters.hasAssociatedDisplay = true;
         if (mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN) {
             mParameters.associatedDisplayIsExternal = getDeviceContext().isExternal();
@@ -471,6 +450,34 @@ void TouchInputMapper::configureParameters() {
     mParameters.enableForInactiveViewport = false;
     getDeviceContext().getConfiguration().tryGetProperty("touch.enableForInactiveViewport",
                                                          mParameters.enableForInactiveViewport);
+}
+
+void TouchInputMapper::configureDeviceType() {
+    if (getDeviceContext().hasInputProperty(INPUT_PROP_DIRECT)) {
+        // The device is a touch screen.
+        mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
+    } else if (getDeviceContext().hasInputProperty(INPUT_PROP_POINTER)) {
+        // The device is a pointing device like a track pad.
+        mParameters.deviceType = Parameters::DeviceType::POINTER;
+    } else {
+        // The device is a touch pad of unknown purpose.
+        mParameters.deviceType = Parameters::DeviceType::POINTER;
+    }
+
+    // Type association takes precedence over the device type found in the idc file.
+    std::string deviceTypeString = getDeviceContext().getDeviceTypeAssociation().value_or("");
+    if (deviceTypeString.empty()) {
+        getDeviceContext().getConfiguration().tryGetProperty("touch.deviceType", deviceTypeString);
+    }
+    if (deviceTypeString == "touchScreen") {
+        mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
+    } else if (deviceTypeString == "touchNavigation") {
+        mParameters.deviceType = Parameters::DeviceType::TOUCH_NAVIGATION;
+    } else if (deviceTypeString == "pointer") {
+        mParameters.deviceType = Parameters::DeviceType::POINTER;
+    } else if (deviceTypeString != "default" && deviceTypeString != "") {
+        ALOGW("Invalid value for touch.deviceType: '%s'", deviceTypeString.c_str());
+    }
 }
 
 void TouchInputMapper::dumpParameters(std::string& dump) {

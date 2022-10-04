@@ -814,6 +814,8 @@ private:
     static void assignPointerIds(const RawState& last, RawState& current);
 
     void rotateAndScale(float& x, float& y) const;
+
+    void configureDeviceType();
 };
 
 } // namespace android
