@@ -1052,7 +1052,7 @@ static void DumpNetstatsProto() {
         return;
     }
     RunCommandToFd(fd, "", {"dumpsys", "netstats", "--proto"},
-            CommandOptions::WithTimeout(120).Build());
+            CommandOptions::WithTimeout(5).Build());
     bool empty = 0 == lseek(fd, 0, SEEK_END);
     if (!empty) {
         ds.EnqueueAddZipEntryAndCleanupIfNeeded(kProtoPath + "netstats" + kProtoExt,
