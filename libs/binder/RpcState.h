@@ -250,6 +250,7 @@ private:
         struct AsyncTodo {
             sp<IBinder> ref;
             CommandData data;
+            std::vector<std::variant<base::unique_fd, base::borrowed_fd>> ancillaryFds;
             uint64_t asyncNumber = 0;
 
             bool operator<(const AsyncTodo& o) const {
