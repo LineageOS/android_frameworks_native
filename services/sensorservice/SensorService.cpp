@@ -2519,6 +2519,8 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
 
     const int32_t opCode = sensor.getRequiredAppOp();
 
+    bool protectedByOtherSensorsPerm = false;
+
     bool canAccess = false;
     if (IPCThreadState::self()->getCallingUid() == AID_SYSTEM) {
         // Allow access if it is requested from system.
@@ -2543,6 +2545,7 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
             // upstream allows access to these sensors without the ACTIVITY_RECOGNITION permission
             // for targetSdk < 29 apps, enforce the OTHER_SENSORS permission instead
             const String16 requiredPermission("android.permission.OTHER_SENSORS");
+            protectedByOtherSensorsPerm = true;
 
             // copied from hasPermissionForSensor() below
             canAccess = checkPermission(requiredPermission,
@@ -2553,6 +2556,25 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
     if (!canAccess) {
         ALOGE("%s %s a sensor (%s) without holding %s", String8(opPackageName).c_str(),
               operation, sensor.getName().c_str(), sensor.getRequiredPermission().c_str());
+
+        if (!protectedByOtherSensorsPerm) {
+            protectedByOtherSensorsPerm = (sensor.getRequiredPermission() == "android.permission.OTHER_SENSORS");
+        }
+
+        if (protectedByOtherSensorsPerm) {
+            sp<IBinder> binder = defaultServiceManager()->getService(String16("package_native"));
+            if (binder != nullptr) {
+                sp<content::pm::IPackageManagerNative> packageManager =
+                        interface_cast<content::pm::IPackageManagerNative>(binder);
+                if (packageManager != nullptr) {
+                    int32_t callingUid = IPCThreadState::self()->getCallingUid();
+                    AutoCallerClear acc;
+                    packageManager->onDeniedSpecialRuntimePermissionOp(
+                        String16("android.permission.OTHER_SENSORS"),
+                        callingUid, opPackageName);
+                }
+            }
+        }
     }
 
     return canAccess;
