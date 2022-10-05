@@ -28,6 +28,7 @@
 #include <android-base/stringprintf.h>
 #include <ftl/enum.h>
 #include <ftl/fake_guard.h>
+#include <ftl/match.h>
 #include <utils/Trace.h>
 
 #include "../SurfaceFlingerProperties.h"
@@ -115,6 +116,20 @@ bool canModesSupportFrameRateOverride(const std::vector<DisplayModeIterator>& so
         }
     }
     return false;
+}
+
+std::string toString(const RefreshRateConfigs::PolicyVariant& policy) {
+    using namespace std::string_literals;
+
+    return ftl::match(
+            policy,
+            [](const RefreshRateConfigs::DisplayManagerPolicy& policy) {
+                return "DisplayManagerPolicy"s + policy.toString();
+            },
+            [](const RefreshRateConfigs::OverridePolicy& policy) {
+                return "OverridePolicy"s + policy.toString();
+            },
+            [](RefreshRateConfigs::NoOverridePolicy) { return "NoOverridePolicy"s; });
 }
 
 } // namespace
@@ -874,35 +889,60 @@ bool RefreshRateConfigs::isPolicyValidLocked(const Policy& policy) const {
             policy.appRequestRange.max >= policy.primaryRange.max;
 }
 
-status_t RefreshRateConfigs::setDisplayManagerPolicy(const Policy& policy) {
-    std::lock_guard lock(mLock);
-    if (!isPolicyValidLocked(policy)) {
-        ALOGE("Invalid refresh rate policy: %s", policy.toString().c_str());
-        return BAD_VALUE;
-    }
-    mGetRankedRefreshRatesCache.reset();
-    Policy previousPolicy = *getCurrentPolicyLocked();
-    mDisplayManagerPolicy = policy;
-    if (*getCurrentPolicyLocked() == previousPolicy) {
-        return CURRENT_POLICY_UNCHANGED;
-    }
-    constructAvailableRefreshRates();
-    return NO_ERROR;
-}
+auto RefreshRateConfigs::setPolicy(const PolicyVariant& policy) -> SetPolicyResult {
+    Policy oldPolicy;
+    {
+        std::lock_guard lock(mLock);
+        oldPolicy = *getCurrentPolicyLocked();
 
-status_t RefreshRateConfigs::setOverridePolicy(const std::optional<Policy>& policy) {
-    std::lock_guard lock(mLock);
-    if (policy && !isPolicyValidLocked(*policy)) {
-        return BAD_VALUE;
+        const bool valid = ftl::match(
+                policy,
+                [this](const auto& policy) {
+                    ftl::FakeGuard guard(mLock);
+                    if (!isPolicyValidLocked(policy)) {
+                        ALOGE("Invalid policy: %s", policy.toString().c_str());
+                        return false;
+                    }
+
+                    using T = std::decay_t<decltype(policy)>;
+
+                    if constexpr (std::is_same_v<T, DisplayManagerPolicy>) {
+                        mDisplayManagerPolicy = policy;
+                    } else {
+                        static_assert(std::is_same_v<T, OverridePolicy>);
+                        mOverridePolicy = policy;
+                    }
+                    return true;
+                },
+                [this](NoOverridePolicy) {
+                    ftl::FakeGuard guard(mLock);
+                    mOverridePolicy.reset();
+                    return true;
+                });
+
+        if (!valid) {
+            return SetPolicyResult::Invalid;
+        }
+
+        mGetRankedRefreshRatesCache.reset();
+
+        if (*getCurrentPolicyLocked() == oldPolicy) {
+            return SetPolicyResult::Unchanged;
+        }
+        constructAvailableRefreshRates();
     }
-    mGetRankedRefreshRatesCache.reset();
-    Policy previousPolicy = *getCurrentPolicyLocked();
-    mOverridePolicy = policy;
-    if (*getCurrentPolicyLocked() == previousPolicy) {
-        return CURRENT_POLICY_UNCHANGED;
-    }
-    constructAvailableRefreshRates();
-    return NO_ERROR;
+
+    const auto displayId = getActiveMode().getPhysicalDisplayId();
+    const unsigned numModeChanges = std::exchange(mNumModeSwitchesInPolicy, 0u);
+
+    ALOGI("Display %s policy changed\n"
+          "Previous: %s\n"
+          "Current:  %s\n"
+          "%u mode changes were performed under the previous policy",
+          to_string(displayId).c_str(), oldPolicy.toString().c_str(), toString(policy).c_str(),
+          numModeChanges);
+
+    return SetPolicyResult::Changed;
 }
 
 const RefreshRateConfigs::Policy* RefreshRateConfigs::getCurrentPolicyLocked() const {
