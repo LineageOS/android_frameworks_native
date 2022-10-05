@@ -3175,7 +3175,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         mPointerGesture.referenceIdBits = mCurrentCookedState.fingerIdBits;
 
         // Add delta for all fingers and calculate a common movement delta.
-        float commonDeltaX = 0, commonDeltaY = 0;
+        int32_t commonDeltaRawX = 0, commonDeltaRawY = 0;
         BitSet32 commonIdBits(mLastCookedState.fingerIdBits.value &
                               mCurrentCookedState.fingerIdBits.value);
         for (BitSet32 idBits(commonIdBits); !idBits.isEmpty();) {
@@ -3188,11 +3188,11 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             delta.dy += cpd.y - lpd.y;
 
             if (first) {
-                commonDeltaX = delta.dx;
-                commonDeltaY = delta.dy;
+                commonDeltaRawX = delta.dx;
+                commonDeltaRawY = delta.dy;
             } else {
-                commonDeltaX = calculateCommonVector(commonDeltaX, delta.dx);
-                commonDeltaY = calculateCommonVector(commonDeltaY, delta.dy);
+                commonDeltaRawX = calculateCommonVector(commonDeltaRawX, delta.dx);
+                commonDeltaRawY = calculateCommonVector(commonDeltaRawY, delta.dy);
             }
         }
 
@@ -3298,7 +3298,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         // Move the reference points based on the overall group motion of the fingers
         // except in PRESS mode while waiting for a transition to occur.
         if (mPointerGesture.currentGestureMode != PointerGesture::Mode::PRESS &&
-            (commonDeltaX || commonDeltaY)) {
+            (commonDeltaRawX || commonDeltaRawY)) {
             for (BitSet32 idBits(mPointerGesture.referenceIdBits); !idBits.isEmpty();) {
                 uint32_t id = idBits.clearFirstMarkedBit();
                 PointerGesture::Delta& delta = mPointerGesture.referenceDeltas[id];
@@ -3306,11 +3306,11 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                 delta.dy = 0;
             }
 
-            mPointerGesture.referenceTouchX += commonDeltaX;
-            mPointerGesture.referenceTouchY += commonDeltaY;
+            mPointerGesture.referenceTouchX += commonDeltaRawX;
+            mPointerGesture.referenceTouchY += commonDeltaRawY;
 
-            commonDeltaX *= mPointerXMovementScale;
-            commonDeltaY *= mPointerYMovementScale;
+            float commonDeltaX = commonDeltaRawX * mPointerXMovementScale;
+            float commonDeltaY = commonDeltaRawY * mPointerYMovementScale;
 
             rotateDelta(mInputDeviceOrientation, &commonDeltaX, &commonDeltaY);
             mPointerVelocityControl.move(when, &commonDeltaX, &commonDeltaY);
@@ -3341,6 +3341,16 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y,
                                                                  mPointerGesture.referenceGestureY);
             mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
+            if (mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
+                float xOffset = static_cast<float>(commonDeltaRawX) /
+                        (mRawPointerAxes.x.maxValue - mRawPointerAxes.x.minValue);
+                float yOffset = static_cast<float>(commonDeltaRawY) /
+                        (mRawPointerAxes.y.maxValue - mRawPointerAxes.y.minValue);
+                mPointerGesture.currentGestureCoords[0]
+                        .setAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET, xOffset);
+                mPointerGesture.currentGestureCoords[0]
+                        .setAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET, yOffset);
+            }
         } else if (mPointerGesture.currentGestureMode == PointerGesture::Mode::FREEFORM) {
             // FREEFORM mode.
             ALOGD_IF(DEBUG_GESTURES,
