@@ -27,13 +27,14 @@ public:
 
     virtual uint32_t getSources() const override;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
-    virtual void process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
-    virtual void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token) override;
-    virtual void cancelVibrate(int32_t token) override;
+    [[nodiscard]] std::list<NotifyArgs> vibrate(const VibrationSequence& sequence, ssize_t repeat,
+                                                int32_t token) override;
+    [[nodiscard]] std::list<NotifyArgs> cancelVibrate(int32_t token) override;
     virtual bool isVibrating() override;
     virtual std::vector<int32_t> getVibratorIds() override;
-    virtual void timeoutExpired(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> timeoutExpired(nsecs_t when) override;
     virtual void dump(std::string& dump) override;
 
 private:
@@ -44,8 +45,8 @@ private:
     ssize_t mIndex;
     nsecs_t mNextStepTime;
 
-    void nextStep();
-    void stopVibrating();
+    [[nodiscard]] std::list<NotifyArgs> nextStep();
+    [[nodiscard]] NotifyVibratorStateArgs stopVibrating();
 };
 
 } // namespace android

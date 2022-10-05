@@ -17,6 +17,7 @@
 #pragma once
 
 #include <input/InputDevice.h>
+#include "NotifyArgs.h"
 
 #include <vector>
 
@@ -51,10 +52,10 @@ public:
     virtual int32_t bumpGeneration() = 0;
 
     virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) = 0;
-    virtual void dispatchExternalStylusState(const StylusState& outState) = 0;
+    [[nodiscard]] virtual std::list<NotifyArgs> dispatchExternalStylusState(
+            const StylusState& outState) = 0;
 
     virtual InputReaderPolicyInterface* getPolicy() = 0;
-    virtual InputListenerInterface& getListener() = 0;
     virtual EventHubInterface* getEventHub() = 0;
 
     virtual int32_t getNextId() = 0;

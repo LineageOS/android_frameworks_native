@@ -51,12 +51,14 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {
-                    mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig,
-                                     fdp->ConsumeIntegral<int32_t>());
+                    std::list<NotifyArgs> unused =
+                            mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig,
+                                             fdp->ConsumeIntegral<int32_t>());
                 },
                 [&]() -> void {
                     // Need to reconfigure with 0 or you risk a NPE.
-                    mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig, 0);
+                    std::list<NotifyArgs> unused =
+                            mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig, 0);
                     InputDeviceInfo info;
                     mapper.populateDeviceInfo(&info);
                 },
@@ -68,23 +70,27 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                                               : fdp->ConsumeIntegral<int32_t>();
 
                     // Need to reconfigure with 0 or you risk a NPE.
-                    mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig, 0);
+                    std::list<NotifyArgs> unused =
+                            mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig, 0);
                     RawEvent rawEvent{fdp->ConsumeIntegral<nsecs_t>(),
                                       fdp->ConsumeIntegral<nsecs_t>(),
                                       fdp->ConsumeIntegral<int32_t>(),
                                       type,
                                       code,
                                       fdp->ConsumeIntegral<int32_t>()};
-                    mapper.process(&rawEvent);
+                    unused += mapper.process(&rawEvent);
                 },
-                [&]() -> void { mapper.reset(fdp->ConsumeIntegral<nsecs_t>()); },
+                [&]() -> void {
+                    std::list<NotifyArgs> unused = mapper.reset(fdp->ConsumeIntegral<nsecs_t>());
+                },
                 [&]() -> void {
                     mapper.getScanCodeState(fdp->ConsumeIntegral<uint32_t>(),
                                             fdp->ConsumeIntegral<int32_t>());
                 },
                 [&]() -> void {
                     // Need to reconfigure with 0 or you risk a NPE.
-                    mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig, 0);
+                    std::list<NotifyArgs> unused =
+                            mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig, 0);
                     mapper.getAssociatedDisplayId();
                 },
         })();

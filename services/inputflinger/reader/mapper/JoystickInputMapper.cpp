@@ -103,9 +103,10 @@ void JoystickInputMapper::dump(std::string& dump) {
     }
 }
 
-void JoystickInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                                    uint32_t changes) {
-    InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> JoystickInputMapper::configure(nsecs_t when,
+                                                     const InputReaderConfiguration* config,
+                                                     uint32_t changes) {
+    std::list<NotifyArgs> out = InputMapper::configure(when, config, changes);
 
     if (!changes) { // first time only
         // Collect all axes.
@@ -164,6 +165,7 @@ void JoystickInputMapper::configure(nsecs_t when, const InputReaderConfiguration
             it++;
         }
     }
+    return out;
 }
 
 JoystickInputMapper::Axis JoystickInputMapper::createAxis(const AxisInfo& axisInfo,
@@ -246,17 +248,18 @@ bool JoystickInputMapper::isCenteredAxis(int32_t axis) {
     }
 }
 
-void JoystickInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> JoystickInputMapper::reset(nsecs_t when) {
     // Recenter all axes.
     for (std::pair<const int32_t, Axis>& pair : mAxes) {
         Axis& axis = pair.second;
         axis.resetValue();
     }
 
-    InputMapper::reset(when);
+    return InputMapper::reset(when);
 }
 
-void JoystickInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> JoystickInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out;
     switch (rawEvent->type) {
         case EV_ABS: {
             auto it = mAxes.find(rawEvent->code);
@@ -298,16 +301,18 @@ void JoystickInputMapper::process(const RawEvent* rawEvent) {
         case EV_SYN:
             switch (rawEvent->code) {
                 case SYN_REPORT:
-                    sync(rawEvent->when, rawEvent->readTime, false /*force*/);
+                    out += sync(rawEvent->when, rawEvent->readTime, false /*force*/);
                     break;
             }
             break;
     }
+    return out;
 }
 
-void JoystickInputMapper::sync(nsecs_t when, nsecs_t readTime, bool force) {
+std::list<NotifyArgs> JoystickInputMapper::sync(nsecs_t when, nsecs_t readTime, bool force) {
+    std::list<NotifyArgs> out;
     if (!filterAxes(force)) {
-        return;
+        return out;
     }
 
     int32_t metaState = getContext()->getGlobalMetaState();
@@ -340,13 +345,14 @@ void JoystickInputMapper::sync(nsecs_t when, nsecs_t readTime, bool force) {
         displayId = getDeviceContext().getAssociatedViewport()->displayId;
     }
 
-    NotifyMotionArgs args(getContext()->getNextId(), when, readTime, getDeviceId(),
-                          AINPUT_SOURCE_JOYSTICK, displayId, policyFlags, AMOTION_EVENT_ACTION_MOVE,
-                          0, 0, metaState, buttonState, MotionClassification::NONE,
-                          AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties, &pointerCoords, 0, 0,
-                          AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                          AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
-    getListener().notifyMotion(&args);
+    out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
+                                   AINPUT_SOURCE_JOYSTICK, displayId, policyFlags,
+                                   AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState,
+                                   MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                                   &pointerProperties, &pointerCoords, 0, 0,
+                                   AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                   AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {}));
+    return out;
 }
 
 void JoystickInputMapper::setPointerCoordsAxisValue(PointerCoords* pointerCoords, int32_t axis,

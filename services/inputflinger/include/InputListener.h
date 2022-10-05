@@ -25,6 +25,8 @@
 
 namespace android {
 
+std::list<NotifyArgs>& operator+=(std::list<NotifyArgs>& keep, std::list<NotifyArgs>&& consume);
+
 /*
  * The interface used by the InputReader to notify the InputListener about input events.
  */

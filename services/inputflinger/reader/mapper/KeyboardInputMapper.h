@@ -25,24 +25,25 @@ public:
     KeyboardInputMapper(InputDeviceContext& deviceContext, uint32_t source, int32_t keyboardType);
     virtual ~KeyboardInputMapper();
 
-    virtual uint32_t getSources() const override;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
-    virtual void dump(std::string& dump) override;
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
-                           uint32_t changes) override;
-    virtual void reset(nsecs_t when) override;
-    virtual void process(const RawEvent* rawEvent) override;
+    uint32_t getSources() const override;
+    void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    void dump(std::string& dump) override;
+    [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
+                                                  const InputReaderConfiguration* config,
+                                                  uint32_t changes) override;
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
-    virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode) override;
-    virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
-    virtual bool markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
-                                       uint8_t* outFlags) override;
-    virtual int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const override;
+    int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode) override;
+    int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
+    bool markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
+                               uint8_t* outFlags) override;
+    int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const override;
 
-    virtual int32_t getMetaState() override;
-    virtual bool updateMetaState(int32_t keyCode) override;
-    virtual std::optional<int32_t> getAssociatedDisplayId() override;
-    virtual void updateLedState(bool reset);
+    int32_t getMetaState() override;
+    bool updateMetaState(int32_t keyCode) override;
+    std::optional<int32_t> getAssociatedDisplayId() override;
+    void updateLedState(bool reset) override;
 
 private:
     // The current viewport.
@@ -86,7 +87,8 @@ private:
     bool isKeyboardOrGamepadKey(int32_t scanCode);
     bool isMediaKey(int32_t keyCode);
 
-    void processKey(nsecs_t when, nsecs_t readTime, bool down, int32_t scanCode, int32_t usageCode);
+    [[nodiscard]] std::list<NotifyArgs> processKey(nsecs_t when, nsecs_t readTime, bool down,
+                                                   int32_t scanCode, int32_t usageCode);
 
     bool updateMetaStateIfNeeded(int32_t keyCode, bool down);
 
@@ -97,7 +99,7 @@ private:
     void updateLedStateForModifier(LedState& ledState, int32_t led, int32_t modifier, bool reset);
     std::optional<DisplayViewport> findViewport(nsecs_t when,
                                                 const InputReaderConfiguration* config);
-    void cancelAllDownKeys(nsecs_t when);
+    [[nodiscard]] std::list<NotifyArgs> cancelAllDownKeys(nsecs_t when);
 };
 
 } // namespace android

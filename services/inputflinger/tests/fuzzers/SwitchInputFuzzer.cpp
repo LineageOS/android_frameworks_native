@@ -46,7 +46,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                                       type,
                                       code,
                                       fdp->ConsumeIntegral<int32_t>()};
-                    mapper.process(&rawEvent);
+                    std::list<NotifyArgs> unused = mapper.process(&rawEvent);
                 },
                 [&]() -> void {
                     mapper.getSwitchState(fdp->ConsumeIntegral<uint32_t>(),

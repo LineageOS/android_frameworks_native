@@ -29,6 +29,7 @@
 #include "EventHub.h"
 #include "InputReaderBase.h"
 #include "InputReaderContext.h"
+#include "NotifyArgs.h"
 
 namespace android {
 
@@ -69,16 +70,18 @@ public:
     inline bool isIgnored() { return !getMapperCount(); }
 
     bool isEnabled();
-    void setEnabled(bool enabled, nsecs_t when);
+    [[nodiscard]] std::list<NotifyArgs> setEnabled(bool enabled, nsecs_t when);
 
     void dump(std::string& dump, const std::string& eventHubDevStr);
     void addEventHubDevice(int32_t eventHubId, bool populateMappers = true);
     void removeEventHubDevice(int32_t eventHubId);
-    void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
-    void reset(nsecs_t when);
-    void process(const RawEvent* rawEvents, size_t count);
-    void timeoutExpired(nsecs_t when);
-    void updateExternalStylusState(const StylusState& state);
+    [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
+                                                  const InputReaderConfiguration* config,
+                                                  uint32_t changes);
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when);
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvents, size_t count);
+    [[nodiscard]] std::list<NotifyArgs> timeoutExpired(nsecs_t when);
+    [[nodiscard]] std::list<NotifyArgs> updateExternalStylusState(const StylusState& state);
 
     InputDeviceInfo getDeviceInfo();
     int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
@@ -87,11 +90,12 @@ public:
     int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const;
     bool markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
                                uint8_t* outFlags);
-    void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token);
-    void cancelVibrate(int32_t token);
+    [[nodiscard]] std::list<NotifyArgs> vibrate(const VibrationSequence& sequence, ssize_t repeat,
+                                                int32_t token);
+    [[nodiscard]] std::list<NotifyArgs> cancelVibrate(int32_t token);
     bool isVibrating();
     std::vector<int32_t> getVibratorIds();
-    void cancelTouch(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> cancelTouch(nsecs_t when, nsecs_t readTime);
     bool enableSensor(InputDeviceSensorType sensorType, std::chrono::microseconds samplingPeriod,
                       std::chrono::microseconds maxBatchReportLatency);
     void disableSensor(InputDeviceSensorType sensorType);
@@ -109,7 +113,7 @@ public:
 
     void bumpGeneration();
 
-    void notifyReset(nsecs_t when);
+    [[nodiscard]] NotifyDeviceResetArgs notifyReset(nsecs_t when);
 
     inline const PropertyMap& getConfiguration() { return mConfiguration; }
     inline EventHubInterface* getEventHub() { return mContext->getEventHub(); }
@@ -395,7 +399,9 @@ public:
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mDevice.getAssociatedViewport();
     }
-    inline void cancelTouch(nsecs_t when, nsecs_t readTime) { mDevice.cancelTouch(when, readTime); }
+    [[nodiscard]] inline std::list<NotifyArgs> cancelTouch(nsecs_t when, nsecs_t readTime) {
+        return mDevice.cancelTouch(when, readTime);
+    }
     inline void bumpGeneration() { mDevice.bumpGeneration(); }
     inline const PropertyMap& getConfiguration() { return mDevice.getConfiguration(); }
 

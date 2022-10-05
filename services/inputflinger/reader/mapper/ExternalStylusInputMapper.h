@@ -29,13 +29,14 @@ public:
     explicit ExternalStylusInputMapper(InputDeviceContext& deviceContext);
     virtual ~ExternalStylusInputMapper() = default;
 
-    virtual uint32_t getSources() const override;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
-    virtual void dump(std::string& dump) override;
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
-                           uint32_t changes) override;
-    virtual void reset(nsecs_t when) override;
-    virtual void process(const RawEvent* rawEvent) override;
+    uint32_t getSources() const override;
+    void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    void dump(std::string& dump) override;
+    [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
+                                                  const InputReaderConfiguration* config,
+                                                  uint32_t changes) override;
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
 private:
     SingleTouchMotionAccumulator mSingleTouchMotionAccumulator;
@@ -44,7 +45,7 @@ private:
 
     StylusState mStylusState;
 
-    void sync(nsecs_t when);
+    [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when);
 };
 
 } // namespace android

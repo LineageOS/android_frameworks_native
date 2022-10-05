@@ -26,7 +26,7 @@ public:
     virtual ~SwitchInputMapper();
 
     virtual uint32_t getSources() const override;
-    virtual void process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
     virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode) override;
     virtual void dump(std::string& dump) override;
@@ -36,7 +36,7 @@ private:
     uint32_t mUpdatedSwitchMask;
 
     void processSwitch(int32_t switchCode, int32_t switchValue);
-    void sync(nsecs_t when);
+    [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when);
 };
 
 } // namespace android

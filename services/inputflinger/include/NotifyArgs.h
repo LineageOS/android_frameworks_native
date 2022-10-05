@@ -213,4 +213,6 @@ using NotifyArgs = std::variant<NotifyConfigurationChangedArgs, NotifyKeyArgs, N
                                 NotifySensorArgs, NotifySwitchArgs, NotifyDeviceResetArgs,
                                 NotifyPointerCaptureChangedArgs, NotifyVibratorStateArgs>;
 
+const char* toString(const NotifyArgs& args);
+
 } // namespace android
