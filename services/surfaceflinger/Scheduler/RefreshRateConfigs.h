@@ -375,9 +375,9 @@ private:
 
     // Returns the rankings in RefreshRateOrder. May change at runtime.
     // Only uses the primary range, not the app request range.
-    std::vector<RefreshRateRanking> getRefreshRatesByPolicyLocked(std::optional<int> anchorGroupOpt,
-                                                                  RefreshRateOrder) const
-            REQUIRES(mLock);
+    std::vector<RefreshRateRanking> getRefreshRatesByPolicyLocked(
+            std::optional<int> anchorGroupOpt, RefreshRateOrder,
+            std::optional<DisplayModeId> preferredDisplayModeOpt) const REQUIRES(mLock);
 
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
