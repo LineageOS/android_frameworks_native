@@ -349,7 +349,7 @@ class ScopedAIBinder_Weak
     /**
      * See AIBinder_Weak_promote.
      */
-    SpAIBinder promote() { return SpAIBinder(AIBinder_Weak_promote(get())); }
+    SpAIBinder promote() const { return SpAIBinder(AIBinder_Weak_promote(get())); }
 };
 
 namespace internal {

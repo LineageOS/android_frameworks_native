@@ -670,6 +670,26 @@ TEST(NdkBinder, ConvertToPlatformParcel) {
     EXPECT_EQ(42, pparcel->readInt32());
 }
 
+TEST(NdkBinder, GetAndVerifyScopedAIBinder_Weak) {
+    for (const ndk::SpAIBinder& binder :
+         {// remote
+          ndk::SpAIBinder(AServiceManager_getService(kBinderNdkUnitTestService)),
+          // local
+          ndk::SharedRefBase::make<MyBinderNdkUnitTest>()->asBinder()}) {
+        // get a const ScopedAIBinder_Weak and verify promote
+        EXPECT_NE(binder.get(), nullptr);
+        const ndk::ScopedAIBinder_Weak wkAIBinder =
+                ndk::ScopedAIBinder_Weak(AIBinder_Weak_new(binder.get()));
+        EXPECT_EQ(wkAIBinder.promote().get(), binder.get());
+        // get another ScopedAIBinder_Weak and verify
+        ndk::ScopedAIBinder_Weak wkAIBinder2 =
+                ndk::ScopedAIBinder_Weak(AIBinder_Weak_new(binder.get()));
+        EXPECT_FALSE(AIBinder_Weak_lt(wkAIBinder.get(), wkAIBinder2.get()));
+        EXPECT_FALSE(AIBinder_Weak_lt(wkAIBinder2.get(), wkAIBinder.get()));
+        EXPECT_EQ(wkAIBinder2.promote(), wkAIBinder.promote());
+    }
+}
+
 class MyResultReceiver : public BnResultReceiver {
    public:
     Mutex mMutex;
