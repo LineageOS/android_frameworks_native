@@ -237,6 +237,27 @@ void DisplayState::merge(const DisplayState& other) {
     }
 }
 
+void DisplayState::sanitize(bool privileged) {
+    if (what & DisplayState::eLayerStackChanged) {
+        if (!privileged) {
+            what &= ~DisplayState::eLayerStackChanged;
+            ALOGE("Stripped attempt to set eLayerStackChanged in sanitize");
+        }
+    }
+    if (what & DisplayState::eDisplayProjectionChanged) {
+        if (!privileged) {
+            what &= ~DisplayState::eDisplayProjectionChanged;
+            ALOGE("Stripped attempt to set eDisplayProjectionChanged in sanitize");
+        }
+    }
+    if (what & DisplayState::eSurfaceChanged) {
+        if (!privileged) {
+            what &= ~DisplayState::eSurfaceChanged;
+            ALOGE("Stripped attempt to set eSurfaceChanged in sanitize");
+        }
+    }
+}
+
 void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & ePositionChanged) {
         what |= ePositionChanged;

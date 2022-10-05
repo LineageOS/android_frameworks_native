@@ -568,9 +568,8 @@ private:
     /* ------------------------------------------------------------------------
      * Transactions
      */
-    void applyTransactionState(const Vector<ComposerState>& state,
-                               const Vector<DisplayState>& displays, uint32_t flags,
-                               const InputWindowCommands& inputWindowCommands,
+    void applyTransactionState(const Vector<ComposerState>& state, Vector<DisplayState>& displays,
+                               uint32_t flags, const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime,
                                const client_cache_t& uncacheBuffer,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,

@@ -231,6 +231,7 @@ struct DisplayState {
 
     DisplayState();
     void merge(const DisplayState& other);
+    void sanitize(bool privileged);
 
     uint32_t what;
     sp<IBinder> token;
