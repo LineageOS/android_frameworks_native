@@ -3501,7 +3501,7 @@ void SurfaceFlinger::flushTransactionQueues() {
     // to prevent onHandleDestroyed from being called while the lock is held,
     // we must keep a copy of the transactions (specifically the composer
     // states) around outside the scope of the lock
-    std::vector<const TransactionState> transactions;
+    std::vector<TransactionState> transactions;
     // Layer handles that have transactions with buffers that are ready to be applied.
     std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> bufferLayersReadyToPresent;
     {
@@ -3565,7 +3565,7 @@ void SurfaceFlinger::flushTransactionQueues() {
         }
 
         // Now apply all transactions.
-        for (const auto& transaction : transactions) {
+        for (auto& transaction : transactions) {
             applyTransactionState(transaction.frameTimelineInfo, transaction.states,
                                   transaction.displays, transaction.flags,
                                   transaction.inputWindowCommands, transaction.desiredPresentTime,
@@ -3785,7 +3785,7 @@ status_t SurfaceFlinger::setTransactionState(
 
 void SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                            const Vector<ComposerState>& states,
-                                           const Vector<DisplayState>& displays, uint32_t flags,
+                                           Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime, bool isAutoTimestamp,
                                            const client_cache_t& uncacheBuffer,
@@ -3794,7 +3794,8 @@ void SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                                            const std::vector<ListenerCallbacks>& listenerCallbacks,
                                            int originPid, int originUid, uint64_t transactionId) {
     uint32_t transactionFlags = 0;
-    for (const DisplayState& display : displays) {
+    for (DisplayState& display : displays) {
+        display.sanitize(permissions);
         transactionFlags |= setDisplayStateLocked(display);
     }
 
