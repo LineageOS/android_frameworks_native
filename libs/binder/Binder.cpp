@@ -232,7 +232,10 @@ public:
           : mRpcServer(rpcServer), mKeepAliveBinder(keepAliveBinder), mBinder(binder) {}
     virtual ~RpcServerLink();
     void binderDied(const wp<IBinder>&) override {
-        LOG_RPC_DETAIL("RpcServerLink: binder died, shutting down RpcServer");
+        auto promoted = mBinder.promote();
+        ALOGI("RpcBinder: binder died, shutting down RpcServer for %s",
+              promoted ? String8(promoted->getInterfaceDescriptor()).c_str() : "<NULL>");
+
         if (mRpcServer == nullptr) {
             ALOGW("RpcServerLink: Unable to shut down RpcServer because it does not exist.");
         } else {
@@ -241,11 +244,7 @@ public:
         }
         mRpcServer.clear();
 
-        auto promoted = mBinder.promote();
-        if (promoted == nullptr) {
-            ALOGW("RpcServerLink: Unable to remove link from parent binder object because parent "
-                  "binder object is gone.");
-        } else {
+        if (promoted) {
             promoted->removeRpcServerLink(sp<RpcServerLink>::fromExisting(this));
         }
         mBinder.clear();
@@ -706,6 +705,7 @@ status_t BBinder::setRpcClientDebug(android::base::unique_fd socketFd,
         return status;
     }
     rpcServer->setMaxThreads(binderThreadPoolMaxCount);
+    LOG(INFO) << "RpcBinder: Started Binder debug on " << getInterfaceDescriptor();
     rpcServer->start();
     e->mRpcServerLinks.emplace(link);
     LOG_RPC_DETAIL("%s(fd=%d) successful", __PRETTY_FUNCTION__, socketFdForPrint);
