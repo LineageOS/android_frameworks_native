@@ -106,6 +106,9 @@ public:
 
     ~VelocityTracker();
 
+    /** Return true if the axis is supported for velocity tracking, false otherwise. */
+    static bool isAxisSupported(int32_t axis);
+
     // Resets the velocity tracker state.
     void clear();
 
