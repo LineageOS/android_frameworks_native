@@ -145,12 +145,12 @@ void JoystickInputMapper::configure(nsecs_t when, const InputReaderConfiguration
         for (auto it = mAxes.begin(); it != mAxes.end(); /*increment it inside loop*/) {
             Axis& axis = it->second;
             if (axis.axisInfo.axis < 0) {
-                while (nextGenericAxisId <= AMOTION_EVENT_AXIS_GENERIC_16 &&
+                while (nextGenericAxisId <= AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE &&
                        haveAxis(nextGenericAxisId)) {
                     nextGenericAxisId += 1;
                 }
 
-                if (nextGenericAxisId <= AMOTION_EVENT_AXIS_GENERIC_16) {
+                if (nextGenericAxisId <= AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE) {
                     axis.axisInfo.axis = nextGenericAxisId;
                     nextGenericAxisId += 1;
                 } else {

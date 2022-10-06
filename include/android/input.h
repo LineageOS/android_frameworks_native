@@ -772,8 +772,17 @@ enum {
      */
     AMOTION_EVENT_AXIS_GENERIC_16 = 47,
 
+    /**
+     * Note: This is not an "Axis constant". It does not represent any axis, nor should it be used
+     * to represent any axis. It is a constant holding the value of the largest defined axis value,
+     * to make some computations (like iterating through all possible axes) cleaner.
+     * Please update the value accordingly if you add a new axis.
+     */
+    AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE = AMOTION_EVENT_AXIS_GENERIC_16,
+
     // NOTE: If you add a new axis here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/MotionEvent.java for the full list.
+    //       Update AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE accordingly as well.
 };
 
 /**
