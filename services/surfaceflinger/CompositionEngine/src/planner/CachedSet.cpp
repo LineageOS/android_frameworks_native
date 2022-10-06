@@ -159,7 +159,8 @@ void CachedSet::updateAge(std::chrono::steady_clock::time_point now) {
 }
 
 void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& texturePool,
-                       const OutputCompositionState& outputState) {
+                       const OutputCompositionState& outputState,
+                       bool deviceHandlesColorTransform) {
     ATRACE_CALL();
     const Rect& viewport = outputState.layerStackSpace.getContent();
     const ui::Dataspace& outputDataspace = outputState.dataspace;
@@ -170,6 +171,8 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
             .physicalDisplay = outputState.framebufferSpace.getContent(),
             .clip = viewport,
             .outputDataspace = outputDataspace,
+            .colorTransform = outputState.colorTransformMatrix,
+            .deviceHandlesColorTransform = deviceHandlesColorTransform,
             .orientation = orientation,
             .targetLuminanceNits = outputState.displayBrightnessNits,
     };

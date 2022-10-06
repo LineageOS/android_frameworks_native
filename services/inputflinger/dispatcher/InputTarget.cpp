@@ -43,8 +43,8 @@ std::string dispatchModeToString(int32_t dispatchMode) {
 }
 
 void InputTarget::addPointers(BitSet32 newPointerIds, const ui::Transform& transform) {
-    // The pointerIds can be empty, but still a valid InputTarget. This can happen for Monitors
-    // and non splittable windows since we will just use all the pointers from the input event.
+    // The pointerIds can be empty, but still a valid InputTarget. This can happen when there is no
+    // valid pointer property from the input event.
     if (newPointerIds.isEmpty()) {
         setDefaultPointerTransform(transform);
         return;

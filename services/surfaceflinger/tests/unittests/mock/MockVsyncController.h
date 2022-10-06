@@ -31,6 +31,7 @@ public:
     MOCK_METHOD3(addHwVsyncTimestamp, bool(nsecs_t, std::optional<nsecs_t>, bool*));
     MOCK_METHOD1(startPeriodTransition, void(nsecs_t));
     MOCK_METHOD1(setIgnorePresentFences, void(bool));
+    MOCK_METHOD(void, setDisplayPowerMode, (hal::PowerMode), (override));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };

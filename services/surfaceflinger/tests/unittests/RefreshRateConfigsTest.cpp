@@ -564,9 +564,10 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_30_60_90_120_DifferentTypes_mu
     TestableRefreshRateConfigs configs(kModes_30_60_72_90_120, kModeId60,
                                        {.frameRateMultipleThreshold = 120});
 
-    std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 1.f}};
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 1.f}, {.weight = 1.f}};
     auto& lr1 = layers[0];
     auto& lr2 = layers[1];
+    auto& lr3 = layers[2];
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitDefault;
@@ -639,6 +640,48 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_30_60_90_120_DifferentTypes_mu
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.name = "90Hz ExplicitExactOrMultiple";
     EXPECT_EQ(kMode90, configs.getBestRefreshRate(layers));
+
+    lr1.desiredRefreshRate = 24_Hz;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "24Hz ExplicitExactOrMultiple";
+    lr2.vote = LayerVoteType::Max;
+    lr2.name = "Max";
+    EXPECT_EQ(kMode120, configs.getBestRefreshRate(layers));
+
+    lr1.desiredRefreshRate = 24_Hz;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "24Hz ExplicitExactOrMultiple";
+    lr2.desiredRefreshRate = 120_Hz;
+    lr2.vote = LayerVoteType::ExplicitDefault;
+    lr2.name = "120Hz ExplicitDefault";
+    EXPECT_EQ(kMode120, configs.getBestRefreshRate(layers));
+
+    lr1.desiredRefreshRate = 24_Hz;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "24Hz ExplicitExactOrMultiple";
+    lr2.desiredRefreshRate = 120_Hz;
+    lr2.vote = LayerVoteType::ExplicitExact;
+    lr2.name = "120Hz ExplicitExact";
+    EXPECT_EQ(kMode120, configs.getBestRefreshRate(layers));
+
+    lr1.desiredRefreshRate = 10_Hz;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "30Hz ExplicitExactOrMultiple";
+    lr2.desiredRefreshRate = 120_Hz;
+    lr2.vote = LayerVoteType::Heuristic;
+    lr2.name = "120Hz ExplicitExact";
+    EXPECT_EQ(kMode120, configs.getBestRefreshRate(layers));
+
+    lr1.desiredRefreshRate = 30_Hz;
+    lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr1.name = "30Hz ExplicitExactOrMultiple";
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.name = "30Hz ExplicitExactOrMultiple";
+    lr3.vote = LayerVoteType::Heuristic;
+    lr3.desiredRefreshRate = 120_Hz;
+    lr3.name = "120Hz Heuristic";
+    EXPECT_EQ(kMode120, configs.getBestRefreshRate(layers));
 }
 
 TEST_F(RefreshRateConfigsTest, getBestRefreshRate_30_60) {

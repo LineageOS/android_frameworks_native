@@ -330,6 +330,10 @@ public:
         layer->mDrawingParent = drawingParent;
     }
 
+    void setPowerHintSessionMode(bool early, bool late) {
+        mFlinger->mPowerHintSessionMode = {.late = late, .early = early};
+    }
+
     /* ------------------------------------------------------------------------
      * Forwarding for functions being tested
      */
@@ -741,6 +745,7 @@ public:
                 mHwcDisplayId(hwcDisplayId) {
             mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;
+            mCreationArgs.initialPowerMode = hal::PowerMode::ON;
         }
 
         sp<IBinder> token() const { return mDisplayToken; }
