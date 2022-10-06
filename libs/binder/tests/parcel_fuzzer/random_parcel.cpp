@@ -36,6 +36,11 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOpti
     if (provider.ConsumeBool()) {
         auto session = RpcSession::make(RpcTransportCtxFactoryRaw::make());
         CHECK_EQ(OK, session->addNullDebuggingClient());
+        // Set the protocol version so that we don't crash if the session
+        // actually gets used. This isn't cheating because the version should
+        // always be set if the session init succeeded and we aren't testing the
+        // session init here (it is bypassed by addNullDebuggingClient).
+        session->setProtocolVersion(RPC_WIRE_PROTOCOL_VERSION);
         p->markForRpc(session);
 
         if (options->writeHeader) {
