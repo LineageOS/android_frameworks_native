@@ -181,9 +181,10 @@ struct ProcessSession {
             wp<RpcSession> weakSession = session;
             session = nullptr;
 
-            EXPECT_EQ(nullptr, weakSession.promote())
+            sp<RpcSession> strongSession = weakSession.promote();
+            EXPECT_EQ(nullptr, strongSession)
                     << (debugBacktrace(host.getPid()), debugBacktrace(getpid()), "Leaked sess: ")
-                    << session->getStrongCount();
+                    << strongSession->getStrongCount();
         }
     }
 };
@@ -787,12 +788,12 @@ TEST_P(BinderRpc, ThreadPoolGreaterThanEqualRequested) {
         ts.push_back(std::thread([&] { proc.rootIface->lockUnlock(); }));
     }
 
-    usleep(100000); // give chance for calls on other threads
+    usleep(10000); // give chance for calls on other threads
 
     // other calls still work
     EXPECT_EQ(OK, proc.rootBinder->pingBinder());
 
-    constexpr size_t blockTimeMs = 500;
+    constexpr size_t blockTimeMs = 50;
     size_t epochMsBefore = epochMillis();
     // after this, we should never see a response within this time
     EXPECT_OK(proc.rootIface->unlockInMsAsync(blockTimeMs));
@@ -919,6 +920,45 @@ TEST_P(BinderRpc, OnewayCallDoesNotWait) {
 
     size_t epochMsAfter = epochMillis();
     EXPECT_LT(epochMsAfter, epochMsBefore + kReallyLongTimeMs);
+}
+
+TEST_P(BinderRpc, OnewayCallQueueingWithFds) {
+    if (!supportsFdTransport()) {
+        GTEST_SKIP() << "Would fail trivially (which is tested elsewhere)";
+    }
+    if (clientOrServerSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
+    // This test forces a oneway transaction to be queued by issuing two
+    // `blockingSendFdOneway` calls, then drains the queue by issuing two
+    // `blockingRecvFd` calls.
+    //
+    // For more details about the queuing semantics see
+    // https://developer.android.com/reference/android/os/IBinder#FLAG_ONEWAY
+
+    auto proc = createRpcTestSocketServerProcess({
+            .numThreads = 3,
+            .clientFileDescriptorTransportMode = RpcSession::FileDescriptorTransportMode::UNIX,
+            .serverSupportedFileDescriptorTransportModes =
+                    {RpcSession::FileDescriptorTransportMode::UNIX},
+    });
+
+    EXPECT_OK(proc.rootIface->blockingSendFdOneway(
+            android::os::ParcelFileDescriptor(mockFileDescriptor("a"))));
+    EXPECT_OK(proc.rootIface->blockingSendFdOneway(
+            android::os::ParcelFileDescriptor(mockFileDescriptor("b"))));
+
+    android::os::ParcelFileDescriptor fdA;
+    EXPECT_OK(proc.rootIface->blockingRecvFd(&fdA));
+    std::string result;
+    CHECK(android::base::ReadFdToString(fdA.get(), &result));
+    EXPECT_EQ(result, "a");
+
+    android::os::ParcelFileDescriptor fdB;
+    EXPECT_OK(proc.rootIface->blockingRecvFd(&fdB));
+    CHECK(android::base::ReadFdToString(fdB.get(), &result));
+    EXPECT_EQ(result, "b");
 }
 
 TEST_P(BinderRpc, OnewayCallQueueing) {
@@ -1084,7 +1124,7 @@ TEST_P(BinderRpc, SingleDeathRecipient) {
     }
 
     std::unique_lock<std::mutex> lock(dr->mMtx);
-    ASSERT_TRUE(dr->mCv.wait_for(lock, 1000ms, [&]() { return dr->dead; }));
+    ASSERT_TRUE(dr->mCv.wait_for(lock, 100ms, [&]() { return dr->dead; }));
 
     // need to wait for the session to shutdown so we don't "Leak session"
     EXPECT_TRUE(proc.proc.sessions.at(0).session->shutdownAndWait(true));
@@ -1119,7 +1159,7 @@ TEST_P(BinderRpc, SingleDeathRecipientOnShutdown) {
 
     std::unique_lock<std::mutex> lock(dr->mMtx);
     if (!dr->dead) {
-        EXPECT_EQ(std::cv_status::no_timeout, dr->mCv.wait_for(lock, 1000ms));
+        EXPECT_EQ(std::cv_status::no_timeout, dr->mCv.wait_for(lock, 100ms));
     }
     EXPECT_TRUE(dr->dead) << "Failed to receive the death notification.";
 
@@ -1702,7 +1742,7 @@ TEST_P(BinderRpcServerOnly, Shutdown) {
 
     bool shutdown = false;
     for (int i = 0; i < 10 && !shutdown; i++) {
-        usleep(300 * 1000); // 300ms; total 3s
+        usleep(30 * 1000); // 30ms; total 300ms
         if (server->shutdown()) shutdown = true;
     }
     ASSERT_TRUE(shutdown) << "server->shutdown() never returns true";
