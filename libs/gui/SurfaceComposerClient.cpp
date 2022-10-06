@@ -2156,6 +2156,10 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(const String8& name, uin
     return s;
 }
 
+static std::string toString(const String16& string) {
+    return std::string(String8(string).c_str());
+}
+
 status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32_t w, uint32_t h,
                                                      PixelFormat format,
                                                      sp<SurfaceControl>* outSurface, int32_t flags,
@@ -2175,7 +2179,8 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
         }
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
-            *outSurface = new SurfaceControl(this, result.handle, result.layerId, w, h, format,
+            *outSurface = new SurfaceControl(this, result.handle, result.layerId,
+                                             toString(result.layerName), w, h, format,
                                              result.transformHint, flags);
         }
     }
@@ -2188,21 +2193,21 @@ sp<SurfaceControl> SurfaceComposerClient::mirrorSurface(SurfaceControl* mirrorFr
     }
 
     sp<IBinder> mirrorFromHandle = mirrorFromSurface->getHandle();
-    gui::MirrorSurfaceResult result;
+    gui::CreateSurfaceResult result;
     const binder::Status status = mClient->mirrorSurface(mirrorFromHandle, &result);
     const status_t err = statusTFromBinderStatus(status);
     if (err == NO_ERROR) {
-        return new SurfaceControl(this, result.handle, result.layerId);
+        return new SurfaceControl(this, result.handle, result.layerId, toString(result.layerName));
     }
     return nullptr;
 }
 
 sp<SurfaceControl> SurfaceComposerClient::mirrorDisplay(DisplayId displayId) {
-    gui::MirrorSurfaceResult result;
+    gui::CreateSurfaceResult result;
     const binder::Status status = mClient->mirrorDisplay(displayId.value, &result);
     const status_t err = statusTFromBinderStatus(status);
     if (err == NO_ERROR) {
-        return new SurfaceControl(this, result.handle, result.layerId);
+        return new SurfaceControl(this, result.handle, result.layerId, toString(result.layerName));
     }
     return nullptr;
 }

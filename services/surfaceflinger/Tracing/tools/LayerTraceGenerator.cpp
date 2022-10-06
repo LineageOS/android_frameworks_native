@@ -213,8 +213,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
             TracingLayerCreationArgs tracingArgs;
             parser.fromProto(entry.added_layers(j), tracingArgs);
 
-            sp<IBinder> outHandle;
-            int32_t outLayerId;
+            gui::CreateSurfaceResult outResult;
             LayerCreationArgs args(mFlinger.flinger(), nullptr /* client */, tracingArgs.name,
                                    tracingArgs.flags, LayerMetadata());
             args.sequence = std::make_optional<int32_t>(tracingArgs.layerId);
@@ -228,16 +227,15 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
                 } else if (tracingArgs.parentId != -1) {
                     parentHandle = dataMapper->getLayerHandle(tracingArgs.parentId);
                 }
-                mFlinger.createLayer(args, &outHandle, parentHandle, &outLayerId,
-                                     nullptr /* parentLayer */, nullptr /* outTransformHint */);
+                mFlinger.createLayer(args, parentHandle, outResult);
             } else {
                 sp<IBinder> mirrorFromHandle = dataMapper->getLayerHandle(tracingArgs.mirrorFromId);
-                mFlinger.mirrorLayer(args, mirrorFromHandle, &outHandle, &outLayerId);
+                mFlinger.mirrorLayer(args, mirrorFromHandle, outResult);
             }
-            LOG_ALWAYS_FATAL_IF(outLayerId != tracingArgs.layerId,
+            LOG_ALWAYS_FATAL_IF(outResult.layerId != tracingArgs.layerId,
                                 "Could not create layer expected:%d actual:%d", tracingArgs.layerId,
-                                outLayerId);
-            dataMapper->mLayerHandles[tracingArgs.layerId] = outHandle;
+                                outResult.layerId);
+            dataMapper->mLayerHandles[tracingArgs.layerId] = outResult.handle;
         }
 
         for (int j = 0; j < entry.transactions_size(); j++) {

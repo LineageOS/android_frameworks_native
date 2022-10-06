@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <android-base/stringprintf.h>
 #include <gui/BufferQueueConsumer.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
@@ -91,8 +92,10 @@ sp<SurfaceControl> BufferQueueFuzzer::makeSurfaceControl() {
     const sp<FakeBnSurfaceComposerClient> testClient(new FakeBnSurfaceComposerClient());
     sp<SurfaceComposerClient> client = new SurfaceComposerClient(testClient);
     sp<BnGraphicBufferProducer> producer;
-    return sp<SurfaceControl>::make(client, handle, mFdp.ConsumeIntegral<int32_t>(),
-                                    mFdp.ConsumeIntegral<uint32_t>(),
+    uint32_t layerId = mFdp.ConsumeIntegral<uint32_t>();
+    std::string layerName = base::StringPrintf("#%d", layerId);
+    return sp<SurfaceControl>::make(client, handle, layerId, layerName,
+                                    mFdp.ConsumeIntegral<int32_t>(),
                                     mFdp.ConsumeIntegral<uint32_t>(),
                                     mFdp.ConsumeIntegral<int32_t>(),
                                     mFdp.ConsumeIntegral<uint32_t>(),

@@ -463,16 +463,14 @@ public:
         mFlinger->onActiveDisplayChangedLocked(activeDisplay);
     }
 
-    auto createLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
-                     const sp<IBinder>& parentHandle, int32_t* outLayerId,
-                     const sp<Layer>& parentLayer, uint32_t* outTransformHint) {
-        return mFlinger->createLayer(args, outHandle, parentHandle, outLayerId, parentLayer,
-                                     outTransformHint);
+    auto createLayer(LayerCreationArgs& args, const sp<IBinder>& parentHandle,
+                     gui::CreateSurfaceResult& outResult) {
+        return mFlinger->createLayer(args, parentHandle, outResult);
     }
 
     auto mirrorLayer(const LayerCreationArgs& args, const sp<IBinder>& mirrorFromHandle,
-                     sp<IBinder>* outHandle, int32_t* outLayerId) {
-        return mFlinger->mirrorLayer(args, mirrorFromHandle, outHandle, outLayerId);
+                     gui::CreateSurfaceResult& outResult) {
+        return mFlinger->mirrorLayer(args, mirrorFromHandle, outResult);
     }
 
     void updateLayerMetadataSnapshot() { mFlinger->updateLayerMetadataSnapshot(); }

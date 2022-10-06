@@ -19,7 +19,6 @@ package android.gui;
 import android.gui.CreateSurfaceResult;
 import android.gui.FrameStats;
 import android.gui.LayerMetadata;
-import android.gui.MirrorSurfaceResult;
 
 /** @hide */
 interface ISurfaceComposerClient {
@@ -58,7 +57,7 @@ interface ISurfaceComposerClient {
      */
     FrameStats getLayerFrameStats(IBinder handle);
 
-    MirrorSurfaceResult mirrorSurface(IBinder mirrorFromHandle);
+    CreateSurfaceResult mirrorSurface(IBinder mirrorFromHandle);
 
-    MirrorSurfaceResult mirrorDisplay(long displayId);
+    CreateSurfaceResult mirrorDisplay(long displayId);
 }

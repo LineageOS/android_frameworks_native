@@ -774,10 +774,8 @@ private:
     /*
      * Layer management
      */
-    status_t createLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
-                         const sp<IBinder>& parentHandle, int32_t* outLayerId,
-                         const sp<Layer>& parentLayer = nullptr,
-                         uint32_t* outTransformHint = nullptr);
+    status_t createLayer(LayerCreationArgs& args, const sp<IBinder>& parentHandle,
+                         gui::CreateSurfaceResult& outResult);
 
     status_t createBufferStateLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
                                     sp<Layer>* outLayer);
@@ -786,10 +784,10 @@ private:
                                sp<Layer>* outLayer);
 
     status_t mirrorLayer(const LayerCreationArgs& args, const sp<IBinder>& mirrorFromHandle,
-                         sp<IBinder>* outHandle, int32_t* outLayerId);
+                         gui::CreateSurfaceResult& outResult);
 
     status_t mirrorDisplay(DisplayId displayId, const LayerCreationArgs& args,
-                           sp<IBinder>* outHandle, int32_t* outLayerId);
+                           gui::CreateSurfaceResult& outResult);
 
     // called when all clients have released all their references to
     // this layer meaning it is entirely safe to destroy all
