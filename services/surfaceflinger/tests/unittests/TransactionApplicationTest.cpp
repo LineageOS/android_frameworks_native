@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 #undef LOG_TAG
 #define LOG_TAG "CompositionTest"
 
@@ -22,12 +21,17 @@
 #include <compositionengine/mock/DisplaySurface.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <gui/LayerState.h>
 #include <gui/SurfaceComposerClient.h>
+#include <gui/fake/BufferData.h>
 #include <log/log.h>
 #include <ui/MockFence.h>
 #include <utils/String8.h>
+#include <vector>
+#include <binder/Binder.h>
 
 #include "TestableSurfaceFlinger.h"
+#include "TransactionHandler.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockVsyncController.h"
 
@@ -78,6 +82,7 @@ public:
         mFlinger.setupScheduler(std::unique_ptr<mock::VsyncController>(mVsyncController),
                                 std::unique_ptr<mock::VSyncTracker>(mVSyncTracker),
                                 std::move(eventThread), std::move(sfEventThread));
+        mFlinger.flinger()->addTransactionReadyFilters();
     }
 
     TestableSurfaceFlinger mFlinger;
@@ -314,7 +319,10 @@ public:
 
     ComposerState createComposerState(int layerId, sp<Fence> fence, uint64_t what) {
         ComposerState state;
-        state.state.bufferData = std::make_shared<BufferData>();
+        state.state.bufferData =
+                std::make_shared<fake::BufferData>(/* bufferId */ 123L, /* width */ 1,
+                                                   /* height */ 2, /* pixelFormat */ 0,
+                                                   /* outUsage */ 0);
         state.state.bufferData->acquireFence = std::move(fence);
         state.state.layerId = layerId;
         state.state.surface =
@@ -361,7 +369,7 @@ public:
         }
         mFlinger.flushTransactionQueues();
         EXPECT_TRUE(mFlinger.getTransactionQueue().isEmpty());
-        EXPECT_EQ(expectedTransactionsPending, mFlinger.getPendingTransactionQueue().size());
+        EXPECT_EQ(expectedTransactionsPending, mFlinger.getPendingTransactionCount());
     }
 };
 
@@ -413,7 +421,9 @@ TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsUnSignaledInTheQueue_NonBu
                                   {
                                           createComposerState(kLayerId,
                                                               fence(Fence::Status::Unsignaled),
-                                                              layer_state_t::eCropChanged),
+                                                              layer_state_t::eCropChanged |
+                                                                      layer_state_t::
+                                                                              eBufferChanged),
                                   });
     setTransactionStates({unsignaledTransaction}, kExpectedTransactionsPending);
 }
@@ -533,41 +543,6 @@ TEST_F(LatchUnsignaledAutoSingleLayerTest,
                                   });
 
     setTransactionStates({unsignaledTransaction, signaledTransaction, signaledTransaction2},
-                         kExpectedTransactionsPending);
-}
-
-TEST_F(LatchUnsignaledAutoSingleLayerTest, UnsignaledNotAppliedWhenThereAreSignaled_SignaledFirst) {
-    const sp<IBinder> kApplyToken1 =
-            IInterface::asBinder(TransactionCompletedListener::getIInstance());
-    const sp<IBinder> kApplyToken2 = sp<BBinder>::make();
-    const sp<IBinder> kApplyToken3 = sp<BBinder>::make();
-    const auto kLayerId1 = 1;
-    const auto kLayerId2 = 2;
-    const auto kExpectedTransactionsPending = 1u;
-
-    const auto signaledTransaction =
-            createTransactionInfo(kApplyToken1,
-                                  {
-                                          createComposerState(kLayerId1,
-                                                              fence(Fence::Status::Signaled),
-                                                              layer_state_t::eBufferChanged),
-                                  });
-    const auto signaledTransaction2 =
-            createTransactionInfo(kApplyToken2,
-                                  {
-                                          createComposerState(kLayerId1,
-                                                              fence(Fence::Status::Signaled),
-                                                              layer_state_t::eBufferChanged),
-                                  });
-    const auto unsignaledTransaction =
-            createTransactionInfo(kApplyToken3,
-                                  {
-                                          createComposerState(kLayerId2,
-                                                              fence(Fence::Status::Unsignaled),
-                                                              layer_state_t::eBufferChanged),
-                                  });
-
-    setTransactionStates({signaledTransaction, signaledTransaction2, unsignaledTransaction},
                          kExpectedTransactionsPending);
 }
 
@@ -798,7 +773,7 @@ TEST_F(LatchUnsignaledDisabledTest, Flush_KeepInTheUnsignaledTheQueue) {
             IInterface::asBinder(TransactionCompletedListener::getIInstance());
     const auto kLayerId1 = 1;
     const auto kLayerId2 = 2;
-    const auto kExpectedTransactionsPending = 1u;
+    const auto kExpectedTransactionsPending = 2u;
 
     const auto unsignaledTransaction =
             createTransactionInfo(kApplyToken,
@@ -1002,6 +977,18 @@ TEST_F(LatchUnsignaledAlwaysTest, LatchUnsignaledWhenEarlyOffset) {
     static_cast<void>(mFlinger.mutableVsyncModulator()->onRefreshRateChangeInitiated());
 
     setTransactionStates({unsignaledTransaction}, kExpectedTransactionsPending);
+}
+
+TEST(TransactionHandlerTest, QueueTransaction) {
+    TransactionHandler handler;
+    TransactionState transaction;
+    transaction.applyToken = sp<BBinder>::make();
+    transaction.id = 42;
+    handler.queueTransaction(std::move(transaction));
+    std::vector<TransactionState> transactionsReadyToBeApplied = handler.flushTransactions();
+
+    EXPECT_EQ(transactionsReadyToBeApplied.size(), 1u);
+    EXPECT_EQ(transactionsReadyToBeApplied.front().id, 42u);
 }
 
 } // namespace android

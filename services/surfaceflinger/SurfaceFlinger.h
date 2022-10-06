@@ -57,7 +57,6 @@
 #include <scheduler/Time.h>
 #include <ui/FenceResult.h>
 
-#include "ClientCache.h"
 #include "Display/DisplayMap.h"
 #include "Display/PhysicalDisplay.h"
 #include "DisplayDevice.h"
@@ -66,19 +65,17 @@
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
 #include "FlagManager.h"
-#include "FrameTracker.h"
 #include "LayerVector.h"
-#include "LocklessQueue.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncModulator.h"
 #include "SurfaceFlingerFactory.h"
 #include "ThreadContext.h"
-#include "TracedOrdinal.h"
 #include "Tracing/LayerTracing.h"
 #include "Tracing/TransactionTracing.h"
 #include "TransactionCallbackInvoker.h"
+#include "TransactionHandler.h"
 #include "TransactionState.h"
 
 #include <atomic>
@@ -337,6 +334,7 @@ private:
     friend class RegionSamplingThread;
     friend class LayerRenderArea;
     friend class LayerTracing;
+    friend class SurfaceComposerAIDL;
 
     // For unit tests
     friend class TestableSurfaceFlinger;
@@ -723,11 +721,13 @@ private:
     bool flushTransactionQueues(VsyncId) REQUIRES(kMainThreadContext);
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
-
-    int flushPendingTransactionQueues(
-            std::vector<TransactionState>& transactions,
-            std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
-            bool tryApplyUnsignaled) REQUIRES(mStateLock) REQUIRES(kMainThreadContext);
+    void addTransactionReadyFilters();
+    TransactionHandler::TransactionReadiness transactionReadyTimelineCheck(
+            const TransactionHandler::TransactionFlushState& flushState)
+            REQUIRES(kMainThreadContext);
+    TransactionHandler::TransactionReadiness transactionReadyBufferCheck(
+            const TransactionHandler::TransactionFlushState& flushState)
+            REQUIRES(kMainThreadContext);
 
     uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -745,23 +745,9 @@ private:
 
     void commitOffscreenLayers();
 
-    enum class TransactionReadiness {
-        NotReady,
-        NotReadyBarrier,
-        Ready,
-        ReadyUnsignaled,
-    };
-    TransactionReadiness transactionIsReadyToBeApplied(
-            TransactionState&, const FrameTimelineInfo&, bool isAutoTimestamp,
-            TimePoint desiredPresentTime, uid_t originUid, const Vector<ComposerState>&,
-            const std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>&
-                    bufferLayersReadyToPresent,
-            size_t totalTXapplied, bool tryApplyUnsignaled) const REQUIRES(mStateLock)
-            REQUIRES(kMainThreadContext);
-
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
     bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&, size_t numStates,
-                               size_t totalTXapplied) const;
+                               bool firstTransaction) const;
     bool applyTransactions(std::vector<TransactionState>& transactions, VsyncId)
             REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
@@ -1084,7 +1070,6 @@ private:
     status_t CheckTransactCodeCredentials(uint32_t code);
 
     // Add transaction to the Transaction Queue
-    void queueTransaction(TransactionState& state);
 
     /*
      * Generic Layer Metadata
@@ -1244,10 +1229,6 @@ private:
     uint32_t mTexturePoolSize = 0;
     std::vector<uint32_t> mTexturePool;
 
-    std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash>
-            mPendingTransactionQueues;
-    LocklessQueue<TransactionState> mLocklessTransactionQueue;
-    std::atomic<size_t> mPendingTransactionCount = 0;
     std::atomic<size_t> mNumLayers = 0;
 
     // to linkToDeath
@@ -1405,7 +1386,7 @@ private:
         bool early = false;
     } mPowerHintSessionMode;
 
-    friend class SurfaceComposerAIDL;
+    TransactionHandler mTransactionHandler;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

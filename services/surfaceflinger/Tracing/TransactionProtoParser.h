@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <gui/fake/BufferData.h>
 #include <layerproto/TransactionProto.h>
 #include <utils/RefBase.h>
 
@@ -43,35 +44,6 @@ struct TracingLayerState : layer_state_t {
     TracingLayerCreationArgs args;
 };
 
-// Class which exposes buffer properties from BufferData without holding on to the actual buffer
-// handle.
-class BufferDataStub : public BufferData {
-public:
-    BufferDataStub(uint64_t bufferId, uint32_t width, uint32_t height, int32_t pixelFormat,
-                   uint64_t outUsage)
-          : mBufferId(bufferId),
-            mWidth(width),
-            mHeight(height),
-            mPixelFormat(pixelFormat),
-            mOutUsage(outUsage) {}
-    bool hasBuffer() const override { return mBufferId != 0; }
-    bool hasSameBuffer(const BufferData& other) const override {
-        return getId() == other.getId() && frameNumber == other.frameNumber;
-    }
-    uint32_t getWidth() const override { return mWidth; }
-    uint32_t getHeight() const override { return mHeight; }
-    uint64_t getId() const override { return mBufferId; }
-    PixelFormat getPixelFormat() const override { return mPixelFormat; }
-    uint64_t getUsage() const override { return mOutUsage; }
-
-private:
-    uint64_t mBufferId;
-    uint32_t mWidth;
-    uint32_t mHeight;
-    int32_t mPixelFormat;
-    uint64_t mOutUsage;
-};
-
 class TransactionProtoParser {
 public:
     // Utility class to map handles to ids and buffers to buffer properties without pulling
@@ -87,7 +59,7 @@ public:
         virtual std::shared_ptr<BufferData> getGraphicData(uint64_t bufferId, uint32_t width,
                                                            uint32_t height, int32_t pixelFormat,
                                                            uint64_t usage) const {
-            return std::make_shared<BufferDataStub>(bufferId, width, height, pixelFormat, usage);
+            return std::make_shared<fake::BufferData>(bufferId, width, height, pixelFormat, usage);
         }
         virtual void getGraphicBufferPropertiesFromCache(client_cache_t /* cachedBuffer */,
                                                          uint64_t* /* outBufferId */,

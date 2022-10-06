@@ -194,6 +194,7 @@ filegroup {
         "Tracing/TransactionTracing.cpp",
         "Tracing/TransactionProtoParser.cpp",
         "TransactionCallbackInvoker.cpp",
+        "TransactionHandler.cpp",
         "TunnelModeEnabledReporter.cpp",
     ],
 }

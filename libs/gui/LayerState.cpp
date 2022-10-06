@@ -634,7 +634,7 @@ bool layer_state_t::hasBufferChanges() const {
 }
 
 bool layer_state_t::hasValidBuffer() const {
-    return bufferData && (bufferData->buffer || bufferData->cachedBuffer.isValid());
+    return bufferData && (bufferData->hasBuffer() || bufferData->cachedBuffer.isValid());
 }
 
 status_t layer_state_t::matrix22_t::write(Parcel& output) const {

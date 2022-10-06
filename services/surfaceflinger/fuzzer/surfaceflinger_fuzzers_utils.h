@@ -728,8 +728,10 @@ public:
         return mFlinger->setPowerModeInternal(display, mode);
     }
 
-    auto &getTransactionQueue() { return mFlinger->mLocklessTransactionQueue; }
-    auto &getPendingTransactionQueue() { return mFlinger->mPendingTransactionQueues; }
+    auto &getTransactionQueue() { return mFlinger->mTransactionHandler.mLocklessTransactionQueue; }
+    auto &getPendingTransactionQueue() {
+        return mFlinger->mTransactionHandler.mPendingTransactionQueues;
+    }
 
     auto setTransactionState(
             const FrameTimelineInfo &frameTimelineInfo, const Vector<ComposerState> &states,
