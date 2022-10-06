@@ -17,22 +17,13 @@
 #include <fuzzbinder/random_parcel.h>
 
 #include <android-base/logging.h>
-#include <binder/IServiceManager.h>
 #include <binder/RpcSession.h>
 #include <binder/RpcTransportRaw.h>
+#include <fuzzbinder/random_binder.h>
 #include <fuzzbinder/random_fd.h>
 #include <utils/String16.h>
 
 namespace android {
-
-class NamedBinder : public BBinder {
-public:
-    NamedBinder(const String16& descriptor) : mDescriptor(descriptor) {}
-    const String16& getInterfaceDescriptor() const override { return mDescriptor; }
-
-private:
-    String16 mDescriptor;
-};
 
 static void fillRandomParcelData(Parcel* p, FuzzedDataProvider&& provider) {
     std::vector<uint8_t> data = provider.ConsumeBytes<uint8_t>(provider.remaining_bytes());
@@ -89,32 +80,16 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOpti
                 },
                 // write binder
                 [&]() {
-                    auto makeFunc = provider.PickValueInArray<const std::function<sp<IBinder>()>>({
-                            [&]() {
-                                // descriptor is the length of a class name, e.g.
-                                // "some.package.Foo"
-                                std::string str =
-                                        provider.ConsumeRandomLengthString(100 /*max length*/);
-                                return new NamedBinder(String16(str.c_str()));
-                            },
-                            []() {
-                                // this is the easiest remote binder to get ahold of, and it
-                                // should be able to handle anything thrown at it, and
-                                // essentially every process can talk to it, so it's a good
-                                // candidate for checking usage of an actual BpBinder
-                                return IInterface::asBinder(defaultServiceManager());
-                            },
-                            [&]() -> sp<IBinder> {
-                                if (options->extraBinders.size() > 0 && provider.ConsumeBool()) {
-                                    return options->extraBinders.at(
-                                            provider.ConsumeIntegralInRange<
-                                                    size_t>(0, options->extraBinders.size() - 1));
-                                } else {
-                                    return nullptr;
-                                }
-                            },
-                    });
-                    sp<IBinder> binder = makeFunc();
+                    sp<IBinder> binder;
+                    if (options->extraBinders.size() > 0 && provider.ConsumeBool()) {
+                        binder = options->extraBinders.at(
+                                provider.ConsumeIntegralInRange<size_t>(0,
+                                                                        options->extraBinders
+                                                                                        .size() -
+                                                                                1));
+                    } else {
+                        binder = getRandomBinder(&provider);
+                    }
                     CHECK(OK == p->writeStrongBinder(binder));
                 },
         });
