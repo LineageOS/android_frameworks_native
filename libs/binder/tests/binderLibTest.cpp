@@ -115,6 +115,7 @@ enum BinderLibTestTranscationCode {
     BINDER_LIB_TEST_NOP_TRANSACTION_WAIT,
     BINDER_LIB_TEST_GETPID,
     BINDER_LIB_TEST_ECHO_VECTOR,
+    BINDER_LIB_TEST_GET_NON_BLOCKING_FD,
     BINDER_LIB_TEST_REJECT_OBJECTS,
     BINDER_LIB_TEST_CAN_GET_SID,
     BINDER_LIB_TEST_GET_MAX_THREAD_COUNT,
@@ -1158,6 +1159,21 @@ TEST_F(BinderLibTest, VectorSent) {
     EXPECT_EQ(readValue, testValue);
 }
 
+TEST_F(BinderLibTest, FileDescriptorRemainsNonBlocking) {
+    sp<IBinder> server = addServer();
+    ASSERT_TRUE(server != nullptr);
+
+    Parcel reply;
+    EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_NON_BLOCKING_FD, {} /*data*/, &reply),
+                StatusEq(NO_ERROR));
+    base::unique_fd fd;
+    EXPECT_THAT(reply.readUniqueFileDescriptor(&fd), StatusEq(OK));
+
+    const int result = fcntl(fd.get(), F_GETFL);
+    ASSERT_NE(result, -1);
+    EXPECT_EQ(result & O_NONBLOCK, O_NONBLOCK);
+}
+
 // see ProcessState.cpp BINDER_VM_SIZE = 1MB.
 // This value is not exposed, but some code in the framework relies on being able to use
 // buffers near the cap size.
@@ -1799,6 +1815,28 @@ public:
                 auto err = data.readUint64Vector(&vector);
                 if (err != NO_ERROR) return err;
                 reply->writeUint64Vector(vector);
+                return NO_ERROR;
+            }
+            case BINDER_LIB_TEST_GET_NON_BLOCKING_FD: {
+                std::array<int, 2> sockets;
+                const bool created = socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets.data()) == 0;
+                if (!created) {
+                    ALOGE("Could not create socket pair");
+                    return UNKNOWN_ERROR;
+                }
+
+                const int result = fcntl(sockets[0], F_SETFL, O_NONBLOCK);
+                if (result != 0) {
+                    ALOGE("Could not make socket non-blocking: %s", strerror(errno));
+                    return UNKNOWN_ERROR;
+                }
+                base::unique_fd out(sockets[0]);
+                status_t writeResult = reply->writeUniqueFileDescriptor(out);
+                if (writeResult != NO_ERROR) {
+                    ALOGE("Could not write unique_fd");
+                    return writeResult;
+                }
+                close(sockets[1]); // we don't need the other side of the fd
                 return NO_ERROR;
             }
             case BINDER_LIB_TEST_REJECT_OBJECTS: {

@@ -23,16 +23,17 @@ SingleTouchInputMapper::SingleTouchInputMapper(InputDeviceContext& deviceContext
 
 SingleTouchInputMapper::~SingleTouchInputMapper() {}
 
-void SingleTouchInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> SingleTouchInputMapper::reset(nsecs_t when) {
     mSingleTouchMotionAccumulator.reset(getDeviceContext());
 
-    TouchInputMapper::reset(when);
+    return TouchInputMapper::reset(when);
 }
 
-void SingleTouchInputMapper::process(const RawEvent* rawEvent) {
-    TouchInputMapper::process(rawEvent);
+std::list<NotifyArgs> SingleTouchInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out = TouchInputMapper::process(rawEvent);
 
     mSingleTouchMotionAccumulator.process(rawEvent);
+    return out;
 }
 
 void SingleTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {

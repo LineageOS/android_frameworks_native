@@ -64,6 +64,15 @@ struct TransactionState {
         }
     }
 
+    template <typename Visitor>
+    void traverseStatesWithBuffersWhileTrue(Visitor&& visitor) const {
+        for (const auto& [state] : states) {
+            if (state.hasBufferChanges() && state.hasValidBuffer() && state.surface) {
+                if (!visitor(state)) return;
+            }
+        }
+    }
+
     // TODO(b/185535769): Remove FrameHint. Instead, reset the idle timer (of the relevant physical
     // display) on the main thread if commit leads to composite. Then, RefreshRateOverlay should be
     // able to setFrameRate once, rather than for each transaction.

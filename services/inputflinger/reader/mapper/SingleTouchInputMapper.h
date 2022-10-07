@@ -26,8 +26,8 @@ public:
     explicit SingleTouchInputMapper(InputDeviceContext& deviceContext);
     ~SingleTouchInputMapper() override;
 
-    void reset(nsecs_t when) override;
-    void process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
 protected:
     void syncTouch(nsecs_t when, RawState* outState) override;

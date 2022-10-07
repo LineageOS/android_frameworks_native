@@ -97,7 +97,7 @@ void SurfaceFlingerPowerHintTest::SetUp() {
                     .setNativeWindow(mNativeWindow)
                     .setPowerMode(hal::PowerMode::ON)
                     .inject();
-    mFlinger.mutableActiveDisplayToken() = mDisplay->getDisplayToken();
+    mFlinger.mutableActiveDisplayId() = mDisplay->getPhysicalId();
 }
 
 void SurfaceFlingerPowerHintTest::setupScheduler() {

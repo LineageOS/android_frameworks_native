@@ -332,7 +332,6 @@ public:
 class FuzzInputReaderContext : public InputReaderContext {
     std::shared_ptr<EventHubInterface> mEventHub;
     sp<InputReaderPolicyInterface> mPolicy;
-    InputListenerInterface& mListener;
     std::shared_ptr<FuzzedDataProvider> mFdp;
 
 public:
@@ -340,7 +339,7 @@ public:
                            const sp<InputReaderPolicyInterface>& policy,
                            InputListenerInterface& listener,
                            std::shared_ptr<FuzzedDataProvider> mFdp)
-          : mEventHub(eventHub), mPolicy(policy), mListener(listener), mFdp(mFdp) {}
+          : mEventHub(eventHub), mPolicy(policy), mFdp(mFdp) {}
     ~FuzzInputReaderContext() {}
     void updateGlobalMetaState() override {}
     int32_t getGlobalMetaState() { return mFdp->ConsumeIntegral<int32_t>(); }
@@ -355,9 +354,10 @@ public:
     void requestTimeoutAtTime(nsecs_t when) override {}
     int32_t bumpGeneration() override { return mFdp->ConsumeIntegral<int32_t>(); }
     void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) override {}
-    void dispatchExternalStylusState(const StylusState& outState) override {}
+    std::list<NotifyArgs> dispatchExternalStylusState(const StylusState& outState) override {
+        return {};
+    }
     InputReaderPolicyInterface* getPolicy() override { return mPolicy.get(); }
-    InputListenerInterface& getListener() override { return mListener; }
     EventHubInterface* getEventHub() override { return mEventHub.get(); }
     int32_t getNextId() override { return mFdp->ConsumeIntegral<int32_t>(); }
 

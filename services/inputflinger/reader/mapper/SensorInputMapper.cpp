@@ -122,9 +122,10 @@ void SensorInputMapper::dump(std::string& dump) {
     }
 }
 
-void SensorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                                  uint32_t changes) {
-    InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> SensorInputMapper::configure(nsecs_t when,
+                                                   const InputReaderConfiguration* config,
+                                                   uint32_t changes) {
+    std::list<NotifyArgs> out = InputMapper::configure(when, config, changes);
 
     if (!changes) { // first time only
         mDeviceEnabled = true;
@@ -158,6 +159,7 @@ void SensorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
             }
         }
     }
+    return out;
 }
 
 SensorInputMapper::Axis SensorInputMapper::createAxis(const AxisInfo& axisInfo,
@@ -185,7 +187,7 @@ SensorInputMapper::Axis SensorInputMapper::createAxis(const AxisInfo& axisInfo,
     return Axis(rawAxisInfo, axisInfo, scale, offset, min, max, flat, fuzz, resolution, filter);
 }
 
-void SensorInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> SensorInputMapper::reset(nsecs_t when) {
     // Recenter all axes.
     for (std::pair<const int32_t, Axis>& pair : mAxes) {
         Axis& axis = pair.second;
@@ -193,7 +195,7 @@ void SensorInputMapper::reset(nsecs_t when) {
     }
     mHardwareTimestamp = 0;
     mPrevMscTime = 0;
-    InputMapper::reset(when);
+    return InputMapper::reset(when);
 }
 
 SensorInputMapper::Sensor SensorInputMapper::createSensor(InputDeviceSensorType sensorType,
@@ -256,7 +258,8 @@ void SensorInputMapper::processHardWareTimestamp(nsecs_t evTime, int32_t mscTime
     mPrevMscTime = static_cast<uint32_t>(mscTime);
 }
 
-void SensorInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> SensorInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out;
     switch (rawEvent->type) {
         case EV_ABS: {
             auto it = mAxes.find(rawEvent->code);
@@ -274,7 +277,7 @@ void SensorInputMapper::process(const RawEvent* rawEvent) {
                         Axis& axis = pair.second;
                         axis.currentValue = axis.newValue;
                     }
-                    sync(rawEvent->when, false /*force*/);
+                    out += sync(rawEvent->when, false /*force*/);
                     break;
             }
             break;
@@ -287,6 +290,7 @@ void SensorInputMapper::process(const RawEvent* rawEvent) {
                     break;
             }
     }
+    return out;
 }
 
 bool SensorInputMapper::setSensorEnabled(InputDeviceSensorType sensorType, bool enabled) {
@@ -375,7 +379,8 @@ void SensorInputMapper::disableSensor(InputDeviceSensorType sensorType) {
     }
 }
 
-void SensorInputMapper::sync(nsecs_t when, bool force) {
+std::list<NotifyArgs> SensorInputMapper::sync(nsecs_t when, bool force) {
+    std::list<NotifyArgs> out;
     for (auto& [sensorType, sensor] : mSensors) {
         // Skip if sensor not enabled
         if (!sensor.enabled) {
@@ -405,17 +410,17 @@ void SensorInputMapper::sync(nsecs_t when, bool force) {
             // Convert to Android unit
             convertFromLinuxToAndroid(values, sensorType);
             // Notify dispatcher for sensor event
-            NotifySensorArgs args(getContext()->getNextId(), when, getDeviceId(),
-                                  AINPUT_SOURCE_SENSOR, sensorType, sensor.sensorInfo.accuracy,
-                                  sensor.accuracy !=
-                                          sensor.sensorInfo.accuracy /* accuracyChanged */,
-                                  timestamp /* hwTimestamp */, values);
-
-            getListener().notifySensor(&args);
+            out.push_back(NotifySensorArgs(getContext()->getNextId(), when, getDeviceId(),
+                                           AINPUT_SOURCE_SENSOR, sensorType,
+                                           sensor.sensorInfo.accuracy,
+                                           sensor.accuracy !=
+                                                   sensor.sensorInfo.accuracy /* accuracyChanged */,
+                                           timestamp /* hwTimestamp */, values));
             sensor.lastSampleTimeNs = timestamp;
             sensor.accuracy = sensor.sensorInfo.accuracy;
         }
     }
+    return out;
 }
 
 } // namespace android

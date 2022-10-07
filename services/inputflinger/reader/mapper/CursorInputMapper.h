@@ -58,10 +58,11 @@ public:
     virtual uint32_t getSources() const override;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     virtual void dump(std::string& dump) override;
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
-                           uint32_t changes) override;
-    virtual void reset(nsecs_t when) override;
-    virtual void process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
+                                                  const InputReaderConfiguration* config,
+                                                  uint32_t changes) override;
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
 
@@ -124,7 +125,7 @@ private:
     void configureParameters();
     void dumpParameters(std::string& dump);
 
-    void sync(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when, nsecs_t readTime);
 };
 
 } // namespace android

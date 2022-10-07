@@ -57,7 +57,6 @@
 #include <scheduler/Time.h>
 #include <ui/FenceResult.h>
 
-#include "ClientCache.h"
 #include "Display/DisplayMap.h"
 #include "Display/PhysicalDisplay.h"
 #include "DisplayDevice.h"
@@ -66,19 +65,17 @@
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
 #include "FlagManager.h"
-#include "FrameTracker.h"
 #include "LayerVector.h"
-#include "LocklessQueue.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncModulator.h"
 #include "SurfaceFlingerFactory.h"
 #include "ThreadContext.h"
-#include "TracedOrdinal.h"
 #include "Tracing/LayerTracing.h"
 #include "Tracing/TransactionTracing.h"
 #include "TransactionCallbackInvoker.h"
+#include "TransactionHandler.h"
 #include "TransactionState.h"
 
 #include <atomic>
@@ -337,6 +334,7 @@ private:
     friend class RegionSamplingThread;
     friend class LayerRenderArea;
     friend class LayerTracing;
+    friend class SurfaceComposerAIDL;
 
     // For unit tests
     friend class TestableSurfaceFlinger;
@@ -680,11 +678,9 @@ private:
                                                           DisplayModeId defaultModeId) const
             REQUIRES(mStateLock);
 
-    // Sets the desired display mode specs.
-    status_t setDesiredDisplayModeSpecsInternal(
-            const sp<DisplayDevice>& display,
-            const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
-            EXCLUDES(mStateLock);
+    status_t setDesiredDisplayModeSpecsInternal(const sp<DisplayDevice>&,
+                                                const scheduler::RefreshRateConfigs::PolicyVariant&)
+            EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
 
     void commitTransactions() EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
     void commitTransactionsLocked(uint32_t transactionFlags)
@@ -725,11 +721,13 @@ private:
     bool flushTransactionQueues(VsyncId) REQUIRES(kMainThreadContext);
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
-
-    int flushPendingTransactionQueues(
-            std::vector<TransactionState>& transactions,
-            std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>& bufferLayersReadyToPresent,
-            bool tryApplyUnsignaled) REQUIRES(mStateLock) REQUIRES(kMainThreadContext);
+    void addTransactionReadyFilters();
+    TransactionHandler::TransactionReadiness transactionReadyTimelineCheck(
+            const TransactionHandler::TransactionFlushState& flushState)
+            REQUIRES(kMainThreadContext);
+    TransactionHandler::TransactionReadiness transactionReadyBufferCheck(
+            const TransactionHandler::TransactionFlushState& flushState)
+            REQUIRES(kMainThreadContext);
 
     uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -747,23 +745,9 @@ private:
 
     void commitOffscreenLayers();
 
-    enum class TransactionReadiness {
-        NotReady,
-        NotReadyBarrier,
-        Ready,
-        ReadyUnsignaled,
-    };
-    TransactionReadiness transactionIsReadyToBeApplied(
-            TransactionState&, const FrameTimelineInfo&, bool isAutoTimestamp,
-            TimePoint desiredPresentTime, uid_t originUid, const Vector<ComposerState>&,
-            const std::unordered_map<sp<IBinder>, uint64_t, SpHash<IBinder>>&
-                    bufferLayersReadyToPresent,
-            size_t totalTXapplied, bool tryApplyUnsignaled) const REQUIRES(mStateLock)
-            REQUIRES(kMainThreadContext);
-
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
     bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&, size_t numStates,
-                               size_t totalTXapplied) const;
+                               bool firstTransaction) const;
     bool applyTransactions(std::vector<TransactionState>& transactions, VsyncId)
             REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
@@ -837,10 +821,6 @@ private:
     void initializeDisplays();
     void onInitializeDisplays() REQUIRES(mStateLock, kMainThreadContext);
 
-    bool isDisplayActiveLocked(const sp<const DisplayDevice>& display) const REQUIRES(mStateLock) {
-        return display->getDisplayToken() == mActiveDisplayToken;
-    }
-
     sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) const
             REQUIRES(mStateLock) {
         return const_cast<SurfaceFlinger*>(this)->getDisplayDeviceLocked(displayToken);
@@ -875,12 +855,12 @@ private:
     }
 
     sp<DisplayDevice> getDefaultDisplayDeviceLocked() REQUIRES(mStateLock) {
-        if (const auto display = getDisplayDeviceLocked(mActiveDisplayToken)) {
+        if (const auto display = getDisplayDeviceLocked(mActiveDisplayId)) {
             return display;
         }
         // The active display is outdated, so fall back to the primary display.
-        mActiveDisplayToken.clear();
-        return getDisplayDeviceLocked(getPrimaryDisplayTokenLocked());
+        mActiveDisplayId = getPrimaryDisplayIdLocked();
+        return getDisplayDeviceLocked(mActiveDisplayId);
     }
 
     sp<const DisplayDevice> getDefaultDisplayDevice() const EXCLUDES(mStateLock) {
@@ -1090,7 +1070,6 @@ private:
     status_t CheckTransactCodeCredentials(uint32_t code);
 
     // Add transaction to the Transaction Queue
-    void queueTransaction(TransactionState& state);
 
     /*
      * Generic Layer Metadata
@@ -1203,6 +1182,9 @@ private:
 
     display::PhysicalDisplays mPhysicalDisplays GUARDED_BY(mStateLock);
 
+    // The inner or outer display for foldables, assuming they have mutually exclusive power states.
+    PhysicalDisplayId mActiveDisplayId GUARDED_BY(mStateLock);
+
     struct {
         DisplayIdGenerator<GpuVirtualDisplayId> gpu;
         std::optional<DisplayIdGenerator<HalVirtualDisplayId>> hal;
@@ -1247,10 +1229,6 @@ private:
     uint32_t mTexturePoolSize = 0;
     std::vector<uint32_t> mTexturePool;
 
-    std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash>
-            mPendingTransactionQueues;
-    LocklessQueue<TransactionState> mLocklessTransactionQueue;
-    std::atomic<size_t> mPendingTransactionCount = 0;
     std::atomic<size_t> mNumLayers = 0;
 
     // to linkToDeath
@@ -1392,8 +1370,6 @@ private:
                 [](const auto& display) { return display.isRefreshRateOverlayEnabled(); });
     }
 
-    wp<IBinder> mActiveDisplayToken GUARDED_BY(mStateLock);
-
     const sp<WindowInfosListenerInvoker> mWindowInfosListenerInvoker;
 
     FlagManager mFlagManager;
@@ -1410,7 +1386,7 @@ private:
         bool early = false;
     } mPowerHintSessionMode;
 
-    friend class SurfaceComposerAIDL;
+    TransactionHandler mTransactionHandler;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

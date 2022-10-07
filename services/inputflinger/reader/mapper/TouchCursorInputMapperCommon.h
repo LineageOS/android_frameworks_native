@@ -71,30 +71,34 @@ static bool isPointerDown(int32_t buttonState) {
              AMOTION_EVENT_BUTTON_TERTIARY);
 }
 
-static void synthesizeButtonKey(InputReaderContext* context, int32_t action, nsecs_t when,
-                                nsecs_t readTime, int32_t deviceId, uint32_t source,
-                                int32_t displayId, uint32_t policyFlags, int32_t lastButtonState,
-                                int32_t currentButtonState, int32_t buttonState, int32_t keyCode) {
+[[nodiscard]] static std::list<NotifyArgs> synthesizeButtonKey(
+        InputReaderContext* context, int32_t action, nsecs_t when, nsecs_t readTime,
+        int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
+        int32_t lastButtonState, int32_t currentButtonState, int32_t buttonState, int32_t keyCode) {
+    std::list<NotifyArgs> out;
     if ((action == AKEY_EVENT_ACTION_DOWN && !(lastButtonState & buttonState) &&
          (currentButtonState & buttonState)) ||
         (action == AKEY_EVENT_ACTION_UP && (lastButtonState & buttonState) &&
          !(currentButtonState & buttonState))) {
-        NotifyKeyArgs args(context->getNextId(), when, readTime, deviceId, source, displayId,
-                           policyFlags, action, 0, keyCode, 0, context->getGlobalMetaState(), when);
-        context->getListener().notifyKey(&args);
+        out.push_back(NotifyKeyArgs(context->getNextId(), when, readTime, deviceId, source,
+                                    displayId, policyFlags, action, 0, keyCode, 0,
+                                    context->getGlobalMetaState(), when));
     }
+    return out;
 }
 
-static void synthesizeButtonKeys(InputReaderContext* context, int32_t action, nsecs_t when,
-                                 nsecs_t readTime, int32_t deviceId, uint32_t source,
-                                 int32_t displayId, uint32_t policyFlags, int32_t lastButtonState,
-                                 int32_t currentButtonState) {
-    synthesizeButtonKey(context, action, when, readTime, deviceId, source, displayId, policyFlags,
-                        lastButtonState, currentButtonState, AMOTION_EVENT_BUTTON_BACK,
-                        AKEYCODE_BACK);
-    synthesizeButtonKey(context, action, when, readTime, deviceId, source, displayId, policyFlags,
-                        lastButtonState, currentButtonState, AMOTION_EVENT_BUTTON_FORWARD,
-                        AKEYCODE_FORWARD);
+[[nodiscard]] static std::list<NotifyArgs> synthesizeButtonKeys(
+        InputReaderContext* context, int32_t action, nsecs_t when, nsecs_t readTime,
+        int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
+        int32_t lastButtonState, int32_t currentButtonState) {
+    std::list<NotifyArgs> out;
+    out += synthesizeButtonKey(context, action, when, readTime, deviceId, source, displayId,
+                               policyFlags, lastButtonState, currentButtonState,
+                               AMOTION_EVENT_BUTTON_BACK, AKEYCODE_BACK);
+    out += synthesizeButtonKey(context, action, when, readTime, deviceId, source, displayId,
+                               policyFlags, lastButtonState, currentButtonState,
+                               AMOTION_EVENT_BUTTON_FORWARD, AKEYCODE_FORWARD);
+    return out;
 }
 
 } // namespace android
