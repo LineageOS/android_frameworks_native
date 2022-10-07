@@ -56,6 +56,7 @@ static bool enableAncillaryFds(RpcSession::FileDescriptorTransportMode mode) {
         case RpcSession::FileDescriptorTransportMode::NONE:
             return false;
         case RpcSession::FileDescriptorTransportMode::UNIX:
+        case RpcSession::FileDescriptorTransportMode::TRUSTY:
             return true;
     }
 }
@@ -1207,6 +1208,20 @@ status_t RpcState::validateParcel(const sp<RpcSession>& session, const Parcel& p
                                              rpcFields->mFds->size(), kMaxFdsPerMsg);
                     return BAD_VALUE;
                 }
+                break;
+            }
+            case RpcSession::FileDescriptorTransportMode::TRUSTY: {
+                // Keep this in sync with trusty_ipc.h!!!
+                // We could import that file here on Trusty, but it's not
+                // available on Android
+                constexpr size_t kMaxFdsPerMsg = 8;
+                if (rpcFields->mFds->size() > kMaxFdsPerMsg) {
+                    *errorMsg = StringPrintf("Too many file descriptors in Parcel for Trusty "
+                                             "IPC connection: %zu (max is %zu)",
+                                             rpcFields->mFds->size(), kMaxFdsPerMsg);
+                    return BAD_VALUE;
+                }
+                break;
             }
         }
     }

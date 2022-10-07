@@ -60,6 +60,10 @@ public:
             std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory = nullptr);
 
     void setProtocolVersion(uint32_t version) { mRpcServer->setProtocolVersion(version); }
+    void setSupportedFileDescriptorTransportModes(
+            const std::vector<RpcSession::FileDescriptorTransportMode>& modes) {
+        mRpcServer->setSupportedFileDescriptorTransportModes(modes);
+    }
     void setRootObject(const sp<IBinder>& binder) { mRpcServer->setRootObject(binder); }
     void setRootObjectWeak(const wp<IBinder>& binder) { mRpcServer->setRootObjectWeak(binder); }
     void setPerSessionRootObject(std::function<sp<IBinder>(const void*, size_t)>&& object) {
