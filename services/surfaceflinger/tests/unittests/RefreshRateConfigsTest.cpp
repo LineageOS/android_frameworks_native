@@ -77,7 +77,9 @@ struct TestableRefreshRateConfigs : RefreshRateConfigs {
     std::vector<RefreshRateRanking> getRefreshRatesByPolicy(
             std::optional<int> anchorGroupOpt, RefreshRateOrder refreshRateOrder) const {
         std::lock_guard lock(mLock);
-        return RefreshRateConfigs::getRefreshRatesByPolicyLocked(anchorGroupOpt, refreshRateOrder);
+        return RefreshRateConfigs::
+                getRefreshRatesByPolicyLocked(anchorGroupOpt, refreshRateOrder,
+                                              /*preferredDisplayModeOpt*/ std::nullopt);
     }
 
     const std::vector<Fps>& knownFrameRates() const { return mKnownFrameRates; }
@@ -342,6 +344,18 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_noLayers) {
                           {kModeId90, kAllowGroupSwitching, {0_Hz, 90_Hz}}));
         EXPECT_EQ(kMode90_G1, configs.getBestRefreshRate());
     }
+}
+
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_exactDontChangeRefreshRateWhenNotInPolicy) {
+    TestableRefreshRateConfigs configs(kModes_30_60_72_90_120, kModeId72);
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    layers[0].vote = LayerVoteType::ExplicitExact;
+    layers[0].desiredRefreshRate = 120_Hz;
+
+    EXPECT_EQ(SetPolicyResult::Changed,
+              configs.setDisplayManagerPolicy({kModeId72, {0_Hz, 90_Hz}}));
+    EXPECT_EQ(kMode72, configs.getBestRefreshRate(layers));
 }
 
 TEST_F(RefreshRateConfigsTest, getBestRefreshRate_60_90) {
@@ -1317,29 +1331,6 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ExplicitExact_WithFractionalRe
 
             EXPECT_EQ(lr.desiredRefreshRate, configs.getBestRefreshRate(layers)->getFps());
         }
-    }
-
-    // Test that 23.976 will choose 24 if 23.976 is not supported
-    {
-        TestableRefreshRateConfigs configs(makeModes(kMode24, kMode25, kMode30, kMode30Frac,
-                                                     kMode60, kMode60Frac),
-                                           kModeId60);
-
-        lr.vote = LayerVoteType::ExplicitExact;
-        lr.desiredRefreshRate = 23.976_Hz;
-        lr.name = "ExplicitExact 23.976 Hz";
-        EXPECT_EQ(kModeId24, configs.getBestRefreshRate(layers)->getId());
-    }
-
-    // Test that 24 will choose 23.976 if 24 is not supported
-    {
-        TestableRefreshRateConfigs configs(makeModes(kMode24Frac, kMode25, kMode30, kMode30Frac,
-                                                     kMode60, kMode60Frac),
-                                           kModeId60);
-
-        lr.desiredRefreshRate = 24_Hz;
-        lr.name = "ExplicitExact 24 Hz";
-        EXPECT_EQ(kModeId24Frac, configs.getBestRefreshRate(layers)->getId());
     }
 }
 
