@@ -31,6 +31,11 @@ using android::base::StringPrintf;
 
 namespace android {
 
+std::list<NotifyArgs>& operator+=(std::list<NotifyArgs>& keep, std::list<NotifyArgs>&& consume) {
+    keep.splice(keep.end(), consume);
+    return keep;
+}
+
 // --- InputListenerInterface ---
 
 // Helper to std::visit with lambdas.

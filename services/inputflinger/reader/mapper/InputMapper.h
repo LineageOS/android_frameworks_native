@@ -20,6 +20,7 @@
 #include "InputDevice.h"
 #include "InputListener.h"
 #include "InputReaderContext.h"
+#include "NotifyArgs.h"
 #include "StylusState.h"
 #include "VibrationElement.h"
 
@@ -48,15 +49,16 @@ public:
     inline const std::string getDeviceName() const { return mDeviceContext.getName(); }
     inline InputReaderContext* getContext() { return mDeviceContext.getContext(); }
     inline InputReaderPolicyInterface* getPolicy() { return getContext()->getPolicy(); }
-    inline InputListenerInterface& getListener() { return getContext()->getListener(); }
 
     virtual uint32_t getSources() const = 0;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
     virtual void dump(std::string& dump);
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
-    virtual void reset(nsecs_t when);
-    virtual void process(const RawEvent* rawEvent) = 0;
-    virtual void timeoutExpired(nsecs_t when);
+    [[nodiscard]] virtual std::list<NotifyArgs> configure(nsecs_t when,
+                                                          const InputReaderConfiguration* config,
+                                                          uint32_t changes);
+    [[nodiscard]] virtual std::list<NotifyArgs> reset(nsecs_t when);
+    [[nodiscard]] virtual std::list<NotifyArgs> process(const RawEvent* rawEvent) = 0;
+    [[nodiscard]] virtual std::list<NotifyArgs> timeoutExpired(nsecs_t when);
 
     virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
@@ -65,11 +67,12 @@ public:
 
     virtual bool markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
                                        uint8_t* outFlags);
-    virtual void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token);
-    virtual void cancelVibrate(int32_t token);
+    [[nodiscard]] virtual std::list<NotifyArgs> vibrate(const VibrationSequence& sequence,
+                                                        ssize_t repeat, int32_t token);
+    [[nodiscard]] virtual std::list<NotifyArgs> cancelVibrate(int32_t token);
     virtual bool isVibrating();
     virtual std::vector<int32_t> getVibratorIds();
-    virtual void cancelTouch(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] virtual std::list<NotifyArgs> cancelTouch(nsecs_t when, nsecs_t readTime);
     virtual bool enableSensor(InputDeviceSensorType sensorType,
                               std::chrono::microseconds samplingPeriod,
                               std::chrono::microseconds maxBatchReportLatency);
@@ -91,7 +94,7 @@ public:
      */
     virtual bool updateMetaState(int32_t keyCode);
 
-    virtual void updateExternalStylusState(const StylusState& state);
+    [[nodiscard]] virtual std::list<NotifyArgs> updateExternalStylusState(const StylusState& state);
 
     virtual std::optional<int32_t> getAssociatedDisplayId() { return std::nullopt; }
     virtual void updateLedState(bool reset) {}

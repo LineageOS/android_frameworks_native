@@ -191,20 +191,21 @@ MultiTouchInputMapper::MultiTouchInputMapper(InputDeviceContext& deviceContext)
 
 MultiTouchInputMapper::~MultiTouchInputMapper() {}
 
-void MultiTouchInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> MultiTouchInputMapper::reset(nsecs_t when) {
     // The evdev multi-touch protocol does not allow userspace applications to query the initial or
     // current state of the pointers at any time. This means if we clear our accumulated state when
     // resetting the input mapper, there's no way to rebuild the full initial state of the pointers.
     // We can only wait for updates to all the pointers and axes. Rather than clearing the state and
     // rebuilding the state from scratch, we work around this kernel API limitation by never
     // fully clearing any state specific to the multi-touch protocol.
-    TouchInputMapper::reset(when);
+    return TouchInputMapper::reset(when);
 }
 
-void MultiTouchInputMapper::process(const RawEvent* rawEvent) {
-    TouchInputMapper::process(rawEvent);
+std::list<NotifyArgs> MultiTouchInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out = TouchInputMapper::process(rawEvent);
 
     mMultiTouchMotionAccumulator.process(rawEvent);
+    return out;
 }
 
 std::optional<int32_t> MultiTouchInputMapper::getActiveBitId(

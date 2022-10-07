@@ -680,11 +680,9 @@ private:
                                                           DisplayModeId defaultModeId) const
             REQUIRES(mStateLock);
 
-    // Sets the desired display mode specs.
-    status_t setDesiredDisplayModeSpecsInternal(
-            const sp<DisplayDevice>& display,
-            const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
-            EXCLUDES(mStateLock);
+    status_t setDesiredDisplayModeSpecsInternal(const sp<DisplayDevice>&,
+                                                const scheduler::RefreshRateConfigs::PolicyVariant&)
+            EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
 
     void commitTransactions() EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
     void commitTransactionsLocked(uint32_t transactionFlags)
@@ -837,10 +835,6 @@ private:
     void initializeDisplays();
     void onInitializeDisplays() REQUIRES(mStateLock, kMainThreadContext);
 
-    bool isDisplayActiveLocked(const sp<const DisplayDevice>& display) const REQUIRES(mStateLock) {
-        return display->getDisplayToken() == mActiveDisplayToken;
-    }
-
     sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) const
             REQUIRES(mStateLock) {
         return const_cast<SurfaceFlinger*>(this)->getDisplayDeviceLocked(displayToken);
@@ -875,12 +869,12 @@ private:
     }
 
     sp<DisplayDevice> getDefaultDisplayDeviceLocked() REQUIRES(mStateLock) {
-        if (const auto display = getDisplayDeviceLocked(mActiveDisplayToken)) {
+        if (const auto display = getDisplayDeviceLocked(mActiveDisplayId)) {
             return display;
         }
         // The active display is outdated, so fall back to the primary display.
-        mActiveDisplayToken.clear();
-        return getDisplayDeviceLocked(getPrimaryDisplayTokenLocked());
+        mActiveDisplayId = getPrimaryDisplayIdLocked();
+        return getDisplayDeviceLocked(mActiveDisplayId);
     }
 
     sp<const DisplayDevice> getDefaultDisplayDevice() const EXCLUDES(mStateLock) {
@@ -1203,6 +1197,9 @@ private:
 
     display::PhysicalDisplays mPhysicalDisplays GUARDED_BY(mStateLock);
 
+    // The inner or outer display for foldables, assuming they have mutually exclusive power states.
+    PhysicalDisplayId mActiveDisplayId GUARDED_BY(mStateLock);
+
     struct {
         DisplayIdGenerator<GpuVirtualDisplayId> gpu;
         std::optional<DisplayIdGenerator<HalVirtualDisplayId>> hal;
@@ -1391,8 +1388,6 @@ private:
         return hasDisplay(
                 [](const auto& display) { return display.isRefreshRateOverlayEnabled(); });
     }
-
-    wp<IBinder> mActiveDisplayToken GUARDED_BY(mStateLock);
 
     const sp<WindowInfosListenerInvoker> mWindowInfosListenerInvoker;
 

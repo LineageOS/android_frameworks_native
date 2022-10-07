@@ -362,11 +362,24 @@ void SchedulerFuzzer::fuzzRefreshRateConfigs() {
                                                              mFdp.ConsumeFloatingPoint<float>()),
                                                      globalSignals);
 
-    refreshRateConfigs.setDisplayManagerPolicy(
-            {modeId,
-             {Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
-              Fps::fromValue(mFdp.ConsumeFloatingPoint<float>())}});
-    FTL_FAKE_GUARD(kMainThreadContext, refreshRateConfigs.setActiveModeId(modeId));
+    {
+        ftl::FakeGuard guard(kMainThreadContext);
+
+        refreshRateConfigs.setPolicy(
+                RefreshRateConfigs::
+                        DisplayManagerPolicy{modeId,
+                                             {Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
+                                              Fps::fromValue(mFdp.ConsumeFloatingPoint<float>())}});
+        refreshRateConfigs.setPolicy(
+                RefreshRateConfigs::OverridePolicy{modeId,
+                                                   {Fps::fromValue(
+                                                            mFdp.ConsumeFloatingPoint<float>()),
+                                                    Fps::fromValue(
+                                                            mFdp.ConsumeFloatingPoint<float>())}});
+        refreshRateConfigs.setPolicy(RefreshRateConfigs::NoOverridePolicy{});
+
+        refreshRateConfigs.setActiveModeId(modeId);
+    }
 
     RefreshRateConfigs::isFractionalPairOrMultiple(Fps::fromValue(
                                                            mFdp.ConsumeFloatingPoint<float>()),

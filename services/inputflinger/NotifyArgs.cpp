@@ -225,4 +225,27 @@ NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(
         int32_t id, nsecs_t eventTime, const PointerCaptureRequest& request)
       : id(id), eventTime(eventTime), request(request) {}
 
+// Helper to std::visit with lambdas.
+template <typename... V>
+struct Visitor : V... {};
+// explicit deduction guide (not needed as of C++20)
+template <typename... V>
+Visitor(V...) -> Visitor<V...>;
+
+const char* toString(const NotifyArgs& args) {
+    Visitor toStringVisitor{
+            [&](const NotifyConfigurationChangedArgs&) { return "NotifyConfigurationChangedArgs"; },
+            [&](const NotifyKeyArgs&) { return "NotifyKeyArgs"; },
+            [&](const NotifyMotionArgs&) { return "NotifyMotionArgs"; },
+            [&](const NotifySensorArgs&) { return "NotifySensorArgs"; },
+            [&](const NotifySwitchArgs&) { return "NotifySwitchArgs"; },
+            [&](const NotifyDeviceResetArgs&) { return "NotifyDeviceResetArgs"; },
+            [&](const NotifyPointerCaptureChangedArgs&) {
+                return "NotifyPointerCaptureChangedArgs";
+            },
+            [&](const NotifyVibratorStateArgs&) { return "NotifyVibratorStateArgs"; },
+    };
+    return std::visit(toStringVisitor, args);
+}
+
 } // namespace android

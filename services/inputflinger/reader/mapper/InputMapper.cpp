@@ -32,12 +32,18 @@ void InputMapper::populateDeviceInfo(InputDeviceInfo* info) {
 
 void InputMapper::dump(std::string& dump) {}
 
-void InputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                            uint32_t changes) {}
+std::list<NotifyArgs> InputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
+                                             uint32_t changes) {
+    return {};
+}
 
-void InputMapper::reset(nsecs_t when) {}
+std::list<NotifyArgs> InputMapper::reset(nsecs_t when) {
+    return {};
+}
 
-void InputMapper::timeoutExpired(nsecs_t when) {}
+std::list<NotifyArgs> InputMapper::timeoutExpired(nsecs_t when) {
+    return {};
+}
 
 int32_t InputMapper::getKeyCodeState(uint32_t sourceMask, int32_t keyCode) {
     return AKEY_STATE_UNKNOWN;
@@ -60,9 +66,14 @@ bool InputMapper::markSupportedKeyCodes(uint32_t sourceMask, const std::vector<i
     return false;
 }
 
-void InputMapper::vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token) {}
+std::list<NotifyArgs> InputMapper::vibrate(const VibrationSequence& sequence, ssize_t repeat,
+                                           int32_t token) {
+    return {};
+}
 
-void InputMapper::cancelVibrate(int32_t token) {}
+std::list<NotifyArgs> InputMapper::cancelVibrate(int32_t token) {
+    return {};
+}
 
 bool InputMapper::isVibrating() {
     return false;
@@ -72,7 +83,9 @@ std::vector<int32_t> InputMapper::getVibratorIds() {
     return {};
 }
 
-void InputMapper::cancelTouch(nsecs_t when, nsecs_t readTime) {}
+std::list<NotifyArgs> InputMapper::cancelTouch(nsecs_t when, nsecs_t readTime) {
+    return {};
+}
 
 bool InputMapper::enableSensor(InputDeviceSensorType sensorType,
                                std::chrono::microseconds samplingPeriod,
@@ -92,7 +105,9 @@ bool InputMapper::updateMetaState(int32_t keyCode) {
     return false;
 }
 
-void InputMapper::updateExternalStylusState(const StylusState& state) {}
+std::list<NotifyArgs> InputMapper::updateExternalStylusState(const StylusState& state) {
+    return {};
+}
 
 status_t InputMapper::getAbsoluteAxisInfo(int32_t axis, RawAbsoluteAxisInfo* axisInfo) {
     return getDeviceContext().getAbsoluteAxisInfo(axis, axisInfo);

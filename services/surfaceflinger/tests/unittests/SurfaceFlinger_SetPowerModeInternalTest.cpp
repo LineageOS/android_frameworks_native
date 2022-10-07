@@ -262,7 +262,7 @@ struct DisplayPowerCase {
         if (injector.physicalDisplay()
                     .transform(&display::PhysicalDisplay::isInternal)
                     .value_or(false)) {
-            test->mFlinger.mutableActiveDisplayToken() = display->getDisplayToken();
+            test->mFlinger.mutableActiveDisplayId() = display->getPhysicalId();
         }
 
         return display;

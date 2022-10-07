@@ -44,28 +44,32 @@ void ExternalStylusInputMapper::dump(std::string& dump) {
     dumpStylusState(dump, mStylusState);
 }
 
-void ExternalStylusInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                                          uint32_t changes) {
+std::list<NotifyArgs> ExternalStylusInputMapper::configure(nsecs_t when,
+                                                           const InputReaderConfiguration* config,
+                                                           uint32_t changes) {
     getAbsoluteAxisInfo(ABS_PRESSURE, &mRawPressureAxis);
     mTouchButtonAccumulator.configure(getDeviceContext());
+    return {};
 }
 
-void ExternalStylusInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> ExternalStylusInputMapper::reset(nsecs_t when) {
     mSingleTouchMotionAccumulator.reset(getDeviceContext());
     mTouchButtonAccumulator.reset(getDeviceContext());
-    InputMapper::reset(when);
+    return InputMapper::reset(when);
 }
 
-void ExternalStylusInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> ExternalStylusInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out;
     mSingleTouchMotionAccumulator.process(rawEvent);
     mTouchButtonAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        sync(rawEvent->when);
+        out += sync(rawEvent->when);
     }
+    return out;
 }
 
-void ExternalStylusInputMapper::sync(nsecs_t when) {
+std::list<NotifyArgs> ExternalStylusInputMapper::sync(nsecs_t when) {
     mStylusState.clear();
 
     mStylusState.when = when;
@@ -86,7 +90,7 @@ void ExternalStylusInputMapper::sync(nsecs_t when) {
 
     mStylusState.buttons = mTouchButtonAccumulator.getButtonState();
 
-    getContext()->dispatchExternalStylusState(mStylusState);
+    return getContext()->dispatchExternalStylusState(mStylusState);
 }
 
 } // namespace android

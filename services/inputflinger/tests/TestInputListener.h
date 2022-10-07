@@ -67,7 +67,7 @@ private:
     void assertNotCalled(std::string message);
 
     template <class NotifyArgsType>
-    void notify(const NotifyArgsType* args);
+    void addToQueue(const NotifyArgsType* args);
 
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
 

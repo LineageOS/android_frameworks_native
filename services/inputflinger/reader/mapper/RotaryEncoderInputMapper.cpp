@@ -60,9 +60,10 @@ void RotaryEncoderInputMapper::dump(std::string& dump) {
                          toString(mRotaryEncoderScrollAccumulator.haveRelativeVWheel()));
 }
 
-void RotaryEncoderInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                                         uint32_t changes) {
-    InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> RotaryEncoderInputMapper::configure(nsecs_t when,
+                                                          const InputReaderConfiguration* config,
+                                                          uint32_t changes) {
+    std::list<NotifyArgs> out = InputMapper::configure(when, config, changes);
     if (!changes) {
         mRotaryEncoderScrollAccumulator.configure(getDeviceContext());
     }
@@ -75,23 +76,27 @@ void RotaryEncoderInputMapper::configure(nsecs_t when, const InputReaderConfigur
             mOrientation = DISPLAY_ORIENTATION_0;
         }
     }
+    return out;
 }
 
-void RotaryEncoderInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> RotaryEncoderInputMapper::reset(nsecs_t when) {
     mRotaryEncoderScrollAccumulator.reset(getDeviceContext());
 
-    InputMapper::reset(when);
+    return InputMapper::reset(when);
 }
 
-void RotaryEncoderInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> RotaryEncoderInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out;
     mRotaryEncoderScrollAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        sync(rawEvent->when, rawEvent->readTime);
+        out += sync(rawEvent->when, rawEvent->readTime);
     }
+    return out;
 }
 
-void RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+std::list<NotifyArgs> RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+    std::list<NotifyArgs> out;
     PointerCoords pointerCoords;
     pointerCoords.clear();
 
@@ -121,16 +126,17 @@ void RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readTime) {
         int32_t metaState = getContext()->getGlobalMetaState();
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_SCROLL, scroll * mScalingFactor);
 
-        NotifyMotionArgs scrollArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                    mSource, displayId, policyFlags, AMOTION_EVENT_ACTION_SCROLL, 0,
-                                    0, metaState, /* buttonState */ 0, MotionClassification::NONE,
-                                    AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                    &pointerCoords, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                    AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
-        getListener().notifyMotion(&scrollArgs);
+        out.push_back(
+                NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
+                                 displayId, policyFlags, AMOTION_EVENT_ACTION_SCROLL, 0, 0,
+                                 metaState, /* buttonState */ 0, MotionClassification::NONE,
+                                 AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                 &pointerCoords, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                 AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {}));
     }
 
     mRotaryEncoderScrollAccumulator.finishSync();
+    return out;
 }
 
 } // namespace android

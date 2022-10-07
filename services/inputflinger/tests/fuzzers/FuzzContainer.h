@@ -27,7 +27,7 @@ namespace android {
 class FuzzContainer {
     std::shared_ptr<FuzzEventHub> mFuzzEventHub;
     sp<FuzzInputReaderPolicy> mFuzzPolicy;
-    std::unique_ptr<FuzzInputListener> mFuzzListener;
+    FuzzInputListener mFuzzListener;
     std::unique_ptr<FuzzInputReaderContext> mFuzzContext;
     std::unique_ptr<InputDevice> mFuzzDevice;
     InputReaderConfiguration mPolicyConfig;
@@ -44,9 +44,8 @@ public:
         // Create mocked objects.
         mFuzzEventHub = std::make_shared<FuzzEventHub>(mFdp);
         mFuzzPolicy = sp<FuzzInputReaderPolicy>::make(mFdp);
-        mFuzzListener = std::make_unique<FuzzInputListener>();
         mFuzzContext = std::make_unique<FuzzInputReaderContext>(mFuzzEventHub, mFuzzPolicy,
-                                                                *mFuzzListener, mFdp);
+                                                                mFuzzListener, mFdp);
 
         InputDeviceIdentifier identifier;
         identifier.name = deviceName;
@@ -60,8 +59,12 @@ public:
 
     void configureDevice() {
         nsecs_t arbitraryTime = mFdp->ConsumeIntegral<nsecs_t>();
-        mFuzzDevice->configure(arbitraryTime, &mPolicyConfig, 0);
-        mFuzzDevice->reset(arbitraryTime);
+        std::list<NotifyArgs> out;
+        out += mFuzzDevice->configure(arbitraryTime, &mPolicyConfig, 0);
+        out += mFuzzDevice->reset(arbitraryTime);
+        for (const NotifyArgs& args : out) {
+            mFuzzListener.notify(args);
+        }
     }
 
     void addProperty(std::string key, std::string value) {
