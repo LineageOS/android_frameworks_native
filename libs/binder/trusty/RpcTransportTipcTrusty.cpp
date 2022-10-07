@@ -16,6 +16,7 @@
 
 #define LOG_TAG "RpcTransportTipcTrusty"
 
+#include <inttypes.h>
 #include <trusty_ipc.h>
 
 #include <binder/RpcSession.h>
@@ -47,7 +48,7 @@ public:
     status_t interruptableWriteFully(
             FdTrigger* /*fdTrigger*/, iovec* iovs, int niovs,
             const std::optional<android::base::function_ref<status_t()>>& /*altPoll*/,
-            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* /*ancillaryFds*/)
+            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
             override {
         if (niovs < 0) {
             return BAD_VALUE;
@@ -58,12 +59,32 @@ public:
             size += iovs[i].iov_len;
         }
 
+        handle_t msgHandles[IPC_MAX_MSG_HANDLES];
         ipc_msg_t msg{
                 .num_iov = static_cast<uint32_t>(niovs),
                 .iov = iovs,
-                .num_handles = 0, // TODO: add ancillaryFds
+                .num_handles = 0,
                 .handles = nullptr,
         };
+
+        if (ancillaryFds != nullptr && !ancillaryFds->empty()) {
+            if (ancillaryFds->size() > IPC_MAX_MSG_HANDLES) {
+                // This shouldn't happen because we check the FD count in RpcState.
+                ALOGE("Saw too many file descriptors in RpcTransportCtxTipcTrusty: "
+                      "%zu (max is %u). Aborting session.",
+                      ancillaryFds->size(), IPC_MAX_MSG_HANDLES);
+                return BAD_VALUE;
+            }
+
+            for (size_t i = 0; i < ancillaryFds->size(); i++) {
+                msgHandles[i] =
+                        std::visit([](const auto& fd) { return fd.get(); }, ancillaryFds->at(i));
+            }
+
+            msg.num_handles = ancillaryFds->size();
+            msg.handles = msgHandles;
+        }
+
         ssize_t rc = send_msg(mSocket.fd.get(), &msg);
         if (rc == ERR_NOT_ENOUGH_BUFFER) {
             // Peer is blocked, wait until it unblocks.
@@ -97,8 +118,7 @@ public:
     status_t interruptableReadFully(
             FdTrigger* /*fdTrigger*/, iovec* iovs, int niovs,
             const std::optional<android::base::function_ref<status_t()>>& /*altPoll*/,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* /*ancillaryFds*/)
-            override {
+            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) override {
         if (niovs < 0) {
             return BAD_VALUE;
         }
@@ -124,11 +144,16 @@ public:
                 return status;
             }
 
+            LOG_ALWAYS_FATAL_IF(mMessageInfo.num_handles > IPC_MAX_MSG_HANDLES,
+                                "Received too many handles %" PRIu32, mMessageInfo.num_handles);
+            bool haveHandles = mMessageInfo.num_handles != 0;
+            handle_t msgHandles[IPC_MAX_MSG_HANDLES];
+
             ipc_msg_t msg{
                     .num_iov = static_cast<uint32_t>(niovs),
                     .iov = iovs,
-                    .num_handles = 0, // TODO: support ancillaryFds
-                    .handles = nullptr,
+                    .num_handles = mMessageInfo.num_handles,
+                    .handles = haveHandles ? msgHandles : 0,
             };
             ssize_t rc = read_msg(mSocket.fd.get(), mMessageInfo.id, mMessageOffset, &msg);
             if (rc < 0) {
@@ -140,6 +165,28 @@ public:
             LOG_ALWAYS_FATAL_IF(mMessageOffset > mMessageInfo.len,
                                 "Message offset exceeds length %zu/%zu", mMessageOffset,
                                 mMessageInfo.len);
+
+            if (haveHandles) {
+                if (ancillaryFds != nullptr) {
+                    ancillaryFds->reserve(ancillaryFds->size() + mMessageInfo.num_handles);
+                    for (size_t i = 0; i < mMessageInfo.num_handles; i++) {
+                        ancillaryFds->emplace_back(base::unique_fd(msgHandles[i]));
+                    }
+
+                    // Clear the saved number of handles so we don't accidentally
+                    // read them multiple times
+                    mMessageInfo.num_handles = 0;
+                    haveHandles = false;
+                } else {
+                    ALOGE("Received unexpected handles %" PRIu32, mMessageInfo.num_handles);
+                    // It should be safe to continue here. We could abort, but then
+                    // peers could DoS us by sending messages with handles in them.
+                    // Close the handles since we are ignoring them.
+                    for (size_t i = 0; i < mMessageInfo.num_handles; i++) {
+                        ::close(msgHandles[i]);
+                    }
+                }
+            }
 
             // Release the message if all of it has been read
             if (mMessageOffset == mMessageInfo.len) {
