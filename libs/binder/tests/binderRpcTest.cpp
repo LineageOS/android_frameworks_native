@@ -181,10 +181,20 @@ struct ProcessSession {
             wp<RpcSession> weakSession = session;
             session = nullptr;
 
-            sp<RpcSession> strongSession = weakSession.promote();
-            EXPECT_EQ(nullptr, strongSession)
-                    << (debugBacktrace(host.getPid()), debugBacktrace(getpid()), "Leaked sess: ")
-                    << strongSession->getStrongCount();
+            // b/244325464 - 'getStrongCount' is printing '1' on failure here, which indicates the
+            // the object should not actually be promotable. By looping, we distinguish a race here
+            // from a bug causing the object to not be promotable.
+            for (size_t i = 0; i < 3; i++) {
+                sp<RpcSession> strongSession = weakSession.promote();
+                EXPECT_EQ(nullptr, strongSession)
+                        << (debugBacktrace(host.getPid()), debugBacktrace(getpid()),
+                            "Leaked sess: ")
+                        << strongSession->getStrongCount() << " checked time " << i;
+
+                if (strongSession != nullptr) {
+                    sleep(1);
+                }
+            }
         }
     }
 };
