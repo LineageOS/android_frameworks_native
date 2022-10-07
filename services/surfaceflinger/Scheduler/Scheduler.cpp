@@ -766,16 +766,14 @@ std::vector<DisplayModeConfig> Scheduler::getBestDisplayModeConfigs() const {
     std::vector<RefreshRateRankingsAndSignals> refreshRateRankingsAndSignalsPerDisplay;
     refreshRateRankingsAndSignalsPerDisplay.reserve(mDisplays.size());
 
-    const auto displayModeSelectionParams = getDisplayModeSelectionParams();
+    for (const auto& [id, display] : mDisplays) {
+        const auto [rankings, signals] =
+                display->holdRefreshRateConfigs()
+                        ->getRankedRefreshRates(mPolicy.contentRequirements, makeGlobalSignals());
 
-    std::for_each(mDisplays.begin(), mDisplays.end(), [&](const auto& display) {
-        const auto& [refreshRateRankings, globalSignals] =
-                display.second->holdRefreshRateConfigs()
-                        ->getRankedRefreshRates(displayModeSelectionParams.layerRequirements,
-                                                displayModeSelectionParams.globalSignals);
         refreshRateRankingsAndSignalsPerDisplay.emplace_back(
-                RefreshRateRankingsAndSignals{refreshRateRankings, globalSignals});
-    });
+                RefreshRateRankingsAndSignals{rankings, signals});
+    }
 
     // FPS and their Aggregated score.
     std::unordered_map<Fps, AggregatedFpsScore, FpsHash, FpsApproxEqual> aggregatedScoresPerFps =
@@ -812,34 +810,26 @@ std::vector<DisplayModeConfig> Scheduler::getDisplayModeConfigsForTheChosenFps(
     return displayModeConfigs;
 }
 
-DisplayModeSelectionParams Scheduler::getDisplayModeSelectionParams() const {
+GlobalSignals Scheduler::makeGlobalSignals() const {
     const bool powerOnImminent = mDisplayPowerTimer &&
             (mPolicy.displayPowerMode != hal::PowerMode::ON ||
              mPolicy.displayPowerTimer == TimerState::Reset);
 
-    const GlobalSignals signals{.touch = mTouchTimer && mPolicy.touch == TouchState::Active,
-                                .idle = mPolicy.idleTimer == TimerState::Expired,
-                                .powerOnImminent = powerOnImminent};
-
-    return {mPolicy.contentRequirements, signals};
-}
-
-auto Scheduler::getRankedDisplayModes()
-        -> std::pair<std::vector<RefreshRateRanking>, GlobalSignals> {
-    ATRACE_CALL();
-
-    const auto configs = holdRefreshRateConfigs();
-
-    const auto displayModeSelectionParams = getDisplayModeSelectionParams();
-    return configs->getRankedRefreshRates(displayModeSelectionParams.layerRequirements,
-                                          displayModeSelectionParams.globalSignals);
+    return {.touch = mTouchTimer && mPolicy.touch == TouchState::Active,
+            .idle = mPolicy.idleTimer == TimerState::Expired,
+            .powerOnImminent = powerOnImminent};
 }
 
 DisplayModePtr Scheduler::getPreferredDisplayMode() {
     std::lock_guard<std::mutex> lock(mPolicyLock);
     // Make sure the stored mode is up to date.
     if (mPolicy.mode) {
-        mPolicy.mode = getRankedDisplayModes().first.front().displayModePtr;
+        const auto configs = holdRefreshRateConfigs();
+        const auto rankings =
+                configs->getRankedRefreshRates(mPolicy.contentRequirements, makeGlobalSignals())
+                        .first;
+
+        mPolicy.mode = rankings.front().displayModePtr;
     }
     return mPolicy.mode;
 }
