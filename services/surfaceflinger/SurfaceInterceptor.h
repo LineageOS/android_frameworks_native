@@ -168,6 +168,7 @@ private:
     void addRelativeParentLocked(Transaction* transaction, int32_t layerId, int32_t parentId,
                                  int z);
     void addShadowRadiusLocked(Transaction* transaction, int32_t layerId, float shadowRadius);
+    void addTrustedOverlayLocked(Transaction* transaction, int32_t layerId, bool isTrustedOverlay);
 
     // Add display transactions to the trace
     DisplayChange* createDisplayChangeLocked(Transaction* transaction, int32_t sequenceId);

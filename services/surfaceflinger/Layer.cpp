@@ -118,6 +118,8 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.shadowRadius = 0.f;
     mCurrentState.treeHasFrameRateVote = false;
     mCurrentState.fixedTransformHint = ui::Transform::ROT_INVALID;
+    mCurrentState.isTrustedOverlay = false;
+    mCurrentState.dropInputMode = gui::DropInputMode::NONE;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -1140,6 +1142,23 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relati
     setTransactionFlags(eTransactionNeeded);
 
     return true;
+}
+
+bool Layer::setTrustedOverlay(bool isTrustedOverlay) {
+    if (mCurrentState.isTrustedOverlay == isTrustedOverlay) return false;
+    mCurrentState.isTrustedOverlay = isTrustedOverlay;
+    mCurrentState.modified = true;
+    mCurrentState.inputInfoChanged = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::isTrustedOverlay() const {
+    if (getDrawingState().isTrustedOverlay) {
+        return true;
+    }
+    const auto& p = mDrawingParent.promote();
+    return (p != nullptr) && p->isTrustedOverlay();
 }
 
 bool Layer::setSize(uint32_t w, uint32_t h) {
@@ -2245,6 +2264,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
         layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
         layerInfo->set_corner_radius(getRoundedCornerState().radius);
+        layerInfo->set_is_trusted_overlay(isTrustedOverlay());
         LayerProtoHelper::writeToProto(transform, layerInfo->mutable_transform());
         LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                                [&]() { return layerInfo->mutable_position(); });
@@ -2358,6 +2378,36 @@ bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromCurrentState;
 }
 
+gui::DropInputMode Layer::getDropInputMode() const {
+    gui::DropInputMode mode = mDrawingState.dropInputMode;
+    if (mode == gui::DropInputMode::ALL) {
+        return mode;
+    }
+    sp<Layer> parent = mDrawingParent.promote();
+    if (parent) {
+        gui::DropInputMode parentMode = parent->getDropInputMode();
+        if (parentMode != gui::DropInputMode::NONE) {
+            return parentMode;
+        }
+    }
+    return mode;
+}
+
+void Layer::handleDropInputMode(InputWindowInfo& info) const {
+    if ((mDrawingState.inputInfo.inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL) ==
+        InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL) {
+        return;
+    }
+
+    // Check if we need to drop input unconditionally
+    gui::DropInputMode dropInputMode = getDropInputMode();
+    if (dropInputMode == gui::DropInputMode::ALL) {
+        info.inputFeatures |= InputWindowInfo::INPUT_FEATURE_DROP_INPUT;
+        ALOGV("Dropping input for %s as requested by policy.", getDebugName());
+        return;
+    }
+}
+
 InputWindowInfo Layer::fillInputInfo() {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
@@ -2423,6 +2473,7 @@ InputWindowInfo Layer::fillInputInfo() {
     // InputDispatcher, and obviously if they aren't visible they can't occlude
     // anything.
     info.visible = hasInputInfo() ? canReceiveInput() : isVisible();
+    handleDropInputMode(info);
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
@@ -2434,6 +2485,10 @@ InputWindowInfo Layer::fillInputInfo() {
     } else if (cropLayer != nullptr) {
         info.touchableRegion = info.touchableRegion.intersect(Rect{cropLayer->mScreenBounds});
     }
+
+    // Inherit the trusted state from the parent hierarchy, but don't clobber the trusted state
+    // if it was set by WM for a known system overlay
+    info.trustedOverlay = info.trustedOverlay || isTrustedOverlay();
 
     // If the layer is a clone, we need to crop the input region to cloned root to prevent
     // touches from going outside the cloned area.
@@ -2622,6 +2677,16 @@ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t comp
     }
 }
 
+bool Layer::setDropInputMode(gui::DropInputMode mode) {
+    if (mCurrentState.dropInputMode == mode) {
+        return false;
+    }
+    mCurrentState.dropInputMode = mode;
+    mCurrentState.modified = true;
+    mCurrentState.inputInfoChanged = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
 // ---------------------------------------------------------------------------
 
 }; // namespace android
