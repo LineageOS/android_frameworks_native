@@ -1439,7 +1439,8 @@ status_t Parcel::writeFileDescriptor(int fd, bool takeOwnership) {
             case RpcSession::FileDescriptorTransportMode::NONE: {
                 return FDS_NOT_ALLOWED;
             }
-            case RpcSession::FileDescriptorTransportMode::UNIX: {
+            case RpcSession::FileDescriptorTransportMode::UNIX:
+            case RpcSession::FileDescriptorTransportMode::TRUSTY: {
                 if (rpcFields->mFds == nullptr) {
                     rpcFields->mFds = std::make_unique<decltype(rpcFields->mFds)::element_type>();
                 }
