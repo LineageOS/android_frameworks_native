@@ -24,6 +24,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <utility>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -32,9 +33,11 @@
 #include <ui/GraphicTypes.h>
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
+#include <DisplayDevice.h>
 #include <scheduler/Features.h>
 #include <scheduler/Time.h>
 
+#include "Display/DisplayMap.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
 #include "LayerHistory.h"
@@ -83,16 +86,46 @@ class TokenManager;
 
 namespace scheduler {
 
+using GlobalSignals = RefreshRateConfigs::GlobalSignals;
+
+// Config representing the DisplayMode and considered signals for the Display.
+struct DisplayModeConfig {
+    const GlobalSignals signals;
+    const DisplayModePtr displayModePtr;
+
+    DisplayModeConfig(GlobalSignals signals, DisplayModePtr displayModePtr)
+          : signals(signals), displayModePtr(std::move(displayModePtr)) {}
+};
+
 struct ISchedulerCallback {
     using DisplayModeEvent = scheduler::DisplayModeEvent;
 
     virtual void setVsyncEnabled(bool) = 0;
-    virtual void requestDisplayMode(DisplayModePtr, DisplayModeEvent) = 0;
+    virtual void requestDisplayModes(std::vector<DisplayModeConfig>) = 0;
     virtual void kernelTimerChanged(bool expired) = 0;
     virtual void triggerOnFrameRateOverridesChanged() = 0;
 
 protected:
     ~ISchedulerCallback() = default;
+};
+
+// Holds the total score of the FPS and
+// number of displays the FPS is found in.
+struct AggregatedFpsScore {
+    float totalScore;
+    size_t numDisplays;
+};
+
+// Represents LayerRequirements and GlobalSignals to be considered for the display mode selection.
+struct DisplayModeSelectionParams {
+    std::vector<RefreshRateConfigs::LayerRequirement> layerRequirements;
+    GlobalSignals globalSignals;
+};
+
+// Represents the RefreshRateRankings and GlobalSignals for the selected RefreshRateRankings.
+struct RefreshRateRankingsAndSignals {
+    std::vector<RefreshRateRanking> refreshRateRankings;
+    GlobalSignals globalSignals;
 };
 
 class Scheduler : android::impl::MessageQueue {
@@ -237,6 +270,9 @@ public:
         return mLayerHistory.getLayerFramerate(now, id);
     }
 
+    void registerDisplay(const sp<const DisplayDevice>&);
+    void unregisterDisplay(PhysicalDisplayId);
+
 private:
     friend class TestableScheduler;
 
@@ -260,8 +296,6 @@ private:
 
     void setVsyncPeriod(nsecs_t period);
 
-    using GlobalSignals = RefreshRateConfigs::GlobalSignals;
-
     struct Policy;
 
     // Sets the S state of the policy to the T value under mPolicyLock, and chooses a display mode
@@ -273,6 +307,17 @@ private:
     // policy, and the signals that were considered.
     std::pair<std::vector<RefreshRateRanking>, GlobalSignals> getRankedDisplayModes()
             REQUIRES(mPolicyLock);
+
+    // Returns the best display mode per display.
+    std::vector<DisplayModeConfig> getBestDisplayModeConfigs() const REQUIRES(mPolicyLock);
+
+    // Returns the list of DisplayModeConfigs per display for the chosenFps.
+    std::vector<DisplayModeConfig> getDisplayModeConfigsForTheChosenFps(
+            Fps chosenFps, const std::vector<RefreshRateRankingsAndSignals>&) const;
+
+    // Returns the DisplayModeSelectionParams to be considered for the
+    // DisplayMode selection based on the current Policy and GlobalSignals.
+    DisplayModeSelectionParams getDisplayModeSelectionParams() const REQUIRES(mPolicyLock);
 
     bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
 
@@ -322,6 +367,10 @@ private:
     ISchedulerCallback& mSchedulerCallback;
 
     mutable std::mutex mPolicyLock;
+
+    // Holds the Physical displays registered through the SurfaceFlinger, used for making
+    // the refresh rate selections.
+    display::PhysicalDisplayMap<PhysicalDisplayId, const sp<const DisplayDevice>> mDisplays;
 
     struct Policy {
         // Policy for choosing the display mode.

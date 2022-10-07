@@ -138,6 +138,10 @@ struct FpsApproxEqual {
     bool operator()(Fps lhs, Fps rhs) const { return isApproxEqual(lhs, rhs); }
 };
 
+struct FpsHash {
+    size_t operator()(Fps fps) const { return std::hash<nsecs_t>()(fps.getPeriodNsecs()); }
+};
+
 inline std::string to_string(Fps fps) {
     return base::StringPrintf("%.2f Hz", fps.getValue());
 }
