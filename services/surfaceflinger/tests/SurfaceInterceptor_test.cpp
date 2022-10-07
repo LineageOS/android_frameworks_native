@@ -264,7 +264,9 @@ void SurfaceInterceptorTest::capture(TestAction action, Trace* outTrace) {
 }
 
 void SurfaceInterceptorTest::setupBackgroundSurface() {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+    ASSERT_FALSE(ids.empty());
+    const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
     ASSERT_FALSE(display == nullptr);
 
     ui::DisplayMode mode;

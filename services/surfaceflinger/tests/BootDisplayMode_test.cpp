@@ -30,7 +30,10 @@ using gui::aidl_utils::statusTFromBinderStatus;
 
 TEST(BootDisplayModeTest, setBootDisplayMode) {
     sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-    auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
+
+    const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+    ASSERT_FALSE(ids.empty());
+    auto displayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
     bool bootModeSupport = false;
     binder::Status status = sf->getBootDisplayModeSupport(&bootModeSupport);
     ASSERT_NO_FATAL_FAILURE(statusTFromBinderStatus(status));
@@ -42,7 +45,9 @@ TEST(BootDisplayModeTest, setBootDisplayMode) {
 
 TEST(BootDisplayModeTest, clearBootDisplayMode) {
     sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-    auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
+    const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+    ASSERT_FALSE(ids.empty());
+    auto displayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
     bool bootModeSupport = false;
     binder::Status status = sf->getBootDisplayModeSupport(&bootModeSupport);
     ASSERT_NO_FATAL_FAILURE(statusTFromBinderStatus(status));

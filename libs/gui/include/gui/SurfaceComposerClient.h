@@ -354,11 +354,9 @@ public:
 
     //! Get stable IDs for connected physical displays
     static std::vector<PhysicalDisplayId> getPhysicalDisplayIds();
-    static std::optional<PhysicalDisplayId> getInternalDisplayId();
 
     //! Get token for a physical display given its stable ID
     static sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId);
-    static sp<IBinder> getInternalDisplayToken();
 
     static status_t enableVSyncInjections(bool enable);
 

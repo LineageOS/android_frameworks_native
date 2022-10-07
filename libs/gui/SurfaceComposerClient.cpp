@@ -1130,22 +1130,12 @@ std::vector<PhysicalDisplayId> SurfaceComposerClient::getPhysicalDisplayIds() {
     return physicalDisplayIds;
 }
 
-std::optional<PhysicalDisplayId> SurfaceComposerClient::getInternalDisplayId() {
-    ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
-    return instance.getInternalDisplayId();
-}
-
 sp<IBinder> SurfaceComposerClient::getPhysicalDisplayToken(PhysicalDisplayId displayId) {
     sp<IBinder> display = nullptr;
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->getPhysicalDisplayToken(displayId.value,
                                                                                &display);
     return status.isOk() ? display : nullptr;
-}
-
-sp<IBinder> SurfaceComposerClient::getInternalDisplayToken() {
-    ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
-    return instance.getInternalDisplayToken();
 }
 
 void SurfaceComposerClient::Transaction::setAnimationTransaction() {

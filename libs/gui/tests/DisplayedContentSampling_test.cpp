@@ -32,7 +32,10 @@ protected:
     void SetUp() {
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(OK, mComposerClient->initCheck());
-        mDisplayToken = mComposerClient->getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        // display 0 is picked for now, can extend to support all displays if needed
+        mDisplayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_TRUE(mDisplayToken);
     }
 

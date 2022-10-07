@@ -20,6 +20,7 @@
 #include <gui/SurfaceControl.h>
 #include <gui/GLConsumer.h>
 #include <gui/Surface.h>
+#include <gui/SurfaceComposerClient.h>
 #include <ui/Fence.h>
 #include <utils/Trace.h>
 
@@ -34,9 +35,10 @@
 
 using namespace ::android;
 
-static uint32_t g_SleepBetweenSamplesMs = 0;
-static bool     g_PresentToWindow       = false;
-static size_t   g_BenchmarkNameLen      = 0;
+static uint32_t    g_SleepBetweenSamplesMs = 0;
+static bool        g_PresentToWindow       = false;
+static size_t      g_BenchmarkNameLen      = 0;
+static sp<IBinder> g_DisplayToken          = nullptr;
 
 struct BenchmarkDesc {
     // The name of the test.
@@ -393,7 +395,7 @@ public:
         uint32_t h = mDesc.runHeights[mInstance];
 
         mGLHelper = new GLHelper();
-        result = mGLHelper->setUp(shaders, NELEMS(shaders));
+        result = mGLHelper->setUp(g_DisplayToken, shaders, NELEMS(shaders));
         if (!result) {
             return false;
         }
@@ -718,13 +720,17 @@ static size_t maxBenchmarkNameLen() {
 }
 
 // Print the command usage help to stderr.
-static void showHelp(const char *cmd) {
-    fprintf(stderr, "usage: %s [options]\n", cmd);
-    fprintf(stderr, "options include:\n"
-                    "  -s N            sleep for N ms between samples\n"
-                    "  -d              display the test frame to a window\n"
-                    "  --help          print this helpful message and exit\n"
-            );
+static void showHelp(const char* cmd) {
+  fprintf(stderr, "usage: %s [options]\n", cmd);
+  fprintf(
+      stderr,
+      "options include:\n"
+      "  -s N            sleep for N ms between samples\n"
+      "  -d              display the test frame to a window\n"
+      "  -i display-id   specify a display ID to use for multi-display device\n"
+      "                  see \"dumpsys SurfaceFlinger --display-id\" for valid "
+      "display IDs\n"
+      "  --help          print this helpful message and exit\n");
 }
 
 int main(int argc, char** argv) {
@@ -732,6 +738,14 @@ int main(int argc, char** argv) {
         showHelp(argv[0]);
         exit(0);
     }
+
+    const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+    if (ids.empty()) {
+        fprintf(stderr, "Failed to get ID for any displays.\n");
+        exit(3);
+    }
+
+    std::optional<PhysicalDisplayId> displayId;
 
     for (;;) {
         int ret;
@@ -741,7 +755,7 @@ int main(int argc, char** argv) {
             {     0,               0, 0,  0 }
         };
 
-        ret = getopt_long(argc, argv, "ds:",
+        ret = getopt_long(argc, argv, "ds:i:",
                           long_options, &option_index);
 
         if (ret < 0) {
@@ -757,6 +771,14 @@ int main(int argc, char** argv) {
                 g_SleepBetweenSamplesMs = atoi(optarg);
             break;
 
+            case 'i':
+                displayId = DisplayId::fromValue<PhysicalDisplayId>(atoll(optarg));
+                if (!displayId) {
+                    fprintf(stderr, "Invalid display ID: %s.\n", optarg);
+                    exit(4);
+                }
+            break;
+
             case 0:
                 if (strcmp(long_options[option_index].name, "help")) {
                     showHelp(argv[0]);
@@ -768,6 +790,22 @@ int main(int argc, char** argv) {
                 showHelp(argv[0]);
                 exit(2);
         }
+    }
+
+    if (!displayId) { // no display id is specified
+        if (ids.size() == 1) {
+            displayId = ids.front();
+        } else {
+            fprintf(stderr, "Please specify a display ID for multi-display device.\n");
+            showHelp(argv[0]);
+            exit(5);
+        }
+    }
+
+    g_DisplayToken = SurfaceComposerClient::getPhysicalDisplayToken(*displayId);
+    if (g_DisplayToken == nullptr) {
+        fprintf(stderr, "SurfaceComposer::getPhysicalDisplayToken failed.\n");
+        exit(6);
     }
 
     g_BenchmarkNameLen = maxBenchmarkNameLen();
@@ -782,4 +820,6 @@ int main(int argc, char** argv) {
         fprintf(stderr, "exiting due to error.\n");
         return 1;
     }
+
+    return 0;
 }

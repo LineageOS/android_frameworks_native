@@ -235,8 +235,8 @@ enum {
     NATIVE_WINDOW_ENABLE_FRAME_TIMESTAMPS         = 25,
     NATIVE_WINDOW_GET_COMPOSITOR_TIMING           = 26,
     NATIVE_WINDOW_GET_FRAME_TIMESTAMPS            = 27,
-    NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT          = 28,
-    NATIVE_WINDOW_GET_HDR_SUPPORT                 = 29,
+    /* 28, removed: NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT */
+    /* 29, removed: NATIVE_WINDOW_GET_HDR_SUPPORT */
     NATIVE_WINDOW_SET_USAGE64                     = ANATIVEWINDOW_PERFORM_SET_USAGE64,
     NATIVE_WINDOW_GET_CONSUMER_USAGE64            = 31,
     NATIVE_WINDOW_SET_BUFFERS_SMPTE2086_METADATA  = 32,
@@ -988,15 +988,34 @@ static inline int native_window_get_frame_timestamps(
             outDequeueReadyTime, outReleaseTime);
 }
 
-static inline int native_window_get_wide_color_support(
-    struct ANativeWindow* window, bool* outSupport) {
-    return window->perform(window, NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT,
-            outSupport);
+/* deprecated. Always returns 0 and outSupport holds true. Don't call. */
+static inline int native_window_get_wide_color_support (
+    struct ANativeWindow* window __UNUSED, bool* outSupport) __deprecated;
+
+/*
+   Deprecated(b/242763577): to be removed, this method should not be used
+   Surface support should not be tied to the display
+   Return true since most displays should have this support
+*/
+static inline int native_window_get_wide_color_support (
+    struct ANativeWindow* window __UNUSED, bool* outSupport) {
+    *outSupport = true;
+    return 0;
 }
 
-static inline int native_window_get_hdr_support(struct ANativeWindow* window,
+/* deprecated. Always returns 0 and outSupport holds true. Don't call. */
+static inline int native_window_get_hdr_support(struct ANativeWindow* window __UNUSED,
+                                                bool* outSupport) __deprecated;
+
+/*
+   Deprecated(b/242763577): to be removed, this method should not be used
+   Surface support should not be tied to the display
+   Return true since most displays should have this support
+*/
+static inline int native_window_get_hdr_support(struct ANativeWindow* window __UNUSED,
                                                 bool* outSupport) {
-    return window->perform(window, NATIVE_WINDOW_GET_HDR_SUPPORT, outSupport);
+    *outSupport = true;
+    return 0;
 }
 
 static inline int native_window_get_consumer_usage(struct ANativeWindow* window,
