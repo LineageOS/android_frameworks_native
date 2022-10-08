@@ -33,4 +33,12 @@ status_t dupFileDescriptor(int oldFd, int* newFd);
 
 std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory();
 
+int sendMessageOnSocket(
+        const RpcTransportFd& socket, iovec* iovs, int niovs,
+        const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds);
+
+int receiveMessageFromSocket(
+        const RpcTransportFd& socket, iovec* iovs, int niovs,
+        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds);
+
 } // namespace android
