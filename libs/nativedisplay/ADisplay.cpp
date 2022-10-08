@@ -136,6 +136,7 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
     }
 
     std::vector<DisplayConfigImpl> modesPerDisplay[size];
+    ui::DisplayConnectionType displayConnectionTypes[size];
     int numModes = 0;
     for (int i = 0; i < size; ++i) {
         const sp<IBinder> token = SurfaceComposerClient::getPhysicalDisplayToken(ids[i]);
@@ -145,6 +146,7 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
             status != OK) {
             return status;
         }
+        displayConnectionTypes[i] = staticInfo.connectionType;
 
         ui::DynamicDisplayInfo dynamicInfo;
         if (const status_t status =
@@ -168,8 +170,6 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
         }
     }
 
-    const std::optional<PhysicalDisplayId> internalId =
-            SurfaceComposerClient::getInternalDisplayId();
     ui::Dataspace defaultDataspace;
     ui::PixelFormat defaultPixelFormat;
     ui::Dataspace wcgDataspace;
@@ -201,8 +201,9 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
 
     for (size_t i = 0; i < size; ++i) {
         const PhysicalDisplayId id = ids[i];
-        const ADisplayType type = (internalId == id) ? ADisplayType::DISPLAY_TYPE_INTERNAL
-                                                     : ADisplayType::DISPLAY_TYPE_EXTERNAL;
+        const ADisplayType type = (displayConnectionTypes[i] == ui::DisplayConnectionType::Internal)
+                ? ADisplayType::DISPLAY_TYPE_INTERNAL
+                : ADisplayType::DISPLAY_TYPE_EXTERNAL;
         const std::vector<DisplayConfigImpl>& configs = modesPerDisplay[i];
         memcpy(configData, configs.data(), sizeof(DisplayConfigImpl) * configs.size());
 

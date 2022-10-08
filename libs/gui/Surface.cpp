@@ -56,6 +56,12 @@ using ui::Dataspace;
 
 namespace {
 
+enum {
+    // moved from nativewindow/include/system/window.h, to be removed
+    NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT = 28,
+    NATIVE_WINDOW_GET_HDR_SUPPORT = 29,
+};
+
 bool isInterceptorRegistrationOp(int op) {
     return op == NATIVE_WINDOW_SET_CANCEL_INTERCEPTOR ||
             op == NATIVE_WINDOW_SET_DEQUEUE_INTERCEPTOR ||
@@ -348,34 +354,25 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
     return NO_ERROR;
 }
 
+// Deprecated(b/242763577): to be removed, this method should not be used
+// The reason this method still exists here is to support compiled vndk
+// Surface support should not be tied to the display
+// Return true since most displays should have this support
 status_t Surface::getWideColorSupport(bool* supported) {
     ATRACE_CALL();
 
-    const sp<IBinder> display = ComposerServiceAIDL::getInstance().getInternalDisplayToken();
-    if (display == nullptr) {
-        return NAME_NOT_FOUND;
-    }
-
-    *supported = false;
-    binder::Status status = composerServiceAIDL()->isWideColorDisplay(display, supported);
-    return statusTFromBinderStatus(status);
+    *supported = true;
+    return NO_ERROR;
 }
 
+// Deprecated(b/242763577): to be removed, this method should not be used
+// The reason this method still exists here is to support compiled vndk
+// Surface support should not be tied to the display
+// Return true since most displays should have this support
 status_t Surface::getHdrSupport(bool* supported) {
     ATRACE_CALL();
 
-    const sp<IBinder> display = ComposerServiceAIDL::getInstance().getInternalDisplayToken();
-    if (display == nullptr) {
-        return NAME_NOT_FOUND;
-    }
-
-    gui::DynamicDisplayInfo info;
-    if (binder::Status status = composerServiceAIDL()->getDynamicDisplayInfo(display, &info);
-        !status.isOk()) {
-        return statusTFromBinderStatus(status);
-    }
-
-    *supported = !info.hdrCapabilities.supportedHdrTypes.empty();
+    *supported = true;
     return NO_ERROR;
 }
 

@@ -417,8 +417,13 @@ public:
         return mFlinger->SurfaceFlinger::getDisplayNativePrimaries(displayToken, primaries);
     }
 
-    auto& getTransactionQueue() { return mFlinger->mLocklessTransactionQueue; }
-    auto& getPendingTransactionQueue() { return mFlinger->mPendingTransactionQueues; }
+    auto& getTransactionQueue() { return mFlinger->mTransactionHandler.mLocklessTransactionQueue; }
+    auto& getPendingTransactionQueue() {
+        return mFlinger->mTransactionHandler.mPendingTransactionQueues;
+    }
+    size_t getPendingTransactionCount() {
+        return mFlinger->mTransactionHandler.mPendingTransactionCount.load();
+    }
 
     auto setTransactionState(
             const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
@@ -837,6 +842,9 @@ public:
 
             sp<DisplayDevice> display = sp<DisplayDevice>::make(mCreationArgs);
             mFlinger.mutableDisplays().emplace_or_replace(mDisplayToken, display);
+            if (mFlinger.scheduler()) {
+                mFlinger.scheduler()->registerDisplay(display);
+            }
 
             DisplayDeviceState state;
             state.isSecure = mCreationArgs.isSecure;

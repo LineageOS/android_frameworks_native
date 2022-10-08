@@ -116,7 +116,7 @@ static constexpr hal::HWConfigId kActiveConfig = 0;
 class DisplayHardwareFuzzer {
 public:
     DisplayHardwareFuzzer(const uint8_t* data, size_t size) : mFdp(data, size) {
-        mPhysicalDisplayId = SurfaceComposerClient::getInternalDisplayId().value_or(
+        mPhysicalDisplayId = TestableSurfaceFlinger::getFirstDisplayId().value_or(
                 PhysicalDisplayId::fromPort(mFdp.ConsumeIntegral<uint8_t>()));
     };
     void process();

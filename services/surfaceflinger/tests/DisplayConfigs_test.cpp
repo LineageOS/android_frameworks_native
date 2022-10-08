@@ -48,7 +48,9 @@ private:
 
 protected:
     void SetUp() override {
-        mDisplayToken = SurfaceComposerClient::getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        mDisplayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         status_t res =
                 SurfaceComposerClient::getDesiredDisplayModeSpecs(mDisplayToken,
                                                                   &initialDefaultMode,

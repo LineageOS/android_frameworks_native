@@ -1130,22 +1130,12 @@ std::vector<PhysicalDisplayId> SurfaceComposerClient::getPhysicalDisplayIds() {
     return physicalDisplayIds;
 }
 
-std::optional<PhysicalDisplayId> SurfaceComposerClient::getInternalDisplayId() {
-    ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
-    return instance.getInternalDisplayId();
-}
-
 sp<IBinder> SurfaceComposerClient::getPhysicalDisplayToken(PhysicalDisplayId displayId) {
     sp<IBinder> display = nullptr;
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->getPhysicalDisplayToken(displayId.value,
                                                                                &display);
     return status.isOk() ? display : nullptr;
-}
-
-sp<IBinder> SurfaceComposerClient::getInternalDisplayToken() {
-    ComposerServiceAIDL& instance = ComposerServiceAIDL::getInstance();
-    return instance.getInternalDisplayToken();
 }
 
 void SurfaceComposerClient::Transaction::setAnimationTransaction() {
@@ -2750,8 +2740,7 @@ std::optional<DisplayDecorationSupport> SurfaceComposerClient::getDisplayDecorat
             ComposerServiceAIDL::getComposerService()->getDisplayDecorationSupport(displayToken,
                                                                                    &gsupport);
     std::optional<DisplayDecorationSupport> support;
-    // TODO (b/241277093): Remove `false && ` once b/241278870 is fixed.
-    if (false && status.isOk() && gsupport.has_value()) {
+    if (status.isOk() && gsupport.has_value()) {
         support.emplace(DisplayDecorationSupport{
           .format =
                 static_cast<aidl::android::hardware::graphics::common::PixelFormat>(

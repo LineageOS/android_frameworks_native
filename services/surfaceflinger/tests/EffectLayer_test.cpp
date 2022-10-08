@@ -28,7 +28,9 @@ protected:
         LayerTransactionTest::SetUp();
         ASSERT_EQ(NO_ERROR, mClient->initCheck());
 
-        const auto display = SurfaceComposerClient::getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_FALSE(display == nullptr);
 
         mParentLayer = createColorLayer("Parent layer", Color::RED);
@@ -177,7 +179,9 @@ TEST_F(EffectLayerTest, BlurEffectLayerIsVisible) {
 }
 
 TEST_F(EffectLayerTest, EffectLayerWithColorNoCrop) {
-    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+    ASSERT_FALSE(ids.empty());
+    const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
     ui::DisplayMode mode;
     ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
     const ui::Size& resolution = mode.resolution;

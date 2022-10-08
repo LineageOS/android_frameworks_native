@@ -23,7 +23,7 @@ namespace android {
 
 // Get a random binder object for use in fuzzing.
 //
-// may return multiple FDs (e.g. pipe), but will always return at least one
+// May return nullptr.
 sp<IBinder> getRandomBinder(FuzzedDataProvider* provider);
 
 } // namespace android
