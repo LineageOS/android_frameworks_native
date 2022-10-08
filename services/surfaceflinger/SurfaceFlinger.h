@@ -588,8 +588,6 @@ private:
 
     status_t setOverrideFrameRate(uid_t uid, float frameRate);
 
-    status_t addTransactionTraceListener(const sp<gui::ITransactionTraceListener>& listener);
-
     int getGpuContextPriority();
 
     status_t getMaxAcquiredBufferCount(int* buffers) const;
@@ -1198,7 +1196,6 @@ private:
 
     bool mLayerCachingEnabled = false;
     bool mPropagateBackpressureClientComposition = false;
-    sp<SurfaceInterceptor> mInterceptor;
 
     LayerTracing mLayerTracing{*this};
     bool mLayerTracingEnabled = false;
@@ -1489,8 +1486,6 @@ public:
             const sp<IBinder>& displayToken,
             std::optional<gui::DisplayDecorationSupport>* outSupport) override;
     binder::Status setOverrideFrameRate(int32_t uid, float frameRate) override;
-    binder::Status addTransactionTraceListener(
-            const sp<gui::ITransactionTraceListener>& listener) override;
     binder::Status getGpuContextPriority(int32_t* outPriority) override;
     binder::Status getMaxAcquiredBufferCount(int32_t* buffers) override;
     binder::Status addWindowInfosListener(

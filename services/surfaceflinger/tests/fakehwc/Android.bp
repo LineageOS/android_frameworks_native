@@ -53,7 +53,6 @@ cc_test {
         "libgmock",
         "libperfetto_client_experimental",
         "librenderengine",
-        "libtrace_proto",
         "libaidlcommonsupport",
     ],
     header_libs: [

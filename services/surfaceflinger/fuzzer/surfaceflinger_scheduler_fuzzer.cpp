@@ -92,7 +92,7 @@ void SchedulerFuzzer::fuzzEventThread() {
     const auto getVsyncPeriod = [](uid_t /* uid */) { return kSyncPeriod.count(); };
     std::unique_ptr<android::impl::EventThread> thread = std::make_unique<
             android::impl::EventThread>(std::move(std::make_unique<FuzzImplVSyncSource>()), nullptr,
-                                        nullptr, nullptr, getVsyncPeriod);
+                                        nullptr, getVsyncPeriod);
 
     thread->onHotplugReceived(getPhysicalDisplayId(), mFdp.ConsumeBool());
     sp<EventThreadConnection> connection =

@@ -162,8 +162,7 @@ public:
 
     ConnectionHandle createConnection(const char* connectionName, frametimeline::TokenManager*,
                                       std::chrono::nanoseconds workDuration,
-                                      std::chrono::nanoseconds readyDuration,
-                                      android::impl::EventThread::InterceptVSyncsCallback);
+                                      std::chrono::nanoseconds readyDuration);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ConnectionHandle, EventRegistrationFlags eventRegistration = {});

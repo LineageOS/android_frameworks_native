@@ -29,7 +29,6 @@
 #include "StartPropertySetThread.h"
 #include "SurfaceFlingerDefaultFactory.h"
 #include "SurfaceFlingerProperties.h"
-#include "SurfaceInterceptor.h"
 
 #include "DisplayHardware/ComposerHal.h"
 #include "FrameTimeline/FrameTimeline.h"
@@ -52,10 +51,6 @@ std::unique_ptr<scheduler::VsyncConfiguration> DefaultFactory::createVsyncConfig
     } else {
         return std::make_unique<scheduler::impl::PhaseOffsets>(currentRefreshRate);
     }
-}
-
-sp<SurfaceInterceptor> DefaultFactory::createSurfaceInterceptor() {
-    return sp<android::impl::SurfaceInterceptor>::make();
 }
 
 sp<StartPropertySetThread> DefaultFactory::createStartPropertySetThread(
