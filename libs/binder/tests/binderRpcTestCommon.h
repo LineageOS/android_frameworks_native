@@ -49,6 +49,7 @@
 
 #include "../BuildFlags.h"
 #include "../FdTrigger.h"
+#include "../OS.h"               // for testing UnixBootstrap clients
 #include "../RpcSocketAddress.h" // for testing preconnected clients
 #include "../RpcState.h"         // for debugging
 #include "../vm_sockets.h"       // for VMADDR_*
@@ -67,15 +68,19 @@ static inline std::vector<RpcSecurity> RpcSecurityValues() {
 enum class SocketType {
     PRECONNECTED,
     UNIX,
+    UNIX_BOOTSTRAP,
     VSOCK,
     INET,
 };
+
 static inline std::string PrintToString(SocketType socketType) {
     switch (socketType) {
         case SocketType::PRECONNECTED:
             return "preconnected_uds";
         case SocketType::UNIX:
             return "unix_domain_socket";
+        case SocketType::UNIX_BOOTSTRAP:
+            return "unix_domain_socket_bootstrap";
         case SocketType::VSOCK:
             return "vm_socket";
         case SocketType::INET:
