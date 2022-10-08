@@ -36,7 +36,6 @@ import android.gui.IHdrLayerInfoListener;
 import android.gui.IRegionSamplingListener;
 import android.gui.IScreenCaptureListener;
 import android.gui.ISurfaceComposerClient;
-import android.gui.ITransactionTraceListener;
 import android.gui.ITunnelModeEnabledListener;
 import android.gui.IWindowInfosListener;
 import android.gui.LayerCaptureArgs;
@@ -451,11 +450,6 @@ interface ISurfaceComposer {
      * in the scheduler.
      */
     void setOverrideFrameRate(int uid, float frameRate);
-
-    /**
-     * Adds a TransactionTraceListener to listen for transaction tracing state updates.
-     */
-    void addTransactionTraceListener(ITransactionTraceListener listener);
 
     /**
      * Gets priority of the RenderEngine in SurfaceFlinger.

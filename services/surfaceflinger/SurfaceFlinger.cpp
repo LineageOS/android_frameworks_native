@@ -136,7 +136,6 @@
 #include "Scheduler/VsyncConfiguration.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlingerProperties.h"
-#include "SurfaceInterceptor.h"
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
 #include "Utils/Dumper.h"
@@ -300,7 +299,6 @@ bool callingThreadHasInternalSystemWindowAccess() {
 SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
         mPid(getpid()),
-        mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(mFactory.createFrameTracer()),
         mFrameTimeline(mFactory.createFrameTimeline(mTimeStats, mPid)),
@@ -495,7 +493,6 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secur
     state.isSecure = secure;
     state.displayName = displayName;
     mCurrentState.displays.add(token, state);
-    mInterceptor->saveDisplayCreation(state);
     return token;
 }
 
@@ -513,7 +510,6 @@ void SurfaceFlinger::destroyDisplay(const sp<IBinder>& displayToken) {
         ALOGE("%s: Invalid operation on physical display", __func__);
         return;
     }
-    mInterceptor->saveDisplayDeletion(state.sequenceId);
     mCurrentState.displays.removeItemsAt(index);
     setTransactionFlags(eDisplayTransactionNeeded);
 }
@@ -2690,8 +2686,6 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
         const auto& display = displayOpt->get();
 
         if (const ssize_t index = mCurrentState.displays.indexOfKey(display.token()); index >= 0) {
-            const DisplayDeviceState& state = mCurrentState.displays.valueAt(index);
-            mInterceptor->saveDisplayDeletion(state.sequenceId);
             mCurrentState.displays.removeItemsAt(index);
         }
 
@@ -2746,7 +2740,6 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
     state.displayName = std::move(info.name);
 
     mCurrentState.displays.add(token, state);
-    mInterceptor->saveDisplayCreation(state);
     return "Connecting";
 }
 
@@ -3408,15 +3401,11 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     mAppConnectionHandle =
             mScheduler->createConnection("app", mFrameTimeline->getTokenManager(),
                                          /*workDuration=*/configs.late.appWorkDuration,
-                                         /*readyDuration=*/configs.late.sfWorkDuration,
-                                         impl::EventThread::InterceptVSyncsCallback());
+                                         /*readyDuration=*/configs.late.sfWorkDuration);
     mSfConnectionHandle =
             mScheduler->createConnection("appSf", mFrameTimeline->getTokenManager(),
                                          /*workDuration=*/std::chrono::nanoseconds(vsyncPeriod),
-                                         /*readyDuration=*/configs.late.sfWorkDuration,
-                                         [this](nsecs_t timestamp) {
-                                             mInterceptor->saveVSyncEvent(timestamp);
-                                         });
+                                         /*readyDuration=*/configs.late.sfWorkDuration);
 
     mScheduler->initVsync(mScheduler->getVsyncSchedule().getDispatch(),
                           *mFrameTimeline->getTokenManager(), configs.late.sfWorkDuration);
@@ -3991,11 +3980,6 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
 
     bool needsTraversal = false;
     if (transactionFlags) {
-        if (mInterceptor->isEnabled()) {
-            mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags,
-                                          originPid, originUid, transactionId);
-        }
-
         // We are on the main thread, we are about to preform a traversal. Clear the traversal bit
         // so we don't have to wake up again next frame to preform an unnecessary traversal.
         if (transactionFlags & eTraversalNeeded) {
@@ -4641,9 +4625,6 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
 
     display->setPowerMode(mode);
 
-    if (mInterceptor->isEnabled()) {
-        mInterceptor->savePowerModeUpdate(display->getSequenceId(), static_cast<int32_t>(mode));
-    }
     const auto refreshRate = display->refreshRateConfigs().getActiveMode().getFps();
     if (*currentMode == hal::PowerMode::OFF) {
         // Turn on the display
@@ -5533,17 +5514,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 mScheduler->setDuration(mSfConnectionHandle, std::chrono::nanoseconds(n), 0ns);
                 return NO_ERROR;
             }
-            case 1020: { // Layer updates interceptor
-                n = data.readInt32();
-                if (n) {
-                    ALOGV("Interceptor enabled");
-                    mInterceptor->enable(mDrawingState.layersSortedByZ, mDrawingState.displays);
-                }
-                else{
-                    ALOGV("Interceptor disabled");
-                    mInterceptor->disable();
-                }
-                return NO_ERROR;
+            case 1020: { // Unused
+                return NAME_NOT_FOUND;
             }
             case 1021: { // Disable HWC virtual displays
                 const bool enable = data.readInt32() != 0;
@@ -6816,17 +6788,6 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
     }
 }
 
-status_t SurfaceFlinger::addTransactionTraceListener(
-        const sp<gui::ITransactionTraceListener>& listener) {
-    if (!listener) {
-        return BAD_VALUE;
-    }
-
-    mInterceptor->addTransactionTraceListener(listener);
-
-    return NO_ERROR;
-}
-
 int SurfaceFlinger::getGpuContextPriority() {
     return getRenderEngine().getContextPriority();
 }
@@ -6906,7 +6867,6 @@ void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state, Vs
     if (mTransactionTracing) {
         mTransactionTracing->onLayerAddedToDrawingState(layer->getSequence(), vsyncId.value);
     }
-    mInterceptor->saveSurfaceCreation(layer);
 }
 
 void SurfaceFlinger::sample() {
@@ -7753,19 +7713,6 @@ binder::Status SurfaceComposerAIDL::setOverrideFrameRate(int32_t uid, float fram
         status = mFlinger->setOverrideFrameRate(uid, frameRate);
     } else {
         ALOGE("setOverrideFrameRate() permission denied for uid: %d", c_uid);
-        status = PERMISSION_DENIED;
-    }
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::addTransactionTraceListener(
-        const sp<gui::ITransactionTraceListener>& listener) {
-    status_t status;
-    IPCThreadState* ipc = IPCThreadState::self();
-    const int uid = ipc->getCallingUid();
-    if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
-        status = mFlinger->addTransactionTraceListener(listener);
-    } else {
         status = PERMISSION_DENIED;
     }
     return binderStatusFromStatusT(status);

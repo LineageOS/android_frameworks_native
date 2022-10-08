@@ -231,15 +231,14 @@ impl::EventThread::GetVsyncPeriodFunction Scheduler::makeGetVsyncPeriodFunction(
     };
 }
 
-ConnectionHandle Scheduler::createConnection(
-        const char* connectionName, frametimeline::TokenManager* tokenManager,
-        std::chrono::nanoseconds workDuration, std::chrono::nanoseconds readyDuration,
-        impl::EventThread::InterceptVSyncsCallback interceptCallback) {
+ConnectionHandle Scheduler::createConnection(const char* connectionName,
+                                             frametimeline::TokenManager* tokenManager,
+                                             std::chrono::nanoseconds workDuration,
+                                             std::chrono::nanoseconds readyDuration) {
     auto vsyncSource = makePrimaryDispSyncSource(connectionName, workDuration, readyDuration);
     auto throttleVsync = makeThrottleVsyncCallback();
     auto getVsyncPeriod = makeGetVsyncPeriodFunction();
     auto eventThread = std::make_unique<impl::EventThread>(std::move(vsyncSource), tokenManager,
-                                                           std::move(interceptCallback),
                                                            std::move(throttleVsync),
                                                            std::move(getVsyncPeriod));
     return createConnection(std::move(eventThread));
@@ -418,7 +417,6 @@ ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
         auto eventThread =
                 std::make_unique<impl::EventThread>(std::move(vsyncSource),
                                                     /*tokenManager=*/nullptr,
-                                                    impl::EventThread::InterceptVSyncsCallback(),
                                                     impl::EventThread::ThrottleVsyncCallback(),
                                                     impl::EventThread::GetVsyncPeriodFunction());
 

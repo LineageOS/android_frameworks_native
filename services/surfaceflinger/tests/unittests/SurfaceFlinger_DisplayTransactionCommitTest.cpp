@@ -90,15 +90,12 @@ void DisplayTransactionCommitTest::setupCommonCallExpectationsForConnectProcessi
     Case::HdrSupport::setupComposerCallExpectations(this);
     Case::PerFrameMetadataSupport::setupComposerCallExpectations(this);
 
-    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
     expectHotplugReceived<Case, true>(mEventThread);
     expectHotplugReceived<Case, true>(mSFEventThread);
 }
 
 template <typename Case>
 void DisplayTransactionCommitTest::setupCommonCallExpectationsForDisconnectProcessing() {
-    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
-
     expectHotplugReceived<Case, false>(mEventThread);
     expectHotplugReceived<Case, false>(mSFEventThread);
 }
