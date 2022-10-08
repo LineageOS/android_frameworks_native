@@ -50,6 +50,17 @@ public:
             std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory = nullptr);
 
     /**
+     * Creates an RPC server that bootstraps sessions using an existing
+     * Unix domain socket pair.
+     *
+     * Callers should create a pair of SOCK_STREAM Unix domain sockets, pass
+     * one to RpcServer::setupUnixDomainSocketBootstrapServer and the other
+     * to RpcSession::setupUnixDomainSocketBootstrapClient. Multiple client
+     * session can be created from the client end of the pair.
+     */
+    [[nodiscard]] status_t setupUnixDomainSocketBootstrapServer(base::unique_fd serverFd);
+
+    /**
      * This represents a session for responses, e.g.:
      *
      *     process A serves binder a
@@ -202,11 +213,18 @@ private:
     void onSessionAllIncomingThreadsEnded(const sp<RpcSession>& session) override;
     void onSessionIncomingThreadEnded() override;
 
+    status_t setupExternalServer(
+            base::unique_fd serverFd,
+            std::function<status_t(const RpcServer&, RpcTransportFd*)>&& acceptFn);
+
     static constexpr size_t kRpcAddressSize = 128;
     static void establishConnection(
             sp<RpcServer>&& server, RpcTransportFd clientFd,
             std::array<uint8_t, kRpcAddressSize> addr, size_t addrLen,
             std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& joinFn);
+    static status_t acceptSocketConnection(const RpcServer& server, RpcTransportFd* out);
+    static status_t recvmsgSocketConnection(const RpcServer& server, RpcTransportFd* out);
+
     [[nodiscard]] status_t setupSocketServer(const RpcSocketAddress& address);
 
     const std::unique_ptr<RpcTransportCtx> mCtx;
@@ -228,6 +246,7 @@ private:
     std::map<std::vector<uint8_t>, sp<RpcSession>> mSessions;
     std::unique_ptr<FdTrigger> mShutdownTrigger;
     RpcConditionVariable mShutdownCv;
+    std::function<status_t(const RpcServer& server, RpcTransportFd* out)> mAcceptFn;
 };
 
 } // namespace android
