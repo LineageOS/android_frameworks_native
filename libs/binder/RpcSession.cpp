@@ -41,6 +41,7 @@
 #include "OS.h"
 #include "RpcSocketAddress.h"
 #include "RpcState.h"
+#include "RpcTransportUtils.h"
 #include "RpcWireFormat.h"
 #include "Utils.h"
 
@@ -145,6 +146,34 @@ RpcSession::FileDescriptorTransportMode RpcSession::getFileDescriptorTransportMo
 
 status_t RpcSession::setupUnixDomainClient(const char* path) {
     return setupSocketClient(UnixSocketAddress(path));
+}
+
+status_t RpcSession::setupUnixDomainSocketBootstrapClient(unique_fd bootstrapFd) {
+    mBootstrapTransport =
+            mCtx->newTransport(RpcTransportFd(std::move(bootstrapFd)), mShutdownTrigger.get());
+    return setupClient([&](const std::vector<uint8_t>& sessionId, bool incoming) {
+        int socks[2];
+        if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, socks) < 0) {
+            int savedErrno = errno;
+            ALOGE("Failed socketpair: %s", strerror(savedErrno));
+            return -savedErrno;
+        }
+        unique_fd clientFd(socks[0]), serverFd(socks[1]);
+
+        int zero = 0;
+        iovec iov{&zero, sizeof(zero)};
+        std::vector<std::variant<base::unique_fd, base::borrowed_fd>> fds;
+        fds.push_back(std::move(serverFd));
+
+        status_t status = mBootstrapTransport->interruptableWriteFully(mShutdownTrigger.get(), &iov,
+                                                                       1, std::nullopt, &fds);
+        if (status != OK) {
+            ALOGE("Failed to send fd over bootstrap transport: %s", strerror(-status));
+            return status;
+        }
+
+        return initAndAddConnection(RpcTransportFd(std::move(clientFd)), sessionId, incoming);
+    });
 }
 
 status_t RpcSession::setupVsockClient(unsigned int cid, unsigned int port) {

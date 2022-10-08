@@ -47,10 +47,6 @@ public:
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
-    sp<SurfaceInterceptor> createSurfaceInterceptor() override {
-        return sp<android::impl::SurfaceInterceptor>::make();
-    }
-
     sp<StartPropertySetThread> createStartPropertySetThread(
             bool /* timestampPropertyValue */) override {
         return sp<StartPropertySetThread>();

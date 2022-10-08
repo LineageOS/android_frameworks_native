@@ -34,7 +34,6 @@ filegroup {
         "mock/MockFrameTimeline.cpp",
         "mock/MockFrameTracer.cpp",
         "mock/MockNativeWindowSurface.cpp",
-        "mock/MockSurfaceInterceptor.cpp",
         "mock/MockTimeStats.cpp",
         "mock/MockVsyncController.cpp",
         "mock/MockVSyncTracker.cpp",
@@ -168,7 +167,6 @@ cc_defaults {
         "libtimestats_atoms_proto",
         "libtimestats_proto",
         "libtonemap",
-        "libtrace_proto",
         "perfetto_trace_protos",
     ],
     shared_libs: [

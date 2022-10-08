@@ -37,6 +37,7 @@
 #include "OS.h"
 #include "RpcSocketAddress.h"
 #include "RpcState.h"
+#include "RpcTransportUtils.h"
 #include "RpcWireFormat.h"
 #include "Utils.h"
 
@@ -59,6 +60,10 @@ sp<RpcServer> RpcServer::make(std::unique_ptr<RpcTransportCtxFactory> rpcTranspo
     auto ctx = rpcTransportCtxFactory->newServerCtx();
     if (ctx == nullptr) return nullptr;
     return sp<RpcServer>::make(std::move(ctx));
+}
+
+status_t RpcServer::setupUnixDomainSocketBootstrapServer(unique_fd bootstrapFd) {
+    return setupExternalServer(std::move(bootstrapFd), &RpcServer::recvmsgSocketConnection);
 }
 
 status_t RpcServer::setupUnixDomainServer(const char* path) {
@@ -177,11 +182,50 @@ void RpcServer::start() {
     rpcJoinIfSingleThreaded(*mJoinThread);
 }
 
+status_t RpcServer::acceptSocketConnection(const RpcServer& server, RpcTransportFd* out) {
+    RpcTransportFd clientSocket(unique_fd(TEMP_FAILURE_RETRY(
+            accept4(server.mServer.fd.get(), nullptr, nullptr, SOCK_CLOEXEC | SOCK_NONBLOCK))));
+    if (clientSocket.fd < 0) {
+        int savedErrno = errno;
+        ALOGE("Could not accept4 socket: %s", strerror(savedErrno));
+        return -savedErrno;
+    }
+
+    *out = std::move(clientSocket);
+    return OK;
+}
+
+status_t RpcServer::recvmsgSocketConnection(const RpcServer& server, RpcTransportFd* out) {
+    int zero = 0;
+    iovec iov{&zero, sizeof(zero)};
+    std::vector<std::variant<base::unique_fd, base::borrowed_fd>> fds;
+
+    if (receiveMessageFromSocket(server.mServer, &iov, 1, &fds) < 0) {
+        int savedErrno = errno;
+        ALOGE("Failed recvmsg: %s", strerror(savedErrno));
+        return -savedErrno;
+    }
+    if (fds.size() != 1) {
+        ALOGE("Expected exactly one fd from recvmsg, got %zu", fds.size());
+        return -EINVAL;
+    }
+
+    unique_fd fd(std::move(std::get<unique_fd>(fds.back())));
+    if (auto res = setNonBlocking(fd); !res.ok()) {
+        ALOGE("Failed setNonBlocking: %s", res.error().message().c_str());
+        return res.error().code() == 0 ? UNKNOWN_ERROR : -res.error().code();
+    }
+
+    *out = RpcTransportFd(std::move(fd));
+    return OK;
+}
+
 void RpcServer::join() {
 
     {
         RpcMutexLockGuard _l(mLock);
         LOG_ALWAYS_FATAL_IF(!mServer.fd.ok(), "RpcServer must be setup to join.");
+        LOG_ALWAYS_FATAL_IF(mAcceptFn == nullptr, "RpcServer must have an accept() function");
         LOG_ALWAYS_FATAL_IF(mShutdownTrigger != nullptr, "Already joined");
         mJoinThreadRunning = true;
         mShutdownTrigger = FdTrigger::make();
@@ -192,20 +236,19 @@ void RpcServer::join() {
     while ((status = mShutdownTrigger->triggerablePoll(mServer, POLLIN)) == OK) {
         std::array<uint8_t, kRpcAddressSize> addr;
         static_assert(addr.size() >= sizeof(sockaddr_storage), "kRpcAddressSize is too small");
-
         socklen_t addrLen = addr.size();
-        RpcTransportFd clientSocket(unique_fd(TEMP_FAILURE_RETRY(
-                accept4(mServer.fd.get(), reinterpret_cast<sockaddr*>(addr.data()), &addrLen,
-                        SOCK_CLOEXEC | SOCK_NONBLOCK))));
 
-        LOG_ALWAYS_FATAL_IF(addrLen > static_cast<socklen_t>(sizeof(sockaddr_storage)),
-                            "Truncated address");
-
-        if (clientSocket.fd < 0) {
-            ALOGE("Could not accept4 socket: %s", strerror(errno));
+        RpcTransportFd clientSocket;
+        if (mAcceptFn(*this, &clientSocket) != OK) {
             continue;
         }
-        LOG_RPC_DETAIL("accept4 on fd %d yields fd %d", mServer.fd.get(), clientSocket.fd.get());
+        if (getpeername(clientSocket.fd.get(), reinterpret_cast<sockaddr*>(addr.data()),
+                        &addrLen)) {
+            ALOGE("Could not getpeername socket: %s", strerror(errno));
+            continue;
+        }
+
+        LOG_RPC_DETAIL("accept on fd %d yields fd %d", mServer.fd.get(), clientSocket.fd.get());
 
         {
             RpcMutexLockGuard _l(mLock);
@@ -550,14 +593,21 @@ unique_fd RpcServer::releaseServer() {
     return std::move(mServer.fd);
 }
 
-status_t RpcServer::setupExternalServer(base::unique_fd serverFd) {
+status_t RpcServer::setupExternalServer(
+        base::unique_fd serverFd,
+        std::function<status_t(const RpcServer&, RpcTransportFd*)>&& acceptFn) {
     RpcMutexLockGuard _l(mLock);
     if (mServer.fd.ok()) {
         ALOGE("Each RpcServer can only have one server.");
         return INVALID_OPERATION;
     }
     mServer = std::move(serverFd);
+    mAcceptFn = std::move(acceptFn);
     return OK;
+}
+
+status_t RpcServer::setupExternalServer(base::unique_fd serverFd) {
+    return setupExternalServer(std::move(serverFd), &RpcServer::acceptSocketConnection);
 }
 
 bool RpcServer::hasActiveRequests() {

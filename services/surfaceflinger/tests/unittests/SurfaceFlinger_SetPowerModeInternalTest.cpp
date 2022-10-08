@@ -276,13 +276,6 @@ struct DisplayPowerCase {
         EXPECT_CALL(*test->mFlinger.scheduler(), scheduleFrame()).Times(1);
     }
 
-    static void setupSurfaceInterceptorCallExpectations(DisplayTransactionTest* test,
-                                                        PowerMode mode) {
-        EXPECT_CALL(*test->mSurfaceInterceptor, isEnabled()).WillOnce(Return(true));
-        EXPECT_CALL(*test->mSurfaceInterceptor, savePowerModeUpdate(_, static_cast<int32_t>(mode)))
-                .Times(1);
-    }
-
     static void setupComposerCallExpectations(DisplayTransactionTest* test, PowerMode mode) {
         // Any calls to get the active config will return a default value.
         EXPECT_CALL(*test->mComposer, getActiveConfig(Display::HWC_DISPLAY_ID, _))
@@ -349,7 +342,6 @@ void SetPowerModeInternalTest::transitionDisplayCommon() {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    Case::setupSurfaceInterceptorCallExpectations(this, Case::Transition::TARGET_POWER_MODE);
     Case::Transition::template setupCallExpectations<Case>(this);
 
     // --------------------------------------------------------------------

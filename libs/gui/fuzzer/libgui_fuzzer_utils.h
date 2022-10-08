@@ -148,8 +148,6 @@ public:
     MOCK_METHOD(binder::Status, getDisplayDecorationSupport,
                 (const sp<IBinder>&, std::optional<gui::DisplayDecorationSupport>*), (override));
     MOCK_METHOD(binder::Status, setOverrideFrameRate, (int32_t, float), (override));
-    MOCK_METHOD(binder::Status, addTransactionTraceListener,
-                (const sp<gui::ITransactionTraceListener>&), (override));
     MOCK_METHOD(binder::Status, getGpuContextPriority, (int32_t*), (override));
     MOCK_METHOD(binder::Status, getMaxAcquiredBufferCount, (int32_t*), (override));
     MOCK_METHOD(binder::Status, addWindowInfosListener, (const sp<gui::IWindowInfosListener>&),

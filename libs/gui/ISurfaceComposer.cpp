@@ -19,7 +19,6 @@
 
 #include <android/gui/IDisplayEventConnection.h>
 #include <android/gui/IRegionSamplingListener.h>
-#include <android/gui/ITransactionTraceListener.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>

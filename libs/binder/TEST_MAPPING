@@ -58,13 +58,10 @@
       "name": "CtsOsTestCases",
       "options": [
         {
-          "exclude-annotation": "android.platform.test.annotations.LargeTest"
+          "include-filter": "android.os.cts.BinderTest"
         },
         {
-          "exclude-filter": "android.os.cts.BuildTest#testSdkInt"
-        },
-        {
-          "exclude-filter": "android.os.cts.StrictModeTest#testNonSdkApiUsage"
+          "include-filter": "android.os.cts.ParcelTest"
         }
       ]
     },

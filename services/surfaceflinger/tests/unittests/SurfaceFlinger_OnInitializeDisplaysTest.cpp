@@ -38,11 +38,6 @@ TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    // We expect the surface interceptor to possibly be used, but we treat it as
-    // disabled since it is called as a side effect rather than directly by this
-    // function.
-    EXPECT_CALL(*mSurfaceInterceptor, isEnabled()).WillOnce(Return(false));
-
     // We expect a call to get the active display config.
     Case::Display::setupHwcGetActiveConfigCallExpectations(this);
 

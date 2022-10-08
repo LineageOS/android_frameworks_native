@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,29 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #pragma once
 
-#include <android/gui/BnTransactionTraceListener.h>
-#include <utils/Mutex.h>
+#include <lk/compiler.h>
 
-namespace android {
+/* Alias the bionic macros to the ones from lk/compiler.h */
+#define __BEGIN_DECLS __BEGIN_CDECLS
+#define __END_DECLS __END_CDECLS
 
-class TransactionTraceListener : public gui::BnTransactionTraceListener {
-    static std::mutex sMutex;
-    static sp<TransactionTraceListener> sInstance;
-
-    TransactionTraceListener();
-
-public:
-    static sp<TransactionTraceListener> getInstance();
-
-    binder::Status onToggled(bool enabled) override;
-
-    bool isTracingEnabled();
-
-private:
-    bool mTracingEnabled = false;
-};
-
-} // namespace android
+#define __INTRODUCED_IN(x) /* nothing on Trusty */

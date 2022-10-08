@@ -40,7 +40,6 @@ class IGraphicBufferProducer;
 class Layer;
 class StartPropertySetThread;
 class SurfaceFlinger;
-class SurfaceInterceptor;
 class TimeStats;
 
 struct DisplayDeviceCreationArgs;
@@ -71,7 +70,6 @@ public:
     virtual std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) = 0;
     virtual std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             Fps currentRefreshRate) = 0;
-    virtual sp<SurfaceInterceptor> createSurfaceInterceptor() = 0;
 
     virtual sp<StartPropertySetThread> createStartPropertySetThread(
             bool timestampPropertyValue) = 0;

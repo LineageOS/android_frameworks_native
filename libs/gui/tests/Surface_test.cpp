@@ -977,11 +977,6 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status addTransactionTraceListener(
-            const sp<gui::ITransactionTraceListener>& /*listener*/) override {
-        return binder::Status::ok();
-    }
-
     binder::Status getGpuContextPriority(int32_t* /*outPriority*/) override {
         return binder::Status::ok();
     }

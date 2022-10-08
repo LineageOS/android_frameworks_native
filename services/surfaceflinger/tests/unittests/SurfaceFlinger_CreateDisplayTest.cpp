@@ -30,9 +30,6 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForNonsecureDisplay) {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    // The call should notify the interceptor that a display was created.
-    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
-
     // --------------------------------------------------------------------
     // Invocation
 
@@ -60,9 +57,6 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
 
     // --------------------------------------------------------------------
     // Call Expectations
-
-    // The call should notify the interceptor that a display was created.
-    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation
