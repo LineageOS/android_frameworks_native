@@ -1468,6 +1468,10 @@ void TouchInputMapper::process(const RawEvent* rawEvent) {
 }
 
 void TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+    if (mDeviceMode == DeviceMode::DISABLED) {
+        // Only save the last pending state when the device is disabled.
+        mRawStatesPending.clear();
+    }
     // Push a new state.
     mRawStatesPending.emplace_back();
 

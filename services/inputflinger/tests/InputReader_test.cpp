@@ -6785,6 +6785,33 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenAbsPressureIsPresent_HoversIfItsV
             toDisplayX(150), toDisplayY(250), 0, 0, 0, 0, 0, 0, 0, 0));
 }
 
+TEST_F(SingleTouchInputMapperTest, Reset_RecreatesTouchState) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION | PRESSURE);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    NotifyMotionArgs motionArgs;
+
+    // Set the initial state for the touch pointer.
+    mFakeEventHub->setAbsoluteAxisValue(EVENTHUB_ID, ABS_X, 100);
+    mFakeEventHub->setAbsoluteAxisValue(EVENTHUB_ID, ABS_Y, 200);
+    mFakeEventHub->setAbsoluteAxisValue(EVENTHUB_ID, ABS_PRESSURE, RAW_PRESSURE_MAX);
+    mFakeEventHub->setScanCodeState(EVENTHUB_ID, BTN_TOUCH, 1);
+
+    // Reset the mapper. When the mapper is reset, we expect it to attempt to recreate the touch
+    // state by reading the current axis values.
+    mapper.reset(ARBITRARY_TIME);
+
+    // Send a sync to simulate an empty touch frame where nothing changes. The mapper should use
+    // the recreated touch state to generate a down event.
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
 TEST_F(SingleTouchInputMapperTest,
        Process_WhenViewportDisplayIdChanged_TouchIsCanceledAndDeviceIsReset) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
@@ -6844,9 +6871,16 @@ TEST_F(SingleTouchInputMapperTest,
     // No events are generated while the viewport is inactive.
     processMove(mapper, 101, 201);
     processSync(mapper);
-    processDown(mapper, 102, 202);
+    processUp(mapper);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Start a new gesture while the viewport is still inactive.
+    processDown(mapper, 300, 400);
+    mFakeEventHub->setAbsoluteAxisValue(EVENTHUB_ID, ABS_X, 300);
+    mFakeEventHub->setAbsoluteAxisValue(EVENTHUB_ID, ABS_Y, 400);
+    mFakeEventHub->setScanCodeState(EVENTHUB_ID, BTN_TOUCH, 1);
+    processSync(mapper);
 
     // Make the viewport active again. The device should resume processing events.
     viewport->isActive = true;
@@ -6857,8 +6891,7 @@ TEST_F(SingleTouchInputMapperTest,
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 
-    // Start a new gesture.
-    processDown(mapper, 100, 200);
+    // In the next sync, the touch state that was recreated when the device was reset is reported.
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
@@ -9383,6 +9416,80 @@ TEST_F(MultiTouchInputMapperTest, Process_MultiTouch_WithInvalidTrackingId) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
     ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+}
+
+TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT | PRESSURE);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+
+    // First finger down.
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, 100, 200);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+
+    // Second finger down.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, 300, 400);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(
+            mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(ACTION_POINTER_1_DOWN, motionArgs.action);
+
+    // Reset the mapper. When the mapper is reset, we expect the current multi-touch state to be
+    // preserved. Resetting should not generate any events.
+    mapper.reset(ARBITRARY_TIME);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Send a sync to simulate an empty touch frame where nothing changes. The mapper should use
+    // the existing touch state to generate a down event.
+    processPosition(mapper, 301, 302);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(ACTION_POINTER_1_DOWN, motionArgs.action);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
+TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState_NoPointersDown) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT | PRESSURE);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+
+    // First finger touches down and releases.
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, 100, 200);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(
+            mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
+
+    // Reset the mapper. When the mapper is reset, we expect it to restore the latest
+    // raw state where no pointers are down.
+    mapper.reset(ARBITRARY_TIME);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Send an empty sync frame. Since there are no pointers, no events are generated.
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
 // --- MultiTouchInputMapperTest_ExternalDevice ---

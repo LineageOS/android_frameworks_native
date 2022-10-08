@@ -327,6 +327,8 @@ protected:
         int32_t rawVScroll;
         int32_t rawHScroll;
 
+        explicit inline RawState() { clear(); }
+
         void copyFrom(const RawState& other) {
             when = other.when;
             readTime = other.readTime;
