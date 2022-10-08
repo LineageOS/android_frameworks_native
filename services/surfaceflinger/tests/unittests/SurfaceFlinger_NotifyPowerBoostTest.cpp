@@ -21,6 +21,7 @@
 #include <thread>
 
 #include "DisplayTransactionTestHelpers.h"
+#include "FakeDisplayInjector.h"
 
 #include <android/hardware/power/Boost.h>
 
@@ -31,6 +32,8 @@ using android::hardware::power::Boost;
 
 TEST_F(DisplayTransactionTest, notifyPowerBoostNotifiesTouchEvent) {
     using namespace std::chrono_literals;
+
+    injectDefaultInternalDisplay([](FakeDisplayDeviceInjector&) {});
 
     mFlinger.scheduler()->replaceTouchTimer(100);
     std::this_thread::sleep_for(10ms);                  // wait for callback to be triggered

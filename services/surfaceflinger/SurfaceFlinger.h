@@ -631,8 +631,8 @@ private:
 
     // Toggles hardware VSYNC by calling into HWC.
     void setVsyncEnabled(bool) override;
-    // Sets the desired display mode if allowed by policy.
-    void requestDisplayMode(DisplayModePtr, DisplayModeEvent) override;
+    // Sets the desired display mode per display if allowed by policy .
+    void requestDisplayModes(std::vector<scheduler::DisplayModeConfig>) override;
     // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
     void kernelTimerChanged(bool expired) override;
     // Called when the frame rate override list changed to trigger an event.

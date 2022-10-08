@@ -188,7 +188,10 @@ protected:
     void SetUp() {
         mComposer = ComposerService::getComposerService();
         mClient = new SurfaceComposerClient();
-        mDisplayToken = mClient->getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        // display 0 is picked as this test is not much display depedent
+        mDisplayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_NE(nullptr, mDisplayToken.get());
         Transaction t;
         t.setDisplayLayerStack(mDisplayToken, ui::DEFAULT_LAYER_STACK);

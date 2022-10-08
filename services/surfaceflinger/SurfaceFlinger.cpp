@@ -2938,7 +2938,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         if (display->isPrimary()) {
             mScheduler->setRefreshRateConfigs(display->holdRefreshRateConfigs());
         }
-
+        mScheduler->registerDisplay(display);
         dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
     }
 
@@ -2954,6 +2954,7 @@ void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
             releaseVirtualDisplay(display->getVirtualId());
         } else {
             dispatchDisplayHotplugEvent(display->getPhysicalId(), false);
+            mScheduler->unregisterDisplay(display->getPhysicalId());
         }
     }
 
@@ -2990,6 +2991,8 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             display->disconnect();
             if (display->isVirtual()) {
                 releaseVirtualDisplay(display->getVirtualId());
+            } else {
+                mScheduler->unregisterDisplay(display->getPhysicalId());
             }
         }
 
@@ -3319,25 +3322,34 @@ void SurfaceFlinger::updateCursorAsync() {
     mCompositionEngine->updateCursorAsync(refreshArgs);
 }
 
-void SurfaceFlinger::requestDisplayMode(DisplayModePtr mode, DisplayModeEvent event) {
+void SurfaceFlinger::requestDisplayModes(
+        std::vector<scheduler::DisplayModeConfig> displayModeConfigs) {
+    if (mBootStage != BootStage::FINISHED) {
+        ALOGV("Currently in the boot stage, skipping display mode changes");
+        return;
+    }
+
+    ATRACE_CALL();
     // If this is called from the main thread mStateLock must be locked before
     // Currently the only way to call this function from the main thread is from
     // Scheduler::chooseRefreshRateForContent
 
     ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
 
-    const auto display = getDefaultDisplayDeviceLocked();
-    if (!display || mBootStage != BootStage::FINISHED) {
-        return;
-    }
-    ATRACE_CALL();
-
-    if (!display->refreshRateConfigs().isModeAllowed(mode->getId())) {
-        ALOGV("Skipping disallowed mode %d", mode->getId().value());
-        return;
-    }
-
-    setDesiredActiveMode({std::move(mode), event});
+    std::for_each(displayModeConfigs.begin(), displayModeConfigs.end(),
+                  [&](const auto& config) REQUIRES(mStateLock) {
+                      const auto& displayModePtr = config.displayModePtr;
+                      if (const auto display =
+                                  getDisplayDeviceLocked(displayModePtr->getPhysicalDisplayId());
+                          display->refreshRateConfigs().isModeAllowed(displayModePtr->getId())) {
+                          const auto event = config.signals.idle ? DisplayModeEvent::None
+                                                                 : DisplayModeEvent::Changed;
+                          setDesiredActiveMode({displayModePtr, event});
+                      } else {
+                          ALOGV("Skipping disallowed mode %d for display %" PRId64,
+                                displayModePtr->getId().value(), display->getPhysicalId().value);
+                      }
+                  });
 }
 
 void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
@@ -3386,6 +3398,7 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
 
         mScheduler->createVsyncSchedule(features);
         mScheduler->setRefreshRateConfigs(std::move(configs));
+        mScheduler->registerDisplay(display);
     }
     setVsyncEnabled(false);
     mScheduler->startTimers();

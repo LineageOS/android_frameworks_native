@@ -68,6 +68,8 @@ public:
 
     auto& mutableLayerHistory() { return mLayerHistory; }
 
+    auto& mutableDisplays() { return mDisplays; }
+
     size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
         return mLayerHistory.mActiveLayerInfos.size() + mLayerHistory.mInactiveLayerInfos.size();
     }
@@ -92,6 +94,22 @@ public:
     bool isTouchActive() {
         std::lock_guard<std::mutex> lock(mPolicyLock);
         return mPolicy.touch == Scheduler::TouchState::Active;
+    }
+
+    void setTouchStateAndIdleTimerPolicy(GlobalSignals globalSignals) {
+        std::lock_guard<std::mutex> lock(mPolicyLock);
+        mPolicy.touch = globalSignals.touch ? TouchState::Active : TouchState::Inactive;
+        mPolicy.idleTimer = globalSignals.idle ? TimerState::Expired : TimerState::Reset;
+    }
+
+    void setContentRequirements(std::vector<RefreshRateConfigs::LayerRequirement> layers) {
+        std::lock_guard<std::mutex> lock(mPolicyLock);
+        mPolicy.contentRequirements = std::move(layers);
+    }
+
+    std::vector<DisplayModeConfig> getBestDisplayModeConfigs() {
+        std::lock_guard<std::mutex> lock(mPolicyLock);
+        return Scheduler::getBestDisplayModeConfigs();
     }
 
     void dispatchCachedReportedMode() {
