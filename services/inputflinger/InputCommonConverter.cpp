@@ -263,6 +263,8 @@ static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_13) == common
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_14) == common::Axis::GENERIC_14);
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_15) == common::Axis::GENERIC_15);
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_16) == common::Axis::GENERIC_16);
+static_assert(static_cast<common::Axis>(AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE) ==
+              static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_16));
 
 static common::VideoFrame getHalVideoFrame(const TouchVideoFrame& frame) {
     common::VideoFrame out;
