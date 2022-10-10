@@ -56,6 +56,9 @@
         },
         {
           "include-filter": "*RefreshRateOverlayTest.*"
+        },
+        {
+          "exclude-filter": "*ChildLayerTest#ChildrenSurviveParentDestruction"
         }
       ]
     },
