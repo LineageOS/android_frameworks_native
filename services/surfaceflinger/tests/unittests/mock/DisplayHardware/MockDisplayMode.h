@@ -33,4 +33,9 @@ inline DisplayModePtr createDisplayMode(
             .build();
 }
 
+inline DisplayModePtr createDisplayMode(PhysicalDisplayId displayId, DisplayModeId modeId,
+                                        Fps refreshRate) {
+    return createDisplayMode(modeId, refreshRate, {}, {}, displayId);
+}
+
 } // namespace android::mock

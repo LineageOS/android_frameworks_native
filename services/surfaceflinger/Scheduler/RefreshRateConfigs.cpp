@@ -23,6 +23,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <deque>
 
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
@@ -143,8 +144,7 @@ struct RefreshRateConfigs::RefreshRateScoreComparator {
 
         ATRACE_INT(name.c_str(), static_cast<int>(std::round(overallScore * 100)));
 
-        constexpr float kEpsilon = 0.0001f;
-        if (std::abs(overallScore - rhs.overallScore) > kEpsilon) {
+        if (!ScoredRefreshRate::scoresEqual(overallScore, rhs.overallScore)) {
             return overallScore > rhs.overallScore;
         }
 
@@ -288,8 +288,7 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
 }
 
 auto RefreshRateConfigs::getRankedRefreshRates(const std::vector<LayerRequirement>& layers,
-                                               GlobalSignals signals) const
-        -> std::pair<std::vector<RefreshRateRanking>, GlobalSignals> {
+                                               GlobalSignals signals) const -> RankedRefreshRates {
     std::lock_guard lock(mLock);
 
     if (mGetRankedRefreshRatesCache &&
@@ -304,7 +303,7 @@ auto RefreshRateConfigs::getRankedRefreshRates(const std::vector<LayerRequiremen
 
 auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequirement>& layers,
                                                      GlobalSignals signals) const
-        -> std::pair<std::vector<RefreshRateRanking>, GlobalSignals> {
+        -> RankedRefreshRates {
     using namespace fps_approx_ops;
     ATRACE_CALL();
     ALOGV("%s: %zu layers", __func__, layers.size());
@@ -314,8 +313,7 @@ auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequ
     // Keep the display at max refresh rate for the duration of powering on the display.
     if (signals.powerOnImminent) {
         ALOGV("Power On Imminent");
-        return {getRefreshRatesByPolicyLocked(activeMode.getGroup(), RefreshRateOrder::Descending,
-                                              /*preferredDisplayModeOpt*/ std::nullopt),
+        return {rankRefreshRates(activeMode.getGroup(), RefreshRateOrder::Descending),
                 GlobalSignals{.powerOnImminent = true}};
     }
 
@@ -375,8 +373,7 @@ auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequ
     // selected a refresh rate to see if we should apply touch boost.
     if (signals.touch && !hasExplicitVoteLayers) {
         ALOGV("Touch Boost");
-        return {getRefreshRatesByPolicyLocked(anchorGroup, RefreshRateOrder::Descending,
-                                              /*preferredDisplayModeOpt*/ std::nullopt),
+        return {rankRefreshRates(anchorGroup, RefreshRateOrder::Descending),
                 GlobalSignals{.touch = true}};
     }
 
@@ -388,24 +385,19 @@ auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequ
 
     if (!signals.touch && signals.idle && !(primaryRangeIsSingleRate && hasExplicitVoteLayers)) {
         ALOGV("Idle");
-        return {getRefreshRatesByPolicyLocked(activeMode.getGroup(), RefreshRateOrder::Ascending,
-                                              /*preferredDisplayModeOpt*/ std::nullopt),
+        return {rankRefreshRates(activeMode.getGroup(), RefreshRateOrder::Ascending),
                 GlobalSignals{.idle = true}};
     }
 
     if (layers.empty() || noVoteLayers == layers.size()) {
         ALOGV("No layers with votes");
-        return {getRefreshRatesByPolicyLocked(anchorGroup, RefreshRateOrder::Descending,
-                                              /*preferredDisplayModeOpt*/ std::nullopt),
-                kNoSignals};
+        return {rankRefreshRates(anchorGroup, RefreshRateOrder::Descending), kNoSignals};
     }
 
     // Only if all layers want Min we should return Min
     if (noVoteLayers + minVoteLayers == layers.size()) {
         ALOGV("All layers Min");
-        return {getRefreshRatesByPolicyLocked(activeMode.getGroup(), RefreshRateOrder::Ascending,
-                                              /*preferredDisplayModeOpt*/ std::nullopt),
-                kNoSignals};
+        return {rankRefreshRates(activeMode.getGroup(), RefreshRateOrder::Ascending), kNoSignals};
     }
 
     // Find the best refresh rate based on score
@@ -557,12 +549,13 @@ auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequ
             maxVoteLayers > 0 ? RefreshRateOrder::Descending : RefreshRateOrder::Ascending;
     std::sort(scores.begin(), scores.end(),
               RefreshRateScoreComparator{.refreshRateOrder = refreshRateOrder});
-    std::vector<RefreshRateRanking> rankedRefreshRates;
-    rankedRefreshRates.reserve(scores.size());
 
-    std::transform(scores.begin(), scores.end(), back_inserter(rankedRefreshRates),
+    RefreshRateRanking ranking;
+    ranking.reserve(scores.size());
+
+    std::transform(scores.begin(), scores.end(), back_inserter(ranking),
                    [](const RefreshRateScore& score) {
-                       return RefreshRateRanking{score.modeIt->second, score.overallScore};
+                       return ScoredRefreshRate{score.modeIt->second, score.overallScore};
                    });
 
     const bool noLayerScore = std::all_of(scores.begin(), scores.end(), [](RefreshRateScore score) {
@@ -574,11 +567,9 @@ auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequ
         // range instead of picking a random score from the app range.
         if (noLayerScore) {
             ALOGV("Layers not scored");
-            return {getRefreshRatesByPolicyLocked(anchorGroup, RefreshRateOrder::Descending,
-                                                  /*preferredDisplayModeOpt*/ std::nullopt),
-                    kNoSignals};
+            return {rankRefreshRates(anchorGroup, RefreshRateOrder::Descending), kNoSignals};
         } else {
-            return {rankedRefreshRates, kNoSignals};
+            return {ranking, kNoSignals};
         }
     }
 
@@ -596,14 +587,12 @@ auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequ
         }
     }();
 
-    const auto& touchRefreshRates =
-            getRefreshRatesByPolicyLocked(anchorGroup, RefreshRateOrder::Descending,
-                                          /*preferredDisplayModeOpt*/ std::nullopt);
+    const auto touchRefreshRates = rankRefreshRates(anchorGroup, RefreshRateOrder::Descending);
+
     using fps_approx_ops::operator<;
 
     if (signals.touch && explicitDefaultVoteLayers == 0 && touchBoostForExplicitExact &&
-        scores.front().modeIt->second->getFps() <
-                touchRefreshRates.front().displayModePtr->getFps()) {
+        scores.front().modeIt->second->getFps() < touchRefreshRates.front().modePtr->getFps()) {
         ALOGV("Touch Boost");
         return {touchRefreshRates, GlobalSignals{.touch = true}};
     }
@@ -612,12 +601,11 @@ auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequ
     // current config
     if (noLayerScore && refreshRateOrder == RefreshRateOrder::Ascending) {
         const auto preferredDisplayMode = activeMode.getId();
-        return {getRefreshRatesByPolicyLocked(anchorGroup, RefreshRateOrder::Ascending,
-                                              preferredDisplayMode),
+        return {rankRefreshRates(anchorGroup, RefreshRateOrder::Ascending, preferredDisplayMode),
                 kNoSignals};
     }
 
-    return {rankedRefreshRates, kNoSignals};
+    return {ranking, kNoSignals};
 }
 
 std::unordered_map<uid_t, std::vector<const RefreshRateConfigs::LayerRequirement*>>
@@ -783,11 +771,12 @@ const DisplayModePtr& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked(int an
     return mPrimaryRefreshRates.back()->second;
 }
 
-std::vector<RefreshRateRanking> RefreshRateConfigs::getRefreshRatesByPolicyLocked(
+auto RefreshRateConfigs::rankRefreshRates(
         std::optional<int> anchorGroupOpt, RefreshRateOrder refreshRateOrder,
-        std::optional<DisplayModeId> preferredDisplayModeOpt) const {
-    std::deque<RefreshRateRanking> rankings;
-    const auto makeRanking = [&](const DisplayModeIterator it) REQUIRES(mLock) {
+        std::optional<DisplayModeId> preferredDisplayModeOpt) const -> RefreshRateRanking {
+    std::deque<ScoredRefreshRate> ranking;
+
+    const auto rankRefreshRate = [&](DisplayModeIterator it) REQUIRES(mLock) {
         const auto& mode = it->second;
         if (anchorGroupOpt && mode->getGroup() != anchorGroupOpt) {
             return;
@@ -800,31 +789,32 @@ std::vector<RefreshRateRanking> RefreshRateConfigs::getRefreshRatesByPolicyLocke
         }
         if (preferredDisplayModeOpt) {
             if (*preferredDisplayModeOpt == mode->getId()) {
-                rankings.push_front(RefreshRateRanking{mode, /*score*/ 1.0f});
+                constexpr float kScore = std::numeric_limits<float>::max();
+                ranking.push_front(ScoredRefreshRate{mode, kScore});
                 return;
             }
             constexpr float kNonPreferredModePenalty = 0.95f;
             score *= kNonPreferredModePenalty;
         }
-        rankings.push_back(RefreshRateRanking{mode, score});
+        ranking.push_back(ScoredRefreshRate{mode, score});
     };
 
     if (refreshRateOrder == RefreshRateOrder::Ascending) {
-        std::for_each(mPrimaryRefreshRates.begin(), mPrimaryRefreshRates.end(), makeRanking);
+        std::for_each(mPrimaryRefreshRates.begin(), mPrimaryRefreshRates.end(), rankRefreshRate);
     } else {
-        std::for_each(mPrimaryRefreshRates.rbegin(), mPrimaryRefreshRates.rend(), makeRanking);
+        std::for_each(mPrimaryRefreshRates.rbegin(), mPrimaryRefreshRates.rend(), rankRefreshRate);
     }
 
-    if (!rankings.empty() || !anchorGroupOpt) {
-        return {rankings.begin(), rankings.end()};
+    if (!ranking.empty() || !anchorGroupOpt) {
+        return {ranking.begin(), ranking.end()};
     }
 
     ALOGW("Can't find %s refresh rate by policy with the same mode group"
           " as the mode group %d",
           refreshRateOrder == RefreshRateOrder::Ascending ? "min" : "max", anchorGroupOpt.value());
 
-    return getRefreshRatesByPolicyLocked(/*anchorGroupOpt*/ std::nullopt, refreshRateOrder,
-                                         preferredDisplayModeOpt);
+    constexpr std::optional<int> kNoAnchorGroup = std::nullopt;
+    return rankRefreshRates(kNoAnchorGroup, refreshRateOrder, preferredDisplayModeOpt);
 }
 
 DisplayModePtr RefreshRateConfigs::getActiveModePtr() const {

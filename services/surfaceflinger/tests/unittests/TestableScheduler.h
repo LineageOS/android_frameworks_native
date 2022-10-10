@@ -107,9 +107,12 @@ public:
         mPolicy.contentRequirements = std::move(layers);
     }
 
-    std::vector<DisplayModeConfig> getBestDisplayModeConfigs() {
+    using Scheduler::DisplayModeChoice;
+    using Scheduler::DisplayModeChoiceMap;
+
+    DisplayModeChoiceMap chooseDisplayModes() {
         std::lock_guard<std::mutex> lock(mPolicyLock);
-        return Scheduler::getBestDisplayModeConfigs();
+        return Scheduler::chooseDisplayModes();
     }
 
     void dispatchCachedReportedMode() {

@@ -29,6 +29,7 @@
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <ftl/future.h>
+#include <ftl/non_null.h>
 #include <gui/BufferQueue.h>
 #include <gui/CompositorTiming.h>
 #include <gui/FrameTimestamps.h>
@@ -430,10 +431,6 @@ private:
                 mCounterByLayerHandle GUARDED_BY(mLock);
     };
 
-    using ActiveModeInfo = DisplayDevice::ActiveModeInfo;
-    using KernelIdleTimerController =
-            ::android::scheduler::RefreshRateConfigs::KernelIdleTimerController;
-
     enum class BootStage {
         BOOTLOADER,
         BOOTANIMATION,
@@ -628,16 +625,17 @@ private:
     // ISchedulerCallback overrides:
 
     // Toggles hardware VSYNC by calling into HWC.
+    // TODO(b/241286146): Rename for self-explanatory API.
     void setVsyncEnabled(bool) override;
-    // Sets the desired display mode per display if allowed by policy .
-    void requestDisplayModes(std::vector<scheduler::DisplayModeConfig>) override;
-    // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
+    void requestDisplayModes(std::vector<display::DisplayModeRequest>) override;
     void kernelTimerChanged(bool expired) override;
-    // Called when the frame rate override list changed to trigger an event.
     void triggerOnFrameRateOverridesChanged() override;
 
     // Toggles the kernel idle timer on or off depending the policy decisions around refresh rates.
     void toggleKernelIdleTimer() REQUIRES(mStateLock);
+
+    using KernelIdleTimerController = scheduler::RefreshRateConfigs::KernelIdleTimerController;
+
     // Get the controller and timeout that will help decide how the kernel idle timer will be
     // configured and what value to use as the timeout.
     std::pair<std::optional<KernelIdleTimerController>, std::chrono::milliseconds>
@@ -652,8 +650,8 @@ private:
     // Show spinner with refresh rate overlay
     bool mRefreshRateOverlaySpinner = false;
 
-    // Sets the desired active mode bit. It obtains the lock, and sets mDesiredActiveMode.
-    void setDesiredActiveMode(const ActiveModeInfo& info) REQUIRES(mStateLock);
+    void setDesiredActiveMode(display::DisplayModeRequest&&) REQUIRES(mStateLock);
+
     status_t setActiveModeFromBackdoor(const sp<display::DisplayToken>&, DisplayModeId);
     // Sets the active mode and a new refresh rate in SF.
     void updateInternalStateWithChangedMode() REQUIRES(mStateLock, kMainThreadContext);
@@ -672,9 +670,8 @@ private:
 
     // Returns the preferred mode for PhysicalDisplayId if the Scheduler has selected one for that
     // display. Falls back to the display's defaultModeId otherwise.
-    std::optional<DisplayModePtr> getPreferredDisplayMode(PhysicalDisplayId,
-                                                          DisplayModeId defaultModeId) const
-            REQUIRES(mStateLock);
+    std::optional<ftl::NonNull<DisplayModePtr>> getPreferredDisplayMode(
+            PhysicalDisplayId, DisplayModeId defaultModeId) const REQUIRES(mStateLock);
 
     status_t setDesiredDisplayModeSpecsInternal(const sp<DisplayDevice>&,
                                                 const scheduler::RefreshRateConfigs::PolicyVariant&)

@@ -780,7 +780,7 @@ public:
 
 private:
     void setVsyncEnabled(bool) override {}
-    void requestDisplayModes(std::vector<scheduler::DisplayModeConfig>) override {}
+    void requestDisplayModes(std::vector<display::DisplayModeRequest>) override {}
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() override {}
 
