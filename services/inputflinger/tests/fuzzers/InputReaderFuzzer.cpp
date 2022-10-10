@@ -153,6 +153,10 @@ public:
         return reader->getLightPlayerId(deviceId, lightId);
     }
 
+    void addKeyRemapping(int32_t deviceId, int32_t fromKeyCode, int32_t toKeyCode) const {
+        reader->addKeyRemapping(deviceId, fromKeyCode, toKeyCode);
+    }
+
     int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const {
         return reader->getKeyCodeForKeyLocation(deviceId, locationKeyCode);
     }

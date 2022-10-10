@@ -154,6 +154,11 @@ void FakeEventHub::addKeyCodeMapping(int32_t deviceId, int32_t fromKeyCode, int3
     getDevice(deviceId)->keyCodeMapping.insert_or_assign(fromKeyCode, toKeyCode);
 }
 
+void FakeEventHub::addKeyRemapping(int32_t deviceId, int32_t fromKeyCode, int32_t toKeyCode) const {
+    Device* device = getDevice(deviceId);
+    device->keyRemapping.insert_or_assign(fromKeyCode, toKeyCode);
+}
+
 void FakeEventHub::addLed(int32_t deviceId, int32_t led, bool initialState) {
     getDevice(deviceId)->leds.add(led, initialState);
 }
@@ -299,7 +304,8 @@ status_t FakeEventHub::mapKey(int32_t deviceId, int32_t scanCode, int32_t usageC
         const KeyInfo* key = getKey(device, scanCode, usageCode);
         if (key) {
             if (outKeycode) {
-                *outKeycode = key->keyCode;
+                auto it = device->keyRemapping.find(key->keyCode);
+                *outKeycode = it != device->keyRemapping.end() ? it->second : key->keyCode;
             }
             if (outFlags) {
                 *outFlags = key->flags;

@@ -624,6 +624,12 @@ void InputDevice::updateMetaState(int32_t keyCode) {
     });
 }
 
+void InputDevice::addKeyRemapping(int32_t fromKeyCode, int32_t toKeyCode) {
+    for_each_subdevice([fromKeyCode, toKeyCode](auto& context) {
+        context.addKeyRemapping(fromKeyCode, toKeyCode);
+    });
+}
+
 void InputDevice::bumpGeneration() {
     mGeneration = mContext->bumpGeneration();
 }
