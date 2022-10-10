@@ -20,5 +20,6 @@ package android.gui;
 parcelable CreateSurfaceResult {
     IBinder handle;
     int layerId;
+    String layerName;
     int transformHint;
 }

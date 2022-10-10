@@ -452,7 +452,7 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
             layer.parentSurfaceControlForChild =
                     sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(),
                                              mMapper->getLayerHandle(static_cast<int32_t>(layerId)),
-                                             static_cast<int32_t>(layerId));
+                                             static_cast<int32_t>(layerId), "");
         }
     }
     if (proto.what() & layer_state_t::eRelativeLayerChanged) {
@@ -463,7 +463,7 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
             layer.relativeLayerSurfaceControl =
                     sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(),
                                              mMapper->getLayerHandle(static_cast<int32_t>(layerId)),
-                                             static_cast<int32_t>(layerId));
+                                             static_cast<int32_t>(layerId), "");
         }
         layer.z = proto.z();
     }

@@ -4377,8 +4377,8 @@ uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& input
 }
 
 status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
-                                     const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle,
-                                     int32_t* outLayerId) {
+                                     const sp<IBinder>& mirrorFromHandle,
+                                     gui::CreateSurfaceResult& outResult) {
     if (!mirrorFromHandle) {
         return NAME_NOT_FOUND;
     }
@@ -4393,7 +4393,7 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
         }
         LayerCreationArgs mirrorArgs = args;
         mirrorArgs.flags |= ISurfaceComposerClient::eNoColorFill;
-        status_t result = createEffectLayer(mirrorArgs, outHandle, &mirrorLayer);
+        status_t result = createEffectLayer(mirrorArgs, &outResult.handle, &mirrorLayer);
         if (result != NO_ERROR) {
             return result;
         }
@@ -4401,17 +4401,20 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
         mirrorLayer->setClonedChild(mirrorFrom->createClone());
     }
 
-    *outLayerId = mirrorLayer->sequence;
+    outResult.layerId = mirrorLayer->sequence;
+    outResult.layerName = String16(mirrorLayer->getDebugName());
     if (mTransactionTracing) {
-        mTransactionTracing->onMirrorLayerAdded((*outHandle)->localBinder(), mirrorLayer->sequence,
-                                                args.name, mirrorFrom->sequence);
+        mTransactionTracing->onMirrorLayerAdded(outResult.handle->localBinder(),
+                                                mirrorLayer->sequence, args.name,
+                                                mirrorFrom->sequence);
     }
-    return addClientLayer(args.client, *outHandle, mirrorLayer /* layer */, nullptr /* parent */,
-                          false /* addToRoot */, nullptr /* outTransformHint */);
+    return addClientLayer(args.client, outResult.handle, mirrorLayer /* layer */,
+                          nullptr /* parent */, false /* addToRoot */,
+                          nullptr /* outTransformHint */);
 }
 
 status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationArgs& args,
-                                       sp<IBinder>* outHandle, int32_t* outLayerId) {
+                                       gui::CreateSurfaceResult& outResult) {
     IPCThreadState* ipc = IPCThreadState::self();
     const int uid = ipc->getCallingUid();
     if (uid != AID_ROOT && uid != AID_GRAPHICS && uid != AID_SYSTEM && uid != AID_SHELL) {
@@ -4434,9 +4437,10 @@ status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationA
         layerStack = display->getLayerStack();
         LayerCreationArgs mirrorArgs = args;
         mirrorArgs.flags |= ISurfaceComposerClient::eNoColorFill;
-        result = createEffectLayer(mirrorArgs, outHandle, &rootMirrorLayer);
-        *outLayerId = rootMirrorLayer->sequence;
-        result |= addClientLayer(args.client, *outHandle, rootMirrorLayer /* layer */,
+        result = createEffectLayer(mirrorArgs, &outResult.handle, &rootMirrorLayer);
+        outResult.layerId = rootMirrorLayer->sequence;
+        outResult.layerName = String16(rootMirrorLayer->getDebugName());
+        result |= addClientLayer(args.client, outResult.handle, rootMirrorLayer /* layer */,
                                  nullptr /* parent */, true /* addToRoot */,
                                  nullptr /* outTransformHint */);
     }
@@ -4446,26 +4450,21 @@ status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationA
     }
 
     if (mTransactionTracing) {
-        mTransactionTracing->onLayerAdded((*outHandle)->localBinder(), *outLayerId, args.name,
-                                          args.flags, -1 /* parentId */);
+        mTransactionTracing->onLayerAdded(outResult.handle->localBinder(), outResult.layerId,
+                                          args.name, args.flags, -1 /* parentId */);
     }
 
     {
         std::scoped_lock<std::mutex> lock(mMirrorDisplayLock);
-        mMirrorDisplays.emplace_back(layerStack, *outHandle, args.client);
+        mMirrorDisplays.emplace_back(layerStack, outResult.handle, args.client);
     }
 
     setTransactionFlags(eTransactionFlushNeeded);
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
-                                     const sp<IBinder>& parentHandle, int32_t* outLayerId,
-                                     const sp<Layer>& parentLayer, uint32_t* outTransformHint) {
-    ALOG_ASSERT(parentLayer == nullptr || parentHandle == nullptr,
-            "Expected only one of parentLayer or parentHandle to be non-null. "
-            "Programmer error?");
-
+status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, const sp<IBinder>& parentHandle,
+                                     gui::CreateSurfaceResult& outResult) {
     status_t result = NO_ERROR;
 
     sp<Layer> layer;
@@ -4477,11 +4476,11 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
             args.flags |= ISurfaceComposerClient::eNoColorFill;
             FMT_FALLTHROUGH;
         case ISurfaceComposerClient::eFXSurfaceEffect: {
-            result = createBufferStateLayer(args, outHandle, &layer);
+            result = createBufferStateLayer(args, &outResult.handle, &layer);
             std::atomic<int32_t>* pendingBufferCounter = layer->getPendingBufferCounter();
             if (pendingBufferCounter) {
                 std::string counterName = layer->getPendingBufferCounterName();
-                mBufferCountTracker.add((*outHandle)->localBinder(), counterName,
+                mBufferCountTracker.add(outResult.handle->localBinder(), counterName,
                                         pendingBufferCounter);
             }
         } break;
@@ -4495,12 +4494,9 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
     }
 
     bool addToRoot = args.addToRoot && callingThreadHasUnscopedSurfaceFlingerAccess();
-    wp<Layer> parent(parentHandle != nullptr ? fromHandle(parentHandle) : parentLayer);
+    wp<Layer> parent = fromHandle(parentHandle);
     if (parentHandle != nullptr && parent == nullptr) {
         ALOGE("Invalid parent handle %p.", parentHandle.get());
-        addToRoot = false;
-    }
-    if (parentLayer != nullptr) {
         addToRoot = false;
     }
 
@@ -4512,16 +4508,20 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, sp<IBinder>* outHa
         parentId = parentSp->getSequence();
     }
     if (mTransactionTracing) {
-        mTransactionTracing->onLayerAdded((*outHandle)->localBinder(), layer->sequence, args.name,
-                                          args.flags, parentId);
+        mTransactionTracing->onLayerAdded(outResult.handle->localBinder(), layer->sequence,
+                                          args.name, args.flags, parentId);
     }
 
-    result = addClientLayer(args.client, *outHandle, layer, parent, addToRoot, outTransformHint);
+    uint32_t outTransformHint;
+    result = addClientLayer(args.client, outResult.handle, layer, parent, addToRoot,
+                            &outTransformHint);
     if (result != NO_ERROR) {
         return result;
     }
 
-    *outLayerId = layer->sequence;
+    outResult.transformHint = static_cast<int32_t>(outTransformHint);
+    outResult.layerId = layer->sequence;
+    outResult.layerName = String16(layer->getDebugName());
     return result;
 }
 
