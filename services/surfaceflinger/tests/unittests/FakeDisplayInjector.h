@@ -27,49 +27,54 @@ namespace android {
 using FakeDisplayDeviceInjector = TestableSurfaceFlinger::FakeDisplayDeviceInjector;
 using android::hardware::graphics::composer::hal::HWDisplayId;
 using android::Hwc2::mock::PowerAdvisor;
-using testing::_;
-using testing::AnyNumber;
-using testing::DoAll;
-using testing::Mock;
-using testing::ResultOf;
-using testing::Return;
-using testing::SetArgPointee;
+
+struct FakeDisplayInjectorArgs {
+    uint8_t port = 255u;
+    HWDisplayId hwcDisplayId = 0;
+    bool isPrimary = true;
+};
 
 class FakeDisplayInjector {
 public:
-    sp<DisplayDevice> injectDefaultInternalDisplay(
-            const std::function<void(FakeDisplayDeviceInjector&)>& injectExtra,
-            TestableSurfaceFlinger& flinger, uint8_t port = 255u) const {
-        constexpr int DEFAULT_DISPLAY_WIDTH = 1080;
-        constexpr int DEFAULT_DISPLAY_HEIGHT = 1920;
-        constexpr HWDisplayId DEFAULT_DISPLAY_HWC_DISPLAY_ID = 0;
+    FakeDisplayInjector(TestableSurfaceFlinger& flinger, Hwc2::mock::PowerAdvisor& powerAdvisor,
+                        sp<mock::NativeWindow> nativeWindow)
+          : mFlinger(flinger), mPowerAdvisor(powerAdvisor), mNativeWindow(nativeWindow) {}
 
-        const PhysicalDisplayId physicalDisplayId = PhysicalDisplayId::fromPort(port);
+    sp<DisplayDevice> injectInternalDisplay(
+            const std::function<void(FakeDisplayDeviceInjector&)>& injectExtra,
+            FakeDisplayInjectorArgs args = {}) {
+        using testing::_;
+        using testing::AnyNumber;
+        using testing::DoAll;
+        using testing::Mock;
+        using testing::Return;
+        using testing::SetArgPointee;
+
+        constexpr ui::Size kResolution = {1080, 1920};
 
         // The DisplayDevice is required to have a framebuffer (behind the
         // ANativeWindow interface) which uses the actual hardware display
         // size.
         EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
-                .WillRepeatedly(DoAll(SetArgPointee<1>(DEFAULT_DISPLAY_WIDTH), Return(0)));
+                .WillRepeatedly(DoAll(SetArgPointee<1>(kResolution.getWidth()), Return(0)));
         EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
-                .WillRepeatedly(DoAll(SetArgPointee<1>(DEFAULT_DISPLAY_HEIGHT), Return(0)));
+                .WillRepeatedly(DoAll(SetArgPointee<1>(kResolution.getHeight()), Return(0)));
         EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_SET_BUFFERS_FORMAT));
         EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_API_CONNECT));
         EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_SET_USAGE64));
         EXPECT_CALL(*mNativeWindow, perform(NATIVE_WINDOW_API_DISCONNECT)).Times(AnyNumber());
 
         auto compositionDisplay = compositionengine::impl::
-                createDisplay(flinger.getCompositionEngine(),
+                createDisplay(mFlinger.getCompositionEngine(),
                               compositionengine::DisplayCreationArgsBuilder()
-                                      .setId(physicalDisplayId)
-                                      .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
-                                      .setPowerAdvisor(mPowerAdvisor)
+                                      .setId(PhysicalDisplayId::fromPort(args.port))
+                                      .setPixels(kResolution)
+                                      .setPowerAdvisor(&mPowerAdvisor)
                                       .build());
 
-        constexpr bool kIsPrimary = true;
-        auto injector = FakeDisplayDeviceInjector(flinger, compositionDisplay,
+        auto injector = FakeDisplayDeviceInjector(mFlinger, compositionDisplay,
                                                   ui::DisplayConnectionType::Internal,
-                                                  DEFAULT_DISPLAY_HWC_DISPLAY_ID, kIsPrimary);
+                                                  args.hwcDisplayId, args.isPrimary);
 
         injector.setNativeWindow(mNativeWindow);
         if (injectExtra) {
@@ -83,8 +88,9 @@ public:
         return displayDevice;
     }
 
-    sp<mock::NativeWindow> mNativeWindow = sp<mock::NativeWindow>::make();
-    PowerAdvisor* mPowerAdvisor = new PowerAdvisor();
+    TestableSurfaceFlinger& mFlinger;
+    Hwc2::mock::PowerAdvisor& mPowerAdvisor;
+    sp<mock::NativeWindow> mNativeWindow;
 };
 
 } // namespace android
