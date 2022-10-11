@@ -126,6 +126,7 @@ cc_binary {
     ],
     required: [
         "atrace",
+        "bugreport_procdump",
         "dmabuf_dump",
         "ip",
         "iptables",
