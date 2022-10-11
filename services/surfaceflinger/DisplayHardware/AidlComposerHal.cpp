@@ -264,17 +264,21 @@ std::string AidlComposer::dumpDebugInfo() {
     }
 
     std::string str;
+    // Use other thread to read pipe to prevent
+    // pipe is full, making HWC be blocked in writing.
+    std::thread t([&]() {
+        base::ReadFdToString(pipefds[0], &str);
+    });
     const auto status = mAidlComposer->dump(pipefds[1], /*args*/ nullptr, /*numArgs*/ 0);
     // Close the write-end of the pipe to make sure that when reading from the
     // read-end we will get eof instead of blocking forever
     close(pipefds[1]);
 
-    if (status == STATUS_OK) {
-        base::ReadFdToString(pipefds[0], &str);
-    } else {
+    if (status != STATUS_OK) {
         ALOGE("dumpDebugInfo: dump failed: %d", status);
     }
 
+    t.join();
     close(pipefds[0]);
     return str;
 }
