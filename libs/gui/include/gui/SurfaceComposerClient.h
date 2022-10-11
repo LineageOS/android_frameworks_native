@@ -355,7 +355,8 @@ public:
     sp<SurfaceControl> mirrorDisplay(DisplayId displayId);
 
     //! Create a virtual display
-    static sp<IBinder> createDisplay(const String8& displayName, bool secure);
+    static sp<IBinder> createDisplay(const String8& displayName, bool secure,
+                                     float requestedRefereshRate = 0);
 
     //! Destroy a virtual display
     static void destroyDisplay(const sp<IBinder>& display);

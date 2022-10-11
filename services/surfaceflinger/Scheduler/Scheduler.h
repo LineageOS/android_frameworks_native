@@ -231,6 +231,9 @@ public:
     // for a given uid
     bool isVsyncValid(TimePoint expectedVsyncTimestamp, uid_t uid) const;
 
+    // Checks if a vsync timestamp is in phase for a frame rate
+    bool isVsyncInPhase(TimePoint timePoint, const Fps frameRate) const;
+
     void dump(utils::Dumper&) const;
     void dump(ConnectionHandle, std::string&) const;
     void dumpVsync(std::string&) const;
@@ -260,6 +263,10 @@ public:
 
     Period getLeaderVsyncPeriod() const EXCLUDES(mDisplayLock) {
         return leaderSelectorPtr()->getActiveMode().fps.getPeriod();
+    }
+
+    Fps getLeaderRefreshRate() const EXCLUDES(mDisplayLock) {
+        return leaderSelectorPtr()->getActiveMode().fps;
     }
 
     // Returns the framerate of the layer with the given sequence ID

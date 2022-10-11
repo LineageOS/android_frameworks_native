@@ -245,6 +245,12 @@ public:
 
     nsecs_t getVsyncPeriodFromHWC() const;
 
+    Fps getAdjustedRefreshRate() const { return mAdjustedRefreshRate; }
+
+    // Round the requested refresh rate to match a divisor of the leader
+    // display's refresh rate. Only supported for virtual displays.
+    void adjustRefreshRate(Fps leaderDisplayRefreshRate);
+
     // release HWC resources (if any) for removable displays
     void disconnect();
 
@@ -278,6 +284,15 @@ private:
     const bool mIsPrimary;
 
     uint32_t mFlags = 0;
+
+    // Requested refresh rate in fps, supported only for virtual displays.
+    // when this value is non zero, SurfaceFlinger will try to drop frames
+    // for virtual displays to match this requested refresh rate.
+    const Fps mRequestedRefreshRate;
+
+    // Adjusted refresh rate, rounded to match a divisor of the leader
+    // display's refresh rate. Only supported for virtual displays.
+    Fps mAdjustedRefreshRate = 0_Hz;
 
     std::vector<ui::Hdr> mOverrideHdrTypes;
 
@@ -316,6 +331,8 @@ struct DisplayDeviceState {
     uint32_t height = 0;
     std::string displayName;
     bool isSecure = false;
+    // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only
+    Fps requestedRefreshRate;
 
 private:
     static std::atomic<int32_t> sNextSequenceId;
@@ -345,6 +362,8 @@ struct DisplayDeviceCreationArgs {
     std::optional<hardware::graphics::composer::hal::PowerMode> initialPowerMode;
     bool isPrimary{false};
     DisplayModeId activeModeId;
+    // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only
+    Fps requestedRefreshRate;
 };
 
 } // namespace android
