@@ -24,41 +24,69 @@ namespace android {
 
 // --- Static Definitions ---
 
-static int32_t rotateValueUsingRotationMap(int32_t value, int32_t orientation,
-                                           const int32_t map[][4], size_t mapSize) {
+static int32_t rotateKeyCode(int32_t keyCode, int32_t orientation) {
+    static constexpr int32_t KEYCODE_ROTATION_MAP[][4] = {
+            // key codes enumerated counter-clockwise with the original (unrotated) key first
+            // no rotation,        90 degree rotation,  180 degree rotation, 270 degree rotation
+            {AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT},
+            {AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN},
+            {AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT},
+            {AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP},
+            {AKEYCODE_SYSTEM_NAVIGATION_DOWN, AKEYCODE_SYSTEM_NAVIGATION_RIGHT,
+             AKEYCODE_SYSTEM_NAVIGATION_UP, AKEYCODE_SYSTEM_NAVIGATION_LEFT},
+            {AKEYCODE_SYSTEM_NAVIGATION_RIGHT, AKEYCODE_SYSTEM_NAVIGATION_UP,
+             AKEYCODE_SYSTEM_NAVIGATION_LEFT, AKEYCODE_SYSTEM_NAVIGATION_DOWN},
+            {AKEYCODE_SYSTEM_NAVIGATION_UP, AKEYCODE_SYSTEM_NAVIGATION_LEFT,
+             AKEYCODE_SYSTEM_NAVIGATION_DOWN, AKEYCODE_SYSTEM_NAVIGATION_RIGHT},
+            {AKEYCODE_SYSTEM_NAVIGATION_LEFT, AKEYCODE_SYSTEM_NAVIGATION_DOWN,
+             AKEYCODE_SYSTEM_NAVIGATION_RIGHT, AKEYCODE_SYSTEM_NAVIGATION_UP},
+    };
+
+    LOG_ALWAYS_FATAL_IF(orientation < 0 || orientation > 3, "Invalid orientation: %d", orientation);
     if (orientation != DISPLAY_ORIENTATION_0) {
-        for (size_t i = 0; i < mapSize; i++) {
-            if (value == map[i][0]) {
-                return map[i][orientation];
+        for (const auto& rotation : KEYCODE_ROTATION_MAP) {
+            if (rotation[DISPLAY_ORIENTATION_0] == keyCode) {
+                return rotation[orientation];
             }
         }
     }
-    return value;
+    return keyCode;
 }
 
-static const int32_t keyCodeRotationMap[][4] = {
-        // key codes enumerated counter-clockwise with the original (unrotated) key first
-        // no rotation,        90 degree rotation,  180 degree rotation, 270 degree rotation
-        {AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT},
-        {AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN},
-        {AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT},
-        {AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP},
-        {AKEYCODE_SYSTEM_NAVIGATION_DOWN, AKEYCODE_SYSTEM_NAVIGATION_RIGHT,
-         AKEYCODE_SYSTEM_NAVIGATION_UP, AKEYCODE_SYSTEM_NAVIGATION_LEFT},
-        {AKEYCODE_SYSTEM_NAVIGATION_RIGHT, AKEYCODE_SYSTEM_NAVIGATION_UP,
-         AKEYCODE_SYSTEM_NAVIGATION_LEFT, AKEYCODE_SYSTEM_NAVIGATION_DOWN},
-        {AKEYCODE_SYSTEM_NAVIGATION_UP, AKEYCODE_SYSTEM_NAVIGATION_LEFT,
-         AKEYCODE_SYSTEM_NAVIGATION_DOWN, AKEYCODE_SYSTEM_NAVIGATION_RIGHT},
-        {AKEYCODE_SYSTEM_NAVIGATION_LEFT, AKEYCODE_SYSTEM_NAVIGATION_DOWN,
-         AKEYCODE_SYSTEM_NAVIGATION_RIGHT, AKEYCODE_SYSTEM_NAVIGATION_UP},
-};
+static bool isKeyboardOrGamepadKey(int32_t scanCode) {
+    return scanCode < BTN_MOUSE || scanCode >= BTN_WHEEL ||
+            (scanCode >= BTN_MISC && scanCode < BTN_MOUSE) ||
+            (scanCode >= BTN_JOYSTICK && scanCode < BTN_DIGI);
+}
 
-static const size_t keyCodeRotationMapSize =
-        sizeof(keyCodeRotationMap) / sizeof(keyCodeRotationMap[0]);
-
-static int32_t rotateKeyCode(int32_t keyCode, int32_t orientation) {
-    return rotateValueUsingRotationMap(keyCode, orientation, keyCodeRotationMap,
-                                       keyCodeRotationMapSize);
+static bool isMediaKey(int32_t keyCode) {
+    switch (keyCode) {
+        case AKEYCODE_MEDIA_PLAY:
+        case AKEYCODE_MEDIA_PAUSE:
+        case AKEYCODE_MEDIA_PLAY_PAUSE:
+        case AKEYCODE_MUTE:
+        case AKEYCODE_HEADSETHOOK:
+        case AKEYCODE_MEDIA_STOP:
+        case AKEYCODE_MEDIA_NEXT:
+        case AKEYCODE_MEDIA_PREVIOUS:
+        case AKEYCODE_MEDIA_REWIND:
+        case AKEYCODE_MEDIA_RECORD:
+        case AKEYCODE_MEDIA_FAST_FORWARD:
+        case AKEYCODE_MEDIA_SKIP_FORWARD:
+        case AKEYCODE_MEDIA_SKIP_BACKWARD:
+        case AKEYCODE_MEDIA_STEP_FORWARD:
+        case AKEYCODE_MEDIA_STEP_BACKWARD:
+        case AKEYCODE_MEDIA_AUDIO_TRACK:
+        case AKEYCODE_VOLUME_UP:
+        case AKEYCODE_VOLUME_DOWN:
+        case AKEYCODE_VOLUME_MUTE:
+        case AKEYCODE_TV_AUDIO_DESCRIPTION:
+        case AKEYCODE_TV_AUDIO_DESCRIPTION_MIX_UP:
+        case AKEYCODE_TV_AUDIO_DESCRIPTION_MIX_DOWN:
+            return true;
+        default:
+            return false;
+    }
 }
 
 // --- KeyboardInputMapper ---
@@ -66,8 +94,6 @@ static int32_t rotateKeyCode(int32_t keyCode, int32_t orientation) {
 KeyboardInputMapper::KeyboardInputMapper(InputDeviceContext& deviceContext, uint32_t source,
                                          int32_t keyboardType)
       : InputMapper(deviceContext), mSource(source), mKeyboardType(keyboardType) {}
-
-KeyboardInputMapper::~KeyboardInputMapper() {}
 
 uint32_t KeyboardInputMapper::getSources() const {
     return mSource;
@@ -104,7 +130,7 @@ void KeyboardInputMapper::dump(std::string& dump) {
 }
 
 std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
-        nsecs_t when, const InputReaderConfiguration* config) {
+        const InputReaderConfiguration* config) {
     if (getDeviceContext().getAssociatedViewport()) {
         return getDeviceContext().getAssociatedViewport();
     }
@@ -128,7 +154,7 @@ std::list<NotifyArgs> KeyboardInputMapper::configure(nsecs_t when,
     }
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-        mViewport = findViewport(when, config);
+        mViewport = findViewport(config);
     }
     return out;
 }
@@ -145,7 +171,7 @@ void KeyboardInputMapper::configureParameters() {
     config.tryGetProperty("keyboard.doNotWakeByDefault", mParameters.doNotWakeByDefault);
 }
 
-void KeyboardInputMapper::dumpParameters(std::string& dump) {
+void KeyboardInputMapper::dumpParameters(std::string& dump) const {
     dump += INDENT3 "Parameters:\n";
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
     dump += StringPrintf(INDENT4 "HandlesKeyRepeat: %s\n", toString(mParameters.handlesKeyRepeat));
@@ -190,41 +216,6 @@ std::list<NotifyArgs> KeyboardInputMapper::process(const RawEvent* rawEvent) {
     return out;
 }
 
-bool KeyboardInputMapper::isKeyboardOrGamepadKey(int32_t scanCode) {
-    return scanCode < BTN_MOUSE || scanCode >= BTN_WHEEL ||
-            (scanCode >= BTN_MISC && scanCode < BTN_MOUSE) ||
-            (scanCode >= BTN_JOYSTICK && scanCode < BTN_DIGI);
-}
-
-bool KeyboardInputMapper::isMediaKey(int32_t keyCode) {
-    switch (keyCode) {
-        case AKEYCODE_MEDIA_PLAY:
-        case AKEYCODE_MEDIA_PAUSE:
-        case AKEYCODE_MEDIA_PLAY_PAUSE:
-        case AKEYCODE_MUTE:
-        case AKEYCODE_HEADSETHOOK:
-        case AKEYCODE_MEDIA_STOP:
-        case AKEYCODE_MEDIA_NEXT:
-        case AKEYCODE_MEDIA_PREVIOUS:
-        case AKEYCODE_MEDIA_REWIND:
-        case AKEYCODE_MEDIA_RECORD:
-        case AKEYCODE_MEDIA_FAST_FORWARD:
-        case AKEYCODE_MEDIA_SKIP_FORWARD:
-        case AKEYCODE_MEDIA_SKIP_BACKWARD:
-        case AKEYCODE_MEDIA_STEP_FORWARD:
-        case AKEYCODE_MEDIA_STEP_BACKWARD:
-        case AKEYCODE_MEDIA_AUDIO_TRACK:
-        case AKEYCODE_VOLUME_UP:
-        case AKEYCODE_VOLUME_DOWN:
-        case AKEYCODE_VOLUME_MUTE:
-        case AKEYCODE_TV_AUDIO_DESCRIPTION:
-        case AKEYCODE_TV_AUDIO_DESCRIPTION_MIX_UP:
-        case AKEYCODE_TV_AUDIO_DESCRIPTION_MIX_DOWN:
-            return true;
-    }
-    return false;
-}
-
 std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down,
                                                       int32_t scanCode, int32_t usageCode) {
     std::list<NotifyArgs> out;
@@ -240,6 +231,7 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
     }
 
     nsecs_t downTime = when;
+    std::optional<size_t> keyDownIndex = findKeyDownIndex(scanCode);
     if (down) {
         // Rotate key codes according to orientation if needed.
         if (mParameters.orientationAware) {
@@ -247,11 +239,10 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
         }
 
         // Add key down.
-        ssize_t keyDownIndex = findKeyDown(scanCode);
-        if (keyDownIndex >= 0) {
+        if (keyDownIndex) {
             // key repeat, be sure to use same keycode as before in case of rotation
-            keyCode = mKeyDowns[keyDownIndex].keyCode;
-            downTime = mKeyDowns[keyDownIndex].downTime;
+            keyCode = mKeyDowns[*keyDownIndex].keyCode;
+            downTime = mKeyDowns[*keyDownIndex].downTime;
         } else {
             // key down
             if ((policyFlags & POLICY_FLAG_VIRTUAL) &&
@@ -270,12 +261,11 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
         }
     } else {
         // Remove key down.
-        ssize_t keyDownIndex = findKeyDown(scanCode);
-        if (keyDownIndex >= 0) {
+        if (keyDownIndex) {
             // key up, be sure to use same keycode as before in case of rotation
-            keyCode = mKeyDowns[keyDownIndex].keyCode;
-            downTime = mKeyDowns[keyDownIndex].downTime;
-            mKeyDowns.erase(mKeyDowns.begin() + (size_t)keyDownIndex);
+            keyCode = mKeyDowns[*keyDownIndex].keyCode;
+            downTime = mKeyDowns[*keyDownIndex].downTime;
+            mKeyDowns.erase(mKeyDowns.begin() + *keyDownIndex);
         } else {
             // key was not actually down
             ALOGI("Dropping key up from device %s because the key was not down.  "
@@ -308,22 +298,22 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    out.push_back(NotifyKeyArgs(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
-                                getDisplayId(), policyFlags,
-                                down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
-                                AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState,
-                                downTime));
+    out.emplace_back(NotifyKeyArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
+                                   mSource, getDisplayId(), policyFlags,
+                                   down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
+                                   AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState,
+                                   downTime));
     return out;
 }
 
-ssize_t KeyboardInputMapper::findKeyDown(int32_t scanCode) {
+std::optional<size_t> KeyboardInputMapper::findKeyDownIndex(int32_t scanCode) {
     size_t n = mKeyDowns.size();
     for (size_t i = 0; i < n; i++) {
         if (mKeyDowns[i].scanCode == scanCode) {
             return i;
         }
     }
-    return -1;
+    return {};
 }
 
 int32_t KeyboardInputMapper::getKeyCodeState(uint32_t sourceMask, int32_t keyCode) {
@@ -436,12 +426,12 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
     std::list<NotifyArgs> out;
     size_t n = mKeyDowns.size();
     for (size_t i = 0; i < n; i++) {
-        out.push_back(NotifyKeyArgs(getContext()->getNextId(), when,
-                                    systemTime(SYSTEM_TIME_MONOTONIC), getDeviceId(), mSource,
-                                    getDisplayId(), 0 /*policyFlags*/, AKEY_EVENT_ACTION_UP,
-                                    AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED,
-                                    mKeyDowns[i].keyCode, mKeyDowns[i].scanCode, AMETA_NONE,
-                                    mKeyDowns[i].downTime));
+        out.emplace_back(NotifyKeyArgs(getContext()->getNextId(), when,
+                                       systemTime(SYSTEM_TIME_MONOTONIC), getDeviceId(), mSource,
+                                       getDisplayId(), 0 /*policyFlags*/, AKEY_EVENT_ACTION_UP,
+                                       AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED,
+                                       mKeyDowns[i].keyCode, mKeyDowns[i].scanCode, AMETA_NONE,
+                                       mKeyDowns[i].downTime));
     }
     mKeyDowns.clear();
     mMetaState = AMETA_NONE;
