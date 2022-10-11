@@ -98,8 +98,7 @@ message LayerState {
         eReparent = 0x00008000;
 
         eColorChanged = 0x00010000;
-        eDestroySurface = 0x00020000;
-        eTransformChanged = 0x00040000;
+        eBufferTransformChanged = 0x00040000;
         eTransformToDisplayInverseChanged = 0x00080000;
 
         eCropChanged = 0x00100000;

@@ -148,12 +148,14 @@ struct layer_state_t {
     enum {
         ePositionChanged = 0x00000001,
         eLayerChanged = 0x00000002,
-        // unused = 0x00000004,
+        /* unused = 0x00000004, */
         eAlphaChanged = 0x00000008,
         eMatrixChanged = 0x00000010,
         eTransparentRegionChanged = 0x00000020,
         eFlagsChanged = 0x00000040,
         eLayerStackChanged = 0x00000080,
+        /* unused = 0x00000100, */
+        /* unused = 0x00000200, */
         eDimmingEnabledChanged = 0x00000400,
         eShadowRadiusChanged = 0x00000800,
         eRenderBorderChanged = 0x00001000,
@@ -161,8 +163,8 @@ struct layer_state_t {
         eRelativeLayerChanged = 0x00004000,
         eReparent = 0x00008000,
         eColorChanged = 0x00010000,
-        eDestroySurface = 0x00020000,
-        eTransformChanged = 0x00040000,
+        /* unused = 0x00020000, */
+        eBufferTransformChanged = 0x00040000,
         eTransformToDisplayInverseChanged = 0x00080000,
         eCropChanged = 0x00100000,
         eBufferChanged = 0x00200000,
@@ -218,25 +220,22 @@ struct layer_state_t {
     float y;
     int32_t z;
     ui::LayerStack layerStack = ui::DEFAULT_LAYER_STACK;
-    float alpha;
     uint32_t flags;
     uint32_t mask;
     uint8_t reserved;
     matrix22_t matrix;
     float cornerRadius;
     uint32_t backgroundBlurRadius;
-    sp<SurfaceControl> reparentSurfaceControl;
 
     sp<SurfaceControl> relativeLayerSurfaceControl;
 
     sp<SurfaceControl> parentSurfaceControlForChild;
 
-    half3 color;
+    half4 color;
 
     // non POD must be last. see write/read
     Region transparentRegion;
-
-    uint32_t transform;
+    uint32_t bufferTransform;
     bool transformToDisplayInverse;
     Rect crop;
     std::shared_ptr<BufferData> bufferData = nullptr;
