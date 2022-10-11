@@ -115,12 +115,6 @@ struct AggregatedFpsScore {
     size_t numDisplays;
 };
 
-// Represents LayerRequirements and GlobalSignals to be considered for the display mode selection.
-struct DisplayModeSelectionParams {
-    std::vector<RefreshRateConfigs::LayerRequirement> layerRequirements;
-    GlobalSignals globalSignals;
-};
-
 // Represents the RefreshRateRankings and GlobalSignals for the selected RefreshRateRankings.
 struct RefreshRateRankingsAndSignals {
     std::vector<RefreshRateRanking> refreshRateRankings;
@@ -296,11 +290,6 @@ private:
     template <typename S, typename T>
     GlobalSignals applyPolicy(S Policy::*, T&&) EXCLUDES(mPolicyLock);
 
-    // Returns the list of display modes in descending order of their priority that fulfills the
-    // policy, and the signals that were considered.
-    std::pair<std::vector<RefreshRateRanking>, GlobalSignals> getRankedDisplayModes()
-            REQUIRES(mPolicyLock);
-
     // Returns the best display mode per display.
     std::vector<DisplayModeConfig> getBestDisplayModeConfigs() const REQUIRES(mPolicyLock);
 
@@ -308,9 +297,7 @@ private:
     std::vector<DisplayModeConfig> getDisplayModeConfigsForTheChosenFps(
             Fps chosenFps, const std::vector<RefreshRateRankingsAndSignals>&) const;
 
-    // Returns the DisplayModeSelectionParams to be considered for the
-    // DisplayMode selection based on the current Policy and GlobalSignals.
-    DisplayModeSelectionParams getDisplayModeSelectionParams() const REQUIRES(mPolicyLock);
+    GlobalSignals makeGlobalSignals() const REQUIRES(mPolicyLock);
 
     bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
 
