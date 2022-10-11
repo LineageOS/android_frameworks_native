@@ -169,11 +169,11 @@ public:
                 (const sp<IBinder>& handle, gui::FrameStats* outStats), (override));
 
     MOCK_METHOD(binder::Status, mirrorSurface,
-                (const sp<IBinder>& mirrorFromHandle, gui::MirrorSurfaceResult* outResult),
+                (const sp<IBinder>& mirrorFromHandle, gui::CreateSurfaceResult* outResult),
                 (override));
 
     MOCK_METHOD(binder::Status, mirrorDisplay,
-                (int64_t displayId, gui::MirrorSurfaceResult* outResult), (override));
+                (int64_t displayId, gui::CreateSurfaceResult* outResult), (override));
 };
 
 class FakeDisplayEventDispatcher : public DisplayEventDispatcher {

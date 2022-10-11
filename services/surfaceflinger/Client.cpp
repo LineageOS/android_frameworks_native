@@ -81,17 +81,9 @@ binder::Status Client::createSurface(const std::string& name, int32_t flags,
                                      gui::CreateSurfaceResult* outResult) {
     // We rely on createLayer to check permissions.
     sp<IBinder> handle;
-    int32_t layerId;
-    uint32_t transformHint;
     LayerCreationArgs args(mFlinger.get(), sp<Client>::fromExisting(this), name.c_str(),
                            static_cast<uint32_t>(flags), std::move(metadata));
-    const status_t status =
-            mFlinger->createLayer(args, &handle, parent, &layerId, nullptr, &transformHint);
-    if (status == NO_ERROR) {
-        outResult->handle = handle;
-        outResult->layerId = layerId;
-        outResult->transformHint = static_cast<int32_t>(transformHint);
-    }
+    const status_t status = mFlinger->createLayer(args, parent, *outResult);
     return binderStatusFromStatusT(status);
 }
 
@@ -134,31 +126,21 @@ binder::Status Client::getLayerFrameStats(const sp<IBinder>& handle, gui::FrameS
 }
 
 binder::Status Client::mirrorSurface(const sp<IBinder>& mirrorFromHandle,
-                                     gui::MirrorSurfaceResult* outResult) {
+                                     gui::CreateSurfaceResult* outResult) {
     sp<IBinder> handle;
-    int32_t layerId;
     LayerCreationArgs args(mFlinger.get(), sp<Client>::fromExisting(this), "MirrorRoot",
                            0 /* flags */, gui::LayerMetadata());
-    status_t status = mFlinger->mirrorLayer(args, mirrorFromHandle, &handle, &layerId);
-    if (status == NO_ERROR) {
-        outResult->handle = handle;
-        outResult->layerId = layerId;
-    }
+    status_t status = mFlinger->mirrorLayer(args, mirrorFromHandle, *outResult);
     return binderStatusFromStatusT(status);
 }
 
-binder::Status Client::mirrorDisplay(int64_t displayId, gui::MirrorSurfaceResult* outResult) {
+binder::Status Client::mirrorDisplay(int64_t displayId, gui::CreateSurfaceResult* outResult) {
     sp<IBinder> handle;
-    int32_t layerId;
     LayerCreationArgs args(mFlinger.get(), sp<Client>::fromExisting(this),
                            "MirrorRoot-" + std::to_string(displayId), 0 /* flags */,
                            gui::LayerMetadata());
     std::optional<DisplayId> id = DisplayId::fromValue(static_cast<uint64_t>(displayId));
-    status_t status = mFlinger->mirrorDisplay(*id, args, &handle, &layerId);
-    if (status == NO_ERROR) {
-        outResult->handle = handle;
-        outResult->layerId = layerId;
-    }
+    status_t status = mFlinger->mirrorDisplay(*id, args, *outResult);
     return binderStatusFromStatusT(status);
 }
 
