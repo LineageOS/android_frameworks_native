@@ -48,7 +48,7 @@ protected:
     }
 
     sp<SurfaceControl> makeNotSurfaceControl() {
-        return sp<SurfaceControl>::make(mScc, sp<NotALayer>::make(), 1);
+        return sp<SurfaceControl>::make(mScc, sp<NotALayer>::make(), 1, "#1");
     }
 };
 

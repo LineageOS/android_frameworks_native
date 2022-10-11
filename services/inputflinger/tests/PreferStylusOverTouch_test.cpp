@@ -33,14 +33,8 @@ static constexpr int32_t POINTER_1_DOWN =
 constexpr int32_t TOUCHSCREEN = AINPUT_SOURCE_TOUCHSCREEN;
 constexpr int32_t STYLUS = AINPUT_SOURCE_STYLUS;
 
-struct PointerData {
-    float x;
-    float y;
-};
-
 static NotifyMotionArgs generateMotionArgs(nsecs_t downTime, nsecs_t eventTime, int32_t action,
-                                           const std::vector<PointerData>& points,
-                                           uint32_t source) {
+                                           const std::vector<Point>& points, uint32_t source) {
     size_t pointerCount = points.size();
     if (action == DOWN || action == UP) {
         EXPECT_EQ(1U, pointerCount) << "Actions DOWN and UP can only contain a single pointer";
