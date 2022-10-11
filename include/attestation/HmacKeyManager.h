@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#ifndef ATTESTATION_HMACKEYMANAGER_H
+#define ATTESTATION_HMACKEYMANAGER_H
+
 #include <array>
 
 namespace android {
@@ -30,3 +33,5 @@ private:
     const std::array<uint8_t, 128> mHmacKey;
 };
 } // namespace android
+
+#endif // ATTESTATION_HMACKEYMANAGER_H
