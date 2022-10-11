@@ -65,6 +65,7 @@ protected:
     static inline const DisplayModePtr kMode120_1 = createDisplayMode(DisplayModeId(1), 120_Hz);
     static inline const DisplayModePtr kMode60_2 = createDisplayMode(DisplayModeId(2), 60_Hz);
     static inline const DisplayModePtr kMode120_2 = createDisplayMode(DisplayModeId(3), 120_Hz);
+    static inline const DisplayModePtr kMode60_3 = createDisplayMode(DisplayModeId(4), 60_Hz);
 
     std::shared_ptr<RefreshRateConfigs> mConfigs =
             std::make_shared<RefreshRateConfigs>(makeModes(kMode60_1), kMode60_1->getId());
@@ -305,7 +306,7 @@ TEST_F(SchedulerTest, getBestDisplayModes_multipleDisplays) {
     mScheduler->registerDisplay(display1);
     mScheduler->registerDisplay(display2);
 
-    const std::vector<sp<DisplayDevice>>& expectedDisplays = {display1, display2};
+    std::vector<sp<DisplayDevice>> expectedDisplays = {display1, display2};
     std::vector<RefreshRateConfigs::LayerRequirement> layers = {{.weight = 1.f}, {.weight = 1.f}};
     GlobalSignals globalSignals = {.idle = true};
     std::vector<DisplayModeConfig> expectedConfigs = {DisplayModeConfig{globalSignals, kMode60_1},
@@ -340,6 +341,32 @@ TEST_F(SchedulerTest, getBestDisplayModes_multipleDisplays) {
 
     globalSignals = {.touch = true};
     mScheduler->replaceTouchTimer(10);
+    mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
+    displayModeConfigs = mScheduler->getBestDisplayModeConfigs();
+    ASSERT_EQ(expectedConfigs.size(), displayModeConfigs.size());
+    for (size_t i = 0; i < expectedConfigs.size(); ++i) {
+        EXPECT_EQ(expectedConfigs.at(i).displayModePtr, displayModeConfigs.at(i).displayModePtr)
+                << "Expected fps " << expectedConfigs.at(i).displayModePtr->getFps().getIntValue()
+                << " Actual fps "
+                << displayModeConfigs.at(i).displayModePtr->getFps().getIntValue();
+        EXPECT_EQ(globalSignals, displayModeConfigs.at(i).signals);
+    }
+
+    // Filters out the 120Hz as it's not present on the display3, even with touch active
+    // we select 60Hz here.
+    auto display3 = mFakeDisplayInjector.injectDefaultInternalDisplay(
+            [&](FakeDisplayDeviceInjector& injector) {
+                injector.setDisplayModes(makeModes(kMode60_3), kMode60_3->getId());
+            },
+            mFlinger, /* port */ 252u);
+    mScheduler->registerDisplay(display3);
+
+    expectedDisplays = {display1, display2, display3};
+    globalSignals = {.touch = true};
+    mScheduler->replaceTouchTimer(10);
+    expectedConfigs = std::vector<DisplayModeConfig>{DisplayModeConfig{globalSignals, kMode60_1},
+                                                     DisplayModeConfig{globalSignals, kMode60_2},
+                                                     DisplayModeConfig{globalSignals, kMode60_3}};
     mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
     displayModeConfigs = mScheduler->getBestDisplayModeConfigs();
     ASSERT_EQ(expectedConfigs.size(), displayModeConfigs.size());
