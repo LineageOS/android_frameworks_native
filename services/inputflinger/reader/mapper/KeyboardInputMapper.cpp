@@ -56,33 +56,7 @@ static const int32_t keyCodeRotationMap[][4] = {
 static const size_t keyCodeRotationMapSize =
         sizeof(keyCodeRotationMap) / sizeof(keyCodeRotationMap[0]);
 
-static int32_t rotateStemKey(int32_t value, int32_t orientation, const int32_t map[][2],
-                             size_t mapSize) {
-    if (orientation == DISPLAY_ORIENTATION_180) {
-        for (size_t i = 0; i < mapSize; i++) {
-            if (value == map[i][0]) {
-                return map[i][1];
-            }
-        }
-    }
-    return value;
-}
-
-// The mapping can be defined using input device configuration properties keyboard.rotated.stem_X
-static int32_t stemKeyRotationMap[][2] = {
-        // key codes enumerated with the original (unrotated) key first
-        // no rotation,           180 degree rotation
-        {AKEYCODE_STEM_PRIMARY, AKEYCODE_STEM_PRIMARY},
-        {AKEYCODE_STEM_1, AKEYCODE_STEM_1},
-        {AKEYCODE_STEM_2, AKEYCODE_STEM_2},
-        {AKEYCODE_STEM_3, AKEYCODE_STEM_3},
-};
-
-static const size_t stemKeyRotationMapSize =
-        sizeof(stemKeyRotationMap) / sizeof(stemKeyRotationMap[0]);
-
 static int32_t rotateKeyCode(int32_t keyCode, int32_t orientation) {
-    keyCode = rotateStemKey(keyCode, orientation, stemKeyRotationMap, stemKeyRotationMapSize);
     return rotateValueUsingRotationMap(keyCode, orientation, keyCodeRotationMap,
                                        keyCodeRotationMapSize);
 }
@@ -159,29 +133,10 @@ std::list<NotifyArgs> KeyboardInputMapper::configure(nsecs_t when,
     return out;
 }
 
-static void mapStemKey(int32_t keyCode, const PropertyMap& config, char const* property) {
-    int32_t mapped = 0;
-    if (config.tryGetProperty(property, mapped) && mapped > 0) {
-        for (size_t i = 0; i < stemKeyRotationMapSize; i++) {
-            if (stemKeyRotationMap[i][0] == keyCode) {
-                stemKeyRotationMap[i][1] = mapped;
-                return;
-            }
-        }
-    }
-}
-
 void KeyboardInputMapper::configureParameters() {
     mParameters.orientationAware = false;
     const PropertyMap& config = getDeviceContext().getConfiguration();
     config.tryGetProperty("keyboard.orientationAware", mParameters.orientationAware);
-
-    if (mParameters.orientationAware) {
-        mapStemKey(AKEYCODE_STEM_PRIMARY, config, "keyboard.rotated.stem_primary");
-        mapStemKey(AKEYCODE_STEM_1, config, "keyboard.rotated.stem_1");
-        mapStemKey(AKEYCODE_STEM_2, config, "keyboard.rotated.stem_2");
-        mapStemKey(AKEYCODE_STEM_3, config, "keyboard.rotated.stem_3");
-    }
 
     mParameters.handlesKeyRepeat = false;
     config.tryGetProperty("keyboard.handlesKeyRepeat", mParameters.handlesKeyRepeat);
