@@ -161,6 +161,10 @@ public:
         ASSERT_EQ(numFramesSubmitted, mBlastBufferQueueAdapter->mSubmitted.size());
     }
 
+    void mergeWithNextTransaction(Transaction* merge, uint64_t frameNumber) {
+        mBlastBufferQueueAdapter->mergeWithNextTransaction(merge, frameNumber);
+    }
+
 private:
     sp<TestBLASTBufferQueue> mBlastBufferQueueAdapter;
 };
@@ -1109,6 +1113,39 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionOverwrite) {
     }
 
     ASSERT_TRUE(receivedCallback);
+}
+
+TEST_F(BLASTBufferQueueTest, SyncNextTransactionDropBuffer) {
+    uint8_t r = 255;
+    uint8_t g = 0;
+    uint8_t b = 0;
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+
+    Transaction sync;
+    adapter.setSyncTransaction(sync);
+    queueBuffer(igbProducer, 0, 255, 0, 0);
+
+    // Merge a transaction that has a complete callback into the next frame so we can get notified
+    // when to take a screenshot
+    CallbackHelper transactionCallback;
+    Transaction t;
+    t.addTransactionCompletedCallback(transactionCallback.function,
+                                      transactionCallback.getContext());
+    adapter.mergeWithNextTransaction(&t, 2);
+    queueBuffer(igbProducer, r, g, b, 0);
+
+    // Drop the buffer, but ensure the next one continues to get processed.
+    sync.setBuffer(mSurfaceControl, nullptr);
+
+    CallbackData callbackData;
+    transactionCallback.getCallbackData(&callbackData);
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
 
 // This test will currently fail because the old surfacecontrol will steal the last presented buffer

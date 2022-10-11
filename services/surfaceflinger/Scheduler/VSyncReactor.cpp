@@ -147,6 +147,11 @@ bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_
         return false;
     }
 
+    if (mDisplayPowerMode == hal::PowerMode::DOZE ||
+        mDisplayPowerMode == hal::PowerMode::DOZE_SUSPEND) {
+        return true;
+    }
+
     if (!mLastHwVsync && !HwcVsyncPeriod) {
         return false;
     }
@@ -205,6 +210,11 @@ bool VSyncReactor::addHwVsyncTimestamp(nsecs_t timestamp, std::optional<nsecs_t>
         setIgnorePresentFencesInternal(false);
     }
     return mMoreSamplesNeeded;
+}
+
+void VSyncReactor::setDisplayPowerMode(hal::PowerMode powerMode) {
+    std::scoped_lock lock(mMutex);
+    mDisplayPowerMode = powerMode;
 }
 
 void VSyncReactor::dump(std::string& result) const {
