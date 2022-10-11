@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include "HidUsageAccumulator.h"
 
 namespace android {
 
@@ -26,9 +27,11 @@ struct RawEvent;
 /* Keeps track of the state of touch, stylus and tool buttons. */
 class TouchButtonAccumulator {
 public:
-    TouchButtonAccumulator() = default;
-    void configure(InputDeviceContext& deviceContext);
-    void reset(InputDeviceContext& deviceContext);
+    explicit TouchButtonAccumulator(InputDeviceContext& deviceContext)
+          : mDeviceContext(deviceContext){};
+
+    void configure();
+    void reset();
 
     void process(const RawEvent* rawEvent);
 
@@ -56,6 +59,12 @@ private:
     bool mBtnToolDoubleTap{};
     bool mBtnToolTripleTap{};
     bool mBtnToolQuadTap{};
+
+    HidUsageAccumulator mHidUsageAccumulator{};
+
+    InputDeviceContext& mDeviceContext;
+
+    void processMappedKey(int32_t scanCode, bool down);
 };
 
 } // namespace android

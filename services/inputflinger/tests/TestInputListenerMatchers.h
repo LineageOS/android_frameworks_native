@@ -86,4 +86,9 @@ MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {
     return arg.flags == flags;
 }
 
+MATCHER_P(WithButtonState, buttons, "InputEvent with specified button state") {
+    *result_listener << "expected button state " << buttons << ", but got " << arg.buttonState;
+    return arg.buttonState == buttons;
+}
+
 } // namespace android

@@ -378,8 +378,11 @@ public:
         mEventHub->getAbsoluteAxisInfo(mId, code, &info);
         return info.valid;
     }
-    inline bool isKeyPressed(int32_t code) const {
-        return mEventHub->getScanCodeState(mId, code) == AKEY_STATE_DOWN;
+    inline bool isKeyPressed(int32_t scanCode) const {
+        return mEventHub->getScanCodeState(mId, scanCode) == AKEY_STATE_DOWN;
+    }
+    inline bool isKeyCodePressed(int32_t keyCode) const {
+        return mEventHub->getKeyCodeState(mId, keyCode) == AKEY_STATE_DOWN;
     }
     inline int32_t getAbsoluteAxisValue(int32_t code) const {
         int32_t value;
