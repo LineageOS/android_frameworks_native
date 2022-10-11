@@ -892,6 +892,10 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
         mJankType = JankType::Unknown;
         deadlineDelta = 0;
         deltaToVsync = 0;
+        if (mSurfaceFlingerActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
+            mSurfaceFlingerActuals.presentTime = mSurfaceFlingerActuals.endTime;
+        }
+
         return;
     }
 
@@ -1168,12 +1172,39 @@ float FrameTimeline::computeFps(const std::unordered_set<int32_t>& layerIds) {
             static_cast<float>(totalPresentToPresentWalls);
 }
 
+std::optional<size_t> FrameTimeline::getFirstSignalFenceIndex() const {
+    for (size_t i = 0; i < mPendingPresentFences.size(); i++) {
+        const auto& [fence, _] = mPendingPresentFences[i];
+        if (fence && fence->isValid() && fence->getSignalTime() != Fence::SIGNAL_TIME_PENDING) {
+            return i;
+        }
+    }
+
+    return {};
+}
+
 void FrameTimeline::flushPendingPresentFences() {
+    const auto firstSignaledFence = getFirstSignalFenceIndex();
+    if (!firstSignaledFence.has_value()) {
+        return;
+    }
+
     // Perfetto is using boottime clock to void drifts when the device goes
     // to suspend.
     const auto monoBootOffset = mUseBootTimeClock
             ? (systemTime(SYSTEM_TIME_BOOTTIME) - systemTime(SYSTEM_TIME_MONOTONIC))
             : 0;
+
+    // Present fences are expected to be signaled in order. Mark all the previous
+    // pending fences as errors.
+    for (size_t i = 0; i < firstSignaledFence.value(); i++) {
+        const auto& pendingPresentFence = *mPendingPresentFences.begin();
+        const nsecs_t signalTime = Fence::SIGNAL_TIME_INVALID;
+        auto& displayFrame = pendingPresentFence.second;
+        displayFrame->onPresent(signalTime, mPreviousPresentTime);
+        displayFrame->trace(mSurfaceFlingerPid, monoBootOffset);
+        mPendingPresentFences.erase(mPendingPresentFences.begin());
+    }
 
     for (size_t i = 0; i < mPendingPresentFences.size(); i++) {
         const auto& pendingPresentFence = mPendingPresentFences[i];
@@ -1181,9 +1212,10 @@ void FrameTimeline::flushPendingPresentFences() {
         if (pendingPresentFence.first && pendingPresentFence.first->isValid()) {
             signalTime = pendingPresentFence.first->getSignalTime();
             if (signalTime == Fence::SIGNAL_TIME_PENDING) {
-                continue;
+                break;
             }
         }
+
         auto& displayFrame = pendingPresentFence.second;
         displayFrame->onPresent(signalTime, mPreviousPresentTime);
         displayFrame->trace(mSurfaceFlingerPid, monoBootOffset);
