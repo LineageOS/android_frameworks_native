@@ -358,10 +358,6 @@ public:
     //! Get token for a physical display given its stable ID
     static sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId);
 
-    static status_t enableVSyncInjections(bool enable);
-
-    static status_t injectVSync(nsecs_t when);
-
     struct SCHash {
         std::size_t operator()(const sp<SurfaceControl>& sc) const {
             return std::hash<SurfaceControl *>{}(sc.get());

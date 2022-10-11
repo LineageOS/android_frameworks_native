@@ -271,10 +271,6 @@ void SurfaceComposerClientFuzzer::invokeSurfaceComposerClient() {
     sp<Surface> surfaceParent(
             new Surface(producer, mFdp.ConsumeBool() /*controlledByApp*/, handle));
 
-    SurfaceComposerClient::enableVSyncInjections(mFdp.ConsumeBool() /*secure*/);
-    nsecs_t when = mFdp.ConsumeIntegral<uint32_t>();
-    SurfaceComposerClient::injectVSync(when);
-
     fuzzOnPullAtom();
     SurfaceComposerClient::setDisplayContentSamplingEnabled(displayToken,
                                                             mFdp.ConsumeBool() /*enable*/,

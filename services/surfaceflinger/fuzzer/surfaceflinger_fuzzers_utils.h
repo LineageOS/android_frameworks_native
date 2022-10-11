@@ -576,8 +576,6 @@ public:
 
         onPullAtom(&mFdp);
 
-        mFlinger->injectVSync(mFdp.ConsumeIntegral<nsecs_t>());
-
         getCompositionPreference();
         getDisplayedContentSample(display, &mFdp);
         getDesiredDisplayModeSpecs(display);

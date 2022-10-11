@@ -2237,18 +2237,6 @@ status_t SurfaceComposerClient::getLayerFrameStats(const sp<IBinder>& token,
 
 // ----------------------------------------------------------------------------
 
-status_t SurfaceComposerClient::enableVSyncInjections(bool enable) {
-    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-    binder::Status status = sf->enableVSyncInjections(enable);
-    return statusTFromBinderStatus(status);
-}
-
-status_t SurfaceComposerClient::injectVSync(nsecs_t when) {
-    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-    binder::Status status = sf->injectVSync(when);
-    return statusTFromBinderStatus(status);
-}
-
 status_t SurfaceComposerClient::getDisplayState(const sp<IBinder>& display,
                                                 ui::DisplayState* state) {
     gui::DisplayState ds;
