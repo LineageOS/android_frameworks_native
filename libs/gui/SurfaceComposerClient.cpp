@@ -25,6 +25,7 @@
 #include <android/gui/ISurfaceComposerClient.h>
 #include <android/gui/IWindowInfosListener.h>
 #include <android/os/IInputConstants.h>
+#include <gui/TraceUtils.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/SortedVector.h>
@@ -910,9 +911,14 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     uncacheBuffer.token = BufferCache::getInstance().getToken();
     uncacheBuffer.id = cacheId;
 
-    sf->setTransactionState(FrameTimelineInfo{}, {}, {}, ISurfaceComposer::eOneWay,
-                            Transaction::getDefaultApplyToken(), {}, systemTime(), true,
-                            uncacheBuffer, false, {}, generateId());
+    status_t status =
+            sf->setTransactionState(FrameTimelineInfo{}, {}, {}, ISurfaceComposer::eOneWay,
+                                    Transaction::getDefaultApplyToken(), {}, systemTime(), true,
+                                    uncacheBuffer, false, {}, generateId());
+    if (status != NO_ERROR) {
+        ALOGE_AND_TRACE("SurfaceComposerClient::doUncacheBufferTransaction - %s",
+                        strerror(-status));
+    }
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {

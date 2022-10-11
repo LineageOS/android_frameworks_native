@@ -22,6 +22,7 @@
 #include <cinttypes>
 
 #include <android-base/stringprintf.h>
+#include <gui/TraceUtils.h>
 #include <renderengine/impl/ExternalTexture.h>
 
 #include "ClientCache.h"
@@ -36,12 +37,12 @@ bool ClientCache::getBuffer(const client_cache_t& cacheId,
                             ClientCacheBuffer** outClientCacheBuffer) {
     auto& [processToken, id] = cacheId;
     if (processToken == nullptr) {
-        ALOGE("failed to get buffer, invalid (nullptr) process token");
+        ALOGE_AND_TRACE("ClientCache::getBuffer - invalid (nullptr) process token");
         return false;
     }
     auto it = mBuffers.find(processToken);
     if (it == mBuffers.end()) {
-        ALOGE("failed to get buffer, invalid process token");
+        ALOGE_AND_TRACE("ClientCache::getBuffer - invalid process token");
         return false;
     }
 
@@ -49,7 +50,7 @@ bool ClientCache::getBuffer(const client_cache_t& cacheId,
 
     auto bufItr = processBuffers.find(id);
     if (bufItr == processBuffers.end()) {
-        ALOGV("failed to get buffer, invalid buffer id");
+        ALOGE_AND_TRACE("ClientCache::getBuffer - invalid buffer id");
         return false;
     }
 
@@ -61,12 +62,12 @@ bool ClientCache::getBuffer(const client_cache_t& cacheId,
 bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer) {
     auto& [processToken, id] = cacheId;
     if (processToken == nullptr) {
-        ALOGE("failed to cache buffer: invalid process token");
+        ALOGE_AND_TRACE("ClientCache::add - invalid (nullptr) process token");
         return false;
     }
 
     if (!buffer) {
-        ALOGE("failed to cache buffer: invalid buffer");
+        ALOGE_AND_TRACE("ClientCache::add - invalid (nullptr) buffer");
         return false;
     }
 
@@ -79,7 +80,7 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
     if (it == mBuffers.end()) {
         token = processToken.promote();
         if (!token) {
-            ALOGE("failed to cache buffer: invalid token");
+            ALOGE_AND_TRACE("ClientCache::add - invalid token");
             return false;
         }
 
@@ -87,7 +88,7 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
         if (token->localBinder() == nullptr) {
             status_t err = token->linkToDeath(mDeathRecipient);
             if (err != NO_ERROR) {
-                ALOGE("failed to cache buffer: could not link to death");
+                ALOGE_AND_TRACE("ClientCache::add - could not link to death");
                 return false;
             }
         }
@@ -102,7 +103,7 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
     auto& processBuffers = it->second.second;
 
     if (processBuffers.size() > BUFFER_CACHE_MAX_SIZE) {
-        ALOGE("failed to cache buffer: cache is full");
+        ALOGE_AND_TRACE("ClientCache::add - cache is full");
         return false;
     }
 
