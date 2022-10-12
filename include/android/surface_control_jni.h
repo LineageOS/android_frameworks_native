@@ -36,14 +36,15 @@ __BEGIN_DECLS
 /**
  * Return the ASurfaceControl wrapped by a Java SurfaceControl object.
  *
- * This method does not acquire any additional reference to the ASurfaceControl
- * that is returned. To keep the ASurfaceControl alive after the Java
- * SurfaceControl object is closed, explicitly or by the garbage collector, be
- * sure to use ASurfaceControl_acquire() to acquire an additional reference.
+ * The caller takes ownership of the returned ASurfaceControl returned and must
+ * release it * using ASurfaceControl_release.
+ *
+ * surfaceControlObj must be a non-null instance of android.view.SurfaceControl
+ * and isValid() must be true.
  *
  * Available since API level 34.
  */
-ASurfaceControl* _Nullable ASurfaceControl_fromSurfaceControl(JNIEnv* _Nonnull env,
+ASurfaceControl* _Nonnull ASurfaceControl_fromSurfaceControl(JNIEnv* _Nonnull env,
         jobject _Nonnull surfaceControlObj) __INTRODUCED_IN(__ANDROID_API_U__);
 
 /**
@@ -52,11 +53,13 @@ ASurfaceControl* _Nullable ASurfaceControl_fromSurfaceControl(JNIEnv* _Nonnull e
  * The returned ASurfaceTransaction is still owned by the Java Transaction object is only
  * valid while the Java Transaction object is alive. In particular, the returned transaction
  * must NOT be deleted with ASurfaceTransaction_delete.
- * May return nullptr on error.
+ *
+ * transactionObj must be a non-null instance of
+ * android.view.SurfaceControl.Transaction and close() must not already be called.
  *
  * Available since API level 34.
  */
-ASurfaceTransaction* _Nullable ASurfaceTransaction_fromTransaction(JNIEnv* _Nonnull env,
+ASurfaceTransaction* _Nonnull ASurfaceTransaction_fromTransaction(JNIEnv* _Nonnull env,
         jobject _Nonnull transactionObj) __INTRODUCED_IN(__ANDROID_API_U__);
 
 __END_DECLS
