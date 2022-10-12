@@ -480,7 +480,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_invalidSignalTime) {
     addEmptyDisplayFrame();
 
     auto displayFrame0 = getDisplayFrame(0);
-    EXPECT_EQ(displayFrame0->getActuals().presentTime, -1);
+    EXPECT_EQ(displayFrame0->getActuals().presentTime, 59);
     EXPECT_EQ(displayFrame0->getJankType(), JankType::Unknown);
     EXPECT_EQ(surfaceFrame1->getActuals().presentTime, -1);
     EXPECT_EQ(surfaceFrame1->getJankType(), JankType::Unknown);
@@ -2226,6 +2226,50 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent_G
     EXPECT_EQ(displayFrame2->getFramePresentMetadata(), FramePresentMetadata::LatePresent);
     EXPECT_EQ(displayFrame2->getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
     EXPECT_EQ(displayFrame2->getJankType(), JankType::SurfaceFlingerCpuDeadlineMissed);
+}
+
+TEST_F(FrameTimelineTest, jankClassification_presentFenceError) {
+    auto erroneousPresentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    auto erroneousPresentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    auto validPresentFence = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 40});
+    int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 60, 60});
+    int64_t sfToken3 = mTokenManager->generateTokenForPredictions({72, 80, 80});
+
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfPresent(26, erroneousPresentFence1);
+
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfPresent(60, erroneousPresentFence2);
+
+    mFrameTimeline->setSfWakeUp(sfToken3, 72, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfPresent(80, validPresentFence);
+
+    validPresentFence->signalForTest(80);
+
+    addEmptyDisplayFrame();
+
+    {
+        auto displayFrame = getDisplayFrame(0);
+        EXPECT_EQ(displayFrame->getActuals().presentTime, 26);
+        EXPECT_EQ(displayFrame->getFramePresentMetadata(), FramePresentMetadata::UnknownPresent);
+        EXPECT_EQ(displayFrame->getFrameReadyMetadata(), FrameReadyMetadata::UnknownFinish);
+        EXPECT_EQ(displayFrame->getJankType(), JankType::Unknown);
+    }
+    {
+        auto displayFrame = getDisplayFrame(1);
+        EXPECT_EQ(displayFrame->getActuals().presentTime, 60);
+        EXPECT_EQ(displayFrame->getFramePresentMetadata(), FramePresentMetadata::UnknownPresent);
+        EXPECT_EQ(displayFrame->getFrameReadyMetadata(), FrameReadyMetadata::UnknownFinish);
+        EXPECT_EQ(displayFrame->getJankType(), JankType::Unknown);
+    }
+    {
+        auto displayFrame = getDisplayFrame(2);
+        EXPECT_EQ(displayFrame->getActuals().presentTime, 80);
+        EXPECT_EQ(displayFrame->getFramePresentMetadata(), FramePresentMetadata::OnTimePresent);
+        EXPECT_EQ(displayFrame->getFrameReadyMetadata(), FrameReadyMetadata::OnTimeFinish);
+        EXPECT_EQ(displayFrame->getJankType(), JankType::None);
+    }
 }
 
 TEST_F(FrameTimelineTest, computeFps_noLayerIds_returnsZero) {

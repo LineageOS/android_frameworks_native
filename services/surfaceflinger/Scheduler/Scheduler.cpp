@@ -43,7 +43,6 @@
 #include "DispSyncSource.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
-#include "InjectVSyncSource.h"
 #include "OneShotTimer.h"
 #include "SurfaceFlingerProperties.h"
 #include "VSyncPredictor.h"
@@ -401,43 +400,6 @@ void Scheduler::setDuration(ConnectionHandle handle, std::chrono::nanoseconds wo
         thread = mConnections[handle].thread.get();
     }
     thread->setDuration(workDuration, readyDuration);
-}
-
-ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
-    if (mInjectVSyncs == enable) {
-        return {};
-    }
-
-    ALOGV("%s VSYNC injection", enable ? "Enabling" : "Disabling");
-
-    if (!mInjectorConnectionHandle) {
-        auto vsyncSource = std::make_unique<InjectVSyncSource>();
-        mVSyncInjector = vsyncSource.get();
-
-        auto eventThread =
-                std::make_unique<impl::EventThread>(std::move(vsyncSource),
-                                                    /*tokenManager=*/nullptr,
-                                                    impl::EventThread::ThrottleVsyncCallback(),
-                                                    impl::EventThread::GetVsyncPeriodFunction());
-
-        // EventThread does not dispatch VSYNC unless the display is connected and powered on.
-        eventThread->onHotplugReceived(PhysicalDisplayId::fromPort(0), true);
-        eventThread->onScreenAcquired();
-
-        mInjectorConnectionHandle = createConnection(std::move(eventThread));
-    }
-
-    mInjectVSyncs = enable;
-    return mInjectorConnectionHandle;
-}
-
-bool Scheduler::injectVSync(nsecs_t when, nsecs_t expectedVSyncTime, nsecs_t deadlineTimestamp) {
-    if (!mInjectVSyncs || !mVSyncInjector) {
-        return false;
-    }
-
-    mVSyncInjector->onInjectSyncEvent(when, expectedVSyncTime, deadlineTimestamp);
-    return true;
 }
 
 void Scheduler::enableHardwareVsync() {

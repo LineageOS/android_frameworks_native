@@ -530,8 +530,6 @@ private:
     status_t overrideHdrTypes(const sp<IBinder>& displayToken,
                               const std::vector<ui::Hdr>& hdrTypes);
     status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success);
-    status_t enableVSyncInjections(bool enable);
-    status_t injectVSync(nsecs_t when);
     status_t getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers);
     status_t getColorManagement(bool* outGetColorManagement) const;
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
@@ -1262,8 +1260,6 @@ private:
 
     const std::string mHwcServiceName;
 
-    bool hasMockHwc() const { return mHwcServiceName == "mock"; }
-
     /*
      * Scheduler
      */
@@ -1433,8 +1429,6 @@ public:
     binder::Status overrideHdrTypes(const sp<IBinder>& display,
                                     const std::vector<int32_t>& hdrTypes) override;
     binder::Status onPullAtom(int32_t atomId, gui::PullAtomData* outPullData) override;
-    binder::Status enableVSyncInjections(bool enable) override;
-    binder::Status injectVSync(int64_t when) override;
     binder::Status getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers) override;
     binder::Status getColorManagement(bool* outGetColorManagement) override;
     binder::Status getCompositionPreference(gui::CompositionPreference* outPref) override;

@@ -3633,7 +3633,7 @@ bool Layer::simpleBufferUpdate(const layer_state_t& s) const {
     }
 
     if (s.what & layer_state_t::eAlphaChanged) {
-        if (mDrawingState.color.a != s.alpha) {
+        if (mDrawingState.color.a != s.color.a) {
             ALOGV("%s: false [eAlphaChanged changed]", __func__);
             return false;
         }
@@ -3677,9 +3677,9 @@ bool Layer::simpleBufferUpdate(const layer_state_t& s) const {
         }
     }
 
-    if (s.what & layer_state_t::eTransformChanged) {
-        if (mDrawingState.bufferTransform != s.transform) {
-            ALOGV("%s: false [eTransformChanged changed]", __func__);
+    if (s.what & layer_state_t::eBufferTransformChanged) {
+        if (mDrawingState.bufferTransform != s.bufferTransform) {
+            ALOGV("%s: false [eBufferTransformChanged changed]", __func__);
             return false;
         }
     }
@@ -4177,15 +4177,12 @@ const std::shared_ptr<renderengine::ExternalTexture>& Layer::getExternalTexture(
 }
 
 bool Layer::setColor(const half3& color) {
-    if (mDrawingState.color.r == color.r && mDrawingState.color.g == color.g &&
-        mDrawingState.color.b == color.b) {
+    if (mDrawingState.color.rgb == color) {
         return false;
     }
 
     mDrawingState.sequence++;
-    mDrawingState.color.r = color.r;
-    mDrawingState.color.g = color.g;
-    mDrawingState.color.b = color.b;
+    mDrawingState.color.rgb = color;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
