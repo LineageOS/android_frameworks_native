@@ -232,6 +232,9 @@ protected:
         GestureMode gestureMode;
 
         bool wake;
+
+        // Whether the device supports the Universal Stylus Initiative (USI) protocol for styluses.
+        bool supportsUsi;
     } mParameters;
 
     // Immutable calibration parameters in parsed form.
