@@ -68,6 +68,7 @@
 #include "DisplayHardware/HWComposer.h"
 #include "FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
+#include "FrontEnd/LayerCreationArgs.h"
 #include "LayerProtoHelper.h"
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
@@ -131,10 +132,8 @@ using gui::WindowInfo;
 
 using PresentState = frametimeline::SurfaceFrame::PresentState;
 
-std::atomic<int32_t> Layer::sSequence{1};
-
 Layer::Layer(const LayerCreationArgs& args)
-      : sequence(args.sequence.value_or(sSequence++)),
+      : sequence(args.sequence),
         mFlinger(sp<SurfaceFlinger>::fromExisting(args.flinger)),
         mName(base::StringPrintf("%s#%d", args.name.c_str(), sequence)),
         mClientRef(args.client),
@@ -153,9 +152,6 @@ Layer::Layer(const LayerCreationArgs& args)
     if (args.flags & ISurfaceComposerClient::eSecure) layerFlags |= layer_state_t::eLayerSecure;
     if (args.flags & ISurfaceComposerClient::eSkipScreenshot)
         layerFlags |= layer_state_t::eLayerSkipScreenshot;
-    if (args.sequence) {
-        sSequence = *args.sequence + 1;
-    }
     mDrawingState.flags = layerFlags;
     mDrawingState.crop.makeInvalid();
     mDrawingState.z = 0;
@@ -200,18 +196,8 @@ Layer::Layer(const LayerCreationArgs& args)
     mFrameTracker.setDisplayRefreshPeriod(
             args.flinger->mScheduler->getVsyncPeriodFromRefreshRateConfigs());
 
-    mCallingPid = args.callingPid;
-    mCallingUid = args.callingUid;
-
-    if (mCallingUid == AID_GRAPHICS || mCallingUid == AID_SYSTEM) {
-        // If the system didn't send an ownerUid, use the callingUid for the ownerUid.
-        mOwnerUid = args.metadata.getInt32(gui::METADATA_OWNER_UID, mCallingUid);
-        mOwnerPid = args.metadata.getInt32(gui::METADATA_OWNER_PID, mCallingPid);
-    } else {
-        // A create layer request from a non system request cannot specify the owner uid
-        mOwnerUid = mCallingUid;
-        mOwnerPid = mCallingPid;
-    }
+    mOwnerUid = args.ownerUid;
+    mOwnerPid = args.ownerPid;
 
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
     mPotentialCursor = args.flags & ISurfaceComposerClient::eCursorWindow;
@@ -266,18 +252,6 @@ Layer::~Layer() {
     if (mHadClonedChild) {
         mFlinger->mNumClones--;
     }
-}
-
-LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client, std::string name,
-                                     uint32_t flags, LayerMetadata metadata)
-      : flinger(flinger),
-        client(std::move(client)),
-        name(std::move(name)),
-        flags(flags),
-        metadata(std::move(metadata)) {
-    IPCThreadState* ipc = IPCThreadState::self();
-    callingPid = ipc->getCallingPid();
-    callingUid = ipc->getCallingUid();
 }
 
 // ---------------------------------------------------------------------------
@@ -1498,8 +1472,8 @@ void Layer::getFrameStats(FrameStats* outStats) const {
 }
 
 void Layer::dumpCallingUidPid(std::string& result) const {
-    StringAppendF(&result, "Layer %s (%s) callingPid:%d callingUid:%d ownerUid:%d\n",
-                  getName().c_str(), getType(), mCallingPid, mCallingUid, mOwnerUid);
+    StringAppendF(&result, "Layer %s (%s) ownerPid:%d ownerUid:%d\n", getName().c_str(), getType(),
+                  mOwnerPid, mOwnerUid);
 }
 
 void Layer::onDisconnect() {

@@ -82,24 +82,7 @@ namespace frametimeline {
 class SurfaceFrame;
 } // namespace frametimeline
 
-struct LayerCreationArgs {
-    LayerCreationArgs(SurfaceFlinger*, sp<Client>, std::string name, uint32_t flags, LayerMetadata);
-
-    SurfaceFlinger* flinger;
-    const sp<Client> client;
-    std::string name;
-    uint32_t flags;
-    LayerMetadata metadata;
-
-    pid_t callingPid;
-    uid_t callingUid;
-    uint32_t textureName;
-    std::optional<uint32_t> sequence = std::nullopt;
-    bool addToRoot = true;
-};
-
 class Layer : public virtual RefBase {
-    static std::atomic<int32_t> sSequence;
     // The following constants represent priority of the window. SF uses this information when
     // deciding which window has a priority when deciding about the refresh rate of the screen.
     // Priority 0 is considered the highest priority. -1 means that the priority is unset.
@@ -1112,11 +1095,6 @@ private:
     FloatRect mScreenBounds;
 
     bool mGetHandleCalled = false;
-
-    // Tracks the process and user id of the caller when creating this layer
-    // to help debugging.
-    pid_t mCallingPid;
-    uid_t mCallingUid;
 
     // The current layer is a clone of mClonedFrom. This means that this layer will update it's
     // properties based on mClonedFrom. When mClonedFrom latches a new buffer for BufferLayers,
