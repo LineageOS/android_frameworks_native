@@ -111,7 +111,7 @@ proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer) {
     }
 
     if (layer.what & layer_state_t::eAlphaChanged) {
-        proto.set_alpha(layer.alpha);
+        proto.set_alpha(layer.color.a);
     }
 
     if (layer.what & layer_state_t::eColorChanged) {
@@ -123,8 +123,8 @@ proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer) {
     if (layer.what & layer_state_t::eTransparentRegionChanged) {
         LayerProtoHelper::writeToProto(layer.transparentRegion, proto.mutable_transparent_region());
     }
-    if (layer.what & layer_state_t::eTransformChanged) {
-        proto.set_transform(layer.transform);
+    if (layer.what & layer_state_t::eBufferTransformChanged) {
+        proto.set_transform(layer.bufferTransform);
     }
     if (layer.what & layer_state_t::eTransformToDisplayInverseChanged) {
         proto.set_transform_to_display_inverse(layer.transformToDisplayInverse);
@@ -395,7 +395,7 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
     }
 
     if (proto.what() & layer_state_t::eAlphaChanged) {
-        layer.alpha = proto.alpha();
+        layer.color.a = proto.alpha();
     }
 
     if (proto.what() & layer_state_t::eColorChanged) {
@@ -407,8 +407,8 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
     if (proto.what() & layer_state_t::eTransparentRegionChanged) {
         LayerProtoHelper::readFromProto(proto.transparent_region(), layer.transparentRegion);
     }
-    if (proto.what() & layer_state_t::eTransformChanged) {
-        layer.transform = proto.transform();
+    if (proto.what() & layer_state_t::eBufferTransformChanged) {
+        layer.bufferTransform = proto.transform();
     }
     if (proto.what() & layer_state_t::eTransformToDisplayInverseChanged) {
         layer.transformToDisplayInverse = proto.transform_to_display_inverse();

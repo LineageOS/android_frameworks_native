@@ -224,10 +224,6 @@ interface ISurfaceComposer {
      */
     PullAtomData onPullAtom(int atomId);
 
-    oneway void enableVSyncInjections(boolean enable);
-
-    oneway void injectVSync(long when);
-
     /**
      * Gets the list of active layers in Z order for debugging purposes
      *

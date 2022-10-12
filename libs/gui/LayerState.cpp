@@ -40,13 +40,13 @@ layer_state_t::layer_state_t()
         x(0),
         y(0),
         z(0),
-        alpha(0),
         flags(0),
         mask(0),
         reserved(0),
         cornerRadius(0.0f),
         backgroundBlurRadius(0),
-        transform(0),
+        color(0),
+        bufferTransform(0),
         transformToDisplayInverse(false),
         crop(Rect::INVALID_RECT),
         dataspace(ui::Dataspace::UNKNOWN),
@@ -83,20 +83,19 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, y);
     SAFE_PARCEL(output.writeInt32, z);
     SAFE_PARCEL(output.writeUint32, layerStack.id);
-    SAFE_PARCEL(output.writeFloat, alpha);
     SAFE_PARCEL(output.writeUint32, flags);
     SAFE_PARCEL(output.writeUint32, mask);
     SAFE_PARCEL(matrix.write, output);
     SAFE_PARCEL(output.write, crop);
-    SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, reparentSurfaceControl);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, relativeLayerSurfaceControl);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, parentSurfaceControlForChild);
     SAFE_PARCEL(output.writeFloat, color.r);
     SAFE_PARCEL(output.writeFloat, color.g);
     SAFE_PARCEL(output.writeFloat, color.b);
+    SAFE_PARCEL(output.writeFloat, color.a);
     SAFE_PARCEL(windowInfoHandle->writeToParcel, &output);
     SAFE_PARCEL(output.write, transparentRegion);
-    SAFE_PARCEL(output.writeUint32, transform);
+    SAFE_PARCEL(output.writeUint32, bufferTransform);
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
     SAFE_PARCEL(output.writeBool, borderEnabled);
     SAFE_PARCEL(output.writeFloat, borderWidth);
@@ -177,7 +176,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readFloat, &y);
     SAFE_PARCEL(input.readInt32, &z);
     SAFE_PARCEL(input.readUint32, &layerStack.id);
-    SAFE_PARCEL(input.readFloat, &alpha);
 
     SAFE_PARCEL(input.readUint32, &flags);
 
@@ -185,7 +183,6 @@ status_t layer_state_t::read(const Parcel& input)
 
     SAFE_PARCEL(matrix.read, input);
     SAFE_PARCEL(input.read, crop);
-    SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &reparentSurfaceControl);
 
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &relativeLayerSurfaceControl);
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &parentSurfaceControlForChild);
@@ -197,10 +194,13 @@ status_t layer_state_t::read(const Parcel& input)
     color.g = tmpFloat;
     SAFE_PARCEL(input.readFloat, &tmpFloat);
     color.b = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    color.a = tmpFloat;
+
     SAFE_PARCEL(windowInfoHandle->readFromParcel, &input);
 
     SAFE_PARCEL(input.read, transparentRegion);
-    SAFE_PARCEL(input.readUint32, &transform);
+    SAFE_PARCEL(input.readUint32, &bufferTransform);
     SAFE_PARCEL(input.readBool, &transformToDisplayInverse);
     SAFE_PARCEL(input.readBool, &borderEnabled);
     SAFE_PARCEL(input.readFloat, &tmpFloat);
@@ -453,7 +453,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eAlphaChanged) {
         what |= eAlphaChanged;
-        alpha = other.alpha;
+        color.a = other.color.a;
     }
     if (other.what & eMatrixChanged) {
         what |= eMatrixChanged;
@@ -495,12 +495,9 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eReparent;
         parentSurfaceControlForChild = other.parentSurfaceControlForChild;
     }
-    if (other.what & eDestroySurface) {
-        what |= eDestroySurface;
-    }
-    if (other.what & eTransformChanged) {
-        what |= eTransformChanged;
-        transform = other.transform;
+    if (other.what & eBufferTransformChanged) {
+        what |= eBufferTransformChanged;
+        bufferTransform = other.bufferTransform;
     }
     if (other.what & eTransformToDisplayInverseChanged) {
         what |= eTransformToDisplayInverseChanged;
@@ -547,7 +544,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eBackgroundColorChanged) {
         what |= eBackgroundColorChanged;
-        color = other.color;
+        color.rgb = other.color.rgb;
         bgColorAlpha = other.bgColorAlpha;
         bgColorDataspace = other.bgColorDataspace;
     }
@@ -612,7 +609,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eColorChanged) {
         what |= eColorChanged;
-        color = other.color;
+        color.rgb = other.color.rgb;
     }
     if (other.what & eColorSpaceAgnosticChanged) {
         what |= eColorSpaceAgnosticChanged;

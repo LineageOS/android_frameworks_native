@@ -1293,7 +1293,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAlpha
         ALOGE("SurfaceComposerClient::Transaction::setAlpha: invalid alpha %f, clamping", alpha);
     }
     s->what |= layer_state_t::eAlphaChanged;
-    s->alpha = std::clamp(alpha, 0.f, 1.f);
+    s->color.a = std::clamp(alpha, 0.f, 1.f);
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -1424,7 +1424,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColor
         return *this;
     }
     s->what |= layer_state_t::eColorChanged;
-    s->color = color;
+    s->color.rgb = color;
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -1439,7 +1439,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBackg
     }
 
     s->what |= layer_state_t::eBackgroundColorChanged;
-    s->color = color;
+    s->color.rgb = color;
     s->bgColorAlpha = alpha;
     s->bgColorDataspace = dataspace;
 
@@ -1454,8 +1454,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrans
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eTransformChanged;
-    s->transform = transform;
+    s->what |= layer_state_t::eBufferTransformChanged;
+    s->bufferTransform = transform;
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -2236,18 +2236,6 @@ status_t SurfaceComposerClient::getLayerFrameStats(const sp<IBinder>& token,
 }
 
 // ----------------------------------------------------------------------------
-
-status_t SurfaceComposerClient::enableVSyncInjections(bool enable) {
-    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-    binder::Status status = sf->enableVSyncInjections(enable);
-    return statusTFromBinderStatus(status);
-}
-
-status_t SurfaceComposerClient::injectVSync(nsecs_t when) {
-    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-    binder::Status status = sf->injectVSync(when);
-    return statusTFromBinderStatus(status);
-}
 
 status_t SurfaceComposerClient::getDisplayState(const sp<IBinder>& display,
                                                 ui::DisplayState* state) {

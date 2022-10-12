@@ -240,6 +240,7 @@ private:
 
     private:
         RpcConditionVariable mCv;
+        std::atomic<size_t> mShutdownCount = 0;
     };
     friend WaitForShutdownListener;
 
@@ -380,6 +381,7 @@ private:
         // hint index into clients, ++ when sending an async transaction
         size_t mOutgoingOffset = 0;
         std::vector<sp<RpcConnection>> mOutgoing;
+        // max size of mIncoming. Once any thread starts down, no more can be started.
         size_t mMaxIncoming = 0;
         std::vector<sp<RpcConnection>> mIncoming;
         std::map<RpcMaybeThread::id, RpcMaybeThread> mThreads;
