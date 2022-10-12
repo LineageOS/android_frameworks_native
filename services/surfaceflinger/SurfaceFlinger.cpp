@@ -1132,8 +1132,8 @@ status_t SurfaceFlinger::setActiveModeFromBackdoor(const sp<display::DisplayToke
                 display->refreshRateSelector().getCurrentPolicy().allowGroupSwitching;
 
         const scheduler::RefreshRateSelector::DisplayManagerPolicy policy{modeId,
-                                                                          allowGroupSwitching,
-                                                                          {fps, fps}};
+                                                                          {fps, fps},
+                                                                          allowGroupSwitching};
 
         return setDesiredDisplayModeSpecsInternal(display, policy);
     });
@@ -6651,10 +6651,33 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::setDesiredDisplayModeSpecs(
-        const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode, bool allowGroupSwitching,
-        float primaryRefreshRateMin, float primaryRefreshRateMax, float appRequestRefreshRateMin,
-        float appRequestRefreshRateMax) {
+namespace {
+FpsRange translate(const gui::DisplayModeSpecs::RefreshRateRanges::RefreshRateRange& aidlRange) {
+    return FpsRange{Fps::fromValue(aidlRange.min), Fps::fromValue(aidlRange.max)};
+}
+
+FpsRanges translate(const gui::DisplayModeSpecs::RefreshRateRanges& aidlRanges) {
+    return FpsRanges{translate(aidlRanges.physical), translate(aidlRanges.render)};
+}
+
+gui::DisplayModeSpecs::RefreshRateRanges::RefreshRateRange translate(const FpsRange& range) {
+    gui::DisplayModeSpecs::RefreshRateRanges::RefreshRateRange aidlRange;
+    aidlRange.min = range.min.getValue();
+    aidlRange.max = range.max.getValue();
+    return aidlRange;
+}
+
+gui::DisplayModeSpecs::RefreshRateRanges translate(const FpsRanges& ranges) {
+    gui::DisplayModeSpecs::RefreshRateRanges aidlRanges;
+    aidlRanges.physical = translate(ranges.physical);
+    aidlRanges.render = translate(ranges.render);
+    return aidlRanges;
+}
+
+} // namespace
+
+status_t SurfaceFlinger::setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                                    const gui::DisplayModeSpecs& specs) {
     ATRACE_CALL();
 
     if (!displayToken) {
@@ -6672,12 +6695,8 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecs(
             return INVALID_OPERATION;
         } else {
             using Policy = scheduler::RefreshRateSelector::DisplayManagerPolicy;
-            const Policy policy{DisplayModeId(defaultMode),
-                                allowGroupSwitching,
-                                {Fps::fromValue(primaryRefreshRateMin),
-                                 Fps::fromValue(primaryRefreshRateMax)},
-                                {Fps::fromValue(appRequestRefreshRateMin),
-                                 Fps::fromValue(appRequestRefreshRateMax)}};
+            const Policy policy{DisplayModeId(specs.defaultMode), translate(specs.primaryRanges),
+                                translate(specs.appRequestRanges), specs.allowGroupSwitching};
 
             return setDesiredDisplayModeSpecsInternal(display, policy);
         }
@@ -6687,16 +6706,10 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecs(
 }
 
 status_t SurfaceFlinger::getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
-                                                    ui::DisplayModeId* outDefaultMode,
-                                                    bool* outAllowGroupSwitching,
-                                                    float* outPrimaryRefreshRateMin,
-                                                    float* outPrimaryRefreshRateMax,
-                                                    float* outAppRequestRefreshRateMin,
-                                                    float* outAppRequestRefreshRateMax) {
+                                                    gui::DisplayModeSpecs* outSpecs) {
     ATRACE_CALL();
 
-    if (!displayToken || !outDefaultMode || !outPrimaryRefreshRateMin ||
-        !outPrimaryRefreshRateMax || !outAppRequestRefreshRateMin || !outAppRequestRefreshRateMax) {
+    if (!displayToken || !outSpecs) {
         return BAD_VALUE;
     }
 
@@ -6712,12 +6725,10 @@ status_t SurfaceFlinger::getDesiredDisplayModeSpecs(const sp<IBinder>& displayTo
 
     scheduler::RefreshRateSelector::Policy policy =
             display->refreshRateSelector().getDisplayManagerPolicy();
-    *outDefaultMode = policy.defaultMode.value();
-    *outAllowGroupSwitching = policy.allowGroupSwitching;
-    *outPrimaryRefreshRateMin = policy.primaryRange.min.getValue();
-    *outPrimaryRefreshRateMax = policy.primaryRange.max.getValue();
-    *outAppRequestRefreshRateMin = policy.appRequestRange.min.getValue();
-    *outAppRequestRefreshRateMax = policy.appRequestRange.max.getValue();
+    outSpecs->defaultMode = policy.defaultMode.value();
+    outSpecs->allowGroupSwitching = policy.allowGroupSwitching;
+    outSpecs->primaryRanges = translate(policy.primaryRanges);
+    outSpecs->appRequestRanges = translate(policy.appRequestRanges);
     return NO_ERROR;
 }
 
@@ -7608,18 +7619,11 @@ binder::Status SurfaceComposerAIDL::removeTunnelModeEnabledListener(
     return binderStatusFromStatusT(status);
 }
 
-binder::Status SurfaceComposerAIDL::setDesiredDisplayModeSpecs(
-        const sp<IBinder>& displayToken, int32_t defaultMode, bool allowGroupSwitching,
-        float primaryRefreshRateMin, float primaryRefreshRateMax, float appRequestRefreshRateMin,
-        float appRequestRefreshRateMax) {
+binder::Status SurfaceComposerAIDL::setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                                               const gui::DisplayModeSpecs& specs) {
     status_t status = checkAccessPermission();
     if (status == OK) {
-        status = mFlinger->setDesiredDisplayModeSpecs(displayToken,
-                                                      static_cast<ui::DisplayModeId>(defaultMode),
-                                                      allowGroupSwitching, primaryRefreshRateMin,
-                                                      primaryRefreshRateMax,
-                                                      appRequestRefreshRateMin,
-                                                      appRequestRefreshRateMax);
+        status = mFlinger->setDesiredDisplayModeSpecs(displayToken, specs);
     }
     return binderStatusFromStatusT(status);
 }
@@ -7635,25 +7639,7 @@ binder::Status SurfaceComposerAIDL::getDesiredDisplayModeSpecs(const sp<IBinder>
         return binderStatusFromStatusT(status);
     }
 
-    ui::DisplayModeId displayModeId;
-    bool allowGroupSwitching;
-    float primaryRefreshRateMin;
-    float primaryRefreshRateMax;
-    float appRequestRefreshRateMin;
-    float appRequestRefreshRateMax;
-    status = mFlinger->getDesiredDisplayModeSpecs(displayToken, &displayModeId,
-                                                  &allowGroupSwitching, &primaryRefreshRateMin,
-                                                  &primaryRefreshRateMax, &appRequestRefreshRateMin,
-                                                  &appRequestRefreshRateMax);
-    if (status == NO_ERROR) {
-        outSpecs->defaultMode = displayModeId;
-        outSpecs->allowGroupSwitching = allowGroupSwitching;
-        outSpecs->primaryRefreshRateMin = primaryRefreshRateMin;
-        outSpecs->primaryRefreshRateMax = primaryRefreshRateMax;
-        outSpecs->appRequestRefreshRateMin = appRequestRefreshRateMin;
-        outSpecs->appRequestRefreshRateMax = appRequestRefreshRateMax;
-    }
-
+    status = mFlinger->getDesiredDisplayModeSpecs(displayToken, outSpecs);
     return binderStatusFromStatusT(status);
 }
 

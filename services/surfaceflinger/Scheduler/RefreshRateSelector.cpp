@@ -164,9 +164,10 @@ struct RefreshRateSelector::RefreshRateScoreComparator {
 
 std::string RefreshRateSelector::Policy::toString() const {
     return base::StringPrintf("{defaultModeId=%d, allowGroupSwitching=%s"
-                              ", primaryRange=%s, appRequestRange=%s}",
+                              ", primaryRanges=%s, appRequestRanges=%s}",
                               defaultMode.value(), allowGroupSwitching ? "true" : "false",
-                              to_string(primaryRange).c_str(), to_string(appRequestRange).c_str());
+                              to_string(primaryRanges).c_str(),
+                              to_string(appRequestRanges).c_str());
 }
 
 std::pair<nsecs_t, nsecs_t> RefreshRateSelector::getDisplayFrames(nsecs_t layerPeriod,
@@ -381,7 +382,7 @@ auto RefreshRateSelector::getRankedRefreshRatesLocked(const std::vector<LayerReq
     // move out the of range if layers explicitly request a different refresh
     // rate.
     const bool primaryRangeIsSingleRate =
-            isApproxEqual(policy->primaryRange.min, policy->primaryRange.max);
+            isApproxEqual(policy->primaryRanges.physical.min, policy->primaryRanges.physical.max);
 
     if (!signals.touch && signals.idle && !(primaryRangeIsSingleRate && hasExplicitVoteLayers)) {
         ALOGV("Idle");
@@ -450,7 +451,7 @@ auto RefreshRateSelector::getRankedRefreshRatesLocked(const std::vector<LayerReq
                 continue;
             }
 
-            const bool inPrimaryRange = policy->primaryRange.includes(mode->getFps());
+            const bool inPrimaryRange = policy->primaryRanges.physical.includes(mode->getFps());
             if ((primaryRangeIsSingleRate || !inPrimaryRange) &&
                 !(layer.focused &&
                   (layer.vote == LayerVoteType::ExplicitDefault ||
@@ -902,7 +903,7 @@ void RefreshRateSelector::updateDisplayModes(DisplayModes modes, DisplayModeId a
 bool RefreshRateSelector::isPolicyValidLocked(const Policy& policy) const {
     // defaultMode must be a valid mode, and within the given refresh rate range.
     if (const auto mode = mDisplayModes.get(policy.defaultMode)) {
-        if (!policy.primaryRange.includes(mode->get()->getFps())) {
+        if (!policy.primaryRanges.physical.includes(mode->get()->getFps())) {
             ALOGE("Default mode is not in the primary range.");
             return false;
         }
@@ -912,8 +913,8 @@ bool RefreshRateSelector::isPolicyValidLocked(const Policy& policy) const {
     }
 
     using namespace fps_approx_ops;
-    return policy.appRequestRange.min <= policy.primaryRange.min &&
-            policy.appRequestRange.max >= policy.primaryRange.max;
+    return policy.appRequestRanges.physical.min <= policy.primaryRanges.physical.min &&
+            policy.appRequestRanges.physical.max >= policy.primaryRanges.physical.max;
 }
 
 auto RefreshRateSelector::setPolicy(const PolicyVariant& policy) -> SetPolicyResult {
@@ -1026,8 +1027,8 @@ void RefreshRateSelector::constructAvailableRefreshRates() {
         return modes;
     };
 
-    mPrimaryRefreshRates = filterRefreshRates(policy->primaryRange, "primary");
-    mAppRequestRefreshRates = filterRefreshRates(policy->appRequestRange, "app request");
+    mPrimaryRefreshRates = filterRefreshRates(policy->primaryRanges.physical, "primary");
+    mAppRequestRefreshRates = filterRefreshRates(policy->appRequestRanges.physical, "app request");
 }
 
 Fps RefreshRateSelector::findClosestKnownFrameRate(Fps frameRate) const {
@@ -1067,7 +1068,7 @@ auto RefreshRateSelector::getIdleTimerAction() const -> KernelIdleTimerAction {
     if (minByPolicy == maxByPolicy) {
         // Turn on the timer when the min of the primary range is below the device min.
         if (const Policy* currentPolicy = getCurrentPolicyLocked();
-            isApproxLess(currentPolicy->primaryRange.min, deviceMinFps)) {
+            isApproxLess(currentPolicy->primaryRanges.physical.min, deviceMinFps)) {
             return KernelIdleTimerAction::TurnOn;
         }
         return KernelIdleTimerAction::TurnOff;

@@ -67,40 +67,31 @@ public:
         DisplayModeId defaultMode;
         // Whether or not we switch mode groups to get the best frame rate.
         bool allowGroupSwitching = kAllowGroupSwitchingDefault;
-        // The primary refresh rate range represents display manager's general guidance on the
-        // display modes we'll consider when switching refresh rates. Unless we get an explicit
-        // signal from an app, we should stay within this range.
-        FpsRange primaryRange;
-        // The app request refresh rate range allows us to consider more display modes when
-        // switching refresh rates. Although we should generally stay within the primary range,
-        // specific considerations, such as layer frame rate settings specified via the
-        // setFrameRate() api, may cause us to go outside the primary range. We never go outside the
-        // app request range. The app request range will be greater than or equal to the primary
-        // refresh rate range, never smaller.
-        FpsRange appRequestRange;
+        // The primary refresh rate ranges. @see DisplayModeSpecs.aidl for details.
+        // TODO(b/257072060): use the render range when selecting SF render rate
+        //  or the app override frame rate
+        FpsRanges primaryRanges;
+        // The app request refresh rate ranges. @see DisplayModeSpecs.aidl for details.
+        FpsRanges appRequestRanges;
 
         Policy() = default;
 
-        Policy(DisplayModeId defaultMode, FpsRange range)
-              : Policy(defaultMode, kAllowGroupSwitchingDefault, range, range) {}
+        Policy(DisplayModeId defaultMode, FpsRange range,
+               bool allowGroupSwitching = kAllowGroupSwitchingDefault)
+              : Policy(defaultMode, FpsRanges{range, range}, FpsRanges{range, range},
+                       allowGroupSwitching) {}
 
-        Policy(DisplayModeId defaultMode, bool allowGroupSwitching, FpsRange range)
-              : Policy(defaultMode, allowGroupSwitching, range, range) {}
-
-        Policy(DisplayModeId defaultMode, FpsRange primaryRange, FpsRange appRequestRange)
-              : Policy(defaultMode, kAllowGroupSwitchingDefault, primaryRange, appRequestRange) {}
-
-        Policy(DisplayModeId defaultMode, bool allowGroupSwitching, FpsRange primaryRange,
-               FpsRange appRequestRange)
+        Policy(DisplayModeId defaultMode, FpsRanges primaryRanges, FpsRanges appRequestRanges,
+               bool allowGroupSwitching = kAllowGroupSwitchingDefault)
               : defaultMode(defaultMode),
                 allowGroupSwitching(allowGroupSwitching),
-                primaryRange(primaryRange),
-                appRequestRange(appRequestRange) {}
+                primaryRanges(primaryRanges),
+                appRequestRanges(appRequestRanges) {}
 
         bool operator==(const Policy& other) const {
             using namespace fps_approx_ops;
-            return defaultMode == other.defaultMode && primaryRange == other.primaryRange &&
-                    appRequestRange == other.appRequestRange &&
+            return defaultMode == other.defaultMode && primaryRanges == other.primaryRanges &&
+                    appRequestRanges == other.appRequestRanges &&
                     allowGroupSwitching == other.allowGroupSwitching;
         }
 

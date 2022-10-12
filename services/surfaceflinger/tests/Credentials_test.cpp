@@ -207,23 +207,12 @@ TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
 
 TEST_F(CredentialsTest, SetDesiredDisplayConfigsTest) {
     const auto display = getFirstDisplayToken();
-    ui::DisplayModeId defaultMode;
-    bool allowGroupSwitching;
-    float primaryFpsMin;
-    float primaryFpsMax;
-    float appRequestFpsMin;
-    float appRequestFpsMax;
-    status_t res =
-            SurfaceComposerClient::getDesiredDisplayModeSpecs(display, &defaultMode,
-                                                              &allowGroupSwitching, &primaryFpsMin,
-                                                              &primaryFpsMax, &appRequestFpsMin,
-                                                              &appRequestFpsMax);
+    gui::DisplayModeSpecs specs;
+    status_t res = SurfaceComposerClient::getDesiredDisplayModeSpecs(display, &specs);
     ASSERT_EQ(res, NO_ERROR);
+    gui::DisplayModeSpecs setSpecs;
     std::function<status_t()> condition = [=]() {
-        return SurfaceComposerClient::setDesiredDisplayModeSpecs(display, defaultMode,
-                                                                 allowGroupSwitching, primaryFpsMin,
-                                                                 primaryFpsMax, appRequestFpsMin,
-                                                                 appRequestFpsMax);
+        return SurfaceComposerClient::setDesiredDisplayModeSpecs(display, specs);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }

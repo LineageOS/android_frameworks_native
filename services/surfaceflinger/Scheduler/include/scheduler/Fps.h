@@ -68,6 +68,15 @@ struct FpsRange {
     bool includes(Fps) const;
 };
 
+struct FpsRanges {
+    // The range of refresh rates that refers to the display mode setting.
+    FpsRange physical;
+
+    // the range of frame rates that refers to the render rate, which is
+    // the rate that frames are swapped.
+    FpsRange render;
+};
+
 static_assert(std::is_trivially_copyable_v<Fps>);
 
 constexpr Fps operator""_Hz(unsigned long long frequency) {
@@ -127,6 +136,14 @@ inline bool operator!=(FpsRange lhs, FpsRange rhs) {
     return !(lhs == rhs);
 }
 
+inline bool operator==(const FpsRanges& lhs, const FpsRanges& rhs) {
+    return lhs.physical == rhs.physical && lhs.render == rhs.render;
+}
+
+inline bool operator!=(const FpsRanges& lhs, const FpsRanges& rhs) {
+    return !(lhs == rhs);
+}
+
 } // namespace fps_approx_ops
 
 inline bool FpsRange::includes(Fps fps) const {
@@ -149,6 +166,12 @@ inline std::ostream& operator<<(std::ostream& stream, Fps fps) {
 inline std::string to_string(FpsRange range) {
     const auto [min, max] = range;
     return base::StringPrintf("[%s, %s]", to_string(min).c_str(), to_string(max).c_str());
+}
+
+inline std::string to_string(FpsRanges ranges) {
+    const auto& [physical, render] = ranges;
+    return base::StringPrintf("{physical=%s, render=%s}", to_string(physical).c_str(),
+                              to_string(render).c_str());
 }
 
 } // namespace android

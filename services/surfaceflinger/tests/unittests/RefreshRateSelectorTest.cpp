@@ -357,7 +357,7 @@ TEST_F(RefreshRateSelectorTest, getBestRefreshRate_noLayers) {
         constexpr bool kAllowGroupSwitching = true;
         EXPECT_EQ(SetPolicyResult::Changed,
                   selector.setDisplayManagerPolicy(
-                          {kModeId90, kAllowGroupSwitching, {0_Hz, 90_Hz}}));
+                          {kModeId90, {0_Hz, 90_Hz}, kAllowGroupSwitching}));
         EXPECT_EQ(kMode90_G1, selector.getBestRefreshRate());
     }
 }
@@ -1105,7 +1105,7 @@ TEST_F(RefreshRateSelectorTest, getMinRefreshRatesByPolicyOutsideTheGroup) {
     TestableRefreshRateSelector selector(kModes_30_60_90, kModeId72);
 
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}}));
 
     const auto refreshRates =
             selector.rankRefreshRates(/*anchorGroupOpt*/ std::nullopt, RefreshRateOrder::Ascending);
@@ -1126,7 +1126,7 @@ TEST_F(RefreshRateSelectorTest, getMaxRefreshRatesByPolicyOutsideTheGroup) {
     TestableRefreshRateSelector selector(kModes_30_60_90, kModeId72);
 
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}}));
 
     const auto refreshRates = selector.rankRefreshRates(/*anchorGroupOpt*/ std::nullopt,
                                                         RefreshRateOrder::Descending);
@@ -1351,8 +1351,10 @@ TEST_F(RefreshRateSelectorTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_ignoresTouchFlag) {
     TestableRefreshRateSelector selector(kModes_60_90, kModeId90);
 
+    constexpr FpsRange k90 = {90_Hz, 90_Hz};
+    constexpr FpsRange k60_90 = {60_Hz, 90_Hz};
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}, {60_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId90, {k90, k90}, {k60_90, k60_90}}));
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     auto& lr = layers[0];
@@ -1373,8 +1375,11 @@ TEST_F(RefreshRateSelectorTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_ignoresIdleFlag) {
     TestableRefreshRateSelector selector(kModes_60_90, kModeId60);
 
+    constexpr FpsRange k60 = {60_Hz, 60_Hz};
+    constexpr FpsRange k60_90 = {60_Hz, 90_Hz};
+
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}, {60_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {k60, k60}, {k60_90, k60_90}}));
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     auto& lr = layers[0];
@@ -1513,8 +1518,11 @@ TEST_F(RefreshRateSelectorTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_onlySwitchesRatesForExplicitFocusedLayers) {
     TestableRefreshRateSelector selector(kModes_60_90, kModeId90);
 
+    constexpr FpsRange k90 = {90_Hz, 90_Hz};
+    constexpr FpsRange k60_90 = {60_Hz, 90_Hz};
+
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}, {60_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId90, {k90, k90}, {k60_90, k60_90}}));
 
     const auto [ranking, signals] = selector.getRankedRefreshRates({}, {});
     EXPECT_EQ(ranking.front().modePtr, kMode90);
@@ -1849,8 +1857,11 @@ TEST_F(RefreshRateSelectorTest, primaryVsAppRequestPolicy) {
         return selector.getBestRefreshRate(layers, {.touch = args.touch})->getId();
     };
 
+    constexpr FpsRange k30_60 = {30_Hz, 60_Hz};
+    constexpr FpsRange k30_90 = {30_Hz, 90_Hz};
+
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 60_Hz}, {30_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {k30_60, k30_60}, {k30_90, k30_90}}));
 
     EXPECT_EQ(kModeId60, selector.getBestRefreshRate()->getId());
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::NoVote, 90_Hz));
@@ -1875,7 +1886,7 @@ TEST_F(RefreshRateSelectorTest, primaryVsAppRequestPolicy) {
               getFrameRate(LayerVoteType::ExplicitExactOrMultiple, 90_Hz, {.touch = true}));
 
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}, {60_Hz, 60_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}));
 
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::NoVote, 90_Hz));
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::Min, 90_Hz));
@@ -1904,7 +1915,7 @@ TEST_F(RefreshRateSelectorTest, idle) {
     };
 
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 90_Hz}, {60_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 90_Hz}}));
 
     // Idle should be lower priority than touch boost.
     {
