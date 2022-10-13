@@ -17,6 +17,7 @@
 #pragma once
 
 #include <ftl/small_map.h>
+#include <ftl/small_vector.h>
 
 namespace android::display {
 
@@ -27,5 +28,8 @@ using DisplayMap = ftl::SmallMap<Key, Value, 5>;
 
 template <typename Key, typename Value>
 using PhysicalDisplayMap = ftl::SmallMap<Key, Value, 3>;
+
+template <typename T>
+using PhysicalDisplayVector = ftl::SmallVector<T, 3>;
 
 } // namespace android::display
