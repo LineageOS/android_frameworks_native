@@ -40,6 +40,7 @@ import android.gui.ITunnelModeEnabledListener;
 import android.gui.IWindowInfosListener;
 import android.gui.LayerCaptureArgs;
 import android.gui.LayerDebugInfo;
+import android.gui.OverlayProperties;
 import android.gui.PullAtomData;
 import android.gui.ARect;
 import android.gui.StaticDisplayInfo;
@@ -472,4 +473,6 @@ interface ISurfaceComposer {
     void addWindowInfosListener(IWindowInfosListener windowInfosListener);
 
     void removeWindowInfosListener(IWindowInfosListener windowInfosListener);
+
+    OverlayProperties getOverlaySupport();
 }

@@ -523,6 +523,7 @@ private:
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode);
     status_t getBootDisplayModeSupport(bool* outSupport) const;
     status_t setBootDisplayMode(const sp<display::DisplayToken>&, DisplayModeId);
+    status_t getOverlaySupport(gui::OverlayProperties* outProperties) const;
     status_t clearBootDisplayMode(const sp<IBinder>& displayToken);
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on);
     void setGameContentType(const sp<IBinder>& displayToken, bool on);
@@ -1410,6 +1411,7 @@ public:
     binder::Status setBootDisplayMode(const sp<IBinder>& display, int displayModeId) override;
     binder::Status clearBootDisplayMode(const sp<IBinder>& display) override;
     binder::Status getBootDisplayModeSupport(bool* outMode) override;
+    binder::Status getOverlaySupport(gui::OverlayProperties* outProperties) override;
     binder::Status setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override;
     binder::Status setGameContentType(const sp<IBinder>& display, bool on) override;
     binder::Status captureDisplay(const DisplayCaptureArgs&,

@@ -2451,6 +2451,12 @@ status_t SurfaceComposerClient::getBootDisplayModeSupport(bool* support) {
     return statusTFromBinderStatus(status);
 }
 
+status_t SurfaceComposerClient::getOverlaySupport(gui::OverlayProperties* outProperties) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getOverlaySupport(outProperties);
+    return statusTFromBinderStatus(status);
+}
+
 status_t SurfaceComposerClient::setBootDisplayMode(const sp<IBinder>& display,
                                                    ui::DisplayModeId displayModeId) {
     binder::Status status = ComposerServiceAIDL::getComposerService()
