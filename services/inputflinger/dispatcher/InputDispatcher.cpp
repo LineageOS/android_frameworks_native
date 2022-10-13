@@ -4803,10 +4803,13 @@ void InputDispatcher::setInputWindowsLocked(
     updateWindowHandlesForDisplayLocked(windowInfoHandles, displayId);
 
     const std::vector<sp<WindowInfoHandle>>& windowHandles = getWindowHandlesLocked(displayId);
-    if (mLastHoverWindowHandle &&
-        std::find(windowHandles.begin(), windowHandles.end(), mLastHoverWindowHandle) ==
-                windowHandles.end()) {
-        mLastHoverWindowHandle = nullptr;
+    if (mLastHoverWindowHandle) {
+        const WindowInfo* lastHoverWindowInfo = mLastHoverWindowHandle->getInfo();
+        if (lastHoverWindowInfo->displayId == displayId &&
+            std::find(windowHandles.begin(), windowHandles.end(), mLastHoverWindowHandle) ==
+                    windowHandles.end()) {
+            mLastHoverWindowHandle = nullptr;
+        }
     }
 
     std::optional<FocusResolver::FocusChanges> changes =
