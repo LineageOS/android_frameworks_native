@@ -189,73 +189,74 @@ uint32_t TouchInputMapper::getSources() const {
 void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     InputMapper::populateDeviceInfo(info);
 
-    if (mDeviceMode != DeviceMode::DISABLED) {
-        info->addMotionRange(mOrientedRanges.x);
-        info->addMotionRange(mOrientedRanges.y);
-        info->addMotionRange(mOrientedRanges.pressure);
-
-        if (mDeviceMode == DeviceMode::UNSCALED && mSource == AINPUT_SOURCE_TOUCHPAD) {
-            // Populate RELATIVE_X and RELATIVE_Y motion ranges for touchpad capture mode.
-            //
-            // RELATIVE_X and RELATIVE_Y motion ranges should be the largest possible relative
-            // motion, i.e. the hardware dimensions, as the finger could move completely across the
-            // touchpad in one sample cycle.
-            const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
-            const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
-            info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, mSource, -x.max, x.max, x.flat,
-                                 x.fuzz, x.resolution);
-            info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, mSource, -y.max, y.max, y.flat,
-                                 y.fuzz, y.resolution);
-        }
-
-        if (mOrientedRanges.size) {
-            info->addMotionRange(*mOrientedRanges.size);
-        }
-
-        if (mOrientedRanges.touchMajor) {
-            info->addMotionRange(*mOrientedRanges.touchMajor);
-            info->addMotionRange(*mOrientedRanges.touchMinor);
-        }
-
-        if (mOrientedRanges.toolMajor) {
-            info->addMotionRange(*mOrientedRanges.toolMajor);
-            info->addMotionRange(*mOrientedRanges.toolMinor);
-        }
-
-        if (mOrientedRanges.orientation) {
-            info->addMotionRange(*mOrientedRanges.orientation);
-        }
-
-        if (mOrientedRanges.distance) {
-            info->addMotionRange(*mOrientedRanges.distance);
-        }
-
-        if (mOrientedRanges.tilt) {
-            info->addMotionRange(*mOrientedRanges.tilt);
-        }
-
-        if (mCursorScrollAccumulator.haveRelativeVWheel()) {
-            info->addMotionRange(AMOTION_EVENT_AXIS_VSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f,
-                                 0.0f);
-        }
-        if (mCursorScrollAccumulator.haveRelativeHWheel()) {
-            info->addMotionRange(AMOTION_EVENT_AXIS_HSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f,
-                                 0.0f);
-        }
-        if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
-            const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
-            const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
-            info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_1, mSource, x.min, x.max, x.flat,
-                                 x.fuzz, x.resolution);
-            info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_2, mSource, y.min, y.max, y.flat,
-                                 y.fuzz, y.resolution);
-            info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_3, mSource, x.min, x.max, x.flat,
-                                 x.fuzz, x.resolution);
-            info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_4, mSource, y.min, y.max, y.flat,
-                                 y.fuzz, y.resolution);
-        }
-        info->setButtonUnderPad(mParameters.hasButtonUnderPad);
+    if (mDeviceMode == DeviceMode::DISABLED) {
+        return;
     }
+
+    info->addMotionRange(mOrientedRanges.x);
+    info->addMotionRange(mOrientedRanges.y);
+    info->addMotionRange(mOrientedRanges.pressure);
+
+    if (mDeviceMode == DeviceMode::UNSCALED && mSource == AINPUT_SOURCE_TOUCHPAD) {
+        // Populate RELATIVE_X and RELATIVE_Y motion ranges for touchpad capture mode.
+        //
+        // RELATIVE_X and RELATIVE_Y motion ranges should be the largest possible relative
+        // motion, i.e. the hardware dimensions, as the finger could move completely across the
+        // touchpad in one sample cycle.
+        const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
+        const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
+        info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, mSource, -x.max, x.max, x.flat, x.fuzz,
+                             x.resolution);
+        info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, mSource, -y.max, y.max, y.flat, y.fuzz,
+                             y.resolution);
+    }
+
+    if (mOrientedRanges.size) {
+        info->addMotionRange(*mOrientedRanges.size);
+    }
+
+    if (mOrientedRanges.touchMajor) {
+        info->addMotionRange(*mOrientedRanges.touchMajor);
+        info->addMotionRange(*mOrientedRanges.touchMinor);
+    }
+
+    if (mOrientedRanges.toolMajor) {
+        info->addMotionRange(*mOrientedRanges.toolMajor);
+        info->addMotionRange(*mOrientedRanges.toolMinor);
+    }
+
+    if (mOrientedRanges.orientation) {
+        info->addMotionRange(*mOrientedRanges.orientation);
+    }
+
+    if (mOrientedRanges.distance) {
+        info->addMotionRange(*mOrientedRanges.distance);
+    }
+
+    if (mOrientedRanges.tilt) {
+        info->addMotionRange(*mOrientedRanges.tilt);
+    }
+
+    if (mCursorScrollAccumulator.haveRelativeVWheel()) {
+        info->addMotionRange(AMOTION_EVENT_AXIS_VSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
+    }
+    if (mCursorScrollAccumulator.haveRelativeHWheel()) {
+        info->addMotionRange(AMOTION_EVENT_AXIS_HSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
+    }
+    if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
+        const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
+        const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
+        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_1, mSource, x.min, x.max, x.flat, x.fuzz,
+                             x.resolution);
+        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_2, mSource, y.min, y.max, y.flat, y.fuzz,
+                             y.resolution);
+        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_3, mSource, x.min, x.max, x.flat, x.fuzz,
+                             x.resolution);
+        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_4, mSource, y.min, y.max, y.flat, y.fuzz,
+                             y.resolution);
+    }
+    info->setButtonUnderPad(mParameters.hasButtonUnderPad);
+    info->setSupportsUsi(mParameters.supportsUsi);
 }
 
 void TouchInputMapper::dump(std::string& dump) {
@@ -395,13 +396,11 @@ std::list<NotifyArgs> TouchInputMapper::configure(nsecs_t when,
     }
 
     if (changes && resetNeeded) {
-        // If the device needs to be reset, cancel any ongoing gestures and reset the state.
-        out += cancelTouch(when, when);
         out += reset(when);
 
         // Send reset, unless this is the first time the device has been configured,
         // in which case the reader will call reset itself after all mappers are ready.
-        out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
+        out.emplace_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
     }
     return out;
 }
@@ -507,6 +506,10 @@ void TouchInputMapper::configureParameters() {
     // up in your pocket but you can enable it using the input device configuration.
     mParameters.wake = getDeviceContext().isExternal();
     getDeviceContext().getConfiguration().tryGetProperty("touch.wake", mParameters.wake);
+
+    mParameters.supportsUsi = false;
+    getDeviceContext().getConfiguration().tryGetProperty("touch.supportsUsi",
+                                                         mParameters.supportsUsi);
 }
 
 void TouchInputMapper::dumpParameters(std::string& dump) {
@@ -523,6 +526,7 @@ void TouchInputMapper::dumpParameters(std::string& dump) {
                          mParameters.uniqueDisplayId.c_str());
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
     dump += INDENT4 "Orientation: " + ftl::enum_string(mParameters.orientation) + "\n";
+    dump += StringPrintf(INDENT4 "SupportsUsi: %s\n", toString(mParameters.supportsUsi));
 }
 
 void TouchInputMapper::configureRawPointerAxes() {
@@ -1440,6 +1444,9 @@ void TouchInputMapper::updateAffineTransformation() {
 }
 
 std::list<NotifyArgs> TouchInputMapper::reset(nsecs_t when) {
+    std::list<NotifyArgs> out = cancelTouch(when, when);
+    updateTouchSpots();
+
     mCursorButtonAccumulator.reset(getDeviceContext());
     mCursorScrollAccumulator.reset(getDeviceContext());
     mTouchButtonAccumulator.reset(getDeviceContext());
@@ -1470,7 +1477,7 @@ std::list<NotifyArgs> TouchInputMapper::reset(nsecs_t when) {
         mPointerController->clearSpots();
     }
 
-    return InputMapper::reset(when);
+    return out += InputMapper::reset(when);
 }
 
 void TouchInputMapper::resetExternalStylus() {
@@ -1554,10 +1561,7 @@ std::list<NotifyArgs> TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
 std::list<NotifyArgs> TouchInputMapper::processRawTouches(bool timeout) {
     std::list<NotifyArgs> out;
     if (mDeviceMode == DeviceMode::DISABLED) {
-        // Drop all input if the device is disabled.
-        out += cancelTouch(mCurrentRawState.when, mCurrentRawState.readTime);
-        mCurrentCookedState.clear();
-        updateTouchSpots();
+        // Do not process raw event while the device is disabled.
         return out;
     }
 
@@ -1976,8 +1980,8 @@ std::list<NotifyArgs> TouchInputMapper::abortTouches(nsecs_t when, nsecs_t readT
         int32_t metaState = getContext()->getGlobalMetaState();
         int32_t buttonState = mCurrentCookedState.buttonState;
         out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
-                                     AMOTION_EVENT_ACTION_CANCEL, 0, 0, metaState, buttonState,
-                                     AMOTION_EVENT_EDGE_FLAG_NONE,
+                                     AMOTION_EVENT_ACTION_CANCEL, 0, AMOTION_EVENT_FLAG_CANCELED,
+                                     metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                                      mCurrentCookedState.cookedPointerData.pointerProperties,
                                      mCurrentCookedState.cookedPointerData.pointerCoords,
                                      mCurrentCookedState.cookedPointerData.idToIndex, currentIdBits,
@@ -2617,8 +2621,9 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
     BitSet32 dispatchedGestureIdBits(mPointerGesture.lastGestureIdBits);
     if (!dispatchedGestureIdBits.isEmpty()) {
         if (cancelPreviousGesture) {
+            const uint32_t cancelFlags = flags | AMOTION_EVENT_FLAG_CANCELED;
             out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
-                                         AMOTION_EVENT_ACTION_CANCEL, 0, flags, metaState,
+                                         AMOTION_EVENT_ACTION_CANCEL, 0, cancelFlags, metaState,
                                          buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                                          mPointerGesture.lastGestureProperties,
                                          mPointerGesture.lastGestureCoords,
@@ -2754,8 +2759,8 @@ std::list<NotifyArgs> TouchInputMapper::abortPointerGestures(nsecs_t when, nsecs
         int32_t metaState = getContext()->getGlobalMetaState();
         int32_t buttonState = mCurrentRawState.buttonState;
         out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
-                                     AMOTION_EVENT_ACTION_CANCEL, 0, 0, metaState, buttonState,
-                                     AMOTION_EVENT_EDGE_FLAG_NONE,
+                                     AMOTION_EVENT_ACTION_CANCEL, 0, AMOTION_EVENT_FLAG_CANCELED,
+                                     metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                                      mPointerGesture.lastGestureProperties,
                                      mPointerGesture.lastGestureCoords,
                                      mPointerGesture.lastGestureIdToIndex,

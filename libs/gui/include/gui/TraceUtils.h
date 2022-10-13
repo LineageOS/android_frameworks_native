@@ -30,6 +30,12 @@
 #define ATRACE_FORMAT_INSTANT(fmt, ...) \
     (CC_UNLIKELY(ATRACE_ENABLED()) && (TraceUtils::instantFormat(fmt, ##__VA_ARGS__), true))
 
+#define ALOGE_AND_TRACE(fmt, ...)                  \
+    do {                                           \
+        ALOGE(fmt, ##__VA_ARGS__);                 \
+        ATRACE_FORMAT_INSTANT(fmt, ##__VA_ARGS__); \
+    } while (false)
+
 namespace android {
 
 class TraceUtils {

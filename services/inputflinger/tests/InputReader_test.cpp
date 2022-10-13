@@ -3112,6 +3112,15 @@ protected:
         return processArgList;
     }
 
+    void resetMapper(InputMapper& mapper, nsecs_t when) {
+        const auto resetArgs = mapper.reset(when);
+        for (const auto args : resetArgs) {
+            mFakeListener->notify(args);
+        }
+        // Loop the reader to flush the input listener queue.
+        mReader->loopOnce();
+    }
+
     static void assertMotionRange(const InputDeviceInfo& info,
             int32_t axis, uint32_t source, float min, float max, float flat, float fuzz) {
         const InputDeviceInfo::MotionRange* range = info.getMotionRange(axis, source);
@@ -6864,6 +6873,28 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenAbsPressureIsPresent_HoversIfItsV
             toDisplayX(150), toDisplayY(250), 0, 0, 0, 0, 0, 0, 0, 0));
 }
 
+TEST_F(SingleTouchInputMapperTest, Reset_CancelsOngoingGesture) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION | PRESSURE);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    // Touch down.
+    processDown(mapper, 100, 200);
+    processPressure(mapper, 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_DOWN)));
+
+    // Reset the mapper. This should cancel the ongoing gesture.
+    resetMapper(mapper, ARBITRARY_TIME);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
 TEST_F(SingleTouchInputMapperTest, Reset_RecreatesTouchState) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
@@ -6878,8 +6909,9 @@ TEST_F(SingleTouchInputMapperTest, Reset_RecreatesTouchState) {
     mFakeEventHub->setScanCodeState(EVENTHUB_ID, BTN_TOUCH, 1);
 
     // Reset the mapper. When the mapper is reset, we expect it to attempt to recreate the touch
-    // state by reading the current axis values.
-    std::list<NotifyArgs> unused = mapper.reset(ARBITRARY_TIME);
+    // state by reading the current axis values. Since there was no ongoing gesture, calling reset
+    // does not generate any events.
+    resetMapper(mapper, ARBITRARY_TIME);
 
     // Send a sync to simulate an empty touch frame where nothing changes. The mapper should use
     // the recreated touch state to generate a down event.
@@ -9530,9 +9562,10 @@ TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState) {
             mFakeListener->assertNotifyMotionWasCalled(WithMotionAction(ACTION_POINTER_1_DOWN)));
 
     // Reset the mapper. When the mapper is reset, we expect the current multi-touch state to be
-    // preserved. Resetting should not generate any events.
-    std::list<NotifyArgs> unused = mapper.reset(ARBITRARY_TIME);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    // preserved. Resetting should cancel the ongoing gesture.
+    resetMapper(mapper, ARBITRARY_TIME);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)));
 
     // Send a sync to simulate an empty touch frame where nothing changes. The mapper should use
     // the existing touch state to generate a down event.
@@ -9566,7 +9599,7 @@ TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState_NoPointersDown) 
 
     // Reset the mapper. When the mapper is reset, we expect it to restore the latest
     // raw state where no pointers are down.
-    std::list<NotifyArgs> unused = mapper.reset(ARBITRARY_TIME);
+    resetMapper(mapper, ARBITRARY_TIME);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 
     // Send an empty sync frame. Since there are no pointers, no events are generated.

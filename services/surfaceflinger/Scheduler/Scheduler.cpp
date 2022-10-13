@@ -739,13 +739,17 @@ std::vector<DisplayModeConfig> Scheduler::getBestDisplayModeConfigs() const {
     std::unordered_map<Fps, AggregatedFpsScore, FpsHash, FpsApproxEqual> aggregatedScoresPerFps =
             getAggregatedScoresPerFps(refreshRateRankingsAndSignalsPerDisplay);
 
-    Fps chosenFps = std::max_element(aggregatedScoresPerFps.begin(), aggregatedScoresPerFps.end(),
-                                     [](const auto& max, const auto& current) {
-                                         return max.second.totalScore <= current.second.totalScore;
-                                     })
-                            ->first;
-
-    return getDisplayModeConfigsForTheChosenFps(chosenFps, refreshRateRankingsAndSignalsPerDisplay);
+    auto maxScoreIt = aggregatedScoresPerFps.cbegin();
+    // Selects the max Fps that is present on all the displays.
+    for (auto it = aggregatedScoresPerFps.cbegin(); it != aggregatedScoresPerFps.cend(); ++it) {
+        const auto [fps, aggregatedScore] = *it;
+        if (aggregatedScore.numDisplays == mDisplays.size() &&
+            aggregatedScore.totalScore >= maxScoreIt->second.totalScore) {
+            maxScoreIt = it;
+        }
+    }
+    return getDisplayModeConfigsForTheChosenFps(maxScoreIt->first,
+                                                refreshRateRankingsAndSignalsPerDisplay);
 }
 
 std::vector<DisplayModeConfig> Scheduler::getDisplayModeConfigsForTheChosenFps(
