@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef ATTESTATION_HMACKEYMANAGER_H
-#define ATTESTATION_HMACKEYMANAGER_H
-
-#include <array>
+#include <jpegrecoverymap/recoverymap.h>
 
 namespace android {
-/**
- * Invalid value of HMAC - SHA256. Any events with this HMAC value will be marked as not verified.
- */
-constexpr std::array<uint8_t, 32> INVALID_HMAC = {0};
 
-class HmacKeyManager {
-public:
-    HmacKeyManager();
-    std::array<uint8_t, 32> sign(const uint8_t* data, size_t size) const;
-private:
-    const std::array<uint8_t, 128> mHmacKey;
-};
+// Add new tests here.
 } // namespace android
-
-#endif // ATTESTATION_HMACKEYMANAGER_H

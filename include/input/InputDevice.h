@@ -280,6 +280,9 @@ public:
 
     std::vector<InputDeviceLightInfo> getLights();
 
+    inline void setSupportsUsi(bool supportsUsi) { mSupportsUsi = supportsUsi; }
+    inline bool supportsUsi() const { return mSupportsUsi; }
+
 private:
     int32_t mId;
     int32_t mGeneration;
@@ -292,6 +295,8 @@ private:
     uint32_t mSources;
     int32_t mKeyboardType;
     std::shared_ptr<KeyCharacterMap> mKeyCharacterMap;
+    // Whether this device supports the Universal Stylus Initiative (USI) protocol for styluses.
+    bool mSupportsUsi;
 
     bool mHasVibrator;
     bool mHasBattery;
