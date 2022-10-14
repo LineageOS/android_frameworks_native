@@ -21,10 +21,6 @@
 
 namespace android {
 
-TouchButtonAccumulator::TouchButtonAccumulator() : mHaveBtnTouch(false), mHaveStylus(false) {
-    clearButtons();
-}
-
 void TouchButtonAccumulator::configure(InputDeviceContext& deviceContext) {
     mHaveBtnTouch = deviceContext.hasScanCode(BTN_TOUCH);
     mHaveStylus = deviceContext.hasScanCode(BTN_TOOL_PEN) ||
@@ -50,23 +46,6 @@ void TouchButtonAccumulator::reset(InputDeviceContext& deviceContext) {
     mBtnToolDoubleTap = deviceContext.isKeyPressed(BTN_TOOL_DOUBLETAP);
     mBtnToolTripleTap = deviceContext.isKeyPressed(BTN_TOOL_TRIPLETAP);
     mBtnToolQuadTap = deviceContext.isKeyPressed(BTN_TOOL_QUADTAP);
-}
-
-void TouchButtonAccumulator::clearButtons() {
-    mBtnTouch = 0;
-    mBtnStylus = 0;
-    mBtnStylus2 = 0;
-    mBtnToolFinger = 0;
-    mBtnToolPen = 0;
-    mBtnToolRubber = 0;
-    mBtnToolBrush = 0;
-    mBtnToolPencil = 0;
-    mBtnToolAirbrush = 0;
-    mBtnToolMouse = 0;
-    mBtnToolLens = 0;
-    mBtnToolDoubleTap = 0;
-    mBtnToolTripleTap = 0;
-    mBtnToolQuadTap = 0;
 }
 
 void TouchButtonAccumulator::process(const RawEvent* rawEvent) {
