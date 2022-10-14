@@ -2437,8 +2437,8 @@ TEST_F(InputReaderIntegrationTest, ExternalStylusesButtons) {
     const auto device = findDeviceByName(stylus->getName());
     ASSERT_TRUE(device.has_value());
 
-    // An external stylus with buttons should be recognized as a keyboard.
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, device->getSources())
+    // An external stylus with buttons should also be recognized as a keyboard.
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD | AINPUT_SOURCE_STYLUS, device->getSources())
             << "Unexpected source " << inputEventSourceToString(device->getSources()).c_str();
     ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, device->getKeyboardType());
 

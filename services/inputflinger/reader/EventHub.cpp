@@ -149,6 +149,14 @@ static std::string sha1(const std::string& in) {
     return out;
 }
 
+/* The set of all Android key codes that correspond to buttons (bit-switches) on a stylus. */
+static constexpr std::array<int32_t, 4> STYLUS_BUTTON_KEYCODES = {
+        AKEYCODE_STYLUS_BUTTON_PRIMARY,
+        AKEYCODE_STYLUS_BUTTON_SECONDARY,
+        AKEYCODE_STYLUS_BUTTON_TERTIARY,
+        AKEYCODE_STYLUS_BUTTON_TAIL,
+};
+
 /**
  * Return true if name matches "v4l-touch*"
  */
@@ -2189,11 +2197,13 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
         device->classes |= InputDeviceClass::CURSOR;
     }
 
-    // See if this is a rotary encoder type device.
+    // See if the device is specially configured to be of a certain type.
     std::string deviceType;
     if (device->configuration && device->configuration->tryGetProperty("device.type", deviceType)) {
         if (deviceType == "rotaryEncoder") {
             device->classes |= InputDeviceClass::ROTARY_ENCODER;
+        } else if (deviceType == "externalStylus") {
+            device->classes |= InputDeviceClass::EXTERNAL_STYLUS;
         }
     }
 
@@ -2296,6 +2306,16 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
             if (device->hasKeycodeLocked(GAMEPAD_KEYCODES[i])) {
                 device->classes |= InputDeviceClass::GAMEPAD;
                 break;
+            }
+        }
+
+        // See if this device has any stylus buttons that we would want to fuse with touch data.
+        if (!device->classes.any(InputDeviceClass::TOUCH | InputDeviceClass::TOUCH_MT)) {
+            for (int32_t keycode : STYLUS_BUTTON_KEYCODES) {
+                if (device->hasKeycodeLocked(keycode)) {
+                    device->classes |= InputDeviceClass::EXTERNAL_STYLUS;
+                    break;
+                }
             }
         }
     }
