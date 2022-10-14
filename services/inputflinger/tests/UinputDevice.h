@@ -84,7 +84,7 @@ public:
     friend std::unique_ptr<D> createUinputDevice(Ts... args);
 
 protected:
-    UinputKeyboard(std::initializer_list<int> keys = {});
+    UinputKeyboard(const char* name, std::initializer_list<int> keys = {});
 
 private:
     void configureDevice(int fd, uinput_user_dev* device) override;
@@ -117,6 +117,16 @@ private:
     UinputSteamController();
 };
 
+// A stylus that reports button presses.
+class UinputExternalStylus : public UinputKeyboard {
+public:
+    template <class D, class... Ts>
+    friend std::unique_ptr<D> createUinputDevice(Ts... args);
+
+private:
+    UinputExternalStylus();
+};
+
 // --- UinputTouchScreen ---
 // A touch screen device with specific size.
 class UinputTouchScreen : public UinputDevice {
@@ -142,6 +152,7 @@ public:
     void sendUp();
     void sendToolType(int32_t toolType);
     void sendSync();
+    void sendKey(int32_t scanCode, int32_t value);
 
     const Point getCenterPoint();
 

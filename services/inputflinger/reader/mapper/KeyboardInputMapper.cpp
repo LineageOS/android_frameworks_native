@@ -53,10 +53,11 @@ static int32_t rotateKeyCode(int32_t keyCode, int32_t orientation) {
     return keyCode;
 }
 
-static bool isKeyboardOrGamepadKey(int32_t scanCode) {
-    return scanCode < BTN_MOUSE || scanCode >= BTN_WHEEL ||
-            (scanCode >= BTN_MISC && scanCode < BTN_MOUSE) ||
-            (scanCode >= BTN_JOYSTICK && scanCode < BTN_DIGI);
+static bool isSupportedScanCode(int32_t scanCode) {
+    // KeyboardInputMapper handles keys from keyboards, gamepads, and styluses.
+    return scanCode < BTN_MOUSE || (scanCode >= BTN_JOYSTICK && scanCode < BTN_DIGI) ||
+            scanCode == BTN_STYLUS || scanCode == BTN_STYLUS2 || scanCode == BTN_STYLUS3 ||
+            scanCode >= BTN_WHEEL;
 }
 
 static bool isMediaKey(int32_t keyCode) {
@@ -195,7 +196,7 @@ std::list<NotifyArgs> KeyboardInputMapper::process(const RawEvent* rawEvent) {
             int32_t usageCode = mCurrentHidUsage;
             mCurrentHidUsage = 0;
 
-            if (isKeyboardOrGamepadKey(scanCode)) {
+            if (isSupportedScanCode(scanCode)) {
                 out += processKey(rawEvent->when, rawEvent->readTime, rawEvent->value != 0,
                                   scanCode, usageCode);
             }

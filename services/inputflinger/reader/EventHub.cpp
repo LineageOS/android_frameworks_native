@@ -2171,13 +2171,15 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     device->readDeviceBitMask(EVIOCGBIT(EV_MSC, 0), device->mscBitmask);
     device->readDeviceBitMask(EVIOCGPROP(0), device->propBitmask);
 
-    // See if this is a keyboard.  Ignore everything in the button range except for
-    // joystick and gamepad buttons which are handled like keyboards for the most part.
+    // See if this is a device with keys. This could be full keyboard, or other devices like
+    // gamepads, joysticks, and styluses with buttons that should generate key presses.
     bool haveKeyboardKeys =
             device->keyBitmask.any(0, BTN_MISC) || device->keyBitmask.any(BTN_WHEEL, KEY_MAX + 1);
     bool haveGamepadButtons = device->keyBitmask.any(BTN_MISC, BTN_MOUSE) ||
             device->keyBitmask.any(BTN_JOYSTICK, BTN_DIGI);
-    if (haveKeyboardKeys || haveGamepadButtons) {
+    bool haveStylusButtons = device->keyBitmask.test(BTN_STYLUS) ||
+            device->keyBitmask.test(BTN_STYLUS2) || device->keyBitmask.test(BTN_STYLUS3);
+    if (haveKeyboardKeys || haveGamepadButtons || haveStylusButtons) {
         device->classes |= InputDeviceClass::KEYBOARD;
     }
 
@@ -2208,14 +2210,10 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     } else if (device->keyBitmask.test(BTN_TOUCH) && device->absBitmask.test(ABS_X) &&
                device->absBitmask.test(ABS_Y)) {
         device->classes |= InputDeviceClass::TOUCH;
-        // Is this a BT stylus?
+        // Is this a stylus that reports contact/pressure independently of touch coordinates?
     } else if ((device->absBitmask.test(ABS_PRESSURE) || device->keyBitmask.test(BTN_TOUCH)) &&
                !device->absBitmask.test(ABS_X) && !device->absBitmask.test(ABS_Y)) {
         device->classes |= InputDeviceClass::EXTERNAL_STYLUS;
-        // Keyboard will try to claim some of the buttons but we really want to reserve those so we
-        // can fuse it with the touch screen data, so just take them back. Note this means an
-        // external stylus cannot also be a keyboard device.
-        device->classes &= ~InputDeviceClass::KEYBOARD;
     }
 
     // See if this device is a joystick.

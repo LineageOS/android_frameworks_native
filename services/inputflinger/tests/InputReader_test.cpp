@@ -2391,18 +2391,11 @@ TEST_F(InputReaderIntegrationTest, AddNewDevice) {
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
     ASSERT_EQ(initialNumDevices + 1, mFakePolicy->getInputDevices().size());
 
-    // Find the test device by its name.
-    const std::vector<InputDeviceInfo> inputDevices = mFakePolicy->getInputDevices();
-    const auto& it =
-            std::find_if(inputDevices.begin(), inputDevices.end(),
-                         [&keyboard](const InputDeviceInfo& info) {
-                             return info.getIdentifier().name == keyboard->getName();
-                         });
-
-    ASSERT_NE(it, inputDevices.end());
-    ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, it->getKeyboardType());
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, it->getSources());
-    ASSERT_EQ(0U, it->getMotionRanges().size());
+    const auto device = findDeviceByName(keyboard->getName());
+    ASSERT_TRUE(device.has_value());
+    ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, device->getKeyboardType());
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, device->getSources());
+    ASSERT_EQ(0U, device->getMotionRanges().size());
 
     keyboard.reset();
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
@@ -2435,6 +2428,41 @@ TEST_F(InputReaderIntegrationTest, SendsEventsToInputListener) {
     ASSERT_NE(prevId, keyArgs.id);
     ASSERT_LE(prevTimestamp, keyArgs.eventTime);
     ASSERT_LE(keyArgs.eventTime, keyArgs.readTime);
+}
+
+TEST_F(InputReaderIntegrationTest, ExternalStylusesButtons) {
+    std::unique_ptr<UinputExternalStylus> stylus = createUinputDevice<UinputExternalStylus>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+
+    const auto device = findDeviceByName(stylus->getName());
+    ASSERT_TRUE(device.has_value());
+
+    // An external stylus with buttons should be recognized as a keyboard.
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, device->getSources())
+            << "Unexpected source " << inputEventSourceToString(device->getSources()).c_str();
+    ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, device->getKeyboardType());
+
+    const auto DOWN =
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD));
+    const auto UP = AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP), WithSource(AINPUT_SOURCE_KEYBOARD));
+
+    stylus->pressAndReleaseKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(DOWN, WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(UP, WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+
+    stylus->pressAndReleaseKey(BTN_STYLUS2);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(DOWN, WithKeyCode(AKEYCODE_STYLUS_BUTTON_SECONDARY))));
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(UP, WithKeyCode(AKEYCODE_STYLUS_BUTTON_SECONDARY))));
+
+    stylus->pressAndReleaseKey(BTN_STYLUS3);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(DOWN, WithKeyCode(AKEYCODE_STYLUS_BUTTON_TERTIARY))));
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(UP, WithKeyCode(AKEYCODE_STYLUS_BUTTON_TERTIARY))));
 }
 
 /**
@@ -2770,6 +2798,20 @@ TEST_F(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
                   WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
 
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertStylusGestureNotified(mDeviceInfo.getId()));
+}
+
+TEST_F(TouchIntegrationTest, StylusButtonsGenerateKeyEvents) {
+    mDevice->sendKey(BTN_STYLUS, 1);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD),
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+
+    mDevice->sendKey(BTN_STYLUS, 0);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP), WithSource(AINPUT_SOURCE_KEYBOARD),
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
 }
 
 // --- InputDeviceTest ---
