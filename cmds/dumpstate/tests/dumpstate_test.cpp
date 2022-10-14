@@ -31,6 +31,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <filesystem>
 #include <thread>
 
 #include <aidl/android/hardware/dumpstate/IDumpstateDevice.h>
@@ -237,7 +238,7 @@ TEST_F(DumpOptionsTest, InitializeAdbShellBugreport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeFullBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_FULL, fd, fd, true);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_FULL, 0, fd, fd, true);
     EXPECT_TRUE(options_.do_screenshot);
 
     // Other options retain default values
@@ -251,7 +252,7 @@ TEST_F(DumpOptionsTest, InitializeFullBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, fd, fd, true);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, 0, fd, fd, true);
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.do_screenshot);
 
@@ -265,7 +266,7 @@ TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_REMOTE, fd, fd, false);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_REMOTE, 0, fd, fd, false);
     EXPECT_TRUE(options_.is_remote_mode);
     EXPECT_FALSE(options_.do_vibrate);
     EXPECT_FALSE(options_.do_screenshot);
@@ -279,7 +280,7 @@ TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeWearBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WEAR, fd, fd, true);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WEAR, 0, fd, fd, true);
     EXPECT_TRUE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_progress_updates);
 
@@ -294,7 +295,7 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_TELEPHONY, fd, fd, false);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_TELEPHONY, 0, fd, fd, false);
     EXPECT_FALSE(options_.do_screenshot);
     EXPECT_TRUE(options_.telephony_only);
     EXPECT_TRUE(options_.do_progress_updates);
@@ -309,7 +310,7 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
 }
 
 TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
-    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WIFI, fd, fd, false);
+    options_.Initialize(Dumpstate::BugreportMode::BUGREPORT_WIFI, 0, fd, fd, false);
     EXPECT_FALSE(options_.do_screenshot);
     EXPECT_TRUE(options_.wifi_only);
 
@@ -982,6 +983,19 @@ TEST_F(DumpstateTest, DumpPool_withParallelRunDisabled_isNull) {
     EXPECT_FALSE(ds.dump_pool_);
 }
 
+TEST_F(DumpstateBaseTest, PreDumpUiData) {
+    // SurfaceFlinger's transactions trace is always enabled, i.e. it is always pre-dumped
+    static const auto kTransactionsTrace =
+            std::filesystem::path {"/data/misc/wmtrace/transactions_trace.winscope"};
+
+    std::system(("rm " + kTransactionsTrace.string()).c_str());
+    EXPECT_FALSE(std::filesystem::exists(kTransactionsTrace));
+
+    Dumpstate& ds_ = Dumpstate::GetInstance();
+    ds_.PreDumpUiData();
+    EXPECT_TRUE(std::filesystem::exists(kTransactionsTrace));
+}
+
 class ZippedBugReportStreamTest : public DumpstateBaseTest {
   public:
     void SetUp() {
@@ -1044,11 +1058,6 @@ TEST_F(ZippedBugReportStreamTest, StreamLimitedOnlyReport) {
                 testing::ContainsRegex("(bugreport-.+(-[[:digit:]]+){6}\\.txt)"));
     VerifyEntry(handle_, bugreport_txt_name, &entry);
 }
-
-class DumpstateServiceTest : public DumpstateBaseTest {
-  public:
-    DumpstateService dss;
-};
 
 class ProgressTest : public DumpstateBaseTest {
   public:
