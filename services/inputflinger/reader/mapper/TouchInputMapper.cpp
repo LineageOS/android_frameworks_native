@@ -2844,54 +2844,20 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
     // Otherwise choose an arbitrary remaining pointer.
     // This guarantees we always have an active touch id when there is at least one pointer.
     // We keep the same active touch id for as long as possible.
-    int32_t lastActiveTouchId = mPointerGesture.activeTouchId;
-    int32_t activeTouchId = lastActiveTouchId;
-    if (activeTouchId < 0) {
+    if (mPointerGesture.activeTouchId < 0) {
         if (!mCurrentCookedState.fingerIdBits.isEmpty()) {
-            activeTouchId = mPointerGesture.activeTouchId =
-                    mCurrentCookedState.fingerIdBits.firstMarkedBit();
+            mPointerGesture.activeTouchId = mCurrentCookedState.fingerIdBits.firstMarkedBit();
             mPointerGesture.firstTouchTime = when;
         }
-    } else if (!mCurrentCookedState.fingerIdBits.hasBit(activeTouchId)) {
-        if (!mCurrentCookedState.fingerIdBits.isEmpty()) {
-            activeTouchId = mPointerGesture.activeTouchId =
-                    mCurrentCookedState.fingerIdBits.firstMarkedBit();
-        } else {
-            activeTouchId = mPointerGesture.activeTouchId = -1;
-        }
+    } else if (!mCurrentCookedState.fingerIdBits.hasBit(mPointerGesture.activeTouchId)) {
+        mPointerGesture.activeTouchId = !mCurrentCookedState.fingerIdBits.isEmpty()
+                ? mCurrentCookedState.fingerIdBits.firstMarkedBit()
+                : -1;
     }
-
-    // Determine whether we are in quiet time.
-    bool isQuietTime = false;
-    if (activeTouchId < 0) {
-        mPointerGesture.resetQuietTime();
-    } else {
-        isQuietTime = when < mPointerGesture.quietTime + mConfig.pointerGestureQuietInterval;
-        if (!isQuietTime) {
-            if ((mPointerGesture.lastGestureMode == PointerGesture::Mode::PRESS ||
-                 mPointerGesture.lastGestureMode == PointerGesture::Mode::SWIPE ||
-                 mPointerGesture.lastGestureMode == PointerGesture::Mode::FREEFORM) &&
-                currentFingerCount < 2) {
-                // Enter quiet time when exiting swipe or freeform state.
-                // This is to prevent accidentally entering the hover state and flinging the
-                // pointer when finishing a swipe and there is still one pointer left onscreen.
-                isQuietTime = true;
-            } else if (mPointerGesture.lastGestureMode ==
-                               PointerGesture::Mode::BUTTON_CLICK_OR_DRAG &&
-                       currentFingerCount >= 2 && !isPointerDown(mCurrentRawState.buttonState)) {
-                // Enter quiet time when releasing the button and there are still two or more
-                // fingers down.  This may indicate that one finger was used to press the button
-                // but it has not gone up yet.
-                isQuietTime = true;
-            }
-            if (isQuietTime) {
-                mPointerGesture.quietTime = when;
-            }
-        }
-    }
+    const int32_t& activeTouchId = mPointerGesture.activeTouchId;
 
     // Switch states based on button and pointer state.
-    if (isQuietTime) {
+    if (checkForTouchpadQuietTime(when)) {
         // Case 1: Quiet time. (QUIET)
         ALOGD_IF(DEBUG_GESTURES, "Gestures: QUIET for next %0.3fms",
                  (mPointerGesture.quietTime + mConfig.pointerGestureQuietInterval - when) *
@@ -2931,24 +2897,9 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         // Switch pointers if needed.
         // Find the fastest pointer and follow it.
         if (activeTouchId >= 0 && currentFingerCount > 1) {
-            int32_t bestId = -1;
-            float bestSpeed = mConfig.pointerGestureDragMinSwitchSpeed;
-            for (BitSet32 idBits(mCurrentCookedState.fingerIdBits); !idBits.isEmpty();) {
-                uint32_t id = idBits.clearFirstMarkedBit();
-                std::optional<float> vx =
-                        mPointerGesture.velocityTracker.getVelocity(AMOTION_EVENT_AXIS_X, id);
-                std::optional<float> vy =
-                        mPointerGesture.velocityTracker.getVelocity(AMOTION_EVENT_AXIS_Y, id);
-                if (vx && vy) {
-                    float speed = hypotf(*vx, *vy);
-                    if (speed > bestSpeed) {
-                        bestId = id;
-                        bestSpeed = speed;
-                    }
-                }
-            }
+            const auto [bestId, bestSpeed] = getFastestFinger();
             if (bestId >= 0 && bestId != activeTouchId) {
-                mPointerGesture.activeTouchId = activeTouchId = bestId;
+                mPointerGesture.activeTouchId = bestId;
                 ALOGD_IF(DEBUG_GESTURES,
                          "Gestures: BUTTON_CLICK_OR_DRAG switched pointers, bestId=%d, "
                          "bestSpeed=%0.3f",
@@ -3114,345 +3065,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         }
     } else {
         // Case 5. At least two fingers down, button is not pressed. (PRESS, SWIPE or FREEFORM)
-        // We need to provide feedback for each finger that goes down so we cannot wait
-        // for the fingers to move before deciding what to do.
-        //
-        // The ambiguous case is deciding what to do when there are two fingers down but they
-        // have not moved enough to determine whether they are part of a drag or part of a
-        // freeform gesture, or just a press or long-press at the pointer location.
-        //
-        // When there are two fingers we start with the PRESS hypothesis and we generate a
-        // down at the pointer location.
-        //
-        // When the two fingers move enough or when additional fingers are added, we make
-        // a decision to transition into SWIPE or FREEFORM mode accordingly.
-        ALOG_ASSERT(activeTouchId >= 0);
-
-        bool settled = when >=
-                mPointerGesture.firstTouchTime + mConfig.pointerGestureMultitouchSettleInterval;
-        if (mPointerGesture.lastGestureMode != PointerGesture::Mode::PRESS &&
-            mPointerGesture.lastGestureMode != PointerGesture::Mode::SWIPE &&
-            mPointerGesture.lastGestureMode != PointerGesture::Mode::FREEFORM) {
-            *outFinishPreviousGesture = true;
-        } else if (!settled && currentFingerCount > lastFingerCount) {
-            // Additional pointers have gone down but not yet settled.
-            // Reset the gesture.
-            ALOGD_IF(DEBUG_GESTURES,
-                     "Gestures: Resetting gesture since additional pointers went down for "
-                     "MULTITOUCH, settle time remaining %0.3fms",
-                     (mPointerGesture.firstTouchTime +
-                      mConfig.pointerGestureMultitouchSettleInterval - when) *
-                             0.000001f);
-            *outCancelPreviousGesture = true;
-        } else {
-            // Continue previous gesture.
-            mPointerGesture.currentGestureMode = mPointerGesture.lastGestureMode;
-        }
-
-        if (*outFinishPreviousGesture || *outCancelPreviousGesture) {
-            mPointerGesture.currentGestureMode = PointerGesture::Mode::PRESS;
-            mPointerGesture.activeGestureId = 0;
-            mPointerGesture.referenceIdBits.clear();
-            mPointerVelocityControl.reset();
-
-            // Use the centroid and pointer location as the reference points for the gesture.
-            ALOGD_IF(DEBUG_GESTURES,
-                     "Gestures: Using centroid as reference for MULTITOUCH, settle time remaining "
-                     "%0.3fms",
-                     (mPointerGesture.firstTouchTime +
-                      mConfig.pointerGestureMultitouchSettleInterval - when) *
-                             0.000001f);
-            mCurrentRawState.rawPointerData
-                    .getCentroidOfTouchingPointers(&mPointerGesture.referenceTouchX,
-                                                   &mPointerGesture.referenceTouchY);
-            mPointerController->getPosition(&mPointerGesture.referenceGestureX,
-                                            &mPointerGesture.referenceGestureY);
-        }
-
-        // Clear the reference deltas for fingers not yet included in the reference calculation.
-        for (BitSet32 idBits(mCurrentCookedState.fingerIdBits.value &
-                             ~mPointerGesture.referenceIdBits.value);
-             !idBits.isEmpty();) {
-            uint32_t id = idBits.clearFirstMarkedBit();
-            mPointerGesture.referenceDeltas[id].dx = 0;
-            mPointerGesture.referenceDeltas[id].dy = 0;
-        }
-        mPointerGesture.referenceIdBits = mCurrentCookedState.fingerIdBits;
-
-        // Add delta for all fingers and calculate a common movement delta.
-        int32_t commonDeltaRawX = 0, commonDeltaRawY = 0;
-        BitSet32 commonIdBits(mLastCookedState.fingerIdBits.value &
-                              mCurrentCookedState.fingerIdBits.value);
-        for (BitSet32 idBits(commonIdBits); !idBits.isEmpty();) {
-            bool first = (idBits == commonIdBits);
-            uint32_t id = idBits.clearFirstMarkedBit();
-            const RawPointerData::Pointer& cpd = mCurrentRawState.rawPointerData.pointerForId(id);
-            const RawPointerData::Pointer& lpd = mLastRawState.rawPointerData.pointerForId(id);
-            PointerGesture::Delta& delta = mPointerGesture.referenceDeltas[id];
-            delta.dx += cpd.x - lpd.x;
-            delta.dy += cpd.y - lpd.y;
-
-            if (first) {
-                commonDeltaRawX = delta.dx;
-                commonDeltaRawY = delta.dy;
-            } else {
-                commonDeltaRawX = calculateCommonVector(commonDeltaRawX, delta.dx);
-                commonDeltaRawY = calculateCommonVector(commonDeltaRawY, delta.dy);
-            }
-        }
-
-        // Consider transitions from PRESS to SWIPE or MULTITOUCH.
-        if (mPointerGesture.currentGestureMode == PointerGesture::Mode::PRESS) {
-            float dist[MAX_POINTER_ID + 1];
-            int32_t distOverThreshold = 0;
-            for (BitSet32 idBits(mPointerGesture.referenceIdBits); !idBits.isEmpty();) {
-                uint32_t id = idBits.clearFirstMarkedBit();
-                PointerGesture::Delta& delta = mPointerGesture.referenceDeltas[id];
-                dist[id] = hypotf(delta.dx * mPointerXZoomScale, delta.dy * mPointerYZoomScale);
-                if (dist[id] > mConfig.pointerGestureMultitouchMinDistance) {
-                    distOverThreshold += 1;
-                }
-            }
-
-            // Only transition when at least two pointers have moved further than
-            // the minimum distance threshold.
-            if (distOverThreshold >= 2) {
-                if (currentFingerCount > 2) {
-                    // There are more than two pointers, switch to FREEFORM.
-                    ALOGD_IF(DEBUG_GESTURES,
-                             "Gestures: PRESS transitioned to FREEFORM, number of pointers %d > 2",
-                             currentFingerCount);
-                    *outCancelPreviousGesture = true;
-                    mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
-                } else {
-                    // There are exactly two pointers.
-                    BitSet32 idBits(mCurrentCookedState.fingerIdBits);
-                    uint32_t id1 = idBits.clearFirstMarkedBit();
-                    uint32_t id2 = idBits.firstMarkedBit();
-                    const RawPointerData::Pointer& p1 =
-                            mCurrentRawState.rawPointerData.pointerForId(id1);
-                    const RawPointerData::Pointer& p2 =
-                            mCurrentRawState.rawPointerData.pointerForId(id2);
-                    float mutualDistance = distance(p1.x, p1.y, p2.x, p2.y);
-                    if (mutualDistance > mPointerGestureMaxSwipeWidth) {
-                        // There are two pointers but they are too far apart for a SWIPE,
-                        // switch to FREEFORM.
-                        ALOGD_IF(DEBUG_GESTURES,
-                                 "Gestures: PRESS transitioned to FREEFORM, distance %0.3f > %0.3f",
-                                 mutualDistance, mPointerGestureMaxSwipeWidth);
-                        *outCancelPreviousGesture = true;
-                        mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
-                    } else {
-                        // There are two pointers.  Wait for both pointers to start moving
-                        // before deciding whether this is a SWIPE or FREEFORM gesture.
-                        float dist1 = dist[id1];
-                        float dist2 = dist[id2];
-                        if (dist1 >= mConfig.pointerGestureMultitouchMinDistance &&
-                            dist2 >= mConfig.pointerGestureMultitouchMinDistance) {
-                            // Calculate the dot product of the displacement vectors.
-                            // When the vectors are oriented in approximately the same direction,
-                            // the angle betweeen them is near zero and the cosine of the angle
-                            // approches 1.0.  Recall that dot(v1, v2) = cos(angle) * mag(v1) *
-                            // mag(v2).
-                            PointerGesture::Delta& delta1 = mPointerGesture.referenceDeltas[id1];
-                            PointerGesture::Delta& delta2 = mPointerGesture.referenceDeltas[id2];
-                            float dx1 = delta1.dx * mPointerXZoomScale;
-                            float dy1 = delta1.dy * mPointerYZoomScale;
-                            float dx2 = delta2.dx * mPointerXZoomScale;
-                            float dy2 = delta2.dy * mPointerYZoomScale;
-                            float dot = dx1 * dx2 + dy1 * dy2;
-                            float cosine = dot / (dist1 * dist2); // denominator always > 0
-                            if (cosine >= mConfig.pointerGestureSwipeTransitionAngleCosine) {
-                                // Pointers are moving in the same direction.  Switch to SWIPE.
-                                ALOGD_IF(DEBUG_GESTURES,
-                                         "Gestures: PRESS transitioned to SWIPE, "
-                                         "dist1 %0.3f >= %0.3f, dist2 %0.3f >= %0.3f, "
-                                         "cosine %0.3f >= %0.3f",
-                                         dist1, mConfig.pointerGestureMultitouchMinDistance, dist2,
-                                         mConfig.pointerGestureMultitouchMinDistance, cosine,
-                                         mConfig.pointerGestureSwipeTransitionAngleCosine);
-                                mPointerGesture.currentGestureMode = PointerGesture::Mode::SWIPE;
-                            } else {
-                                // Pointers are moving in different directions.  Switch to FREEFORM.
-                                ALOGD_IF(DEBUG_GESTURES,
-                                         "Gestures: PRESS transitioned to FREEFORM, "
-                                         "dist1 %0.3f >= %0.3f, dist2 %0.3f >= %0.3f, "
-                                         "cosine %0.3f < %0.3f",
-                                         dist1, mConfig.pointerGestureMultitouchMinDistance, dist2,
-                                         mConfig.pointerGestureMultitouchMinDistance, cosine,
-                                         mConfig.pointerGestureSwipeTransitionAngleCosine);
-                                *outCancelPreviousGesture = true;
-                                mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
-                            }
-                        }
-                    }
-                }
-            }
-        } else if (mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
-            // Switch from SWIPE to FREEFORM if additional pointers go down.
-            // Cancel previous gesture.
-            if (currentFingerCount > 2) {
-                ALOGD_IF(DEBUG_GESTURES,
-                         "Gestures: SWIPE transitioned to FREEFORM, number of pointers %d > 2",
-                         currentFingerCount);
-                *outCancelPreviousGesture = true;
-                mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
-            }
-        }
-
-        // Move the reference points based on the overall group motion of the fingers
-        // except in PRESS mode while waiting for a transition to occur.
-        if (mPointerGesture.currentGestureMode != PointerGesture::Mode::PRESS &&
-            (commonDeltaRawX || commonDeltaRawY)) {
-            for (BitSet32 idBits(mPointerGesture.referenceIdBits); !idBits.isEmpty();) {
-                uint32_t id = idBits.clearFirstMarkedBit();
-                PointerGesture::Delta& delta = mPointerGesture.referenceDeltas[id];
-                delta.dx = 0;
-                delta.dy = 0;
-            }
-
-            mPointerGesture.referenceTouchX += commonDeltaRawX;
-            mPointerGesture.referenceTouchY += commonDeltaRawY;
-
-            float commonDeltaX = commonDeltaRawX * mPointerXMovementScale;
-            float commonDeltaY = commonDeltaRawY * mPointerYMovementScale;
-
-            rotateDelta(mInputDeviceOrientation, &commonDeltaX, &commonDeltaY);
-            mPointerVelocityControl.move(when, &commonDeltaX, &commonDeltaY);
-
-            mPointerGesture.referenceGestureX += commonDeltaX;
-            mPointerGesture.referenceGestureY += commonDeltaY;
-        }
-
-        // Report gestures.
-        if (mPointerGesture.currentGestureMode == PointerGesture::Mode::PRESS ||
-            mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
-            // PRESS or SWIPE mode.
-            ALOGD_IF(DEBUG_GESTURES,
-                     "Gestures: PRESS or SWIPE activeTouchId=%d, activeGestureId=%d, "
-                     "currentTouchPointerCount=%d",
-                     activeTouchId, mPointerGesture.activeGestureId, currentFingerCount);
-            ALOG_ASSERT(mPointerGesture.activeGestureId >= 0);
-
-            mPointerGesture.currentGestureIdBits.clear();
-            mPointerGesture.currentGestureIdBits.markBit(mPointerGesture.activeGestureId);
-            mPointerGesture.currentGestureIdToIndex[mPointerGesture.activeGestureId] = 0;
-            mPointerGesture.currentGestureProperties[0].clear();
-            mPointerGesture.currentGestureProperties[0].id = mPointerGesture.activeGestureId;
-            mPointerGesture.currentGestureProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
-            mPointerGesture.currentGestureCoords[0].clear();
-            mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X,
-                                                                 mPointerGesture.referenceGestureX);
-            mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y,
-                                                                 mPointerGesture.referenceGestureY);
-            mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
-            if (mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
-                float xOffset = static_cast<float>(commonDeltaRawX) /
-                        (mRawPointerAxes.x.maxValue - mRawPointerAxes.x.minValue);
-                float yOffset = static_cast<float>(commonDeltaRawY) /
-                        (mRawPointerAxes.y.maxValue - mRawPointerAxes.y.minValue);
-                mPointerGesture.currentGestureCoords[0]
-                        .setAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET, xOffset);
-                mPointerGesture.currentGestureCoords[0]
-                        .setAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET, yOffset);
-            }
-        } else if (mPointerGesture.currentGestureMode == PointerGesture::Mode::FREEFORM) {
-            // FREEFORM mode.
-            ALOGD_IF(DEBUG_GESTURES,
-                     "Gestures: FREEFORM activeTouchId=%d, activeGestureId=%d, "
-                     "currentTouchPointerCount=%d",
-                     activeTouchId, mPointerGesture.activeGestureId, currentFingerCount);
-            ALOG_ASSERT(mPointerGesture.activeGestureId >= 0);
-
-            mPointerGesture.currentGestureIdBits.clear();
-
-            BitSet32 mappedTouchIdBits;
-            BitSet32 usedGestureIdBits;
-            if (mPointerGesture.lastGestureMode != PointerGesture::Mode::FREEFORM) {
-                // Initially, assign the active gesture id to the active touch point
-                // if there is one.  No other touch id bits are mapped yet.
-                if (!*outCancelPreviousGesture) {
-                    mappedTouchIdBits.markBit(activeTouchId);
-                    usedGestureIdBits.markBit(mPointerGesture.activeGestureId);
-                    mPointerGesture.freeformTouchToGestureIdMap[activeTouchId] =
-                            mPointerGesture.activeGestureId;
-                } else {
-                    mPointerGesture.activeGestureId = -1;
-                }
-            } else {
-                // Otherwise, assume we mapped all touches from the previous frame.
-                // Reuse all mappings that are still applicable.
-                mappedTouchIdBits.value = mLastCookedState.fingerIdBits.value &
-                        mCurrentCookedState.fingerIdBits.value;
-                usedGestureIdBits = mPointerGesture.lastGestureIdBits;
-
-                // Check whether we need to choose a new active gesture id because the
-                // current went went up.
-                for (BitSet32 upTouchIdBits(mLastCookedState.fingerIdBits.value &
-                                            ~mCurrentCookedState.fingerIdBits.value);
-                     !upTouchIdBits.isEmpty();) {
-                    uint32_t upTouchId = upTouchIdBits.clearFirstMarkedBit();
-                    uint32_t upGestureId = mPointerGesture.freeformTouchToGestureIdMap[upTouchId];
-                    if (upGestureId == uint32_t(mPointerGesture.activeGestureId)) {
-                        mPointerGesture.activeGestureId = -1;
-                        break;
-                    }
-                }
-            }
-
-            ALOGD_IF(DEBUG_GESTURES,
-                     "Gestures: FREEFORM follow up mappedTouchIdBits=0x%08x, "
-                     "usedGestureIdBits=0x%08x, activeGestureId=%d",
-                     mappedTouchIdBits.value, usedGestureIdBits.value,
-                     mPointerGesture.activeGestureId);
-
-            BitSet32 idBits(mCurrentCookedState.fingerIdBits);
-            for (uint32_t i = 0; i < currentFingerCount; i++) {
-                uint32_t touchId = idBits.clearFirstMarkedBit();
-                uint32_t gestureId;
-                if (!mappedTouchIdBits.hasBit(touchId)) {
-                    gestureId = usedGestureIdBits.markFirstUnmarkedBit();
-                    mPointerGesture.freeformTouchToGestureIdMap[touchId] = gestureId;
-                    ALOGD_IF(DEBUG_GESTURES,
-                             "Gestures: FREEFORM new mapping for touch id %d -> gesture id %d",
-                             touchId, gestureId);
-                } else {
-                    gestureId = mPointerGesture.freeformTouchToGestureIdMap[touchId];
-                    ALOGD_IF(DEBUG_GESTURES,
-                             "Gestures: FREEFORM existing mapping for touch id %d -> gesture id %d",
-                             touchId, gestureId);
-                }
-                mPointerGesture.currentGestureIdBits.markBit(gestureId);
-                mPointerGesture.currentGestureIdToIndex[gestureId] = i;
-
-                const RawPointerData::Pointer& pointer =
-                        mCurrentRawState.rawPointerData.pointerForId(touchId);
-                float deltaX = (pointer.x - mPointerGesture.referenceTouchX) * mPointerXZoomScale;
-                float deltaY = (pointer.y - mPointerGesture.referenceTouchY) * mPointerYZoomScale;
-                rotateDelta(mInputDeviceOrientation, &deltaX, &deltaY);
-
-                mPointerGesture.currentGestureProperties[i].clear();
-                mPointerGesture.currentGestureProperties[i].id = gestureId;
-                mPointerGesture.currentGestureProperties[i].toolType =
-                        AMOTION_EVENT_TOOL_TYPE_FINGER;
-                mPointerGesture.currentGestureCoords[i].clear();
-                mPointerGesture.currentGestureCoords[i]
-                        .setAxisValue(AMOTION_EVENT_AXIS_X,
-                                      mPointerGesture.referenceGestureX + deltaX);
-                mPointerGesture.currentGestureCoords[i]
-                        .setAxisValue(AMOTION_EVENT_AXIS_Y,
-                                      mPointerGesture.referenceGestureY + deltaY);
-                mPointerGesture.currentGestureCoords[i].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE,
-                                                                     1.0f);
-            }
-
-            if (mPointerGesture.activeGestureId < 0) {
-                mPointerGesture.activeGestureId =
-                        mPointerGesture.currentGestureIdBits.firstMarkedBit();
-                ALOGD_IF(DEBUG_GESTURES, "Gestures: FREEFORM new activeGestureId=%d",
-                         mPointerGesture.activeGestureId);
-            }
-        }
+        prepareMultiFingerPointerGestures(when, outCancelPreviousGesture, outFinishPreviousGesture);
     }
 
     mPointerController->setButtonState(mCurrentRawState.buttonState);
@@ -3488,6 +3101,399 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         }
     }
     return true;
+}
+
+bool TouchInputMapper::checkForTouchpadQuietTime(nsecs_t when) {
+    if (mPointerGesture.activeTouchId < 0) {
+        mPointerGesture.resetQuietTime();
+        return false;
+    }
+
+    if (when < mPointerGesture.quietTime + mConfig.pointerGestureQuietInterval) {
+        return true;
+    }
+
+    const uint32_t currentFingerCount = mCurrentCookedState.fingerIdBits.count();
+    bool isQuietTime = false;
+    if ((mPointerGesture.lastGestureMode == PointerGesture::Mode::PRESS ||
+         mPointerGesture.lastGestureMode == PointerGesture::Mode::SWIPE ||
+         mPointerGesture.lastGestureMode == PointerGesture::Mode::FREEFORM) &&
+        currentFingerCount < 2) {
+        // Enter quiet time when exiting swipe or freeform state.
+        // This is to prevent accidentally entering the hover state and flinging the
+        // pointer when finishing a swipe and there is still one pointer left onscreen.
+        isQuietTime = true;
+    } else if (mPointerGesture.lastGestureMode == PointerGesture::Mode::BUTTON_CLICK_OR_DRAG &&
+               currentFingerCount >= 2 && !isPointerDown(mCurrentRawState.buttonState)) {
+        // Enter quiet time when releasing the button and there are still two or more
+        // fingers down.  This may indicate that one finger was used to press the button
+        // but it has not gone up yet.
+        isQuietTime = true;
+    }
+    if (isQuietTime) {
+        mPointerGesture.quietTime = when;
+    }
+    return isQuietTime;
+}
+
+std::pair<int32_t, float> TouchInputMapper::getFastestFinger() {
+    int32_t bestId = -1;
+    float bestSpeed = mConfig.pointerGestureDragMinSwitchSpeed;
+    for (BitSet32 idBits(mCurrentCookedState.fingerIdBits); !idBits.isEmpty();) {
+        uint32_t id = idBits.clearFirstMarkedBit();
+        std::optional<float> vx =
+                mPointerGesture.velocityTracker.getVelocity(AMOTION_EVENT_AXIS_X, id);
+        std::optional<float> vy =
+                mPointerGesture.velocityTracker.getVelocity(AMOTION_EVENT_AXIS_Y, id);
+        if (vx && vy) {
+            float speed = hypotf(*vx, *vy);
+            if (speed > bestSpeed) {
+                bestId = id;
+                bestSpeed = speed;
+            }
+        }
+    }
+    return std::make_pair(bestId, bestSpeed);
+}
+
+void TouchInputMapper::prepareMultiFingerPointerGestures(nsecs_t when, bool* cancelPreviousGesture,
+                                                         bool* finishPreviousGesture) {
+    // We need to provide feedback for each finger that goes down so we cannot wait for the fingers
+    // to move before deciding what to do.
+    //
+    // The ambiguous case is deciding what to do when there are two fingers down but they have not
+    // moved enough to determine whether they are part of a drag or part of a freeform gesture, or
+    // just a press or long-press at the pointer location.
+    //
+    // When there are two fingers we start with the PRESS hypothesis and we generate a down at the
+    // pointer location.
+    //
+    // When the two fingers move enough or when additional fingers are added, we make a decision to
+    // transition into SWIPE or FREEFORM mode accordingly.
+    const int32_t activeTouchId = mPointerGesture.activeTouchId;
+    ALOG_ASSERT(activeTouchId >= 0);
+
+    const uint32_t currentFingerCount = mCurrentCookedState.fingerIdBits.count();
+    const uint32_t lastFingerCount = mLastCookedState.fingerIdBits.count();
+    bool settled =
+            when >= mPointerGesture.firstTouchTime + mConfig.pointerGestureMultitouchSettleInterval;
+    if (mPointerGesture.lastGestureMode != PointerGesture::Mode::PRESS &&
+        mPointerGesture.lastGestureMode != PointerGesture::Mode::SWIPE &&
+        mPointerGesture.lastGestureMode != PointerGesture::Mode::FREEFORM) {
+        *finishPreviousGesture = true;
+    } else if (!settled && currentFingerCount > lastFingerCount) {
+        // Additional pointers have gone down but not yet settled.
+        // Reset the gesture.
+        ALOGD_IF(DEBUG_GESTURES,
+                 "Gestures: Resetting gesture since additional pointers went down for "
+                 "MULTITOUCH, settle time remaining %0.3fms",
+                 (mPointerGesture.firstTouchTime + mConfig.pointerGestureMultitouchSettleInterval -
+                  when) * 0.000001f);
+        *cancelPreviousGesture = true;
+    } else {
+        // Continue previous gesture.
+        mPointerGesture.currentGestureMode = mPointerGesture.lastGestureMode;
+    }
+
+    if (*finishPreviousGesture || *cancelPreviousGesture) {
+        mPointerGesture.currentGestureMode = PointerGesture::Mode::PRESS;
+        mPointerGesture.activeGestureId = 0;
+        mPointerGesture.referenceIdBits.clear();
+        mPointerVelocityControl.reset();
+
+        // Use the centroid and pointer location as the reference points for the gesture.
+        ALOGD_IF(DEBUG_GESTURES,
+                 "Gestures: Using centroid as reference for MULTITOUCH, settle time remaining "
+                 "%0.3fms",
+                 (mPointerGesture.firstTouchTime + mConfig.pointerGestureMultitouchSettleInterval -
+                  when) * 0.000001f);
+        mCurrentRawState.rawPointerData
+                .getCentroidOfTouchingPointers(&mPointerGesture.referenceTouchX,
+                                               &mPointerGesture.referenceTouchY);
+        mPointerController->getPosition(&mPointerGesture.referenceGestureX,
+                                        &mPointerGesture.referenceGestureY);
+    }
+
+    // Clear the reference deltas for fingers not yet included in the reference calculation.
+    for (BitSet32 idBits(mCurrentCookedState.fingerIdBits.value &
+                         ~mPointerGesture.referenceIdBits.value);
+         !idBits.isEmpty();) {
+        uint32_t id = idBits.clearFirstMarkedBit();
+        mPointerGesture.referenceDeltas[id].dx = 0;
+        mPointerGesture.referenceDeltas[id].dy = 0;
+    }
+    mPointerGesture.referenceIdBits = mCurrentCookedState.fingerIdBits;
+
+    // Add delta for all fingers and calculate a common movement delta.
+    int32_t commonDeltaRawX = 0, commonDeltaRawY = 0;
+    BitSet32 commonIdBits(mLastCookedState.fingerIdBits.value &
+                          mCurrentCookedState.fingerIdBits.value);
+    for (BitSet32 idBits(commonIdBits); !idBits.isEmpty();) {
+        bool first = (idBits == commonIdBits);
+        uint32_t id = idBits.clearFirstMarkedBit();
+        const RawPointerData::Pointer& cpd = mCurrentRawState.rawPointerData.pointerForId(id);
+        const RawPointerData::Pointer& lpd = mLastRawState.rawPointerData.pointerForId(id);
+        PointerGesture::Delta& delta = mPointerGesture.referenceDeltas[id];
+        delta.dx += cpd.x - lpd.x;
+        delta.dy += cpd.y - lpd.y;
+
+        if (first) {
+            commonDeltaRawX = delta.dx;
+            commonDeltaRawY = delta.dy;
+        } else {
+            commonDeltaRawX = calculateCommonVector(commonDeltaRawX, delta.dx);
+            commonDeltaRawY = calculateCommonVector(commonDeltaRawY, delta.dy);
+        }
+    }
+
+    // Consider transitions from PRESS to SWIPE or MULTITOUCH.
+    if (mPointerGesture.currentGestureMode == PointerGesture::Mode::PRESS) {
+        float dist[MAX_POINTER_ID + 1];
+        int32_t distOverThreshold = 0;
+        for (BitSet32 idBits(mPointerGesture.referenceIdBits); !idBits.isEmpty();) {
+            uint32_t id = idBits.clearFirstMarkedBit();
+            PointerGesture::Delta& delta = mPointerGesture.referenceDeltas[id];
+            dist[id] = hypotf(delta.dx * mPointerXZoomScale, delta.dy * mPointerYZoomScale);
+            if (dist[id] > mConfig.pointerGestureMultitouchMinDistance) {
+                distOverThreshold += 1;
+            }
+        }
+
+        // Only transition when at least two pointers have moved further than
+        // the minimum distance threshold.
+        if (distOverThreshold >= 2) {
+            if (currentFingerCount > 2) {
+                // There are more than two pointers, switch to FREEFORM.
+                ALOGD_IF(DEBUG_GESTURES,
+                         "Gestures: PRESS transitioned to FREEFORM, number of pointers %d > 2",
+                         currentFingerCount);
+                *cancelPreviousGesture = true;
+                mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
+            } else {
+                // There are exactly two pointers.
+                BitSet32 idBits(mCurrentCookedState.fingerIdBits);
+                uint32_t id1 = idBits.clearFirstMarkedBit();
+                uint32_t id2 = idBits.firstMarkedBit();
+                const RawPointerData::Pointer& p1 =
+                        mCurrentRawState.rawPointerData.pointerForId(id1);
+                const RawPointerData::Pointer& p2 =
+                        mCurrentRawState.rawPointerData.pointerForId(id2);
+                float mutualDistance = distance(p1.x, p1.y, p2.x, p2.y);
+                if (mutualDistance > mPointerGestureMaxSwipeWidth) {
+                    // There are two pointers but they are too far apart for a SWIPE,
+                    // switch to FREEFORM.
+                    ALOGD_IF(DEBUG_GESTURES,
+                             "Gestures: PRESS transitioned to FREEFORM, distance %0.3f > %0.3f",
+                             mutualDistance, mPointerGestureMaxSwipeWidth);
+                    *cancelPreviousGesture = true;
+                    mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
+                } else {
+                    // There are two pointers.  Wait for both pointers to start moving
+                    // before deciding whether this is a SWIPE or FREEFORM gesture.
+                    float dist1 = dist[id1];
+                    float dist2 = dist[id2];
+                    if (dist1 >= mConfig.pointerGestureMultitouchMinDistance &&
+                        dist2 >= mConfig.pointerGestureMultitouchMinDistance) {
+                        // Calculate the dot product of the displacement vectors.
+                        // When the vectors are oriented in approximately the same direction,
+                        // the angle betweeen them is near zero and the cosine of the angle
+                        // approaches 1.0.  Recall that dot(v1, v2) = cos(angle) * mag(v1) *
+                        // mag(v2).
+                        PointerGesture::Delta& delta1 = mPointerGesture.referenceDeltas[id1];
+                        PointerGesture::Delta& delta2 = mPointerGesture.referenceDeltas[id2];
+                        float dx1 = delta1.dx * mPointerXZoomScale;
+                        float dy1 = delta1.dy * mPointerYZoomScale;
+                        float dx2 = delta2.dx * mPointerXZoomScale;
+                        float dy2 = delta2.dy * mPointerYZoomScale;
+                        float dot = dx1 * dx2 + dy1 * dy2;
+                        float cosine = dot / (dist1 * dist2); // denominator always > 0
+                        if (cosine >= mConfig.pointerGestureSwipeTransitionAngleCosine) {
+                            // Pointers are moving in the same direction.  Switch to SWIPE.
+                            ALOGD_IF(DEBUG_GESTURES,
+                                     "Gestures: PRESS transitioned to SWIPE, "
+                                     "dist1 %0.3f >= %0.3f, dist2 %0.3f >= %0.3f, "
+                                     "cosine %0.3f >= %0.3f",
+                                     dist1, mConfig.pointerGestureMultitouchMinDistance, dist2,
+                                     mConfig.pointerGestureMultitouchMinDistance, cosine,
+                                     mConfig.pointerGestureSwipeTransitionAngleCosine);
+                            mPointerGesture.currentGestureMode = PointerGesture::Mode::SWIPE;
+                        } else {
+                            // Pointers are moving in different directions.  Switch to FREEFORM.
+                            ALOGD_IF(DEBUG_GESTURES,
+                                     "Gestures: PRESS transitioned to FREEFORM, "
+                                     "dist1 %0.3f >= %0.3f, dist2 %0.3f >= %0.3f, "
+                                     "cosine %0.3f < %0.3f",
+                                     dist1, mConfig.pointerGestureMultitouchMinDistance, dist2,
+                                     mConfig.pointerGestureMultitouchMinDistance, cosine,
+                                     mConfig.pointerGestureSwipeTransitionAngleCosine);
+                            *cancelPreviousGesture = true;
+                            mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
+                        }
+                    }
+                }
+            }
+        }
+    } else if (mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
+        // Switch from SWIPE to FREEFORM if additional pointers go down.
+        // Cancel previous gesture.
+        if (currentFingerCount > 2) {
+            ALOGD_IF(DEBUG_GESTURES,
+                     "Gestures: SWIPE transitioned to FREEFORM, number of pointers %d > 2",
+                     currentFingerCount);
+            *cancelPreviousGesture = true;
+            mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
+        }
+    }
+
+    // Move the reference points based on the overall group motion of the fingers
+    // except in PRESS mode while waiting for a transition to occur.
+    if (mPointerGesture.currentGestureMode != PointerGesture::Mode::PRESS &&
+        (commonDeltaRawX || commonDeltaRawY)) {
+        for (BitSet32 idBits(mPointerGesture.referenceIdBits); !idBits.isEmpty();) {
+            uint32_t id = idBits.clearFirstMarkedBit();
+            PointerGesture::Delta& delta = mPointerGesture.referenceDeltas[id];
+            delta.dx = 0;
+            delta.dy = 0;
+        }
+
+        mPointerGesture.referenceTouchX += commonDeltaRawX;
+        mPointerGesture.referenceTouchY += commonDeltaRawY;
+
+        float commonDeltaX = commonDeltaRawX * mPointerXMovementScale;
+        float commonDeltaY = commonDeltaRawY * mPointerYMovementScale;
+
+        rotateDelta(mInputDeviceOrientation, &commonDeltaX, &commonDeltaY);
+        mPointerVelocityControl.move(when, &commonDeltaX, &commonDeltaY);
+
+        mPointerGesture.referenceGestureX += commonDeltaX;
+        mPointerGesture.referenceGestureY += commonDeltaY;
+    }
+
+    // Report gestures.
+    if (mPointerGesture.currentGestureMode == PointerGesture::Mode::PRESS ||
+        mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
+        // PRESS or SWIPE mode.
+        ALOGD_IF(DEBUG_GESTURES,
+                 "Gestures: PRESS or SWIPE activeTouchId=%d, activeGestureId=%d, "
+                 "currentTouchPointerCount=%d",
+                 activeTouchId, mPointerGesture.activeGestureId, currentFingerCount);
+        ALOG_ASSERT(mPointerGesture.activeGestureId >= 0);
+
+        mPointerGesture.currentGestureIdBits.clear();
+        mPointerGesture.currentGestureIdBits.markBit(mPointerGesture.activeGestureId);
+        mPointerGesture.currentGestureIdToIndex[mPointerGesture.activeGestureId] = 0;
+        mPointerGesture.currentGestureProperties[0].clear();
+        mPointerGesture.currentGestureProperties[0].id = mPointerGesture.activeGestureId;
+        mPointerGesture.currentGestureProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+        mPointerGesture.currentGestureCoords[0].clear();
+        mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X,
+                                                             mPointerGesture.referenceGestureX);
+        mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y,
+                                                             mPointerGesture.referenceGestureY);
+        mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
+        if (mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
+            float xOffset = static_cast<float>(commonDeltaRawX) /
+                    (mRawPointerAxes.x.maxValue - mRawPointerAxes.x.minValue);
+            float yOffset = static_cast<float>(commonDeltaRawY) /
+                    (mRawPointerAxes.y.maxValue - mRawPointerAxes.y.minValue);
+            mPointerGesture.currentGestureCoords[0]
+                    .setAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET, xOffset);
+            mPointerGesture.currentGestureCoords[0]
+                    .setAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET, yOffset);
+        }
+    } else if (mPointerGesture.currentGestureMode == PointerGesture::Mode::FREEFORM) {
+        // FREEFORM mode.
+        ALOGD_IF(DEBUG_GESTURES,
+                 "Gestures: FREEFORM activeTouchId=%d, activeGestureId=%d, "
+                 "currentTouchPointerCount=%d",
+                 activeTouchId, mPointerGesture.activeGestureId, currentFingerCount);
+        ALOG_ASSERT(mPointerGesture.activeGestureId >= 0);
+
+        mPointerGesture.currentGestureIdBits.clear();
+
+        BitSet32 mappedTouchIdBits;
+        BitSet32 usedGestureIdBits;
+        if (mPointerGesture.lastGestureMode != PointerGesture::Mode::FREEFORM) {
+            // Initially, assign the active gesture id to the active touch point
+            // if there is one.  No other touch id bits are mapped yet.
+            if (!*cancelPreviousGesture) {
+                mappedTouchIdBits.markBit(activeTouchId);
+                usedGestureIdBits.markBit(mPointerGesture.activeGestureId);
+                mPointerGesture.freeformTouchToGestureIdMap[activeTouchId] =
+                        mPointerGesture.activeGestureId;
+            } else {
+                mPointerGesture.activeGestureId = -1;
+            }
+        } else {
+            // Otherwise, assume we mapped all touches from the previous frame.
+            // Reuse all mappings that are still applicable.
+            mappedTouchIdBits.value =
+                    mLastCookedState.fingerIdBits.value & mCurrentCookedState.fingerIdBits.value;
+            usedGestureIdBits = mPointerGesture.lastGestureIdBits;
+
+            // Check whether we need to choose a new active gesture id because the
+            // current went went up.
+            for (BitSet32 upTouchIdBits(mLastCookedState.fingerIdBits.value &
+                                        ~mCurrentCookedState.fingerIdBits.value);
+                 !upTouchIdBits.isEmpty();) {
+                uint32_t upTouchId = upTouchIdBits.clearFirstMarkedBit();
+                uint32_t upGestureId = mPointerGesture.freeformTouchToGestureIdMap[upTouchId];
+                if (upGestureId == uint32_t(mPointerGesture.activeGestureId)) {
+                    mPointerGesture.activeGestureId = -1;
+                    break;
+                }
+            }
+        }
+
+        ALOGD_IF(DEBUG_GESTURES,
+                 "Gestures: FREEFORM follow up mappedTouchIdBits=0x%08x, usedGestureIdBits=0x%08x, "
+                 "activeGestureId=%d",
+                 mappedTouchIdBits.value, usedGestureIdBits.value, mPointerGesture.activeGestureId);
+
+        BitSet32 idBits(mCurrentCookedState.fingerIdBits);
+        for (uint32_t i = 0; i < currentFingerCount; i++) {
+            uint32_t touchId = idBits.clearFirstMarkedBit();
+            uint32_t gestureId;
+            if (!mappedTouchIdBits.hasBit(touchId)) {
+                gestureId = usedGestureIdBits.markFirstUnmarkedBit();
+                mPointerGesture.freeformTouchToGestureIdMap[touchId] = gestureId;
+                ALOGD_IF(DEBUG_GESTURES,
+                         "Gestures: FREEFORM new mapping for touch id %d -> gesture id %d", touchId,
+                         gestureId);
+            } else {
+                gestureId = mPointerGesture.freeformTouchToGestureIdMap[touchId];
+                ALOGD_IF(DEBUG_GESTURES,
+                         "Gestures: FREEFORM existing mapping for touch id %d -> gesture id %d",
+                         touchId, gestureId);
+            }
+            mPointerGesture.currentGestureIdBits.markBit(gestureId);
+            mPointerGesture.currentGestureIdToIndex[gestureId] = i;
+
+            const RawPointerData::Pointer& pointer =
+                    mCurrentRawState.rawPointerData.pointerForId(touchId);
+            float deltaX = (pointer.x - mPointerGesture.referenceTouchX) * mPointerXZoomScale;
+            float deltaY = (pointer.y - mPointerGesture.referenceTouchY) * mPointerYZoomScale;
+            rotateDelta(mInputDeviceOrientation, &deltaX, &deltaY);
+
+            mPointerGesture.currentGestureProperties[i].clear();
+            mPointerGesture.currentGestureProperties[i].id = gestureId;
+            mPointerGesture.currentGestureProperties[i].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+            mPointerGesture.currentGestureCoords[i].clear();
+            mPointerGesture.currentGestureCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X,
+                                                                 mPointerGesture.referenceGestureX +
+                                                                         deltaX);
+            mPointerGesture.currentGestureCoords[i].setAxisValue(AMOTION_EVENT_AXIS_Y,
+                                                                 mPointerGesture.referenceGestureY +
+                                                                         deltaY);
+            mPointerGesture.currentGestureCoords[i].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
+        }
+
+        if (mPointerGesture.activeGestureId < 0) {
+            mPointerGesture.activeGestureId = mPointerGesture.currentGestureIdBits.firstMarkedBit();
+            ALOGD_IF(DEBUG_GESTURES, "Gestures: FREEFORM new activeGestureId=%d",
+                     mPointerGesture.activeGestureId);
+        }
+    }
 }
 
 void TouchInputMapper::moveMousePointerFromPointerDelta(nsecs_t when, uint32_t pointerId) {
