@@ -26,8 +26,8 @@ cc_defaults {
     name: "libsurfaceflinger_defaults",
     defaults: [
         "android.hardware.graphics.composer3-ndk_shared",
+        "librenderengine_deps",
         "surfaceflinger_defaults",
-        "skia_renderengine_deps",
     ],
     cflags: [
         "-DLOG_TAG=\"SurfaceFlinger\"",

@@ -11,6 +11,7 @@ cc_defaults {
     name: "libcompositionengine_defaults",
     defaults: [
         "android.hardware.graphics.composer3-ndk_shared",
+        "librenderengine_deps",
         "surfaceflinger_defaults",
     ],
     cflags: [
