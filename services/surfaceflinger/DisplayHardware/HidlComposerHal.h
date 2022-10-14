@@ -211,6 +211,8 @@ public:
     Error hasDisplayIdleTimerCapability(Display display, bool* outSupport) override;
     Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes, float* outMaxLuminance,
                              float* outMaxAverageLuminance, float* outMinLuminance) override;
+    Error getOverlaySupport(aidl::android::hardware::graphics::composer3::OverlayProperties*
+                                    outProperties) override;
 
     Error getReleaseFences(Display display, std::vector<Layer>* outLayers,
                            std::vector<int>* outReleaseFences) override;

@@ -1383,6 +1383,10 @@ status_t SurfaceFlinger::getBootDisplayModeSupport(bool* outSupport) const {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getOverlaySupport(gui::OverlayProperties* /*outProperties*/) const {
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::setBootDisplayMode(const sp<display::DisplayToken>& displayToken,
                                             DisplayModeId modeId) {
     const char* const whence = __func__;
@@ -7268,6 +7272,14 @@ binder::Status SurfaceComposerAIDL::clearBootDisplayMode(const sp<IBinder>& disp
     status_t status = checkAccessPermission();
     if (status == OK) {
         status = mFlinger->clearBootDisplayMode(display);
+    }
+    return binderStatusFromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getOverlaySupport(gui::OverlayProperties* outProperties) {
+    status_t status = checkAccessPermission();
+    if (status == OK) {
+        status = mFlinger->getOverlaySupport(outProperties);
     }
     return binderStatusFromStatusT(status);
 }

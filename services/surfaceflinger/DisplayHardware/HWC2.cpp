@@ -40,6 +40,7 @@ using aidl::android::hardware::graphics::composer3::Color;
 using aidl::android::hardware::graphics::composer3::Composition;
 using AidlCapability = aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
+using aidl::android::hardware::graphics::composer3::OverlayProperties;
 
 namespace android {
 
@@ -330,6 +331,11 @@ Error Display::getHdrCapabilities(HdrCapabilities* outCapabilities) const
 
     *outCapabilities = HdrCapabilities(std::move(types),
             maxLuminance, maxAverageLuminance, minLuminance);
+    return Error::NONE;
+}
+
+Error Display::getOverlaySupport(OverlayProperties* /*outProperties*/) const {
+    // TODO(b/242588489): implement details
     return Error::NONE;
 }
 

@@ -76,9 +76,12 @@ protected:
     ConnectionHandle mConnectionHandle;
     MockEventThread* mEventThread;
     sp<MockEventThreadConnection> mEventThreadConnection;
-    FakeDisplayInjector mFakeDisplayInjector;
 
     TestableSurfaceFlinger mFlinger;
+    Hwc2::mock::PowerAdvisor mPowerAdvisor;
+    sp<android::mock::NativeWindow> mNativeWindow = sp<android::mock::NativeWindow>::make();
+
+    FakeDisplayInjector mFakeDisplayInjector{mFlinger, mPowerAdvisor, mNativeWindow};
 };
 
 SchedulerTest::SchedulerTest() {
@@ -226,11 +229,10 @@ MATCHER(Is120Hz, "") {
 }
 
 TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
-    auto display = mFakeDisplayInjector.injectDefaultInternalDisplay(
-            [&](FakeDisplayDeviceInjector& injector) {
+    auto display =
+            mFakeDisplayInjector.injectInternalDisplay([&](FakeDisplayDeviceInjector& injector) {
                 injector.setDisplayModes(makeModes(kMode60_1, kMode120_1), kMode60_1->getId());
-            },
-            mFlinger);
+            });
 
     mScheduler->registerDisplay(display);
     mScheduler->setRefreshRateConfigs(display->holdRefreshRateConfigs());
@@ -255,11 +257,11 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
 }
 
 TEST_F(SchedulerTest, getBestDisplayMode_singleDisplay) {
-    auto display = mFakeDisplayInjector.injectDefaultInternalDisplay(
-            [&](FakeDisplayDeviceInjector& injector) {
+    auto display =
+            mFakeDisplayInjector.injectInternalDisplay([&](FakeDisplayDeviceInjector& injector) {
                 injector.setDisplayModes(makeModes(kMode60_1, kMode120_1), kMode60_1->getId());
-            },
-            mFlinger);
+            });
+
     mScheduler->registerDisplay(display);
 
     std::vector<RefreshRateConfigs::LayerRequirement> layers =
@@ -293,16 +295,16 @@ TEST_F(SchedulerTest, getBestDisplayMode_singleDisplay) {
 }
 
 TEST_F(SchedulerTest, getBestDisplayModes_multipleDisplays) {
-    auto display1 = mFakeDisplayInjector.injectDefaultInternalDisplay(
-            [&](FakeDisplayDeviceInjector& injector) {
+    auto display1 =
+            mFakeDisplayInjector.injectInternalDisplay([&](FakeDisplayDeviceInjector& injector) {
                 injector.setDisplayModes(makeModes(kMode60_1, kMode120_1), kMode60_1->getId());
-            },
-            mFlinger);
-    auto display2 = mFakeDisplayInjector.injectDefaultInternalDisplay(
+            });
+    auto display2 = mFakeDisplayInjector.injectInternalDisplay(
             [&](FakeDisplayDeviceInjector& injector) {
                 injector.setDisplayModes(makeModes(kMode60_2, kMode120_2), kMode60_2->getId());
             },
-            mFlinger, /* port */ 253u);
+            {.port = 253u, .hwcDisplayId = 42, .isPrimary = false});
+
     mScheduler->registerDisplay(display1);
     mScheduler->registerDisplay(display2);
 
@@ -354,11 +356,12 @@ TEST_F(SchedulerTest, getBestDisplayModes_multipleDisplays) {
 
     // Filters out the 120Hz as it's not present on the display3, even with touch active
     // we select 60Hz here.
-    auto display3 = mFakeDisplayInjector.injectDefaultInternalDisplay(
+    auto display3 = mFakeDisplayInjector.injectInternalDisplay(
             [&](FakeDisplayDeviceInjector& injector) {
                 injector.setDisplayModes(makeModes(kMode60_3), kMode60_3->getId());
             },
-            mFlinger, /* port */ 252u);
+            {.port = 252u, .hwcDisplayId = 41, .isPrimary = false});
+
     mScheduler->registerDisplay(display3);
 
     expectedDisplays = {display1, display2, display3};

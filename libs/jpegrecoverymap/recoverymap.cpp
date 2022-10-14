@@ -18,8 +18,54 @@
 
 namespace android::recoverymap {
 
-void* RecoveryMap::decodeRecoveryMap(void* compressed_recovery_map) {
-  if (compressed_recovery_map == nullptr) {
+bool RecoveryMap::decodeRecoveryMap(j_r_compressed_ptr compressed_recovery_map,
+                                    j_r_uncompressed_ptr dest) {
+  if (compressed_recovery_map == nullptr || dest == nullptr) {
+    return false;
+  }
+
+  // TBD
+  return true;
+}
+
+bool RecoveryMap::encodeRecoveryMap(j_r_uncompressed_ptr uncompressed_recovery_map,
+                                    j_r_compressed_ptr dest) {
+  if (uncompressed_recovery_map == nullptr || dest == nullptr) {
+    return false;
+  }
+
+  // TBD
+  return true;
+}
+
+bool RecoveryMap::generateRecoveryMap(j_r_uncompressed_ptr uncompressed_yuv_420_image,
+                                      j_r_uncompressed_ptr uncompressed_p010_image,
+                                      j_r_uncompressed_ptr dest) {
+  if (uncompressed_yuv_420_image == nullptr
+   || uncompressed_p010_image == nullptr
+   || dest == nullptr) {
+    return false;
+  }
+
+  // TBD
+  return true;
+}
+
+bool RecoveryMap::applyRecoveryMap(j_r_uncompressed_ptr uncompressed_yuv_420_image,
+                                   j_r_uncompressed_ptr uncompressed_recovery_map,
+                                   j_r_uncompressed_ptr dest) {
+  if (uncompressed_yuv_420_image == nullptr
+   || uncompressed_recovery_map == nullptr
+   || dest == nullptr) {
+    return false;
+  }
+
+  // TBD
+  return true;
+}
+
+j_r_compressed_ptr RecoveryMap::extractRecoveryMap(void* compressed_jpeg_r_image) {
+  if (compressed_jpeg_r_image == nullptr) {
     return nullptr;
   }
 
@@ -27,45 +73,8 @@ void* RecoveryMap::decodeRecoveryMap(void* compressed_recovery_map) {
   return nullptr;
 }
 
-void* RecoveryMap::encodeRecoveryMap(void* uncompressed_recovery_map) {
-  if (uncompressed_recovery_map == nullptr) {
-    return nullptr;
-  }
-
-  // TBD
-  return nullptr;
-}
-
-void* RecoveryMap::generateRecoveryMap(
-    void* uncompressed_yuv_420_image, void* uncompressed_p010_image) {
-  if (uncompressed_yuv_420_image == nullptr || uncompressed_p010_image == nullptr) {
-    return nullptr;
-  }
-
-  // TBD
-  return nullptr;
-}
-
-void* RecoveryMap::applyRecoveryMap(
-    void* uncompressed_yuv_420_image, void* uncompressed_recovery_map) {
-  if (uncompressed_yuv_420_image == nullptr || uncompressed_recovery_map == nullptr) {
-    return nullptr;
-  }
-
-  // TBD
-  return nullptr;
-}
-
-void* RecoveryMap::extractRecoveryMap(void* compressed_jpeg_g_image) {
-  if (compressed_jpeg_g_image == nullptr) {
-    return nullptr;
-  }
-
-  // TBD
-  return nullptr;
-}
-
-void* RecoveryMap::appendRecoveryMap(void* compressed_jpeg_image, void* compressed_recovery_map) {
+void* RecoveryMap::appendRecoveryMap(void* compressed_jpeg_image,
+                                     j_r_compressed_ptr compressed_recovery_map) {
   if (compressed_jpeg_image == nullptr || compressed_recovery_map == nullptr) {
     return nullptr;
   }
