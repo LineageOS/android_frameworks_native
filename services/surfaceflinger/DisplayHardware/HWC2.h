@@ -43,6 +43,7 @@
 #include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
+#include <aidl/android/hardware/graphics/composer3/OverlayProperties.h>
 
 namespace android {
 
@@ -117,6 +118,9 @@ public:
     [[nodiscard]] virtual hal::Error supportsDoze(bool* outSupport) const = 0;
     [[nodiscard]] virtual hal::Error getHdrCapabilities(
             android::HdrCapabilities* outCapabilities) const = 0;
+    [[nodiscard]] virtual hal::Error getOverlaySupport(
+            aidl::android::hardware::graphics::composer3::OverlayProperties* outProperties)
+            const = 0;
     [[nodiscard]] virtual hal::Error getDisplayedContentSamplingAttributes(
             hal::PixelFormat* outFormat, hal::Dataspace* outDataspace,
             uint8_t* outComponentMask) const = 0;
@@ -204,6 +208,8 @@ public:
     hal::Error getConnectionType(ui::DisplayConnectionType*) const override;
     hal::Error supportsDoze(bool* outSupport) const override EXCLUDES(mDisplayCapabilitiesMutex);
     hal::Error getHdrCapabilities(android::HdrCapabilities* outCapabilities) const override;
+    hal::Error getOverlaySupport(aidl::android::hardware::graphics::composer3::OverlayProperties*
+                                         outProperties) const override;
     hal::Error getDisplayedContentSamplingAttributes(hal::PixelFormat* outFormat,
                                                      hal::Dataspace* outDataspace,
                                                      uint8_t* outComponentMask) const override;

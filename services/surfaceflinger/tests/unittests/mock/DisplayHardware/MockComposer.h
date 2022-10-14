@@ -164,6 +164,8 @@ public:
     MOCK_METHOD2(setIdleTimerEnabled, Error(Display, std::chrono::milliseconds));
     MOCK_METHOD2(hasDisplayIdleTimerCapability, Error(Display, bool*));
     MOCK_METHOD2(getPhysicalDisplayOrientation, Error(Display, AidlTransform*));
+    MOCK_METHOD1(getOverlaySupport,
+                 Error(aidl::android::hardware::graphics::composer3::OverlayProperties*));
 };
 
 } // namespace Hwc2::mock

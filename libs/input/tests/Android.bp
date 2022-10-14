@@ -10,6 +10,7 @@ package {
 
 cc_test {
     name: "libinput_tests",
+    host_supported: true,
     srcs: [
         "IdGenerator_test.cpp",
         "InputChannel_test.cpp",
@@ -24,6 +25,7 @@ cc_test {
     static_libs: [
         "libgui_window_info_static",
         "libinput",
+        "libui-types",
     ],
     cflags: [
         "-Wall",
@@ -35,11 +37,13 @@ cc_test {
         "libbinder",
         "libcutils",
         "liblog",
-        "libui",
         "libutils",
         "libvintf",
     ],
     data: ["data/*"],
+    test_options: {
+        unit_test: true,
+    },
     test_suites: ["device-tests"],
 }
 
@@ -60,7 +64,6 @@ cc_library_static {
         "libcutils",
         "libutils",
         "libbinder",
-        "libui",
         "libbase",
     ],
 }

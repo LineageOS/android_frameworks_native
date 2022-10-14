@@ -38,6 +38,7 @@
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerCallback.h>
+#include <aidl/android/hardware/graphics/composer3/OverlayProperties.h>
 
 #include <aidl/android/hardware/graphics/common/Transform.h>
 #include <optional>
@@ -281,6 +282,7 @@ public:
     virtual Error setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) = 0;
     virtual Error getPhysicalDisplayOrientation(Display displayId,
                                                 AidlTransform* outDisplayOrientation) = 0;
+    virtual Error getOverlaySupport(V3_0::OverlayProperties* outProperties) = 0;
 };
 
 } // namespace Hwc2

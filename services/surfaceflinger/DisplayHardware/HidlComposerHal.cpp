@@ -40,6 +40,7 @@ using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness;
 using aidl::android::hardware::graphics::composer3::DimmingStage;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
+using aidl::android::hardware::graphics::composer3::OverlayProperties;
 
 namespace android {
 
@@ -538,6 +539,10 @@ Error HidlComposer::getHdrCapabilities(Display display, std::vector<Hdr>* outTyp
     }
 
     return error;
+}
+
+Error HidlComposer::getOverlaySupport(OverlayProperties* /*outProperties*/) {
+    return Error::NONE;
 }
 
 Error HidlComposer::getReleaseFences(Display display, std::vector<Layer>* outLayers,

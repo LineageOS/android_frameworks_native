@@ -26,6 +26,7 @@
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 #include <ftl/fake_guard.h>
+#include <ftl/small_map.h>
 #include <gui/WindowInfo.h>
 #include <system/window.h>
 #include <utils/Timers.h>
@@ -41,6 +42,7 @@
 
 #include "../Layer.h"
 #include "DispSyncSource.h"
+#include "Display/DisplayMap.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
 #include "OneShotTimer.h"
@@ -55,39 +57,6 @@
             return __VA_ARGS__;                                      \
         }                                                            \
     } while (false)
-
-namespace {
-
-using android::Fps;
-using android::FpsApproxEqual;
-using android::FpsHash;
-using android::scheduler::AggregatedFpsScore;
-using android::scheduler::RefreshRateRankingsAndSignals;
-
-// Returns the aggregated score per Fps for the RefreshRateRankingsAndSignals sourced.
-auto getAggregatedScoresPerFps(
-        const std::vector<RefreshRateRankingsAndSignals>& refreshRateRankingsAndSignalsPerDisplay)
-        -> std::unordered_map<Fps, AggregatedFpsScore, FpsHash, FpsApproxEqual> {
-    std::unordered_map<Fps, AggregatedFpsScore, FpsHash, FpsApproxEqual> aggregatedScoresPerFps;
-
-    for (const auto& refreshRateRankingsAndSignal : refreshRateRankingsAndSignalsPerDisplay) {
-        const auto& refreshRateRankings = refreshRateRankingsAndSignal.refreshRateRankings;
-
-        std::for_each(refreshRateRankings.begin(), refreshRateRankings.end(), [&](const auto& it) {
-            const auto [score, result] =
-                    aggregatedScoresPerFps.try_emplace(it.displayModePtr->getFps(),
-                                                       AggregatedFpsScore{it.score,
-                                                                          /* numDisplays */ 1});
-            if (!result) { // update
-                score->second.totalScore += it.score;
-                score->second.numDisplays++;
-            }
-        });
-    }
-    return aggregatedScoresPerFps;
-}
-
-} // namespace
 
 namespace android::scheduler {
 
@@ -155,6 +124,15 @@ void Scheduler::setRefreshRateConfigs(std::shared_ptr<RefreshRateConfigs> config
                         .onExpired = [this] { kernelIdleTimerCallback(TimerState::Expired); }}});
 
     mRefreshRateConfigs->startIdleTimer();
+}
+
+void Scheduler::registerDisplay(sp<const DisplayDevice> display) {
+    const bool ok = mDisplays.try_emplace(display->getPhysicalId(), std::move(display)).second;
+    ALOGE_IF(!ok, "%s: Duplicate display", __func__);
+}
+
+void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
+    mDisplays.erase(displayId);
 }
 
 void Scheduler::run() {
@@ -711,66 +689,86 @@ auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals 
     return consideredSignals;
 }
 
-void Scheduler::registerDisplay(const sp<const DisplayDevice>& display) {
-    const bool ok = mDisplays.try_emplace(display->getPhysicalId(), display).second;
-    ALOGE_IF(!ok, "Duplicate display registered");
-}
-
-void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
-    mDisplays.erase(displayId);
-}
-
 std::vector<DisplayModeConfig> Scheduler::getBestDisplayModeConfigs() const {
     ATRACE_CALL();
 
-    std::vector<RefreshRateRankingsAndSignals> refreshRateRankingsAndSignalsPerDisplay;
-    refreshRateRankingsAndSignalsPerDisplay.reserve(mDisplays.size());
+    using Rankings = std::pair<std::vector<RefreshRateRanking>, GlobalSignals>;
+    display::PhysicalDisplayVector<Rankings> perDisplayRankings;
+
+    // Tallies the score of a refresh rate across `displayCount` displays.
+    struct RefreshRateTally {
+        explicit RefreshRateTally(float score) : score(score) {}
+
+        float score;
+        size_t displayCount = 1;
+    };
+
+    // Chosen to exceed a typical number of refresh rates across displays.
+    constexpr size_t kStaticCapacity = 8;
+    ftl::SmallMap<Fps, RefreshRateTally, kStaticCapacity, FpsApproxEqual> refreshRateTallies;
+
+    const auto globalSignals = makeGlobalSignals();
 
     for (const auto& [id, display] : mDisplays) {
-        const auto [rankings, signals] =
+        auto [rankings, signals] =
                 display->holdRefreshRateConfigs()
-                        ->getRankedRefreshRates(mPolicy.contentRequirements, makeGlobalSignals());
+                        ->getRankedRefreshRates(mPolicy.contentRequirements, globalSignals);
 
-        refreshRateRankingsAndSignalsPerDisplay.emplace_back(
-                RefreshRateRankingsAndSignals{rankings, signals});
+        for (const auto& [modePtr, score] : rankings) {
+            const auto [it, inserted] = refreshRateTallies.try_emplace(modePtr->getFps(), score);
+
+            if (!inserted) {
+                auto& tally = it->second;
+                tally.score += score;
+                tally.displayCount++;
+            }
+        }
+
+        perDisplayRankings.emplace_back(std::move(rankings), signals);
     }
 
-    // FPS and their Aggregated score.
-    std::unordered_map<Fps, AggregatedFpsScore, FpsHash, FpsApproxEqual> aggregatedScoresPerFps =
-            getAggregatedScoresPerFps(refreshRateRankingsAndSignalsPerDisplay);
+    auto maxScoreIt = refreshRateTallies.cbegin();
 
-    auto maxScoreIt = aggregatedScoresPerFps.cbegin();
-    // Selects the max Fps that is present on all the displays.
-    for (auto it = aggregatedScoresPerFps.cbegin(); it != aggregatedScoresPerFps.cend(); ++it) {
-        const auto [fps, aggregatedScore] = *it;
-        if (aggregatedScore.numDisplays == mDisplays.size() &&
-            aggregatedScore.totalScore >= maxScoreIt->second.totalScore) {
-            maxScoreIt = it;
+    // Find the first refresh rate common to all displays.
+    while (maxScoreIt != refreshRateTallies.cend() &&
+           maxScoreIt->second.displayCount != mDisplays.size()) {
+        ++maxScoreIt;
+    }
+
+    if (maxScoreIt != refreshRateTallies.cend()) {
+        // Choose the highest refresh rate common to all displays, if any.
+        for (auto it = maxScoreIt + 1; it != refreshRateTallies.cend(); ++it) {
+            const auto [fps, tally] = *it;
+
+            if (tally.displayCount == mDisplays.size() && tally.score > maxScoreIt->second.score) {
+                maxScoreIt = it;
+            }
         }
     }
-    return getDisplayModeConfigsForTheChosenFps(maxScoreIt->first,
-                                                refreshRateRankingsAndSignalsPerDisplay);
-}
 
-std::vector<DisplayModeConfig> Scheduler::getDisplayModeConfigsForTheChosenFps(
-        Fps chosenFps,
-        const std::vector<RefreshRateRankingsAndSignals>& refreshRateRankingsAndSignalsPerDisplay)
-        const {
+    const std::optional<Fps> chosenFps = maxScoreIt != refreshRateTallies.cend()
+            ? std::make_optional(maxScoreIt->first)
+            : std::nullopt;
+
     std::vector<DisplayModeConfig> displayModeConfigs;
     displayModeConfigs.reserve(mDisplays.size());
+
     using fps_approx_ops::operator==;
-    std::for_each(refreshRateRankingsAndSignalsPerDisplay.begin(),
-                  refreshRateRankingsAndSignalsPerDisplay.end(),
-                  [&](const auto& refreshRateRankingsAndSignal) {
-                      for (const auto& ranking : refreshRateRankingsAndSignal.refreshRateRankings) {
-                          if (ranking.displayModePtr->getFps() == chosenFps) {
-                              displayModeConfigs.emplace_back(
-                                      DisplayModeConfig{refreshRateRankingsAndSignal.globalSignals,
-                                                        ranking.displayModePtr});
-                              break;
-                          }
-                      }
-                  });
+
+    for (const auto& [rankings, signals] : perDisplayRankings) {
+        if (!chosenFps) {
+            displayModeConfigs.emplace_back(signals, rankings.front().displayModePtr);
+            continue;
+        }
+
+        for (const auto& ranking : rankings) {
+            const auto& modePtr = ranking.displayModePtr;
+            if (modePtr->getFps() == *chosenFps) {
+                displayModeConfigs.emplace_back(signals, modePtr);
+                break;
+            }
+        }
+    }
     return displayModeConfigs;
 }
 

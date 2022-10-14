@@ -55,6 +55,7 @@ using AidlDisplayContentSample = aidl::android::hardware::graphics::composer3::D
 using AidlDisplayAttribute = aidl::android::hardware::graphics::composer3::DisplayAttribute;
 using AidlDisplayCapability = aidl::android::hardware::graphics::composer3::DisplayCapability;
 using AidlHdrCapabilities = aidl::android::hardware::graphics::composer3::HdrCapabilities;
+using AidlOverlayProperties = aidl::android::hardware::graphics::composer3::OverlayProperties;
 using AidlPerFrameMetadata = aidl::android::hardware::graphics::composer3::PerFrameMetadata;
 using AidlPerFrameMetadataKey = aidl::android::hardware::graphics::composer3::PerFrameMetadataKey;
 using AidlPerFrameMetadataBlob = aidl::android::hardware::graphics::composer3::PerFrameMetadataBlob;
@@ -500,6 +501,11 @@ Error AidlComposer::getHdrCapabilities(Display display, std::vector<Hdr>* outTyp
     *outMaxLuminance = capabilities.maxLuminance;
     *outMaxAverageLuminance = capabilities.maxAverageLuminance;
     *outMinLuminance = capabilities.minLuminance;
+    return Error::NONE;
+}
+
+Error AidlComposer::getOverlaySupport(AidlOverlayProperties* /*outProperties*/) {
+    // TODO(b/242588489): implement details
     return Error::NONE;
 }
 

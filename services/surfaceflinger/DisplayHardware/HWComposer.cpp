@@ -652,6 +652,11 @@ status_t HWComposer::getHdrCapabilities(HalDisplayId displayId, HdrCapabilities*
     return NO_ERROR;
 }
 
+status_t HWComposer::getOverlaySupport(
+        aidl::android::hardware::graphics::composer3::OverlayProperties* /*outProperties*/) {
+    return NO_ERROR;
+}
+
 int32_t HWComposer::getSupportedPerFrameMetadata(HalDisplayId displayId) const {
     RETURN_IF_INVALID_DISPLAY(displayId, 0);
     return mDisplayData.at(displayId).hwcDisplay->getSupportedPerFrameMetadata();

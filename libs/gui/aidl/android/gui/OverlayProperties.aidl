@@ -14,22 +14,11 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.gui;
 
-#include <ftl/small_map.h>
-#include <ftl/small_vector.h>
+import android.gui.SupportedBufferCombinations;
 
-namespace android::display {
-
-// The static capacities were chosen to exceed a typical number of physical and/or virtual displays.
-
-template <typename Key, typename Value>
-using DisplayMap = ftl::SmallMap<Key, Value, 5>;
-
-template <typename Key, typename Value>
-using PhysicalDisplayMap = ftl::SmallMap<Key, Value, 3>;
-
-template <typename T>
-using PhysicalDisplayVector = ftl::SmallVector<T, 3>;
-
-} // namespace android::display
+/** @hide */
+parcelable OverlayProperties {
+    SupportedBufferCombinations[] combinations;
+}

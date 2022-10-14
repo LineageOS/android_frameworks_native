@@ -87,18 +87,28 @@ TEST_F(PowerHalWrapperHidlV1_0Test, TestSetBoostFailed) {
 }
 
 TEST_F(PowerHalWrapperHidlV1_0Test, TestSetBoostUnsupported) {
+    EXPECT_CALL(*mMockHal.get(), powerHint(_, _)).Times(0);
+    EXPECT_CALL(*mMockHal.get(), setInteractive(_)).Times(0);
+    EXPECT_CALL(*mMockHal.get(), setFeature(_, _)).Times(0);
+
     auto result = mWrapper->setBoost(Boost::CAMERA_LAUNCH, 10);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setBoost(Boost::ML_ACC, 10);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setBoost(Boost::DISPLAY_UPDATE_IMMINENT, 10);
     ASSERT_TRUE(result.isUnsupported());
 }
 
 TEST_F(PowerHalWrapperHidlV1_0Test, TestSetModeSuccessful) {
     {
         InSequence seq;
-        EXPECT_CALL(*mMockHal.get(), powerHint(Eq(PowerHint::LAUNCH), Eq(1))).Times(Exactly(1));
-        EXPECT_CALL(*mMockHal.get(), powerHint(Eq(PowerHint::LOW_POWER), Eq(0))).Times(Exactly(1));
-        EXPECT_CALL(*mMockHal.get(), powerHint(Eq(PowerHint::SUSTAINED_PERFORMANCE), Eq(1)))
+        EXPECT_CALL(*mMockHal.get(), powerHint(Eq(PowerHint::LAUNCH), Eq(true))).Times(Exactly(1));
+        EXPECT_CALL(*mMockHal.get(), powerHint(Eq(PowerHint::LOW_POWER), Eq(false)))
                 .Times(Exactly(1));
-        EXPECT_CALL(*mMockHal.get(), powerHint(Eq(PowerHint::VR_MODE), Eq(0))).Times(Exactly(1));
+        EXPECT_CALL(*mMockHal.get(), powerHint(Eq(PowerHint::SUSTAINED_PERFORMANCE), Eq(true)))
+                .Times(Exactly(1));
+        EXPECT_CALL(*mMockHal.get(), powerHint(Eq(PowerHint::VR_MODE), Eq(false)))
+                .Times(Exactly(1));
         EXPECT_CALL(*mMockHal.get(), setInteractive(Eq(true))).Times(Exactly(1));
         EXPECT_CALL(*mMockHal.get(),
                     setFeature(Eq(Feature::POWER_FEATURE_DOUBLE_TAP_TO_WAKE), Eq(false)))
@@ -131,6 +141,16 @@ TEST_F(PowerHalWrapperHidlV1_0Test, TestSetModeFailed) {
 }
 
 TEST_F(PowerHalWrapperHidlV1_0Test, TestSetModeIgnored) {
+    EXPECT_CALL(*mMockHal.get(), powerHint(_, _)).Times(0);
+    EXPECT_CALL(*mMockHal.get(), setInteractive(_)).Times(0);
+    EXPECT_CALL(*mMockHal.get(), setFeature(_, _)).Times(0);
+
     auto result = mWrapper->setMode(Mode::CAMERA_STREAMING_HIGH, true);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setMode(Mode::EXPENSIVE_RENDERING, false);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setMode(Mode::FIXED_PERFORMANCE, true);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setMode(Mode::GAME_LOADING, false);
     ASSERT_TRUE(result.isUnsupported());
 }
