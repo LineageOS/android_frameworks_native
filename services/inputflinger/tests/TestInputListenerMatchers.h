@@ -55,6 +55,11 @@ MATCHER_P(WithDisplayId, displayId, "InputEvent with specified displayId") {
     return arg.displayId == displayId;
 }
 
+MATCHER_P(WithDeviceId, deviceId, "InputEvent with specified deviceId") {
+    *result_listener << "expected deviceId " << deviceId << ", but got " << arg.deviceId;
+    return arg.deviceId == deviceId;
+}
+
 MATCHER_P(WithKeyCode, keyCode, "KeyEvent with specified key code") {
     *result_listener << "expected key code " << keyCode << ", but got " << arg.keyCode;
     return arg.keyCode == keyCode;

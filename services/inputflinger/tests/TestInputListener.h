@@ -33,6 +33,8 @@ public:
                       std::chrono::milliseconds eventDidNotHappenTimeout = 0ms);
     virtual ~TestInputListener();
 
+    using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
+
     void assertNotifyConfigurationChangedWasCalled(
             NotifyConfigurationChangedArgs* outEventArgs = nullptr);
 
@@ -52,7 +54,7 @@ public:
 
     void assertNotifyMotionWasCalled(const ::testing::Matcher<NotifyMotionArgs>& matcher);
 
-    void assertNotifyMotionWasNotCalled();
+    void assertNotifyMotionWasNotCalled(std::optional<TimePoint> waitUntil = {});
 
     void assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs = nullptr);
 
@@ -66,7 +68,7 @@ private:
     void assertCalled(NotifyArgsType* outEventArgs, std::string message);
 
     template <class NotifyArgsType>
-    void assertNotCalled(std::string message);
+    void assertNotCalled(std::string message, std::optional<TimePoint> timeout = {});
 
     template <class NotifyArgsType>
     void addToQueue(const NotifyArgsType* args);

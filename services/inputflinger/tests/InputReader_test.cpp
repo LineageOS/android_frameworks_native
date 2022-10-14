@@ -2523,7 +2523,8 @@ TEST_F(InputReaderIntegrationTest, SendsGearDownAndUpToInputListener) {
     ASSERT_EQ(BTN_GEAR_UP, keyArgs.scanCode);
 }
 
-// --- TouchProcessTest ---
+// --- TouchIntegrationTest ---
+
 class TouchIntegrationTest : public InputReaderIntegrationTest {
 protected:
     const std::string UNIQUE_ID = "local:0";
@@ -2938,6 +2939,124 @@ TEST_F(TouchIntegrationTest, StylusButtonsWithinTouchGesture) {
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
                   WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0))));
+}
+
+// --- ExternalStylusIntegrationTest ---
+
+// Verify the behavior of an external stylus. An external stylus can report pressure or button
+// data independently of the touchscreen, which is then sent as a MotionEvent as part of an
+// ongoing stylus gesture that is being emitted by the touchscreen.
+using ExternalStylusIntegrationTest = TouchIntegrationTest;
+
+TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureReported) {
+    const Point centerPoint = mDevice->getCenterPoint();
+
+    // Create an external stylus capable of reporting pressure data that
+    // should be fused with a touch pointer.
+    std::unique_ptr<UinputExternalStylusWithPressure> stylus =
+            createUinputDevice<UinputExternalStylusWithPressure>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+    const auto stylusInfo = findDeviceByName(stylus->getName());
+    ASSERT_TRUE(stylusInfo);
+
+    ASSERT_EQ(AINPUT_SOURCE_STYLUS | AINPUT_SOURCE_KEYBOARD, stylusInfo->getSources());
+
+    const auto touchscreenId = mDeviceInfo.getId();
+
+    // Set a pressure value on the stylus. It doesn't generate any events.
+    const auto& RAW_PRESSURE_MAX = UinputExternalStylusWithPressure::RAW_PRESSURE_MAX;
+    stylus->setPressure(100);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());
+
+    // Start a finger gesture, and ensure it shows up as stylus gesture
+    // with the pressure set by the external stylus.
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendToolType(MT_TOOL_FINGER);
+    mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId), WithPressure(100.f / RAW_PRESSURE_MAX))));
+
+    // Change the pressure on the external stylus, and ensure the touchscreen generates a MOVE
+    // event with the updated pressure.
+    stylus->setPressure(200);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId), WithPressure(200.f / RAW_PRESSURE_MAX))));
+
+    // The external stylus did not generate any events.
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasNotCalled());
+}
+
+TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureNotReported) {
+    const Point centerPoint = mDevice->getCenterPoint();
+
+    // Create an external stylus capable of reporting pressure data that
+    // should be fused with a touch pointer.
+    std::unique_ptr<UinputExternalStylusWithPressure> stylus =
+            createUinputDevice<UinputExternalStylusWithPressure>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+    const auto stylusInfo = findDeviceByName(stylus->getName());
+    ASSERT_TRUE(stylusInfo);
+
+    ASSERT_EQ(AINPUT_SOURCE_STYLUS | AINPUT_SOURCE_KEYBOARD, stylusInfo->getSources());
+
+    const auto touchscreenId = mDeviceInfo.getId();
+
+    // Set a pressure value of 0 on the stylus. It doesn't generate any events.
+    const auto& RAW_PRESSURE_MAX = UinputExternalStylusWithPressure::RAW_PRESSURE_MAX;
+    stylus->setPressure(0);
+
+    // Start a finger gesture. The touch device will withhold generating any touches for
+    // up to 72 milliseconds while waiting for pressure data from the external stylus.
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendToolType(MT_TOOL_FINGER);
+    mDevice->sendDown(centerPoint);
+    auto waitUntil = std::chrono::system_clock::now() +
+            std::chrono::milliseconds(ns2ms(EXTERNAL_STYLUS_DATA_TIMEOUT));
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled(waitUntil));
+
+    // Since the external stylus did not report a pressure value within the timeout,
+    // it shows up as a finger pointer.
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithDeviceId(touchscreenId),
+                  WithPressure(1.f))));
+
+    // Change the pressure on the external stylus. Since the pressure was not present at the start
+    // of the gesture, it is ignored for now.
+    stylus->setPressure(200);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());
+
+    // Finish the finger gesture.
+    mDevice->sendTrackingId(INVALID_TRACKING_ID);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER))));
+
+    // Start a new gesture. Since we have a valid pressure value, it shows up as a stylus.
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendToolType(MT_TOOL_FINGER);
+    mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId), WithPressure(200.f / RAW_PRESSURE_MAX))));
+
+    // The external stylus did not generate any events.
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasNotCalled());
 }
 
 // --- InputDeviceTest ---

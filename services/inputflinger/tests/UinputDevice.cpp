@@ -138,6 +138,25 @@ UinputSteamController::UinputSteamController()
 UinputExternalStylus::UinputExternalStylus()
       : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, {BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}) {}
 
+// --- UinputExternalStylusWithPressure ---
+
+UinputExternalStylusWithPressure::UinputExternalStylusWithPressure()
+      : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, {BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}) {}
+
+void UinputExternalStylusWithPressure::configureDevice(int fd, uinput_user_dev* device) {
+    UinputKeyboard::configureDevice(fd, device);
+
+    ioctl(fd, UI_SET_EVBIT, EV_ABS);
+    ioctl(fd, UI_SET_ABSBIT, ABS_PRESSURE);
+    device->absmin[ABS_PRESSURE] = RAW_PRESSURE_MIN;
+    device->absmax[ABS_PRESSURE] = RAW_PRESSURE_MAX;
+}
+
+void UinputExternalStylusWithPressure::setPressure(int32_t pressure) {
+    injectEvent(EV_ABS, ABS_PRESSURE, pressure);
+    injectEvent(EV_SYN, SYN_REPORT, 0);
+}
+
 // --- UinputTouchScreen ---
 
 UinputTouchScreen::UinputTouchScreen(const Rect& size)
