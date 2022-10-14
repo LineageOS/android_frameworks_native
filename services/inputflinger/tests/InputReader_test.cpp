@@ -2373,7 +2373,7 @@ TEST_F(InputReaderIntegrationTest, TestInvalidDevice) {
     // An invalid input device that is only used for this test.
     class InvalidUinputDevice : public UinputDevice {
     public:
-        InvalidUinputDevice() : UinputDevice("Invalid Device") {}
+        InvalidUinputDevice() : UinputDevice("Invalid Device", 99 /*productId*/) {}
 
     private:
         void configureDevice(int fd, uinput_user_dev* device) override {}

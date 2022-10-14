@@ -32,7 +32,7 @@ namespace android {
 template <class D, class... Ts>
 std::unique_ptr<D> createUinputDevice(Ts... args) {
     // Using `new` to access non-public constructors.
-    std::unique_ptr<D> dev(new D(&args...));
+    std::unique_ptr<D> dev(new D(args...));
     EXPECT_NO_FATAL_FAILURE(dev->init());
     return dev;
 }
@@ -51,8 +51,9 @@ public:
 
 protected:
     const char* mName;
+    const int16_t mProductId;
 
-    UinputDevice(const char* name);
+    explicit UinputDevice(const char* name, int16_t productId);
 
     // Signals which types of events this device supports before it is created.
     // This must be overridden by subclasses.
@@ -71,7 +72,8 @@ private:
 
 class UinputKeyboard : public UinputDevice {
 public:
-    static constexpr const char* KEYBOARD_NAME = "Test Keyboard Device";
+    static constexpr const char* KEYBOARD_NAME = "Test Uinput Keyboard Device";
+    static constexpr int16_t PRODUCT_ID = 42;
 
     // Injects key press and sync.
     void pressKey(int key);
@@ -84,7 +86,8 @@ public:
     friend std::unique_ptr<D> createUinputDevice(Ts... args);
 
 protected:
-    UinputKeyboard(const char* name, std::initializer_list<int> keys = {});
+    explicit UinputKeyboard(const char* name, int16_t productId = PRODUCT_ID,
+                            std::initializer_list<int> keys = {});
 
 private:
     void configureDevice(int fd, uinput_user_dev* device) override;
@@ -97,6 +100,9 @@ private:
 // A keyboard device that has a single HOME key.
 class UinputHomeKey : public UinputKeyboard {
 public:
+    static constexpr const char* DEVICE_NAME = "Test Uinput Home Key";
+    static constexpr int16_t PRODUCT_ID = 43;
+
     // Injects 4 events: key press, sync, key release, and sync.
     void pressAndReleaseHomeKey();
 
@@ -104,34 +110,47 @@ public:
     friend std::unique_ptr<D> createUinputDevice(Ts... args);
 
 private:
-    UinputHomeKey();
+    explicit UinputHomeKey();
 };
+
+// --- UinputSteamController ---
 
 // A joystick device that sends a BTN_GEAR_DOWN / BTN_WHEEL key.
 class UinputSteamController : public UinputKeyboard {
 public:
+    static constexpr const char* DEVICE_NAME = "Test Uinput Steam Controller";
+    static constexpr int16_t PRODUCT_ID = 44;
+
     template <class D, class... Ts>
     friend std::unique_ptr<D> createUinputDevice(Ts... args);
 
 private:
-    UinputSteamController();
+    explicit UinputSteamController();
 };
+
+// --- UinputExternalStylus ---
 
 // A stylus that reports button presses.
 class UinputExternalStylus : public UinputKeyboard {
 public:
+    static constexpr const char* DEVICE_NAME = "Test Uinput External Stylus";
+    static constexpr int16_t PRODUCT_ID = 45;
+
     template <class D, class... Ts>
     friend std::unique_ptr<D> createUinputDevice(Ts... args);
 
 private:
-    UinputExternalStylus();
+    explicit UinputExternalStylus();
 };
 
 // --- UinputTouchScreen ---
-// A touch screen device with specific size.
+
+// A multi-touch touchscreen device with specific size that also supports styluses.
 class UinputTouchScreen : public UinputDevice {
 public:
-    static constexpr const char* DEVICE_NAME = "Test Touch Screen";
+    static constexpr const char* DEVICE_NAME = "Test Uinput Touch Screen";
+    static constexpr int16_t PRODUCT_ID = 46;
+
     static const int32_t RAW_TOUCH_MIN = 0;
     static const int32_t RAW_TOUCH_MAX = 31;
     static const int32_t RAW_ID_MIN = 0;
@@ -157,7 +176,7 @@ public:
     const Point getCenterPoint();
 
 protected:
-    UinputTouchScreen(const Rect* size);
+    explicit UinputTouchScreen(const Rect& size);
 
 private:
     void configureDevice(int fd, uinput_user_dev* device) override;
