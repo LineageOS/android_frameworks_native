@@ -1232,7 +1232,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
             ATRACE_NAME("ClientCompositionCacheHit");
             outputCompositionState.reusedClientComposition = true;
             setExpensiveRenderingExpected(false);
-            return base::unique_fd();
+            // b/239944175 pass the fence associated with the buffer.
+            return base::unique_fd(std::move(fd));
         }
         ATRACE_NAME("ClientCompositionCacheMiss");
         mClientCompositionRequestCache->add(tex->getBuffer()->getId(), clientCompositionDisplay,

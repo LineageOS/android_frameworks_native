@@ -6650,8 +6650,13 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
                                              1 /* layerCount */, usage, "screenshot");
 
     const status_t bufferStatus = buffer->initCheck();
-    LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureScreenCommon: Buffer failed to allocate: %d",
-                        bufferStatus);
+    if (bufferStatus != OK) {
+        // Animations may end up being really janky, but don't crash here.
+        // Otherwise an irreponsible process may cause an SF crash by allocating
+        // too much.
+        ALOGE("%s: Buffer failed to allocate: %d", __func__, bufferStatus);
+        return ftl::yield<FenceResult>(base::unexpected(bufferStatus)).share();
+    }
     const std::shared_ptr<renderengine::ExternalTexture> texture = std::make_shared<
             renderengine::impl::ExternalTexture>(buffer, getRenderEngine(),
                                                  renderengine::impl::ExternalTexture::Usage::
