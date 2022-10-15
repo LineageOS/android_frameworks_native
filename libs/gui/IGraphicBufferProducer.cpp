@@ -27,10 +27,6 @@
 #include <binder/Parcel.h>
 #include <binder/IInterface.h>
 
-#ifndef NO_BUFFERHUB
-#include <gui/BufferHubProducer.h>
-#endif
-
 #include <gui/bufferqueue/1.0/H2BGraphicBufferProducer.h>
 #include <gui/bufferqueue/2.0/H2BGraphicBufferProducer.h>
 #include <gui/BufferQueueDefs.h>
@@ -1012,17 +1008,7 @@ sp<IGraphicBufferProducer> IGraphicBufferProducer::createFromParcel(const Parcel
         }
         case USE_BUFFER_HUB: {
             ALOGE("createFromParcel: BufferHub not implemented.");
-#ifndef NO_BUFFERHUB
-            dvr::ProducerQueueParcelable producerParcelable;
-            res = producerParcelable.readFromParcel(parcel);
-            if (res != NO_ERROR) {
-                ALOGE("createFromParcel: Failed to read from parcel, error=%d", res);
-                return nullptr;
-            }
-            return BufferHubProducer::Create(std::move(producerParcelable));
-#else
             return nullptr;
-#endif
         }
         default: {
             ALOGE("createFromParcel: Unexpected mgaic: 0x%x.", outMagic);
