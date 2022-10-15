@@ -28,9 +28,6 @@
           "include-filter": "*CropLatchingTest.*"
         },
         {
-          "include-filter": "*ChildLayerTest.*"
-        },
-        {
           "include-filter": "*ScreenCaptureTest.*"
         },
         {
@@ -56,9 +53,6 @@
         },
         {
           "include-filter": "*RefreshRateOverlayTest.*"
-        },
-        {
-          "exclude-filter": "*ChildLayerTest#ChildrenSurviveParentDestruction"
         }
       ]
     },
