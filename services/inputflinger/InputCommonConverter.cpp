@@ -263,8 +263,11 @@ static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_13) == common
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_14) == common::Axis::GENERIC_14);
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_15) == common::Axis::GENERIC_15);
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_16) == common::Axis::GENERIC_16);
+// TODO(hcutts): add GESTURE_X_OFFSET and GESTURE_Y_OFFSET.
+// If you added a new axis, consider whether this should also be exposed as a HAL axis. Update the
+// static_assert below and add the new axis here, or leave a comment summarizing your decision.
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE) ==
-              static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_16));
+              static_cast<common::Axis>(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET));
 
 static common::VideoFrame getHalVideoFrame(const TouchVideoFrame& frame) {
     common::VideoFrame out;

@@ -4785,13 +4785,6 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
 }
 
 status_t SurfaceFlinger::dumpCritical(int fd, const DumpArgs&, bool asProto) {
-    if (asProto) {
-        mLayerTracing.writeToFile();
-        if (mTransactionTracing) {
-            mTransactionTracing->writeToFile();
-        }
-    }
-
     return doDump(fd, DumpArgs(), asProto);
 }
 

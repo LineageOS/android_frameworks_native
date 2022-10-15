@@ -155,7 +155,10 @@ cc_test {
         "dumpstate.cpp",
         "tests/dumpstate_test.cpp",
     ],
-    static_libs: ["libgmock"],
+    static_libs: [
+        "libc++fs",
+        "libgmock",
+    ],
     test_config: "dumpstate_test.xml",
     data: [
         ":dumpstate_test_fixture",
