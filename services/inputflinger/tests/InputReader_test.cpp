@@ -10118,6 +10118,52 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthFreeform) {
                                                 0, 0, 0, 0, 0));
 }
 
+TEST_F(MultiTouchPointerModeTest, TwoFingerSwipeOffsets) {
+    preparePointerMode(25 /*xResolution*/, 25 /*yResolution*/);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+    NotifyMotionArgs motionArgs;
+
+    // Place two fingers down.
+    int32_t x1 = 100, y1 = 125, x2 = 550, y2 = 125;
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processMTSync(mapper);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processMTSync(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(1U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(MotionClassification::NONE, motionArgs.classification);
+    ASSERT_EQ(0, motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET));
+    ASSERT_EQ(0, motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET));
+
+    // Move the two fingers down and to the left.
+    int32_t movingDistance = 200;
+    x1 -= movingDistance;
+    y1 += movingDistance;
+    x2 -= movingDistance;
+    y2 += movingDistance;
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processMTSync(mapper);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processMTSync(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(1U, motionArgs.pointerCount);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(MotionClassification::TWO_FINGER_SWIPE, motionArgs.classification);
+    ASSERT_LT(motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET), 0);
+    ASSERT_GT(motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET), 0);
+}
+
 // --- JoystickInputMapperTest ---
 
 class JoystickInputMapperTest : public InputMapperTest {

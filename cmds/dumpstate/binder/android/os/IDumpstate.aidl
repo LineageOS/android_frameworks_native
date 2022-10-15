@@ -49,6 +49,23 @@ interface IDumpstate {
     // Default mode.
     const int BUGREPORT_MODE_DEFAULT = 6;
 
+    // Use pre-dumped data.
+    const int BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA = 1;
+
+    /**
+     * Speculatively pre-dumps UI data for a bugreport request that might come later.
+     *
+     * <p>Triggers the dump of certain critical UI data, e.g. traces stored in short
+     * ring buffers that might get lost by the time the actual bugreport is requested.
+     *
+     * <p>{@code startBugreport} will then pick the pre-dumped data if:
+     * - {@link BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA} is specified.
+     * - {@code preDumpUiData} and {@code startBugreport} were called by the same UID.
+     *
+     * @param callingPackage package of the original application that requested the report.
+     */
+    void preDumpUiData(@utf8InCpp String callingPackage);
+
     /**
      * Starts a bugreport in the background.
      *
@@ -63,13 +80,14 @@ interface IDumpstate {
      * @param bugreportFd the file to which the zipped bugreport should be written
      * @param screenshotFd the file to which screenshot should be written
      * @param bugreportMode the mode that specifies other run time options; must be one of above
+     * @param bugreportFlags flags to customize the bugreport generation
      * @param listener callback for updates; optional
      * @param isScreenshotRequested indicates screenshot is requested or not
      */
     void startBugreport(int callingUid, @utf8InCpp String callingPackage,
                         FileDescriptor bugreportFd, FileDescriptor screenshotFd,
-                        int bugreportMode, IDumpstateListener listener,
-                        boolean isScreenshotRequested);
+                        int bugreportMode, int bugreportFlags,
+                        IDumpstateListener listener, boolean isScreenshotRequested);
 
     /**
      * Cancels the bugreport currently in progress.

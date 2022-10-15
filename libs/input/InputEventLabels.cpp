@@ -391,7 +391,9 @@ namespace android {
     DEFINE_AXIS(GENERIC_13), \
     DEFINE_AXIS(GENERIC_14), \
     DEFINE_AXIS(GENERIC_15), \
-    DEFINE_AXIS(GENERIC_16)
+    DEFINE_AXIS(GENERIC_16), \
+    DEFINE_AXIS(GESTURE_X_OFFSET), \
+    DEFINE_AXIS(GESTURE_Y_OFFSET)
 
 // NOTE: If you add new LEDs here, you must also add them to Input.h
 #define LEDS_SEQUENCE \
