@@ -141,6 +141,8 @@ public:
 
         uint64_t frameNumber;
         ui::Transform transform;
+
+        uint32_t producerId = 0;
         uint32_t bufferTransform;
         bool transformToDisplayInverse;
         Region transparentRegionHint;
@@ -838,6 +840,10 @@ public:
                                         std::unordered_set<Layer*>& visited);
     bool willPresentCurrentTransaction() const;
 
+    void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
+                                   const sp<GraphicBuffer>& buffer, uint64_t framenumber,
+                                   const sp<Fence>& releaseFence);
+
 protected:
     // For unit tests
     friend class TestableSurfaceFlinger;
@@ -1046,6 +1052,10 @@ private:
                                    const sp<GraphicBuffer>& buffer, uint64_t framenumber,
                                    const sp<Fence>& releaseFence,
                                    uint32_t currentMaxAcquiredBufferCount);
+
+    // Returns true if the transformed buffer size does not match the layer size and we need
+    // to apply filtering.
+    bool bufferNeedsFiltering() const;
 
     // Returns true if there is a valid color to fill.
     bool fillsColor() const;

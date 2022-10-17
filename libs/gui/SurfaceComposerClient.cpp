@@ -1632,7 +1632,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
         const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
         const std::optional<sp<Fence>>& fence, const std::optional<uint64_t>& optFrameNumber,
-        ReleaseBufferCallback callback) {
+        uint32_t producerId, ReleaseBufferCallback callback) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
@@ -1651,6 +1651,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     bufferData->buffer = buffer;
     uint64_t frameNumber = sc->resolveFrameNumber(optFrameNumber);
     bufferData->frameNumber = frameNumber;
+    bufferData->producerId = producerId;
     bufferData->flags |= BufferData::BufferDataChange::frameNumberChanged;
     if (fence) {
         bufferData->acquireFence = *fence;

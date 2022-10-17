@@ -162,6 +162,11 @@ private:
     int32_t mNumFrameAvailable GUARDED_BY(mMutex) = 0;
     int32_t mNumAcquired GUARDED_BY(mMutex) = 0;
 
+    // A value used to identify if a producer has been changed for the same SurfaceControl.
+    // This is needed to know when the frame number has been reset to make sure we don't
+    // latch stale buffers and that we don't wait on barriers from an old producer.
+    uint32_t mProducerId = 0;
+
     // Keep a reference to the submitted buffers so we can release when surfaceflinger drops the
     // buffer or the buffer has been presented and a new buffer is ready to be presented.
     std::unordered_map<ReleaseCallbackId, BufferItem, ReleaseBufferCallbackIdHash> mSubmitted

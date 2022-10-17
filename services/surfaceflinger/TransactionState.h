@@ -27,6 +27,12 @@
 
 namespace android {
 
+enum TraverseBuffersReturnValues {
+    CONTINUE_TRAVERSAL,
+    STOP_TRAVERSAL,
+    DELETE_AND_CONTINUE_TRAVERSAL,
+};
+
 // Extends the client side composer state by resolving buffer.
 class ResolvedComposerState : public ComposerState {
 public:
@@ -75,12 +81,18 @@ struct TransactionState {
     }
 
     template <typename Visitor>
-    void traverseStatesWithBuffersWhileTrue(Visitor&& visitor) const {
-        for (const auto& state : states) {
-            if (state.state.hasBufferChanges() && state.state.hasValidBuffer() &&
-                state.state.surface) {
-                if (!visitor(state.state)) return;
+    void traverseStatesWithBuffersWhileTrue(Visitor&& visitor) {
+        for (auto state = states.begin(); state != states.end();) {
+            if (state->state.hasBufferChanges() && state->state.hasValidBuffer() &&
+                state->state.surface) {
+                int result = visitor(state->state);
+                if (result == STOP_TRAVERSAL) return;
+                if (result == DELETE_AND_CONTINUE_TRAVERSAL) {
+                    state = states.erase(state);
+                    continue;
+                }
             }
+            state++;
         }
     }
 
