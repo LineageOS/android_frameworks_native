@@ -16,9 +16,11 @@
 
 package android.gui;
 
-import android.gui.SupportedBufferCombinations;
-
 /** @hide */
 parcelable OverlayProperties {
+    parcelable SupportedBufferCombinations {
+        int[] pixelFormats;
+        int[] dataspaces;
+    }
     SupportedBufferCombinations[] combinations;
 }
