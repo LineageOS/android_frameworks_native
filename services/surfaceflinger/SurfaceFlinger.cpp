@@ -3744,7 +3744,10 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
                 if (listener &&
                     (flushState.queueProcessTime - transaction.postTime) >
                             std::chrono::nanoseconds(4s).count()) {
-                    mTransactionHandler.onTransactionQueueStalled(transaction, listener);
+                    mTransactionHandler
+                            .onTransactionQueueStalled(transaction.id, listener,
+                                                       "Buffer processing hung up due to stuck "
+                                                       "fence. Indicates GPU hang");
                 }
                 return false;
             }
@@ -3960,8 +3963,9 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     uint32_t clientStateFlags = 0;
     for (int i = 0; i < states.size(); i++) {
         ComposerState& state = states.editItemAt(i);
-        clientStateFlags |= setClientStateLocked(frameTimelineInfo, state, desiredPresentTime,
-                                                 isAutoTimestamp, postTime, permissions);
+        clientStateFlags |=
+                setClientStateLocked(frameTimelineInfo, state, desiredPresentTime, isAutoTimestamp,
+                                     postTime, permissions, transactionId);
         if ((flags & eAnimation) && state.state.surface) {
             if (const auto layer = fromHandle(state.state.surface).promote()) {
                 using LayerUpdateType = scheduler::LayerHistory::LayerUpdateType;
@@ -4077,7 +4081,8 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermis
 uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTimelineInfo,
                                               ComposerState& composerState,
                                               int64_t desiredPresentTime, bool isAutoTimestamp,
-                                              int64_t postTime, uint32_t permissions) {
+                                              int64_t postTime, uint32_t permissions,
+                                              uint64_t transactionId) {
     layer_state_t& s = composerState.state;
     s.sanitize(permissions);
 
@@ -4370,7 +4375,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
 
     if (what & layer_state_t::eBufferChanged) {
         std::shared_ptr<renderengine::ExternalTexture> buffer =
-                getExternalTextureFromBufferData(*s.bufferData, layer->getDebugName());
+                getExternalTextureFromBufferData(*s.bufferData, layer->getDebugName(),
+                                                 transactionId);
         if (layer->setBuffer(buffer, *s.bufferData, postTime, desiredPresentTime, isAutoTimestamp,
                              dequeueBufferTimestamp, frameTimelineInfo)) {
             flags |= eTraversalNeeded;
@@ -6955,34 +6961,44 @@ status_t SurfaceFlinger::removeWindowInfosListener(
 }
 
 std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextureFromBufferData(
-        const BufferData& bufferData, const char* layerName) const {
-    bool cacheIdChanged = bufferData.flags.test(BufferData::BufferDataChange::cachedBufferChanged);
-    bool bufferSizeExceedsLimit = false;
-    std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;
-    if (cacheIdChanged && bufferData.buffer != nullptr) {
-        bufferSizeExceedsLimit = exceedsMaxRenderTargetSize(bufferData.buffer->getWidth(),
-                                                            bufferData.buffer->getHeight());
-        if (!bufferSizeExceedsLimit) {
-            ClientCache::getInstance().add(bufferData.cachedBuffer, bufferData.buffer);
-            buffer = ClientCache::getInstance().get(bufferData.cachedBuffer);
-        }
-    } else if (cacheIdChanged) {
-        buffer = ClientCache::getInstance().get(bufferData.cachedBuffer);
-    } else if (bufferData.buffer != nullptr) {
-        bufferSizeExceedsLimit = exceedsMaxRenderTargetSize(bufferData.buffer->getWidth(),
-                                                            bufferData.buffer->getHeight());
-        if (!bufferSizeExceedsLimit) {
-            buffer = std::make_shared<
-                    renderengine::impl::ExternalTexture>(bufferData.buffer, getRenderEngine(),
-                                                         renderengine::impl::ExternalTexture::
-                                                                 Usage::READABLE);
-        }
+        BufferData& bufferData, const char* layerName, uint64_t transactionId) {
+    if (bufferData.buffer &&
+        exceedsMaxRenderTargetSize(bufferData.buffer->getWidth(), bufferData.buffer->getHeight())) {
+        ALOGE("Attempted to create an ExternalTexture for layer %s that exceeds render target "
+              "size limit.",
+              layerName);
+        return nullptr;
     }
-    ALOGE_IF(bufferSizeExceedsLimit,
-             "Attempted to create an ExternalTexture for layer %s that exceeds render target size "
-             "limit.",
-             layerName);
-    return buffer;
+
+    bool cachedBufferChanged =
+            bufferData.flags.test(BufferData::BufferDataChange::cachedBufferChanged);
+    if (cachedBufferChanged && bufferData.buffer) {
+        auto result = ClientCache::getInstance().add(bufferData.cachedBuffer, bufferData.buffer);
+        if (result.ok()) {
+            return result.value();
+        }
+
+        if (result.error() == ClientCache::AddError::CacheFull) {
+            mTransactionHandler
+                    .onTransactionQueueStalled(transactionId, bufferData.releaseBufferListener,
+                                               "Buffer processing hung due to full buffer cache");
+        }
+
+        return nullptr;
+    }
+
+    if (cachedBufferChanged) {
+        return ClientCache::getInstance().get(bufferData.cachedBuffer);
+    }
+
+    if (bufferData.buffer) {
+        return std::make_shared<
+                renderengine::impl::ExternalTexture>(bufferData.buffer, getRenderEngine(),
+                                                     renderengine::impl::ExternalTexture::Usage::
+                                                             READABLE);
+    }
+
+    return nullptr;
 }
 
 bool SurfaceFlinger::commitMirrorDisplays(VsyncId vsyncId) {

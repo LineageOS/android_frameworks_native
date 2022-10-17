@@ -37,7 +37,10 @@ class ClientCache : public Singleton<ClientCache> {
 public:
     ClientCache();
 
-    bool add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer);
+    enum class AddError { CacheFull, Unspecified };
+
+    base::expected<std::shared_ptr<renderengine::ExternalTexture>, AddError> add(
+            const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer);
     void erase(const client_cache_t& cacheId);
 
     std::shared_ptr<renderengine::ExternalTexture> get(const client_cache_t& cacheId);

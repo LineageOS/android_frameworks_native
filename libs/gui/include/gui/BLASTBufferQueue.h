@@ -113,12 +113,10 @@ public:
     uint64_t getLastAcquiredFrameNum();
 
     /**
-     * Set a callback to be invoked when we are hung. The boolean parameter
-     * indicates whether the hang is due to an unfired fence.
-     * TODO: The boolean is always true atm, unfired fence is
-     * the only case we detect.
+     * Set a callback to be invoked when we are hung. The string parameter
+     * indicates the reason for the hang.
      */
-    void setTransactionHangCallback(std::function<void(bool)> callback);
+    void setTransactionHangCallback(std::function<void(const std::string&)> callback);
 
     virtual ~BLASTBufferQueue();
 
@@ -282,7 +280,7 @@ private:
     bool mAppliedLastTransaction = false;
     uint64_t mLastAppliedFrameNumber = 0;
 
-    std::function<void(bool)> mTransactionHangCallback;
+    std::function<void(const std::string&)> mTransactionHangCallback;
 
     std::unordered_set<uint64_t> mSyncedFrameNumbers GUARDED_BY(mMutex);
 };

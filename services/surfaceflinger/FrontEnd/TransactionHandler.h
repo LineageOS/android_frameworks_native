@@ -54,7 +54,8 @@ public:
     std::vector<TransactionState> flushTransactions();
     void addTransactionReadyFilter(TransactionFilter&&);
     void queueTransaction(TransactionState&&);
-    void onTransactionQueueStalled(const TransactionState&, sp<ITransactionCompletedListener>&);
+    void onTransactionQueueStalled(uint64_t transactionId, sp<ITransactionCompletedListener>&,
+                                   const std::string& reason);
     void removeFromStalledTransactions(uint64_t transactionId);
 
 private:
