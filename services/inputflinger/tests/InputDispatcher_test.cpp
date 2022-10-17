@@ -7028,7 +7028,7 @@ TEST_F(InputDispatcherSpyWindowTest, ReceivesInputInOrder) {
         }
         for (int i = 0; i < nFds; i++) {
             ASSERT_EQ(EPOLLIN, events[i].events);
-            eventOrder.push_back(events[i].data.u64);
+            eventOrder.push_back(static_cast<size_t>(events[i].data.u64));
             channels[i]->consumeMotionDown();
         }
     }

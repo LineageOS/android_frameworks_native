@@ -23,6 +23,7 @@ package {
 
 cc_library_headers {
     name: "libinputdispatcher_headers",
+    host_supported: true,
     export_include_dirs: [
         "include",
     ],
@@ -33,6 +34,7 @@ filegroup {
     srcs: [
         "AnrTracker.cpp",
         "Connection.cpp",
+        "DragState.cpp",
         "Entry.cpp",
         "FocusResolver.cpp",
         "InjectionState.cpp",
@@ -45,7 +47,6 @@ filegroup {
         "LatencyTracker.cpp",
         "Monitor.cpp",
         "TouchState.cpp",
-        "DragState.cpp",
     ],
 }
 
@@ -56,20 +57,34 @@ cc_defaults {
         "libbase",
         "libcrypto",
         "libcutils",
-        "libinput",
         "libkll",
         "liblog",
         "libprotobuf-cpp-lite",
         "libstatslog",
-        "libstatspull",
-        "libstatssocket",
-        "libgui",
         "libutils",
         "server_configurable_flags",
     ],
     static_libs: [
         "libattestation",
+        "libgui_window_info_static",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "libgui",
+                "libinput",
+                "libstatspull",
+                "libstatssocket",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libinput",
+                "libstatspull",
+                "libstatssocket",
+            ],
+        },
+    },
     header_libs: [
         "libinputdispatcher_headers",
     ],
@@ -84,8 +99,8 @@ cc_library_static {
     shared_libs: [
         // This should consist only of dependencies from inputflinger. Other dependencies should be
         // in cc_defaults so that they are included in the tests.
-        "libinputreporter",
         "libinputflinger_base",
+        "libinputreporter",
     ],
     export_header_lib_headers: [
         "libinputdispatcher_headers",
