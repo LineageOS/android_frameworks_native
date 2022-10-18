@@ -30,8 +30,8 @@
 #include <vector>
 #include <binder/Binder.h>
 
+#include "FrontEnd/TransactionHandler.h"
 #include "TestableSurfaceFlinger.h"
-#include "TransactionHandler.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockVsyncController.h"
 
