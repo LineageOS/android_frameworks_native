@@ -54,7 +54,13 @@ InputThread::~InputThread() {
 }
 
 bool InputThread::isCallingThread() {
+#if defined(__ANDROID__)
     return gettid() == mThread->getTid();
+#else
+    // Assume that the caller is doing everything correctly,
+    // since thread information is not available on host
+    return false;
+#endif
 }
 
 } // namespace android

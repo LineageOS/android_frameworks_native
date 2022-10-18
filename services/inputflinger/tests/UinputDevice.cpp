@@ -17,6 +17,7 @@
 #include "UinputDevice.h"
 
 #include <android-base/stringprintf.h>
+#include <cutils/memory.h>
 #include <fcntl.h>
 
 namespace android {

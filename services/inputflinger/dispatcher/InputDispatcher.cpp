@@ -25,7 +25,9 @@
 #include <android/os/IInputConstants.h>
 #include <binder/Binder.h>
 #include <ftl/enum.h>
+#if defined(__ANDROID__)
 #include <gui/SurfaceComposerClient.h>
+#endif
 #include <input/InputDevice.h>
 #include <powermanager/PowerManager.h>
 #include <unistd.h>
@@ -569,8 +571,9 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
     mReporter = createInputReporter();
 
     mWindowInfoListener = sp<DispatcherWindowListener>::make(*this);
+#if defined(__ANDROID__)
     SurfaceComposerClient::getDefault()->addWindowInfosListener(mWindowInfoListener);
-
+#endif
     mKeyRepeatState.lastKeyEntry = nullptr;
     policy->getDispatcherConfiguration(&mConfig);
 }

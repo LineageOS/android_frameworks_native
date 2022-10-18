@@ -23,6 +23,7 @@ package {
 
 cc_test {
     name: "inputflinger_tests",
+    host_supported: true,
     defaults: [
         "inputflinger_defaults",
         // For all targets inside inputflinger, these tests build all of their sources using their
@@ -56,10 +57,36 @@ cc_test {
             "frameworks/native/libs/input",
         ],
     },
+    target: {
+        android: {
+            shared_libs: [
+                "libinput",
+                "libvintf",
+            ],
+        },
+        host: {
+            include_dirs: [
+                "bionic/libc/kernel/android/uapi/",
+                "bionic/libc/kernel/uapi",
+            ],
+            cflags: [
+                "-D__ANDROID_HOST__",
+            ],
+            static_libs: [
+                "libinput",
+            ],
+        },
+    },
     static_libs: [
         "libc++fs",
         "libgmock",
     ],
+    shared_libs: [
+        "libinputreader",
+    ],
     require_root: true,
+    test_options: {
+        unit_test: true,
+    },
     test_suites: ["device-tests"],
 }
