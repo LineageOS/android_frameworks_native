@@ -226,46 +226,6 @@ public:
         bool dimmingEnabled = true;
     };
 
-    /*
-     * Trivial class, used to ensure that mFlinger->onLayerDestroyed(mLayer)
-     * is called.
-     */
-    class LayerCleaner {
-        sp<SurfaceFlinger> mFlinger;
-        sp<Layer> mLayer;
-        BBinder* mHandle;
-
-    protected:
-        ~LayerCleaner() {
-            // destroy client resources
-            mFlinger->onHandleDestroyed(mHandle, mLayer);
-        }
-
-    public:
-        LayerCleaner(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer, BBinder* handle)
-              : mFlinger(flinger), mLayer(layer), mHandle(handle) {}
-    };
-
-    /*
-     * The layer handle is just a BBinder object passed to the client
-     * (remote process) -- we don't keep any reference on our side such that
-     * the dtor is called when the remote side let go of its reference.
-     *
-     * LayerCleaner ensures that mFlinger->onLayerDestroyed() is called for
-     * this layer when the handle is destroyed.
-     */
-    class Handle : public BBinder, public LayerCleaner {
-    public:
-        Handle(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
-              : LayerCleaner(flinger, layer, this), owner(layer) {}
-        const String16& getInterfaceDescriptor() const override { return kDescriptor; }
-
-        static const String16 kDescriptor;
-        wp<Layer> owner;
-    };
-
-    static wp<Layer> fromHandle(const sp<IBinder>& handle);
-
     explicit Layer(const LayerCreationArgs& args);
     virtual ~Layer();
 

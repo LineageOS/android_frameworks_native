@@ -272,18 +272,17 @@ public:
     void removeHierarchyFromOffscreenLayers(Layer* layer);
     void removeFromOffscreenLayers(Layer* layer);
 
+    // Called when all clients have released all their references to
+    // this layer. The layer may still be kept alive by its parents but
+    // the client can no longer modify this layer directly.
+    void onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32_t layerId);
+
     // TODO: Remove atomic if move dtor to main thread CL lands
     std::atomic<uint32_t> mNumClones;
 
     TransactionCallbackInvoker& getTransactionCallbackInvoker() {
         return mTransactionCallbackInvoker;
     }
-
-    // Converts from a binder handle to a Layer
-    // Returns nullptr if the handle does not point to an existing layer.
-    // Otherwise, returns a weak reference so that callers off the main-thread
-    // won't accidentally hold onto the last strong reference.
-    wp<Layer> fromHandle(const sp<IBinder>& handle) const;
 
     // If set, disables reusing client composition buffers. This can be set by
     // debug.sf.disable_client_composition_cache
@@ -771,10 +770,6 @@ private:
     status_t mirrorDisplay(DisplayId displayId, const LayerCreationArgs& args,
                            gui::CreateSurfaceResult& outResult);
 
-    // called when all clients have released all their references to
-    // this layer meaning it is entirely safe to destroy all
-    // resources associated to this layer.
-    void onHandleDestroyed(BBinder* handle, sp<Layer>& layer);
     void markLayerPendingRemovalLocked(const sp<Layer>& layer);
 
     // add a layer to SurfaceFlinger
