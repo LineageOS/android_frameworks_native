@@ -28,7 +28,6 @@
 #include <sys/epoll.h>
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
-#include <sys/limits.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <unistd.h>

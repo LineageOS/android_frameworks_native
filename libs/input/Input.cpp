@@ -22,6 +22,7 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <cutils/compiler.h>
@@ -33,9 +34,6 @@
 
 #ifdef __linux__
 #include <binder/Parcel.h>
-#endif
-#ifdef __ANDROID__
-#include <sys/random.h>
 #endif
 
 using android::base::StringPrintf;
@@ -112,28 +110,34 @@ const char* motionToolTypeToString(int32_t toolType) {
 }
 
 // --- IdGenerator ---
+
+static status_t getRandomBytes(uint8_t* data, size_t size) {
+    int ret = TEMP_FAILURE_RETRY(open("/dev/urandom", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+    if (ret == -1) {
+        return -errno;
+    }
+
+    base::unique_fd fd(ret);
+    if (!base::ReadFully(fd, data, size)) {
+        return -errno;
+    }
+    return OK;
+}
+
 IdGenerator::IdGenerator(Source source) : mSource(source) {}
 
 int32_t IdGenerator::nextId() const {
     constexpr uint32_t SEQUENCE_NUMBER_MASK = ~SOURCE_MASK;
     int32_t id = 0;
 
-// Avoid building against syscall getrandom(2) on host, which will fail build on Mac. Host doesn't
-// use sequence number so just always return mSource.
-#ifdef __ANDROID__
-    constexpr size_t BUF_LEN = sizeof(id);
-    size_t totalBytes = 0;
-    while (totalBytes < BUF_LEN) {
-        ssize_t bytes = TEMP_FAILURE_RETRY(getrandom(&id, BUF_LEN, GRND_NONBLOCK));
-        if (CC_UNLIKELY(bytes < 0)) {
-            ALOGW("Failed to fill in random number for sequence number: %s.", strerror(errno));
-            id = 0;
+#if defined(__linux__)
+    while (true) {
+        status_t result = getRandomBytes(reinterpret_cast<uint8_t*>(&id), sizeof(id));
+        if (result == OK) {
             break;
         }
-        totalBytes += bytes;
     }
-#endif // __ANDROID__
-
+#endif // __linux__
     return (id & SEQUENCE_NUMBER_MASK) | static_cast<int32_t>(mSource);
 }
 
