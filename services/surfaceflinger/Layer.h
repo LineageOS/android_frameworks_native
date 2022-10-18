@@ -1140,6 +1140,10 @@ private:
         return ((mSidebandStream != nullptr) || (mBufferInfo.mBuffer != nullptr));
     }
 
+    bool hasBufferOrSidebandStreamInDrawing() const {
+        return ((mDrawingState.sidebandStream != nullptr) || (mDrawingState.buffer != nullptr));
+    }
+
     bool hasSomethingToDraw() const { return hasEffect() || hasBufferOrSidebandStream(); }
     void prepareBufferStateClientComposition(
             compositionengine::LayerFE::LayerSettings&,
@@ -1219,7 +1223,7 @@ private:
 
     std::deque<std::shared_ptr<android::frametimeline::SurfaceFrame>> mPendingJankClassifications;
     // An upper bound on the number of SurfaceFrames in the pending classifications deque.
-    static constexpr int kPendingClassificationMaxSurfaceFrames = 25;
+    static constexpr int kPendingClassificationMaxSurfaceFrames = 50;
 
     const std::string mBlastTransactionName{"BufferTX - " + mName};
     // This integer is incremented everytime a buffer arrives at the server for this layer,
