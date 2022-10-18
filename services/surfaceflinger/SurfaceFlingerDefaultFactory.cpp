@@ -91,6 +91,10 @@ sp<Layer> DefaultFactory::createEffectLayer(const LayerCreationArgs& args) {
     return sp<Layer>::make(args);
 }
 
+sp<LayerFE> DefaultFactory::createLayerFE(const std::string& layerName) {
+    return sp<LayerFE>::make(layerName);
+}
+
 std::unique_ptr<FrameTracer> DefaultFactory::createFrameTracer() {
     return std::make_unique<FrameTracer>();
 }

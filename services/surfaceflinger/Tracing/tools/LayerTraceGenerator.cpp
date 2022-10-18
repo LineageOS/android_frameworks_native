@@ -82,6 +82,8 @@ public:
 
     sp<Layer> createEffectLayer(const LayerCreationArgs& args) { return sp<Layer>::make(args); }
 
+    sp<LayerFE> createLayerFE(const std::string& layerName) { return sp<LayerFE>::make(layerName); }
+
     std::unique_ptr<FrameTracer> createFrameTracer() override {
         return std::make_unique<testing::NiceMock<mock::FrameTracer>>();
     }

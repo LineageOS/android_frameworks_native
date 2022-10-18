@@ -72,6 +72,7 @@ enum class LayerStateField : uint32_t {
     SolidColor            = 1u << 16,
     BackgroundBlurRadius  = 1u << 17,
     BlurRegions           = 1u << 18,
+    HasProtectedContent   = 1u << 19,
 };
 // clang-format on
 
@@ -245,9 +246,9 @@ public:
 
     ui::Dataspace getDataspace() const { return mOutputDataspace.get(); }
 
-    bool isProtected() const {
-        return getOutputLayer()->getLayerFE().getCompositionState()->hasProtectedContent;
-    }
+    wp<GraphicBuffer> getBuffer() const { return mBuffer.get(); }
+
+    bool isProtected() const { return mIsProtected.get(); }
 
     bool hasSolidColorCompositionType() const {
         return getOutputLayer()->getLayerFE().getCompositionState()->compositionType ==
@@ -482,7 +483,11 @@ private:
                                       return hash;
                                   }};
 
-    static const constexpr size_t kNumNonUniqueFields = 17;
+    OutputLayerState<bool, LayerStateField::HasProtectedContent> mIsProtected{[](auto layer) {
+        return layer->getLayerFE().getCompositionState()->hasProtectedContent;
+    }};
+
+    static const constexpr size_t kNumNonUniqueFields = 18;
 
     std::array<StateInterface*, kNumNonUniqueFields> getNonUniqueFields() {
         std::array<const StateInterface*, kNumNonUniqueFields> constFields =
@@ -501,7 +506,7 @@ private:
                 &mAlpha,        &mLayerMetadata,  &mVisibleRegion,        &mOutputDataspace,
                 &mPixelFormat,  &mColorTransform, &mCompositionType,      &mSidebandStream,
                 &mBuffer,       &mSolidColor,     &mBackgroundBlurRadius, &mBlurRegions,
-                &mFrameNumber,
+                &mFrameNumber,  &mIsProtected,
         };
     }
 };
