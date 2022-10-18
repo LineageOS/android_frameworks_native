@@ -23,6 +23,7 @@
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
+#include <android-base/macros.h>
 #include <android-base/properties.h>
 #include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
@@ -52,22 +53,7 @@ namespace installd {
 
 constexpr int kTimeoutMs = 60000;
 
-// TODO(calin): try to dedup this code.
-#if defined(__arm__)
-static const std::string kRuntimeIsa = "arm";
-#elif defined(__aarch64__)
-static const std::string kRuntimeIsa = "arm64";
-#elif defined(__mips__) && !defined(__LP64__)
-static const std::string kRuntimeIsa = "mips";
-#elif defined(__mips__) && defined(__LP64__)
-static const std::string kRuntimeIsa = "mips64";
-#elif defined(__i386__)
-static const std::string kRuntimeIsa = "x86";
-#elif defined(__x86_64__)
-static const std::string kRuntimeIsa = "x86_64";
-#else
-static const std::string kRuntimeIsa = "none";
-#endif
+static const std::string kRuntimeIsa = ABI_STRING;
 
 int get_property(const char *key, char *value, const char *default_value) {
     return property_get(key, value, default_value);
