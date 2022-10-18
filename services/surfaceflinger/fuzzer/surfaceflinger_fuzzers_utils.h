@@ -743,6 +743,11 @@ public:
                                              listenerCallbacks, transactionId);
     }
 
+    auto flushTransactionQueues() {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return mFlinger->flushTransactionQueues(VsyncId{0});
+    }
+
     auto onTransact(uint32_t code, const Parcel &data, Parcel *reply, uint32_t flags) {
         return mFlinger->onTransact(code, data, reply, flags);
     }
