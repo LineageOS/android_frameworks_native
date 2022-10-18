@@ -3117,20 +3117,21 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
                 }
             }
 
-            if (!hintDisplay && mDisplays.size() > 0) {
+            if (!hintDisplay) {
                 // NOTE: TEMPORARY FIX ONLY. Real fix should cause layers to
                 // redraw after transform hint changes. See bug 8508397.
-
                 // could be null when this layer is using a layerStack
                 // that is not visible on any display. Also can occur at
                 // screen off/on times.
-                hintDisplay = getDefaultDisplayDeviceLocked();
-            }
-
-            if (hintDisplay) {
-                layer->updateTransformHint(hintDisplay->getTransformHint());
+                // U Update: Don't provide stale hints to the clients. For
+                // special cases where we want the app to draw its
+                // first frame before the display is available, we rely
+                // on WMS and DMS to provide the right information
+                // so the client can calculate the hint.
+                ALOGV("Skipping reporting transform hint update for %s", layer->getDebugName());
+                layer->skipReportingTransformHint();
             } else {
-                ALOGW("Ignoring transform hint update for %s", layer->getDebugName());
+                layer->updateTransformHint(hintDisplay->getTransformHint());
             }
         });
     }
