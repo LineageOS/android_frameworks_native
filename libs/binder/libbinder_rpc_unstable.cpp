@@ -30,8 +30,8 @@ using android::base::unique_fd;
 
 extern "C" {
 
-bool RunRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* context),
-                             void* factoryContext, unsigned int port) {
+bool RunVsockRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* context),
+                                  void* factoryContext, unsigned int port) {
     auto server = RpcServer::make();
     if (status_t status = server->setupVsockServer(port); status != OK) {
         LOG(ERROR) << "Failed to set up vsock server with port " << port
@@ -52,8 +52,8 @@ bool RunRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* contex
     return true;
 }
 
-bool RunRpcServerCallback(AIBinder* service, unsigned int port, void (*readyCallback)(void* param),
-                          void* param) {
+bool RunVsockRpcServerCallback(AIBinder* service, unsigned int port,
+                               void (*readyCallback)(void* param), void* param) {
     auto server = RpcServer::make();
     if (status_t status = server->setupVsockServer(port); status != OK) {
         LOG(ERROR) << "Failed to set up vsock server with port " << port
@@ -70,8 +70,8 @@ bool RunRpcServerCallback(AIBinder* service, unsigned int port, void (*readyCall
     return true;
 }
 
-bool RunRpcServer(AIBinder* service, unsigned int port) {
-    return RunRpcServerCallback(service, port, nullptr, nullptr);
+bool RunVsockRpcServer(AIBinder* service, unsigned int port) {
+    return RunVsockRpcServerCallback(service, port, nullptr, nullptr);
 }
 
 AIBinder* RpcClient(unsigned int cid, unsigned int port) {
