@@ -30,7 +30,7 @@ use std::{os::raw, ptr::null_mut};
 /// The current thread is joined to the binder thread pool to handle incoming messages.
 ///
 /// Returns true if the server has shutdown normally, false if it failed in some way.
-pub fn run_rpc_server<F>(service: SpIBinder, port: u32, on_ready: F) -> bool
+pub fn run_vsock_rpc_server<F>(service: SpIBinder, port: u32, on_ready: F) -> bool
 where
     F: FnOnce(),
 {
@@ -52,10 +52,10 @@ where
 
         // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
         // Plus the binder objects are threadsafe.
-        // RunRpcServerCallback does not retain a reference to `ready_callback` or `param`; it only
+        // RunVsockRpcServerCallback does not retain a reference to `ready_callback` or `param`; it only
         // uses them before it returns, which is during the lifetime of `self`.
         unsafe {
-            binder_rpc_unstable_bindgen::RunRpcServerCallback(
+            binder_rpc_unstable_bindgen::RunVsockRpcServerCallback(
                 service,
                 port,
                 Some(Self::ready_callback),
@@ -69,7 +69,7 @@ where
     }
 
     unsafe extern "C" fn ready_callback(param: *mut raw::c_void) {
-        // SAFETY: This is only ever called by `RunRpcServerCallback`, within the lifetime of the
+        // SAFETY: This is only ever called by `RunVsockRpcServerCallback`, within the lifetime of the
         // `ReadyNotifier`, with `param` taking the value returned by `as_void_ptr` (so a properly
         // aligned non-null pointer to an initialized instance).
         let ready_notifier = param as *mut Self;
@@ -91,7 +91,7 @@ type RpcServerFactoryRef<'a> = &'a mut (dyn FnMut(u32) -> Option<SpIBinder> + Se
 /// The current thread is joined to the binder thread pool to handle incoming messages.
 ///
 /// Returns true if the server has shutdown normally, false if it failed in some way.
-pub fn run_rpc_server_with_factory(
+pub fn run_vsock_rpc_server_with_factory(
     port: u32,
     mut factory: impl FnMut(u32) -> Option<SpIBinder> + Send + Sync,
 ) -> bool {
@@ -100,18 +100,22 @@ pub fn run_rpc_server_with_factory(
     let mut factory_ref: RpcServerFactoryRef = &mut factory;
     let context = &mut factory_ref as *mut RpcServerFactoryRef as *mut raw::c_void;
 
-    // SAFETY: `factory_wrapper` is only ever called by `RunRpcServerWithFactory`, with context
+    // SAFETY: `factory_wrapper` is only ever called by `RunVsockRpcServerWithFactory`, with context
     // taking the pointer value above (so a properly aligned non-null pointer to an initialized
     // `RpcServerFactoryRef`), within the lifetime of `factory_ref` (i.e. no more calls will be made
-    // after `RunRpcServerWithFactory` returns).
+    // after `RunVsockRpcServerWithFactory` returns).
     unsafe {
-        binder_rpc_unstable_bindgen::RunRpcServerWithFactory(Some(factory_wrapper), context, port)
+        binder_rpc_unstable_bindgen::RunVsockRpcServerWithFactory(
+            Some(factory_wrapper),
+            context,
+            port,
+        )
     }
 }
 
 unsafe extern "C" fn factory_wrapper(cid: u32, context: *mut raw::c_void) -> *mut AIBinder {
     // SAFETY: `context` was created from an `&mut RpcServerFactoryRef` by
-    // `run_rpc_server_with_factory`, and we are still within the lifetime of the value it is
+    // `run_vsock_rpc_server_with_factory`, and we are still within the lifetime of the value it is
     // pointing to.
     let factory_ptr = context as *mut RpcServerFactoryRef;
     let factory = factory_ptr.as_mut().unwrap();
