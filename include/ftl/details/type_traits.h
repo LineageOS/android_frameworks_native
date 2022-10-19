@@ -24,4 +24,10 @@ namespace android::ftl::details {
 template <typename U>
 using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<U>>;
 
+template <typename T>
+constexpr bool is_bool_v = std::is_same_v<remove_cvref_t<T>, bool>;
+
+template <typename T>
+constexpr bool is_char_v = std::is_same_v<remove_cvref_t<T>, char>;
+
 }  // namespace android::ftl::details
