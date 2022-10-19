@@ -47,3 +47,19 @@ cc_test {
         "libgtest",
     ],
 }
+
+cc_test {
+    name: "libjpegdecoder_test",
+    test_suites: ["device-tests"],
+    srcs: [
+        "jpegdecoder_test.cpp",
+    ],
+    shared_libs: [
+        "libjpeg",
+        "liblog",
+    ],
+    static_libs: [
+        "libjpegdecoder",
+        "libgtest",
+    ],
+}

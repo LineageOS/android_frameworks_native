@@ -50,3 +50,17 @@ cc_library_static {
         "jpegencoder.cpp",
     ],
 }
+
+cc_library_static {
+    name: "libjpegdecoder",
+
+    shared_libs: [
+        "libjpeg",
+    ],
+
+    export_include_dirs: ["include"],
+
+    srcs: [
+        "jpegdecoder.cpp",
+    ],
+}
