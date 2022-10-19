@@ -65,6 +65,7 @@
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
 #include "FlagManager.h"
+#include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
@@ -75,7 +76,6 @@
 #include "Tracing/LayerTracing.h"
 #include "Tracing/TransactionTracing.h"
 #include "TransactionCallbackInvoker.h"
-#include "TransactionHandler.h"
 #include "TransactionState.h"
 
 #include <atomic>
