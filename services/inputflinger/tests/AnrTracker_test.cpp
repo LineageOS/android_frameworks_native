@@ -137,7 +137,7 @@ TEST(AnrTrackerTest, Empty_DoesntCrash) {
 
     ASSERT_TRUE(tracker.empty());
 
-    ASSERT_EQ(LONG_LONG_MAX, tracker.firstTimeout());
+    ASSERT_EQ(LLONG_MAX, tracker.firstTimeout());
     // Can't call firstToken() if tracker.empty()
 }
 
