@@ -900,6 +900,13 @@ ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
     ui::Dataspace bestDataSpace = ui::Dataspace::V0_SRGB;
     *outHdrDataSpace = ui::Dataspace::UNKNOWN;
 
+    // An Output's layers may be stale when it is disabled. As a consequence, the layers returned by
+    // getOutputLayersOrderedByZ may not be in a valid state and it is not safe to access their
+    // properties. Return a default dataspace value in this case.
+    if (!getState().isEnabled) {
+        return ui::Dataspace::V0_SRGB;
+    }
+
     for (const auto* layer : getOutputLayersOrderedByZ()) {
         switch (layer->getLayerFE().getCompositionState()->dataspace) {
             case ui::Dataspace::V0_SCRGB:
@@ -1420,7 +1427,8 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                                        .realContentIsVisible = realContentIsVisible,
                                        .clearContent = !clientComposition,
                                        .blurSetting = blurSetting,
-                                       .whitePointNits = layerState.whitePointNits};
+                                       .whitePointNits = layerState.whitePointNits,
+                                       .treat170mAsSrgb = outputState.treat170mAsSrgb};
                 if (auto clientCompositionSettings =
                             layerFE.prepareClientComposition(targetSettings)) {
                     clientCompositionLayers.push_back(std::move(*clientCompositionSettings));

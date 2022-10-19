@@ -118,6 +118,9 @@ public:
 
         // Requested white point of the layer in nits
         const float whitePointNits;
+
+        // True if layers with 170M dataspace should be overridden to sRGB.
+        const bool treat170mAsSrgb;
     };
 
     // A superset of LayerSettings required by RenderEngine to compose a layer

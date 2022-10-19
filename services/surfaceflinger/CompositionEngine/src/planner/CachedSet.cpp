@@ -411,8 +411,8 @@ void CachedSet::dump(std::string& result) const {
 
     if (mLayers.size() == 1) {
         base::StringAppendF(&result, "    Layer [%s]\n", mLayers[0].getName().c_str());
-        if (auto* buffer = mLayers[0].getBuffer().get()) {
-            base::StringAppendF(&result, "    Buffer %p", buffer);
+        if (const sp<GraphicBuffer> buffer = mLayers[0].getState()->getBuffer().promote()) {
+            base::StringAppendF(&result, "    Buffer %p", buffer.get());
             base::StringAppendF(&result, "    Format %s",
                                 decodePixelFormat(buffer->getPixelFormat()).c_str());
         }
@@ -422,8 +422,8 @@ void CachedSet::dump(std::string& result) const {
         result.append("    Cached set of:\n");
         for (const Layer& layer : mLayers) {
             base::StringAppendF(&result, "      Layer [%s]\n", layer.getName().c_str());
-            if (auto* buffer = layer.getBuffer().get()) {
-                base::StringAppendF(&result, "       Buffer %p", buffer);
+            if (const sp<GraphicBuffer> buffer = layer.getState()->getBuffer().promote()) {
+                base::StringAppendF(&result, "       Buffer %p", buffer.get());
                 base::StringAppendF(&result, "    Format[%s]",
                                     decodePixelFormat(buffer->getPixelFormat()).c_str());
             }

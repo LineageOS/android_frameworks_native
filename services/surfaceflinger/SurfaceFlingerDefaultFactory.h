@@ -42,6 +42,7 @@ public:
     std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() override;
     sp<Layer> createBufferStateLayer(const LayerCreationArgs& args) override;
     sp<Layer> createEffectLayer(const LayerCreationArgs& args) override;
+    sp<LayerFE> createLayerFE(const std::string& layerName) override;
     std::unique_ptr<FrameTracer> createFrameTracer() override;
     std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(
             std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid) override;
