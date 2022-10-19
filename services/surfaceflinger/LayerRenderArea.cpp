@@ -30,6 +30,7 @@ void reparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
         // Compute and cache the bounds for the new parent layer.
         newParent->computeBounds(drawingBounds.toFloatRect(), ui::Transform(),
             0.f /* shadowRadius */);
+        newParent->updateSnapshot(true /* updateGeometry */);
         oldParent->setChildrenDrawingParent(newParent);
 };
 

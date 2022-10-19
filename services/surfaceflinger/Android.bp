@@ -163,6 +163,7 @@ filegroup {
         "HwcSlotGenerator.cpp",
         "WindowInfosListenerInvoker.cpp",
         "Layer.cpp",
+        "LayerFE.cpp",
         "LayerProtoHelper.cpp",
         "LayerRenderArea.cpp",
         "LayerVector.cpp",
