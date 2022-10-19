@@ -2777,8 +2777,21 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const auto [kernelIdleTimerController, idleTimerTimeoutMs] =
                 getKernelIdleTimerProperties(compositionDisplay->getId());
 
+        const auto enableFrameRateOverride = [&] {
+            using Config = scheduler::RefreshRateSelector::Config;
+            if (!sysprop::enable_frame_rate_override(false)) {
+                return Config::FrameRateOverride::Disabled;
+            }
+
+            if (sysprop::frame_rate_override_for_native_rates(true)) {
+                return Config::FrameRateOverride::EnabledForNativeRefreshRates;
+            }
+
+            return Config::FrameRateOverride::Enabled;
+        }();
+
         scheduler::RefreshRateSelector::Config config =
-                {.enableFrameRateOverride = android::sysprop::enable_frame_rate_override(false),
+                {.enableFrameRateOverride = enableFrameRateOverride,
                  .frameRateMultipleThreshold =
                          base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0),
                  .idleTimerTimeout = idleTimerTimeoutMs,

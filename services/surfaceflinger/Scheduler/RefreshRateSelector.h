@@ -251,7 +251,20 @@ public:
 
     // Configuration flags.
     struct Config {
-        bool enableFrameRateOverride = false;
+        enum class FrameRateOverride {
+            // Do not override the frame rate for an app
+            Disabled,
+
+            // Override the frame rate for an app to a value which is also
+            // a display refresh rate
+            EnabledForNativeRefreshRates,
+
+            // Override the frame rate for an app to any value
+            Enabled,
+
+            ftl_last = Enabled
+        };
+        FrameRateOverride enableFrameRateOverride = FrameRateOverride::Disabled;
 
         // Specifies the upper refresh rate threshold (inclusive) for layer vote types of multiple
         // or heuristic, such that refresh rates higher than this value will not be voted for. 0 if
@@ -266,11 +279,12 @@ public:
         std::optional<KernelIdleTimerController> kernelIdleTimerController;
     };
 
-    RefreshRateSelector(DisplayModes, DisplayModeId activeModeId,
-                        Config config = {.enableFrameRateOverride = false,
-                                         .frameRateMultipleThreshold = 0,
-                                         .idleTimerTimeout = 0ms,
-                                         .kernelIdleTimerController = {}});
+    RefreshRateSelector(
+            DisplayModes, DisplayModeId activeModeId,
+            Config config = {.enableFrameRateOverride = Config::FrameRateOverride::Disabled,
+                             .frameRateMultipleThreshold = 0,
+                             .idleTimerTimeout = 0ms,
+                             .kernelIdleTimerController = {}});
 
     RefreshRateSelector(const RefreshRateSelector&) = delete;
     RefreshRateSelector& operator=(const RefreshRateSelector&) = delete;
@@ -293,7 +307,9 @@ public:
     // refresh rates.
     KernelIdleTimerAction getIdleTimerAction() const;
 
-    bool supportsFrameRateOverrideByContent() const { return mSupportsFrameRateOverrideByContent; }
+    bool supportsFrameRateOverrideByContent() const {
+        return mFrameRateOverrideConfig != Config::FrameRateOverride::Disabled;
+    }
 
     // Return the display refresh rate divisor to match the layer
     // frame rate, or 0 if the display refresh rate is not a multiple of the
@@ -446,7 +462,7 @@ private:
     const std::vector<Fps> mKnownFrameRates;
 
     const Config mConfig;
-    bool mSupportsFrameRateOverrideByContent;
+    Config::FrameRateOverride mFrameRateOverrideConfig;
 
     struct GetRankedRefreshRatesCache {
         std::pair<std::vector<LayerRequirement>, GlobalSignals> arguments;

@@ -144,7 +144,15 @@ inline bool operator!=(const FpsRanges& lhs, const FpsRanges& rhs) {
     return !(lhs == rhs);
 }
 
+inline unsigned operator/(Fps lhs, Fps rhs) {
+    return static_cast<unsigned>(std::ceil(lhs.getValue() / rhs.getValue()));
+}
+
 } // namespace fps_approx_ops
+
+constexpr Fps operator/(Fps fps, unsigned divisor) {
+    return Fps::fromPeriodNsecs(fps.getPeriodNsecs() * static_cast<nsecs_t>(divisor));
+}
 
 inline bool FpsRange::includes(Fps fps) const {
     using fps_approx_ops::operator<=;
