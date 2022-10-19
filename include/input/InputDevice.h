@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <android/os/IInputConstants.h>
 #include "android/hardware/input/InputDeviceCountryCode.h"
 
 namespace android {
@@ -346,6 +347,8 @@ extern std::string getInputDeviceConfigurationFilePathByName(
         const std::string& name, InputDeviceConfigurationFileType type);
 
 enum ReservedInputDeviceId : int32_t {
+    // Device id representing an invalid device
+    INVALID_INPUT_DEVICE_ID = android::os::IInputConstants::INVALID_INPUT_DEVICE_ID,
     // Device id of a special "virtual" keyboard that is always present.
     VIRTUAL_KEYBOARD_ID = -1,
     // Device id of the "built-in" keyboard if there is one.
