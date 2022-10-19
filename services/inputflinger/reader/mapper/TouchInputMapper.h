@@ -795,6 +795,8 @@ private:
     [[nodiscard]] std::list<NotifyArgs> abortPointerSimple(nsecs_t when, nsecs_t readTime,
                                                            uint32_t policyFlags);
 
+    // Attempts to assign a pointer id to the external stylus. Returns true if the state should be
+    // withheld from further processing while waiting for data from the stylus.
     bool assignExternalStylusId(const RawState& state, bool timeout);
     void applyExternalStylusButtonState(nsecs_t when);
     void applyExternalStylusTouchState(nsecs_t when);

@@ -167,4 +167,8 @@ bool TouchButtonAccumulator::hasStylus() const {
     return mHaveStylus;
 }
 
+bool TouchButtonAccumulator::hasButtonTouch() const {
+    return mHaveBtnTouch;
+}
+
 } // namespace android

@@ -3156,7 +3156,10 @@ TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureNotReported) {
 
     // Set a pressure value of 0 on the stylus. It doesn't generate any events.
     const auto& RAW_PRESSURE_MAX = UinputExternalStylusWithPressure::RAW_PRESSURE_MAX;
+    // Send a non-zero value first to prevent the kernel from consuming the zero event.
+    stylus->setPressure(100);
     stylus->setPressure(0);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());
 
     // Start a finger gesture. The touch device will withhold generating any touches for
     // up to 72 milliseconds while waiting for pressure data from the external stylus.
@@ -3197,6 +3200,45 @@ TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureNotReported) {
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
                   WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
                   WithDeviceId(touchscreenId), WithPressure(200.f / RAW_PRESSURE_MAX))));
+
+    // The external stylus did not generate any events.
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasNotCalled());
+}
+
+TEST_F(ExternalStylusIntegrationTest, UnfusedExternalStylus) {
+    const Point centerPoint = mDevice->getCenterPoint();
+
+    // Create an external stylus device that does not support pressure. It should not affect any
+    // touch pointers.
+    std::unique_ptr<UinputExternalStylus> stylus = createUinputDevice<UinputExternalStylus>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+    const auto stylusInfo = findDeviceByName(stylus->getName());
+    ASSERT_TRUE(stylusInfo);
+
+    ASSERT_EQ(AINPUT_SOURCE_STYLUS | AINPUT_SOURCE_KEYBOARD, stylusInfo->getSources());
+
+    const auto touchscreenId = mDeviceInfo.getId();
+
+    // Start a finger gesture and ensure a finger pointer is generated for it, without waiting for
+    // pressure data from the external stylus.
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendToolType(MT_TOOL_FINGER);
+    mDevice->sendDown(centerPoint);
+    auto waitUntil = std::chrono::system_clock::now() +
+            std::chrono::milliseconds(ns2ms(EXTERNAL_STYLUS_DATA_TIMEOUT));
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(
+            mTestListener
+                    ->assertNotifyMotionWasCalled(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                                        WithToolType(
+                                                                AMOTION_EVENT_TOOL_TYPE_FINGER),
+                                                        WithButtonState(0),
+                                                        WithDeviceId(touchscreenId),
+                                                        WithPressure(1.f)),
+                                                  waitUntil));
 
     // The external stylus did not generate any events.
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());

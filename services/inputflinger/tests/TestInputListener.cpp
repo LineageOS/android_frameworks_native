@@ -69,16 +69,18 @@ void TestInputListener::assertNotifyKeyWasNotCalled() {
     ASSERT_NO_FATAL_FAILURE(assertNotCalled<NotifyKeyArgs>("notifyKey() should not be called."));
 }
 
-void TestInputListener::assertNotifyMotionWasCalled(NotifyMotionArgs* outEventArgs) {
+void TestInputListener::assertNotifyMotionWasCalled(NotifyMotionArgs* outEventArgs,
+                                                    std::optional<TimePoint> waitUntil) {
     ASSERT_NO_FATAL_FAILURE(
             assertCalled<NotifyMotionArgs>(outEventArgs,
-                                           "Expected notifyMotion() to have been called."));
+                                           "Expected notifyMotion() to have been called.",
+                                           waitUntil));
 }
 
 void TestInputListener::assertNotifyMotionWasCalled(
-        const ::testing::Matcher<NotifyMotionArgs>& matcher) {
+        const ::testing::Matcher<NotifyMotionArgs>& matcher, std::optional<TimePoint> waitUntil) {
     NotifyMotionArgs outEventArgs;
-    ASSERT_NO_FATAL_FAILURE(assertNotifyMotionWasCalled(&outEventArgs));
+    ASSERT_NO_FATAL_FAILURE(assertNotifyMotionWasCalled(&outEventArgs, waitUntil));
     ASSERT_THAT(outEventArgs, matcher);
 }
 
@@ -119,15 +121,18 @@ void TestInputListener::assertNotifyCaptureWasNotCalled() {
 }
 
 template <class NotifyArgsType>
-void TestInputListener::assertCalled(NotifyArgsType* outEventArgs, std::string message) {
+void TestInputListener::assertCalled(NotifyArgsType* outEventArgs, std::string message,
+                                     std::optional<TimePoint> waitUntil) {
     std::unique_lock<std::mutex> lock(mLock);
     base::ScopedLockAssertion assumeLocked(mLock);
 
     std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
     if (queue.empty()) {
-        const bool eventReceived =
-                mCondition.wait_for(lock, mEventHappenedTimeout,
-                                    [&queue]() REQUIRES(mLock) { return !queue.empty(); });
+        const auto time =
+                waitUntil.value_or(std::chrono::system_clock::now() + mEventHappenedTimeout);
+        const bool eventReceived = mCondition.wait_until(lock, time, [&queue]() REQUIRES(mLock) {
+            return !queue.empty();
+        });
         if (!eventReceived) {
             FAIL() << "Timed out waiting for event: " << message.c_str();
         }
