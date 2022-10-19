@@ -2179,8 +2179,8 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     std::vector<Layer*> layers;
 
     mDrawingState.traverseInZOrder([&refreshArgs, &layers](Layer* layer) {
-        layer->updateSnapshot(refreshArgs.updatingGeometryThisFrame);
         if (auto layerFE = layer->getCompositionEngineLayerFE()) {
+            layer->updateSnapshot(refreshArgs.updatingGeometryThisFrame);
             refreshArgs.layers.push_back(layerFE);
             layers.push_back(layer);
         }
@@ -6447,6 +6447,10 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     std::vector<Layer*> renderedLayers;
     bool disableBlurs = false;
     traverseLayers([&](Layer* layer) FTL_FAKE_GUARD(kMainThreadContext) {
+        auto layerFE = layer->getCompositionEngineLayerFE();
+        if (!layerFE) {
+            return;
+        }
         // Layer::prepareClientComposition uses the layer's snapshot to populate the resulting
         // LayerSettings. Calling Layer::updateSnapshot ensures that LayerSettings are
         // generated with the layer's current buffer and geometry.
@@ -6472,11 +6476,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                 isHdrLayer(layer) ? displayBrightnessNits : sdrWhitePointNits,
 
         };
-        auto layerFE = layer->getCompositionEngineLayerFE();
-        if (!layerFE) {
-            return;
-        }
-
         std::optional<compositionengine::LayerFE::LayerSettings> settings;
         {
             LayerSnapshotGuard layerSnapshotGuard(layer);
