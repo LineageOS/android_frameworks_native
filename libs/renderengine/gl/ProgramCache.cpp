@@ -601,7 +601,7 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     }
 
     if (needs.hasTextureCoords()) {
-        fs << "varying vec2 outTexCoords;";
+        fs << "varying highp vec2 outTexCoords;";
     }
 
     if (needs.hasRoundedCorners()) {
