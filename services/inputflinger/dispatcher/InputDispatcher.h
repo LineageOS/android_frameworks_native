@@ -239,7 +239,7 @@ private:
 
     sp<android::gui::WindowInfoHandle> findTouchedWindowAtLocked(
             int32_t displayId, int32_t x, int32_t y, TouchState* touchState, bool isStylus = false,
-            bool addOutsideTargets = false, bool ignoreDragWindow = false) REQUIRES(mLock);
+            bool addOutsideTargets = false, bool ignoreDragWindow = false) const REQUIRES(mLock);
 
     std::vector<sp<android::gui::WindowInfoHandle>> findTouchedSpyWindowsAtLocked(
             int32_t displayId, int32_t x, int32_t y, bool isStylus) const REQUIRES(mLock);

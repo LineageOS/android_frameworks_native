@@ -1071,7 +1071,7 @@ sp<WindowInfoHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayI
                                                                 int32_t y, TouchState* touchState,
                                                                 bool isStylus,
                                                                 bool addOutsideTargets,
-                                                                bool ignoreDragWindow) {
+                                                                bool ignoreDragWindow) const {
     if (addOutsideTargets && touchState == nullptr) {
         LOG_ALWAYS_FATAL("Must provide a valid touch state if adding outside targets");
     }
@@ -3984,13 +3984,14 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
     if (DEBUG_INBOUND_EVENT_DETAILS) {
         ALOGD("notifyMotion - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=0x%x, "
               "displayId=%" PRId32 ", policyFlags=0x%x, "
-              "action=0x%x, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x, "
+              "action=%s, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x, "
               "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, xCursorPosition=%f, "
               "yCursorPosition=%f, downTime=%" PRId64,
               args->id, args->eventTime, args->deviceId, args->source, args->displayId,
-              args->policyFlags, args->action, args->actionButton, args->flags, args->metaState,
-              args->buttonState, args->edgeFlags, args->xPrecision, args->yPrecision,
-              args->xCursorPosition, args->yCursorPosition, args->downTime);
+              args->policyFlags, MotionEvent::actionToString(args->action).c_str(),
+              args->actionButton, args->flags, args->metaState, args->buttonState, args->edgeFlags,
+              args->xPrecision, args->yPrecision, args->xCursorPosition, args->yCursorPosition,
+              args->downTime);
         for (uint32_t i = 0; i < args->pointerCount; i++) {
             ALOGD("  Pointer %d: id=%d, toolType=%d, "
                   "x=%f, y=%f, pressure=%f, size=%f, "
