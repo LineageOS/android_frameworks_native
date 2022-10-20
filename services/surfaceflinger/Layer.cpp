@@ -1294,7 +1294,6 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
     if (fps) {
         surfaceFrame->setRenderRate(*fps);
     }
-    // TODO(b/178542907): Implement onSurfaceFrameCreated for BQLayer as well.
     onSurfaceFrameCreated(surfaceFrame);
     return surfaceFrame;
 }
@@ -2703,6 +2702,10 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
 
 void Layer::onSurfaceFrameCreated(
         const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
+    if (!hasBufferOrSidebandStreamInDrawing()) {
+        return;
+    }
+
     while (mPendingJankClassifications.size() >= kPendingClassificationMaxSurfaceFrames) {
         // Too many SurfaceFrames pending classification. The front of the deque is probably not
         // tracked by FrameTimeline and will never be presented. This will only result in a memory
