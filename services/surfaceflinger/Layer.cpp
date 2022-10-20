@@ -3535,14 +3535,6 @@ const compositionengine::LayerFECompositionState* Layer::getCompositionState() c
     return mSnapshot.get();
 }
 
-void Layer::moveSnapshotToLayerFE() {
-    mLayerFE->mSnapshot = std::move(mSnapshot);
-}
-
-void Layer::moveSnapshotToLayer() {
-    mSnapshot = std::move(mLayerFE->mSnapshot);
-}
-
 void Layer::useSurfaceDamage() {
     if (mFlinger->mForceFullDamage) {
         surfaceDamageRegion = Region::INVALID_REGION;
@@ -4005,6 +3997,28 @@ void Layer::updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMet
         }
         relative->updateRelativeMetadataSnapshot(childRelativeLayerMetadata, visited);
     }
+}
+
+LayerSnapshotGuard::LayerSnapshotGuard(Layer* layer) : mLayer(layer) {
+    if (mLayer) {
+        mLayer->mLayerFE->mSnapshot = std::move(mLayer->mSnapshot);
+    }
+}
+
+LayerSnapshotGuard::~LayerSnapshotGuard() {
+    if (mLayer) {
+        mLayer->mSnapshot = std::move(mLayer->mLayerFE->mSnapshot);
+    }
+}
+
+LayerSnapshotGuard::LayerSnapshotGuard(LayerSnapshotGuard&& other) : mLayer(other.mLayer) {
+    other.mLayer = nullptr;
+}
+
+LayerSnapshotGuard& LayerSnapshotGuard::operator=(LayerSnapshotGuard&& other) {
+    mLayer = other.mLayer;
+    other.mLayer = nullptr;
+    return *this;
 }
 
 // ---------------------------------------------------------------------------

@@ -379,15 +379,6 @@ public:
 
     virtual sp<LayerFE> getCompositionEngineLayerFE() const;
 
-    // Move LayerSnapshot from this layer into its LayerFE. This must be called before passing the
-    // LayerFE to CompositionEngine. Moving the snapshot instead of sharing common state
-    // prevents use of LayerFE outside the main thread by making errors obvious (i.e. use outside
-    // the main thread results in SEGFAULTs due to nullptr dereference).
-    void moveSnapshotToLayerFE();
-    // Move LayerSnapshot into this layer from its LayerFE. This must be called after
-    // CompositionEngine has presented the layer.
-    void moveSnapshotToLayer();
-
     const LayerSnapshot* getLayerSnapshot() const;
     LayerSnapshot* editLayerSnapshot();
 
@@ -1188,6 +1179,31 @@ private:
 
     sp<LayerFE> mLayerFE;
     std::unique_ptr<LayerSnapshot> mSnapshot = std::make_unique<LayerSnapshot>();
+
+    friend class LayerSnapshotGuard;
+};
+
+// LayerSnapshotGuard manages the movement of LayerSnapshot between a Layer and its corresponding
+// LayerFE. This class must be used whenever LayerFEs are passed to CompositionEngine. Instances of
+// LayerSnapshotGuard should only be constructed on the main thread and should not be moved outside
+// the main thread.
+//
+// Moving the snapshot instead of sharing common state prevents use of LayerFE outside the main
+// thread by making errors obvious (i.e. use outside the main thread results in SEGFAULTs due to
+// nullptr dereference).
+class LayerSnapshotGuard {
+public:
+    LayerSnapshotGuard(Layer* layer) REQUIRES(kMainThreadContext);
+    ~LayerSnapshotGuard() REQUIRES(kMainThreadContext);
+
+    LayerSnapshotGuard(const LayerSnapshotGuard&) = delete;
+    LayerSnapshotGuard& operator=(const LayerSnapshotGuard&) = delete;
+
+    LayerSnapshotGuard(LayerSnapshotGuard&& other) REQUIRES(kMainThreadContext);
+    LayerSnapshotGuard& operator=(LayerSnapshotGuard&& other) REQUIRES(kMainThreadContext);
+
+private:
+    Layer* mLayer;
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);

@@ -65,6 +65,7 @@
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
 #include "FlagManager.h"
+#include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
@@ -75,7 +76,6 @@
 #include "Tracing/LayerTracing.h"
 #include "Tracing/TransactionTracing.h"
 #include "TransactionCallbackInvoker.h"
-#include "TransactionHandler.h"
 #include "TransactionState.h"
 
 #include <atomic>
@@ -798,7 +798,8 @@ private:
     ftl::SharedFuture<FenceResult> renderScreenImpl(
             const RenderArea&, TraverseLayersFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool canCaptureBlackoutContent,
-            bool regionSampling, bool grayscale, ScreenCaptureResults&) EXCLUDES(mStateLock);
+            bool regionSampling, bool grayscale, ScreenCaptureResults&) EXCLUDES(mStateLock)
+            REQUIRES(kMainThreadContext);
 
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
     // matching ownerUid

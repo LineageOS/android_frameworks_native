@@ -555,7 +555,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mLastDropReason(DropReason::NOT_DROPPED),
         mIdGenerator(IdGenerator::Source::INPUT_DISPATCHER),
         mAppSwitchSawKeyDown(false),
-        mAppSwitchDueTime(LONG_LONG_MAX),
+        mAppSwitchDueTime(LLONG_MAX),
         mNextUnblockedEvent(nullptr),
         mMonitorDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT),
         mDispatchEnabled(false),
@@ -612,7 +612,7 @@ status_t InputDispatcher::stop() {
 }
 
 void InputDispatcher::dispatchOnce() {
-    nsecs_t nextWakeupTime = LONG_LONG_MAX;
+    nsecs_t nextWakeupTime = LLONG_MAX;
     { // acquire lock
         std::scoped_lock _l(mLock);
         mDispatcherIsAlive.notify_all();
@@ -626,7 +626,7 @@ void InputDispatcher::dispatchOnce() {
         // Run all pending commands if there are any.
         // If any commands were run then force the next poll to wake up immediately.
         if (runCommandsLockedInterruptable()) {
-            nextWakeupTime = LONG_LONG_MIN;
+            nextWakeupTime = LLONG_MIN;
         }
 
         // If we are still waiting for ack on some events,
@@ -636,7 +636,7 @@ void InputDispatcher::dispatchOnce() {
 
         // We are about to enter an infinitely long sleep, because we have no commands or
         // pending or queued events
-        if (nextWakeupTime == LONG_LONG_MAX) {
+        if (nextWakeupTime == LLONG_MAX) {
             mDispatcherEnteredIdle.notify_all();
         }
     } // release lock
@@ -681,14 +681,14 @@ void InputDispatcher::processNoFocusedWindowAnrLocked() {
  */
 nsecs_t InputDispatcher::processAnrsLocked() {
     const nsecs_t currentTime = now();
-    nsecs_t nextAnrCheck = LONG_LONG_MAX;
+    nsecs_t nextAnrCheck = LLONG_MAX;
     // Check if we are waiting for a focused window to appear. Raise ANR if waited too long
     if (mNoFocusedWindowTimeoutTime.has_value() && mAwaitedFocusedApplication != nullptr) {
         if (currentTime >= *mNoFocusedWindowTimeoutTime) {
             processNoFocusedWindowAnrLocked();
             mAwaitedFocusedApplication.reset();
             mNoFocusedWindowTimeoutTime = std::nullopt;
-            return LONG_LONG_MIN;
+            return LLONG_MIN;
         } else {
             // Keep waiting. We will drop the event when mNoFocusedWindowTimeoutTime comes.
             nextAnrCheck = *mNoFocusedWindowTimeoutTime;
@@ -711,7 +711,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     // Stop waking up for this unresponsive connection
     mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
     onAnrLocked(connection);
-    return LONG_LONG_MIN;
+    return LLONG_MIN;
 }
 
 std::chrono::nanoseconds InputDispatcher::getDispatchingTimeoutLocked(
@@ -918,7 +918,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
         mLastDropReason = dropReason;
 
         releasePendingEventLocked();
-        *nextWakeupTime = LONG_LONG_MIN; // force next poll to wake up immediately
+        *nextWakeupTime = LLONG_MIN; // force next poll to wake up immediately
     }
 }
 
@@ -1201,11 +1201,11 @@ bool InputDispatcher::isAppSwitchKeyEvent(const KeyEntry& keyEntry) {
 }
 
 bool InputDispatcher::isAppSwitchPendingLocked() {
-    return mAppSwitchDueTime != LONG_LONG_MAX;
+    return mAppSwitchDueTime != LLONG_MAX;
 }
 
 void InputDispatcher::resetPendingAppSwitchLocked(bool handled) {
-    mAppSwitchDueTime = LONG_LONG_MAX;
+    mAppSwitchDueTime = LLONG_MAX;
 
     if (DEBUG_APP_SWITCH) {
         if (handled) {
@@ -1498,7 +1498,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<Key
                 // stop the key repeat on current device.
                 entry->repeatCount = mKeyRepeatState.lastKeyEntry->repeatCount + 1;
                 resetKeyRepeatLocked();
-                mKeyRepeatState.nextRepeatTime = LONG_LONG_MAX; // don't generate repeats ourselves
+                mKeyRepeatState.nextRepeatTime = LLONG_MAX; // don't generate repeats ourselves
             } else {
                 // Not a repeat.  Save key down state in case we do see a repeat later.
                 resetKeyRepeatLocked();
