@@ -132,7 +132,7 @@ public:
 
     SurfaceStats() = default;
     SurfaceStats(const sp<IBinder>& sc, std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence,
-                 const sp<Fence>& prevReleaseFence, uint32_t hint,
+                 const sp<Fence>& prevReleaseFence, std::optional<uint32_t> hint,
                  uint32_t currentMaxAcquiredBuffersCount, FrameEventHistoryStats frameEventStats,
                  std::vector<JankData> jankData, ReleaseCallbackId previousReleaseCallbackId)
           : surfaceControl(sc),
@@ -147,7 +147,7 @@ public:
     sp<IBinder> surfaceControl;
     std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence = -1;
     sp<Fence> previousReleaseFence;
-    uint32_t transformHint = 0;
+    std::optional<uint32_t> transformHint = 0;
     uint32_t currentMaxAcquiredBufferCount = 0;
     FrameEventHistoryStats eventStats;
     std::vector<JankData> jankData;

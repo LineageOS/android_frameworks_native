@@ -678,7 +678,7 @@ public:
      * Sets display transform hint on BufferLayerConsumer.
      */
     void updateTransformHint(ui::Transform::RotationFlags);
-
+    void skipReportingTransformHint();
     inline const State& getDrawingState() const { return mDrawingState; }
     inline State& getDrawingState() { return mDrawingState; }
 
@@ -1147,6 +1147,7 @@ private:
     // Transform hint provided to the producer. This must be accessed holding
     // the mStateLock.
     ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
+    bool mSkipReportingTransformHint = true;
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;

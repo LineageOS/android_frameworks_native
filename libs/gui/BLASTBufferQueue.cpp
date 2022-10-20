@@ -334,9 +334,11 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
             std::optional<SurfaceControlStats> statsOptional = findMatchingStat(stats, pendingSC);
             if (statsOptional) {
                 SurfaceControlStats stat = *statsOptional;
-                mTransformHint = stat.transformHint;
-                mBufferItemConsumer->setTransformHint(mTransformHint);
-                BQA_LOGV("updated mTransformHint=%d", mTransformHint);
+                if (stat.transformHint) {
+                    mTransformHint = *stat.transformHint;
+                    mBufferItemConsumer->setTransformHint(mTransformHint);
+                    BQA_LOGV("updated mTransformHint=%d", mTransformHint);
+                }
                 // Update frametime stamps if the frame was latched and presented, indicated by a
                 // valid latch time.
                 if (stat.latchTime > 0) {
