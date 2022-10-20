@@ -35,6 +35,14 @@ interface IInputConstants
     const int INVALID_INPUT_EVENT_ID = 0;
 
     /**
+     * Every input device has an id. This constant value is used when a valid input device id is not
+     * available.
+     * The virtual keyboard uses -1 as the input device id. Therefore, we use -2 as the value for
+     * an invalid input device.
+     */
+    const int INVALID_INPUT_DEVICE_ID = -2;
+
+    /**
      * The input event was injected from accessibility. Used in policyFlags for input event
      * injection.
      */
