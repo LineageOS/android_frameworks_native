@@ -2181,7 +2181,6 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     mDrawingState.traverseInZOrder([&refreshArgs, &layers](Layer* layer) {
         layer->updateSnapshot(refreshArgs.updatingGeometryThisFrame);
         if (auto layerFE = layer->getCompositionEngineLayerFE()) {
-            layer->moveSnapshotToLayerFE();
             refreshArgs.layers.push_back(layerFE);
             layers.push_back(layer);
         }
@@ -2213,10 +2212,15 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     // the scheduler.
     const auto presentTime = systemTime();
 
-    mCompositionEngine->present(refreshArgs);
+    {
+        std::vector<LayerSnapshotGuard> layerSnapshotGuards;
+        for (Layer* layer : layers) {
+            layerSnapshotGuards.emplace_back(layer);
+        }
+        mCompositionEngine->present(refreshArgs);
+    }
 
     for (auto& layer : layers) {
-        layer->moveSnapshotToLayer();
         CompositionResult compositionResult{
                 layer->getCompositionEngineLayerFE()->stealCompositionResult()};
         layer->onPreComposition(compositionResult.refreshStartTime);
@@ -3312,21 +3316,16 @@ void SurfaceFlinger::updateCursorAsync() {
         }
     }
 
-    std::vector<Layer*> cursorLayers;
-    mDrawingState.traverse([&cursorLayers](Layer* layer) {
+    std::vector<LayerSnapshotGuard> layerSnapshotGuards;
+    mDrawingState.traverse([&layerSnapshotGuards](Layer* layer) {
         if (layer->getLayerSnapshot()->compositionType ==
             aidl::android::hardware::graphics::composer3::Composition::CURSOR) {
             layer->updateSnapshot(false /* updateGeometry */);
-            layer->moveSnapshotToLayerFE();
-            cursorLayers.push_back(layer);
+            layerSnapshotGuards.emplace_back(layer);
         }
     });
 
     mCompositionEngine->updateCursorAsync(refreshArgs);
-
-    for (Layer* layer : cursorLayers) {
-        layer->moveSnapshotToLayer();
-    }
 }
 
 void SurfaceFlinger::requestDisplayModes(
@@ -6322,37 +6321,38 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
 
     bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
 
-    auto future = mScheduler->schedule([=, renderAreaFuture = std::move(renderAreaFuture)]() mutable
-                                       -> ftl::SharedFuture<FenceResult> {
-        ScreenCaptureResults captureResults;
-        std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
-        if (!renderArea) {
-            ALOGW("Skipping screen capture because of invalid render area.");
-            captureResults.fenceResult = base::unexpected(NO_MEMORY);
-            captureListener->onScreenCaptureCompleted(captureResults);
-            return ftl::yield<FenceResult>(base::unexpected(NO_ERROR)).share();
-        }
+    auto future = mScheduler->schedule(
+            [=, renderAreaFuture = std::move(renderAreaFuture)]() FTL_FAKE_GUARD(
+                    kMainThreadContext) mutable -> ftl::SharedFuture<FenceResult> {
+                ScreenCaptureResults captureResults;
+                std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
+                if (!renderArea) {
+                    ALOGW("Skipping screen capture because of invalid render area.");
+                    captureResults.fenceResult = base::unexpected(NO_MEMORY);
+                    captureListener->onScreenCaptureCompleted(captureResults);
+                    return ftl::yield<FenceResult>(base::unexpected(NO_ERROR)).share();
+                }
 
-        ftl::SharedFuture<FenceResult> renderFuture;
-        renderArea->render([&] {
-            renderFuture =
-                    renderScreenImpl(*renderArea, traverseLayers, buffer, canCaptureBlackoutContent,
-                                     regionSampling, grayscale, captureResults);
-        });
+                ftl::SharedFuture<FenceResult> renderFuture;
+                renderArea->render([&]() FTL_FAKE_GUARD(kMainThreadContext) {
+                    renderFuture = renderScreenImpl(*renderArea, traverseLayers, buffer,
+                                                    canCaptureBlackoutContent, regionSampling,
+                                                    grayscale, captureResults);
+                });
 
-        if (captureListener) {
-            // Defer blocking on renderFuture back to the Binder thread.
-            return ftl::Future(std::move(renderFuture))
-                    .then([captureListener, captureResults = std::move(captureResults)](
-                                  FenceResult fenceResult) mutable -> FenceResult {
-                        captureResults.fenceResult = std::move(fenceResult);
-                        captureListener->onScreenCaptureCompleted(captureResults);
-                        return base::unexpected(NO_ERROR);
-                    })
-                    .share();
-        }
-        return renderFuture;
-    });
+                if (captureListener) {
+                    // Defer blocking on renderFuture back to the Binder thread.
+                    return ftl::Future(std::move(renderFuture))
+                            .then([captureListener, captureResults = std::move(captureResults)](
+                                          FenceResult fenceResult) mutable -> FenceResult {
+                                captureResults.fenceResult = std::move(fenceResult);
+                                captureListener->onScreenCaptureCompleted(captureResults);
+                                return base::unexpected(NO_ERROR);
+                            })
+                            .share();
+                }
+                return renderFuture;
+            });
 
     // Flatten nested futures.
     auto chain = ftl::Future(std::move(future)).then([](ftl::SharedFuture<FenceResult> future) {
@@ -6446,7 +6446,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     const auto display = renderArea.getDisplayDevice();
     std::vector<Layer*> renderedLayers;
     bool disableBlurs = false;
-    traverseLayers([&](Layer* layer) {
+    traverseLayers([&](Layer* layer) FTL_FAKE_GUARD(kMainThreadContext) {
         // Layer::prepareClientComposition uses the layer's snapshot to populate the resulting
         // LayerSettings. Calling Layer::updateSnapshot ensures that LayerSettings are
         // generated with the layer's current buffer and geometry.
@@ -6477,10 +6477,11 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
             return;
         }
 
-        layer->moveSnapshotToLayerFE();
-        std::optional<compositionengine::LayerFE::LayerSettings> settings =
-                layerFE->prepareClientComposition(targetSettings);
-        layer->moveSnapshotToLayer();
+        std::optional<compositionengine::LayerFE::LayerSettings> settings;
+        {
+            LayerSnapshotGuard layerSnapshotGuard(layer);
+            settings = layerFE->prepareClientComposition(targetSettings);
+        }
 
         if (!settings) {
             return;

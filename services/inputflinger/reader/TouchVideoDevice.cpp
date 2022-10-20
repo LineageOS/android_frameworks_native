@@ -198,8 +198,9 @@ std::optional<TouchVideoFrame> TouchVideoDevice::readFrame() {
     if ((buf.flags & V4L2_BUF_FLAG_TIMESTAMP_MASK) != V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC) {
         // We use CLOCK_MONOTONIC for input events, so if the clocks don't match,
         // we can't compare timestamps. Just log a warning, since this is a driver issue
-        ALOGW("The timestamp %ld.%ld was not acquired using CLOCK_MONOTONIC", buf.timestamp.tv_sec,
-              buf.timestamp.tv_usec);
+        ALOGW("The timestamp %lld.%lld was not acquired using CLOCK_MONOTONIC",
+              static_cast<long long>(buf.timestamp.tv_sec),
+              static_cast<long long>(buf.timestamp.tv_usec));
     }
     std::vector<int16_t> data(mHeight * mWidth);
     const int16_t* readFrom = mReadLocations[buf.index];

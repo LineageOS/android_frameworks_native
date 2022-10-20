@@ -401,9 +401,10 @@ public:
                                 const std::shared_ptr<renderengine::ExternalTexture>& buffer,
                                 bool forSystem, bool regionSampling) {
         ScreenCaptureResults captureResults;
-        return mFlinger->renderScreenImpl(renderArea, traverseLayers, buffer, forSystem,
-                                                regionSampling, false /* grayscale */,
-                                                captureResults);
+        return FTL_FAKE_GUARD(kMainThreadContext,
+                              mFlinger->renderScreenImpl(renderArea, traverseLayers, buffer,
+                                                         forSystem, regionSampling,
+                                                         false /* grayscale */, captureResults));
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
