@@ -5012,8 +5012,6 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
                          ? "not set"
                          : std::to_string(mTouchModePerDisplay[displayId]).c_str());
 
-        // TODO(b/198499018): Ensure that WM can guarantee that touch mode is properly set when
-        // display is created.
         auto touchModeIt = mTouchModePerDisplay.find(displayId);
         if (touchModeIt != mTouchModePerDisplay.end() && touchModeIt->second == inTouchMode) {
             return false;
