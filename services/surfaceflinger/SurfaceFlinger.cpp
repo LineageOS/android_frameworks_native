@@ -84,6 +84,7 @@
 #include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
 #include <ui/GraphicBufferAllocator.h>
+#include <ui/LayerStack.h>
 #include <ui/PixelFormat.h>
 #include <ui/StaticDisplayInfo.h>
 #include <utils/StopWatch.h>
@@ -4115,6 +4116,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         return 0;
     }
 
+    ui::LayerStack oldLayerStack = layer->getLayerStack();
+
     // Only set by BLAST adapter layers
     if (what & layer_state_t::eProducerDisconnect) {
         layer->onDisconnect();
@@ -4379,6 +4382,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
     // Do not put anything that updates layer state or modifies flags after
     // setTransactionCompletedListener
+
+    // if the layer has been parented on to a new display, update its transform hint.
+    if (((flags & eTransformHintUpdateNeeded) == 0) && oldLayerStack != layer->getLayerStack()) {
+        flags |= eTransformHintUpdateNeeded;
+    }
+
     return flags;
 }
 
@@ -6877,7 +6886,20 @@ void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state, Vs
         parent->addChild(layer);
     }
 
-    layer->updateTransformHint(mActiveDisplayTransformHint);
+    ui::LayerStack layerStack = layer->getLayerStack();
+    sp<const DisplayDevice> hintDisplay;
+    // Find the display that includes the layer.
+    for (const auto& [token, display] : mDisplays) {
+        if (display->getLayerStack() == layerStack) {
+            hintDisplay = display;
+            break;
+        }
+    }
+
+    if (hintDisplay) {
+        layer->updateTransformHint(hintDisplay->getTransformHint());
+    }
+
     if (mTransactionTracing) {
         mTransactionTracing->onLayerAddedToDrawingState(layer->getSequence(), vsyncId.value);
     }
