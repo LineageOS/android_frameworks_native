@@ -485,9 +485,6 @@ aidl_interface {
         java: {
             enabled: false,
         },
-        cpp: {
-            gen_trace: false,
-        },
     },
 }
 
