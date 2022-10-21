@@ -62,6 +62,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <optional>
 #include <sstream>
 
 #include "DisplayDevice.h"
@@ -1294,7 +1295,6 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
     if (fps) {
         surfaceFrame->setRenderRate(*fps);
     }
-    // TODO(b/178542907): Implement onSurfaceFrameCreated for BQLayer as well.
     onSurfaceFrameCreated(surfaceFrame);
     return surfaceFrame;
 }
@@ -1354,6 +1354,10 @@ uint32_t Layer::getEffectiveUsage(uint32_t usage) const {
     }
     usage |= GraphicBuffer::USAGE_HW_COMPOSER;
     return usage;
+}
+
+void Layer::skipReportingTransformHint() {
+    mSkipReportingTransformHint = true;
 }
 
 void Layer::updateTransformHint(ui::Transform::RotationFlags transformHint) {
@@ -2703,6 +2707,10 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
 
 void Layer::onSurfaceFrameCreated(
         const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
+    if (!hasBufferOrSidebandStreamInDrawing()) {
+        return;
+    }
+
     while (mPendingJankClassifications.size() >= kPendingClassificationMaxSurfaceFrames) {
         // Too many SurfaceFrames pending classification. The front of the deque is probably not
         // tracked by FrameTimeline and will never be presented. This will only result in a memory
@@ -2718,7 +2726,9 @@ void Layer::onSurfaceFrameCreated(
 
 void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
-        handle->transformHint = mTransformHint;
+        handle->transformHint = mSkipReportingTransformHint
+                ? std::nullopt
+                : std::make_optional<uint32_t>(mTransformHint);
         handle->dequeueReadyTime = dequeueReadyTime;
         handle->currentMaxAcquiredBufferCount =
                 mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mOwnerUid);
@@ -3886,6 +3896,7 @@ void Layer::setTransformHint(ui::Transform::RotationFlags displayTransformHint) 
     if (mTransformHint == ui::Transform::ROT_INVALID) {
         mTransformHint = displayTransformHint;
     }
+    mSkipReportingTransformHint = false;
 }
 
 const std::shared_ptr<renderengine::ExternalTexture>& Layer::getExternalTexture() const {

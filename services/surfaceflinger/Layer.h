@@ -678,7 +678,7 @@ public:
      * Sets display transform hint on BufferLayerConsumer.
      */
     void updateTransformHint(ui::Transform::RotationFlags);
-
+    void skipReportingTransformHint();
     inline const State& getDrawingState() const { return mDrawingState; }
     inline State& getDrawingState() { return mDrawingState; }
 
@@ -1082,6 +1082,10 @@ private:
         return ((mSidebandStream != nullptr) || (mBufferInfo.mBuffer != nullptr));
     }
 
+    bool hasBufferOrSidebandStreamInDrawing() const {
+        return ((mDrawingState.sidebandStream != nullptr) || (mDrawingState.buffer != nullptr));
+    }
+
     bool hasSomethingToDraw() const { return hasEffect() || hasBufferOrSidebandStream(); }
 
     void updateChildrenSnapshots(bool updateGeometry);
@@ -1143,6 +1147,7 @@ private:
     // Transform hint provided to the producer. This must be accessed holding
     // the mStateLock.
     ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
+    bool mSkipReportingTransformHint = true;
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
@@ -1157,7 +1162,7 @@ private:
 
     std::deque<std::shared_ptr<android::frametimeline::SurfaceFrame>> mPendingJankClassifications;
     // An upper bound on the number of SurfaceFrames in the pending classifications deque.
-    static constexpr int kPendingClassificationMaxSurfaceFrames = 25;
+    static constexpr int kPendingClassificationMaxSurfaceFrames = 50;
 
     const std::string mBlastTransactionName{"BufferTX - " + mName};
     // This integer is incremented everytime a buffer arrives at the server for this layer,
