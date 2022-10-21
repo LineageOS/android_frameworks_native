@@ -19,6 +19,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <thread>
 #include <unordered_map>
@@ -48,7 +49,7 @@ public:
     std::vector<ftl::SharedFuture<FenceResult>> previousReleaseFences;
     std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence = -1;
     nsecs_t latchTime = -1;
-    uint32_t transformHint = 0;
+    std::optional<uint32_t> transformHint = std::nullopt;
     uint32_t currentMaxAcquiredBufferCount = 0;
     std::shared_ptr<FenceTime> gpuCompositionDoneFence{FenceTime::NO_FENCE};
     CompositorTiming compositorTiming;

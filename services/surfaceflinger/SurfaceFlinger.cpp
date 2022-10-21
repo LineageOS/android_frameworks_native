@@ -84,6 +84,7 @@
 #include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
 #include <ui/GraphicBufferAllocator.h>
+#include <ui/LayerStack.h>
 #include <ui/PixelFormat.h>
 #include <ui/StaticDisplayInfo.h>
 #include <utils/StopWatch.h>
@@ -3142,20 +3143,21 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
                 }
             }
 
-            if (!hintDisplay && mDisplays.size() > 0) {
+            if (!hintDisplay) {
                 // NOTE: TEMPORARY FIX ONLY. Real fix should cause layers to
                 // redraw after transform hint changes. See bug 8508397.
-
                 // could be null when this layer is using a layerStack
                 // that is not visible on any display. Also can occur at
                 // screen off/on times.
-                hintDisplay = getDefaultDisplayDeviceLocked();
-            }
-
-            if (hintDisplay) {
-                layer->updateTransformHint(hintDisplay->getTransformHint());
+                // U Update: Don't provide stale hints to the clients. For
+                // special cases where we want the app to draw its
+                // first frame before the display is available, we rely
+                // on WMS and DMS to provide the right information
+                // so the client can calculate the hint.
+                ALOGV("Skipping reporting transform hint update for %s", layer->getDebugName());
+                layer->skipReportingTransformHint();
             } else {
-                ALOGW("Ignoring transform hint update for %s", layer->getDebugName());
+                layer->updateTransformHint(hintDisplay->getTransformHint());
             }
         });
     }
@@ -4115,6 +4117,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         return 0;
     }
 
+    ui::LayerStack oldLayerStack = layer->getLayerStack();
+
     // Only set by BLAST adapter layers
     if (what & layer_state_t::eProducerDisconnect) {
         layer->onDisconnect();
@@ -4379,6 +4383,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
     // Do not put anything that updates layer state or modifies flags after
     // setTransactionCompletedListener
+
+    // if the layer has been parented on to a new display, update its transform hint.
+    if (((flags & eTransformHintUpdateNeeded) == 0) && oldLayerStack != layer->getLayerStack()) {
+        flags |= eTransformHintUpdateNeeded;
+    }
+
     return flags;
 }
 
@@ -6877,7 +6887,20 @@ void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state, Vs
         parent->addChild(layer);
     }
 
-    layer->updateTransformHint(mActiveDisplayTransformHint);
+    ui::LayerStack layerStack = layer->getLayerStack();
+    sp<const DisplayDevice> hintDisplay;
+    // Find the display that includes the layer.
+    for (const auto& [token, display] : mDisplays) {
+        if (display->getLayerStack() == layerStack) {
+            hintDisplay = display;
+            break;
+        }
+    }
+
+    if (hintDisplay) {
+        layer->updateTransformHint(hintDisplay->getTransformHint());
+    }
+
     if (mTransactionTracing) {
         mTransactionTracing->onLayerAddedToDrawingState(layer->getSequence(), vsyncId.value);
     }
@@ -7764,7 +7787,7 @@ status_t SurfaceComposerAIDL::checkControlDisplayBrightnessPermission() {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
-    if ((uid != AID_GRAPHICS) &&
+    if ((uid != AID_GRAPHICS) && (uid != AID_SYSTEM) &&
         !PermissionCache::checkPermission(sControlDisplayBrightness, pid, uid)) {
         ALOGE("Permission Denial: can't control brightness pid=%d, uid=%d", pid, uid);
         return PERMISSION_DENIED;
