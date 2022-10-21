@@ -312,7 +312,7 @@ protected:
             REQUIRES(mStateLock);
 
     virtual std::shared_ptr<renderengine::ExternalTexture> getExternalTextureFromBufferData(
-            const BufferData& bufferData, const char* layerName) const;
+            BufferData& bufferData, const char* layerName, uint64_t transactionId);
 
     // Returns true if any display matches a `bool(const DisplayDevice&)` predicate.
     template <typename Predicate>
@@ -728,7 +728,8 @@ private:
 
     uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
-                                  int64_t postTime, uint32_t permissions) REQUIRES(mStateLock);
+                                  int64_t postTime, uint32_t permissions, uint64_t transactionId)
+            REQUIRES(mStateLock);
 
     uint32_t getTransactionFlags() const;
 

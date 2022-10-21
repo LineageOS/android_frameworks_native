@@ -100,7 +100,8 @@ public:
     MockSurfaceFlinger(Factory& factory)
           : SurfaceFlinger(factory, SurfaceFlinger::SkipInitialization) {}
     std::shared_ptr<renderengine::ExternalTexture> getExternalTextureFromBufferData(
-            const BufferData& bufferData, const char* /* layerName */) const override {
+            BufferData& bufferData, const char* /* layerName */,
+            uint64_t /* transactionId */) override {
         return std::make_shared<renderengine::mock::FakeExternalTexture>(bufferData.getWidth(),
                                                                          bufferData.getHeight(),
                                                                          bufferData.getId(),

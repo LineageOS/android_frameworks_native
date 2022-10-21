@@ -456,23 +456,24 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
     }
 }
 
-void TransactionCompletedListener::onTransactionQueueStalled() {
-      std::unordered_map<void*, std::function<void()>> callbackCopy;
-      {
-          std::scoped_lock<std::mutex> lock(mMutex);
-          callbackCopy = mQueueStallListeners;
-      }
-      for (auto const& it : callbackCopy) {
-          it.second();
-      }
+void TransactionCompletedListener::onTransactionQueueStalled(const String8& reason) {
+    std::unordered_map<void*, std::function<void(const std::string&)>> callbackCopy;
+    {
+        std::scoped_lock<std::mutex> lock(mMutex);
+        callbackCopy = mQueueStallListeners;
+    }
+    for (auto const& it : callbackCopy) {
+        it.second(reason.c_str());
+    }
 }
 
-void TransactionCompletedListener::addQueueStallListener(std::function<void()> stallListener,
-                                                         void* id) {
+void TransactionCompletedListener::addQueueStallListener(
+        std::function<void(const std::string&)> stallListener, void* id) {
     std::scoped_lock<std::mutex> lock(mMutex);
     mQueueStallListeners[id] = stallListener;
 }
-void TransactionCompletedListener::removeQueueStallListener(void *id) {
+
+void TransactionCompletedListener::removeQueueStallListener(void* id) {
     std::scoped_lock<std::mutex> lock(mMutex);
     mQueueStallListeners.erase(id);
 }
