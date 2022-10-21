@@ -36,14 +36,15 @@ JpegEncoder::~JpegEncoder() {
 }
 
 bool JpegEncoder::compressImage(const void* image, int width, int height, int quality,
-                                   const void* iccBuffer, unsigned int iccSize) {
+                                   const void* iccBuffer, unsigned int iccSize,
+                                   bool isSingleChannel) {
     if (width % 8 != 0 || height % 2 != 0) {
         ALOGE("Image size can not be handled: %dx%d", width, height);
         return false;
     }
 
     mResultBuffer.clear();
-    if (!encode(image, width, height, quality, iccBuffer, iccSize)) {
+    if (!encode(image, width, height, quality, iccBuffer, iccSize, isSingleChannel)) {
         return false;
     }
     ALOGI("Compressed JPEG: %d[%dx%d] -> %zu bytes",
@@ -91,8 +92,8 @@ void JpegEncoder::outputErrorMessage(j_common_ptr cinfo) {
     ALOGE("%s\n", buffer);
 }
 
-bool JpegEncoder::encode(const void* inYuv, int width, int height, int jpegQuality,
-                           const void* iccBuffer, unsigned int iccSize) {
+bool JpegEncoder::encode(const void* image, int width, int height, int jpegQuality,
+                         const void* iccBuffer, unsigned int iccSize, bool isSingleChannel) {
     jpeg_compress_struct cinfo;
     jpeg_error_mgr jerr;
 
@@ -102,14 +103,14 @@ bool JpegEncoder::encode(const void* inYuv, int width, int height, int jpegQuali
     jpeg_create_compress(&cinfo);
     setJpegDestination(&cinfo);
 
-    setJpegCompressStruct(width, height, jpegQuality, &cinfo);
+    setJpegCompressStruct(width, height, jpegQuality, &cinfo, isSingleChannel);
     jpeg_start_compress(&cinfo, TRUE);
 
     if (iccBuffer != nullptr && iccSize > 0) {
         jpeg_write_marker(&cinfo, JPEG_APP0 + 2, static_cast<const JOCTET*>(iccBuffer), iccSize);
     }
 
-    if (!compress(&cinfo, static_cast<const uint8_t*>(inYuv))) {
+    if (!compress(&cinfo, static_cast<const uint8_t*>(image), isSingleChannel)) {
         return false;
     }
     jpeg_finish_compress(&cinfo);
@@ -128,29 +129,44 @@ void JpegEncoder::setJpegDestination(jpeg_compress_struct* cinfo) {
 }
 
 void JpegEncoder::setJpegCompressStruct(int width, int height, int quality,
-                                               jpeg_compress_struct* cinfo) {
+                                        jpeg_compress_struct* cinfo, bool isSingleChannel) {
     cinfo->image_width = width;
     cinfo->image_height = height;
-    cinfo->input_components = 3;
-    cinfo->in_color_space = JCS_YCbCr;
+    if (isSingleChannel) {
+        cinfo->input_components = 1;
+        cinfo->in_color_space = JCS_GRAYSCALE;
+    } else {
+        cinfo->input_components = 3;
+        cinfo->in_color_space = JCS_YCbCr;
+    }
     jpeg_set_defaults(cinfo);
 
     jpeg_set_quality(cinfo, quality, TRUE);
-    jpeg_set_colorspace(cinfo, JCS_YCbCr);
+    jpeg_set_colorspace(cinfo, isSingleChannel ? JCS_GRAYSCALE : JCS_YCbCr);
     cinfo->raw_data_in = TRUE;
     cinfo->dct_method = JDCT_IFAST;
 
-    // Configure sampling factors. The sampling factor is JPEG subsampling 420 because the
-    // source format is YUV420.
-    cinfo->comp_info[0].h_samp_factor = 2;
-    cinfo->comp_info[0].v_samp_factor = 2;
-    cinfo->comp_info[1].h_samp_factor = 1;
-    cinfo->comp_info[1].v_samp_factor = 1;
-    cinfo->comp_info[2].h_samp_factor = 1;
-    cinfo->comp_info[2].v_samp_factor = 1;
+    if (!isSingleChannel) {
+        // Configure sampling factors. The sampling factor is JPEG subsampling 420 because the
+        // source format is YUV420.
+        cinfo->comp_info[0].h_samp_factor = 2;
+        cinfo->comp_info[0].v_samp_factor = 2;
+        cinfo->comp_info[1].h_samp_factor = 1;
+        cinfo->comp_info[1].v_samp_factor = 1;
+        cinfo->comp_info[2].h_samp_factor = 1;
+        cinfo->comp_info[2].v_samp_factor = 1;
+    }
 }
 
-bool JpegEncoder::compress(jpeg_compress_struct* cinfo, const uint8_t* yuv) {
+bool JpegEncoder::compress(
+        jpeg_compress_struct* cinfo, const uint8_t* image, bool isSingleChannel) {
+    if (isSingleChannel) {
+        return compressSingleChannel(cinfo, image);
+    }
+    return compressYuv(cinfo, image);
+}
+
+bool JpegEncoder::compressYuv(jpeg_compress_struct* cinfo, const uint8_t* yuv) {
     JSAMPROW y[kCompressBatchSize];
     JSAMPROW cb[kCompressBatchSize / 2];
     JSAMPROW cr[kCompressBatchSize / 2];
@@ -187,6 +203,32 @@ bool JpegEncoder::compress(jpeg_compress_struct* cinfo, const uint8_t* yuv) {
 
         int processed = jpeg_write_raw_data(cinfo, planes, kCompressBatchSize);
         if (processed != kCompressBatchSize) {
+            ALOGE("Number of processed lines does not equal input lines.");
+            return false;
+        }
+    }
+    return true;
+}
+
+bool JpegEncoder::compressSingleChannel(jpeg_compress_struct* cinfo, const uint8_t* image) {
+    JSAMPROW y[kCompressBatchSize];
+    JSAMPARRAY planes[1] {y};
+
+    uint8_t* y_plane = const_cast<uint8_t*>(image);
+    std::unique_ptr<uint8_t[]> empty(new uint8_t[cinfo->image_width]);
+    memset(empty.get(), 0, cinfo->image_width);
+
+    while (cinfo->next_scanline < cinfo->image_height) {
+        for (int i = 0; i < kCompressBatchSize; ++i) {
+            size_t scanline = cinfo->next_scanline + i;
+            if (scanline < cinfo->image_height) {
+                y[i] = y_plane + scanline * cinfo->image_width;
+            } else {
+                y[i] = empty.get();
+            }
+        }
+        int processed = jpeg_write_raw_data(cinfo, planes, kCompressBatchSize);
+        if (processed != kCompressBatchSize / 2) {
             ALOGE("Number of processed lines does not equal input lines.");
             return false;
         }

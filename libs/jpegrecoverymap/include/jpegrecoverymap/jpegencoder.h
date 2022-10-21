@@ -28,7 +28,8 @@ extern "C" {
 namespace android::recoverymap {
 
 /*
- * Encapsulates a converter from YUV420Planer to JPEG format. This class is not thread-safe.
+ * Encapsulates a converter from raw image (YUV420planer or grey-scale) to JPEG format.
+ * This class is not thread-safe.
  */
 class JpegEncoder {
 public:
@@ -43,7 +44,7 @@ public:
      * Returns false if errors occur during compression.
      */
     bool compressImage(const void* image, int width, int height, int quality,
-                       const void* iccBuffer, unsigned int iccSize);
+                       const void* iccBuffer, unsigned int iccSize, bool isSingleChannel = false);
 
     /*
      * Returns the compressed JPEG buffer pointer. This method must be called only after calling
@@ -67,11 +68,14 @@ private:
 
     // Returns false if errors occur.
     bool encode(const void* inYuv, int width, int height, int jpegQuality,
-                const void* iccBuffer, unsigned int iccSize);
+                const void* iccBuffer, unsigned int iccSize, bool isSingleChannel);
     void setJpegDestination(jpeg_compress_struct* cinfo);
-    void setJpegCompressStruct(int width, int height, int quality, jpeg_compress_struct* cinfo);
+    void setJpegCompressStruct(int width, int height, int quality, jpeg_compress_struct* cinfo,
+                               bool isSingleChannel);
     // Returns false if errors occur.
-    bool compress(jpeg_compress_struct* cinfo, const uint8_t* yuv);
+    bool compress(jpeg_compress_struct* cinfo, const uint8_t* image, bool isSingleChannel);
+    bool compressYuv(jpeg_compress_struct* cinfo, const uint8_t* yuv);
+    bool compressSingleChannel(jpeg_compress_struct* cinfo, const uint8_t* image);
 
     // The block size for encoded jpeg image buffer.
     static const int kBlockSize = 16384;

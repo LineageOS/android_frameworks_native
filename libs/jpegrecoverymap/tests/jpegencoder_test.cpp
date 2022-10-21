@@ -25,6 +25,9 @@ namespace android::recoverymap {
 #define VALID_IMAGE "/sdcard/Documents/minnie-320x240.yu12"
 #define VALID_IMAGE_WIDTH 320
 #define VALID_IMAGE_HEIGHT 240
+#define SINGLE_CHANNEL_IMAGE "/sdcard/Documents/minnie-320x240.y"
+#define SINGLE_CHANNEL_IMAGE_WIDTH VALID_IMAGE_WIDTH
+#define SINGLE_CHANNEL_IMAGE_HEIGHT VALID_IMAGE_HEIGHT
 #define INVALID_SIZE_IMAGE "/sdcard/Documents/minnie-318x240.yu12"
 #define INVALID_SIZE_IMAGE_WIDTH 318
 #define INVALID_SIZE_IMAGE_HEIGHT 240
@@ -43,7 +46,7 @@ protected:
     virtual void SetUp();
     virtual void TearDown();
 
-    Image mValidImage, mInvalidSizeImage;
+    Image mValidImage, mInvalidSizeImage, mSingleChannelImage;
 };
 
 JpegEncoderTest::JpegEncoderTest() {}
@@ -89,6 +92,11 @@ void JpegEncoderTest::SetUp() {
     }
     mInvalidSizeImage.width = INVALID_SIZE_IMAGE_WIDTH;
     mInvalidSizeImage.height = INVALID_SIZE_IMAGE_HEIGHT;
+    if (!loadFile(SINGLE_CHANNEL_IMAGE, &mSingleChannelImage)) {
+        FAIL() << "Load file " << SINGLE_CHANNEL_IMAGE << " failed";
+    }
+    mSingleChannelImage.width = SINGLE_CHANNEL_IMAGE_WIDTH;
+    mSingleChannelImage.height = SINGLE_CHANNEL_IMAGE_HEIGHT;
 }
 
 void JpegEncoderTest::TearDown() {}
@@ -104,6 +112,13 @@ TEST_F(JpegEncoderTest, invalidSizeImage) {
     JpegEncoder encoder;
     EXPECT_FALSE(encoder.compressImage(mInvalidSizeImage.buffer.get(), mInvalidSizeImage.width,
                                           mInvalidSizeImage.height, JPEG_QUALITY, NULL, 0));
+}
+
+TEST_F(JpegEncoderTest, singleChannelImage) {
+    JpegEncoder encoder;
+    EXPECT_TRUE(encoder.compressImage(mSingleChannelImage.buffer.get(), mSingleChannelImage.width,
+                                         mSingleChannelImage.height, JPEG_QUALITY, NULL, 0, true));
+    ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
 }
