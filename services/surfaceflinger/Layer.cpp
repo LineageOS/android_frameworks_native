@@ -1563,8 +1563,6 @@ void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
                 newParent->canDrawShadows() ? 0.f : newParent->mEffectiveShadowRadius;
         child->computeBounds(newParent->mBounds, newParent->mEffectiveTransform,
                              parentShadowRadius);
-        child->updateSnapshot(true /* updateGeometry */);
-        child->updateChildrenSnapshots(true /* updateGeometry */);
     }
 }
 
