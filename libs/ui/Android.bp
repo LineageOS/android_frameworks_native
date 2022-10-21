@@ -155,6 +155,8 @@ cc_library_shared {
     ],
 
     defaults: [
+        "android.hardware.graphics.allocator-ndk_shared",
+        "android.hardware.graphics.common-ndk_shared",
         "libui-defaults",
         // Uncomment the following line to enable VALIDATE_REGIONS traces
         //defaults: ["libui-validate-regions-defaults"],
@@ -164,8 +166,6 @@ cc_library_shared {
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.allocator@3.0",
         "android.hardware.graphics.allocator@4.0",
-        "android.hardware.graphics.allocator-V1-ndk",
-        "android.hardware.graphics.common-V3-ndk",
         "android.hardware.graphics.common@1.2",
         "android.hardware.graphics.mapper@2.0",
         "android.hardware.graphics.mapper@2.1",
@@ -183,7 +183,6 @@ cc_library_shared {
 
     export_shared_lib_headers: [
         "android.hardware.graphics.common@1.2",
-        "android.hardware.graphics.common-V3-ndk",
         "android.hardware.graphics.mapper@4.0",
         "libgralloctypes",
     ],
