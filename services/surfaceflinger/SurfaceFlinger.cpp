@@ -123,6 +123,7 @@
 #include "FpsReporter.h"
 #include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
+#include "FrontEnd/LayerCreationArgs.h"
 #include "HdrLayerInfoReporter.h"
 #include "Layer.h"
 #include "LayerProtoHelper.h"
@@ -3602,9 +3603,9 @@ bool SurfaceFlinger::latchBuffers() {
     return !mLayersWithQueuedFrames.empty() && newDataLatched;
 }
 
-status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
+status_t SurfaceFlinger::addClientLayer(const LayerCreationArgs& args, const sp<IBinder>& handle,
                                         const sp<Layer>& layer, const wp<Layer>& parent,
-                                        bool addToRoot, uint32_t* outTransformHint) {
+                                        uint32_t* outTransformHint) {
     if (mNumLayers >= MAX_LAYERS) {
         ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
               MAX_LAYERS);
@@ -3635,12 +3636,12 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
 
     {
         std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
-        mCreatedLayers.emplace_back(layer, parent, addToRoot);
+        mCreatedLayers.emplace_back(layer, parent, args.addToRoot);
     }
 
     // attach this layer to the client
-    if (client != nullptr) {
-        client->attachLayer(handle, layer);
+    if (args.client != nullptr) {
+        args.client->attachLayer(handle, layer);
     }
 
     setTransactionFlags(eTransactionNeeded);
@@ -4418,8 +4419,10 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
-        LayerCreationArgs mirrorArgs = args;
+        LayerCreationArgs mirrorArgs(args);
         mirrorArgs.flags |= ISurfaceComposerClient::eNoColorFill;
+        mirrorArgs.mirrorLayerHandle = mirrorFromHandle;
+        mirrorArgs.addToRoot = false;
         status_t result = createEffectLayer(mirrorArgs, &outResult.handle, &mirrorLayer);
         if (result != NO_ERROR) {
             return result;
@@ -4435,8 +4438,7 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
                                                 mirrorLayer->sequence, args.name,
                                                 mirrorFrom->sequence);
     }
-    return addClientLayer(args.client, outResult.handle, mirrorLayer /* layer */,
-                          nullptr /* parent */, false /* addToRoot */,
+    return addClientLayer(args, outResult.handle, mirrorLayer /* layer */, nullptr /* parent */,
                           nullptr /* outTransformHint */);
 }
 
@@ -4462,14 +4464,14 @@ status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationA
         }
 
         layerStack = display->getLayerStack();
-        LayerCreationArgs mirrorArgs = args;
+        LayerCreationArgs mirrorArgs(args);
         mirrorArgs.flags |= ISurfaceComposerClient::eNoColorFill;
+        mirrorArgs.addToRoot = true;
         result = createEffectLayer(mirrorArgs, &outResult.handle, &rootMirrorLayer);
         outResult.layerId = rootMirrorLayer->sequence;
         outResult.layerName = String16(rootMirrorLayer->getDebugName());
-        result |= addClientLayer(args.client, outResult.handle, rootMirrorLayer /* layer */,
-                                 nullptr /* parent */, true /* addToRoot */,
-                                 nullptr /* outTransformHint */);
+        result |= addClientLayer(args, outResult.handle, rootMirrorLayer /* layer */,
+                                 nullptr /* parent */, nullptr /* outTransformHint */);
     }
 
     if (result != NO_ERROR) {
@@ -4490,8 +4492,7 @@ status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationA
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, const sp<IBinder>& parentHandle,
-                                     gui::CreateSurfaceResult& outResult) {
+status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, gui::CreateSurfaceResult& outResult) {
     status_t result = NO_ERROR;
 
     sp<Layer> layer;
@@ -4520,11 +4521,11 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, const sp<IBinder>&
         return result;
     }
 
-    bool addToRoot = args.addToRoot && callingThreadHasUnscopedSurfaceFlingerAccess();
-    wp<Layer> parent = fromHandle(parentHandle);
-    if (parentHandle != nullptr && parent == nullptr) {
-        ALOGE("Invalid parent handle %p.", parentHandle.get());
-        addToRoot = false;
+    args.addToRoot = args.addToRoot && callingThreadHasUnscopedSurfaceFlingerAccess();
+    wp<Layer> parent = fromHandle(args.parentHandle.promote());
+    if (args.parentHandle != nullptr && parent == nullptr) {
+        ALOGE("Invalid parent handle %p.", args.parentHandle.promote().get());
+        args.addToRoot = false;
     }
 
     int parentId = -1;
@@ -4540,8 +4541,7 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, const sp<IBinder>&
     }
 
     uint32_t outTransformHint;
-    result = addClientLayer(args.client, outResult.handle, layer, parent, addToRoot,
-                            &outTransformHint);
+    result = addClientLayer(args, outResult.handle, layer, parent, &outTransformHint);
     if (result != NO_ERROR) {
         return result;
     }

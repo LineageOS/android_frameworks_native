@@ -24,6 +24,7 @@
 #include <gui/AidlStatusUtil.h>
 
 #include "Client.h"
+#include "FrontEnd/LayerCreationArgs.h"
 #include "Layer.h"
 #include "SurfaceFlinger.h"
 
@@ -83,7 +84,8 @@ binder::Status Client::createSurface(const std::string& name, int32_t flags,
     sp<IBinder> handle;
     LayerCreationArgs args(mFlinger.get(), sp<Client>::fromExisting(this), name.c_str(),
                            static_cast<uint32_t>(flags), std::move(metadata));
-    const status_t status = mFlinger->createLayer(args, parent, *outResult);
+    args.parentHandle = parent;
+    const status_t status = mFlinger->createLayer(args, *outResult);
     return binderStatusFromStatusT(status);
 }
 

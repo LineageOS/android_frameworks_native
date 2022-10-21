@@ -214,8 +214,8 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
 
             gui::CreateSurfaceResult outResult;
             LayerCreationArgs args(mFlinger.flinger(), nullptr /* client */, tracingArgs.name,
-                                   tracingArgs.flags, LayerMetadata());
-            args.sequence = std::make_optional<int32_t>(tracingArgs.layerId);
+                                   tracingArgs.flags, LayerMetadata(),
+                                   std::make_optional<int32_t>(tracingArgs.layerId));
 
             if (tracingArgs.mirrorFromId == -1) {
                 sp<IBinder> parentHandle = nullptr;

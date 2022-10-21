@@ -30,7 +30,8 @@ enum {
     METADATA_ACCESSIBILITY_ID = 5,
     METADATA_OWNER_PID = 6,
     METADATA_DEQUEUE_TIME = 7,
-    METADATA_GAME_MODE = 8
+    METADATA_GAME_MODE = 8,
+    METADATA_CALLING_UID = 9,
 };
 
 struct LayerMetadata : public Parcelable {

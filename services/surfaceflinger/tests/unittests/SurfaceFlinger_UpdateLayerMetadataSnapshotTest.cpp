@@ -44,9 +44,11 @@ protected:
                                 std::move(eventThread), std::move(sfEventThread));
     }
 
-    sp<Layer> createLayer(const char* name, LayerMetadata layerMetadata) {
-        return sp<Layer>::make(
-                LayerCreationArgs{mFlinger.flinger(), nullptr, name, 0, layerMetadata});
+    sp<Layer> createLayer(const char* name, LayerMetadata& inOutlayerMetadata) {
+        LayerCreationArgs args =
+                LayerCreationArgs{mFlinger.flinger(), nullptr, name, 0, inOutlayerMetadata};
+        inOutlayerMetadata = args.metadata;
+        return sp<Layer>::make(args);
     }
 
     TestableSurfaceFlinger mFlinger;
@@ -90,7 +92,7 @@ TEST_F(SurfaceFlingerUpdateLayerMetadataSnapshotTest, updatesSnapshotMetadata) {
 
     mFlinger.updateLayerMetadataSnapshot();
 
-    ASSERT_EQ(layer->getLayerSnapshot()->layerMetadata, layerMetadata);
+    EXPECT_EQ(layer->getLayerSnapshot()->layerMetadata, layerMetadata);
 }
 
 // Test that snapshot layer metadata is set by merging the child's metadata on top of its
@@ -109,10 +111,10 @@ TEST_F(SurfaceFlingerUpdateLayerMetadataSnapshotTest, mergesSnapshotMetadata) {
 
     mFlinger.updateLayerMetadataSnapshot();
 
-    ASSERT_EQ(layerA->getLayerSnapshot()->layerMetadata, layerAMetadata);
+    EXPECT_EQ(layerA->getLayerSnapshot()->layerMetadata, layerAMetadata);
     auto expectedChildMetadata =
             LayerMetadataBuilder(layerAMetadata).setInt32(METADATA_TASK_ID, 3).build();
-    ASSERT_EQ(layerB->getLayerSnapshot()->layerMetadata, expectedChildMetadata);
+    EXPECT_EQ(layerB->getLayerSnapshot()->layerMetadata, expectedChildMetadata);
 }
 
 // Test that snapshot relative layer metadata is set to the parent's layer metadata merged on top of
@@ -129,8 +131,8 @@ TEST_F(SurfaceFlingerUpdateLayerMetadataSnapshotTest, updatesRelativeMetadata) {
 
     mFlinger.updateLayerMetadataSnapshot();
 
-    ASSERT_EQ(layerA->getLayerSnapshot()->relativeLayerMetadata, LayerMetadata{});
-    ASSERT_EQ(layerB->getLayerSnapshot()->relativeLayerMetadata, layerAMetadata);
+    EXPECT_EQ(layerA->getLayerSnapshot()->relativeLayerMetadata, LayerMetadata{});
+    EXPECT_EQ(layerB->getLayerSnapshot()->relativeLayerMetadata, layerAMetadata);
 }
 
 // Test that snapshot relative layer metadata is set correctly when a layer is interleaved within
@@ -154,7 +156,8 @@ TEST_F(SurfaceFlingerUpdateLayerMetadataSnapshotTest, updatesRelativeMetadataInt
                                   .build();
     auto layerB = createLayer("layer-b", layerBMetadata);
     auto layerBHandle = layerB->getHandle();
-    auto layerC = createLayer("layer-c", {});
+    LayerMetadata layerCMetadata;
+    auto layerC = createLayer("layer-c", layerCMetadata);
     auto layerDMetadata = LayerMetadataBuilder().setInt32(METADATA_TASK_ID, 4).build();
     auto layerD = createLayer("layer-d", layerDMetadata);
     auto layerDHandle = layerD->getHandle();
@@ -168,14 +171,18 @@ TEST_F(SurfaceFlingerUpdateLayerMetadataSnapshotTest, updatesRelativeMetadataInt
 
     mFlinger.updateLayerMetadataSnapshot();
 
-    auto expectedLayerDRelativeMetadata = LayerMetadataBuilder()
-                                                  // From layer A, parent of relative parent
-                                                  .setInt32(METADATA_OWNER_UID, 1)
-                                                  // From layer B, relative parent
-                                                  .setInt32(METADATA_TASK_ID, 2)
-                                                  .setInt32(METADATA_OWNER_PID, 3)
-                                                  .build();
-    ASSERT_EQ(layerD->getLayerSnapshot()->relativeLayerMetadata, expectedLayerDRelativeMetadata);
+    auto expectedLayerDRelativeMetadata =
+            LayerMetadataBuilder()
+                    // From layer A, parent of relative parent
+                    .setInt32(METADATA_OWNER_UID, 1)
+                    // From layer B, relative parent
+                    .setInt32(METADATA_TASK_ID, 2)
+                    .setInt32(METADATA_OWNER_PID, 3)
+                    // added by layer creation args
+                    .setInt32(gui::METADATA_CALLING_UID,
+                              layerDMetadata.getInt32(gui::METADATA_CALLING_UID, 0))
+                    .build();
+    EXPECT_EQ(layerD->getLayerSnapshot()->relativeLayerMetadata, expectedLayerDRelativeMetadata);
     auto expectedLayerCRelativeMetadata =
             LayerMetadataBuilder()
                     // From layer A, parent of relative parent
@@ -184,8 +191,11 @@ TEST_F(SurfaceFlingerUpdateLayerMetadataSnapshotTest, updatesRelativeMetadataInt
                     .setInt32(METADATA_OWNER_PID, 3)
                     // From layer D, relative parent
                     .setInt32(METADATA_TASK_ID, 4)
+                    // added by layer creation args
+                    .setInt32(gui::METADATA_CALLING_UID,
+                              layerDMetadata.getInt32(gui::METADATA_CALLING_UID, 0))
                     .build();
-    ASSERT_EQ(layerC->getLayerSnapshot()->relativeLayerMetadata, expectedLayerCRelativeMetadata);
+    EXPECT_EQ(layerC->getLayerSnapshot()->relativeLayerMetadata, expectedLayerCRelativeMetadata);
 }
 
 TEST_F(SurfaceFlingerUpdateLayerMetadataSnapshotTest,
@@ -193,8 +203,10 @@ TEST_F(SurfaceFlingerUpdateLayerMetadataSnapshotTest,
     auto layerAMetadata = LayerMetadataBuilder().setInt32(METADATA_OWNER_UID, 1).build();
     auto layerA = createLayer("layer-a", layerAMetadata);
     auto layerAHandle = layerA->getHandle();
-    auto layerB = createLayer("layer-b", {});
-    auto layerC = createLayer("layer-c", {});
+    LayerMetadata layerBMetadata;
+    auto layerB = createLayer("layer-b", layerBMetadata);
+    LayerMetadata layerCMetadata;
+    auto layerC = createLayer("layer-c", layerCMetadata);
     layerB->setRelativeLayer(layerAHandle, 1);
     layerC->setRelativeLayer(layerAHandle, 2);
     layerA->commitChildList();
@@ -204,9 +216,9 @@ TEST_F(SurfaceFlingerUpdateLayerMetadataSnapshotTest,
 
     mFlinger.updateLayerMetadataSnapshot();
 
-    ASSERT_EQ(layerA->getLayerSnapshot()->relativeLayerMetadata, LayerMetadata{});
-    ASSERT_EQ(layerB->getLayerSnapshot()->relativeLayerMetadata, layerAMetadata);
-    ASSERT_EQ(layerC->getLayerSnapshot()->relativeLayerMetadata, layerAMetadata);
+    EXPECT_EQ(layerA->getLayerSnapshot()->relativeLayerMetadata, LayerMetadata{});
+    EXPECT_EQ(layerB->getLayerSnapshot()->relativeLayerMetadata, layerAMetadata);
+    EXPECT_EQ(layerC->getLayerSnapshot()->relativeLayerMetadata, layerAMetadata);
 }
 
 } // namespace android

@@ -65,6 +65,7 @@
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
 #include "FlagManager.h"
+#include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
 #include "Scheduler/RefreshRateConfigs.h"
@@ -756,8 +757,7 @@ private:
     /*
      * Layer management
      */
-    status_t createLayer(LayerCreationArgs& args, const sp<IBinder>& parentHandle,
-                         gui::CreateSurfaceResult& outResult);
+    status_t createLayer(LayerCreationArgs& args, gui::CreateSurfaceResult& outResult);
 
     status_t createBufferStateLayer(LayerCreationArgs& args, sp<IBinder>* outHandle,
                                     sp<Layer>* outLayer);
@@ -778,8 +778,8 @@ private:
     void markLayerPendingRemovalLocked(const sp<Layer>& layer);
 
     // add a layer to SurfaceFlinger
-    status_t addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
-                            const sp<Layer>& lbc, const wp<Layer>& parentLayer, bool addToRoot,
+    status_t addClientLayer(const LayerCreationArgs& args, const sp<IBinder>& handle,
+                            const sp<Layer>& layer, const wp<Layer>& parentLayer,
                             uint32_t* outTransformHint);
 
     // Traverse through all the layers and compute and cache its bounds.
