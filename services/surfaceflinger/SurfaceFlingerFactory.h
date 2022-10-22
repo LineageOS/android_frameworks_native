@@ -44,7 +44,6 @@ class SurfaceFlinger;
 class TimeStats;
 
 struct DisplayDeviceCreationArgs;
-struct LayerCreationArgs;
 
 namespace compositionengine {
 class CompositionEngine;
@@ -62,6 +61,7 @@ class FrameTimeline;
 
 namespace surfaceflinger {
 
+struct LayerCreationArgs;
 class NativeWindowSurface;
 
 // The interface that SurfaceFlinger uses to create all of the implementations

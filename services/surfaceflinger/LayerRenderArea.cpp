@@ -18,6 +18,7 @@
 #include <ui/Transform.h>
 
 #include "DisplayDevice.h"
+#include "FrontEnd/LayerCreationArgs.h"
 #include "Layer.h"
 #include "LayerRenderArea.h"
 #include "SurfaceFlinger.h"
