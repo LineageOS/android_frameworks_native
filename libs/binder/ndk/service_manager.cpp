@@ -113,6 +113,18 @@ bool AServiceManager_isUpdatableViaApex(const char* instance) {
     sp<IServiceManager> sm = defaultServiceManager();
     return sm->updatableViaApex(String16(instance)) != std::nullopt;
 }
+void AServiceManager_getUpdatableApexName(const char* instance, void* context,
+                                          void (*callback)(const char*, void*)) {
+    CHECK_NE(instance, nullptr);
+    // context may be nullptr
+    CHECK_NE(callback, nullptr);
+
+    sp<IServiceManager> sm = defaultServiceManager();
+    std::optional<String16> updatableViaApex = sm->updatableViaApex(String16(instance));
+    if (updatableViaApex.has_value()) {
+        callback(String8(updatableViaApex.value()).c_str(), context);
+    }
+}
 void AServiceManager_forceLazyServicesPersist(bool persist) {
     auto serviceRegistrar = android::binder::LazyServiceRegistrar::getInstance();
     serviceRegistrar.forcePersist(persist);
