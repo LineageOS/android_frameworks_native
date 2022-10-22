@@ -290,15 +290,17 @@ public:
 
     void onReleaseBuffer(ReleaseCallbackId callbackId, sp<Fence> releaseFence,
                          uint32_t currentMaxAcquiredBufferCount) override {
-        callRemoteAsync<decltype(
-                &ITransactionCompletedListener::onReleaseBuffer)>(Tag::ON_RELEASE_BUFFER,
-                                                                  callbackId, releaseFence,
-                                                                  currentMaxAcquiredBufferCount);
+        callRemoteAsync<decltype(&ITransactionCompletedListener::
+                                         onReleaseBuffer)>(Tag::ON_RELEASE_BUFFER, callbackId,
+                                                           releaseFence,
+                                                           currentMaxAcquiredBufferCount);
     }
 
-    void onTransactionQueueStalled() override {
-        callRemoteAsync<decltype(&ITransactionCompletedListener::onTransactionQueueStalled)>(
-            Tag::ON_TRANSACTION_QUEUE_STALLED);
+    void onTransactionQueueStalled(const String8& reason) override {
+        callRemoteAsync<
+                decltype(&ITransactionCompletedListener::
+                                 onTransactionQueueStalled)>(Tag::ON_TRANSACTION_QUEUE_STALLED,
+                                                             reason);
     }
 };
 

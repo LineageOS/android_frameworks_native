@@ -167,14 +167,15 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, bool updateDestinati
     mNumFrameAvailable = 0;
 
     TransactionCompletedListener::getInstance()->addQueueStallListener(
-        [&]() {
-            std::function<void(bool)> callbackCopy;
-            {
-                std::unique_lock _lock{mMutex};
-                callbackCopy = mTransactionHangCallback;
-            }
-            if (callbackCopy) callbackCopy(true);
-        }, this);
+            [&](const std::string& reason) {
+                std::function<void(const std::string&)> callbackCopy;
+                {
+                    std::unique_lock _lock{mMutex};
+                    callbackCopy = mTransactionHangCallback;
+                }
+                if (callbackCopy) callbackCopy(reason);
+            },
+            this);
 
     BQA_LOGV("BLASTBufferQueue created");
 }
@@ -1114,7 +1115,8 @@ bool BLASTBufferQueue::isSameSurfaceControl(const sp<SurfaceControl>& surfaceCon
     return SurfaceControl::isSameSurface(mSurfaceControl, surfaceControl);
 }
 
-void BLASTBufferQueue::setTransactionHangCallback(std::function<void(bool)> callback) {
+void BLASTBufferQueue::setTransactionHangCallback(
+        std::function<void(const std::string&)> callback) {
     std::unique_lock _lock{mMutex};
     mTransactionHangCallback = callback;
 }

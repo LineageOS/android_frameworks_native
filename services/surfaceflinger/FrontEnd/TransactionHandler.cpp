@@ -168,15 +168,16 @@ bool TransactionHandler::hasPendingTransactions() {
     return !mPendingTransactionQueues.empty() || !mLocklessTransactionQueue.isEmpty();
 }
 
-void TransactionHandler::onTransactionQueueStalled(const TransactionState& transaction,
-                                                   sp<ITransactionCompletedListener>& listener) {
-    if (std::find(mStalledTransactions.begin(), mStalledTransactions.end(), transaction.id) !=
+void TransactionHandler::onTransactionQueueStalled(uint64_t transactionId,
+                                                   sp<ITransactionCompletedListener>& listener,
+                                                   const std::string& reason) {
+    if (std::find(mStalledTransactions.begin(), mStalledTransactions.end(), transactionId) !=
         mStalledTransactions.end()) {
         return;
     }
 
-    mStalledTransactions.push_back(transaction.id);
-    listener->onTransactionQueueStalled();
+    mStalledTransactions.push_back(transactionId);
+    listener->onTransactionQueueStalled(String8(reason.c_str()));
 }
 
 void TransactionHandler::removeFromStalledTransactions(uint64_t id) {

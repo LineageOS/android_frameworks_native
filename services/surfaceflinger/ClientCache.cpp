@@ -59,16 +59,17 @@ bool ClientCache::getBuffer(const client_cache_t& cacheId,
     return true;
 }
 
-bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer) {
+base::expected<std::shared_ptr<renderengine::ExternalTexture>, ClientCache::AddError>
+ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer) {
     auto& [processToken, id] = cacheId;
     if (processToken == nullptr) {
         ALOGE_AND_TRACE("ClientCache::add - invalid (nullptr) process token");
-        return false;
+        return base::unexpected(AddError::Unspecified);
     }
 
     if (!buffer) {
         ALOGE_AND_TRACE("ClientCache::add - invalid (nullptr) buffer");
-        return false;
+        return base::unexpected(AddError::Unspecified);
     }
 
     std::lock_guard lock(mMutex);
@@ -81,7 +82,7 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
         token = processToken.promote();
         if (!token) {
             ALOGE_AND_TRACE("ClientCache::add - invalid token");
-            return false;
+            return base::unexpected(AddError::Unspecified);
         }
 
         // Only call linkToDeath if not a local binder
@@ -89,7 +90,7 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
             status_t err = token->linkToDeath(mDeathRecipient);
             if (err != NO_ERROR) {
                 ALOGE_AND_TRACE("ClientCache::add - could not link to death");
-                return false;
+                return base::unexpected(AddError::Unspecified);
             }
         }
         auto [itr, success] =
@@ -104,17 +105,17 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
 
     if (processBuffers.size() > BUFFER_CACHE_MAX_SIZE) {
         ALOGE_AND_TRACE("ClientCache::add - cache is full");
-        return false;
+        return base::unexpected(AddError::CacheFull);
     }
 
     LOG_ALWAYS_FATAL_IF(mRenderEngine == nullptr,
                         "Attempted to build the ClientCache before a RenderEngine instance was "
                         "ready!");
-    processBuffers[id].buffer = std::make_shared<
-            renderengine::impl::ExternalTexture>(buffer, *mRenderEngine,
-                                                 renderengine::impl::ExternalTexture::Usage::
-                                                         READABLE);
-    return true;
+
+    return (processBuffers[id].buffer = std::make_shared<
+                    renderengine::impl::ExternalTexture>(buffer, *mRenderEngine,
+                                                         renderengine::impl::ExternalTexture::
+                                                                 Usage::READABLE));
 }
 
 void ClientCache::erase(const client_cache_t& cacheId) {
