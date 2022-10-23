@@ -40,14 +40,16 @@ public:
         sp<SensorInterface> si;
         const bool isForDebug;
         const bool isVirtual;
-        Entry(SensorInterface* si_, bool debug_, bool virtual_) :
-            si(si_), isForDebug(debug_), isVirtual(virtual_) {
+        const int deviceId;
+        Entry(SensorInterface* si_, bool debug_, bool virtual_, int deviceId_) :
+            si(si_), isForDebug(debug_), isVirtual(virtual_), deviceId(deviceId_) {
         }
     };
 
     // After SensorInterface * is added into SensorList, it can be assumed that SensorList own the
     // object it pointed to and the object should not be released elsewhere.
-    bool add(int handle, SensorInterface* si, bool isForDebug = false, bool isVirtual = false);
+    bool add(int handle, SensorInterface* si, bool isForDebug = false, bool isVirtual = false,
+             int deviceId = RuntimeSensor::DEFAULT_DEVICE_ID);
 
     // After a handle is removed, the object that SensorInterface * pointing to may get deleted if
     // no more sp<> of the same object exist.
@@ -60,6 +62,7 @@ public:
     const Vector<Sensor> getUserDebugSensors() const;
     const Vector<Sensor> getDynamicSensors() const;
     const Vector<Sensor> getVirtualSensors() const;
+    const Vector<Sensor> getRuntimeSensors(int deviceId) const;
 
     String8 getName(int handle) const;
     String8 getStringType(int handle) const;
