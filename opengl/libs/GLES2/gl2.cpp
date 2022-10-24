@@ -191,73 +191,44 @@ using namespace android;
             :                              \
         );
 
-#elif defined(__mips64)
+#elif defined(__riscv)
 
     #define API_ENTRY(_api) __attribute__((naked,noinline)) _api
 
-    // t0:  $12
-    // fn:  $25
-    // tls: $3
-    // v0:  $2
-    #define CALL_GL_API_INTERNAL_CALL(_api, ...)                  \
-        asm volatile(                                             \
-            ".set  push\n\t"                                      \
-            ".set  noreorder\n\t"                                 \
-            "rdhwr $3, $29\n\t"                                   \
-            "ld    $12, %[OPENGL_API]($3)\n\t"                    \
-            "beqz  $12, 1f\n\t"                                   \
-            " move $25, $ra\n\t"                                  \
-            "ld    $12, %[API]($12)\n\t"                          \
-            "beqz  $12, 1f\n\t"                                   \
-            " nop\n\t"                                            \
-            "move  $25, $12\n\t"                                  \
-            "1:\n\t"                                              \
-            "jalr  $0, $25\n\t"                                   \
-            " move $2, $0\n\t"                                    \
-            ".set  pop\n\t"                                       \
-            :                                                     \
-            : [OPENGL_API] "I"(TLS_SLOT_OPENGL_API*sizeof(void*)),\
-              [API] "I"(__builtin_offsetof(gl_hooks_t, gl._api))  \
-            : "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9",     \
-              "$10", "$11", "$12", "$25"                          \
-        );
-
-    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE
-    #define CALL_GL_API_INTERNAL_DO_RETURN
-
-#elif defined(__mips__)
-
-    #define API_ENTRY(_api) __attribute__((naked,noinline)) _api
-
-    // t0:  $8
-    // fn:  $25
-    // tls: $3
-    // v0:  $2
     #define CALL_GL_API_INTERNAL_CALL(_api, ...)                 \
         asm volatile(                                            \
-            ".set  push\n\t"                                     \
-            ".set  noreorder\n\t"                                \
-            ".set  mips32r2\n\t"                                 \
-            "rdhwr $3, $29\n\t"                                  \
-            "lw    $3, %[OPENGL_API]($3)\n\t"                    \
-            "beqz  $3, 1f\n\t"                                   \
-            " move $25,$ra\n\t"                                  \
-            "lw    $3, %[API]($3)\n\t"                           \
-            "beqz  $3, 1f\n\t"                                   \
-            " nop\n\t"                                           \
-            "move  $25, $3\n\t"                                  \
-            "1:\n\t"                                             \
-            "jalr  $0, $25\n\t"                                  \
-            " move $2, $0\n\t"                                   \
-            ".set  pop\n\t"                                      \
+            "mv t0, tp\n"                                        \
+            "li t1, %[tls]\n"                                    \
+            "add t0, t0, t1\n"                                   \
+            "ld t0, 0(t0)\n"                                     \
+            "beqz t0, 1f\n"                                      \
+            "li t1, %[api]\n"                                    \
+            "add t0, t0, t1\n"                                   \
+            "ld t0, 0(t0)\n"                                     \
+            "jalr x0, t0\n"                                      \
+            "1:\n"                                               \
             :                                                    \
-            : [OPENGL_API] "I"(TLS_SLOT_OPENGL_API*4),           \
-              [API] "I"(__builtin_offsetof(gl_hooks_t, gl._api)) \
-            : "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$25"    \
+            : [tls] "i"(TLS_SLOT_OPENGL_API*sizeof(void *)),     \
+              [api] "i"(__builtin_offsetof(gl_hooks_t, gl._api)) \
+            : "t0", "t1", "t2", "a0", "a1", "a2", "a3", "a4",    \
+              "a5", "t6", "t3", "t4", "t5", "t6"                 \
         );
 
-    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE
-    #define CALL_GL_API_INTERNAL_DO_RETURN
+    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE \
+        asm volatile(                             \
+            "li a0, 0\n"                          \
+            :                                     \
+            :                                     \
+            : "a0"                                \
+        );
+
+    #define CALL_GL_API_INTERNAL_DO_RETURN \
+        asm volatile(                      \
+            "ret\n"                        \
+            :                              \
+            :                              \
+            :                              \
+        );
 
 #endif
 
