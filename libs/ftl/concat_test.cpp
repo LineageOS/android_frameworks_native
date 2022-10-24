@@ -28,7 +28,24 @@ TEST(Concat, Example) {
   EXPECT_EQ(string.c_str()[string.size()], '\0');
 }
 
+TEST(Concat, Characters) {
+  EXPECT_EQ(ftl::Concat(u'a', ' ', U'b').str(), "97 98");
+}
+
+TEST(Concat, References) {
+  int i[] = {-1, 2};
+  unsigned u = 3;
+  EXPECT_EQ(ftl::Concat(i[0], std::as_const(i[1]), u).str(), "-123");
+
+  const bool b = false;
+  const char c = 'o';
+  EXPECT_EQ(ftl::Concat(b, "tt", c).str(), "falsetto");
+}
+
 namespace {
+
+static_assert(ftl::Concat{true, false, true}.str() == "truefalsetrue");
+static_assert(ftl::Concat{':', '-', ')'}.str() == ":-)");
 
 static_assert(ftl::Concat{"foo"}.str() == "foo");
 static_assert(ftl::Concat{ftl::truncated<3>("foobar")}.str() == "foo");

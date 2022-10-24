@@ -20,7 +20,9 @@
 
 namespace android::ftl {
 
-// Lightweight (not allocating nor sprintf-based) concatenation.
+// Lightweight (not allocating nor sprintf-based) concatenation. The variadic arguments can be
+// values of integral type (including bool and char), string literals, or strings whose length
+// is constrained:
 //
 //   std::string_view name = "Volume";
 //   ftl::Concat string(ftl::truncated<3>(name), ": ", -3, " dB");
