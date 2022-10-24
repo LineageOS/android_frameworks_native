@@ -31,4 +31,8 @@ cc_library_static {
     srcs: [
         "recoverymap.cpp",
     ],
+
+    shared_libs: [
+        "libutils",
+    ],
 }
