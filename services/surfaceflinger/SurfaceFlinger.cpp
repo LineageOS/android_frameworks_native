@@ -4413,13 +4413,13 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
 
     sp<Layer> mirrorLayer;
     sp<Layer> mirrorFrom;
+    LayerCreationArgs mirrorArgs(args);
     {
         Mutex::Autolock _l(mStateLock);
         mirrorFrom = fromHandle(mirrorFromHandle).promote();
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
-        LayerCreationArgs mirrorArgs(args);
         mirrorArgs.flags |= ISurfaceComposerClient::eNoColorFill;
         mirrorArgs.mirrorLayerHandle = mirrorFromHandle;
         mirrorArgs.addToRoot = false;
@@ -4438,8 +4438,8 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
                                                 mirrorLayer->sequence, args.name,
                                                 mirrorFrom->sequence);
     }
-    return addClientLayer(args, outResult.handle, mirrorLayer /* layer */, nullptr /* parent */,
-                          nullptr /* outTransformHint */);
+    return addClientLayer(mirrorArgs, outResult.handle, mirrorLayer /* layer */,
+                          nullptr /* parent */, nullptr /* outTransformHint */);
 }
 
 status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationArgs& args,
@@ -4470,7 +4470,7 @@ status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationA
         result = createEffectLayer(mirrorArgs, &outResult.handle, &rootMirrorLayer);
         outResult.layerId = rootMirrorLayer->sequence;
         outResult.layerName = String16(rootMirrorLayer->getDebugName());
-        result |= addClientLayer(args, outResult.handle, rootMirrorLayer /* layer */,
+        result |= addClientLayer(mirrorArgs, outResult.handle, rootMirrorLayer /* layer */,
                                  nullptr /* parent */, nullptr /* outTransformHint */);
     }
 
