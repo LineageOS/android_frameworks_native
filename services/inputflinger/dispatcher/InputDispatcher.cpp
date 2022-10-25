@@ -2578,7 +2578,7 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
 void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHandle,
                                             int32_t targetFlags, BitSet32 pointerIds,
                                             std::optional<nsecs_t> firstDownTimeInTarget,
-                                            std::vector<InputTarget>& inputTargets) {
+                                            std::vector<InputTarget>& inputTargets) const {
     std::vector<InputTarget>::iterator it =
             std::find_if(inputTargets.begin(), inputTargets.end(),
                          [&windowHandle](const InputTarget& inputTarget) {
