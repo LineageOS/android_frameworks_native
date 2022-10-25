@@ -161,7 +161,7 @@ cc_defaults {
     ],
 
     header_libs: [
-        "libandroid_runtime_vm_headers",
+        "jni_headers",
     ],
 
     export_header_lib_headers: [
@@ -315,7 +315,7 @@ cc_library {
         },
         recovery: {
             exclude_header_libs: [
-                "libandroid_runtime_vm_headers",
+                "jni_headers",
             ],
         },
     },
