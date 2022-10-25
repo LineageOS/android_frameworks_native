@@ -22,9 +22,9 @@ use std::os::{
 
 /// Connects to an RPC Binder server over vsock.
 pub fn get_vsock_rpc_service(cid: u32, port: u32) -> Option<SpIBinder> {
-    // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can
-    // safely be taken by new_spibinder.
-    unsafe { new_spibinder(binder_rpc_unstable_bindgen::RpcClient(cid, port)) }
+    // SAFETY: AIBinder returned by VsockRpcClient has correct reference count,
+    // and the ownership can safely be taken by new_spibinder.
+    unsafe { new_spibinder(binder_rpc_unstable_bindgen::VsockRpcClient(cid, port)) }
 }
 
 /// Connects to an RPC Binder server for a particular interface over vsock.
