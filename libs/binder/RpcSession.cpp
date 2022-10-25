@@ -46,8 +46,8 @@
 #include "Utils.h"
 
 #if defined(__ANDROID__) && !defined(__ANDROID_RECOVERY__)
-#include <android_runtime/vm.h>
 #include <jni.h>
+extern "C" JavaVM* AndroidRuntimeGetJavaVM();
 #endif
 
 namespace android {
