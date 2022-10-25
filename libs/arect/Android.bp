@@ -49,6 +49,9 @@ cc_library_headers {
         "com.android.media",
         "com.android.media.swcodec",
     ],
+    llndk: {
+        llndk_headers: true,
+    },
 }
 
 cc_library_static {
