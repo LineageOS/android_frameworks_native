@@ -4123,7 +4123,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         return 0;
     }
 
-    ui::LayerStack oldLayerStack = layer->getLayerStack();
+    ui::LayerStack oldLayerStack = layer->getLayerStack(LayerVector::StateSet::Current);
 
     // Only set by BLAST adapter layers
     if (what & layer_state_t::eProducerDisconnect) {
@@ -4392,7 +4392,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     // setTransactionCompletedListener
 
     // if the layer has been parented on to a new display, update its transform hint.
-    if (((flags & eTransformHintUpdateNeeded) == 0) && oldLayerStack != layer->getLayerStack()) {
+    if (((flags & eTransformHintUpdateNeeded) == 0) &&
+        oldLayerStack != layer->getLayerStack(LayerVector::StateSet::Current)) {
         flags |= eTransformHintUpdateNeeded;
     }
 
@@ -6892,7 +6893,7 @@ void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state, Vs
         parent->addChild(layer);
     }
 
-    ui::LayerStack layerStack = layer->getLayerStack();
+    ui::LayerStack layerStack = layer->getLayerStack(LayerVector::StateSet::Current);
     sp<const DisplayDevice> hintDisplay;
     // Find the display that includes the layer.
     for (const auto& [token, display] : mDisplays) {
