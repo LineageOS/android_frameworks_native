@@ -1692,8 +1692,7 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<
         }
 
         std::vector<TouchedWindow> touchedWindows =
-                findTouchedWindowTargetsLocked(currentTime, *entry, nextWakeupTime,
-                                               &conflictingPointerActions,
+                findTouchedWindowTargetsLocked(currentTime, *entry, &conflictingPointerActions,
                                                /*byref*/ injectionResult);
         for (const TouchedWindow& touchedWindow : touchedWindows) {
             LOG_ALWAYS_FATAL_IF(injectionResult != InputEventInjectionResult::SUCCEEDED,
@@ -2036,8 +2035,8 @@ std::vector<Monitor> InputDispatcher::selectResponsiveMonitorsLocked(
 }
 
 std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
-        nsecs_t currentTime, const MotionEntry& entry, nsecs_t* nextWakeupTime,
-        bool* outConflictingPointerActions, InputEventInjectionResult& outInjectionResult) {
+        nsecs_t currentTime, const MotionEntry& entry, bool* outConflictingPointerActions,
+        InputEventInjectionResult& outInjectionResult) {
     ATRACE_CALL();
 
     std::vector<TouchedWindow> touchedWindows;
