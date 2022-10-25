@@ -67,7 +67,7 @@ std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory() {
     return RpcTransportCtxFactoryRaw::make();
 }
 
-int sendMessageOnSocket(
+ssize_t sendMessageOnSocket(
         const RpcTransportFd& socket, iovec* iovs, int niovs,
         const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
     if (ancillaryFds != nullptr && !ancillaryFds->empty()) {
@@ -112,7 +112,7 @@ int sendMessageOnSocket(
     return TEMP_FAILURE_RETRY(sendmsg(socket.fd.get(), &msg, MSG_NOSIGNAL));
 }
 
-int receiveMessageFromSocket(
+ssize_t receiveMessageFromSocket(
         const RpcTransportFd& socket, iovec* iovs, int niovs,
         std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
     if (ancillaryFds != nullptr) {
