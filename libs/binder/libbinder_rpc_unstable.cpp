@@ -74,7 +74,7 @@ bool RunVsockRpcServer(AIBinder* service, unsigned int port) {
     return RunVsockRpcServerCallback(service, port, nullptr, nullptr);
 }
 
-AIBinder* RpcClient(unsigned int cid, unsigned int port) {
+AIBinder* VsockRpcClient(unsigned int cid, unsigned int port) {
     auto session = RpcSession::make();
     if (status_t status = session->setupVsockClient(cid, port); status != OK) {
         LOG(ERROR) << "Failed to set up vsock client with CID " << cid << " and port " << port
