@@ -2571,6 +2571,14 @@ protected:
     InputDeviceInfo mDeviceInfo;
 };
 
+TEST_F(TouchIntegrationTest, MultiTouchDeviceSource) {
+    // The UinputTouchScreen is an MT device that supports MT_TOOL_TYPE and also supports stylus
+    // buttons. It should show up as a touchscreen, stylus, and keyboard (for reporting button
+    // presses).
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS | AINPUT_SOURCE_KEYBOARD,
+              mDeviceInfo.getSources());
+}
+
 TEST_F(TouchIntegrationTest, InputEvent_ProcessSingleTouch) {
     NotifyMotionArgs args;
     const Point centerPoint = mDevice->getCenterPoint();
@@ -10669,6 +10677,41 @@ TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState_NoPointersDown) 
     // Send an empty sync frame. Since there are no pointers, no events are generated.
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
+TEST_F(MultiTouchInputMapperTest, ToolTypeSource) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT | PRESSURE | TOOL_TYPE);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // Even if the device supports reporting the ABS_MT_TOOL_TYPE axis, which could give it the
+    // ability to report MT_TOOL_PEN, we do not report the device as coming from a stylus source.
+    // Due to limitations in the evdev protocol, we cannot say for certain that a device is capable
+    // of reporting stylus events just because it supports ABS_MT_TOOL_TYPE.
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, mapper.getSources());
+
+    // However, if the device ever ends up reporting an event with MT_TOOL_PEN, it should be
+    // reported with the stylus source, even through the device doesn't support the stylus source.
+    processId(mapper, FIRST_TRACKING_ID);
+    processToolType(mapper, MT_TOOL_PEN);
+    processPosition(mapper, 100, 200);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithSource(AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                  WithSource(AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+
+    // The mapper should still report only a touchscreen source.
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, mapper.getSources());
 }
 
 // --- MultiTouchInputMapperTest_ExternalDevice ---

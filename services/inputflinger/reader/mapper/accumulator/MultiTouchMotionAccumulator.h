@@ -75,7 +75,6 @@ public:
     void configure(InputDeviceContext& deviceContext, size_t slotCount, bool usingSlotsProtocol);
     void process(const RawEvent* rawEvent);
     void finishSync();
-    bool hasStylus() const;
 
     inline size_t getSlotCount() const { return mSlots.size(); }
     inline const Slot& getSlot(size_t index) const {
@@ -87,7 +86,6 @@ private:
     int32_t mCurrentSlot;
     std::vector<Slot> mSlots;
     bool mUsingSlotsProtocol;
-    bool mHaveStylus;
 
     void resetSlots();
     void warnIfNotInUse(const RawEvent& event, const Slot& slot);
