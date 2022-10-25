@@ -74,6 +74,9 @@ cc_library {
         override_export_include_dirs: [
             "include",
         ],
+        export_llndk_headers: [
+            "libarect_headers",
+        ],
     },
     export_include_dirs: [
         "include",
@@ -110,16 +113,14 @@ cc_library {
     ],
 
     header_libs: [
+        "libarect_headers",
         "libnativebase_headers",
         "libnativewindow_headers",
     ],
 
     // headers we include in our public headers
-    export_static_lib_headers: [
-        "libarect",
-    ],
-
     export_header_lib_headers: [
+        "libarect_headers",
         "libnativebase_headers",
     ],
 
