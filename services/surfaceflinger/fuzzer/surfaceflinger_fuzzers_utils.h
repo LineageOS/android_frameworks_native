@@ -38,7 +38,7 @@
 #include "NativeWindowSurface.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
-#include "Scheduler/RefreshRateConfigs.h"
+#include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/VSyncTracker.h"
 #include "Scheduler/VsyncConfiguration.h"
 #include "Scheduler/VsyncController.h"
@@ -217,18 +217,19 @@ namespace scheduler {
 
 class TestableScheduler : public Scheduler, private ICompositor {
 public:
-    TestableScheduler(const std::shared_ptr<scheduler::RefreshRateConfigs> &refreshRateConfigs,
-                      ISchedulerCallback &callback)
+    TestableScheduler(const std::shared_ptr<scheduler::RefreshRateSelector>& selectorPtr,
+                      ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<android::mock::VsyncController>(),
-                              std::make_unique<android::mock::VSyncTracker>(), refreshRateConfigs,
+                              std::make_unique<android::mock::VSyncTracker>(), selectorPtr,
                               callback) {}
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       std::unique_ptr<VSyncTracker> tracker,
-                      std::shared_ptr<RefreshRateConfigs> configs, ISchedulerCallback &callback)
+                      std::shared_ptr<RefreshRateSelector> selectorPtr,
+                      ISchedulerCallback& callback)
           : Scheduler(*this, callback, Feature::kContentDetection) {
         mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
-        setRefreshRateConfigs(std::move(configs));
+        setRefreshRateSelector(std::move(selectorPtr));
     }
 
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
@@ -240,7 +241,7 @@ public:
 
     auto &mutableLayerHistory() { return mLayerHistory; }
 
-    auto refreshRateConfigs() { return holdRefreshRateConfigs(); }
+    auto refreshRateSelector() { return holdRefreshRateSelector(); }
 
     void replaceTouchTimer(int64_t millis) {
         if (mTouchTimer) {
@@ -309,8 +310,8 @@ public:
     }
 
     std::unique_ptr<scheduler::Scheduler> createScheduler(
-            const std::shared_ptr<scheduler::RefreshRateConfigs> &,
-            scheduler::ISchedulerCallback &) {
+            const std::shared_ptr<scheduler::RefreshRateSelector>&,
+            scheduler::ISchedulerCallback&) {
         return nullptr;
     }
 
@@ -659,9 +660,9 @@ public:
             modes.try_emplace(kModeId90, mock::createDisplayMode(kModeId90, 90_Hz));
         }
 
-        mRefreshRateConfigs = std::make_shared<scheduler::RefreshRateConfigs>(modes, kModeId60);
+        mRefreshRateSelector = std::make_shared<scheduler::RefreshRateSelector>(modes, kModeId60);
         const auto fps =
-                FTL_FAKE_GUARD(kMainThreadContext, mRefreshRateConfigs->getActiveMode().getFps());
+                FTL_FAKE_GUARD(kMainThreadContext, mRefreshRateSelector->getActiveMode().getFps());
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
         mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
                 mFlinger->mVsyncConfiguration->getCurrentConfigs());
@@ -670,7 +671,7 @@ public:
                                                               hal::PowerMode::OFF);
 
         mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
-                                                      std::move(vsyncTracker), mRefreshRateConfigs,
+                                                      std::move(vsyncTracker), mRefreshRateSelector,
                                                       *(callback ?: this));
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
@@ -788,7 +789,7 @@ private:
     sp<SurfaceFlinger> mFlinger =
             sp<SurfaceFlinger>::make(mFactory, SurfaceFlinger::SkipInitialization);
     scheduler::TestableScheduler *mScheduler = nullptr;
-    std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
+    std::shared_ptr<scheduler::RefreshRateSelector> mRefreshRateSelector;
 };
 
 } // namespace android

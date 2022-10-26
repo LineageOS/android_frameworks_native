@@ -45,7 +45,7 @@
 #include "LayerHistory.h"
 #include "MessageQueue.h"
 #include "OneShotTimer.h"
-#include "RefreshRateConfigs.h"
+#include "RefreshRateSelector.h"
 #include "VsyncSchedule.h"
 
 namespace android::scheduler {
@@ -87,7 +87,7 @@ class TokenManager;
 
 namespace scheduler {
 
-using GlobalSignals = RefreshRateConfigs::GlobalSignals;
+using GlobalSignals = RefreshRateSelector::GlobalSignals;
 
 struct ISchedulerCallback {
     virtual void setVsyncEnabled(bool) = 0;
@@ -107,8 +107,8 @@ public:
     virtual ~Scheduler();
 
     void startTimers();
-    void setRefreshRateConfigs(std::shared_ptr<RefreshRateConfigs>)
-            EXCLUDES(mRefreshRateConfigsLock);
+    void setRefreshRateSelector(std::shared_ptr<RefreshRateSelector>)
+            EXCLUDES(mRefreshRateSelectorLock);
 
     void registerDisplay(sp<const DisplayDevice>);
     void unregisterDisplay(PhysicalDisplayId);
@@ -163,7 +163,7 @@ public:
     // Otherwise, if hardware vsync is not already enabled then this method will
     // no-op.
     void resyncToHardwareVsync(bool makeAvailable, Fps refreshRate);
-    void resync() EXCLUDES(mRefreshRateConfigsLock);
+    void resync() EXCLUDES(mRefreshRateSelectorLock);
     void forceNextResync() { mLastResyncTime = 0; }
 
     // Passes a vsync sample to VsyncController. periodFlushed will be true if
@@ -175,13 +175,13 @@ public:
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
     void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType updateType)
-            EXCLUDES(mRefreshRateConfigsLock);
+            EXCLUDES(mRefreshRateSelectorLock);
     void setModeChangePending(bool pending);
     void setDefaultFrameRateCompatibility(Layer*);
     void deregisterLayer(Layer*);
 
     // Detects content using layer history, and selects a matching refresh rate.
-    void chooseRefreshRateForContent() EXCLUDES(mRefreshRateConfigsLock);
+    void chooseRefreshRateForContent() EXCLUDES(mRefreshRateSelectorLock);
 
     void resetIdleTimer();
 
@@ -226,11 +226,11 @@ public:
     void setGameModeRefreshRateForUid(FrameRateOverride);
 
     // Retrieves the overridden refresh rate for a given uid.
-    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mRefreshRateConfigsLock);
+    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mRefreshRateSelectorLock);
 
-    nsecs_t getVsyncPeriodFromRefreshRateConfigs() const EXCLUDES(mRefreshRateConfigsLock) {
-        std::scoped_lock lock(mRefreshRateConfigsLock);
-        return mRefreshRateConfigs->getActiveModePtr()->getFps().getPeriodNsecs();
+    nsecs_t getVsyncPeriodFromRefreshRateSelector() const EXCLUDES(mRefreshRateSelectorLock) {
+        std::scoped_lock lock(mRefreshRateSelectorLock);
+        return mRefreshRateSelector->getActiveModePtr()->getFps().getPeriodNsecs();
     }
 
     // Returns the framerate of the layer with the given sequence ID
@@ -254,7 +254,7 @@ private:
             EventThread*, EventRegistrationFlags eventRegistration = {});
 
     // Update feature state machine to given state when corresponding timer resets or expires.
-    void kernelIdleTimerCallback(TimerState) EXCLUDES(mRefreshRateConfigsLock);
+    void kernelIdleTimerCallback(TimerState) EXCLUDES(mRefreshRateSelectorLock);
     void idleTimerCallback(TimerState);
     void touchTimerCallback(TimerState);
     void displayPowerTimerCallback(TimerState);
@@ -293,16 +293,16 @@ private:
 
     bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
 
-    void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mRefreshRateConfigsLock);
+    void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mRefreshRateSelectorLock);
 
     android::impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const
-            EXCLUDES(mRefreshRateConfigsLock);
+            EXCLUDES(mRefreshRateSelectorLock);
     android::impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
 
-    std::shared_ptr<RefreshRateConfigs> holdRefreshRateConfigs() const
-            EXCLUDES(mRefreshRateConfigsLock) {
-        std::scoped_lock lock(mRefreshRateConfigsLock);
-        return mRefreshRateConfigs;
+    std::shared_ptr<RefreshRateSelector> holdRefreshRateSelector() const
+            EXCLUDES(mRefreshRateSelectorLock) {
+        std::scoped_lock lock(mRefreshRateSelectorLock);
+        return mRefreshRateSelector;
     }
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
@@ -359,8 +359,8 @@ private:
         std::optional<ModeChangedParams> cachedModeChangedParams;
     } mPolicy GUARDED_BY(mPolicyLock);
 
-    mutable std::mutex mRefreshRateConfigsLock;
-    std::shared_ptr<RefreshRateConfigs> mRefreshRateConfigs GUARDED_BY(mRefreshRateConfigsLock);
+    mutable std::mutex mRefreshRateSelectorLock;
+    std::shared_ptr<RefreshRateSelector> mRefreshRateSelector GUARDED_BY(mRefreshRateSelectorLock);
 
     std::mutex mVsyncTimelineLock;
     std::optional<hal::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline

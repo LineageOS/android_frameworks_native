@@ -69,7 +69,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mActiveModeFPSHwcTrace("ActiveModeFPS_HWC -" + to_string(getId())),
         mPhysicalOrientation(args.physicalOrientation),
         mIsPrimary(args.isPrimary),
-        mRefreshRateConfigs(std::move(args.refreshRateConfigs)) {
+        mRefreshRateSelector(std::move(args.refreshRateSelector)) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
             compositionengine::RenderSurfaceCreationArgsBuilder()
@@ -200,7 +200,7 @@ void DisplayDevice::setActiveMode(DisplayModeId modeId, const display::DisplaySn
 
     ATRACE_INT(mActiveModeFPSTrace.c_str(), fps.getIntValue());
 
-    mRefreshRateConfigs->setActiveModeId(modeId);
+    mRefreshRateSelector->setActiveModeId(modeId);
 
     if (mRefreshRateOverlay) {
         mRefreshRateOverlay->changeRefreshRate(fps);
@@ -234,7 +234,7 @@ nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
         return vsyncPeriod;
     }
 
-    return refreshRateConfigs().getActiveModePtr()->getVsyncPeriod();
+    return refreshRateSelector().getActiveModePtr()->getVsyncPeriod();
 }
 
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
@@ -335,8 +335,8 @@ void DisplayDevice::dump(utils::Dumper& dumper) const {
     utils::Dumper::Indent indent(dumper);
     dumper.dump("powerMode"sv, mPowerMode);
 
-    if (mRefreshRateConfigs) {
-        mRefreshRateConfigs->dump(dumper);
+    if (mRefreshRateSelector) {
+        mRefreshRateSelector->dump(dumper);
     }
 }
 
@@ -430,7 +430,7 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {
         return;
     }
 
-    const auto fpsRange = mRefreshRateConfigs->getSupportedRefreshRateRange();
+    const auto fpsRange = mRefreshRateSelector->getSupportedRefreshRateRange();
     mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(fpsRange, showSpinnner);
     mRefreshRateOverlay->setLayerStack(getLayerStack());
     mRefreshRateOverlay->setViewport(getSize());
@@ -439,9 +439,9 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {
 
 bool DisplayDevice::onKernelTimerChanged(std::optional<DisplayModeId> desiredModeId,
                                          bool timerExpired) {
-    if (mRefreshRateConfigs && mRefreshRateOverlay) {
+    if (mRefreshRateSelector && mRefreshRateOverlay) {
         const auto newRefreshRate =
-                mRefreshRateConfigs->onKernelTimerChanged(desiredModeId, timerExpired);
+                mRefreshRateSelector->onKernelTimerChanged(desiredModeId, timerExpired);
         if (newRefreshRate) {
             mRefreshRateOverlay->changeRefreshRate(*newRefreshRate);
             return true;
@@ -475,7 +475,7 @@ bool DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info) {
     }
 
     // Check if we are already at the desired mode
-    if (refreshRateConfigs().getActiveModePtr()->getId() == info.mode->getId()) {
+    if (refreshRateSelector().getActiveModePtr()->getId() == info.mode->getId()) {
         return false;
     }
 

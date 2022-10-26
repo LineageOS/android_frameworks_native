@@ -164,7 +164,7 @@ void LayerHistory::setDefaultFrameRateCompatibility(Layer* layer, bool contentDe
             getVoteType(layer->getDefaultFrameRateCompatibility(), contentDetectionEnabled));
 }
 
-auto LayerHistory::summarize(const RefreshRateConfigs& configs, nsecs_t now) -> Summary {
+auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -> Summary {
     Summary summary;
 
     std::lock_guard lock(mLock);
@@ -178,7 +178,7 @@ auto LayerHistory::summarize(const RefreshRateConfigs& configs, nsecs_t now) -> 
         ALOGV("%s has priority: %d %s focused", info->getName().c_str(), frameRateSelectionPriority,
               layerFocused ? "" : "not");
 
-        const auto vote = info->getRefreshRateVote(configs, now);
+        const auto vote = info->getRefreshRateVote(selector, now);
         // Skip NoVote layer as those don't have any requirements
         if (vote.type == LayerVoteType::NoVote) {
             continue;
