@@ -156,6 +156,10 @@ public:
                                              std::optional<std::string>* _aidl_return) override {
         return mImpl->updatableViaApex(name, _aidl_return);
     }
+    android::binder::Status getUpdatableNames(const std::string& apexName,
+                                              std::vector<std::string>* _aidl_return) override {
+        return mImpl->getUpdatableNames(apexName, _aidl_return);
+    }
     android::binder::Status getConnectionInfo(
             const std::string& name,
             std::optional<android::os::ConnectionInfo>* _aidl_return) override {

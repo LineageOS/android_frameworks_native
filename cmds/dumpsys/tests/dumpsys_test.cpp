@@ -60,6 +60,7 @@ class ServiceManagerMock : public IServiceManager {
     MOCK_METHOD1(isDeclared, bool(const String16&));
     MOCK_METHOD1(getDeclaredInstances, Vector<String16>(const String16&));
     MOCK_METHOD1(updatableViaApex, std::optional<String16>(const String16&));
+    MOCK_METHOD1(getUpdatableNames, Vector<String16>(const String16&));
     MOCK_METHOD1(getConnectionInfo, std::optional<ConnectionInfo>(const String16&));
     MOCK_METHOD2(registerForNotifications, status_t(const String16&,
                                              const sp<LocalRegistrationCallback>&));
