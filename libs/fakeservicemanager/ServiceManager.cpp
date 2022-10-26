@@ -78,6 +78,11 @@ std::optional<String16> ServiceManager::updatableViaApex(const String16& name) {
     return std::nullopt;
 }
 
+Vector<String16> ServiceManager::getUpdatableNames(const String16& apexName) {
+    (void)apexName;
+    return {};
+}
+
 std::optional<IServiceManager::ConnectionInfo> ServiceManager::getConnectionInfo(
         const String16& name) {
     (void)name;
