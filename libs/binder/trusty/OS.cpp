@@ -59,14 +59,14 @@ std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory() {
     return RpcTransportCtxFactoryTipcTrusty::make();
 }
 
-int sendMessageOnSocket(
+ssize_t sendMessageOnSocket(
         const RpcTransportFd& /* socket */, iovec* /* iovs */, int /* niovs */,
         const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* /* ancillaryFds */) {
     errno = ENOTSUP;
     return -1;
 }
 
-int receiveMessageFromSocket(
+ssize_t receiveMessageFromSocket(
         const RpcTransportFd& /* socket */, iovec* /* iovs */, int /* niovs */,
         std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* /* ancillaryFds */) {
     errno = ENOTSUP;

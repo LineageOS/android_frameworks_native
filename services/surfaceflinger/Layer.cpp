@@ -1014,8 +1014,10 @@ bool Layer::isLayerFocusedBasedOnPriority(int32_t priority) {
     return priority == PRIORITY_FOCUSED_WITH_MODE || priority == PRIORITY_FOCUSED_WITHOUT_MODE;
 };
 
-ui::LayerStack Layer::getLayerStack() const {
-    if (const auto parent = mDrawingParent.promote()) {
+ui::LayerStack Layer::getLayerStack(LayerVector::StateSet state) const {
+    bool useDrawing = state == LayerVector::StateSet::Drawing;
+    const auto parent = useDrawing ? mDrawingParent.promote() : mCurrentParent.promote();
+    if (parent) {
         return parent->getLayerStack();
     }
     return getDrawingState().layerStack;

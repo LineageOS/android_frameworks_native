@@ -299,6 +299,26 @@ static void computeAndCheckQuadraticEstimate(const std::vector<PlanarMotionEvent
 }
 
 /*
+ *================== VelocityTracker tests that do not require test motion data ====================
+ */
+TEST(SimpleVelocityTrackerTest, TestSupportedAxis) {
+    // Note that we are testing up to the max possible axis value, plus 3 more values. We are going
+    // beyond the max value to add a bit more protection. "3" is chosen arbitrarily to cover a few
+    // more values beyond the max.
+    for (int32_t axis = 0; axis <= AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE + 3; axis++) {
+        switch (axis) {
+            case AMOTION_EVENT_AXIS_X:
+            case AMOTION_EVENT_AXIS_Y:
+            case AMOTION_EVENT_AXIS_SCROLL:
+                EXPECT_TRUE(VelocityTracker::isAxisSupported(axis)) << axis << " is supported";
+                break;
+            default:
+                EXPECT_FALSE(VelocityTracker::isAxisSupported(axis)) << axis << " is NOT supported";
+        }
+    }
+}
+
+/*
  * ================== VelocityTracker tests generated manually =====================================
  */
 TEST_F(VelocityTrackerTest, TestDefaultStrategiesForPlanarAxes) {

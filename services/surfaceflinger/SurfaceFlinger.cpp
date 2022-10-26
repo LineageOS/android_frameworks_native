@@ -1064,30 +1064,28 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* ou
     return NO_ERROR;
 }
 
-void SurfaceFlinger::setDesiredActiveMode(const ActiveModeInfo& info) {
+void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request) {
     ATRACE_CALL();
 
-    if (!info.mode) {
-        ALOGW("requested display mode is null");
-        return;
-    }
-    auto display = getDisplayDeviceLocked(info.mode->getPhysicalDisplayId());
+    auto display = getDisplayDeviceLocked(request.modePtr->getPhysicalDisplayId());
     if (!display) {
         ALOGW("%s: display is no longer valid", __func__);
         return;
     }
 
-    if (display->setDesiredActiveMode(info)) {
+    const Fps refreshRate = request.modePtr->getFps();
+
+    if (display->setDesiredActiveMode(DisplayDevice::ActiveModeInfo(std::move(request)))) {
         scheduleComposite(FrameHint::kNone);
 
         // Start receiving vsync samples now, so that we can detect a period
         // switch.
-        mScheduler->resyncToHardwareVsync(true, info.mode->getFps());
+        mScheduler->resyncToHardwareVsync(true, refreshRate);
         // As we called to set period, we will call to onRefreshRateChangeCompleted once
         // VsyncController model is locked.
         modulateVsync(&VsyncModulator::onRefreshRateChangeInitiated);
 
-        updatePhaseConfiguration(info.mode->getFps());
+        updatePhaseConfiguration(refreshRate);
         mScheduler->setModeChangePending(true);
     }
 }
@@ -1179,7 +1177,7 @@ void SurfaceFlinger::updateInternalStateWithChangedMode() {
     mRefreshRateStats->setRefreshRate(refreshRate);
     updatePhaseConfiguration(refreshRate);
 
-    if (upcomingModeInfo.event != DisplayModeEvent::None) {
+    if (upcomingModeInfo.event != scheduler::DisplayModeEvent::None) {
         mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, upcomingModeInfo.mode);
     }
 }
@@ -3331,34 +3329,33 @@ void SurfaceFlinger::updateCursorAsync() {
     mCompositionEngine->updateCursorAsync(refreshArgs);
 }
 
-void SurfaceFlinger::requestDisplayModes(
-        std::vector<scheduler::DisplayModeConfig> displayModeConfigs) {
+void SurfaceFlinger::requestDisplayModes(std::vector<display::DisplayModeRequest> modeRequests) {
     if (mBootStage != BootStage::FINISHED) {
         ALOGV("Currently in the boot stage, skipping display mode changes");
         return;
     }
 
     ATRACE_CALL();
+
     // If this is called from the main thread mStateLock must be locked before
     // Currently the only way to call this function from the main thread is from
     // Scheduler::chooseRefreshRateForContent
 
     ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
 
-    std::for_each(displayModeConfigs.begin(), displayModeConfigs.end(),
-                  [&](const auto& config) REQUIRES(mStateLock) {
-                      const auto& displayModePtr = config.displayModePtr;
-                      if (const auto display =
-                                  getDisplayDeviceLocked(displayModePtr->getPhysicalDisplayId());
-                          display->refreshRateConfigs().isModeAllowed(displayModePtr->getId())) {
-                          const auto event = config.signals.idle ? DisplayModeEvent::None
-                                                                 : DisplayModeEvent::Changed;
-                          setDesiredActiveMode({displayModePtr, event});
-                      } else {
-                          ALOGV("Skipping disallowed mode %d for display %" PRId64,
-                                displayModePtr->getId().value(), display->getPhysicalId().value);
-                      }
-                  });
+    for (auto& request : modeRequests) {
+        const auto& modePtr = request.modePtr;
+        const auto display = getDisplayDeviceLocked(modePtr->getPhysicalDisplayId());
+
+        if (!display) continue;
+
+        if (display->refreshRateConfigs().isModeAllowed(modePtr->getId())) {
+            setDesiredActiveMode(std::move(request));
+        } else {
+            ALOGV("%s: Mode %d is disallowed for display %s", __func__, modePtr->getId().value(),
+                  to_string(display->getId()).c_str());
+        }
+    }
 }
 
 void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
@@ -4123,7 +4120,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         return 0;
     }
 
-    ui::LayerStack oldLayerStack = layer->getLayerStack();
+    ui::LayerStack oldLayerStack = layer->getLayerStack(LayerVector::StateSet::Current);
 
     // Only set by BLAST adapter layers
     if (what & layer_state_t::eProducerDisconnect) {
@@ -4392,7 +4389,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     // setTransactionCompletedListener
 
     // if the layer has been parented on to a new display, update its transform hint.
-    if (((flags & eTransformHintUpdateNeeded) == 0) && oldLayerStack != layer->getLayerStack()) {
+    if (((flags & eTransformHintUpdateNeeded) == 0) &&
+        oldLayerStack != layer->getLayerStack(LayerVector::StateSet::Current)) {
         flags |= eTransformHintUpdateNeeded;
     }
 
@@ -4413,13 +4411,13 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
 
     sp<Layer> mirrorLayer;
     sp<Layer> mirrorFrom;
+    LayerCreationArgs mirrorArgs(args);
     {
         Mutex::Autolock _l(mStateLock);
         mirrorFrom = fromHandle(mirrorFromHandle).promote();
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
-        LayerCreationArgs mirrorArgs(args);
         mirrorArgs.flags |= ISurfaceComposerClient::eNoColorFill;
         mirrorArgs.mirrorLayerHandle = mirrorFromHandle;
         mirrorArgs.addToRoot = false;
@@ -4438,8 +4436,8 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
                                                 mirrorLayer->sequence, args.name,
                                                 mirrorFrom->sequence);
     }
-    return addClientLayer(args, outResult.handle, mirrorLayer /* layer */, nullptr /* parent */,
-                          nullptr /* outTransformHint */);
+    return addClientLayer(mirrorArgs, outResult.handle, mirrorLayer /* layer */,
+                          nullptr /* parent */, nullptr /* outTransformHint */);
 }
 
 status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationArgs& args,
@@ -4470,7 +4468,7 @@ status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationA
         result = createEffectLayer(mirrorArgs, &outResult.handle, &rootMirrorLayer);
         outResult.layerId = rootMirrorLayer->sequence;
         outResult.layerName = String16(rootMirrorLayer->getDebugName());
-        result |= addClientLayer(args, outResult.handle, rootMirrorLayer /* layer */,
+        result |= addClientLayer(mirrorArgs, outResult.handle, rootMirrorLayer /* layer */,
                                  nullptr /* parent */, nullptr /* outTransformHint */);
     }
 
@@ -6583,18 +6581,19 @@ void SurfaceFlinger::traverseLayersInLayerStack(ui::LayerStack layerStack, const
     }
 }
 
-std::optional<DisplayModePtr> SurfaceFlinger::getPreferredDisplayMode(
+std::optional<ftl::NonNull<DisplayModePtr>> SurfaceFlinger::getPreferredDisplayMode(
         PhysicalDisplayId displayId, DisplayModeId defaultModeId) const {
     if (const auto schedulerMode = mScheduler->getPreferredDisplayMode();
         schedulerMode && schedulerMode->getPhysicalDisplayId() == displayId) {
-        return schedulerMode;
+        return ftl::as_non_null(schedulerMode);
     }
 
     return mPhysicalDisplays.get(displayId)
             .transform(&PhysicalDisplay::snapshotRef)
             .and_then([&](const display::DisplaySnapshot& snapshot) {
                 return snapshot.displayModes().get(defaultModeId);
-            });
+            })
+            .transform(&ftl::as_non_null<const DisplayModePtr&>);
 }
 
 status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
@@ -6650,7 +6649,7 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         return INVALID_OPERATION;
     }
 
-    setDesiredActiveMode({std::move(preferredMode), DisplayModeEvent::Changed});
+    setDesiredActiveMode({std::move(preferredMode), .emitEvent = true});
     return NO_ERROR;
 }
 
@@ -6892,7 +6891,7 @@ void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state, Vs
         parent->addChild(layer);
     }
 
-    ui::LayerStack layerStack = layer->getLayerStack();
+    ui::LayerStack layerStack = layer->getLayerStack(LayerVector::StateSet::Current);
     sp<const DisplayDevice> hintDisplay;
     // Find the display that includes the layer.
     for (const auto& [token, display] : mDisplays) {

@@ -150,6 +150,10 @@ VelocityTracker::VelocityTracker(const Strategy strategy)
 VelocityTracker::~VelocityTracker() {
 }
 
+bool VelocityTracker::isAxisSupported(int32_t axis) {
+    return DEFAULT_STRATEGY_BY_AXIS.find(axis) != DEFAULT_STRATEGY_BY_AXIS.end();
+}
+
 void VelocityTracker::configureStrategy(int32_t axis) {
     const bool isDifferentialAxis = DIFFERENTIAL_AXES.find(axis) != DIFFERENTIAL_AXES.end();
 

@@ -41,6 +41,7 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
+#include "Display/DisplayModeRequest.h"
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
@@ -190,9 +191,20 @@ public:
     /* ------------------------------------------------------------------------
      * Display mode management.
      */
+
+    // TODO(b/241285876): Replace ActiveModeInfo and DisplayModeEvent with DisplayModeRequest.
     struct ActiveModeInfo {
+        using Event = scheduler::DisplayModeEvent;
+
+        ActiveModeInfo() = default;
+        ActiveModeInfo(DisplayModePtr mode, Event event) : mode(std::move(mode)), event(event) {}
+
+        explicit ActiveModeInfo(display::DisplayModeRequest&& request)
+              : ActiveModeInfo(std::move(request.modePtr).take(),
+                               request.emitEvent ? Event::Changed : Event::None) {}
+
         DisplayModePtr mode;
-        scheduler::DisplayModeEvent event = scheduler::DisplayModeEvent::None;
+        Event event = Event::None;
 
         bool operator!=(const ActiveModeInfo& other) const {
             return mode != other.mode || event != other.event;

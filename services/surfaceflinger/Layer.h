@@ -320,7 +320,9 @@ public:
     virtual bool setTrustedOverlay(bool);
     virtual bool setFlags(uint32_t flags, uint32_t mask);
     virtual bool setLayerStack(ui::LayerStack);
-    virtual ui::LayerStack getLayerStack() const;
+    virtual ui::LayerStack getLayerStack(
+            LayerVector::StateSet state = LayerVector::StateSet::Drawing) const;
+
     virtual bool setMetadata(const LayerMetadata& data);
     virtual void setChildrenDrawingParent(const sp<Layer>&);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
