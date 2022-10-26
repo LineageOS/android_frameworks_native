@@ -156,6 +156,7 @@ filegroup {
         "Effects/Daltonizer.cpp",
         "EventLog/EventLog.cpp",
         "FrontEnd/LayerCreationArgs.cpp",
+        "FrontEnd/LayerHandle.cpp",
         "FrontEnd/TransactionHandler.cpp",
         "FlagManager.cpp",
         "FpsReporter.cpp",
