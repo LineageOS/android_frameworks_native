@@ -1248,6 +1248,7 @@ private:
     ui::Dataspace mColorSpaceAgnosticDataspace;
     float mDimmingRatio = -1.f;
 
+    std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
     // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
     // any mutex.

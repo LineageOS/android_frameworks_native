@@ -602,7 +602,7 @@ HWComposer& SurfaceFlinger::getHwComposer() const {
 }
 
 renderengine::RenderEngine& SurfaceFlinger::getRenderEngine() const {
-    return mCompositionEngine->getRenderEngine();
+    return *mRenderEngine;
 }
 
 compositionengine::CompositionEngine& SurfaceFlinger::getCompositionEngine() const {
@@ -763,7 +763,8 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     if (auto type = chooseRenderEngineTypeViaSysProp()) {
         builder.setRenderEngineType(type.value());
     }
-    mCompositionEngine->setRenderEngine(renderengine::RenderEngine::create(builder.build()));
+    mRenderEngine = renderengine::RenderEngine::create(builder.build());
+    mCompositionEngine->setRenderEngine(mRenderEngine.get());
     mMaxRenderTargetSize =
             std::min(getRenderEngine().getMaxTextureSize(), getRenderEngine().getMaxViewportDims());
 

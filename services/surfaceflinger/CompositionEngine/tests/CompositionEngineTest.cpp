@@ -62,11 +62,10 @@ TEST_F(CompositionEngineTest, canSetHWComposer) {
 }
 
 TEST_F(CompositionEngineTest, canSetRenderEngine) {
-    renderengine::mock::RenderEngine* renderEngine =
-            new StrictMock<renderengine::mock::RenderEngine>();
-    mEngine.setRenderEngine(std::unique_ptr<renderengine::RenderEngine>(renderEngine));
+    auto renderEngine = std::make_unique<StrictMock<renderengine::mock::RenderEngine>>();
+    mEngine.setRenderEngine(renderEngine.get());
 
-    EXPECT_EQ(renderEngine, &mEngine.getRenderEngine());
+    EXPECT_EQ(renderEngine.get(), &mEngine.getRenderEngine());
 }
 
 TEST_F(CompositionEngineTest, canSetTimeStats) {

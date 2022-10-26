@@ -56,7 +56,7 @@ public:
     virtual void setHwComposer(std::unique_ptr<HWComposer>) = 0;
 
     virtual renderengine::RenderEngine& getRenderEngine() const = 0;
-    virtual void setRenderEngine(std::unique_ptr<renderengine::RenderEngine>) = 0;
+    virtual void setRenderEngine(renderengine::RenderEngine*) = 0;
 
     virtual TimeStats& getTimeStats() const = 0;
     virtual void setTimeStats(const std::shared_ptr<TimeStats>&) = 0;
