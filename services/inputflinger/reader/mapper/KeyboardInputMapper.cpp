@@ -180,7 +180,7 @@ void KeyboardInputMapper::dumpParameters(std::string& dump) const {
 
 std::list<NotifyArgs> KeyboardInputMapper::reset(nsecs_t when) {
     std::list<NotifyArgs> out = cancelAllDownKeys(when);
-    mCurrentHidUsage = 0;
+    mHidUsageAccumulator.reset();
 
     resetLedState();
 
@@ -190,28 +190,16 @@ std::list<NotifyArgs> KeyboardInputMapper::reset(nsecs_t when) {
 
 std::list<NotifyArgs> KeyboardInputMapper::process(const RawEvent* rawEvent) {
     std::list<NotifyArgs> out;
+    mHidUsageAccumulator.process(*rawEvent);
     switch (rawEvent->type) {
         case EV_KEY: {
             int32_t scanCode = rawEvent->code;
-            int32_t usageCode = mCurrentHidUsage;
-            mCurrentHidUsage = 0;
 
             if (isSupportedScanCode(scanCode)) {
                 out += processKey(rawEvent->when, rawEvent->readTime, rawEvent->value != 0,
-                                  scanCode, usageCode);
+                                  scanCode, mHidUsageAccumulator.consumeCurrentHidUsage());
             }
             break;
-        }
-        case EV_MSC: {
-            if (rawEvent->code == MSC_SCAN) {
-                mCurrentHidUsage = rawEvent->value;
-            }
-            break;
-        }
-        case EV_SYN: {
-            if (rawEvent->code == SYN_REPORT) {
-                mCurrentHidUsage = 0;
-            }
         }
     }
     return out;
