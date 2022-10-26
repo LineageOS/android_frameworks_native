@@ -408,10 +408,11 @@ public:
                             "Unable to detach thread. No JavaVM, but it was present before!");
 
         LOG_RPC_DETAIL("Detaching current thread from JVM");
-        if (vm->DetachCurrentThread() != JNI_OK) {
+        int ret = vm->DetachCurrentThread();
+        if (ret == JNI_OK) {
             mAttached = false;
         } else {
-            ALOGW("Unable to detach current thread from JVM");
+            ALOGW("Unable to detach current thread from JVM (%d)", ret);
         }
     }
 
