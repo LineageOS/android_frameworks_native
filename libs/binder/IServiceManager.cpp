@@ -81,6 +81,7 @@ public:
     bool isDeclared(const String16& name) override;
     Vector<String16> getDeclaredInstances(const String16& interface) override;
     std::optional<String16> updatableViaApex(const String16& name) override;
+    Vector<String16> getUpdatableNames(const String16& apexName) override;
     std::optional<IServiceManager::ConnectionInfo> getConnectionInfo(const String16& name) override;
     class RegistrationWaiter : public android::os::BnServiceCallback {
     public:
@@ -477,6 +478,23 @@ std::optional<String16> ServiceManagerShim::updatableViaApex(const String16& nam
         return std::nullopt;
     }
     return declared ? std::optional<String16>(String16(declared.value().c_str())) : std::nullopt;
+}
+
+Vector<String16> ServiceManagerShim::getUpdatableNames(const String16& apexName) {
+    std::vector<std::string> out;
+    if (Status status = mTheRealServiceManager->getUpdatableNames(String8(apexName).c_str(), &out);
+        !status.isOk()) {
+        ALOGW("Failed to getUpdatableNames for %s: %s", String8(apexName).c_str(),
+              status.toString8().c_str());
+        return {};
+    }
+
+    Vector<String16> res;
+    res.setCapacity(out.size());
+    for (const std::string& instance : out) {
+        res.push(String16(instance.c_str()));
+    }
+    return res;
 }
 
 std::optional<IServiceManager::ConnectionInfo> ServiceManagerShim::getConnectionInfo(

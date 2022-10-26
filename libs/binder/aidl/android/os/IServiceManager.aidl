@@ -114,6 +114,12 @@ interface IServiceManager {
     @nullable @utf8InCpp String updatableViaApex(@utf8InCpp String name);
 
     /**
+     * Returns all instances which are updatable via the APEX. Instance names are fully qualified
+     * like `pack.age.IFoo/default`.
+     */
+    @utf8InCpp String[] getUpdatableNames(@utf8InCpp String apexName);
+
+    /**
      * If connection info is available for the given instance, returns the ConnectionInfo
      */
     @nullable ConnectionInfo getConnectionInfo(@utf8InCpp String name);
