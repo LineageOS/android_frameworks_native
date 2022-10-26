@@ -2092,7 +2092,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
     }
 
     bool isSplit = shouldSplitTouch(tempTouchState, entry);
-    bool switchedDevice = tempTouchState.deviceId >= 0 && tempTouchState.displayId >= 0 &&
+    const bool switchedDevice = tempTouchState.deviceId >= 0 && tempTouchState.displayId >= 0 &&
             (tempTouchState.deviceId != entry.deviceId || tempTouchState.source != entry.source ||
              tempTouchState.displayId != displayId);
 
@@ -2102,7 +2102,6 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
     const bool newGesture = (maskedAction == AMOTION_EVENT_ACTION_DOWN ||
                              maskedAction == AMOTION_EVENT_ACTION_SCROLL || isHoverAction);
     const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
-    bool wrongDevice = false;
     if (newGesture) {
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
         if (switchedDevice && tempTouchState.down && !down && !isHoverAction) {
@@ -2111,9 +2110,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
                   displayId);
             // TODO: test multiple simultaneous input streams.
             outInjectionResult = InputEventInjectionResult::FAILED;
-            switchedDevice = false;
-            wrongDevice = true;
-            return touchedWindows;
+            return touchedWindows; // wrong device
         }
         tempTouchState.reset();
         tempTouchState.down = down;
@@ -2127,9 +2124,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
               displayId);
         // TODO: test multiple simultaneous input streams.
         outInjectionResult = InputEventInjectionResult::FAILED;
-        switchedDevice = false;
-        wrongDevice = true;
-        return touchedWindows;
+        return touchedWindows; // wrong device
     }
 
     if (newGesture || (isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN)) {
