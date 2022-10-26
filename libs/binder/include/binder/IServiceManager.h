@@ -115,6 +115,12 @@ public:
     virtual std::optional<String16> updatableViaApex(const String16& name) = 0;
 
     /**
+     * Returns all instances which are updatable via the APEX. Instance names are fully qualified
+     * like `pack.age.IFoo/default`.
+     */
+    virtual Vector<String16> getUpdatableNames(const String16& apexName) = 0;
+
+    /**
      * If this instance has declared remote connection information, returns
      * the ConnectionInfo.
      */

@@ -142,6 +142,26 @@ static std::optional<std::string> getVintfUpdatableApex(const std::string& name)
     return updatableViaApex;
 }
 
+static std::vector<std::string> getVintfUpdatableInstances(const std::string& apexName) {
+    std::vector<std::string> instances;
+
+    forEachManifest([&](const ManifestWithDescription& mwd) {
+        mwd.manifest->forEachInstance([&](const auto& manifestInstance) {
+            if (manifestInstance.format() == vintf::HalFormat::AIDL &&
+                manifestInstance.updatableViaApex().has_value() &&
+                manifestInstance.updatableViaApex().value() == apexName) {
+                std::string aname = manifestInstance.package() + "." +
+                        manifestInstance.interface() + "/" + manifestInstance.instance();
+                instances.push_back(aname);
+            }
+            return false; // continue
+        });
+        return false; // continue
+    });
+
+    return instances;
+}
+
 static std::optional<ConnectionInfo> getVintfConnectionInfo(const std::string& name) {
     AidlName aname;
     if (!AidlName::fill(name, &aname)) return std::nullopt;
@@ -509,6 +529,30 @@ Status ServiceManager::updatableViaApex(const std::string& name,
 #ifndef VENDORSERVICEMANAGER
     *outReturn = getVintfUpdatableApex(name);
 #endif
+    return Status::ok();
+}
+
+Status ServiceManager::getUpdatableNames([[maybe_unused]] const std::string& apexName,
+                                         std::vector<std::string>* outReturn) {
+    auto ctx = mAccess->getCallingContext();
+
+    std::vector<std::string> apexUpdatableInstances;
+#ifndef VENDORSERVICEMANAGER
+    apexUpdatableInstances = getVintfUpdatableInstances(apexName);
+#endif
+
+    outReturn->clear();
+
+    for (const std::string& instance : apexUpdatableInstances) {
+        if (mAccess->canFind(ctx, instance)) {
+            outReturn->push_back(instance);
+        }
+    }
+
+    if (outReturn->size() == 0 && apexUpdatableInstances.size() != 0) {
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denial");
+    }
+
     return Status::ok();
 }
 
