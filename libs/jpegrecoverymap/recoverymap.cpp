@@ -18,69 +18,123 @@
 
 namespace android::recoverymap {
 
-bool RecoveryMap::decodeRecoveryMap(j_r_compressed_ptr compressed_recovery_map,
-                                    j_r_uncompressed_ptr dest) {
+status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
+                                  jr_uncompressed_ptr uncompressed_yuv_420_image,
+                                  void* dest) {
+  if (uncompressed_p010_image == nullptr
+   || uncompressed_yuv_420_image == nullptr
+   || dest == nullptr) {
+    return BAD_VALUE;
+  }
+
+  // TBD
+  return NO_ERROR;
+}
+
+status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
+                                  jr_uncompressed_ptr uncompressed_yuv_420_image,
+                                  void* compressed_jpeg_image,
+                                  void* dest) {
+
+  if (uncompressed_p010_image == nullptr
+   || uncompressed_yuv_420_image == nullptr
+   || compressed_jpeg_image == nullptr
+   || dest == nullptr) {
+    return BAD_VALUE;
+  }
+
+  // TBD
+  return NO_ERROR;
+}
+
+status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
+                                  void* compressed_jpeg_image,
+                                  void* dest) {
+  if (uncompressed_p010_image == nullptr
+   || compressed_jpeg_image == nullptr
+   || dest == nullptr) {
+    return BAD_VALUE;
+  }
+
+  // TBD
+  return NO_ERROR;
+}
+
+status_t RecoveryMap::decodeJPEGR(void* compressed_jpegr_image, jr_uncompressed_ptr dest) {
+  if (compressed_jpegr_image == nullptr || dest == nullptr) {
+    return BAD_VALUE;
+  }
+
+  // TBD
+  return NO_ERROR;
+}
+
+status_t RecoveryMap::decodeRecoveryMap(jr_compressed_ptr compressed_recovery_map,
+                                        jr_uncompressed_ptr dest) {
   if (compressed_recovery_map == nullptr || dest == nullptr) {
-    return false;
+    return BAD_VALUE;
   }
 
   // TBD
-  return true;
+  return NO_ERROR;
 }
 
-bool RecoveryMap::encodeRecoveryMap(j_r_uncompressed_ptr uncompressed_recovery_map,
-                                    j_r_compressed_ptr dest) {
+status_t RecoveryMap::encodeRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
+                                        jr_compressed_ptr dest) {
   if (uncompressed_recovery_map == nullptr || dest == nullptr) {
-    return false;
+    return BAD_VALUE;
   }
 
   // TBD
-  return true;
+  return NO_ERROR;
 }
 
-bool RecoveryMap::generateRecoveryMap(j_r_uncompressed_ptr uncompressed_yuv_420_image,
-                                      j_r_uncompressed_ptr uncompressed_p010_image,
-                                      j_r_uncompressed_ptr dest) {
+status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
+                                          jr_uncompressed_ptr uncompressed_p010_image,
+                                          jr_uncompressed_ptr dest) {
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_p010_image == nullptr
    || dest == nullptr) {
-    return false;
+    return BAD_VALUE;
   }
 
   // TBD
-  return true;
+  return NO_ERROR;
 }
 
-bool RecoveryMap::applyRecoveryMap(j_r_uncompressed_ptr uncompressed_yuv_420_image,
-                                   j_r_uncompressed_ptr uncompressed_recovery_map,
-                                   j_r_uncompressed_ptr dest) {
+status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
+                                       jr_uncompressed_ptr uncompressed_recovery_map,
+                                       jr_uncompressed_ptr dest) {
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_recovery_map == nullptr
    || dest == nullptr) {
-    return false;
+    return BAD_VALUE;
   }
 
   // TBD
-  return true;
+  return NO_ERROR;
 }
 
-j_r_compressed_ptr RecoveryMap::extractRecoveryMap(void* compressed_jpeg_r_image) {
-  if (compressed_jpeg_r_image == nullptr) {
-    return nullptr;
+status_t RecoveryMap::extractRecoveryMap(void* compressed_jpegr_image, jr_compressed_ptr dest) {
+  if (compressed_jpegr_image == nullptr || dest == nullptr) {
+    return BAD_VALUE;
   }
 
   // TBD
-  return nullptr;
+  return NO_ERROR;
 }
 
-void* RecoveryMap::appendRecoveryMap(void* compressed_jpeg_image,
-                                     j_r_compressed_ptr compressed_recovery_map) {
-  if (compressed_jpeg_image == nullptr || compressed_recovery_map == nullptr) {
-    return nullptr;
+status_t RecoveryMap::appendRecoveryMap(void* compressed_jpeg_image,
+                                     jr_compressed_ptr compressed_recovery_map,
+                                     void* dest) {
+  if (compressed_jpeg_image == nullptr
+   || compressed_recovery_map == nullptr
+   || dest == nullptr) {
+    return BAD_VALUE;
   }
 
   // TBD
-  return nullptr;
+  return NO_ERROR;
 }
 
 } // namespace android::recoverymap

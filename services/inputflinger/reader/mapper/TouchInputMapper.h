@@ -773,6 +773,14 @@ private:
     bool preparePointerGestures(nsecs_t when, bool* outCancelPreviousGesture,
                                 bool* outFinishPreviousGesture, bool isTimeout);
 
+    // Returns true if we're in a period of "quiet time" when touchpad gestures should be ignored.
+    bool checkForTouchpadQuietTime(nsecs_t when);
+
+    std::pair<int32_t, float> getFastestFinger();
+
+    void prepareMultiFingerPointerGestures(nsecs_t when, bool* outCancelPreviousGesture,
+                                           bool* outFinishPreviousGesture);
+
     // Moves the on-screen mouse pointer based on the movement of the pointer of the given ID
     // between the last and current events. Uses a relative motion.
     void moveMousePointerFromPointerDelta(nsecs_t when, uint32_t pointerId);
