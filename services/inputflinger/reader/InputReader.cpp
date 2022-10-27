@@ -875,6 +875,16 @@ std::optional<int32_t> InputReader::getLightPlayerId(int32_t deviceId, int32_t l
     return std::nullopt;
 }
 
+std::optional<std::string> InputReader::getBluetoothAddress(int32_t deviceId) const {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        return device->getBluetoothAddress();
+    }
+    return std::nullopt;
+}
+
 bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
     std::scoped_lock _l(mLock);
 

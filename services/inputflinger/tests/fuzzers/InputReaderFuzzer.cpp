@@ -157,6 +157,10 @@ public:
         return reader->getKeyCodeForKeyLocation(deviceId, locationKeyCode);
     }
 
+    std::optional<std::string> getBluetoothAddress(int32_t deviceId) const {
+        return reader->getBluetoothAddress(deviceId);
+    }
+
 private:
     std::unique_ptr<InputReaderInterface> reader;
 };
@@ -273,6 +277,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                                          std::chrono::microseconds(fdp->ConsumeIntegral<size_t>()),
                                          std::chrono::microseconds(fdp->ConsumeIntegral<size_t>()));
                 },
+                [&]() -> void { reader->getBluetoothAddress(fdp->ConsumeIntegral<int32_t>()); },
         })();
     }
 
