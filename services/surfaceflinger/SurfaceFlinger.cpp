@@ -2941,6 +2941,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
 
         // Display modes are reloaded on hotplug reconnect.
         if (display->isPrimary()) {
+            // TODO(b/241285876): Annotate `processDisplayAdded` instead.
+            ftl::FakeGuard guard(kMainThreadContext);
             mScheduler->setRefreshRateSelector(selectorPtr);
         }
 

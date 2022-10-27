@@ -94,36 +94,24 @@ void Scheduler::startTimers() {
     }
 }
 
-void Scheduler::setRefreshRateSelector(RefreshRateSelectorPtr selectorPtr) {
-    // The current RefreshRateSelector instance may outlive this call, so unbind its idle timer.
-    {
-        // mRefreshRateSelectorLock is not locked here to avoid the deadlock
-        // as the callback can attempt to acquire the lock before stopIdleTimer can finish
-        // the execution. It's safe to FakeGuard as main thread is the only thread that
-        // writes to the mRefreshRateSelector.
-        ftl::FakeGuard guard(mRefreshRateSelectorLock);
-        if (mRefreshRateSelector) {
-            mRefreshRateSelector->stopIdleTimer();
-            mRefreshRateSelector->clearIdleTimerCallbacks();
-        }
+void Scheduler::setRefreshRateSelector(RefreshRateSelectorPtr newSelectorPtr) {
+    // No need to lock for reads on kMainThreadContext.
+    if (const auto& selectorPtr = FTL_FAKE_GUARD(mRefreshRateSelectorLock, mRefreshRateSelector)) {
+        unbindIdleTimer(*selectorPtr);
     }
+
     {
-        // Clear state that depends on the current instance.
+        // Clear state that depends on the current RefreshRateSelector.
         std::scoped_lock lock(mPolicyLock);
         mPolicy = {};
     }
 
     std::scoped_lock lock(mRefreshRateSelectorLock);
-    mRefreshRateSelector = std::move(selectorPtr);
-    if (!mRefreshRateSelector) return;
+    mRefreshRateSelector = std::move(newSelectorPtr);
 
-    mRefreshRateSelector->setIdleTimerCallbacks(
-            {.platform = {.onReset = [this] { idleTimerCallback(TimerState::Reset); },
-                          .onExpired = [this] { idleTimerCallback(TimerState::Expired); }},
-             .kernel = {.onReset = [this] { kernelIdleTimerCallback(TimerState::Reset); },
-                        .onExpired = [this] { kernelIdleTimerCallback(TimerState::Expired); }}});
-
-    mRefreshRateSelector->startIdleTimer();
+    if (mRefreshRateSelector) {
+        bindIdleTimer(*mRefreshRateSelector);
+    }
 }
 
 void Scheduler::registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
@@ -544,6 +532,21 @@ void Scheduler::setDisplayPowerMode(hal::PowerMode powerMode) {
     // Display Power event will boost the refresh rate to performance.
     // Clear Layer History to get fresh FPS detection
     mLayerHistory.clear();
+}
+
+void Scheduler::bindIdleTimer(RefreshRateSelector& selector) {
+    selector.setIdleTimerCallbacks(
+            {.platform = {.onReset = [this] { idleTimerCallback(TimerState::Reset); },
+                          .onExpired = [this] { idleTimerCallback(TimerState::Expired); }},
+             .kernel = {.onReset = [this] { kernelIdleTimerCallback(TimerState::Reset); },
+                        .onExpired = [this] { kernelIdleTimerCallback(TimerState::Expired); }}});
+
+    selector.startIdleTimer();
+}
+
+void Scheduler::unbindIdleTimer(RefreshRateSelector& selector) {
+    selector.stopIdleTimer();
+    selector.clearIdleTimerCallbacks();
 }
 
 void Scheduler::kernelIdleTimerCallback(TimerState state) {

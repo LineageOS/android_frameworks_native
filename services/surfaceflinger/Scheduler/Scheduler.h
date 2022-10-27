@@ -108,7 +108,8 @@ public:
     void startTimers();
 
     using RefreshRateSelectorPtr = std::shared_ptr<RefreshRateSelector>;
-    void setRefreshRateSelector(RefreshRateSelectorPtr) EXCLUDES(mRefreshRateSelectorLock);
+    void setRefreshRateSelector(RefreshRateSelectorPtr) REQUIRES(kMainThreadContext)
+            EXCLUDES(mRefreshRateSelectorLock);
 
     void registerDisplay(PhysicalDisplayId, RefreshRateSelectorPtr);
     void unregisterDisplay(PhysicalDisplayId);
@@ -252,6 +253,13 @@ private:
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);
     sp<EventThreadConnection> createConnectionInternal(
             EventThread*, EventRegistrationFlags eventRegistration = {});
+
+    void bindIdleTimer(RefreshRateSelector&) REQUIRES(kMainThreadContext, mRefreshRateSelectorLock);
+
+    // Blocks until the timer thread exits. `mRefreshRateSelectorLock` must not be locked by the
+    // caller on the main thread to avoid deadlock, since the timer thread locks it before exit.
+    static void unbindIdleTimer(RefreshRateSelector&) REQUIRES(kMainThreadContext)
+            EXCLUDES(mRefreshRateSelectorLock);
 
     // Update feature state machine to given state when corresponding timer resets or expires.
     void kernelIdleTimerCallback(TimerState) EXCLUDES(mRefreshRateSelectorLock);
