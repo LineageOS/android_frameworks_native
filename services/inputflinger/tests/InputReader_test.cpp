@@ -39,6 +39,7 @@
 #include <gtest/gtest.h>
 #include <gui/constants.h>
 
+#include <thread>
 #include "android/hardware/input/InputDeviceCountryCode.h"
 #include "input/DisplayViewport.h"
 #include "input/Input.h"
@@ -139,6 +140,16 @@ static void assertAxisNotPresent(MultiTouchInputMapper& mapper, int axis) {
     const InputDeviceInfo::MotionRange* motionRange =
             info.getMotionRange(axis, AINPUT_SOURCE_TOUCHSCREEN);
     ASSERT_EQ(nullptr, motionRange);
+}
+
+[[maybe_unused]] static void dumpReader(InputReader& reader) {
+    std::string dump;
+    reader.dump(dump);
+    std::istringstream iss(dump);
+    for (std::string line; std::getline(iss, line);) {
+        ALOGE("%s", line.c_str());
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 
 // --- FakePointerController ---
@@ -740,7 +751,7 @@ private:
     status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                  RawAbsoluteAxisInfo* outAxisInfo) const override {
         Device* device = getDevice(deviceId);
-        if (device && device->enabled) {
+        if (device) {
             ssize_t index = device->absoluteAxes.indexOfKey(axis);
             if (index >= 0) {
                 *outAxisInfo = device->absoluteAxes.valueAt(index);
