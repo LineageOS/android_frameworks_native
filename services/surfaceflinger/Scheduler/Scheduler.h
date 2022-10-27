@@ -38,6 +38,7 @@
 #include <ui/DisplayId.h>
 
 #include "Display/DisplayMap.h"
+#include "Display/DisplayModeRequest.h"
 #include "DisplayDevice.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
@@ -88,20 +89,9 @@ namespace scheduler {
 
 using GlobalSignals = RefreshRateConfigs::GlobalSignals;
 
-// Config representing the DisplayMode and considered signals for the Display.
-struct DisplayModeConfig {
-    const GlobalSignals signals;
-    const DisplayModePtr displayModePtr;
-
-    DisplayModeConfig(GlobalSignals signals, DisplayModePtr displayModePtr)
-          : signals(signals), displayModePtr(std::move(displayModePtr)) {}
-};
-
 struct ISchedulerCallback {
-    using DisplayModeEvent = scheduler::DisplayModeEvent;
-
     virtual void setVsyncEnabled(bool) = 0;
-    virtual void requestDisplayModes(std::vector<DisplayModeConfig>) = 0;
+    virtual void requestDisplayModes(std::vector<display::DisplayModeRequest>) = 0;
     virtual void kernelTimerChanged(bool expired) = 0;
     virtual void triggerOnFrameRateOverridesChanged() = 0;
 
@@ -278,8 +268,26 @@ private:
     template <typename S, typename T>
     GlobalSignals applyPolicy(S Policy::*, T&&) EXCLUDES(mPolicyLock);
 
-    // Returns the best display mode per display.
-    std::vector<DisplayModeConfig> getBestDisplayModeConfigs() const REQUIRES(mPolicyLock);
+    struct DisplayModeChoice {
+        DisplayModeChoice(DisplayModePtr modePtr, GlobalSignals consideredSignals)
+              : modePtr(std::move(modePtr)), consideredSignals(consideredSignals) {}
+
+        DisplayModePtr modePtr;
+        GlobalSignals consideredSignals;
+
+        bool operator==(const DisplayModeChoice& other) const {
+            return modePtr == other.modePtr && consideredSignals == other.consideredSignals;
+        }
+
+        // For tests.
+        friend std::ostream& operator<<(std::ostream& stream, const DisplayModeChoice& choice) {
+            return stream << '{' << to_string(*choice.modePtr) << " considering "
+                          << choice.consideredSignals.toString().c_str() << '}';
+        }
+    };
+
+    using DisplayModeChoiceMap = display::PhysicalDisplayMap<PhysicalDisplayId, DisplayModeChoice>;
+    DisplayModeChoiceMap chooseDisplayModes() const REQUIRES(mPolicyLock);
 
     GlobalSignals makeGlobalSignals() const REQUIRES(mPolicyLock);
 
@@ -329,6 +337,7 @@ private:
     mutable std::mutex mPolicyLock;
 
     display::PhysicalDisplayMap<PhysicalDisplayId, sp<const DisplayDevice>> mDisplays;
+    std::optional<PhysicalDisplayId> mLeaderDisplayId;
 
     struct Policy {
         // Policy for choosing the display mode.

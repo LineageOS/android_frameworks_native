@@ -554,7 +554,7 @@ private:
     void addWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                int32_t targetFlags, BitSet32 pointerIds,
                                std::optional<nsecs_t> firstDownTimeInTarget,
-                               std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
+                               std::vector<InputTarget>& inputTargets) const REQUIRES(mLock);
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
             REQUIRES(mLock);
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);

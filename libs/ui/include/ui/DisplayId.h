@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <ostream>
 #include <string>
 
 #include <ftl/optional.h>
@@ -65,6 +66,11 @@ inline bool operator!=(DisplayId lhs, DisplayId rhs) {
 
 inline std::string to_string(DisplayId displayId) {
     return std::to_string(displayId.value);
+}
+
+// For tests.
+inline std::ostream& operator<<(std::ostream& stream, DisplayId displayId) {
+    return stream << "DisplayId{" << displayId.value << '}';
 }
 
 // DisplayId of a physical display, such as the internal display or externally connected display.

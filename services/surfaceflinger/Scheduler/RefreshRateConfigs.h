@@ -23,6 +23,7 @@
 #include <utility>
 #include <variant>
 
+#include <ftl/concat.h>
 #include <gui/DisplayEventReceiver.h>
 
 #include <scheduler/Fps.h>
@@ -45,15 +46,6 @@ inline DisplayModeEvent operator|(DisplayModeEvent lhs, DisplayModeEvent rhs) {
     using T = std::underlying_type_t<DisplayModeEvent>;
     return static_cast<DisplayModeEvent>(static_cast<T>(lhs) | static_cast<T>(rhs));
 }
-
-struct RefreshRateRanking {
-    DisplayModePtr displayModePtr;
-    float score = 0.0f;
-
-    bool operator==(const RefreshRateRanking& ranking) const {
-        return displayModePtr == ranking.displayModePtr && score == ranking.score;
-    }
-};
 
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
@@ -208,12 +200,46 @@ public:
             return touch == other.touch && idle == other.idle &&
                     powerOnImminent == other.powerOnImminent;
         }
+
+        auto toString() const {
+            return ftl::Concat("{touch=", touch, ", idle=", idle,
+                               ", powerOnImminent=", powerOnImminent, '}');
+        }
     };
 
-    // Returns the list in the descending order of refresh rates desired
-    // based on their overall score, and the GlobalSignals that were considered.
-    std::pair<std::vector<RefreshRateRanking>, GlobalSignals> getRankedRefreshRates(
-            const std::vector<LayerRequirement>&, GlobalSignals) const EXCLUDES(mLock);
+    struct ScoredRefreshRate {
+        DisplayModePtr modePtr;
+        float score = 0.0f;
+
+        bool operator==(const ScoredRefreshRate& other) const {
+            return modePtr == other.modePtr && score == other.score;
+        }
+
+        static bool scoresEqual(float lhs, float rhs) {
+            constexpr float kEpsilon = 0.0001f;
+            return std::abs(lhs - rhs) <= kEpsilon;
+        }
+
+        struct DescendingScore {
+            bool operator()(const ScoredRefreshRate& lhs, const ScoredRefreshRate& rhs) const {
+                return lhs.score > rhs.score && !scoresEqual(lhs.score, rhs.score);
+            }
+        };
+    };
+
+    using RefreshRateRanking = std::vector<ScoredRefreshRate>;
+
+    struct RankedRefreshRates {
+        RefreshRateRanking ranking; // Ordered by descending score.
+        GlobalSignals consideredSignals;
+
+        bool operator==(const RankedRefreshRates& other) const {
+            return ranking == other.ranking && consideredSignals == other.consideredSignals;
+        }
+    };
+
+    RankedRefreshRates getRankedRefreshRates(const std::vector<LayerRequirement>&,
+                                             GlobalSignals) const EXCLUDES(mLock);
 
     FpsRange getSupportedRefreshRateRange() const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
@@ -354,8 +380,8 @@ private:
     // See mActiveModeIt for thread safety.
     DisplayModeIterator getActiveModeItLocked() const REQUIRES(mLock);
 
-    std::pair<std::vector<RefreshRateRanking>, GlobalSignals> getRankedRefreshRatesLocked(
-            const std::vector<LayerRequirement>&, GlobalSignals) const REQUIRES(mLock);
+    RankedRefreshRates getRankedRefreshRatesLocked(const std::vector<LayerRequirement>&,
+                                                   GlobalSignals) const REQUIRES(mLock);
 
     // Returns number of display frames and remainder when dividing the layer refresh period by
     // display refresh period.
@@ -373,11 +399,10 @@ private:
 
     enum class RefreshRateOrder { Ascending, Descending };
 
-    // Returns the rankings in RefreshRateOrder. May change at runtime.
     // Only uses the primary range, not the app request range.
-    std::vector<RefreshRateRanking> getRefreshRatesByPolicyLocked(
-            std::optional<int> anchorGroupOpt, RefreshRateOrder,
-            std::optional<DisplayModeId> preferredDisplayModeOpt) const REQUIRES(mLock);
+    RefreshRateRanking rankRefreshRates(std::optional<int> anchorGroupOpt, RefreshRateOrder,
+                                        std::optional<DisplayModeId> preferredDisplayModeOpt =
+                                                std::nullopt) const REQUIRES(mLock);
 
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
@@ -436,7 +461,7 @@ private:
 
     struct GetRankedRefreshRatesCache {
         std::pair<std::vector<LayerRequirement>, GlobalSignals> arguments;
-        std::pair<std::vector<RefreshRateRanking>, GlobalSignals> result;
+        RankedRefreshRates result;
     };
     mutable std::optional<GetRankedRefreshRatesCache> mGetRankedRefreshRatesCache GUARDED_BY(mLock);
 

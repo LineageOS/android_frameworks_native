@@ -34,6 +34,7 @@
 #include "DisplayHardware/ComposerHal.h"
 #include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
+#include "FrontEnd/LayerHandle.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
 #include "Scheduler/EventThread.h"
@@ -766,7 +767,7 @@ public:
     auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
 
-    auto fromHandle(const sp<IBinder> &handle) { return mFlinger->fromHandle(handle); }
+    auto fromHandle(const sp<IBinder> &handle) { return LayerHandle::getLayer(handle); }
 
     ~TestableSurfaceFlinger() {
         mutableDisplays().clear();
@@ -780,7 +781,7 @@ public:
 
 private:
     void setVsyncEnabled(bool) override {}
-    void requestDisplayModes(std::vector<scheduler::DisplayModeConfig>) override {}
+    void requestDisplayModes(std::vector<display::DisplayModeRequest>) override {}
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() override {}
 

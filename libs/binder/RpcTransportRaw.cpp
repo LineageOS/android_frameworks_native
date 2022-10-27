@@ -61,7 +61,8 @@ public:
             override {
         bool sentFds = false;
         auto send = [&](iovec* iovs, int niovs) -> ssize_t {
-            int ret = sendMessageOnSocket(mSocket, iovs, niovs, sentFds ? nullptr : ancillaryFds);
+            ssize_t ret =
+                    sendMessageOnSocket(mSocket, iovs, niovs, sentFds ? nullptr : ancillaryFds);
             sentFds |= ret > 0;
             return ret;
         };

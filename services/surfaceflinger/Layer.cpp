@@ -70,6 +70,7 @@
 #include "FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
 #include "FrontEnd/LayerCreationArgs.h"
+#include "FrontEnd/LayerHandle.h"
 #include "LayerProtoHelper.h"
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
@@ -332,7 +333,7 @@ sp<IBinder> Layer::getHandle() {
         return nullptr;
     }
     mGetHandleCalled = true;
-    return sp<Handle>::make(mFlinger, sp<Layer>::fromExisting(this));
+    return sp<LayerHandle>::make(mFlinger, sp<Layer>::fromExisting(this));
 }
 
 // ---------------------------------------------------------------------------
@@ -774,7 +775,7 @@ void Layer::setZOrderRelativeOf(const wp<Layer>& relativeOf) {
 }
 
 bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ) {
-    sp<Layer> relative = fromHandle(relativeToHandle).promote();
+    sp<Layer> relative = LayerHandle::getLayer(relativeToHandle);
     if (relative == nullptr) {
         return false;
     }
@@ -1014,8 +1015,10 @@ bool Layer::isLayerFocusedBasedOnPriority(int32_t priority) {
     return priority == PRIORITY_FOCUSED_WITH_MODE || priority == PRIORITY_FOCUSED_WITHOUT_MODE;
 };
 
-ui::LayerStack Layer::getLayerStack() const {
-    if (const auto parent = mDrawingParent.promote()) {
+ui::LayerStack Layer::getLayerStack(LayerVector::StateSet state) const {
+    bool useDrawing = state == LayerVector::StateSet::Drawing;
+    const auto parent = useDrawing ? mDrawingParent.promote() : mCurrentParent.promote();
+    if (parent) {
         return parent->getLayerStack();
     }
     return getDrawingState().layerStack;
@@ -1543,7 +1546,7 @@ void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
 bool Layer::reparent(const sp<IBinder>& newParentHandle) {
     sp<Layer> newParent;
     if (newParentHandle != nullptr) {
-        newParent = fromHandle(newParentHandle).promote();
+        newParent = LayerHandle::getLayer(newParentHandle);
         if (newParent == nullptr) {
             ALOGE("Unable to promote Layer handle");
             return false;
@@ -1936,7 +1939,8 @@ void Layer::commitChildList() {
 
 void Layer::setInputInfo(const WindowInfo& info) {
     mDrawingState.inputInfo = info;
-    mDrawingState.touchableRegionCrop = fromHandle(info.touchableRegionCropHandle.promote());
+    mDrawingState.touchableRegionCrop =
+            LayerHandle::getLayer(info.touchableRegionCropHandle.promote());
     mDrawingState.modified = true;
     mFlinger->mUpdateInputInfo = true;
     setTransactionFlags(eTransactionNeeded);
@@ -2581,23 +2585,6 @@ void Layer::setClonedChild(const sp<Layer>& clonedChild) {
     mClonedChild = clonedChild;
     mHadClonedChild = true;
     mFlinger->mNumClones++;
-}
-
-const String16 Layer::Handle::kDescriptor = String16("android.Layer.Handle");
-
-wp<Layer> Layer::fromHandle(const sp<IBinder>& handleBinder) {
-    if (handleBinder == nullptr) {
-        return nullptr;
-    }
-
-    BBinder* b = handleBinder->localBinder();
-    if (b == nullptr || b->getInterfaceDescriptor() != Handle::kDescriptor) {
-        return nullptr;
-    }
-
-    // We can safely cast this binder since its local and we verified its interface descriptor.
-    sp<Handle> handle = sp<Handle>::cast(handleBinder);
-    return handle->owner;
 }
 
 bool Layer::setDropInputMode(gui::DropInputMode mode) {

@@ -127,11 +127,19 @@ void Scheduler::setRefreshRateConfigs(std::shared_ptr<RefreshRateConfigs> config
 }
 
 void Scheduler::registerDisplay(sp<const DisplayDevice> display) {
+    if (display->isPrimary()) {
+        mLeaderDisplayId = display->getPhysicalId();
+    }
+
     const bool ok = mDisplays.try_emplace(display->getPhysicalId(), std::move(display)).second;
     ALOGE_IF(!ok, "%s: Duplicate display", __func__);
 }
 
 void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
+    if (mLeaderDisplayId == displayId) {
+        mLeaderDisplayId.reset();
+    }
+
     mDisplays.erase(displayId);
 }
 
@@ -631,9 +639,8 @@ bool Scheduler::updateFrameRateOverrides(GlobalSignals consideredSignals, Fps di
 
 template <typename S, typename T>
 auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals {
-    DisplayModePtr newMode;
+    std::vector<display::DisplayModeRequest> modeRequests;
     GlobalSignals consideredSignals;
-    std::vector<DisplayModeConfig> displayModeConfigs;
 
     bool refreshRateChanged = false;
     bool frameRateOverridesChanged;
@@ -646,42 +653,41 @@ auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals 
         if (currentState == newState) return {};
         currentState = std::forward<T>(newState);
 
-        displayModeConfigs = getBestDisplayModeConfigs();
+        auto modeChoices = chooseDisplayModes();
 
-        // mPolicy holds the current mode, using the current mode we find out
-        // what display is currently being tracked through the policy and
-        // then find the DisplayModeConfig for that display. So that
-        // later we check if the policy mode has changed for the same display in policy.
-        // If mPolicy mode isn't available then we take the first display from the best display
-        // modes as the candidate for policy changes and frame rate overrides.
-        // TODO(b/240743786) Update the single display based assumptions and make mode changes
-        // and mPolicy per display.
-        const DisplayModeConfig& displayModeConfigForCurrentPolicy = mPolicy.mode
-                ? *std::find_if(displayModeConfigs.begin(), displayModeConfigs.end(),
-                                [&](const auto& displayModeConfig) REQUIRES(mPolicyLock) {
-                                    return displayModeConfig.displayModePtr
-                                                   ->getPhysicalDisplayId() ==
-                                            mPolicy.mode->getPhysicalDisplayId();
-                                })
-                : displayModeConfigs.front();
+        // TODO(b/240743786): The leader display's mode must change for any DisplayModeRequest to go
+        // through. Fix this by tracking per-display Scheduler::Policy and timers.
+        DisplayModePtr modePtr;
+        std::tie(modePtr, consideredSignals) =
+                modeChoices.get(*mLeaderDisplayId)
+                        .transform([](const DisplayModeChoice& choice) {
+                            return std::make_pair(choice.modePtr, choice.consideredSignals);
+                        })
+                        .value();
 
-        newMode = displayModeConfigForCurrentPolicy.displayModePtr;
-        consideredSignals = displayModeConfigForCurrentPolicy.signals;
-        frameRateOverridesChanged = updateFrameRateOverrides(consideredSignals, newMode->getFps());
+        modeRequests.reserve(modeChoices.size());
+        for (auto& [id, choice] : modeChoices) {
+            modeRequests.emplace_back(
+                    display::DisplayModeRequest{.modePtr =
+                                                        ftl::as_non_null(std::move(choice.modePtr)),
+                                                .emitEvent = !choice.consideredSignals.idle});
+        }
 
-        if (mPolicy.mode == newMode) {
+        frameRateOverridesChanged = updateFrameRateOverrides(consideredSignals, modePtr->getFps());
+
+        if (mPolicy.mode != modePtr) {
+            mPolicy.mode = modePtr;
+            refreshRateChanged = true;
+        } else {
             // We don't need to change the display mode, but we might need to send an event
             // about a mode change, since it was suppressed if previously considered idle.
             if (!consideredSignals.idle) {
                 dispatchCachedReportedMode();
             }
-        } else {
-            mPolicy.mode = newMode;
-            refreshRateChanged = true;
         }
     }
     if (refreshRateChanged) {
-        mSchedulerCallback.requestDisplayModes(std::move(displayModeConfigs));
+        mSchedulerCallback.requestDisplayModes(std::move(modeRequests));
     }
     if (frameRateOverridesChanged) {
         mSchedulerCallback.triggerOnFrameRateOverridesChanged();
@@ -689,11 +695,11 @@ auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals 
     return consideredSignals;
 }
 
-std::vector<DisplayModeConfig> Scheduler::getBestDisplayModeConfigs() const {
+auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
     ATRACE_CALL();
 
-    using Rankings = std::pair<std::vector<RefreshRateRanking>, GlobalSignals>;
-    display::PhysicalDisplayVector<Rankings> perDisplayRankings;
+    using RankedRefreshRates = RefreshRateConfigs::RankedRefreshRates;
+    display::PhysicalDisplayVector<RankedRefreshRates> perDisplayRanking;
 
     // Tallies the score of a refresh rate across `displayCount` displays.
     struct RefreshRateTally {
@@ -710,11 +716,11 @@ std::vector<DisplayModeConfig> Scheduler::getBestDisplayModeConfigs() const {
     const auto globalSignals = makeGlobalSignals();
 
     for (const auto& [id, display] : mDisplays) {
-        auto [rankings, signals] =
+        auto rankedRefreshRates =
                 display->holdRefreshRateConfigs()
                         ->getRankedRefreshRates(mPolicy.contentRequirements, globalSignals);
 
-        for (const auto& [modePtr, score] : rankings) {
+        for (const auto& [modePtr, score] : rankedRefreshRates.ranking) {
             const auto [it, inserted] = refreshRateTallies.try_emplace(modePtr->getFps(), score);
 
             if (!inserted) {
@@ -724,7 +730,7 @@ std::vector<DisplayModeConfig> Scheduler::getBestDisplayModeConfigs() const {
             }
         }
 
-        perDisplayRankings.emplace_back(std::move(rankings), signals);
+        perDisplayRanking.push_back(std::move(rankedRefreshRates));
     }
 
     auto maxScoreIt = refreshRateTallies.cbegin();
@@ -750,26 +756,27 @@ std::vector<DisplayModeConfig> Scheduler::getBestDisplayModeConfigs() const {
             ? std::make_optional(maxScoreIt->first)
             : std::nullopt;
 
-    std::vector<DisplayModeConfig> displayModeConfigs;
-    displayModeConfigs.reserve(mDisplays.size());
+    DisplayModeChoiceMap modeChoices;
 
     using fps_approx_ops::operator==;
 
-    for (const auto& [rankings, signals] : perDisplayRankings) {
+    for (auto& [ranking, signals] : perDisplayRanking) {
         if (!chosenFps) {
-            displayModeConfigs.emplace_back(signals, rankings.front().displayModePtr);
+            auto& [modePtr, _] = ranking.front();
+            modeChoices.try_emplace(modePtr->getPhysicalDisplayId(),
+                                    DisplayModeChoice{std::move(modePtr), signals});
             continue;
         }
 
-        for (const auto& ranking : rankings) {
-            const auto& modePtr = ranking.displayModePtr;
+        for (auto& [modePtr, _] : ranking) {
             if (modePtr->getFps() == *chosenFps) {
-                displayModeConfigs.emplace_back(signals, modePtr);
+                modeChoices.try_emplace(modePtr->getPhysicalDisplayId(),
+                                        DisplayModeChoice{std::move(modePtr), signals});
                 break;
             }
         }
     }
-    return displayModeConfigs;
+    return modeChoices;
 }
 
 GlobalSignals Scheduler::makeGlobalSignals() const {
@@ -787,11 +794,11 @@ DisplayModePtr Scheduler::getPreferredDisplayMode() {
     // Make sure the stored mode is up to date.
     if (mPolicy.mode) {
         const auto configs = holdRefreshRateConfigs();
-        const auto rankings =
+        const auto ranking =
                 configs->getRankedRefreshRates(mPolicy.contentRequirements, makeGlobalSignals())
-                        .first;
+                        .ranking;
 
-        mPolicy.mode = rankings.front().displayModePtr;
+        mPolicy.mode = ranking.front().modePtr;
     }
     return mPolicy.mode;
 }

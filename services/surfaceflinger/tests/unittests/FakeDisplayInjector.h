@@ -29,7 +29,7 @@ using android::hardware::graphics::composer::hal::HWDisplayId;
 using android::Hwc2::mock::PowerAdvisor;
 
 struct FakeDisplayInjectorArgs {
-    uint8_t port = 255u;
+    PhysicalDisplayId displayId = PhysicalDisplayId::fromPort(255u);
     HWDisplayId hwcDisplayId = 0;
     bool isPrimary = true;
 };
@@ -67,7 +67,7 @@ public:
         auto compositionDisplay = compositionengine::impl::
                 createDisplay(mFlinger.getCompositionEngine(),
                               compositionengine::DisplayCreationArgsBuilder()
-                                      .setId(PhysicalDisplayId::fromPort(args.port))
+                                      .setId(args.displayId)
                                       .setPixels(kResolution)
                                       .setPowerAdvisor(&mPowerAdvisor)
                                       .build());

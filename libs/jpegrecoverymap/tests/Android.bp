@@ -31,3 +31,35 @@ cc_test {
         "libjpegrecoverymap",
     ],
 }
+
+cc_test {
+    name: "libjpegencoder_test",
+    test_suites: ["device-tests"],
+    srcs: [
+        "jpegencoder_test.cpp",
+    ],
+    shared_libs: [
+        "libjpeg",
+        "liblog",
+    ],
+    static_libs: [
+        "libjpegencoder",
+        "libgtest",
+    ],
+}
+
+cc_test {
+    name: "libjpegdecoder_test",
+    test_suites: ["device-tests"],
+    srcs: [
+        "jpegdecoder_test.cpp",
+    ],
+    shared_libs: [
+        "libjpeg",
+        "liblog",
+    ],
+    static_libs: [
+        "libjpegdecoder",
+        "libgtest",
+    ],
+}

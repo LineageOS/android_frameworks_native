@@ -49,6 +49,8 @@ public:
     binder::Status getDeclaredInstances(const std::string& interface, std::vector<std::string>* outReturn) override;
     binder::Status updatableViaApex(const std::string& name,
                                     std::optional<std::string>* outReturn) override;
+    binder::Status getUpdatableNames(const std::string& apexName,
+                                     std::vector<std::string>* outReturn) override;
     binder::Status getConnectionInfo(const std::string& name,
                                      std::optional<ConnectionInfo>* outReturn) override;
     binder::Status registerClientCallback(const std::string& name, const sp<IBinder>& service,
