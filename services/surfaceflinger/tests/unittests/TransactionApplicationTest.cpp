@@ -294,7 +294,7 @@ TEST_F(TransactionApplicationTest, PlaceOnTransactionQueue_SyncInputWindows) {
 TEST_F(TransactionApplicationTest, FromHandle) {
     sp<IBinder> badHandle;
     auto ret = mFlinger.fromHandle(badHandle);
-    EXPECT_EQ(nullptr, ret.promote().get());
+    EXPECT_EQ(nullptr, ret.get());
 }
 
 class LatchUnsignaledTest : public TransactionApplicationTest {

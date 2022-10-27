@@ -52,6 +52,8 @@ public:
 
     std::optional<String16> updatableViaApex(const String16& name) override;
 
+    Vector<String16> getUpdatableNames(const String16& apexName) override;
+
     std::optional<IServiceManager::ConnectionInfo> getConnectionInfo(const String16& name) override;
 
     status_t registerForNotifications(const String16& name,

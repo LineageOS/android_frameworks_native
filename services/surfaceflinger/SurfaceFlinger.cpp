@@ -124,6 +124,7 @@
 #include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
 #include "FrontEnd/LayerCreationArgs.h"
+#include "FrontEnd/LayerHandle.h"
 #include "HdrLayerInfoReporter.h"
 #include "Layer.h"
 #include "LayerProtoHelper.h"
@@ -1577,7 +1578,10 @@ status_t SurfaceFlinger::addRegionSamplingListener(const Rect& samplingArea,
         return BAD_VALUE;
     }
 
-    const wp<Layer> stopLayer = fromHandle(stopLayerHandle);
+    // LayerHandle::getLayer promotes the layer object in a binder thread but we will not destroy
+    // the layer here since the caller has a strong ref to the layer's handle.
+    // TODO (b/238781169): replace layer with layer id
+    const wp<Layer> stopLayer = LayerHandle::getLayer(stopLayerHandle);
     mRegionSamplingThread->addListener(samplingArea, stopLayer, listener);
     return NO_ERROR;
 }
@@ -3698,7 +3702,7 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
     using TransactionReadiness = TransactionHandler::TransactionReadiness;
     auto ready = TransactionReadiness::Ready;
     flushState.transaction->traverseStatesWithBuffersWhileTrue([&](const layer_state_t& s) -> bool {
-        sp<Layer> layer = Layer::fromHandle(s.surface).promote();
+        sp<Layer> layer = LayerHandle::getLayer(s.surface);
         const auto& transaction = *flushState.transaction;
         // check for barrier frames
         if (s.bufferData->hasBarrier &&
@@ -3966,7 +3970,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                 setClientStateLocked(frameTimelineInfo, state, desiredPresentTime, isAutoTimestamp,
                                      postTime, permissions, transactionId);
         if ((flags & eAnimation) && state.state.surface) {
-            if (const auto layer = fromHandle(state.state.surface).promote()) {
+            if (const auto layer = LayerHandle::getLayer(state.state.surface)) {
                 using LayerUpdateType = scheduler::LayerHistory::LayerUpdateType;
                 mScheduler->recordLayerHistory(layer.get(),
                                                isAutoTimestamp ? 0 : desiredPresentTime,
@@ -4107,7 +4111,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     uint32_t flags = 0;
     sp<Layer> layer = nullptr;
     if (s.surface) {
-        layer = fromHandle(s.surface).promote();
+        layer = LayerHandle::getLayer(s.surface);
     } else {
         // The client may provide us a null handle. Treat it as if the layer was removed.
         ALOGW("Attempt to set client state with a null layer handle");
@@ -4414,7 +4418,7 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
     LayerCreationArgs mirrorArgs(args);
     {
         Mutex::Autolock _l(mStateLock);
-        mirrorFrom = fromHandle(mirrorFromHandle).promote();
+        mirrorFrom = LayerHandle::getLayer(mirrorFromHandle);
         if (!mirrorFrom) {
             return NAME_NOT_FOUND;
         }
@@ -4520,19 +4524,15 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, gui::CreateSurface
     }
 
     args.addToRoot = args.addToRoot && callingThreadHasUnscopedSurfaceFlingerAccess();
-    wp<Layer> parent = fromHandle(args.parentHandle.promote());
+    // We can safely promote the parent layer in binder thread because we have a strong reference
+    // to the layer's handle inside this scope.
+    sp<Layer> parent = LayerHandle::getLayer(args.parentHandle.promote());
     if (args.parentHandle != nullptr && parent == nullptr) {
-        ALOGE("Invalid parent handle %p.", args.parentHandle.promote().get());
+        ALOGE("Invalid parent handle %p", args.parentHandle.promote().get());
         args.addToRoot = false;
     }
 
-    int parentId = -1;
-    // We can safely promote the layer in binder thread because we have a strong reference
-    // to the layer's handle inside this scope or we were passed in a sp reference to the layer.
-    sp<Layer> parentSp = parent.promote();
-    if (parentSp != nullptr) {
-        parentId = parentSp->getSequence();
-    }
+    const int parentId = parent ? parent->getSequence() : -1;
     if (mTransactionTracing) {
         mTransactionTracing->onLayerAdded(outResult.handle->localBinder(), layer->sequence,
                                           args.name, args.flags, parentId);
@@ -4571,7 +4571,7 @@ void SurfaceFlinger::markLayerPendingRemovalLocked(const sp<Layer>& layer) {
     setTransactionFlags(eTransactionNeeded);
 }
 
-void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer) {
+void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32_t /* layerId */) {
     Mutex::Autolock lock(mStateLock);
     markLayerPendingRemovalLocked(layer);
     mBufferCountTracker.remove(handle);
@@ -6176,7 +6176,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     {
         Mutex::Autolock lock(mStateLock);
 
-        parent = fromHandle(args.layerHandle).promote();
+        parent = LayerHandle::getLayer(args.layerHandle);
         if (parent == nullptr) {
             ALOGE("captureLayers called with an invalid or removed parent");
             return NAME_NOT_FOUND;
@@ -6207,7 +6207,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         reqSize = ui::Size(crop.width() * args.frameScaleX, crop.height() * args.frameScaleY);
 
         for (const auto& handle : args.excludeHandles) {
-            sp<Layer> excludeLayer = fromHandle(handle).promote();
+            sp<Layer> excludeLayer = LayerHandle::getLayer(handle);
             if (excludeLayer != nullptr) {
                 excludeLayers.emplace(excludeLayer);
             } else {
@@ -6723,10 +6723,6 @@ status_t SurfaceFlinger::getDesiredDisplayModeSpecs(const sp<IBinder>& displayTo
     return NO_ERROR;
 }
 
-wp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) const {
-    return Layer::fromHandle(handle);
-}
-
 void SurfaceFlinger::onLayerFirstRef(Layer* layer) {
     mNumLayers++;
     if (!layer->isRemovedFromCurrentState()) {
@@ -7015,7 +7011,7 @@ bool SurfaceFlinger::commitMirrorDisplays(VsyncId vsyncId) {
     for (const auto& mirrorDisplay : mirrorDisplays) {
         // Set mirror layer's default layer stack to -1 so it doesn't end up rendered on a display
         // accidentally.
-        sp<Layer> rootMirrorLayer = Layer::fromHandle(mirrorDisplay.rootHandle).promote();
+        sp<Layer> rootMirrorLayer = LayerHandle::getLayer(mirrorDisplay.rootHandle);
         rootMirrorLayer->setLayerStack(ui::LayerStack::fromValue(-1));
         for (const auto& layer : mDrawingState.layersSortedByZ) {
             if (layer->getLayerStack() != mirrorDisplay.layerStack ||

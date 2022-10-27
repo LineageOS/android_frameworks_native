@@ -34,6 +34,7 @@
 #include "FakeVsyncConfiguration.h"
 #include "FrameTracer/FrameTracer.h"
 #include "FrontEnd/LayerCreationArgs.h"
+#include "FrontEnd/LayerHandle.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
 #include "Scheduler/MessageQueue.h"
@@ -530,9 +531,7 @@ public:
     auto& mutablePrimaryHwcDisplayId() { return getHwComposer().mPrimaryHwcDisplayId; }
     auto& mutableActiveDisplayId() { return mFlinger->mActiveDisplayId; }
 
-    auto fromHandle(const sp<IBinder>& handle) {
-        return mFlinger->fromHandle(handle);
-    }
+    auto fromHandle(const sp<IBinder>& handle) { return LayerHandle::getLayer(handle); }
 
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
