@@ -357,9 +357,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
 
-    property_get("ro.bq.gpu_to_cpu_unsupported", value, "0");
-    mGpuToCpuSupported = !atoi(value);
-
     property_get("ro.build.type", value, "user");
     mIsUserBuild = strcmp(value, "user") == 0;
 
@@ -5181,10 +5178,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
         StringAppendF(&result, "  orientation=%s, isPoweredOn=%d\n",
                       toCString(display->getOrientation()), display->isPoweredOn());
     }
-    StringAppendF(&result,
-                  "  transaction-flags         : %08x\n"
-                  "  gpu_to_cpu_unsupported    : %d\n",
-                  mTransactionFlags.load(), !mGpuToCpuSupported);
+    StringAppendF(&result, "  transaction-flags         : %08x\n", mTransactionFlags.load());
 
     if (const auto display = getDefaultDisplayDeviceLocked()) {
         std::string fps, xDpi, yDpi;
