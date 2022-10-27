@@ -479,8 +479,7 @@ bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, int32
 
 bool isPointerFromStylus(const MotionEntry& entry, int32_t pointerIndex) {
     return isFromSource(entry.source, AINPUT_SOURCE_STYLUS) &&
-            (entry.pointerProperties[pointerIndex].toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS ||
-             entry.pointerProperties[pointerIndex].toolType == AMOTION_EVENT_TOOL_TYPE_ERASER);
+            isStylusToolType(entry.pointerProperties[pointerIndex].toolType);
 }
 
 // Determines if the given window can be targeted as InputTarget::FLAG_FOREGROUND.

@@ -1595,8 +1595,7 @@ std::list<NotifyArgs> TouchInputMapper::cookAndDispatch(nsecs_t when, nsecs_t re
             uint32_t id = idBits.clearFirstMarkedBit();
             const RawPointerData::Pointer& pointer =
                     mCurrentRawState.rawPointerData.pointerForId(id);
-            if (pointer.toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS ||
-                pointer.toolType == AMOTION_EVENT_TOOL_TYPE_ERASER) {
+            if (isStylusToolType(pointer.toolType)) {
                 mCurrentCookedState.stylusIdBits.markBit(id);
             } else if (pointer.toolType == AMOTION_EVENT_TOOL_TYPE_FINGER ||
                        pointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
@@ -1609,8 +1608,7 @@ std::list<NotifyArgs> TouchInputMapper::cookAndDispatch(nsecs_t when, nsecs_t re
             uint32_t id = idBits.clearFirstMarkedBit();
             const RawPointerData::Pointer& pointer =
                     mCurrentRawState.rawPointerData.pointerForId(id);
-            if (pointer.toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS ||
-                pointer.toolType == AMOTION_EVENT_TOOL_TYPE_ERASER) {
+            if (isStylusToolType(pointer.toolType)) {
                 mCurrentCookedState.stylusIdBits.markBit(id);
             }
         }

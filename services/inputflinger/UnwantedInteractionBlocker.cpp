@@ -99,14 +99,17 @@ static bool isPalmRejectionEnabled() {
 }
 
 static int getLinuxToolCode(int toolType) {
-    if (toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS) {
-        return BTN_TOOL_PEN;
+    switch (toolType) {
+        case AMOTION_EVENT_TOOL_TYPE_STYLUS:
+            return BTN_TOOL_PEN;
+        case AMOTION_EVENT_TOOL_TYPE_ERASER:
+            return BTN_TOOL_RUBBER;
+        case AMOTION_EVENT_TOOL_TYPE_FINGER:
+            return BTN_TOOL_FINGER;
+        default:
+            ALOGW("Got tool type %" PRId32 ", converting to BTN_TOOL_FINGER", toolType);
+            return BTN_TOOL_FINGER;
     }
-    if (toolType == AMOTION_EVENT_TOOL_TYPE_FINGER) {
-        return BTN_TOOL_FINGER;
-    }
-    ALOGW("Got tool type %" PRId32 ", converting to BTN_TOOL_FINGER", toolType);
-    return BTN_TOOL_FINGER;
 }
 
 static int32_t getActionUpForPointerId(const NotifyMotionArgs& args, int32_t pointerId) {
@@ -195,7 +198,7 @@ NotifyMotionArgs removePointerIds(const NotifyMotionArgs& args,
 static std::optional<NotifyMotionArgs> removeStylusPointerIds(const NotifyMotionArgs& args) {
     std::set<int32_t> stylusPointerIds;
     for (uint32_t i = 0; i < args.pointerCount; i++) {
-        if (args.pointerProperties[i].toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS) {
+        if (isStylusToolType(args.pointerProperties[i].toolType)) {
             stylusPointerIds.insert(args.pointerProperties[i].id);
         }
     }
