@@ -3223,6 +3223,55 @@ void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t a
     postCommandLocked(std::move(command));
 }
 
+status_t InputDispatcher::publishMotionEvent(Connection& connection,
+                                             DispatchEntry& dispatchEntry) const {
+    const EventEntry& eventEntry = *(dispatchEntry.eventEntry);
+    const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
+
+    PointerCoords scaledCoords[MAX_POINTERS];
+    const PointerCoords* usingCoords = motionEntry.pointerCoords;
+
+    // Set the X and Y offset and X and Y scale depending on the input source.
+    if ((motionEntry.source & AINPUT_SOURCE_CLASS_POINTER) &&
+        !(dispatchEntry.targetFlags & InputTarget::FLAG_ZERO_COORDS)) {
+        float globalScaleFactor = dispatchEntry.globalScaleFactor;
+        if (globalScaleFactor != 1.0f) {
+            for (uint32_t i = 0; i < motionEntry.pointerCount; i++) {
+                scaledCoords[i] = motionEntry.pointerCoords[i];
+                // Don't apply window scale here since we don't want scale to affect raw
+                // coordinates. The scale will be sent back to the client and applied
+                // later when requesting relative coordinates.
+                scaledCoords[i].scale(globalScaleFactor, 1 /* windowXScale */,
+                                      1 /* windowYScale */);
+            }
+            usingCoords = scaledCoords;
+        }
+    } else if (dispatchEntry.targetFlags & InputTarget::FLAG_ZERO_COORDS) {
+        // We don't want the dispatch target to know the coordinates
+        for (uint32_t i = 0; i < motionEntry.pointerCount; i++) {
+            scaledCoords[i].clear();
+        }
+        usingCoords = scaledCoords;
+    }
+
+    std::array<uint8_t, 32> hmac = getSignature(motionEntry, dispatchEntry);
+
+    // Publish the motion event.
+    return connection.inputPublisher
+            .publishMotionEvent(dispatchEntry.seq, dispatchEntry.resolvedEventId,
+                                motionEntry.deviceId, motionEntry.source, motionEntry.displayId,
+                                std::move(hmac), dispatchEntry.resolvedAction,
+                                motionEntry.actionButton, dispatchEntry.resolvedFlags,
+                                motionEntry.edgeFlags, motionEntry.metaState,
+                                motionEntry.buttonState, motionEntry.classification,
+                                dispatchEntry.transform, motionEntry.xPrecision,
+                                motionEntry.yPrecision, motionEntry.xCursorPosition,
+                                motionEntry.yCursorPosition, dispatchEntry.rawTransform,
+                                motionEntry.downTime, motionEntry.eventTime,
+                                motionEntry.pointerCount, motionEntry.pointerProperties,
+                                usingCoords);
+}
+
 void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                const sp<Connection>& connection) {
     if (ATRACE_ENABLED()) {
@@ -3262,58 +3311,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
             }
 
             case EventEntry::Type::MOTION: {
-                const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
-
-                PointerCoords scaledCoords[MAX_POINTERS];
-                const PointerCoords* usingCoords = motionEntry.pointerCoords;
-
-                // Set the X and Y offset and X and Y scale depending on the input source.
-                if ((motionEntry.source & AINPUT_SOURCE_CLASS_POINTER) &&
-                    !(dispatchEntry->targetFlags & InputTarget::FLAG_ZERO_COORDS)) {
-                    float globalScaleFactor = dispatchEntry->globalScaleFactor;
-                    if (globalScaleFactor != 1.0f) {
-                        for (uint32_t i = 0; i < motionEntry.pointerCount; i++) {
-                            scaledCoords[i] = motionEntry.pointerCoords[i];
-                            // Don't apply window scale here since we don't want scale to affect raw
-                            // coordinates. The scale will be sent back to the client and applied
-                            // later when requesting relative coordinates.
-                            scaledCoords[i].scale(globalScaleFactor, 1 /* windowXScale */,
-                                                  1 /* windowYScale */);
-                        }
-                        usingCoords = scaledCoords;
-                    }
-                } else {
-                    // We don't want the dispatch target to know.
-                    if (dispatchEntry->targetFlags & InputTarget::FLAG_ZERO_COORDS) {
-                        for (uint32_t i = 0; i < motionEntry.pointerCount; i++) {
-                            scaledCoords[i].clear();
-                        }
-                        usingCoords = scaledCoords;
-                    }
-                }
-
-                std::array<uint8_t, 32> hmac = getSignature(motionEntry, *dispatchEntry);
-
-                // Publish the motion event.
-                status = connection->inputPublisher
-                                 .publishMotionEvent(dispatchEntry->seq,
-                                                     dispatchEntry->resolvedEventId,
-                                                     motionEntry.deviceId, motionEntry.source,
-                                                     motionEntry.displayId, std::move(hmac),
-                                                     dispatchEntry->resolvedAction,
-                                                     motionEntry.actionButton,
-                                                     dispatchEntry->resolvedFlags,
-                                                     motionEntry.edgeFlags, motionEntry.metaState,
-                                                     motionEntry.buttonState,
-                                                     motionEntry.classification,
-                                                     dispatchEntry->transform,
-                                                     motionEntry.xPrecision, motionEntry.yPrecision,
-                                                     motionEntry.xCursorPosition,
-                                                     motionEntry.yCursorPosition,
-                                                     dispatchEntry->rawTransform,
-                                                     motionEntry.downTime, motionEntry.eventTime,
-                                                     motionEntry.pointerCount,
-                                                     motionEntry.pointerProperties, usingCoords);
+                status = publishMotionEvent(*connection, *dispatchEntry);
                 break;
             }
 
