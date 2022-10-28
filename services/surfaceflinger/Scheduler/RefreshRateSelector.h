@@ -363,14 +363,16 @@ public:
         }
     }
 
-    void resetIdleTimer(bool kernelOnly) {
-        if (!mIdleTimer) {
-            return;
+    void resetKernelIdleTimer() {
+        if (mIdleTimer && mConfig.kernelIdleTimerController) {
+            mIdleTimer->reset();
         }
-        if (kernelOnly && !mConfig.kernelIdleTimerController.has_value()) {
-            return;
+    }
+
+    void resetIdleTimer() {
+        if (mIdleTimer) {
+            mIdleTimer->reset();
         }
-        mIdleTimer->reset();
     }
 
     void dump(utils::Dumper&) const EXCLUDES(mLock);
