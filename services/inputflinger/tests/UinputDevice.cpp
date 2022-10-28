@@ -158,6 +158,8 @@ void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     device->absmax[ABS_MT_POSITION_Y] = mSize.bottom - 1;
     device->absmin[ABS_MT_TRACKING_ID] = RAW_ID_MIN;
     device->absmax[ABS_MT_TRACKING_ID] = RAW_ID_MAX;
+    device->absmin[ABS_MT_TOOL_TYPE] = MT_TOOL_FINGER;
+    device->absmax[ABS_MT_TOOL_TYPE] = MT_TOOL_MAX;
 }
 
 void UinputTouchScreen::sendSlot(int32_t slot) {

@@ -113,6 +113,8 @@ public:
 
     std::optional<int32_t> getLightPlayerId(int32_t deviceId, int32_t lightId) override;
 
+    std::optional<std::string> getBluetoothAddress(int32_t deviceId) const override;
+
 protected:
     // These members are protected so they can be instrumented by test cases.
     virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t deviceId,

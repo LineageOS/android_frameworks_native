@@ -24,16 +24,20 @@
 namespace android {
 
 template <typename T>
-std::string constToString(const T& v) {
+inline std::string constToString(const T& v) {
     return std::to_string(v);
+}
+
+inline std::string constToString(const std::string& s) {
+    return s;
 }
 
 /**
  * Convert an optional type to string.
  */
 template <typename T>
-std::string toString(const std::optional<T>& optional,
-                     std::string (*toString)(const T&) = constToString) {
+inline std::string toString(const std::optional<T>& optional,
+                            std::string (*toString)(const T&) = constToString) {
     return optional ? toString(*optional) : "<not set>";
 }
 

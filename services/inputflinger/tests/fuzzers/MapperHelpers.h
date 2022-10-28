@@ -315,6 +315,7 @@ public:
         return mTransform;
     }
     void setTouchAffineTransformation(const TouchAffineTransformation t) { mTransform = t; }
+    void notifyStylusGestureStarted(int32_t, nsecs_t) {}
 };
 
 class FuzzInputListener : public virtual InputListenerInterface {
@@ -363,6 +364,7 @@ public:
 
     void updateLedMetaState(int32_t metaState) override{};
     int32_t getLedMetaState() override { return mFdp->ConsumeIntegral<int32_t>(); };
+    void notifyStylusGestureStarted(int32_t, nsecs_t) {}
 };
 
 } // namespace android
