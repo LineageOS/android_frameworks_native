@@ -3640,11 +3640,6 @@ status_t SurfaceFlinger::addClientLayer(const LayerCreationArgs& args, const sp<
         mCreatedLayers.emplace_back(layer, parent, args.addToRoot);
     }
 
-    // attach this layer to the client
-    if (args.client != nullptr) {
-        args.client->attachLayer(handle, layer);
-    }
-
     setTransactionFlags(eTransactionNeeded);
     return NO_ERROR;
 }
