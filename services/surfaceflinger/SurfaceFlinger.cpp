@@ -1580,9 +1580,10 @@ status_t SurfaceFlinger::addRegionSamplingListener(const Rect& samplingArea,
 
     // LayerHandle::getLayer promotes the layer object in a binder thread but we will not destroy
     // the layer here since the caller has a strong ref to the layer's handle.
-    // TODO (b/238781169): replace layer with layer id
-    const wp<Layer> stopLayer = LayerHandle::getLayer(stopLayerHandle);
-    mRegionSamplingThread->addListener(samplingArea, stopLayer, listener);
+    const sp<Layer> stopLayer = LayerHandle::getLayer(stopLayerHandle);
+    mRegionSamplingThread->addListener(samplingArea,
+                                       stopLayer ? stopLayer->getSequence() : UNASSIGNED_LAYER_ID,
+                                       listener);
     return NO_ERROR;
 }
 
