@@ -542,12 +542,13 @@ private:
     void resetNoFocusedWindowTimeoutLocked() REQUIRES(mLock);
 
     int32_t getTargetDisplayId(const EventEntry& entry);
-    android::os::InputEventInjectionResult findFocusedWindowTargetsLocked(
-            nsecs_t currentTime, const EventEntry& entry, std::vector<InputTarget>& inputTargets,
-            nsecs_t* nextWakeupTime) REQUIRES(mLock);
-    android::os::InputEventInjectionResult findTouchedWindowTargetsLocked(
-            nsecs_t currentTime, const MotionEntry& entry, std::vector<InputTarget>& inputTargets,
-            nsecs_t* nextWakeupTime, bool* outConflictingPointerActions) REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> findFocusedWindowTargetLocked(
+            nsecs_t currentTime, const EventEntry& entry, nsecs_t* nextWakeupTime,
+            android::os::InputEventInjectionResult& outInjectionResult) REQUIRES(mLock);
+    std::vector<TouchedWindow> findTouchedWindowTargetsLocked(
+            nsecs_t currentTime, const MotionEntry& entry, nsecs_t* nextWakeupTime,
+            bool* outConflictingPointerActions,
+            android::os::InputEventInjectionResult& outInjectionResult) REQUIRES(mLock);
     std::vector<Monitor> selectResponsiveMonitorsLocked(
             const std::vector<Monitor>& gestureMonitors) const REQUIRES(mLock);
 
@@ -601,6 +602,7 @@ private:
     void enqueueDispatchEntryLocked(const sp<Connection>& connection, std::shared_ptr<EventEntry>,
                                     const InputTarget& inputTarget, int32_t dispatchMode)
             REQUIRES(mLock);
+    status_t publishMotionEvent(Connection& connection, DispatchEntry& dispatchEntry) const;
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
     void finishDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
