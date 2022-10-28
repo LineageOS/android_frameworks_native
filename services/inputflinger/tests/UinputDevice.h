@@ -168,7 +168,7 @@ private:
 // --- UinputTouchScreen ---
 
 // A multi-touch touchscreen device with specific size that also supports styluses.
-class UinputTouchScreen : public UinputDevice {
+class UinputTouchScreen : public UinputKeyboard {
 public:
     static constexpr const char* DEVICE_NAME = "Test Uinput Touch Screen";
     static constexpr int16_t PRODUCT_ID = 47;
@@ -193,7 +193,6 @@ public:
     void sendUp();
     void sendToolType(int32_t toolType);
     void sendSync();
-    void sendKey(int32_t scanCode, int32_t value);
 
     const Point getCenterPoint();
 

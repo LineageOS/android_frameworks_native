@@ -365,6 +365,8 @@ protected:
     int64_t mExternalStylusId;
     nsecs_t mExternalStylusFusionTimeout;
     bool mExternalStylusDataPending;
+    // A subset of the buttons in mCurrentRawState that came from an external stylus.
+    int32_t mExternalStylusButtonsApplied;
 
     // True if we sent a HOVER_ENTER event.
     bool mSentHoverEnter;

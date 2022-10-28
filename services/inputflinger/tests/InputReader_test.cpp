@@ -2837,108 +2837,176 @@ TEST_F(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertStylusGestureNotified(mDeviceInfo.getId()));
 }
 
-TEST_F(TouchIntegrationTest, StylusButtonsGenerateKeyEvents) {
-    mDevice->sendKey(BTN_STYLUS, 1);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
-            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD),
-                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+// --- StylusButtonIntegrationTest ---
 
-    mDevice->sendKey(BTN_STYLUS, 0);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+// Verify the behavior of button presses reported by various kinds of styluses, including buttons
+// reported by the touchscreen's device, by a fused external stylus, and by an un-fused external
+// stylus.
+template <typename UinputStylusDevice>
+class StylusButtonIntegrationTest : public TouchIntegrationTest {
+protected:
+    void SetUp() override {
+#if !defined(__ANDROID__)
+        GTEST_SKIP();
+#endif
+        TouchIntegrationTest::SetUp();
+        mTouchscreen = mDevice.get();
+        mTouchscreenInfo = mDeviceInfo;
+
+        setUpStylusDevice();
+    }
+
+    UinputStylusDevice* mStylus{nullptr};
+    InputDeviceInfo mStylusInfo{};
+
+    UinputTouchScreen* mTouchscreen{nullptr};
+    InputDeviceInfo mTouchscreenInfo{};
+
+private:
+    // When we are attempting to test stylus button events that are sent from the touchscreen,
+    // use the same Uinput device for the touchscreen and the stylus.
+    template <typename T = UinputStylusDevice>
+    std::enable_if_t<std::is_same_v<UinputTouchScreen, T>, void> setUpStylusDevice() {
+        mStylus = mDevice.get();
+        mStylusInfo = mDeviceInfo;
+    }
+
+    // When we are attempting to stylus buttons from an external stylus being merged with touches
+    // from a touchscreen, create a new Uinput device through which stylus buttons can be injected.
+    template <typename T = UinputStylusDevice>
+    std::enable_if_t<!std::is_same_v<UinputTouchScreen, T>, void> setUpStylusDevice() {
+        mStylusDeviceLifecycleTracker = createUinputDevice<T>();
+        mStylus = mStylusDeviceLifecycleTracker.get();
+        ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+        ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+        const auto info = findDeviceByName(mStylus->getName());
+        ASSERT_TRUE(info);
+        mStylusInfo = *info;
+    }
+
+    std::unique_ptr<UinputStylusDevice> mStylusDeviceLifecycleTracker{};
+
+    // Hide the base class's device to expose it with a different name for readability.
+    using TouchIntegrationTest::mDevice;
+    using TouchIntegrationTest::mDeviceInfo;
+};
+
+using StylusButtonIntegrationTestTypes =
+        ::testing::Types<UinputTouchScreen, UinputExternalStylus, UinputExternalStylusWithPressure>;
+TYPED_TEST_SUITE(StylusButtonIntegrationTest, StylusButtonIntegrationTestTypes);
+
+TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsGenerateKeyEvents) {
+    const auto stylusId = TestFixture::mStylusInfo.getId();
+
+    TestFixture::mStylus->pressKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD),
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
+
+    TestFixture::mStylus->releaseKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
             AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP), WithSource(AINPUT_SOURCE_KEYBOARD),
-                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
 }
 
-TEST_F(TouchIntegrationTest, StylusButtonsSurroundingTouchGesture) {
-    const Point centerPoint = mDevice->getCenterPoint();
+TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsSurroundingTouchGesture) {
+    const Point centerPoint = TestFixture::mTouchscreen->getCenterPoint();
+    const auto touchscreenId = TestFixture::mTouchscreenInfo.getId();
+    const auto stylusId = TestFixture::mStylusInfo.getId();
 
     // Press the stylus button.
-    mDevice->sendKey(BTN_STYLUS, 1);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+    TestFixture::mStylus->pressKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
             AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD),
-                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
 
     // Start and finish a stylus gesture.
-    mDevice->sendSlot(FIRST_SLOT);
-    mDevice->sendTrackingId(FIRST_TRACKING_ID);
-    mDevice->sendToolType(MT_TOOL_PEN);
-    mDevice->sendDown(centerPoint);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+    TestFixture::mTouchscreen->sendSlot(FIRST_SLOT);
+    TestFixture::mTouchscreen->sendTrackingId(FIRST_TRACKING_ID);
+    TestFixture::mTouchscreen->sendToolType(MT_TOOL_PEN);
+    TestFixture::mTouchscreen->sendDown(centerPoint);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
                   WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS),
-                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY),
+                  WithDeviceId(touchscreenId))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
                   WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS),
-                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY),
+                  WithDeviceId(touchscreenId))));
 
-    mDevice->sendTrackingId(INVALID_TRACKING_ID);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+    TestFixture::mTouchscreen->sendTrackingId(INVALID_TRACKING_ID);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0))));
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0))));
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
 
     // Release the stylus button.
-    mDevice->sendKey(BTN_STYLUS, 0);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+    TestFixture::mStylus->releaseKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
             AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP), WithSource(AINPUT_SOURCE_KEYBOARD),
-                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
 }
 
-TEST_F(TouchIntegrationTest, StylusButtonsWithinTouchGesture) {
-    const Point centerPoint = mDevice->getCenterPoint();
+TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsWithinTouchGesture) {
+    const Point centerPoint = TestFixture::mTouchscreen->getCenterPoint();
+    const auto touchscreenId = TestFixture::mTouchscreenInfo.getId();
+    const auto stylusId = TestFixture::mStylusInfo.getId();
 
     // Start a stylus gesture.
-    mDevice->sendSlot(FIRST_SLOT);
-    mDevice->sendTrackingId(FIRST_TRACKING_ID);
-    mDevice->sendToolType(MT_TOOL_PEN);
-    mDevice->sendDown(centerPoint);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+    TestFixture::mTouchscreen->sendSlot(FIRST_SLOT);
+    TestFixture::mTouchscreen->sendTrackingId(FIRST_TRACKING_ID);
+    TestFixture::mTouchscreen->sendToolType(MT_TOOL_PEN);
+    TestFixture::mTouchscreen->sendDown(centerPoint);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0))));
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
 
     // Press and release a stylus button. Each change in button state also generates a MOVE event.
-    mDevice->sendKey(BTN_STYLUS, 1);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+    TestFixture::mStylus->pressKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
             AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD),
-                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                   WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS),
-                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY),
+                  WithDeviceId(touchscreenId))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
                   WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS),
-                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY),
+                  WithDeviceId(touchscreenId))));
 
-    mDevice->sendKey(BTN_STYLUS, 0);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+    TestFixture::mStylus->releaseKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
             AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP), WithSource(AINPUT_SOURCE_KEYBOARD),
-                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0))));
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0))));
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
 
     // Finish the stylus gesture.
-    mDevice->sendTrackingId(INVALID_TRACKING_ID);
-    mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+    TestFixture::mTouchscreen->sendTrackingId(INVALID_TRACKING_ID);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0))));
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
 }
 
 // --- ExternalStylusIntegrationTest ---
@@ -7951,17 +8019,15 @@ TEST_F(ExternalStylusFusionTest, FusedPointerReportsButtons) {
     // If a touch is not reported within the timeout, a move event is generated to report
     // the new button state.
     handleTimeout(mapper, ARBITRARY_TIME + TOUCH_DATA_TIMEOUT);
-    // TODO(prabirmsp): Fix fused stylus button releases being handled inconsistently.
-    //   The button release event should be sent here, but isn't.
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
-            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
-
-    processUp(mapper);
-    processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
             AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
                   WithButtonState(0))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithButtonState(0))));
+
+    processUp(mapper);
+    processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
             AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0))));
 

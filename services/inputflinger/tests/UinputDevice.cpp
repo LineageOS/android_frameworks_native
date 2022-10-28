@@ -160,11 +160,14 @@ void UinputExternalStylusWithPressure::setPressure(int32_t pressure) {
 // --- UinputTouchScreen ---
 
 UinputTouchScreen::UinputTouchScreen(const Rect& size)
-      : UinputDevice(DEVICE_NAME, PRODUCT_ID), mSize(size) {}
+      : UinputKeyboard(DEVICE_NAME, PRODUCT_ID,
+                       {BTN_TOUCH, BTN_TOOL_PEN, BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}),
+        mSize(size) {}
 
 void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
+    UinputKeyboard::configureDevice(fd, device);
+
     // Setup the touch screen device
-    ioctl(fd, UI_SET_EVBIT, EV_KEY);
     ioctl(fd, UI_SET_EVBIT, EV_REL);
     ioctl(fd, UI_SET_EVBIT, EV_ABS);
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_SLOT);
@@ -174,10 +177,6 @@ void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_TRACKING_ID);
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_TOOL_TYPE);
     ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
-    ioctl(fd, UI_SET_KEYBIT, BTN_TOUCH);
-    ioctl(fd, UI_SET_KEYBIT, BTN_STYLUS);
-    ioctl(fd, UI_SET_KEYBIT, BTN_STYLUS2);
-    ioctl(fd, UI_SET_KEYBIT, BTN_STYLUS3);
 
     device->absmin[ABS_MT_SLOT] = RAW_SLOT_MIN;
     device->absmax[ABS_MT_SLOT] = RAW_SLOT_MAX;
@@ -227,10 +226,6 @@ void UinputTouchScreen::sendToolType(int32_t toolType) {
 
 void UinputTouchScreen::sendSync() {
     injectEvent(EV_SYN, SYN_REPORT, 0);
-}
-
-void UinputTouchScreen::sendKey(int32_t scanCode, int32_t value) {
-    injectEvent(EV_KEY, scanCode, value);
 }
 
 // Get the center x, y base on the range definition.

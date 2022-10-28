@@ -254,6 +254,8 @@ void TouchInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "External Stylus ID: %" PRId64 "\n", mExternalStylusId);
     dump += StringPrintf(INDENT4 "External Stylus Data Timeout: %" PRId64 "\n",
                          mExternalStylusFusionTimeout);
+    dump += StringPrintf(INDENT4 " External Stylus Buttons Applied: 0x%08x",
+                         mExternalStylusButtonsApplied);
     dump += INDENT3 "External Stylus State:\n";
     dumpStylusState(dump, mExternalStylusState);
 
@@ -1413,6 +1415,7 @@ void TouchInputMapper::resetExternalStylus() {
     mExternalStylusId = -1;
     mExternalStylusFusionTimeout = LLONG_MAX;
     mExternalStylusDataPending = false;
+    mExternalStylusButtonsApplied = 0;
 }
 
 void TouchInputMapper::clearStylusDataPendingFlags() {
@@ -1683,8 +1686,17 @@ bool TouchInputMapper::isTouchScreen() {
 }
 
 void TouchInputMapper::applyExternalStylusButtonState(nsecs_t when) {
-    if (mDeviceMode == DeviceMode::DIRECT && hasExternalStylus() && mExternalStylusId != -1) {
-        mCurrentRawState.buttonState |= mExternalStylusState.buttons;
+    if (mDeviceMode == DeviceMode::DIRECT && hasExternalStylus()) {
+        // If any of the external buttons are already pressed by the touch device, ignore them.
+        const int32_t pressedButtons = ~mCurrentRawState.buttonState & mExternalStylusState.buttons;
+        const int32_t releasedButtons =
+                mExternalStylusButtonsApplied & ~mExternalStylusState.buttons;
+
+        mCurrentRawState.buttonState |= pressedButtons;
+        mCurrentRawState.buttonState &= ~releasedButtons;
+
+        mExternalStylusButtonsApplied |= pressedButtons;
+        mExternalStylusButtonsApplied &= ~releasedButtons;
     }
 }
 
@@ -1722,7 +1734,8 @@ bool TouchInputMapper::assignExternalStylusId(const RawState& state, bool timeou
             mExternalStylusId = state.rawPointerData.touchingIdBits.firstMarkedBit();
         } else if (timeout) {
             ALOGD_IF(DEBUG_STYLUS_FUSION, "Timeout expired, assuming touch is not a stylus.");
-            resetExternalStylus();
+            mExternalStylusId = -1;
+            mExternalStylusFusionTimeout = LLONG_MAX;
         } else {
             if (mExternalStylusFusionTimeout == LLONG_MAX) {
                 mExternalStylusFusionTimeout = state.when + EXTERNAL_STYLUS_DATA_TIMEOUT;
@@ -1764,11 +1777,14 @@ std::list<NotifyArgs> TouchInputMapper::timeoutExpired(nsecs_t when) {
 
 std::list<NotifyArgs> TouchInputMapper::updateExternalStylusState(const StylusState& state) {
     std::list<NotifyArgs> out;
+    const bool buttonsChanged = mExternalStylusState.buttons != state.buttons;
     mExternalStylusState.copyFrom(state);
-    if (mExternalStylusId != -1 || mExternalStylusFusionTimeout != LLONG_MAX) {
-        // We're either in the middle of a fused stream of data or we're waiting on data before
-        // dispatching the initial down, so go ahead and dispatch now that we have fresh stylus
-        // data.
+    if (mExternalStylusId != -1 || mExternalStylusFusionTimeout != LLONG_MAX || buttonsChanged) {
+        // The following three cases are handled here:
+        // - We're in the middle of a fused stream of data;
+        // - We're waiting on external stylus data before dispatching the initial down; or
+        // - Only the button state, which is not reported through a specific pointer, has changed.
+        // Go ahead and dispatch now that we have fresh stylus data.
         mExternalStylusDataPending = true;
         out += processRawTouches(false /*timeout*/);
     }
