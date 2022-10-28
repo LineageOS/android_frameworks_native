@@ -31,13 +31,6 @@ namespace android {
 
 // --- Constants ---
 
-// Maximum amount of latency to add to touch events while waiting for data from an
-// external stylus.
-static constexpr nsecs_t EXTERNAL_STYLUS_DATA_TIMEOUT = ms2ns(72);
-
-// Maximum amount of time to wait on touch data before pushing out new pressure data.
-static constexpr nsecs_t TOUCH_DATA_TIMEOUT = ms2ns(20);
-
 // Artificial latency on synthetic events created from stylus data without corresponding touch
 // data.
 static constexpr nsecs_t STYLUS_DATA_LATENCY = ms2ns(10);
@@ -1760,7 +1753,7 @@ std::list<NotifyArgs> TouchInputMapper::timeoutExpired(nsecs_t when) {
             out += dispatchPointerGestures(when, readTime, 0 /*policyFlags*/, true /*isTimeout*/);
         }
     } else if (mDeviceMode == DeviceMode::DIRECT) {
-        if (mExternalStylusFusionTimeout < when) {
+        if (mExternalStylusFusionTimeout <= when) {
             out += processRawTouches(true /*timeout*/);
         } else if (mExternalStylusFusionTimeout != LLONG_MAX) {
             getContext()->requestTimeoutAtTime(mExternalStylusFusionTimeout);

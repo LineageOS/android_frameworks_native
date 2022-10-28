@@ -1343,6 +1343,8 @@ protected:
         int32_t mGlobalMetaState;
         bool mUpdateGlobalMetaStateWasCalled;
         int32_t mGeneration;
+        std::optional<nsecs_t> mRequestedTimeout;
+        std::vector<InputDeviceInfo> mExternalStylusDevices;
 
     public:
         FakeInputReaderContext(InputReader* reader)
@@ -1375,6 +1377,29 @@ protected:
         int32_t bumpGeneration() override {
             mGeneration = ContextImpl::bumpGeneration();
             return mGeneration;
+        }
+
+        void requestTimeoutAtTime(nsecs_t when) override { mRequestedTimeout = when; }
+
+        void assertTimeoutWasRequested(nsecs_t when) {
+            ASSERT_TRUE(mRequestedTimeout) << "Expected timeout at time " << when
+                                           << " but there was no timeout requested.";
+            ASSERT_EQ(when, *mRequestedTimeout);
+            mRequestedTimeout.reset();
+        }
+
+        void assertTimeoutWasNotRequested() {
+            ASSERT_FALSE(mRequestedTimeout) << "Expected no timeout to have been requested,"
+                                               " but one was requested at time "
+                                            << *mRequestedTimeout;
+        }
+
+        void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) override {
+            outDevices = mExternalStylusDevices;
+        }
+
+        void setExternalStylusDevices(std::vector<InputDeviceInfo>&& devices) {
+            mExternalStylusDevices = devices;
         }
     } mFakeContext;
 
@@ -3363,6 +3388,16 @@ protected:
         }
         // Loop the reader to flush the input listener queue.
         mReader->loopOnce();
+    }
+
+    std::list<NotifyArgs> handleTimeout(InputMapper& mapper, nsecs_t when) {
+        std::list<NotifyArgs> generatedArgs = mapper.timeoutExpired(when);
+        for (const NotifyArgs& args : generatedArgs) {
+            mFakeListener->notify(args);
+        }
+        // Loop the reader to flush the input listener queue.
+        mReader->loopOnce();
+        return generatedArgs;
     }
 
     static void assertMotionRange(const InputDeviceInfo& info,
@@ -7457,6 +7492,362 @@ TEST_F(TouchDisplayProjectionTest, EmitsTouchDownAfterEnteringPhysicalDisplay) {
         ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasNotCalled());
         ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
     }
+}
+
+// --- ExternalStylusFusionTest ---
+
+class ExternalStylusFusionTest : public SingleTouchInputMapperTest {
+public:
+    SingleTouchInputMapper& initializeInputMapperWithExternalStylus() {
+        addConfigurationProperty("touch.deviceType", "touchScreen");
+        prepareDisplay(DISPLAY_ORIENTATION_0);
+        prepareButtons();
+        prepareAxes(POSITION);
+        auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+        mStylusState.when = ARBITRARY_TIME;
+        mStylusState.pressure = 0.f;
+        mStylusState.toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+        mReader->getContext()->setExternalStylusDevices({mExternalStylusDeviceInfo});
+        configureDevice(InputReaderConfiguration::CHANGE_EXTERNAL_STYLUS_PRESENCE);
+        processExternalStylusState(mapper);
+        return mapper;
+    }
+
+    std::list<NotifyArgs> processExternalStylusState(InputMapper& mapper) {
+        std::list<NotifyArgs> generatedArgs = mapper.updateExternalStylusState(mStylusState);
+        for (const NotifyArgs& args : generatedArgs) {
+            mFakeListener->notify(args);
+        }
+        // Loop the reader to flush the input listener queue.
+        mReader->loopOnce();
+        return generatedArgs;
+    }
+
+protected:
+    StylusState mStylusState{};
+    static constexpr uint32_t EXPECTED_SOURCE =
+            AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_BLUETOOTH_STYLUS;
+
+    void testStartFusedStylusGesture(SingleTouchInputMapper& mapper) {
+        auto toolTypeSource =
+                AllOf(WithSource(EXPECTED_SOURCE), WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS));
+
+        // The first pointer is withheld.
+        processDown(mapper, 100, 200);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+        ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasRequested(
+                ARBITRARY_TIME + EXTERNAL_STYLUS_DATA_TIMEOUT));
+
+        // The external stylus reports pressure. The withheld finger pointer is released as a
+        // stylus.
+        mStylusState.pressure = 1.f;
+        processExternalStylusState(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_DOWN))));
+        ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+
+        // Subsequent pointer events are not withheld.
+        processMove(mapper, 101, 201);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE))));
+
+        ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    }
+
+    void testSuccessfulFusionGesture(SingleTouchInputMapper& mapper) {
+        ASSERT_NO_FATAL_FAILURE(testStartFusedStylusGesture(mapper));
+
+        // Releasing the touch pointer ends the gesture.
+        processUp(mapper);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithSource(EXPECTED_SOURCE),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+
+        mStylusState.pressure = 0.f;
+        processExternalStylusState(mapper);
+        ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    }
+
+    void testUnsuccessfulFusionGesture(SingleTouchInputMapper& mapper) {
+        auto toolTypeSource =
+                AllOf(WithSource(EXPECTED_SOURCE), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER));
+
+        // The first pointer is withheld when an external stylus is connected,
+        // and a timeout is requested.
+        processDown(mapper, 100, 200);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+        ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasRequested(
+                ARBITRARY_TIME + EXTERNAL_STYLUS_DATA_TIMEOUT));
+
+        // If the timeout expires early, it is requested again.
+        handleTimeout(mapper, ARBITRARY_TIME + 1);
+        ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasRequested(
+                ARBITRARY_TIME + EXTERNAL_STYLUS_DATA_TIMEOUT));
+
+        // When the timeout expires, the withheld touch is released as a finger pointer.
+        handleTimeout(mapper, ARBITRARY_TIME + EXTERNAL_STYLUS_DATA_TIMEOUT);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_DOWN))));
+
+        // Subsequent pointer events are not withheld.
+        processMove(mapper, 101, 201);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE))));
+        processUp(mapper);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_UP))));
+
+        ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    }
+
+private:
+    InputDeviceInfo mExternalStylusDeviceInfo{};
+};
+
+TEST_F(ExternalStylusFusionTest, UsesBluetoothStylusSource) {
+    SingleTouchInputMapper& mapper = initializeInputMapperWithExternalStylus();
+    ASSERT_EQ(EXPECTED_SOURCE, mapper.getSources());
+}
+
+TEST_F(ExternalStylusFusionTest, UnsuccessfulFusion) {
+    SingleTouchInputMapper& mapper = initializeInputMapperWithExternalStylus();
+    ASSERT_NO_FATAL_FAILURE(testUnsuccessfulFusionGesture(mapper));
+}
+
+TEST_F(ExternalStylusFusionTest, SuccessfulFusion_TouchFirst) {
+    SingleTouchInputMapper& mapper = initializeInputMapperWithExternalStylus();
+    ASSERT_NO_FATAL_FAILURE(testSuccessfulFusionGesture(mapper));
+}
+
+// Test a successful stylus fusion gesture where the pressure is reported by the external
+// before the touch is reported by the touchscreen.
+TEST_F(ExternalStylusFusionTest, SuccessfulFusion_PressureFirst) {
+    SingleTouchInputMapper& mapper = initializeInputMapperWithExternalStylus();
+    auto toolTypeSource =
+            AllOf(WithSource(EXPECTED_SOURCE), WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS));
+
+    // The external stylus reports pressure first. It is ignored for now.
+    mStylusState.pressure = 1.f;
+    processExternalStylusState(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+
+    // When the touch goes down afterwards, it is reported as a stylus pointer.
+    processDown(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_DOWN))));
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+
+    processMove(mapper, 101, 201);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE))));
+    processUp(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_UP))));
+
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
+TEST_F(ExternalStylusFusionTest, FusionIsRepeatedForEachNewGesture) {
+    SingleTouchInputMapper& mapper = initializeInputMapperWithExternalStylus();
+
+    ASSERT_NO_FATAL_FAILURE(testSuccessfulFusionGesture(mapper));
+    ASSERT_NO_FATAL_FAILURE(testUnsuccessfulFusionGesture(mapper));
+
+    ASSERT_NO_FATAL_FAILURE(testSuccessfulFusionGesture(mapper));
+    ASSERT_NO_FATAL_FAILURE(testSuccessfulFusionGesture(mapper));
+    ASSERT_NO_FATAL_FAILURE(testUnsuccessfulFusionGesture(mapper));
+    ASSERT_NO_FATAL_FAILURE(testUnsuccessfulFusionGesture(mapper));
+}
+
+TEST_F(ExternalStylusFusionTest, FusedPointerReportsPressureChanges) {
+    SingleTouchInputMapper& mapper = initializeInputMapperWithExternalStylus();
+    auto toolTypeSource =
+            AllOf(WithSource(EXPECTED_SOURCE), WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS));
+
+    mStylusState.pressure = 0.8f;
+    processExternalStylusState(mapper);
+    processDown(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithPressure(0.8f))));
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+
+    // The external stylus reports a pressure change. We wait for some time for a touch event.
+    mStylusState.pressure = 0.6f;
+    processExternalStylusState(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(
+            mReader->getContext()->assertTimeoutWasRequested(ARBITRARY_TIME + TOUCH_DATA_TIMEOUT));
+
+    // If a touch is reported within the timeout, it reports the updated pressure.
+    processMove(mapper, 101, 201);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithPressure(0.6f))));
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+
+    // There is another pressure change.
+    mStylusState.pressure = 0.5f;
+    processExternalStylusState(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(
+            mReader->getContext()->assertTimeoutWasRequested(ARBITRARY_TIME + TOUCH_DATA_TIMEOUT));
+
+    // If a touch is not reported within the timeout, a move event is generated to report
+    // the new pressure.
+    handleTimeout(mapper, ARBITRARY_TIME + TOUCH_DATA_TIMEOUT);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithPressure(0.5f))));
+
+    // If a zero pressure is reported before the touch goes up, the previous pressure value is
+    // repeated indefinitely.
+    mStylusState.pressure = 0.0f;
+    processExternalStylusState(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(
+            mReader->getContext()->assertTimeoutWasRequested(ARBITRARY_TIME + TOUCH_DATA_TIMEOUT));
+    processMove(mapper, 102, 202);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithPressure(0.5f))));
+    processMove(mapper, 103, 203);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithPressure(0.5f))));
+
+    processUp(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithSource(EXPECTED_SOURCE),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
+TEST_F(ExternalStylusFusionTest, FusedPointerReportsToolTypeChanges) {
+    SingleTouchInputMapper& mapper = initializeInputMapperWithExternalStylus();
+    auto source = WithSource(EXPECTED_SOURCE);
+
+    mStylusState.pressure = 1.f;
+    mStylusState.toolType = AMOTION_EVENT_TOOL_TYPE_ERASER;
+    processExternalStylusState(mapper);
+    processDown(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(source, WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_ERASER))));
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+
+    // The external stylus reports a tool change. We wait for some time for a touch event.
+    mStylusState.toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    processExternalStylusState(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(
+            mReader->getContext()->assertTimeoutWasRequested(ARBITRARY_TIME + TOUCH_DATA_TIMEOUT));
+
+    // If a touch is reported within the timeout, it reports the updated pressure.
+    processMove(mapper, 101, 201);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(source, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+
+    // There is another tool type change.
+    mStylusState.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    processExternalStylusState(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(
+            mReader->getContext()->assertTimeoutWasRequested(ARBITRARY_TIME + TOUCH_DATA_TIMEOUT));
+
+    // If a touch is not reported within the timeout, a move event is generated to report
+    // the new tool type.
+    handleTimeout(mapper, ARBITRARY_TIME + TOUCH_DATA_TIMEOUT);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(source, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER))));
+
+    processUp(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(source, WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER))));
+
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
+TEST_F(ExternalStylusFusionTest, FusedPointerReportsButtons) {
+    SingleTouchInputMapper& mapper = initializeInputMapperWithExternalStylus();
+    auto toolTypeSource =
+            AllOf(WithSource(EXPECTED_SOURCE), WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS));
+
+    ASSERT_NO_FATAL_FAILURE(testStartFusedStylusGesture(mapper));
+
+    // The external stylus reports a button change. We wait for some time for a touch event.
+    mStylusState.buttons = AMOTION_EVENT_BUTTON_STYLUS_PRIMARY;
+    processExternalStylusState(mapper);
+    ASSERT_NO_FATAL_FAILURE(
+            mReader->getContext()->assertTimeoutWasRequested(ARBITRARY_TIME + TOUCH_DATA_TIMEOUT));
+
+    // If a touch is reported within the timeout, it reports the updated button state.
+    processMove(mapper, 101, 201);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+
+    // The button is now released.
+    mStylusState.buttons = 0;
+    processExternalStylusState(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(
+            mReader->getContext()->assertTimeoutWasRequested(ARBITRARY_TIME + TOUCH_DATA_TIMEOUT));
+
+    // If a touch is not reported within the timeout, a move event is generated to report
+    // the new button state.
+    handleTimeout(mapper, ARBITRARY_TIME + TOUCH_DATA_TIMEOUT);
+    // TODO(prabirmsp): Fix fused stylus button releases being handled inconsistently.
+    //   The button release event should be sent here, but isn't.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    processUp(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                  WithButtonState(0))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeSource, WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0))));
+
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertTimeoutWasNotRequested());
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
 // --- MultiTouchInputMapperTest ---

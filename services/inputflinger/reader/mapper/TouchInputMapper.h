@@ -27,6 +27,13 @@
 
 namespace android {
 
+// Maximum amount of latency to add to touch events while waiting for data from an
+// external stylus.
+static constexpr nsecs_t EXTERNAL_STYLUS_DATA_TIMEOUT = ms2ns(72);
+
+// Maximum amount of time to wait on touch data before pushing out new pressure data.
+static constexpr nsecs_t TOUCH_DATA_TIMEOUT = ms2ns(20);
+
 /* Raw axis information from the driver. */
 struct RawPointerAxes {
     RawAbsoluteAxisInfo x{};

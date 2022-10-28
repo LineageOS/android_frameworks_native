@@ -70,8 +70,8 @@ MATCHER_P2(WithCoords, x, y, "InputEvent with specified coords") {
 
 MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {
     const auto argPressure = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE);
-    *result_listener << "expected pressure " << pressure << ", but got " << pressure;
-    return argPressure;
+    *result_listener << "expected pressure " << pressure << ", but got " << argPressure;
+    return argPressure == pressure;
 }
 
 MATCHER_P(WithToolType, toolType, "InputEvent with specified tool type") {
