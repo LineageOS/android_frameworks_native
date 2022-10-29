@@ -43,6 +43,7 @@
 #include <ftl/enum.h>
 #include <input/KeyCharacterMap.h>
 #include <input/KeyLayoutMap.h>
+#include <input/PrintTools.h>
 #include <input/VirtualKeyMap.h>
 #include <openssl/sha.h>
 #include <statslog.h>
@@ -133,10 +134,6 @@ static const std::unordered_map<InputLightClass, std::string> LIGHT_NODES =
 const std::unordered_map<std::string, LightColor> LIGHT_COLORS = {{"red", LightColor::RED},
                                                                   {"green", LightColor::GREEN},
                                                                   {"blue", LightColor::BLUE}};
-
-static inline const char* toString(bool value) {
-    return value ? "true" : "false";
-}
 
 static std::string sha1(const std::string& in) {
     SHA_CTX ctx;
@@ -2128,6 +2125,17 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
         identifier.uniqueId = buffer;
     }
 
+    // Attempt to get the bluetooth address of an input device from the uniqueId.
+    if (identifier.bus == BUS_BLUETOOTH &&
+        std::regex_match(identifier.uniqueId,
+                         std::regex("^[A-Fa-f0-9]{2}(?::[A-Fa-f0-9]{2}){5}$"))) {
+        identifier.bluetoothAddress = identifier.uniqueId;
+        // The Bluetooth stack requires alphabetic characters to be uppercase in a valid address.
+        for (auto& c : *identifier.bluetoothAddress) {
+            c = ::toupper(c);
+        }
+    }
+
     // Fill in the descriptor.
     assignDescriptorLocked(identifier);
 
@@ -2625,9 +2633,10 @@ void EventHub::dump(std::string& dump) const {
             dump += StringPrintf(INDENT3 "ControllerNumber: %d\n", device->controllerNumber);
             dump += StringPrintf(INDENT3 "UniqueId: %s\n", device->identifier.uniqueId.c_str());
             dump += StringPrintf(INDENT3 "Identifier: bus=0x%04x, vendor=0x%04x, "
-                                         "product=0x%04x, version=0x%04x\n",
+                                         "product=0x%04x, version=0x%04x, bluetoothAddress=%s\n",
                                  device->identifier.bus, device->identifier.vendor,
-                                 device->identifier.product, device->identifier.version);
+                                 device->identifier.product, device->identifier.version,
+                                 toString(device->identifier.bluetoothAddress).c_str());
             dump += StringPrintf(INDENT3 "KeyLayoutFile: %s\n",
                                  device->keyMap.keyLayoutFile.c_str());
             dump += StringPrintf(INDENT3 "KeyCharacterMapFile: %s\n",
