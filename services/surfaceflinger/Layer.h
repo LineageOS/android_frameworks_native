@@ -323,6 +323,7 @@ public:
     ui::Dataspace getRequestedDataSpace() const;
 
     virtual sp<LayerFE> getCompositionEngineLayerFE() const;
+    virtual sp<LayerFE> copyCompositionEngineLayerFE() const;
 
     const LayerSnapshot* getLayerSnapshot() const;
     LayerSnapshot* editLayerSnapshot();
