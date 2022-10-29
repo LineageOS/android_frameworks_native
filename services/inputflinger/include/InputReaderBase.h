@@ -142,6 +142,9 @@ public:
     virtual std::optional<int32_t> getLightColor(int32_t deviceId, int32_t lightId) = 0;
     /* Get light player ID */
     virtual std::optional<int32_t> getLightPlayerId(int32_t deviceId, int32_t lightId) = 0;
+
+    /* Get the Bluetooth address of an input device, if known. */
+    virtual std::optional<std::string> getBluetoothAddress(int32_t deviceId) const = 0;
 };
 
 // --- InputReaderConfiguration ---
@@ -393,6 +396,8 @@ public:
     /* Gets the affine calibration associated with the specified device. */
     virtual TouchAffineTransformation getTouchAffineTransformation(
             const std::string& inputDeviceDescriptor, int32_t surfaceRotation) = 0;
+    /* Notifies the input reader policy that a stylus gesture has started. */
+    virtual void notifyStylusGestureStarted(int32_t deviceId, nsecs_t eventTime) = 0;
 };
 
 } // namespace android

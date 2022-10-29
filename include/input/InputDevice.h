@@ -58,6 +58,9 @@ struct InputDeviceIdentifier {
     // reuse values that are not associated with an input anymore.
     uint16_t nonce;
 
+    // The bluetooth address of the device, if known.
+    std::optional<std::string> bluetoothAddress;
+
     /**
      * Return InputDeviceIdentifier.name that has been adjusted as follows:
      *     - all characters besides alphanumerics, dash,
