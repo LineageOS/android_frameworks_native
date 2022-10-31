@@ -13,13 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #pragma once
 
 #include <InputDevice.h>
 #include <InputMapper.h>
 #include <InputReader.h>
-#include <fuzzer/FuzzedDataProvider.h>
+#include <ThreadSafeFuzzedDataProvider.h>
 #include "android/hardware/input/InputDeviceCountryCode.h"
 
 using android::hardware::input::InputDeviceCountryCode;
@@ -114,10 +113,10 @@ class FuzzEventHub : public EventHubInterface {
     InputDeviceIdentifier mIdentifier;
     std::vector<TouchVideoFrame> mVideoFrames;
     PropertyMap mFuzzConfig;
-    std::shared_ptr<FuzzedDataProvider> mFdp;
+    std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
 
 public:
-    FuzzEventHub(std::shared_ptr<FuzzedDataProvider> fdp) : mFdp(std::move(fdp)) {}
+    FuzzEventHub(std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) : mFdp(std::move(fdp)) {}
     ~FuzzEventHub() {}
     void addProperty(std::string key, std::string value) { mFuzzConfig.addProperty(key, value); }
 
@@ -263,10 +262,10 @@ public:
 };
 
 class FuzzPointerController : public PointerControllerInterface {
-    std::shared_ptr<FuzzedDataProvider> mFdp;
+    std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
 
 public:
-    FuzzPointerController(std::shared_ptr<FuzzedDataProvider> mFdp) : mFdp(mFdp) {}
+    FuzzPointerController(std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp) : mFdp(mFdp) {}
     ~FuzzPointerController() {}
     bool getBounds(float* outMinX, float* outMinY, float* outMaxX, float* outMaxY) const override {
         return mFdp->ConsumeBool();
@@ -289,13 +288,13 @@ public:
 class FuzzInputReaderPolicy : public InputReaderPolicyInterface {
     TouchAffineTransformation mTransform;
     std::shared_ptr<FuzzPointerController> mPointerController;
-    std::shared_ptr<FuzzedDataProvider> mFdp;
+    std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
 
 protected:
     ~FuzzInputReaderPolicy() {}
 
 public:
-    FuzzInputReaderPolicy(std::shared_ptr<FuzzedDataProvider> mFdp) : mFdp(mFdp) {
+    FuzzInputReaderPolicy(std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp) : mFdp(mFdp) {
         mPointerController = std::make_shared<FuzzPointerController>(mFdp);
     }
     void getReaderConfiguration(InputReaderConfiguration* outConfig) override {}
@@ -333,13 +332,13 @@ public:
 class FuzzInputReaderContext : public InputReaderContext {
     std::shared_ptr<EventHubInterface> mEventHub;
     sp<InputReaderPolicyInterface> mPolicy;
-    std::shared_ptr<FuzzedDataProvider> mFdp;
+    std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
 
 public:
     FuzzInputReaderContext(std::shared_ptr<EventHubInterface> eventHub,
                            const sp<InputReaderPolicyInterface>& policy,
                            InputListenerInterface& listener,
-                           std::shared_ptr<FuzzedDataProvider> mFdp)
+                           std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp)
           : mEventHub(eventHub), mPolicy(policy), mFdp(mFdp) {}
     ~FuzzInputReaderContext() {}
     void updateGlobalMetaState() override {}

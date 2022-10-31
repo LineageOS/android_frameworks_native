@@ -166,7 +166,8 @@ private:
 };
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
-    std::shared_ptr<FuzzedDataProvider> fdp = std::make_shared<FuzzedDataProvider>(data, size);
+    std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp =
+            std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
 
     FuzzInputListener fuzzListener;
     sp<FuzzInputReaderPolicy> fuzzPolicy = sp<FuzzInputReaderPolicy>::make(fdp);

@@ -16,13 +16,12 @@
 
 #include <FuzzContainer.h>
 #include <KeyboardInputMapper.h>
-#include <fuzzer/FuzzedDataProvider.h>
 
 namespace android {
 
 const int32_t kMaxKeycodes = 100;
 
-static void addProperty(FuzzContainer& fuzzer, std::shared_ptr<FuzzedDataProvider> fdp) {
+static void addProperty(FuzzContainer& fuzzer, std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) {
     // Pick a random property to set for the mapper to have set.
     fdp->PickValueInArray<std::function<void()>>(
             {[&]() -> void { fuzzer.addProperty("keyboard.orientationAware", "1"); },
@@ -41,7 +40,8 @@ static void addProperty(FuzzContainer& fuzzer, std::shared_ptr<FuzzedDataProvide
 }
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
-    std::shared_ptr<FuzzedDataProvider> fdp = std::make_shared<FuzzedDataProvider>(data, size);
+    std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp =
+            std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
     FuzzContainer fuzzer(fdp);
 
     KeyboardInputMapper& mapper =
