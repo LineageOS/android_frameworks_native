@@ -7112,6 +7112,44 @@ TEST_F(SingleTouchInputMapperTest,
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasNotCalled());
 }
 
+TEST_F(SingleTouchInputMapperTest, ButtonIsReleasedOnTouchUp) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+
+    // Press a stylus button.
+    processKey(mapper, BTN_STYLUS, 1);
+    processSync(mapper);
+
+    // Start a touch gesture and ensure the BUTTON_PRESS event is generated.
+    processDown(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithCoords(toDisplayX(100), toDisplayY(200)),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                  WithCoords(toDisplayX(100), toDisplayY(200)),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    // Release the touch gesture. Ensure that the BUTTON_RELEASE event is generated even though
+    // the button has not actually been released, since there will be no pointers through which the
+    // button state can be reported. The event is generated at the location of the pointer before
+    // it went up.
+    processUp(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                  WithCoords(toDisplayX(100), toDisplayY(200)), WithButtonState(0))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                  WithCoords(toDisplayX(100), toDisplayY(200)), WithButtonState(0))));
+}
+
 // --- TouchDisplayProjectionTest ---
 
 class TouchDisplayProjectionTest : public SingleTouchInputMapperTest {

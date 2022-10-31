@@ -2159,9 +2159,9 @@ std::list<NotifyArgs> TouchInputMapper::dispatchButtonRelease(nsecs_t when, nsec
         out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
                                      AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
                                      metaState, buttonState, 0,
-                                     mCurrentCookedState.cookedPointerData.pointerProperties,
-                                     mCurrentCookedState.cookedPointerData.pointerCoords,
-                                     mCurrentCookedState.cookedPointerData.idToIndex, idBits, -1,
+                                     mLastCookedState.cookedPointerData.pointerProperties,
+                                     mLastCookedState.cookedPointerData.pointerCoords,
+                                     mLastCookedState.cookedPointerData.idToIndex, idBits, -1,
                                      mOrientedXPrecision, mOrientedYPrecision, mDownTime,
                                      MotionClassification::NONE));
     }
