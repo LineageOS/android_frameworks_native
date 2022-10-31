@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "HidUsageAccumulator.h"
 #include "InputMapper.h"
 
 namespace android {
@@ -61,7 +62,7 @@ private:
     std::vector<KeyDown> mKeyDowns{}; // keys that are down
     int32_t mMetaState{};
 
-    int32_t mCurrentHidUsage{}; // most recent HID usage seen this packet, or 0 if none
+    HidUsageAccumulator mHidUsageAccumulator;
 
     struct LedState {
         bool avail{}; // led is available

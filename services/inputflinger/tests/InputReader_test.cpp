@@ -7338,6 +7338,7 @@ protected:
     void processSlot(MultiTouchInputMapper& mapper, int32_t slot);
     void processToolType(MultiTouchInputMapper& mapper, int32_t toolType);
     void processKey(MultiTouchInputMapper& mapper, int32_t code, int32_t value);
+    void processHidUsage(MultiTouchInputMapper& mapper, int32_t usageCode, int32_t value);
     void processMTSync(MultiTouchInputMapper& mapper);
     void processSync(MultiTouchInputMapper& mapper);
 };
@@ -7440,6 +7441,12 @@ void MultiTouchInputMapperTest::processToolType(MultiTouchInputMapper& mapper, i
 void MultiTouchInputMapperTest::processKey(MultiTouchInputMapper& mapper, int32_t code,
                                            int32_t value) {
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, code, value);
+}
+
+void MultiTouchInputMapperTest::processHidUsage(MultiTouchInputMapper& mapper, int32_t usageCode,
+                                                int32_t value) {
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_MSC, MSC_SCAN, usageCode);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UNKNOWN, value);
 }
 
 void MultiTouchInputMapperTest::processMTSync(MultiTouchInputMapper& mapper) {
@@ -8555,6 +8562,63 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleAllButtons) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
     ASSERT_EQ(0, motionArgs.buttonState);
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleMappedStylusButtons) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_A, 0, AKEYCODE_STYLUS_BUTTON_PRIMARY, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, 0, 0xabcd, AKEYCODE_STYLUS_BUTTON_SECONDARY, 0);
+
+    // Touch down.
+    processId(mapper, 1);
+    processPosition(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithButtonState(0))));
+
+    // Press and release button mapped to the primary stylus button.
+    processKey(mapper, BTN_A, 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    processKey(mapper, BTN_A, 0);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE), WithButtonState(0))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithButtonState(0))));
+
+    // Press and release the HID usage mapped to the secondary stylus button.
+    processHidUsage(mapper, 0xabcd, 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_SECONDARY))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_SECONDARY))));
+
+    processHidUsage(mapper, 0xabcd, 0);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE), WithButtonState(0))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithButtonState(0))));
+
+    // Release touch.
+    processId(mapper, -1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0))));
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleAllToolTypes) {
