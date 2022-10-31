@@ -4010,39 +4010,11 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
     Layer mLayer2;
 };
 
-TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifDisplayIsNotSecure) {
-    mOutput.mState.isSecure = false;
-    mLayer2.mLayerFEState.hasProtectedContent = true;
-    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
-    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true));
-    EXPECT_CALL(mRenderEngine, useProtectedContext(false));
-
-    base::unique_fd fd;
-    std::shared_ptr<renderengine::ExternalTexture> tex;
-    mOutput.updateProtectedContentState();
-    mOutput.dequeueRenderBuffer(&fd, &tex);
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
-}
-
-TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifRenderEngineDoesNotSupportIt) {
-    mOutput.mState.isSecure = true;
-    mLayer2.mLayerFEState.hasProtectedContent = true;
-    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
-
-    base::unique_fd fd;
-    std::shared_ptr<renderengine::ExternalTexture> tex;
-    mOutput.updateProtectedContentState();
-    mOutput.dequeueRenderBuffer(&fd, &tex);
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
-}
-
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLayers) {
     mOutput.mState.isSecure = true;
     mLayer2.mLayerFEState.hasProtectedContent = false;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
-    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true)).WillOnce(Return(false));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
-    EXPECT_CALL(mRenderEngine, useProtectedContext(false));
     EXPECT_CALL(*mRenderSurface, setProtected(false));
 
     base::unique_fd fd;
@@ -4060,10 +4032,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
     // For this test, we also check the call order of key functions.
     InSequence seq;
 
-    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(false));
-    EXPECT_CALL(mRenderEngine, useProtectedContext(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
-    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true));
     EXPECT_CALL(*mRenderSurface, setProtected(true));
     // Must happen after setting the protected content state.
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
@@ -4081,38 +4050,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEveryw
     mOutput.mState.isSecure = true;
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
-    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
-
-    base::unique_fd fd;
-    std::shared_ptr<renderengine::ExternalTexture> tex;
-    mOutput.updateProtectedContentState();
-    mOutput.dequeueRenderBuffer(&fd, &tex);
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
-}
-
-TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifFailsToEnableInRenderEngine) {
-    mOutput.mState.isSecure = true;
-    mLayer2.mLayerFEState.hasProtectedContent = true;
-    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
-    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(false)).WillOnce(Return(false));
-    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
-    EXPECT_CALL(mRenderEngine, useProtectedContext(true));
-
-    base::unique_fd fd;
-    std::shared_ptr<renderengine::ExternalTexture> tex;
-    mOutput.updateProtectedContentState();
-    mOutput.dequeueRenderBuffer(&fd, &tex);
-    mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs, tex, fd);
-}
-
-TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderEngine) {
-    mOutput.mState.isSecure = true;
-    mLayer2.mLayerFEState.hasProtectedContent = true;
-    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
-    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(true)).WillOnce(Return(true));
-    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
-    EXPECT_CALL(*mRenderSurface, setProtected(true));
 
     base::unique_fd fd;
     std::shared_ptr<renderengine::ExternalTexture> tex;
@@ -4125,9 +4063,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRend
     mOutput.mState.isSecure = true;
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
-    EXPECT_CALL(mRenderEngine, isProtected).WillOnce(Return(false));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
-    EXPECT_CALL(mRenderEngine, useProtectedContext(true));
 
     base::unique_fd fd;
     std::shared_ptr<renderengine::ExternalTexture> tex;

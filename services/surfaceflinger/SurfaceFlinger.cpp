@@ -6522,7 +6522,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     // Use an empty fence for the buffer fence, since we just created the buffer so
     // there is no need for synchronization with the GPU.
     base::unique_fd bufferFence;
-    getRenderEngine().useProtectedContext(useProtected);
 
     constexpr bool kUseFramebufferCache = false;
     const auto future = getRenderEngine()
@@ -6533,9 +6532,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     for (auto* layer : renderedLayers) {
         layer->onLayerDisplayed(future);
     }
-
-    // Always switch back to unprotected context.
-    getRenderEngine().useProtectedContext(false);
 
     return future;
 }
