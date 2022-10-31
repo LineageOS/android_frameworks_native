@@ -366,7 +366,7 @@ struct PointerCoords {
 
     // Values of axes that are stored in this structure packed in order by axis id
     // for each axis that is present in the structure according to 'bits'.
-    float values[MAX_AXES];
+    std::array<float, MAX_AXES> values;
 
     inline void clear() {
         BitSet64::clear(bits);
@@ -406,7 +406,8 @@ struct PointerCoords {
         return !(*this == other);
     }
 
-    void copyFrom(const PointerCoords& other);
+    inline void copyFrom(const PointerCoords& other) { *this = other; }
+    PointerCoords& operator=(const PointerCoords&) = default;
 
 private:
     void tooManyAxes(int axis);
