@@ -88,6 +88,7 @@ rust_library {
     min_sdk_version: "Tiramisu",
     lints: "none",
     clippy_lints: "none",
+    visibility: [":__subpackages__"],
 }
 
 rust_bindgen {
