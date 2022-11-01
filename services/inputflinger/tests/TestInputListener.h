@@ -44,6 +44,8 @@ public:
 
     void assertNotifyKeyWasCalled(NotifyKeyArgs* outEventArgs = nullptr);
 
+    void assertNotifyKeyWasCalled(const ::testing::Matcher<NotifyKeyArgs>& matcher);
+
     void assertNotifyKeyWasNotCalled();
 
     void assertNotifyMotionWasCalled(NotifyMotionArgs* outEventArgs = nullptr);

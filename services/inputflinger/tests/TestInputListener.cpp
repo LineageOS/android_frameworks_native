@@ -59,6 +59,12 @@ void TestInputListener::assertNotifyKeyWasCalled(NotifyKeyArgs* outEventArgs) {
             assertCalled<NotifyKeyArgs>(outEventArgs, "Expected notifyKey() to have been called."));
 }
 
+void TestInputListener::assertNotifyKeyWasCalled(const ::testing::Matcher<NotifyKeyArgs>& matcher) {
+    NotifyKeyArgs outEventArgs;
+    ASSERT_NO_FATAL_FAILURE(assertNotifyKeyWasCalled(&outEventArgs));
+    ASSERT_THAT(outEventArgs, matcher);
+}
+
 void TestInputListener::assertNotifyKeyWasNotCalled() {
     ASSERT_NO_FATAL_FAILURE(assertNotCalled<NotifyKeyArgs>("notifyKey() should not be called."));
 }

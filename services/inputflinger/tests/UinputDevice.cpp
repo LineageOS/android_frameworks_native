@@ -76,8 +76,8 @@ void UinputDevice::injectEvent(uint16_t type, uint16_t code, int32_t value) {
 
 // --- UinputKeyboard ---
 
-UinputKeyboard::UinputKeyboard(std::initializer_list<int> keys)
-      : UinputDevice(UinputKeyboard::KEYBOARD_NAME), mKeys(keys.begin(), keys.end()) {}
+UinputKeyboard::UinputKeyboard(const char* name, std::initializer_list<int> keys)
+      : UinputDevice(name), mKeys(keys.begin(), keys.end()) {}
 
 void UinputKeyboard::configureDevice(int fd, uinput_user_dev* device) {
     // enable key press/release event
@@ -121,14 +121,19 @@ void UinputKeyboard::pressAndReleaseKey(int key) {
 
 // --- UinputHomeKey ---
 
-UinputHomeKey::UinputHomeKey() : UinputKeyboard({KEY_HOME}) {}
+UinputHomeKey::UinputHomeKey() : UinputKeyboard("Test Uinput Home Key", {KEY_HOME}) {}
 
 void UinputHomeKey::pressAndReleaseHomeKey() {
     pressAndReleaseKey(KEY_HOME);
 }
 
 // --- UinputSteamController
-UinputSteamController::UinputSteamController() : UinputKeyboard({BTN_GEAR_DOWN, BTN_GEAR_UP}) {}
+UinputSteamController::UinputSteamController()
+      : UinputKeyboard("Test Uinput Steam Controller", {BTN_GEAR_DOWN, BTN_GEAR_UP}) {}
+
+// --- UinputExternalStylus
+UinputExternalStylus::UinputExternalStylus()
+      : UinputKeyboard("Test Uinput External Stylus", {BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}) {}
 
 // --- UinputTouchScreen ---
 UinputTouchScreen::UinputTouchScreen(const Rect* size)
@@ -147,6 +152,9 @@ void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_TOOL_TYPE);
     ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
     ioctl(fd, UI_SET_KEYBIT, BTN_TOUCH);
+    ioctl(fd, UI_SET_KEYBIT, BTN_STYLUS);
+    ioctl(fd, UI_SET_KEYBIT, BTN_STYLUS2);
+    ioctl(fd, UI_SET_KEYBIT, BTN_STYLUS3);
 
     device->absmin[ABS_MT_SLOT] = RAW_SLOT_MIN;
     device->absmax[ABS_MT_SLOT] = RAW_SLOT_MAX;
@@ -196,6 +204,10 @@ void UinputTouchScreen::sendToolType(int32_t toolType) {
 
 void UinputTouchScreen::sendSync() {
     injectEvent(EV_SYN, SYN_REPORT, 0);
+}
+
+void UinputTouchScreen::sendKey(int32_t scanCode, int32_t value) {
+    injectEvent(EV_KEY, scanCode, value);
 }
 
 // Get the center x, y base on the range definition.
