@@ -69,7 +69,7 @@
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
-#include "Scheduler/RefreshRateConfigs.h"
+#include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncModulator.h"
@@ -464,7 +464,7 @@ private:
               typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
     void modulateVsync(Handler handler, Args... args) {
         if (const auto config = (*mVsyncModulator.*handler)(args...)) {
-            const auto vsyncPeriod = mScheduler->getVsyncPeriodFromRefreshRateConfigs();
+            const auto vsyncPeriod = mScheduler->getVsyncPeriodFromRefreshRateSelector();
             setVsyncConfig(*config, vsyncPeriod);
         }
     }
@@ -633,7 +633,7 @@ private:
     // Toggles the kernel idle timer on or off depending the policy decisions around refresh rates.
     void toggleKernelIdleTimer() REQUIRES(mStateLock);
 
-    using KernelIdleTimerController = scheduler::RefreshRateConfigs::KernelIdleTimerController;
+    using KernelIdleTimerController = scheduler::RefreshRateSelector::KernelIdleTimerController;
 
     // Get the controller and timeout that will help decide how the kernel idle timer will be
     // configured and what value to use as the timeout.
@@ -672,8 +672,8 @@ private:
     std::optional<ftl::NonNull<DisplayModePtr>> getPreferredDisplayMode(
             PhysicalDisplayId, DisplayModeId defaultModeId) const REQUIRES(mStateLock);
 
-    status_t setDesiredDisplayModeSpecsInternal(const sp<DisplayDevice>&,
-                                                const scheduler::RefreshRateConfigs::PolicyVariant&)
+    status_t setDesiredDisplayModeSpecsInternal(
+            const sp<DisplayDevice>&, const scheduler::RefreshRateSelector::PolicyVariant&)
             EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
 
     void commitTransactions() EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);

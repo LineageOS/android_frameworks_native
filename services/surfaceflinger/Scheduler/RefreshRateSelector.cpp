@@ -33,10 +33,10 @@
 #include <utils/Trace.h>
 
 #include "../SurfaceFlingerProperties.h"
-#include "RefreshRateConfigs.h"
+#include "RefreshRateSelector.h"
 
 #undef LOG_TAG
-#define LOG_TAG "RefreshRateConfigs"
+#define LOG_TAG "RefreshRateSelector"
 
 namespace android::scheduler {
 namespace {
@@ -50,9 +50,9 @@ struct RefreshRateScore {
     } fixedRateBelowThresholdLayersScore;
 };
 
-constexpr RefreshRateConfigs::GlobalSignals kNoSignals;
+constexpr RefreshRateSelector::GlobalSignals kNoSignals;
 
-std::string formatLayerInfo(const RefreshRateConfigs::LayerRequirement& layer, float weight) {
+std::string formatLayerInfo(const RefreshRateSelector::LayerRequirement& layer, float weight) {
     return base::StringPrintf("%s (type=%s, weight=%.2f, seamlessness=%s) %s", layer.name.c_str(),
                               ftl::enum_string(layer.vote).c_str(), weight,
                               ftl::enum_string(layer.seamlessness).c_str(),
@@ -111,7 +111,7 @@ bool canModesSupportFrameRateOverride(const std::vector<DisplayModeIterator>& so
         for (const auto it2 : sortedModes) {
             const auto& mode2 = it2->second;
 
-            if (RefreshRateConfigs::getFrameRateDivisor(mode1->getFps(), mode2->getFps()) >= 2) {
+            if (RefreshRateSelector::getFrameRateDivisor(mode1->getFps(), mode2->getFps()) >= 2) {
                 return true;
             }
         }
@@ -119,23 +119,23 @@ bool canModesSupportFrameRateOverride(const std::vector<DisplayModeIterator>& so
     return false;
 }
 
-std::string toString(const RefreshRateConfigs::PolicyVariant& policy) {
+std::string toString(const RefreshRateSelector::PolicyVariant& policy) {
     using namespace std::string_literals;
 
     return ftl::match(
             policy,
-            [](const RefreshRateConfigs::DisplayManagerPolicy& policy) {
+            [](const RefreshRateSelector::DisplayManagerPolicy& policy) {
                 return "DisplayManagerPolicy"s + policy.toString();
             },
-            [](const RefreshRateConfigs::OverridePolicy& policy) {
+            [](const RefreshRateSelector::OverridePolicy& policy) {
                 return "OverridePolicy"s + policy.toString();
             },
-            [](RefreshRateConfigs::NoOverridePolicy) { return "NoOverridePolicy"s; });
+            [](RefreshRateSelector::NoOverridePolicy) { return "NoOverridePolicy"s; });
 }
 
 } // namespace
 
-struct RefreshRateConfigs::RefreshRateScoreComparator {
+struct RefreshRateSelector::RefreshRateScoreComparator {
     bool operator()(const RefreshRateScore& lhs, const RefreshRateScore& rhs) const {
         const auto& [modeIt, overallScore, _] = lhs;
 
@@ -162,15 +162,15 @@ struct RefreshRateConfigs::RefreshRateScoreComparator {
     const RefreshRateOrder refreshRateOrder;
 };
 
-std::string RefreshRateConfigs::Policy::toString() const {
+std::string RefreshRateSelector::Policy::toString() const {
     return base::StringPrintf("{defaultModeId=%d, allowGroupSwitching=%s"
                               ", primaryRange=%s, appRequestRange=%s}",
                               defaultMode.value(), allowGroupSwitching ? "true" : "false",
                               to_string(primaryRange).c_str(), to_string(appRequestRange).c_str());
 }
 
-std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPeriod,
-                                                                 nsecs_t displayPeriod) const {
+std::pair<nsecs_t, nsecs_t> RefreshRateSelector::getDisplayFrames(nsecs_t layerPeriod,
+                                                                  nsecs_t displayPeriod) const {
     auto [quotient, remainder] = std::div(layerPeriod, displayPeriod);
     if (remainder <= MARGIN_FOR_PERIOD_CALCULATION ||
         std::abs(remainder - displayPeriod) <= MARGIN_FOR_PERIOD_CALCULATION) {
@@ -181,8 +181,8 @@ std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPe
     return {quotient, remainder};
 }
 
-float RefreshRateConfigs::calculateNonExactMatchingLayerScoreLocked(const LayerRequirement& layer,
-                                                                    Fps refreshRate) const {
+float RefreshRateSelector::calculateNonExactMatchingLayerScoreLocked(const LayerRequirement& layer,
+                                                                     Fps refreshRate) const {
     constexpr float kScoreForFractionalPairs = .8f;
 
     const auto displayPeriod = refreshRate.getPeriodNsecs();
@@ -243,15 +243,15 @@ float RefreshRateConfigs::calculateNonExactMatchingLayerScoreLocked(const LayerR
     return 0;
 }
 
-float RefreshRateConfigs::calculateRefreshRateScoreForFps(Fps refreshRate) const {
+float RefreshRateSelector::calculateRefreshRateScoreForFps(Fps refreshRate) const {
     const float ratio =
             refreshRate.getValue() / mAppRequestRefreshRates.back()->second->getFps().getValue();
     // Use ratio^2 to get a lower score the more we get further from peak
     return ratio * ratio;
 }
 
-float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& layer, Fps refreshRate,
-                                                    bool isSeamlessSwitch) const {
+float RefreshRateSelector::calculateLayerScoreLocked(const LayerRequirement& layer, Fps refreshRate,
+                                                     bool isSeamlessSwitch) const {
     // Slightly prefer seamless switches.
     constexpr float kSeamedSwitchPenalty = 0.95f;
     const float seamlessness = isSeamlessSwitch ? 1.0f : kSeamedSwitchPenalty;
@@ -287,8 +287,8 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
             kNonExactMatchingPenalty;
 }
 
-auto RefreshRateConfigs::getRankedRefreshRates(const std::vector<LayerRequirement>& layers,
-                                               GlobalSignals signals) const -> RankedRefreshRates {
+auto RefreshRateSelector::getRankedRefreshRates(const std::vector<LayerRequirement>& layers,
+                                                GlobalSignals signals) const -> RankedRefreshRates {
     std::lock_guard lock(mLock);
 
     if (mGetRankedRefreshRatesCache &&
@@ -301,8 +301,8 @@ auto RefreshRateConfigs::getRankedRefreshRates(const std::vector<LayerRequiremen
     return result;
 }
 
-auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequirement>& layers,
-                                                     GlobalSignals signals) const
+auto RefreshRateSelector::getRankedRefreshRatesLocked(const std::vector<LayerRequirement>& layers,
+                                                      GlobalSignals signals) const
         -> RankedRefreshRates {
     using namespace fps_approx_ops;
     ATRACE_CALL();
@@ -608,40 +608,44 @@ auto RefreshRateConfigs::getRankedRefreshRatesLocked(const std::vector<LayerRequ
     return {ranking, kNoSignals};
 }
 
-std::unordered_map<uid_t, std::vector<const RefreshRateConfigs::LayerRequirement*>>
-groupLayersByUid(const std::vector<RefreshRateConfigs::LayerRequirement>& layers) {
-    std::unordered_map<uid_t, std::vector<const RefreshRateConfigs::LayerRequirement*>> layersByUid;
+using LayerRequirementPtrs = std::vector<const RefreshRateSelector::LayerRequirement*>;
+using PerUidLayerRequirements = std::unordered_map<uid_t, LayerRequirementPtrs>;
+
+PerUidLayerRequirements groupLayersByUid(
+        const std::vector<RefreshRateSelector::LayerRequirement>& layers) {
+    PerUidLayerRequirements layersByUid;
     for (const auto& layer : layers) {
-        auto iter = layersByUid.emplace(layer.ownerUid,
-                                        std::vector<const RefreshRateConfigs::LayerRequirement*>());
-        auto& layersWithSameUid = iter.first->second;
+        const auto it = layersByUid.emplace(layer.ownerUid, LayerRequirementPtrs()).first;
+        auto& layersWithSameUid = it->second;
         layersWithSameUid.push_back(&layer);
     }
 
     // Remove uids that can't have a frame rate override
-    for (auto iter = layersByUid.begin(); iter != layersByUid.end();) {
-        const auto& layersWithSameUid = iter->second;
+    for (auto it = layersByUid.begin(); it != layersByUid.end();) {
+        const auto& layersWithSameUid = it->second;
         bool skipUid = false;
         for (const auto& layer : layersWithSameUid) {
-            if (layer->vote == RefreshRateConfigs::LayerVoteType::Max ||
-                layer->vote == RefreshRateConfigs::LayerVoteType::Heuristic) {
+            using LayerVoteType = RefreshRateSelector::LayerVoteType;
+
+            if (layer->vote == LayerVoteType::Max || layer->vote == LayerVoteType::Heuristic) {
                 skipUid = true;
                 break;
             }
         }
         if (skipUid) {
-            iter = layersByUid.erase(iter);
+            it = layersByUid.erase(it);
         } else {
-            ++iter;
+            ++it;
         }
     }
 
     return layersByUid;
 }
 
-RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverrides(
-        const std::vector<LayerRequirement>& layers, Fps displayRefreshRate,
-        GlobalSignals globalSignals) const {
+auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequirement>& layers,
+                                                Fps displayRefreshRate,
+                                                GlobalSignals globalSignals) const
+        -> UidToFrameRateOverride {
     ATRACE_CALL();
 
     ALOGV("%s: %zu layers", __func__, layers.size());
@@ -661,8 +665,7 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
         return isStrictlyLess(mode1->getFps(), mode2->getFps());
     });
 
-    std::unordered_map<uid_t, std::vector<const LayerRequirement*>> layersByUid =
-            groupLayersByUid(layers);
+    const auto layersByUid = groupLayersByUid(layers);
     UidToFrameRateOverride frameRateOverrides;
     for (const auto& [uid, layersWithSameUid] : layersByUid) {
         // Layers with ExplicitExactOrMultiple expect touch boost
@@ -723,7 +726,7 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
     return frameRateOverrides;
 }
 
-std::optional<Fps> RefreshRateConfigs::onKernelTimerChanged(
+std::optional<Fps> RefreshRateSelector::onKernelTimerChanged(
         std::optional<DisplayModeId> desiredActiveModeId, bool timerExpired) const {
     std::lock_guard lock(mLock);
 
@@ -740,7 +743,7 @@ std::optional<Fps> RefreshRateConfigs::onKernelTimerChanged(
     return mode->getFps();
 }
 
-const DisplayModePtr& RefreshRateConfigs::getMinRefreshRateByPolicyLocked() const {
+const DisplayModePtr& RefreshRateSelector::getMinRefreshRateByPolicyLocked() const {
     const auto& activeMode = *getActiveModeItLocked()->second;
 
     for (const DisplayModeIterator modeIt : mPrimaryRefreshRates) {
@@ -757,7 +760,7 @@ const DisplayModePtr& RefreshRateConfigs::getMinRefreshRateByPolicyLocked() cons
     return mPrimaryRefreshRates.front()->second;
 }
 
-const DisplayModePtr& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked(int anchorGroup) const {
+const DisplayModePtr& RefreshRateSelector::getMaxRefreshRateByPolicyLocked(int anchorGroup) const {
     for (auto it = mPrimaryRefreshRates.rbegin(); it != mPrimaryRefreshRates.rend(); ++it) {
         const auto& mode = (*it)->second;
         if (anchorGroup == mode->getGroup()) {
@@ -771,7 +774,7 @@ const DisplayModePtr& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked(int an
     return mPrimaryRefreshRates.back()->second;
 }
 
-auto RefreshRateConfigs::rankRefreshRates(
+auto RefreshRateSelector::rankRefreshRates(
         std::optional<int> anchorGroupOpt, RefreshRateOrder refreshRateOrder,
         std::optional<DisplayModeId> preferredDisplayModeOpt) const -> RefreshRateRanking {
     std::deque<ScoredRefreshRate> ranking;
@@ -817,23 +820,23 @@ auto RefreshRateConfigs::rankRefreshRates(
     return rankRefreshRates(kNoAnchorGroup, refreshRateOrder, preferredDisplayModeOpt);
 }
 
-DisplayModePtr RefreshRateConfigs::getActiveModePtr() const {
+DisplayModePtr RefreshRateSelector::getActiveModePtr() const {
     std::lock_guard lock(mLock);
     return getActiveModeItLocked()->second;
 }
 
-const DisplayMode& RefreshRateConfigs::getActiveMode() const {
+const DisplayMode& RefreshRateSelector::getActiveMode() const {
     // Reads from kMainThreadContext do not require mLock.
     ftl::FakeGuard guard(mLock);
     return *mActiveModeIt->second;
 }
 
-DisplayModeIterator RefreshRateConfigs::getActiveModeItLocked() const {
+DisplayModeIterator RefreshRateSelector::getActiveModeItLocked() const {
     // Reads under mLock do not require kMainThreadContext.
     return FTL_FAKE_GUARD(kMainThreadContext, mActiveModeIt);
 }
 
-void RefreshRateConfigs::setActiveModeId(DisplayModeId modeId) {
+void RefreshRateSelector::setActiveModeId(DisplayModeId modeId) {
     std::lock_guard lock(mLock);
 
     // Invalidate the cached invocation to getRankedRefreshRates. This forces
@@ -844,14 +847,14 @@ void RefreshRateConfigs::setActiveModeId(DisplayModeId modeId) {
     LOG_ALWAYS_FATAL_IF(mActiveModeIt == mDisplayModes.end());
 }
 
-RefreshRateConfigs::RefreshRateConfigs(DisplayModes modes, DisplayModeId activeModeId,
-                                       Config config)
+RefreshRateSelector::RefreshRateSelector(DisplayModes modes, DisplayModeId activeModeId,
+                                         Config config)
       : mKnownFrameRates(constructKnownFrameRates(modes)), mConfig(config) {
     initializeIdleTimer();
     FTL_FAKE_GUARD(kMainThreadContext, updateDisplayModes(std::move(modes), activeModeId));
 }
 
-void RefreshRateConfigs::initializeIdleTimer() {
+void RefreshRateSelector::initializeIdleTimer() {
     if (mConfig.idleTimerTimeout > 0ms) {
         mIdleTimer.emplace(
                 "IdleTimer", mConfig.idleTimerTimeout,
@@ -870,7 +873,7 @@ void RefreshRateConfigs::initializeIdleTimer() {
     }
 }
 
-void RefreshRateConfigs::updateDisplayModes(DisplayModes modes, DisplayModeId activeModeId) {
+void RefreshRateSelector::updateDisplayModes(DisplayModes modes, DisplayModeId activeModeId) {
     std::lock_guard lock(mLock);
 
     // Invalidate the cached invocation to getRankedRefreshRates. This forces
@@ -896,7 +899,7 @@ void RefreshRateConfigs::updateDisplayModes(DisplayModes modes, DisplayModeId ac
     constructAvailableRefreshRates();
 }
 
-bool RefreshRateConfigs::isPolicyValidLocked(const Policy& policy) const {
+bool RefreshRateSelector::isPolicyValidLocked(const Policy& policy) const {
     // defaultMode must be a valid mode, and within the given refresh rate range.
     if (const auto mode = mDisplayModes.get(policy.defaultMode)) {
         if (!policy.primaryRange.includes(mode->get()->getFps())) {
@@ -913,7 +916,7 @@ bool RefreshRateConfigs::isPolicyValidLocked(const Policy& policy) const {
             policy.appRequestRange.max >= policy.primaryRange.max;
 }
 
-auto RefreshRateConfigs::setPolicy(const PolicyVariant& policy) -> SetPolicyResult {
+auto RefreshRateSelector::setPolicy(const PolicyVariant& policy) -> SetPolicyResult {
     Policy oldPolicy;
     {
         std::lock_guard lock(mLock);
@@ -969,21 +972,21 @@ auto RefreshRateConfigs::setPolicy(const PolicyVariant& policy) -> SetPolicyResu
     return SetPolicyResult::Changed;
 }
 
-const RefreshRateConfigs::Policy* RefreshRateConfigs::getCurrentPolicyLocked() const {
+auto RefreshRateSelector::getCurrentPolicyLocked() const -> const Policy* {
     return mOverridePolicy ? &mOverridePolicy.value() : &mDisplayManagerPolicy;
 }
 
-RefreshRateConfigs::Policy RefreshRateConfigs::getCurrentPolicy() const {
+auto RefreshRateSelector::getCurrentPolicy() const -> Policy {
     std::lock_guard lock(mLock);
     return *getCurrentPolicyLocked();
 }
 
-RefreshRateConfigs::Policy RefreshRateConfigs::getDisplayManagerPolicy() const {
+auto RefreshRateSelector::getDisplayManagerPolicy() const -> Policy {
     std::lock_guard lock(mLock);
     return mDisplayManagerPolicy;
 }
 
-bool RefreshRateConfigs::isModeAllowed(DisplayModeId modeId) const {
+bool RefreshRateSelector::isModeAllowed(DisplayModeId modeId) const {
     std::lock_guard lock(mLock);
     return std::any_of(mAppRequestRefreshRates.begin(), mAppRequestRefreshRates.end(),
                        [modeId](DisplayModeIterator modeIt) {
@@ -991,7 +994,7 @@ bool RefreshRateConfigs::isModeAllowed(DisplayModeId modeId) const {
                        });
 }
 
-void RefreshRateConfigs::constructAvailableRefreshRates() {
+void RefreshRateSelector::constructAvailableRefreshRates() {
     // Filter modes based on current policy and sort on refresh rate.
     const Policy* policy = getCurrentPolicyLocked();
     ALOGV("%s: %s ", __func__, policy->toString().c_str());
@@ -1027,7 +1030,7 @@ void RefreshRateConfigs::constructAvailableRefreshRates() {
     mAppRequestRefreshRates = filterRefreshRates(policy->appRequestRange, "app request");
 }
 
-Fps RefreshRateConfigs::findClosestKnownFrameRate(Fps frameRate) const {
+Fps RefreshRateSelector::findClosestKnownFrameRate(Fps frameRate) const {
     using namespace fps_approx_ops;
 
     if (frameRate <= mKnownFrameRates.front()) {
@@ -1046,7 +1049,7 @@ Fps RefreshRateConfigs::findClosestKnownFrameRate(Fps frameRate) const {
     return distance1 < distance2 ? *lowerBound : *std::prev(lowerBound);
 }
 
-RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction() const {
+auto RefreshRateSelector::getIdleTimerAction() const -> KernelIdleTimerAction {
     std::lock_guard lock(mLock);
 
     const Fps deviceMinFps = mMinRefreshRateModeIt->second->getFps();
@@ -1074,7 +1077,7 @@ RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction
     return KernelIdleTimerAction::TurnOn;
 }
 
-int RefreshRateConfigs::getFrameRateDivisor(Fps displayRefreshRate, Fps layerFrameRate) {
+int RefreshRateSelector::getFrameRateDivisor(Fps displayRefreshRate, Fps layerFrameRate) {
     // This calculation needs to be in sync with the java code
     // in DisplayManagerService.getDisplayInfoForFrameRateOverride
 
@@ -1090,7 +1093,7 @@ int RefreshRateConfigs::getFrameRateDivisor(Fps displayRefreshRate, Fps layerFra
     return static_cast<int>(numPeriodsRounded);
 }
 
-bool RefreshRateConfigs::isFractionalPairOrMultiple(Fps smaller, Fps bigger) {
+bool RefreshRateSelector::isFractionalPairOrMultiple(Fps smaller, Fps bigger) {
     if (isStrictlyLess(bigger, smaller)) {
         return isFractionalPairOrMultiple(bigger, smaller);
     }
@@ -1101,7 +1104,7 @@ bool RefreshRateConfigs::isFractionalPairOrMultiple(Fps smaller, Fps bigger) {
             isApproxEqual(bigger, Fps::fromValue(smaller.getValue() * multiplier * kCoef));
 }
 
-void RefreshRateConfigs::dump(utils::Dumper& dumper) const {
+void RefreshRateSelector::dump(utils::Dumper& dumper) const {
     using namespace std::string_view_literals;
 
     std::lock_guard lock(mLock);
@@ -1142,7 +1145,7 @@ void RefreshRateConfigs::dump(utils::Dumper& dumper) const {
     dumper.dump("idleTimer"sv, idleTimer);
 }
 
-std::chrono::milliseconds RefreshRateConfigs::getIdleTimerTimeout() {
+std::chrono::milliseconds RefreshRateSelector::getIdleTimerTimeout() {
     return mConfig.idleTimerTimeout;
 }
 
