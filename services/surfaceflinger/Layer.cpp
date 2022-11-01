@@ -240,11 +240,6 @@ Layer::~Layer() {
     mFlinger->mTimeStats->onDestroy(layerId);
     mFlinger->mFrameTracer->onDestroy(layerId);
 
-    sp<Client> c(mClientRef.promote());
-    if (c != 0) {
-        c->detachLayer(this);
-    }
-
     mFrameTracker.logAndResetStats(mName);
     mFlinger->onLayerDestroyed(this);
 
