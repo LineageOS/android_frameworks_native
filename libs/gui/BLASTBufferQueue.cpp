@@ -357,11 +357,12 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                     }
                 }
                 for (const auto& staleRelease : staleReleases) {
-                    BQA_LOGE("Faking releaseBufferCallback from transactionCompleteCallback");
-                    BBQ_TRACE("FakeReleaseCallback");
                     releaseBufferCallbackLocked(staleRelease,
-                        stat.previousReleaseFence ? stat.previousReleaseFence : Fence::NO_FENCE,
-                        stat.currentMaxAcquiredBufferCount);
+                                                stat.previousReleaseFence
+                                                        ? stat.previousReleaseFence
+                                                        : Fence::NO_FENCE,
+                                                stat.currentMaxAcquiredBufferCount,
+                                                true /* fakeRelease */);
                 }
             } else {
                 BQA_LOGE("Failed to find matching SurfaceControl in transactionCallback");
@@ -405,11 +406,13 @@ void BLASTBufferQueue::releaseBufferCallback(
     BBQ_TRACE();
 
     std::unique_lock _lock{mMutex};
-    releaseBufferCallbackLocked(id, releaseFence, currentMaxAcquiredBufferCount);
+    releaseBufferCallbackLocked(id, releaseFence, currentMaxAcquiredBufferCount,
+                                false /* fakeRelease */);
 }
 
-void BLASTBufferQueue::releaseBufferCallbackLocked(const ReleaseCallbackId& id,
-        const sp<Fence>& releaseFence, std::optional<uint32_t> currentMaxAcquiredBufferCount) {
+void BLASTBufferQueue::releaseBufferCallbackLocked(
+        const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
+        std::optional<uint32_t> currentMaxAcquiredBufferCount, bool fakeRelease) {
     ATRACE_CALL();
     BQA_LOGV("releaseBufferCallback %s", id.to_string().c_str());
 
@@ -432,6 +435,11 @@ void BLASTBufferQueue::releaseBufferCallbackLocked(const ReleaseCallbackId& id,
     auto rb = ReleasedBuffer{id, releaseFence};
     if (std::find(mPendingRelease.begin(), mPendingRelease.end(), rb) == mPendingRelease.end()) {
         mPendingRelease.emplace_back(rb);
+        if (fakeRelease) {
+            BQA_LOGE("Faking releaseBufferCallback from transactionCompleteCallback %" PRIu64,
+                     id.framenumber);
+            BBQ_TRACE("FakeReleaseCallback");
+        }
     }
 
     // Release all buffers that are beyond the ones that we need to hold
