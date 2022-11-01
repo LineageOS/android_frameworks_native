@@ -110,9 +110,11 @@ cc_library {
     static_libs: [
         "libarect",
         "libgrallocusage",
+        "libgui_aidl_static",
     ],
 
     header_libs: [
+        "libgui_headers",
         "libarect_headers",
         "libnativebase_headers",
         "libnativewindow_headers",
