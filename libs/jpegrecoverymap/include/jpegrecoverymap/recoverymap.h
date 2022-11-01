@@ -168,6 +168,47 @@ private:
     status_t appendRecoveryMap(void* compressed_jpeg_image,
                                jr_compressed_ptr compressed_recovery_map,
                                void* dest);
+
+    /*
+     * This method generates XMP metadata.
+     *
+     * below is an example of the XMP metadata that this function generates where
+     * secondary_image_length = 1000
+     * hdr_ratio = 1.25
+     *
+     * <x:xmpmeta
+     *   xmlns:x="adobe:ns:meta/"
+     *   x:xmptk="Adobe XMP Core 5.1.2">
+     *   <rdf:RDF
+     *     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+     *     <rdf:Description
+     *       xmlns:GContainer="http://ns.google.com/photos/1.0/container/">
+     *       <GContainer:Version>1</GContainer:Version>
+     *       <GContainer:HdrRatio>1.25</GContainer:HdrRatio>
+     *       <GContainer:Directory>
+     *         <rdf:Seq>
+     *           <rdf:li>
+     *             <GContainer:Item
+     *               Item:Semantic="Primary"
+     *               Item:Mime="image/jpeg"/>
+     *           </rdf:li>
+     *           <rdf:li>
+     *             <GContainer:Item
+     *               Item:Semantic="RecoveryMap"
+     *               Item:Mime="image/jpeg"
+     *               Item:Length="1000"/>
+     *           </rdf:li>
+     *         </rdf:Seq>
+     *       </GContainer:Directory>
+     *     </rdf:Description>
+     *   </rdf:RDF>
+     * </x:xmpmeta>
+     *
+     * @param secondary_image_length length of secondary image
+     * @param hdr_ratio hdr ratio
+     * @return XMP metadata in type of string
+     */
+    std::string generateXmp(int secondary_image_length, float hdr_ratio);
 };
 
 } // namespace android::recoverymap
