@@ -248,12 +248,17 @@ bool Display::chooseCompositionStrategy(
         return false;
     }
 
-    const TimePoint startTime = TimePoint::now();
-
     // Get any composition changes requested by the HWC device, and apply them.
     std::optional<android::HWComposer::DeviceRequestedChanges> changes;
     auto& hwc = getCompositionEngine().getHwComposer();
     const bool requiresClientComposition = anyLayersRequireClientComposition();
+
+    if (isPowerHintSessionEnabled()) {
+        mPowerAdvisor->setRequiresClientComposition(mId, requiresClientComposition);
+    }
+
+    const TimePoint hwcValidateStartTime = TimePoint::now();
+
     if (status_t result =
                 hwc.getDeviceCompositionChanges(*halDisplayId, requiresClientComposition,
                                                 getState().earliestPresentTime,
@@ -266,8 +271,10 @@ bool Display::chooseCompositionStrategy(
     }
 
     if (isPowerHintSessionEnabled()) {
-        mPowerAdvisor->setHwcValidateTiming(mId, startTime, TimePoint::now());
-        mPowerAdvisor->setRequiresClientComposition(mId, requiresClientComposition);
+        mPowerAdvisor->setHwcValidateTiming(mId, hwcValidateStartTime, TimePoint::now());
+        if (auto halDisplayId = HalDisplayId::tryCast(mId)) {
+            mPowerAdvisor->setSkippedValidate(mId, hwc.getValidateSkipped(*halDisplayId));
+        }
     }
 
     return true;
@@ -432,13 +439,6 @@ void Display::finishFrame(const compositionengine::CompositionRefreshArgs& refre
     }
 
     impl::Output::finishFrame(refreshArgs, std::move(result));
-
-    if (isPowerHintSessionEnabled()) {
-        auto& hwc = getCompositionEngine().getHwComposer();
-        if (auto halDisplayId = HalDisplayId::tryCast(mId)) {
-            mPowerAdvisor->setSkippedValidate(mId, hwc.getValidateSkipped(*halDisplayId));
-        }
-    }
 }
 
 } // namespace android::compositionengine::impl
