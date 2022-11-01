@@ -57,6 +57,7 @@ using android::hardware::power::Boost;
 using android::hardware::power::IPower;
 using android::hardware::power::IPowerHintSession;
 using android::hardware::power::Mode;
+using android::hardware::power::SessionHint;
 using android::hardware::power::WorkDuration;
 
 PowerAdvisor::~PowerAdvisor() = default;
@@ -140,7 +141,7 @@ void PowerAdvisor::setExpensiveRenderingExpected(DisplayId displayId, bool expec
     }
 }
 
-void PowerAdvisor::notifyDisplayUpdateImminent() {
+void PowerAdvisor::notifyDisplayUpdateImminentAndCpuReset() {
     // Only start sending this notification once the system has booted so we don't introduce an
     // early-boot dependency on Power HAL
     if (!mBootFinished.load()) {
@@ -154,7 +155,7 @@ void PowerAdvisor::notifyDisplayUpdateImminent() {
             return;
         }
 
-        if (!halWrapper->notifyDisplayUpdateImminent()) {
+        if (!halWrapper->notifyDisplayUpdateImminentAndCpuReset()) {
             // The HAL has become unavailable; attempt to reconnect later
             mReconnectPowerHal = true;
             return;
@@ -599,7 +600,7 @@ public:
         return ret.isOk();
     }
 
-    bool notifyDisplayUpdateImminent() override {
+    bool notifyDisplayUpdateImminentAndCpuReset() override {
         // Power HAL 1.x doesn't have a notification for this
         ALOGV("HIDL notifyUpdateImminent received but can't send");
         return true;
@@ -675,8 +676,12 @@ bool AidlPowerHalWrapper::setExpensiveRendering(bool enabled) {
     return ret.isOk();
 }
 
-bool AidlPowerHalWrapper::notifyDisplayUpdateImminent() {
-    ALOGV("AIDL notifyDisplayUpdateImminent");
+bool AidlPowerHalWrapper::notifyDisplayUpdateImminentAndCpuReset() {
+    ALOGV("AIDL notifyDisplayUpdateImminentAndCpuReset");
+    if (isPowerHintSessionRunning()) {
+        mPowerHintSession->sendHint(SessionHint::CPU_LOAD_RESET);
+    }
+
     if (!mHasDisplayUpdateImminent) {
         ALOGV("Skipped sending DISPLAY_UPDATE_IMMINENT because HAL doesn't support it");
         return true;
