@@ -2391,18 +2391,11 @@ TEST_F(InputReaderIntegrationTest, AddNewDevice) {
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
     ASSERT_EQ(initialNumDevices + 1, mFakePolicy->getInputDevices().size());
 
-    // Find the test device by its name.
-    const std::vector<InputDeviceInfo> inputDevices = mFakePolicy->getInputDevices();
-    const auto& it =
-            std::find_if(inputDevices.begin(), inputDevices.end(),
-                         [&keyboard](const InputDeviceInfo& info) {
-                             return info.getIdentifier().name == keyboard->getName();
-                         });
-
-    ASSERT_NE(it, inputDevices.end());
-    ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, it->getKeyboardType());
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, it->getSources());
-    ASSERT_EQ(0U, it->getMotionRanges().size());
+    const auto device = findDeviceByName(keyboard->getName());
+    ASSERT_TRUE(device.has_value());
+    ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, device->getKeyboardType());
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, device->getSources());
+    ASSERT_EQ(0U, device->getMotionRanges().size());
 
     keyboard.reset();
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
@@ -2435,6 +2428,41 @@ TEST_F(InputReaderIntegrationTest, SendsEventsToInputListener) {
     ASSERT_NE(prevId, keyArgs.id);
     ASSERT_LE(prevTimestamp, keyArgs.eventTime);
     ASSERT_LE(keyArgs.eventTime, keyArgs.readTime);
+}
+
+TEST_F(InputReaderIntegrationTest, ExternalStylusesButtons) {
+    std::unique_ptr<UinputExternalStylus> stylus = createUinputDevice<UinputExternalStylus>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+
+    const auto device = findDeviceByName(stylus->getName());
+    ASSERT_TRUE(device.has_value());
+
+    // An external stylus with buttons should also be recognized as a keyboard.
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD | AINPUT_SOURCE_STYLUS, device->getSources())
+            << "Unexpected source " << inputEventSourceToString(device->getSources()).c_str();
+    ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, device->getKeyboardType());
+
+    const auto DOWN =
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD));
+    const auto UP = AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP), WithSource(AINPUT_SOURCE_KEYBOARD));
+
+    stylus->pressAndReleaseKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(DOWN, WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(UP, WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+
+    stylus->pressAndReleaseKey(BTN_STYLUS2);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(DOWN, WithKeyCode(AKEYCODE_STYLUS_BUTTON_SECONDARY))));
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(UP, WithKeyCode(AKEYCODE_STYLUS_BUTTON_SECONDARY))));
+
+    stylus->pressAndReleaseKey(BTN_STYLUS3);
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(DOWN, WithKeyCode(AKEYCODE_STYLUS_BUTTON_TERTIARY))));
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(UP, WithKeyCode(AKEYCODE_STYLUS_BUTTON_TERTIARY))));
 }
 
 /**
@@ -2770,6 +2798,20 @@ TEST_F(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
                   WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
 
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertStylusGestureNotified(mDeviceInfo.getId()));
+}
+
+TEST_F(TouchIntegrationTest, StylusButtonsGenerateKeyEvents) {
+    mDevice->sendKey(BTN_STYLUS, 1);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD),
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
+
+    mDevice->sendKey(BTN_STYLUS, 0);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasCalled(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP), WithSource(AINPUT_SOURCE_KEYBOARD),
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY))));
 }
 
 // --- InputDeviceTest ---
@@ -7296,6 +7338,7 @@ protected:
     void processSlot(MultiTouchInputMapper& mapper, int32_t slot);
     void processToolType(MultiTouchInputMapper& mapper, int32_t toolType);
     void processKey(MultiTouchInputMapper& mapper, int32_t code, int32_t value);
+    void processHidUsage(MultiTouchInputMapper& mapper, int32_t usageCode, int32_t value);
     void processMTSync(MultiTouchInputMapper& mapper);
     void processSync(MultiTouchInputMapper& mapper);
 };
@@ -7398,6 +7441,12 @@ void MultiTouchInputMapperTest::processToolType(MultiTouchInputMapper& mapper, i
 void MultiTouchInputMapperTest::processKey(MultiTouchInputMapper& mapper, int32_t code,
                                            int32_t value) {
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, code, value);
+}
+
+void MultiTouchInputMapperTest::processHidUsage(MultiTouchInputMapper& mapper, int32_t usageCode,
+                                                int32_t value) {
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_MSC, MSC_SCAN, usageCode);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UNKNOWN, value);
 }
 
 void MultiTouchInputMapperTest::processMTSync(MultiTouchInputMapper& mapper) {
@@ -8513,6 +8562,63 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleAllButtons) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
     ASSERT_EQ(0, motionArgs.buttonState);
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleMappedStylusButtons) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_A, 0, AKEYCODE_STYLUS_BUTTON_PRIMARY, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, 0, 0xabcd, AKEYCODE_STYLUS_BUTTON_SECONDARY, 0);
+
+    // Touch down.
+    processId(mapper, 1);
+    processPosition(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithButtonState(0))));
+
+    // Press and release button mapped to the primary stylus button.
+    processKey(mapper, BTN_A, 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    processKey(mapper, BTN_A, 0);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE), WithButtonState(0))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithButtonState(0))));
+
+    // Press and release the HID usage mapped to the secondary stylus button.
+    processHidUsage(mapper, 0xabcd, 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_SECONDARY))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_SECONDARY))));
+
+    processHidUsage(mapper, 0xabcd, 0);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE), WithButtonState(0))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithButtonState(0))));
+
+    // Release touch.
+    processId(mapper, -1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0))));
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleAllToolTypes) {

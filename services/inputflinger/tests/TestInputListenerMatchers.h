@@ -23,7 +23,7 @@
 
 namespace android {
 
-MATCHER_P(WithMotionAction, action, "InputEvent with specified action") {
+MATCHER_P(WithMotionAction, action, "MotionEvent with specified action") {
     bool matches = action == arg.action;
     if (!matches) {
         *result_listener << "expected action " << MotionEvent::actionToString(action)
@@ -39,6 +39,12 @@ MATCHER_P(WithMotionAction, action, "InputEvent with specified action") {
     return matches;
 }
 
+MATCHER_P(WithKeyAction, action, "KeyEvent with specified action") {
+    *result_listener << "expected action " << KeyEvent::actionToString(action) << ", but got "
+                     << KeyEvent::actionToString(arg.action);
+    return arg.action == action;
+}
+
 MATCHER_P(WithSource, source, "InputEvent with specified source") {
     *result_listener << "expected source " << source << ", but got " << arg.source;
     return arg.source == source;
@@ -47,6 +53,11 @@ MATCHER_P(WithSource, source, "InputEvent with specified source") {
 MATCHER_P(WithDisplayId, displayId, "InputEvent with specified displayId") {
     *result_listener << "expected displayId " << displayId << ", but got " << arg.displayId;
     return arg.displayId == displayId;
+}
+
+MATCHER_P(WithKeyCode, keyCode, "KeyEvent with specified key code") {
+    *result_listener << "expected key code " << keyCode << ", but got " << arg.keyCode;
+    return arg.keyCode == keyCode;
 }
 
 MATCHER_P2(WithCoords, x, y, "InputEvent with specified coords") {
@@ -73,6 +84,11 @@ MATCHER_P(WithToolType, toolType, "InputEvent with specified tool type") {
 MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {
     *result_listener << "expected flags " << flags << ", but got " << arg.flags;
     return arg.flags == flags;
+}
+
+MATCHER_P(WithButtonState, buttons, "InputEvent with specified button state") {
+    *result_listener << "expected button state " << buttons << ", but got " << arg.buttonState;
+    return arg.buttonState == buttons;
 }
 
 } // namespace android

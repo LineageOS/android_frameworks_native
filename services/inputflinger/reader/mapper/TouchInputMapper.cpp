@@ -170,6 +170,7 @@ void CookedPointerData::copyFrom(const CookedPointerData& other) {
 
 TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
       : InputMapper(deviceContext),
+        mTouchButtonAccumulator(deviceContext),
         mSource(0),
         mDeviceMode(DeviceMode::DISABLED),
         mDisplayWidth(-1),
@@ -360,7 +361,7 @@ std::list<NotifyArgs> TouchInputMapper::configure(nsecs_t when,
 
         // Configure common accumulators.
         mCursorScrollAccumulator.configure(getDeviceContext());
-        mTouchButtonAccumulator.configure(getDeviceContext());
+        mTouchButtonAccumulator.configure();
 
         // Configure absolute axis information.
         configureRawPointerAxes();
@@ -1449,7 +1450,7 @@ std::list<NotifyArgs> TouchInputMapper::reset(nsecs_t when) {
 
     mCursorButtonAccumulator.reset(getDeviceContext());
     mCursorScrollAccumulator.reset(getDeviceContext());
-    mTouchButtonAccumulator.reset(getDeviceContext());
+    mTouchButtonAccumulator.reset();
 
     mPointerVelocityControl.reset();
     mWheelXVelocityControl.reset();

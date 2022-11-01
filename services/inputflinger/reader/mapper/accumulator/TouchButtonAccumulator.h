@@ -16,7 +16,8 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
+#include "HidUsageAccumulator.h"
 
 namespace android {
 
@@ -26,9 +27,11 @@ struct RawEvent;
 /* Keeps track of the state of touch, stylus and tool buttons. */
 class TouchButtonAccumulator {
 public:
-    TouchButtonAccumulator();
-    void configure(InputDeviceContext& deviceContext);
-    void reset(InputDeviceContext& deviceContext);
+    explicit TouchButtonAccumulator(InputDeviceContext& deviceContext)
+          : mDeviceContext(deviceContext){};
+
+    void configure();
+    void reset();
 
     void process(const RawEvent* rawEvent);
 
@@ -39,25 +42,29 @@ public:
     bool hasStylus() const;
 
 private:
-    bool mHaveBtnTouch;
-    bool mHaveStylus;
+    bool mHaveBtnTouch{};
+    bool mHaveStylus{};
 
-    bool mBtnTouch;
-    bool mBtnStylus;
-    bool mBtnStylus2;
-    bool mBtnToolFinger;
-    bool mBtnToolPen;
-    bool mBtnToolRubber;
-    bool mBtnToolBrush;
-    bool mBtnToolPencil;
-    bool mBtnToolAirbrush;
-    bool mBtnToolMouse;
-    bool mBtnToolLens;
-    bool mBtnToolDoubleTap;
-    bool mBtnToolTripleTap;
-    bool mBtnToolQuadTap;
+    bool mBtnTouch{};
+    bool mBtnStylus{};
+    bool mBtnStylus2{};
+    bool mBtnToolFinger{};
+    bool mBtnToolPen{};
+    bool mBtnToolRubber{};
+    bool mBtnToolBrush{};
+    bool mBtnToolPencil{};
+    bool mBtnToolAirbrush{};
+    bool mBtnToolMouse{};
+    bool mBtnToolLens{};
+    bool mBtnToolDoubleTap{};
+    bool mBtnToolTripleTap{};
+    bool mBtnToolQuadTap{};
 
-    void clearButtons();
+    HidUsageAccumulator mHidUsageAccumulator{};
+
+    InputDeviceContext& mDeviceContext;
+
+    void processMappedKey(int32_t scanCode, bool down);
 };
 
 } // namespace android
