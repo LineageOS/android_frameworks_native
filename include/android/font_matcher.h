@@ -117,11 +117,12 @@ enum {
     AFAMILY_VARIANT_ELEGANT = 2,
 };
 
+struct AFontMatcher;
 /**
  * AFontMatcher performs match operation on given parameters and available font files.
  * This matcher is not a thread-safe object. Do not pass this matcher to other threads.
  */
-struct AFontMatcher;
+typedef struct AFontMatcher AFontMatcher;
 
 /**
  * Select the best font from given parameters.
