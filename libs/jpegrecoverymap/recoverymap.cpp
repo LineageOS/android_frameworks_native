@@ -24,7 +24,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
    || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
@@ -40,7 +40,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
    || uncompressed_yuv_420_image == nullptr
    || compressed_jpeg_image == nullptr
    || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
@@ -53,7 +53,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   if (uncompressed_p010_image == nullptr
    || compressed_jpeg_image == nullptr
    || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
@@ -62,7 +62,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
 status_t RecoveryMap::decodeJPEGR(void* compressed_jpegr_image, jr_uncompressed_ptr dest) {
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
@@ -72,7 +72,7 @@ status_t RecoveryMap::decodeJPEGR(void* compressed_jpegr_image, jr_uncompressed_
 status_t RecoveryMap::decodeRecoveryMap(jr_compressed_ptr compressed_recovery_map,
                                         jr_uncompressed_ptr dest) {
   if (compressed_recovery_map == nullptr || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
@@ -82,7 +82,7 @@ status_t RecoveryMap::decodeRecoveryMap(jr_compressed_ptr compressed_recovery_ma
 status_t RecoveryMap::encodeRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
                                         jr_compressed_ptr dest) {
   if (uncompressed_recovery_map == nullptr || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
@@ -95,7 +95,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_p010_image == nullptr
    || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
@@ -108,7 +108,7 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_recovery_map == nullptr
    || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
@@ -117,7 +117,7 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
 
 status_t RecoveryMap::extractRecoveryMap(void* compressed_jpegr_image, jr_compressed_ptr dest) {
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
@@ -130,7 +130,7 @@ status_t RecoveryMap::appendRecoveryMap(void* compressed_jpeg_image,
   if (compressed_jpeg_image == nullptr
    || compressed_recovery_map == nullptr
    || dest == nullptr) {
-    return BAD_VALUE;
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   // TBD
