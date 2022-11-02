@@ -546,8 +546,7 @@ private:
             nsecs_t currentTime, const EventEntry& entry, nsecs_t* nextWakeupTime,
             android::os::InputEventInjectionResult& outInjectionResult) REQUIRES(mLock);
     std::vector<TouchedWindow> findTouchedWindowTargetsLocked(
-            nsecs_t currentTime, const MotionEntry& entry, nsecs_t* nextWakeupTime,
-            bool* outConflictingPointerActions,
+            nsecs_t currentTime, const MotionEntry& entry, bool* outConflictingPointerActions,
             android::os::InputEventInjectionResult& outInjectionResult) REQUIRES(mLock);
     std::vector<Monitor> selectResponsiveMonitorsLocked(
             const std::vector<Monitor>& gestureMonitors) const REQUIRES(mLock);
