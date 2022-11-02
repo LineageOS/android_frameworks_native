@@ -3521,6 +3521,8 @@ void TouchInputMapper::abortPointerMouse(nsecs_t when, nsecs_t readTime, uint32_
 
 void TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uint32_t policyFlags,
                                              bool down, bool hovering) {
+    LOG_ALWAYS_FATAL_IF(mDeviceMode != DeviceMode::POINTER,
+                        "%s cannot be used when the device is not in POINTER mode.", __func__);
     int32_t metaState = getContext()->getGlobalMetaState();
 
     if (down || hovering) {
@@ -3643,6 +3645,10 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uin
     if (down || hovering) {
         mPointerSimple.lastCoords.copyFrom(mPointerSimple.currentCoords);
         mPointerSimple.lastProperties.copyFrom(mPointerSimple.currentProperties);
+        mPointerSimple.displayId = displayId;
+        mPointerSimple.source = mSource;
+        mPointerSimple.lastCursorX = xCursorPosition;
+        mPointerSimple.lastCursorY = yCursorPosition;
     } else {
         mPointerSimple.reset();
     }
@@ -3652,7 +3658,23 @@ void TouchInputMapper::abortPointerSimple(nsecs_t when, nsecs_t readTime, uint32
     mPointerSimple.currentCoords.clear();
     mPointerSimple.currentProperties.clear();
 
-    dispatchPointerSimple(when, readTime, policyFlags, false, false);
+    if (mPointerSimple.down || mPointerSimple.hovering) {
+        int32_t metaState = getContext()->getGlobalMetaState();
+        NotifyMotionArgs args(getContext()->getNextId(), when, readTime, getDeviceId(),
+                              mPointerSimple.source, mPointerSimple.displayId, policyFlags,
+                              AMOTION_EVENT_ACTION_CANCEL, 0, AMOTION_EVENT_FLAG_CANCELED,
+                              metaState, mLastRawState.buttonState, MotionClassification::NONE,
+                              AMOTION_EVENT_EDGE_FLAG_NONE, 1, &mPointerSimple.lastProperties,
+                              &mPointerSimple.lastCoords, mOrientedXPrecision, mOrientedYPrecision,
+                              mPointerSimple.lastCursorX, mPointerSimple.lastCursorY,
+                              mPointerSimple.downTime,
+                              /* videoFrames */ {});
+        getListener().notifyMotion(&args);
+        if (mPointerController != nullptr) {
+            mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
+        }
+    }
+    mPointerSimple.reset();
 }
 
 void TouchInputMapper::dispatchMotion(nsecs_t when, nsecs_t readTime, uint32_t policyFlags,
