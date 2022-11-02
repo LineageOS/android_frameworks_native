@@ -1022,7 +1022,9 @@ private:
     void dumpFrameTimeline(const DumpArgs& args, std::string& result) const;
     void logFrameStats(TimePoint now) REQUIRES(kMainThreadContext);
 
-    void dumpVSync(std::string& result) const REQUIRES(mStateLock);
+    void dumpScheduler(std::string& result) const REQUIRES(mStateLock);
+    void dumpEvents(std::string& result) const REQUIRES(mStateLock);
+    void dumpVsync(std::string& result) const REQUIRES(mStateLock);
 
     void dumpCompositionDisplays(std::string& result) const REQUIRES(mStateLock);
     void dumpDisplays(std::string& result) const REQUIRES(mStateLock);

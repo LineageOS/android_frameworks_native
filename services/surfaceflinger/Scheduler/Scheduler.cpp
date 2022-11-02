@@ -25,6 +25,7 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
+#include <ftl/enum.h>
 #include <ftl/fake_guard.h>
 #include <ftl/small_map.h>
 #include <gui/WindowInfo.h>
@@ -599,22 +600,36 @@ void Scheduler::displayPowerTimerCallback(TimerState state) {
     ATRACE_INT("ExpiredDisplayPowerTimer", static_cast<int>(state));
 }
 
-void Scheduler::dump(std::string& result) const {
-    using base::StringAppendF;
-
-    StringAppendF(&result, "+  Touch timer: %s\n",
-                  mTouchTimer ? mTouchTimer->dump().c_str() : "off");
-    StringAppendF(&result, "+  Content detection: %s %s\n\n",
-                  mFeatures.test(Feature::kContentDetection) ? "on" : "off",
-                  mLayerHistory.dump().c_str());
-
-    mFrameRateOverrideMappings.dump(result);
+void Scheduler::dump(utils::Dumper& dumper) const {
+    using namespace std::string_view_literals;
 
     {
+        utils::Dumper::Section section(dumper, "Features"sv);
+
+        for (Feature feature : ftl::enum_range<Feature>()) {
+            if (const auto flagOpt = ftl::flag_name(feature)) {
+                dumper.dump(flagOpt->substr(1), mFeatures.test(feature));
+            }
+        }
+    }
+    {
+        utils::Dumper::Section section(dumper, "Policy"sv);
+
+        dumper.dump("layerHistory"sv, mLayerHistory.dump());
+        dumper.dump("touchTimer"sv, mTouchTimer.transform(&OneShotTimer::interval));
+        dumper.dump("displayPowerTimer"sv, mDisplayPowerTimer.transform(&OneShotTimer::interval));
+    }
+
+    mFrameRateOverrideMappings.dump(dumper);
+    dumper.eol();
+
+    {
+        utils::Dumper::Section section(dumper, "Hardware VSYNC"sv);
+
         std::lock_guard lock(mHWVsyncLock);
-        StringAppendF(&result,
-                      "mScreenAcquired=%d mPrimaryHWVsyncEnabled=%d mHWVsyncAvailable=%d\n",
-                      mScreenAcquired.load(), mPrimaryHWVsyncEnabled, mHWVsyncAvailable);
+        dumper.dump("screenAcquired"sv, mScreenAcquired.load());
+        dumper.dump("hwVsyncAvailable"sv, mHWVsyncAvailable);
+        dumper.dump("hwVsyncEnabled"sv, mPrimaryHWVsyncEnabled);
     }
 }
 

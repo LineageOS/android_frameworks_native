@@ -45,6 +45,7 @@
 #include "MessageQueue.h"
 #include "OneShotTimer.h"
 #include "RefreshRateSelector.h"
+#include "Utils/Dumper.h"
 #include "VsyncSchedule.h"
 
 namespace android::scheduler {
@@ -197,7 +198,7 @@ public:
     // for a given uid
     bool isVsyncValid(TimePoint expectedVsyncTimestamp, uid_t uid) const;
 
-    void dump(std::string&) const;
+    void dump(utils::Dumper&) const;
     void dump(ConnectionHandle, std::string&) const;
     void dumpVsync(std::string&) const;
 
@@ -335,9 +336,9 @@ private:
     LayerHistory mLayerHistory;
 
     // Timer used to monitor touch events.
-    std::optional<OneShotTimer> mTouchTimer;
+    ftl::Optional<OneShotTimer> mTouchTimer;
     // Timer used to monitor display power mode.
-    std::optional<OneShotTimer> mDisplayPowerTimer;
+    ftl::Optional<OneShotTimer> mDisplayPowerTimer;
 
     ISchedulerCallback& mSchedulerCallback;
 

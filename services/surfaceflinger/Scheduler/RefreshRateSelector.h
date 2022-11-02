@@ -18,12 +18,12 @@
 
 #include <algorithm>
 #include <numeric>
-#include <optional>
 #include <type_traits>
 #include <utility>
 #include <variant>
 
 #include <ftl/concat.h>
+#include <ftl/optional.h>
 #include <gui/DisplayEventReceiver.h>
 
 #include <scheduler/Fps.h>
@@ -272,7 +272,7 @@ public:
 
         // The controller representing how the kernel idle timer will be configured
         // either on the HWC api or sysprop.
-        std::optional<KernelIdleTimerController> kernelIdleTimerController;
+        ftl::Optional<KernelIdleTimerController> kernelIdleTimerController;
     };
 
     RefreshRateSelector(DisplayModes, DisplayModeId activeModeId,
@@ -467,7 +467,7 @@ private:
     std::mutex mIdleTimerCallbacksMutex;
     std::optional<IdleTimerCallbacks> mIdleTimerCallbacks GUARDED_BY(mIdleTimerCallbacksMutex);
     // Used to detect (lack of) frame activity.
-    std::optional<scheduler::OneShotTimer> mIdleTimer;
+    ftl::Optional<scheduler::OneShotTimer> mIdleTimer;
 };
 
 } // namespace android::scheduler
