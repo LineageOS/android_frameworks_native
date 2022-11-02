@@ -3332,8 +3332,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
 
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
-        EXPECT_CALL(mCompositionEngine, getTimeStats())
-                .WillRepeatedly(ReturnRef(*mTimeStats.get()));
+        EXPECT_CALL(mCompositionEngine, getTimeStats()).WillRepeatedly(Return(mTimeStats.get()));
         EXPECT_CALL(*mDisplayColorProfile, getHdrCapabilities())
                 .WillRepeatedly(ReturnRef(kHdrCapabilities));
     }
