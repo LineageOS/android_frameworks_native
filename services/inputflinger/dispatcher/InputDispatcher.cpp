@@ -2034,6 +2034,36 @@ std::vector<Monitor> InputDispatcher::selectResponsiveMonitorsLocked(
     return responsiveMonitors;
 }
 
+/**
+ * In general, touch should be always split between windows. Some exceptions:
+ * 1. Don't split touch is if we have an active pointer down, and a new pointer is going down that's
+ * from the same device, *and* the window that's receiving the current pointer does not support
+ * split touch.
+ * 2. Don't split mouse events
+ */
+bool InputDispatcher::shouldSplitTouch(const TouchState& touchState,
+                                       const MotionEntry& entry) const {
+    if (isFromSource(entry.source, AINPUT_SOURCE_MOUSE)) {
+        // We should never split mouse events
+        return false;
+    }
+    for (const TouchedWindow& touchedWindow : touchState.windows) {
+        if (touchedWindow.windowHandle->getInfo()->isSpy()) {
+            // Spy windows should not affect whether or not touch is split.
+            continue;
+        }
+        if (touchedWindow.windowHandle->getInfo()->supportsSplitTouch()) {
+            continue;
+        }
+        // Eventually, touchedWindow will contain the deviceId of each pointer that's currently
+        // being sent there. For now, use deviceId from touch state.
+        if (entry.deviceId == touchState.deviceId && !touchedWindow.pointerIds.isEmpty()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
         nsecs_t currentTime, const MotionEntry& entry, bool* outConflictingPointerActions,
         InputEventInjectionResult& outInjectionResult) {
@@ -2061,7 +2091,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
         tempTouchState = *oldState;
     }
 
-    bool isSplit = tempTouchState.split;
+    bool isSplit = shouldSplitTouch(tempTouchState, entry);
     bool switchedDevice = tempTouchState.deviceId >= 0 && tempTouchState.displayId >= 0 &&
             (tempTouchState.deviceId != entry.deviceId || tempTouchState.source != entry.source ||
              tempTouchState.displayId != displayId);
@@ -2141,7 +2171,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
             // No window is touched, so set split to true. This will allow the next pointer down to
             // be delivered to a new window which supports split touch. Pointers from a mouse device
             // should never be split.
-            tempTouchState.split = isSplit = !isFromMouse;
+            isSplit = !isFromMouse;
         }
 
         // Update hover state.
@@ -5301,9 +5331,9 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
         for (const std::pair<int32_t, TouchState>& pair : mTouchStatesByDisplay) {
             const TouchState& state = pair.second;
-            dump += StringPrintf(INDENT2 "%d: down=%s, split=%s, deviceId=%d, source=0x%08x\n",
-                                 state.displayId, toString(state.down), toString(state.split),
-                                 state.deviceId, state.source);
+            dump += StringPrintf(INDENT2 "%d: down=%s, deviceId=%d, source=0x%08x\n",
+                                 state.displayId, toString(state.down), state.deviceId,
+                                 state.source);
             if (!state.windows.empty()) {
                 dump += INDENT3 "Windows:\n";
                 for (size_t i = 0; i < state.windows.size(); i++) {
@@ -5676,10 +5706,7 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
                                "input channel stole pointer stream");
     options.deviceId = state.deviceId;
     options.displayId = state.displayId;
-    if (state.split) {
-        // If split pointers then selectively cancel pointers otherwise cancel all pointers
-        options.pointerIds = window.pointerIds;
-    }
+    options.pointerIds = window.pointerIds;
     std::string canceledWindows;
     for (const TouchedWindow& w : state.windows) {
         const std::shared_ptr<InputChannel> channel =
@@ -5698,11 +5725,7 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
     // This only blocks relevant pointers to be sent to other windows
     window.isPilferingPointers = true;
 
-    if (state.split) {
-        state.cancelPointersForWindowsExcept(window.pointerIds, token);
-    } else {
-        state.filterWindowsExcept(token);
-    }
+    state.cancelPointersForWindowsExcept(window.pointerIds, token);
     return OK;
 }
 
