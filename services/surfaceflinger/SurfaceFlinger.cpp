@@ -602,7 +602,7 @@ HWComposer& SurfaceFlinger::getHwComposer() const {
 }
 
 renderengine::RenderEngine& SurfaceFlinger::getRenderEngine() const {
-    return mCompositionEngine->getRenderEngine();
+    return *mRenderEngine;
 }
 
 compositionengine::CompositionEngine& SurfaceFlinger::getCompositionEngine() const {
@@ -763,7 +763,8 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     if (auto type = chooseRenderEngineTypeViaSysProp()) {
         builder.setRenderEngineType(type.value());
     }
-    mCompositionEngine->setRenderEngine(renderengine::RenderEngine::create(builder.build()));
+    mRenderEngine = renderengine::RenderEngine::create(builder.build());
+    mCompositionEngine->setRenderEngine(mRenderEngine.get());
     mMaxRenderTargetSize =
             std::min(getRenderEngine().getMaxTextureSize(), getRenderEngine().getMaxViewportDims());
 
@@ -1580,9 +1581,10 @@ status_t SurfaceFlinger::addRegionSamplingListener(const Rect& samplingArea,
 
     // LayerHandle::getLayer promotes the layer object in a binder thread but we will not destroy
     // the layer here since the caller has a strong ref to the layer's handle.
-    // TODO (b/238781169): replace layer with layer id
-    const wp<Layer> stopLayer = LayerHandle::getLayer(stopLayerHandle);
-    mRegionSamplingThread->addListener(samplingArea, stopLayer, listener);
+    const sp<Layer> stopLayer = LayerHandle::getLayer(stopLayerHandle);
+    mRegionSamplingThread->addListener(samplingArea,
+                                       stopLayer ? stopLayer->getSequence() : UNASSIGNED_LAYER_ID,
+                                       listener);
     return NO_ERROR;
 }
 
@@ -3638,11 +3640,6 @@ status_t SurfaceFlinger::addClientLayer(const LayerCreationArgs& args, const sp<
     {
         std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
         mCreatedLayers.emplace_back(layer, parent, args.addToRoot);
-    }
-
-    // attach this layer to the client
-    if (args.client != nullptr) {
-        args.client->attachLayer(handle, layer);
     }
 
     setTransactionFlags(eTransactionNeeded);

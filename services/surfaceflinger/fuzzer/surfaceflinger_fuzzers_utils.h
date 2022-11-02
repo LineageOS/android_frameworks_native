@@ -633,7 +633,8 @@ public:
     }
 
     void setupRenderEngine(std::unique_ptr<renderengine::RenderEngine> renderEngine) {
-        mFlinger->mCompositionEngine->setRenderEngine(std::move(renderEngine));
+        mFlinger->mRenderEngine = std::move(renderEngine);
+        mFlinger->mCompositionEngine->setRenderEngine(mFlinger->mRenderEngine.get());
     }
 
     void setupComposer(std::unique_ptr<Hwc2::Composer> composer) {
@@ -748,6 +749,11 @@ public:
                                              listenerCallbacks, transactionId);
     }
 
+    auto flushTransactionQueues() {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return mFlinger->flushTransactionQueues(VsyncId{0});
+    }
+
     auto onTransact(uint32_t code, const Parcel &data, Parcel *reply, uint32_t flags) {
         return mFlinger->onTransact(code, data, reply, flags);
     }
@@ -775,8 +781,8 @@ public:
         mutableDrawingState().displays.clear();
         mFlinger->mScheduler.reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
-        mFlinger->mCompositionEngine->setRenderEngine(
-                std::unique_ptr<renderengine::RenderEngine>());
+        mFlinger->mRenderEngine = std::unique_ptr<renderengine::RenderEngine>();
+        mFlinger->mCompositionEngine->setRenderEngine(mFlinger->mRenderEngine.get());
     }
 
 private:

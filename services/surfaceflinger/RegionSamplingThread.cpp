@@ -40,6 +40,7 @@
 
 #include "DisplayDevice.h"
 #include "DisplayRenderArea.h"
+#include "FrontEnd/LayerCreationArgs.h"
 #include "Layer.h"
 #include "Scheduler/VsyncController.h"
 #include "SurfaceFlinger.h"
@@ -129,12 +130,12 @@ RegionSamplingThread::~RegionSamplingThread() {
     }
 }
 
-void RegionSamplingThread::addListener(const Rect& samplingArea, const wp<Layer>& stopLayer,
+void RegionSamplingThread::addListener(const Rect& samplingArea, uint32_t stopLayerId,
                                        const sp<IRegionSamplingListener>& listener) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
     asBinder->linkToDeath(sp<DeathRecipient>::fromExisting(this));
     std::lock_guard lock(mSamplingMutex);
-    mDescriptors.emplace(wp<IBinder>(asBinder), Descriptor{samplingArea, stopLayer, listener});
+    mDescriptors.emplace(wp<IBinder>(asBinder), Descriptor{samplingArea, stopLayerId, listener});
 }
 
 void RegionSamplingThread::removeListener(const sp<IRegionSamplingListener>& listener) {
@@ -291,8 +292,8 @@ void RegionSamplingThread::captureSample() {
             if (stopLayerFound) return;
 
             // Likewise if we just found a stop layer, set the flag and abort
-            for (const auto& [area, stopLayer, listener] : descriptors) {
-                if (layer == stopLayer.promote().get()) {
+            for (const auto& [area, stopLayerId, listener] : descriptors) {
+                if (stopLayerId != UNASSIGNED_LAYER_ID && layer->getSequence() == stopLayerId) {
                     stopLayerFound = true;
                     return;
                 }

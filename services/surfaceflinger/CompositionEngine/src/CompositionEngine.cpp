@@ -65,11 +65,11 @@ void CompositionEngine::setHwComposer(std::unique_ptr<HWComposer> hwComposer) {
 }
 
 renderengine::RenderEngine& CompositionEngine::getRenderEngine() const {
-    return *mRenderEngine.get();
+    return *mRenderEngine;
 }
 
-void CompositionEngine::setRenderEngine(std::unique_ptr<renderengine::RenderEngine> renderEngine) {
-    mRenderEngine = std::move(renderEngine);
+void CompositionEngine::setRenderEngine(renderengine::RenderEngine* renderEngine) {
+    mRenderEngine = renderEngine;
 }
 
 TimeStats& CompositionEngine::getTimeStats() const {
