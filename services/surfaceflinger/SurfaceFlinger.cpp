@@ -5016,8 +5016,22 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
 }
 
 LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
+    std::unordered_set<uint64_t> stackIdsToSkip;
+
+    // Determine if virtual layers display should be skipped
+    if ((traceFlags & LayerTracing::TRACE_VIRTUAL_DISPLAYS) == 0) {
+        for (const auto& [_, display] : FTL_FAKE_GUARD(mStateLock, mDisplays)) {
+            if (display->isVirtual()) {
+                stackIdsToSkip.insert(display->getLayerStack().id);
+            }
+        }
+    }
+
     LayersProto layersProto;
     for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
+        if (stackIdsToSkip.find(layer->getLayerStack().id) != stackIdsToSkip.end()) {
+            continue;
+        }
         layer->writeToProto(layersProto, traceFlags);
     }
 
