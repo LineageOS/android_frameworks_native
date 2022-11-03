@@ -1,0 +1,33 @@
+package {
+    // See: http://go/android-license-faq
+    default_applicable_licenses: ["frameworks_native_license"],
+}
+
+aidl_interface {
+    name: "testServiceInterface",
+    srcs: ["ITestService.aidl"],
+    unstable: true,
+    backend: {
+        rust: {
+            enabled: true,
+        },
+    },
+}
+
+rust_fuzz {
+    name: "example_service_fuzzer",
+    srcs: [
+        "service_fuzzer.rs",
+    ],
+    rustlibs: [
+        "libbinder_rs",
+        "libbinder_random_parcel_rs",
+        "testServiceInterface-rust",
+    ],
+    fuzz_config: {
+        cc: [
+            "waghpawan@google.com",
+            "smoreland@google.com",
+        ],
+    },
+}
