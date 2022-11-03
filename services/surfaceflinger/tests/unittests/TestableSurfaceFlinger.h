@@ -842,7 +842,8 @@ public:
             sp<DisplayDevice> display = sp<DisplayDevice>::make(mCreationArgs);
             mFlinger.mutableDisplays().emplace_or_replace(mDisplayToken, display);
             if (mFlinger.scheduler()) {
-                mFlinger.scheduler()->registerDisplay(display);
+                mFlinger.scheduler()->registerDisplay(display->getPhysicalId(),
+                                                      display->holdRefreshRateSelector());
             }
 
             DisplayDeviceState state;

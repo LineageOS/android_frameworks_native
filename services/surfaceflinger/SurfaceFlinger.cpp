@@ -2937,11 +2937,15 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
                                                  displaySurface, producer);
 
     if (mScheduler && !display->isVirtual()) {
+        auto selectorPtr = display->holdRefreshRateSelector();
+
         // Display modes are reloaded on hotplug reconnect.
         if (display->isPrimary()) {
-            mScheduler->setRefreshRateSelector(display->holdRefreshRateSelector());
+            mScheduler->setRefreshRateSelector(selectorPtr);
         }
-        mScheduler->registerDisplay(display);
+
+        const auto displayId = display->getPhysicalId();
+        mScheduler->registerDisplay(displayId, std::move(selectorPtr));
         dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
     }
 
@@ -2994,8 +2998,6 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             display->disconnect();
             if (display->isVirtual()) {
                 releaseVirtualDisplay(display->getVirtualId());
-            } else {
-                mScheduler->unregisterDisplay(display->getPhysicalId());
             }
         }
 
@@ -3409,8 +3411,8 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
         }
 
         mScheduler->createVsyncSchedule(features);
-        mScheduler->setRefreshRateSelector(std::move(selectorPtr));
-        mScheduler->registerDisplay(display);
+        mScheduler->setRefreshRateSelector(selectorPtr);
+        mScheduler->registerDisplay(display->getPhysicalId(), std::move(selectorPtr));
     }
     setVsyncEnabled(false);
     mScheduler->startTimers();
