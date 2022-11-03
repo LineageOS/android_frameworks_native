@@ -242,9 +242,12 @@ private:
     // to transfer focus to a new application.
     std::shared_ptr<EventEntry> mNextUnblockedEvent GUARDED_BY(mLock);
 
-    std::pair<sp<android::gui::WindowInfoHandle>, std::vector<InputTarget>>
-    findTouchedWindowAtLocked(int32_t displayId, float x, float y, bool isStylus = false,
-                              bool ignoreDragWindow = false) const REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> findTouchedWindowAtLocked(
+            int32_t displayId, float x, float y, bool isStylus = false,
+            bool ignoreDragWindow = false) const REQUIRES(mLock);
+    std::vector<InputTarget> findOutsideTargetsLocked(
+            int32_t displayId, const sp<android::gui::WindowInfoHandle>& touchedWindow) const
+            REQUIRES(mLock);
 
     std::vector<sp<android::gui::WindowInfoHandle>> findTouchedSpyWindowsAtLocked(
             int32_t displayId, float x, float y, bool isStylus) const REQUIRES(mLock);
