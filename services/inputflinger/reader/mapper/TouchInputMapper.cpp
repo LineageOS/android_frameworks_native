@@ -437,6 +437,10 @@ void TouchInputMapper::configureParameters() {
     mParameters.supportsUsi = false;
     getDeviceContext().getConfiguration().tryGetProperty("touch.supportsUsi",
                                                          mParameters.supportsUsi);
+
+    mParameters.enableForInactiveViewport = false;
+    getDeviceContext().getConfiguration().tryGetProperty("touch.enableForInactiveViewport",
+                                                         mParameters.enableForInactiveViewport);
 }
 
 void TouchInputMapper::dumpParameters(std::string& dump) {
@@ -454,6 +458,8 @@ void TouchInputMapper::dumpParameters(std::string& dump) {
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
     dump += INDENT4 "Orientation: " + ftl::enum_string(mParameters.orientation) + "\n";
     dump += StringPrintf(INDENT4 "SupportsUsi: %s\n", toString(mParameters.supportsUsi));
+    dump += StringPrintf(INDENT4 "EnableForInactiveViewport: %s\n",
+                         toString(mParameters.enableForInactiveViewport));
 }
 
 void TouchInputMapper::configureRawPointerAxes() {
@@ -856,7 +862,7 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
               "becomes available.",
               getDeviceName().c_str());
         mDeviceMode = DeviceMode::DISABLED;
-    } else if (!newViewportOpt->isActive) {
+    } else if (!mParameters.enableForInactiveViewport && !newViewportOpt->isActive) {
         ALOGI("Disabling %s (device %i) because the associated viewport is not active",
               getDeviceName().c_str(), getDeviceId());
         mDeviceMode = DeviceMode::DISABLED;

@@ -236,6 +236,9 @@ protected:
 
         // Whether the device supports the Universal Stylus Initiative (USI) protocol for styluses.
         bool supportsUsi;
+
+        // Allows touches while the display is off.
+        bool enableForInactiveViewport;
     } mParameters;
 
     // Immutable calibration parameters in parsed form.
