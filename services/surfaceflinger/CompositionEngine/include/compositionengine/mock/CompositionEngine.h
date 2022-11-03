@@ -40,7 +40,7 @@ public:
     MOCK_METHOD1(setHwComposer, void(std::unique_ptr<HWComposer>));
 
     MOCK_CONST_METHOD0(getRenderEngine, renderengine::RenderEngine&());
-    MOCK_METHOD1(setRenderEngine, void(std::unique_ptr<renderengine::RenderEngine>));
+    MOCK_METHOD1(setRenderEngine, void(renderengine::RenderEngine*));
 
     MOCK_CONST_METHOD0(getTimeStats, TimeStats&());
     MOCK_METHOD1(setTimeStats, void(const std::shared_ptr<TimeStats>&));

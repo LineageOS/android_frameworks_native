@@ -1,0 +1,24 @@
+package {
+    default_applicable_licenses: ["frameworks_native_license"],
+}
+
+cc_library_static {
+    name: "libbinder_create_parcel",
+    host_supported: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    srcs: [
+        "RandomParcelWrapper.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libbinder_ndk",
+    ],
+    static_libs: [
+        "libbinder_random_parcel",
+    ],
+}

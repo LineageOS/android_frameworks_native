@@ -69,11 +69,11 @@ protected:
         // LayerHistory::summarize makes no guarantee of the order of the elements in the summary
         // however, for testing only, a stable order is required, therefore we sort the list here.
         // Any tests requiring ordered results must create layers with names.
-        auto summary = history().summarize(*mScheduler->refreshRateConfigs(), now);
+        auto summary = history().summarize(*mScheduler->refreshRateSelector(), now);
         std::sort(summary.begin(), summary.end(),
-                  [](const RefreshRateConfigs::LayerRequirement& a,
-                     const RefreshRateConfigs::LayerRequirement& b) -> bool {
-                      return a.name < b.name;
+                  [](const RefreshRateSelector::LayerRequirement& lhs,
+                     const RefreshRateSelector::LayerRequirement& rhs) -> bool {
+                      return lhs.name < rhs.name;
                   });
         return summary;
     }
@@ -125,16 +125,16 @@ protected:
         ASSERT_EQ(desiredRefreshRate, summary[0].desiredRefreshRate);
     }
 
-    std::shared_ptr<RefreshRateConfigs> mConfigs =
-            std::make_shared<RefreshRateConfigs>(makeModes(createDisplayMode(DisplayModeId(0),
-                                                                             LO_FPS),
-                                                           createDisplayMode(DisplayModeId(1),
-                                                                             HI_FPS)),
-                                                 DisplayModeId(0));
+    std::shared_ptr<RefreshRateSelector> mSelector =
+            std::make_shared<RefreshRateSelector>(makeModes(createDisplayMode(DisplayModeId(0),
+                                                                              LO_FPS),
+                                                            createDisplayMode(DisplayModeId(1),
+                                                                              HI_FPS)),
+                                                  DisplayModeId(0));
 
     mock::SchedulerCallback mSchedulerCallback;
 
-    TestableScheduler* mScheduler = new TestableScheduler(mConfigs, mSchedulerCallback);
+    TestableScheduler* mScheduler = new TestableScheduler(mSelector, mSchedulerCallback);
 
     TestableSurfaceFlinger mFlinger;
 };

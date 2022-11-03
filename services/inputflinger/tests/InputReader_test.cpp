@@ -39,6 +39,7 @@
 #include <gtest/gtest.h>
 #include <gui/constants.h>
 
+#include <thread>
 #include "android/hardware/input/InputDeviceCountryCode.h"
 #include "input/DisplayViewport.h"
 #include "input/Input.h"
@@ -139,6 +140,16 @@ static void assertAxisNotPresent(MultiTouchInputMapper& mapper, int axis) {
     const InputDeviceInfo::MotionRange* motionRange =
             info.getMotionRange(axis, AINPUT_SOURCE_TOUCHSCREEN);
     ASSERT_EQ(nullptr, motionRange);
+}
+
+[[maybe_unused]] static void dumpReader(InputReader& reader) {
+    std::string dump;
+    reader.dump(dump);
+    std::istringstream iss(dump);
+    for (std::string line; std::getline(iss, line);) {
+        ALOGE("%s", line.c_str());
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 
 // --- FakePointerController ---
@@ -758,7 +769,7 @@ private:
     status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                  RawAbsoluteAxisInfo* outAxisInfo) const override {
         Device* device = getDevice(deviceId);
-        if (device && device->enabled) {
+        if (device) {
             ssize_t index = device->absoluteAxes.indexOfKey(axis);
             if (index >= 0) {
                 *outAxisInfo = device->absoluteAxes.valueAt(index);
@@ -7152,6 +7163,44 @@ TEST_F(SingleTouchInputMapperTest,
     // No more events.
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasNotCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, ButtonIsReleasedOnTouchUp) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+
+    // Press a stylus button.
+    processKey(mapper, BTN_STYLUS, 1);
+    processSync(mapper);
+
+    // Start a touch gesture and ensure the BUTTON_PRESS event is generated.
+    processDown(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithCoords(toDisplayX(100), toDisplayY(200)),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                  WithCoords(toDisplayX(100), toDisplayY(200)),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    // Release the touch gesture. Ensure that the BUTTON_RELEASE event is generated even though
+    // the button has not actually been released, since there will be no pointers through which the
+    // button state can be reported. The event is generated at the location of the pointer before
+    // it went up.
+    processUp(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                  WithCoords(toDisplayX(100), toDisplayY(200)), WithButtonState(0))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                  WithCoords(toDisplayX(100), toDisplayY(200)), WithButtonState(0))));
 }
 
 // --- TouchDisplayProjectionTest ---

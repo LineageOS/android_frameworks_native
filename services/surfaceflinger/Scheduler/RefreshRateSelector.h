@@ -49,12 +49,10 @@ inline DisplayModeEvent operator|(DisplayModeEvent lhs, DisplayModeEvent rhs) {
 
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
-/**
- * This class is used to encapsulate configuration for refresh rates. It holds information
- * about available refresh rates on the device, and the mapping between the numbers and human
- * readable names.
- */
-class RefreshRateConfigs {
+// Selects the refresh rate of a display by ranking its `DisplayModes` in accordance with
+// the DisplayManager (or override) `Policy`, the `LayerRequirement` of each active layer,
+// and `GlobalSignals`.
+class RefreshRateSelector {
 public:
     // Margin used when matching refresh rates to the content desired ones.
     static constexpr nsecs_t MARGIN_FOR_PERIOD_CALCULATION =
@@ -277,14 +275,14 @@ public:
         std::optional<KernelIdleTimerController> kernelIdleTimerController;
     };
 
-    RefreshRateConfigs(DisplayModes, DisplayModeId activeModeId,
-                       Config config = {.enableFrameRateOverride = false,
-                                        .frameRateMultipleThreshold = 0,
-                                        .idleTimerTimeout = 0ms,
-                                        .kernelIdleTimerController = {}});
+    RefreshRateSelector(DisplayModes, DisplayModeId activeModeId,
+                        Config config = {.enableFrameRateOverride = false,
+                                         .frameRateMultipleThreshold = 0,
+                                         .idleTimerTimeout = 0ms,
+                                         .kernelIdleTimerController = {}});
 
-    RefreshRateConfigs(const RefreshRateConfigs&) = delete;
-    RefreshRateConfigs& operator=(const RefreshRateConfigs&) = delete;
+    RefreshRateSelector(const RefreshRateSelector&) = delete;
+    RefreshRateSelector& operator=(const RefreshRateSelector&) = delete;
 
     // Returns whether switching modes (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the modes only
@@ -296,8 +294,8 @@ public:
 
     // Class to enumerate options around toggling the kernel timer on and off.
     enum class KernelIdleTimerAction {
-        TurnOff,  // Turn off the idle timer.
-        TurnOn    // Turn on the idle timer.
+        TurnOff, // Turn off the idle timer.
+        TurnOn   // Turn on the idle timer.
     };
 
     // Checks whether kernel idle timer should be active depending the policy decisions around
@@ -373,7 +371,7 @@ public:
     std::chrono::milliseconds getIdleTimerTimeout();
 
 private:
-    friend struct TestableRefreshRateConfigs;
+    friend struct TestableRefreshRateSelector;
 
     void constructAvailableRefreshRates() REQUIRES(mLock);
 

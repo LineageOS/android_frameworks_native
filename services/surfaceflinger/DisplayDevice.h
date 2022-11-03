@@ -45,7 +45,7 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
-#include "Scheduler/RefreshRateConfigs.h"
+#include "Scheduler/RefreshRateSelector.h"
 #include "ThreadContext.h"
 #include "TracedOrdinal.h"
 #include "Utils/Dumper.h"
@@ -219,7 +219,7 @@ public:
     }
 
     const DisplayMode& getActiveMode() const REQUIRES(kMainThreadContext) {
-        return mRefreshRateConfigs->getActiveMode();
+        return mRefreshRateSelector->getActiveMode();
     }
 
     // Precondition: DisplaySnapshot must contain a mode with DisplayModeId.
@@ -230,14 +230,11 @@ public:
                                 hal::VsyncPeriodChangeTimeline* outTimeline)
             REQUIRES(kMainThreadContext);
 
-    // Returns the refresh rate configs for this display.
-    scheduler::RefreshRateConfigs& refreshRateConfigs() const { return *mRefreshRateConfigs; }
+    scheduler::RefreshRateSelector& refreshRateSelector() const { return *mRefreshRateSelector; }
 
-    // Returns a shared pointer to the refresh rate configs for this display.
-    // Clients can store this refresh rate configs and use it even if the DisplayDevice
-    // is destroyed.
-    std::shared_ptr<scheduler::RefreshRateConfigs> holdRefreshRateConfigs() const {
-        return mRefreshRateConfigs;
+    // Extends the lifetime of the RefreshRateSelector, so it can outlive this DisplayDevice.
+    std::shared_ptr<scheduler::RefreshRateSelector> holdRefreshRateSelector() const {
+        return mRefreshRateSelector;
     }
 
     // Enables an overlay to be displayed with the current refresh rate
@@ -287,7 +284,7 @@ private:
 
     std::vector<ui::Hdr> mOverrideHdrTypes;
 
-    std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
+    std::shared_ptr<scheduler::RefreshRateSelector> mRefreshRateSelector;
     std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
 
     mutable std::mutex mActiveModeLock;
@@ -337,7 +334,7 @@ struct DisplayDeviceCreationArgs {
     HWComposer& hwComposer;
     const wp<IBinder> displayToken;
     const std::shared_ptr<compositionengine::Display> compositionDisplay;
-    std::shared_ptr<scheduler::RefreshRateConfigs> refreshRateConfigs;
+    std::shared_ptr<scheduler::RefreshRateSelector> refreshRateSelector;
 
     int32_t sequenceId{0};
     bool isSecure{false};

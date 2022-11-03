@@ -34,7 +34,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
-#include "RefreshRateConfigs.h"
+#include "RefreshRateSelector.h"
 #include "VSyncPredictor.h"
 
 namespace android::scheduler {
@@ -274,7 +274,7 @@ bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const {
 
     std::lock_guard lock(mMutex);
     const auto divisor =
-            RefreshRateConfigs::getFrameRateDivisor(Fps::fromPeriodNsecs(mIdealPeriod), frameRate);
+            RefreshRateSelector::getFrameRateDivisor(Fps::fromPeriodNsecs(mIdealPeriod), frameRate);
     if (divisor <= 1 || timePoint == 0) {
         return true;
     }

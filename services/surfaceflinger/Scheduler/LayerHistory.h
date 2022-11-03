@@ -27,7 +27,7 @@
 #include <utility>
 #include <vector>
 
-#include "RefreshRateConfigs.h"
+#include "RefreshRateSelector.h"
 
 namespace android {
 
@@ -39,7 +39,7 @@ class LayerInfo;
 
 class LayerHistory {
 public:
-    using LayerVoteType = RefreshRateConfigs::LayerVoteType;
+    using LayerVoteType = RefreshRateSelector::LayerVoteType;
 
     LayerHistory();
     ~LayerHistory();
@@ -67,10 +67,10 @@ public:
     // does not set a preference for refresh rate.
     void setDefaultFrameRateCompatibility(Layer*, bool contentDetectionEnabled);
 
-    using Summary = std::vector<RefreshRateConfigs::LayerRequirement>;
+    using Summary = std::vector<RefreshRateSelector::LayerRequirement>;
 
     // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
-    Summary summarize(const RefreshRateConfigs&, nsecs_t now);
+    Summary summarize(const RefreshRateSelector&, nsecs_t now);
 
     void clear();
 

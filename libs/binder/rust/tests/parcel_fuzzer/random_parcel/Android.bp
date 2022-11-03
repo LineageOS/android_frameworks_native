@@ -1,0 +1,50 @@
+package {
+    // See: http://go/android-license-faq
+    default_applicable_licenses: ["frameworks_native_license"],
+}
+
+rust_bindgen {
+    name: "libbinder_random_parcel_bindgen",
+    crate_name: "binder_random_parcel_bindgen",
+    host_supported: true,
+    wrapper_src: "wrappers/RandomParcelWrapper.hpp",
+    source_stem: "bindings",
+    visibility: [":__subpackages__"],
+    bindgen_flags: [
+        "--size_t-is-usize",
+        "--allowlist-function",
+        "createRandomParcel",
+    ],
+    shared_libs: [
+        "libc++",
+        "libbinder_ndk",
+    ],
+    rustlibs: [
+        "libbinder_rs",
+    ],
+}
+
+rust_library {
+    name: "libbinder_random_parcel_rs",
+    crate_name: "binder_random_parcel_rs",
+    host_supported: true,
+    srcs: [
+        "src/lib.rs",
+    ],
+    shared_libs: [
+        "libbinder",
+        "libutils",
+        "libcutils",
+        "libc++",
+    ],
+    static_libs: [
+        "libbinder_create_parcel",
+        "libbinder_random_parcel",
+    ],
+    rustlibs: [
+        "libbinder_rs",
+        "libbinder_random_parcel_bindgen",
+    ],
+    lints: "none",
+    clippy_lints: "none",
+}

@@ -32,17 +32,19 @@ namespace android::scheduler {
 
 class TestableScheduler : public Scheduler, private ICompositor {
 public:
-    TestableScheduler(std::shared_ptr<RefreshRateConfigs> configs, ISchedulerCallback& callback)
+    TestableScheduler(std::shared_ptr<RefreshRateSelector> selectorPtr,
+                      ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
-                              std::make_unique<mock::VSyncTracker>(), std::move(configs),
+                              std::make_unique<mock::VSyncTracker>(), std::move(selectorPtr),
                               callback) {}
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       std::unique_ptr<VSyncTracker> tracker,
-                      std::shared_ptr<RefreshRateConfigs> configs, ISchedulerCallback& callback)
+                      std::shared_ptr<RefreshRateSelector> selectorPtr,
+                      ISchedulerCallback& callback)
           : Scheduler(*this, callback, Feature::kContentDetection) {
         mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
-        setRefreshRateConfigs(std::move(configs));
+        setRefreshRateSelector(std::move(selectorPtr));
 
         ON_CALL(*this, postMessage).WillByDefault([](sp<MessageHandler>&& handler) {
             // Execute task to prevent broken promise exception on destruction.
@@ -74,7 +76,7 @@ public:
         return mLayerHistory.mActiveLayerInfos.size() + mLayerHistory.mInactiveLayerInfos.size();
     }
 
-    auto refreshRateConfigs() { return holdRefreshRateConfigs(); }
+    auto refreshRateSelector() { return holdRefreshRateSelector(); }
 
     size_t getNumActiveLayers() NO_THREAD_SAFETY_ANALYSIS {
         return mLayerHistory.mActiveLayerInfos.size();
@@ -102,7 +104,7 @@ public:
         mPolicy.idleTimer = globalSignals.idle ? TimerState::Expired : TimerState::Reset;
     }
 
-    void setContentRequirements(std::vector<RefreshRateConfigs::LayerRequirement> layers) {
+    void setContentRequirements(std::vector<RefreshRateSelector::LayerRequirement> layers) {
         std::lock_guard<std::mutex> lock(mPolicyLock);
         mPolicy.contentRequirements = std::move(layers);
     }

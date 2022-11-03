@@ -383,8 +383,8 @@ TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
     history.record(parent.get(), 0, 0, LayerHistory::LayerUpdateType::Buffer);
     history.record(child.get(), 0, 0, LayerHistory::LayerUpdateType::Buffer);
 
-    const auto configs = mFlinger.mutableScheduler().refreshRateConfigs();
-    const auto summary = history.summarize(*configs, 0);
+    const auto selectorPtr = mFlinger.mutableScheduler().refreshRateSelector();
+    const auto summary = history.summarize(*selectorPtr, 0);
 
     ASSERT_EQ(2u, summary.size());
     EXPECT_EQ(FRAME_RATE_VOTE1.rate, summary[0].desiredRefreshRate);
