@@ -196,7 +196,7 @@ Layer::Layer(const LayerCreationArgs& args)
     }
 
     mFrameTracker.setDisplayRefreshPeriod(
-            args.flinger->mScheduler->getVsyncPeriodFromRefreshRateConfigs());
+            args.flinger->mScheduler->getVsyncPeriodFromRefreshRateSelector());
 
     mOwnerUid = args.ownerUid;
     mOwnerPid = args.ownerPid;
@@ -1124,7 +1124,7 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* tran
 
     // We return whether this layer ot its children has a vote. We ignore ExactOrMultiple votes for
     // the same reason we are allowing touch boost for those layers. See
-    // RefreshRateConfigs::getBestRefreshRate for more details.
+    // RefreshRateSelector::rankRefreshRates for details.
     const auto layerVotedWithDefaultCompatibility =
             frameRate.rate.isValid() && frameRate.type == FrameRateCompatibility::Default;
     const auto layerVotedWithNoVote = frameRate.type == FrameRateCompatibility::NoVote;
@@ -3593,7 +3593,7 @@ void Layer::onPostComposition(const DisplayDevice* display,
     }
 
     if (display) {
-        const Fps refreshRate = display->refreshRateConfigs().getActiveModePtr()->getFps();
+        const Fps refreshRate = display->refreshRateSelector().getActiveModePtr()->getFps();
         const std::optional<Fps> renderRate =
                 mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
 

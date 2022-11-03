@@ -1692,8 +1692,7 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<
         }
 
         std::vector<TouchedWindow> touchedWindows =
-                findTouchedWindowTargetsLocked(currentTime, *entry, nextWakeupTime,
-                                               &conflictingPointerActions,
+                findTouchedWindowTargetsLocked(currentTime, *entry, &conflictingPointerActions,
                                                /*byref*/ injectionResult);
         for (const TouchedWindow& touchedWindow : touchedWindows) {
             LOG_ALWAYS_FATAL_IF(injectionResult != InputEventInjectionResult::SUCCEEDED,
@@ -2035,9 +2034,39 @@ std::vector<Monitor> InputDispatcher::selectResponsiveMonitorsLocked(
     return responsiveMonitors;
 }
 
+/**
+ * In general, touch should be always split between windows. Some exceptions:
+ * 1. Don't split touch is if we have an active pointer down, and a new pointer is going down that's
+ * from the same device, *and* the window that's receiving the current pointer does not support
+ * split touch.
+ * 2. Don't split mouse events
+ */
+bool InputDispatcher::shouldSplitTouch(const TouchState& touchState,
+                                       const MotionEntry& entry) const {
+    if (isFromSource(entry.source, AINPUT_SOURCE_MOUSE)) {
+        // We should never split mouse events
+        return false;
+    }
+    for (const TouchedWindow& touchedWindow : touchState.windows) {
+        if (touchedWindow.windowHandle->getInfo()->isSpy()) {
+            // Spy windows should not affect whether or not touch is split.
+            continue;
+        }
+        if (touchedWindow.windowHandle->getInfo()->supportsSplitTouch()) {
+            continue;
+        }
+        // Eventually, touchedWindow will contain the deviceId of each pointer that's currently
+        // being sent there. For now, use deviceId from touch state.
+        if (entry.deviceId == touchState.deviceId && !touchedWindow.pointerIds.isEmpty()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
-        nsecs_t currentTime, const MotionEntry& entry, nsecs_t* nextWakeupTime,
-        bool* outConflictingPointerActions, InputEventInjectionResult& outInjectionResult) {
+        nsecs_t currentTime, const MotionEntry& entry, bool* outConflictingPointerActions,
+        InputEventInjectionResult& outInjectionResult) {
     ATRACE_CALL();
 
     std::vector<TouchedWindow> touchedWindows;
@@ -2062,8 +2091,8 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
         tempTouchState = *oldState;
     }
 
-    bool isSplit = tempTouchState.split;
-    bool switchedDevice = tempTouchState.deviceId >= 0 && tempTouchState.displayId >= 0 &&
+    bool isSplit = shouldSplitTouch(tempTouchState, entry);
+    const bool switchedDevice = tempTouchState.deviceId >= 0 && tempTouchState.displayId >= 0 &&
             (tempTouchState.deviceId != entry.deviceId || tempTouchState.source != entry.source ||
              tempTouchState.displayId != displayId);
 
@@ -2073,7 +2102,6 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
     const bool newGesture = (maskedAction == AMOTION_EVENT_ACTION_DOWN ||
                              maskedAction == AMOTION_EVENT_ACTION_SCROLL || isHoverAction);
     const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
-    bool wrongDevice = false;
     if (newGesture) {
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
         if (switchedDevice && tempTouchState.down && !down && !isHoverAction) {
@@ -2082,9 +2110,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
                   displayId);
             // TODO: test multiple simultaneous input streams.
             outInjectionResult = InputEventInjectionResult::FAILED;
-            switchedDevice = false;
-            wrongDevice = true;
-            goto Failed;
+            return touchedWindows; // wrong device
         }
         tempTouchState.reset();
         tempTouchState.down = down;
@@ -2098,9 +2124,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
               displayId);
         // TODO: test multiple simultaneous input streams.
         outInjectionResult = InputEventInjectionResult::FAILED;
-        switchedDevice = false;
-        wrongDevice = true;
-        goto Failed;
+        return touchedWindows; // wrong device
     }
 
     if (newGesture || (isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN)) {
@@ -2142,7 +2166,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
             // No window is touched, so set split to true. This will allow the next pointer down to
             // be delivered to a new window which supports split touch. Pointers from a mouse device
             // should never be split.
-            tempTouchState.split = isSplit = !isFromMouse;
+            isSplit = !isFromMouse;
         }
 
         // Update hover state.
@@ -2412,82 +2436,80 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
 
 Failed:
     // Update final pieces of touch state if the injector had permission.
-    if (!wrongDevice) {
-        if (switchedDevice) {
+    if (switchedDevice) {
+        if (DEBUG_FOCUS) {
+            ALOGD("Conflicting pointer actions: Switched to a different device.");
+        }
+        *outConflictingPointerActions = true;
+    }
+
+    if (isHoverAction) {
+        // Started hovering, therefore no longer down.
+        if (oldState && oldState->down) {
             if (DEBUG_FOCUS) {
-                ALOGD("Conflicting pointer actions: Switched to a different device.");
+                ALOGD("Conflicting pointer actions: Hover received while pointer was "
+                      "down.");
             }
             *outConflictingPointerActions = true;
         }
-
-        if (isHoverAction) {
-            // Started hovering, therefore no longer down.
-            if (oldState && oldState->down) {
-                if (DEBUG_FOCUS) {
-                    ALOGD("Conflicting pointer actions: Hover received while pointer was "
-                          "down.");
-                }
-                *outConflictingPointerActions = true;
-            }
-            tempTouchState.reset();
-            if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
-                maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
-                tempTouchState.deviceId = entry.deviceId;
-                tempTouchState.source = entry.source;
-                tempTouchState.displayId = displayId;
-            }
-        } else if (maskedAction == AMOTION_EVENT_ACTION_UP ||
-                   maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
-            // All pointers up or canceled.
-            tempTouchState.reset();
-        } else if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
-            // First pointer went down.
-            if (oldState && oldState->down) {
-                if (DEBUG_FOCUS) {
-                    ALOGD("Conflicting pointer actions: Down received while already down.");
-                }
-                *outConflictingPointerActions = true;
-            }
-        } else if (maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
-            // One pointer went up.
-            int32_t pointerIndex = getMotionEventActionPointerIndex(action);
-            uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
-
-            for (size_t i = 0; i < tempTouchState.windows.size();) {
-                TouchedWindow& touchedWindow = tempTouchState.windows[i];
-                touchedWindow.pointerIds.clearBit(pointerId);
-                if (touchedWindow.pointerIds.isEmpty()) {
-                    tempTouchState.windows.erase(tempTouchState.windows.begin() + i);
-                    continue;
-                }
-                i += 1;
-            }
-        } else if (!isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
-            // If no split, we suppose all touched windows should receive pointer down.
-            const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
-            for (size_t i = 0; i < tempTouchState.windows.size(); i++) {
-                TouchedWindow& touchedWindow = tempTouchState.windows[i];
-                // Ignore drag window for it should just track one pointer.
-                if (mDragState && mDragState->dragWindow == touchedWindow.windowHandle) {
-                    continue;
-                }
-                touchedWindow.pointerIds.markBit(entry.pointerProperties[pointerIndex].id);
-            }
+        tempTouchState.reset();
+        if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
+            maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
+            tempTouchState.deviceId = entry.deviceId;
+            tempTouchState.source = entry.source;
+            tempTouchState.displayId = displayId;
         }
-
-        // Save changes unless the action was scroll in which case the temporary touch
-        // state was only valid for this one action.
-        if (maskedAction != AMOTION_EVENT_ACTION_SCROLL) {
-            if (tempTouchState.displayId >= 0) {
-                mTouchStatesByDisplay[displayId] = tempTouchState;
-            } else {
-                mTouchStatesByDisplay.erase(displayId);
+    } else if (maskedAction == AMOTION_EVENT_ACTION_UP ||
+               maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
+        // All pointers up or canceled.
+        tempTouchState.reset();
+    } else if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
+        // First pointer went down.
+        if (oldState && oldState->down) {
+            if (DEBUG_FOCUS) {
+                ALOGD("Conflicting pointer actions: Down received while already down.");
             }
+            *outConflictingPointerActions = true;
         }
+    } else if (maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
+        // One pointer went up.
+        int32_t pointerIndex = getMotionEventActionPointerIndex(action);
+        uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
 
-        // Update hover state.
-        mLastHoverWindowHandle = newHoverWindowHandle;
+        for (size_t i = 0; i < tempTouchState.windows.size();) {
+            TouchedWindow& touchedWindow = tempTouchState.windows[i];
+            touchedWindow.pointerIds.clearBit(pointerId);
+            if (touchedWindow.pointerIds.isEmpty()) {
+                tempTouchState.windows.erase(tempTouchState.windows.begin() + i);
+                continue;
+            }
+            i += 1;
+        }
+    } else if (!isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
+        // If no split, we suppose all touched windows should receive pointer down.
+        const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
+        for (size_t i = 0; i < tempTouchState.windows.size(); i++) {
+            TouchedWindow& touchedWindow = tempTouchState.windows[i];
+            // Ignore drag window for it should just track one pointer.
+            if (mDragState && mDragState->dragWindow == touchedWindow.windowHandle) {
+                continue;
+            }
+            touchedWindow.pointerIds.markBit(entry.pointerProperties[pointerIndex].id);
+        }
     }
+
+    // Save changes unless the action was scroll in which case the temporary touch
+    // state was only valid for this one action.
+    if (maskedAction != AMOTION_EVENT_ACTION_SCROLL) {
+        if (tempTouchState.displayId >= 0) {
+            mTouchStatesByDisplay[displayId] = tempTouchState;
+        } else {
+            mTouchStatesByDisplay.erase(displayId);
+        }
+    }
+
+    // Update hover state.
+    mLastHoverWindowHandle = newHoverWindowHandle;
 
     return touchedWindows;
 }
@@ -5304,9 +5326,9 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
         for (const std::pair<int32_t, TouchState>& pair : mTouchStatesByDisplay) {
             const TouchState& state = pair.second;
-            dump += StringPrintf(INDENT2 "%d: down=%s, split=%s, deviceId=%d, source=0x%08x\n",
-                                 state.displayId, toString(state.down), toString(state.split),
-                                 state.deviceId, state.source);
+            dump += StringPrintf(INDENT2 "%d: down=%s, deviceId=%d, source=0x%08x\n",
+                                 state.displayId, toString(state.down), state.deviceId,
+                                 state.source);
             if (!state.windows.empty()) {
                 dump += INDENT3 "Windows:\n";
                 for (size_t i = 0; i < state.windows.size(); i++) {
@@ -5679,10 +5701,7 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
                                "input channel stole pointer stream");
     options.deviceId = state.deviceId;
     options.displayId = state.displayId;
-    if (state.split) {
-        // If split pointers then selectively cancel pointers otherwise cancel all pointers
-        options.pointerIds = window.pointerIds;
-    }
+    options.pointerIds = window.pointerIds;
     std::string canceledWindows;
     for (const TouchedWindow& w : state.windows) {
         const std::shared_ptr<InputChannel> channel =
@@ -5701,11 +5720,7 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
     // This only blocks relevant pointers to be sent to other windows
     window.isPilferingPointers = true;
 
-    if (state.split) {
-        state.cancelPointersForWindowsExcept(window.pointerIds, token);
-    } else {
-        state.filterWindowsExcept(token);
-    }
+    state.cancelPointersForWindowsExcept(window.pointerIds, token);
     return OK;
 }
 

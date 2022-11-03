@@ -181,7 +181,7 @@ filegroup {
         "Scheduler/LayerHistory.cpp",
         "Scheduler/LayerInfo.cpp",
         "Scheduler/MessageQueue.cpp",
-        "Scheduler/RefreshRateConfigs.cpp",
+        "Scheduler/RefreshRateSelector.cpp",
         "Scheduler/Scheduler.cpp",
         "Scheduler/VSyncDispatchTimerQueue.cpp",
         "Scheduler/VSyncPredictor.cpp",

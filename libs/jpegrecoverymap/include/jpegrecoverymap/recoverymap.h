@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
- #include <utils/Errors.h>
+#include "jpegrerrorcode.h"
 
 namespace android::recoverymap {
 

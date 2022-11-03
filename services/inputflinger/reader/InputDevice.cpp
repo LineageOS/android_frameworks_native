@@ -313,7 +313,10 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
             }
         }
 
-        if (!changes || (changes & InputReaderConfiguration::CHANGE_ENABLED_STATE)) {
+        if (changes & InputReaderConfiguration::CHANGE_ENABLED_STATE) {
+            // Do not execute this code on the first configure, because 'setEnabled' would call
+            // InputMapper::reset, and you can't reset a mapper before it has been configured.
+            // The mappers are configured for the first time at the bottom of this function.
             auto it = config->disabledDevices.find(mId);
             bool enabled = it == config->disabledDevices.end();
             out += setEnabled(enabled, when);

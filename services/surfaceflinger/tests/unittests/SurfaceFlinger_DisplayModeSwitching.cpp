@@ -42,15 +42,15 @@ public:
         PrimaryDisplayVariant::setupHwcGetActiveConfigCallExpectations(this);
 
         DisplayModes modes = makeModes(kMode60, kMode90, kMode120, kMode90_4K);
-        auto configs = std::make_shared<scheduler::RefreshRateConfigs>(modes, kModeId60);
+        auto selectorPtr = std::make_shared<scheduler::RefreshRateSelector>(modes, kModeId60);
 
-        setupScheduler(configs);
+        setupScheduler(selectorPtr);
 
         mFlinger.onComposerHalHotplug(PrimaryDisplayVariant::HWC_DISPLAY_ID, Connection::CONNECTED);
         mFlinger.configureAndCommit();
 
         mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
-                           .setDisplayModes(std::move(modes), kModeId60, std::move(configs))
+                           .setDisplayModes(std::move(modes), kModeId60, std::move(selectorPtr))
                            .inject();
 
         // isVsyncPeriodSwitchSupported should return true, otherwise the SF's HWC proxy
@@ -60,7 +60,7 @@ public:
     }
 
 protected:
-    void setupScheduler(std::shared_ptr<scheduler::RefreshRateConfigs>);
+    void setupScheduler(std::shared_ptr<scheduler::RefreshRateSelector>);
 
     sp<DisplayDevice> mDisplay;
     mock::EventThread* mAppEventThread;
@@ -80,7 +80,7 @@ protected:
 };
 
 void DisplayModeSwitchingTest::setupScheduler(
-        std::shared_ptr<scheduler::RefreshRateConfigs> configs) {
+        std::shared_ptr<scheduler::RefreshRateSelector> selectorPtr) {
     auto eventThread = std::make_unique<mock::EventThread>();
     mAppEventThread = eventThread.get();
     auto sfEventThread = std::make_unique<mock::EventThread>();
@@ -108,7 +108,7 @@ void DisplayModeSwitchingTest::setupScheduler(
     mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
                             std::move(eventThread), std::move(sfEventThread),
                             TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
-                            std::move(configs));
+                            std::move(selectorPtr));
 }
 
 TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRequired) {

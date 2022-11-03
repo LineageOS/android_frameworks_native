@@ -23,6 +23,7 @@
 
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/OneShotTimer.h"
+#include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/VSyncDispatchTimerQueue.h"
 #include "Scheduler/VSyncPredictor.h"
 #include "Scheduler/VSyncReactor.h"
@@ -38,7 +39,7 @@ constexpr nsecs_t kVsyncPeriods[] = {(30_Hz).getPeriodNsecs(), (60_Hz).getPeriod
                                      (72_Hz).getPeriodNsecs(), (90_Hz).getPeriodNsecs(),
                                      (120_Hz).getPeriodNsecs()};
 
-constexpr auto kLayerVoteTypes = ftl::enum_range<scheduler::RefreshRateConfigs::LayerVoteType>();
+constexpr auto kLayerVoteTypes = ftl::enum_range<scheduler::RefreshRateSelector::LayerVoteType>();
 
 constexpr PowerMode kPowerModes[] = {PowerMode::ON, PowerMode::DOZE, PowerMode::OFF,
                                      PowerMode::DOZE_SUSPEND, PowerMode::ON_SUSPEND};
@@ -59,7 +60,7 @@ public:
 
 private:
     void fuzzRefreshRateSelection();
-    void fuzzRefreshRateConfigs();
+    void fuzzRefreshRateSelector();
     void fuzzPresentLatencyTracker();
     void fuzzVSyncModulator();
     void fuzzVSyncPredictor();
@@ -238,8 +239,8 @@ void SchedulerFuzzer::fuzzLayerHistory() {
         time1 += mFdp.PickValueInArray(kVsyncPeriods);
         time2 += mFdp.PickValueInArray(kVsyncPeriods);
     }
-    historyV1.summarize(*scheduler->refreshRateConfigs(), time1);
-    historyV1.summarize(*scheduler->refreshRateConfigs(), time2);
+    historyV1.summarize(*scheduler->refreshRateSelector(), time1);
+    historyV1.summarize(*scheduler->refreshRateSelector(), time2);
 
     scheduler->createConnection(std::make_unique<android::mock::EventThread>());
 
@@ -327,9 +328,9 @@ void SchedulerFuzzer::fuzzRefreshRateSelection() {
     layer->setFrameRateSelectionPriority(mFdp.ConsumeIntegral<int16_t>());
 }
 
-void SchedulerFuzzer::fuzzRefreshRateConfigs() {
-    using RefreshRateConfigs = scheduler::RefreshRateConfigs;
-    using LayerRequirement = RefreshRateConfigs::LayerRequirement;
+void SchedulerFuzzer::fuzzRefreshRateSelector() {
+    using RefreshRateSelector = scheduler::RefreshRateSelector;
+    using LayerRequirement = RefreshRateSelector::LayerRequirement;
     using RefreshRateStats = scheduler::RefreshRateStats;
 
     const uint16_t minRefreshRate = mFdp.ConsumeIntegralInRange<uint16_t>(1, UINT16_MAX >> 1);
@@ -345,48 +346,48 @@ void SchedulerFuzzer::fuzzRefreshRateConfigs() {
                                                          Fps::fromValue(static_cast<float>(fps))));
     }
 
-    RefreshRateConfigs refreshRateConfigs(displayModes, modeId);
+    RefreshRateSelector refreshRateSelector(displayModes, modeId);
 
-    const RefreshRateConfigs::GlobalSignals globalSignals = {.touch = false, .idle = false};
+    const RefreshRateSelector::GlobalSignals globalSignals = {.touch = false, .idle = false};
     std::vector<LayerRequirement> layers = {{.weight = mFdp.ConsumeFloatingPoint<float>()}};
 
-    refreshRateConfigs.getRankedRefreshRates(layers, globalSignals);
+    refreshRateSelector.getRankedRefreshRates(layers, globalSignals);
 
     layers[0].name = mFdp.ConsumeRandomLengthString(kRandomStringLength);
     layers[0].ownerUid = mFdp.ConsumeIntegral<uint16_t>();
     layers[0].desiredRefreshRate = Fps::fromValue(mFdp.ConsumeFloatingPoint<float>());
     layers[0].vote = mFdp.PickValueInArray(kLayerVoteTypes.values);
     auto frameRateOverrides =
-            refreshRateConfigs.getFrameRateOverrides(layers,
-                                                     Fps::fromValue(
-                                                             mFdp.ConsumeFloatingPoint<float>()),
-                                                     globalSignals);
+            refreshRateSelector.getFrameRateOverrides(layers,
+                                                      Fps::fromValue(
+                                                              mFdp.ConsumeFloatingPoint<float>()),
+                                                      globalSignals);
 
     {
         ftl::FakeGuard guard(kMainThreadContext);
 
-        refreshRateConfigs.setPolicy(
-                RefreshRateConfigs::
+        refreshRateSelector.setPolicy(
+                RefreshRateSelector::
                         DisplayManagerPolicy{modeId,
                                              {Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
                                               Fps::fromValue(mFdp.ConsumeFloatingPoint<float>())}});
-        refreshRateConfigs.setPolicy(
-                RefreshRateConfigs::OverridePolicy{modeId,
-                                                   {Fps::fromValue(
-                                                            mFdp.ConsumeFloatingPoint<float>()),
-                                                    Fps::fromValue(
-                                                            mFdp.ConsumeFloatingPoint<float>())}});
-        refreshRateConfigs.setPolicy(RefreshRateConfigs::NoOverridePolicy{});
+        refreshRateSelector.setPolicy(
+                RefreshRateSelector::OverridePolicy{modeId,
+                                                    {Fps::fromValue(
+                                                             mFdp.ConsumeFloatingPoint<float>()),
+                                                     Fps::fromValue(
+                                                             mFdp.ConsumeFloatingPoint<float>())}});
+        refreshRateSelector.setPolicy(RefreshRateSelector::NoOverridePolicy{});
 
-        refreshRateConfigs.setActiveModeId(modeId);
+        refreshRateSelector.setActiveModeId(modeId);
     }
 
-    RefreshRateConfigs::isFractionalPairOrMultiple(Fps::fromValue(
-                                                           mFdp.ConsumeFloatingPoint<float>()),
-                                                   Fps::fromValue(
-                                                           mFdp.ConsumeFloatingPoint<float>()));
-    RefreshRateConfigs::getFrameRateDivisor(Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
-                                            Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()));
+    RefreshRateSelector::isFractionalPairOrMultiple(Fps::fromValue(
+                                                            mFdp.ConsumeFloatingPoint<float>()),
+                                                    Fps::fromValue(
+                                                            mFdp.ConsumeFloatingPoint<float>()));
+    RefreshRateSelector::getFrameRateDivisor(Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
+                                             Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()));
 
     android::mock::TimeStats timeStats;
     RefreshRateStats refreshRateStats(timeStats, Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
@@ -407,7 +408,7 @@ void SchedulerFuzzer::fuzzPresentLatencyTracker() {
 
 void SchedulerFuzzer::process() {
     fuzzRefreshRateSelection();
-    fuzzRefreshRateConfigs();
+    fuzzRefreshRateSelector();
     fuzzPresentLatencyTracker();
     fuzzVSyncModulator();
     fuzzVSyncPredictor();

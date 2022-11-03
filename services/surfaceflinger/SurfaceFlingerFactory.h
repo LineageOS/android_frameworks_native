@@ -52,7 +52,6 @@ class CompositionEngine;
 namespace scheduler {
 class VsyncConfiguration;
 class VsyncController;
-class RefreshRateConfigs;
 } // namespace scheduler
 
 namespace frametimeline {

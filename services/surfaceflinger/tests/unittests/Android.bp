@@ -111,7 +111,7 @@ cc_test {
         "SurfaceFlinger_UpdateLayerMetadataSnapshotTest.cpp",
         "SchedulerTest.cpp",
         "SetFrameRateTest.cpp",
-        "RefreshRateConfigsTest.cpp",
+        "RefreshRateSelectorTest.cpp",
         "RefreshRateSelectionTest.cpp",
         "RefreshRateStatsTest.cpp",
         "RegionSamplingTest.cpp",

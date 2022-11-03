@@ -438,14 +438,6 @@ bool PointerCoords::operator==(const PointerCoords& other) const {
     return true;
 }
 
-void PointerCoords::copyFrom(const PointerCoords& other) {
-    bits = other.bits;
-    uint32_t count = BitSet64::count(bits);
-    for (uint32_t i = 0; i < count; i++) {
-        values[i] = other.values[i];
-    }
-}
-
 void PointerCoords::transform(const ui::Transform& transform) {
     const vec2 xy = transform.transform(getXYValue());
     setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);

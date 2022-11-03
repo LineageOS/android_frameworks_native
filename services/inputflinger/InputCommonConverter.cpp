@@ -304,8 +304,8 @@ static void getHalPropertiesAndCoords(const NotifyMotionArgs& args,
         common::PointerCoords coords;
         // OK to copy bits because we have static_assert for pointerCoords axes
         coords.bits = args.pointerCoords[i].bits;
-        coords.values = std::vector<float>(args.pointerCoords[i].values,
-                                           args.pointerCoords[i].values +
+        coords.values = std::vector<float>(args.pointerCoords[i].values.cbegin(),
+                                           args.pointerCoords[i].values.cbegin() +
                                                    BitSet64::count(args.pointerCoords[i].bits));
         outPointerCoords.push_back(coords);
     }
