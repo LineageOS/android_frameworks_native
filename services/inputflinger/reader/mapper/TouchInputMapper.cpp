@@ -2156,6 +2156,53 @@ std::list<NotifyArgs> TouchInputMapper::dispatchButtonPress(nsecs_t when, nsecs_
     return out;
 }
 
+std::list<NotifyArgs> TouchInputMapper::dispatchGestureButtonRelease(nsecs_t when,
+                                                                     uint32_t policyFlags,
+                                                                     BitSet32 idBits,
+                                                                     nsecs_t readTime) {
+    std::list<NotifyArgs> out;
+    BitSet32 releasedButtons(mLastCookedState.buttonState & ~mCurrentCookedState.buttonState);
+    const int32_t metaState = getContext()->getGlobalMetaState();
+    int32_t buttonState = mLastCookedState.buttonState;
+
+    while (!releasedButtons.isEmpty()) {
+        int32_t actionButton = BitSet32::valueForBit(releasedButtons.clearFirstMarkedBit());
+        buttonState &= ~actionButton;
+        out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
+                                     AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
+                                     metaState, buttonState, 0,
+                                     mPointerGesture.lastGestureProperties,
+                                     mPointerGesture.lastGestureCoords,
+                                     mPointerGesture.lastGestureIdToIndex, idBits, -1,
+                                     mOrientedXPrecision, mOrientedYPrecision,
+                                     mPointerGesture.downTime, MotionClassification::NONE));
+    }
+    return out;
+}
+
+std::list<NotifyArgs> TouchInputMapper::dispatchGestureButtonPress(nsecs_t when,
+                                                                   uint32_t policyFlags,
+                                                                   BitSet32 idBits,
+                                                                   nsecs_t readTime) {
+    std::list<NotifyArgs> out;
+    BitSet32 pressedButtons(mCurrentCookedState.buttonState & ~mLastCookedState.buttonState);
+    const int32_t metaState = getContext()->getGlobalMetaState();
+    int32_t buttonState = mLastCookedState.buttonState;
+
+    while (!pressedButtons.isEmpty()) {
+        int32_t actionButton = BitSet32::valueForBit(pressedButtons.clearFirstMarkedBit());
+        buttonState |= actionButton;
+        out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
+                                     AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0, metaState,
+                                     buttonState, 0, mPointerGesture.currentGestureProperties,
+                                     mPointerGesture.currentGestureCoords,
+                                     mPointerGesture.currentGestureIdToIndex, idBits, -1,
+                                     mOrientedXPrecision, mOrientedYPrecision,
+                                     mPointerGesture.downTime, MotionClassification::NONE));
+    }
+    return out;
+}
+
 const BitSet32& TouchInputMapper::findActiveIdBits(const CookedPointerData& cookedPointerData) {
     if (!cookedPointerData.touchingIdBits.isEmpty()) {
         return cookedPointerData.touchingIdBits;
@@ -2540,8 +2587,13 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
                         dispatchedGestureIdBits.value & ~mPointerGesture.currentGestureIdBits.value;
             }
             while (!upGestureIdBits.isEmpty()) {
-                uint32_t id = upGestureIdBits.clearFirstMarkedBit();
-
+                if (((mLastCookedState.buttonState & AMOTION_EVENT_BUTTON_PRIMARY) != 0 ||
+                     (mLastCookedState.buttonState & AMOTION_EVENT_BUTTON_SECONDARY) != 0) &&
+                    mPointerGesture.lastGestureMode == PointerGesture::Mode::BUTTON_CLICK_OR_DRAG) {
+                    out += dispatchGestureButtonRelease(when, policyFlags, dispatchedGestureIdBits,
+                                                        readTime);
+                }
+                const uint32_t id = upGestureIdBits.clearFirstMarkedBit();
                 out.push_back(dispatchMotion(when, readTime, policyFlags, mSource,
                                              AMOTION_EVENT_ACTION_POINTER_UP, 0, flags, metaState,
                                              buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
@@ -2586,6 +2638,12 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
                                          mPointerGesture.currentGestureIdToIndex,
                                          dispatchedGestureIdBits, id, 0, 0,
                                          mPointerGesture.downTime, classification));
+            if (((buttonState & AMOTION_EVENT_BUTTON_PRIMARY) != 0 ||
+                 (buttonState & AMOTION_EVENT_BUTTON_SECONDARY) != 0) &&
+                mPointerGesture.currentGestureMode == PointerGesture::Mode::BUTTON_CLICK_OR_DRAG) {
+                out += dispatchGestureButtonPress(when, policyFlags, dispatchedGestureIdBits,
+                                                  readTime);
+            }
         }
     }
 
