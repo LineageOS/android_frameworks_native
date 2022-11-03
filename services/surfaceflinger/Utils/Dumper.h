@@ -63,6 +63,21 @@ public:
         Dumper& dumper;
     };
 
+    struct Section {
+        Section(Dumper& dumper, std::string_view heading) : dumper(dumper) {
+            dumper.dump({}, heading);
+            indent.emplace(dumper);
+        }
+
+        ~Section() {
+            indent.reset();
+            dumper.eol();
+        }
+
+        Dumper& dumper;
+        std::optional<Indent> indent;
+    };
+
 private:
     std::string& mOut;
     int mIndent = 0;

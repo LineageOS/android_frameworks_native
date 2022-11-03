@@ -54,6 +54,7 @@
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
 #include <ftl/algorithm.h>
+#include <ftl/concat.h>
 #include <ftl/fake_guard.h>
 #include <ftl/future.h>
 #include <ftl/unit.h>
@@ -3264,7 +3265,7 @@ void SurfaceFlinger::persistDisplayBrightness(bool needsComposite) {
 
                 ALOGE_IF(error != NO_ERROR,
                          "Error setting display brightness for display %s: %d (%s)",
-                         display->getDebugName().c_str(), error, strerror(error));
+                         to_string(display->getId()).c_str(), error, strerror(error));
             }
             display->persistBrightness(needsComposite);
         }
@@ -4929,19 +4930,21 @@ void SurfaceFlinger::dumpDisplays(std::string& result) const {
     utils::Dumper dumper{result};
 
     for (const auto& [id, display] : mPhysicalDisplays) {
+        utils::Dumper::Section section(dumper, ftl::Concat("Display ", id.value).str());
+
+        display.snapshot().dump(dumper);
+
         if (const auto device = getDisplayDeviceLocked(id)) {
             device->dump(dumper);
         }
-
-        utils::Dumper::Indent indent(dumper);
-        display.snapshot().dump(dumper);
-        dumper.eol();
     }
 
     for (const auto& [token, display] : mDisplays) {
         if (display->isVirtual()) {
+            const auto displayId = display->getId();
+            utils::Dumper::Section section(dumper,
+                                           ftl::Concat("Virtual Display ", displayId.value).str());
             display->dump(dumper);
-            dumper.eol();
         }
     }
 }
