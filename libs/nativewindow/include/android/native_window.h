@@ -376,7 +376,7 @@ int32_t ANativeWindow_clearFrameRate(ANativeWindow* window)
         __INTRODUCED_IN(__ANDROID_API_U__);
 
 #ifdef __cplusplus
-};
+}
 #endif
 
 #endif // ANDROID_NATIVE_WINDOW_H
