@@ -14,6 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#ifndef ANDROID_JPEGRECOVERYMAP_JPEGDECODER_H
+#define ANDROID_JPEGRECOVERYMAP_JPEGDECODER_H
+
 // We must include cstdio before jpeglib.h. It is a requirement of libjpeg.
 #include <cstdio>
 extern "C" {
@@ -41,12 +45,22 @@ public:
      * Returns the decompressed raw image buffer pointer. This method must be called only after
      * calling decompressImage().
      */
-    const void* getDecompressedImagePtr();
+    void* getDecompressedImagePtr();
     /*
      * Returns the decompressed raw image buffer size. This method must be called only after
      * calling decompressImage().
      */
     size_t getDecompressedImageSize();
+    /*
+     * Returns the image width in pixels. This method must be called only after calling
+     * decompressImage().
+     */
+    size_t getDecompressedImageWidth();
+    /*
+     * Returns the image width in pixels. This method must be called only after calling
+     * decompressImage().
+     */
+    size_t getDecompressedImageHeight();
 private:
     bool decode(const void* image, int length);
     // Returns false if errors occur.
@@ -56,7 +70,12 @@ private:
     // Process 16 lines of Y and 16 lines of U/V each time.
     // We must pass at least 16 scanlines according to libjpeg documentation.
     static const int kCompressBatchSize = 16;
-    // The buffer that holds the compressed result.
+    // The buffer that holds the decompressed result.
     std::vector<JOCTET> mResultBuffer;
+    // Resolution of the decompressed image.
+    size_t mWidth;
+    size_t mHeight;
 };
 } /* namespace android  */
+
+#endif // ANDROID_JPEGRECOVERYMAP_JPEGDECODER_H
