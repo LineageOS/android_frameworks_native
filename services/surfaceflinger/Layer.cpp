@@ -477,7 +477,7 @@ void Layer::prepareBasicGeometryCompositionState() {
     snapshot->geomLayerTransform = getTransform();
     snapshot->geomInverseLayerTransform = snapshot->geomLayerTransform.inverse();
     snapshot->transparentRegionHint = getActiveTransparentRegion(drawingState);
-
+    snapshot->blurRegionTransform = getActiveTransform(drawingState).inverse();
     snapshot->blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
     snapshot->alpha = alpha;
     snapshot->backgroundBlurRadius = drawingState.backgroundBlurRadius;
