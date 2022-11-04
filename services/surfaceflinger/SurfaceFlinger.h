@@ -490,9 +490,8 @@ private:
 
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const;
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
-                                 const Vector<ComposerState>& state,
-                                 const Vector<DisplayState>& displays, uint32_t flags,
-                                 const sp<IBinder>& applyToken,
+                                 Vector<ComposerState>& state, const Vector<DisplayState>& displays,
+                                 uint32_t flags, const sp<IBinder>& applyToken,
                                  const InputWindowCommands& inputWindowCommands,
                                  int64_t desiredPresentTime, bool isAutoTimestamp,
                                  const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
@@ -702,7 +701,8 @@ private:
     /*
      * Transactions
      */
-    bool applyTransactionState(const FrameTimelineInfo& info, Vector<ComposerState>& state,
+    bool applyTransactionState(const FrameTimelineInfo& info,
+                               std::vector<ResolvedComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -723,7 +723,7 @@ private:
             const TransactionHandler::TransactionFlushState& flushState)
             REQUIRES(kMainThreadContext);
 
-    uint32_t setClientStateLocked(const FrameTimelineInfo&, ComposerState&,
+    uint32_t setClientStateLocked(const FrameTimelineInfo&, ResolvedComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
                                   int64_t postTime, uint32_t permissions, uint64_t transactionId)
             REQUIRES(mStateLock);

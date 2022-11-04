@@ -60,11 +60,11 @@ public:
     virtual ~BpSurfaceComposer();
 
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
-                                 const Vector<ComposerState>& state,
-                                 const Vector<DisplayState>& displays, uint32_t flags,
-                                 const sp<IBinder>& applyToken, const InputWindowCommands& commands,
-                                 int64_t desiredPresentTime, bool isAutoTimestamp,
-                                 const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
+                                 Vector<ComposerState>& state, const Vector<DisplayState>& displays,
+                                 uint32_t flags, const sp<IBinder>& applyToken,
+                                 const InputWindowCommands& commands, int64_t desiredPresentTime,
+                                 bool isAutoTimestamp, const client_cache_t& uncacheBuffer,
+                                 bool hasListenerCallbacks,
                                  const std::vector<ListenerCallbacks>& listenerCallbacks,
                                  uint64_t transactionId) override {
         Parcel data, reply;

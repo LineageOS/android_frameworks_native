@@ -112,16 +112,16 @@ protected:
         {
             TransactionState transaction;
             transaction.id = 50;
-            ComposerState layerState;
+            ResolvedComposerState layerState;
             layerState.state.surface = fakeLayerHandle;
             layerState.state.what = layer_state_t::eLayerChanged;
             layerState.state.z = 42;
-            transaction.states.add(layerState);
-            ComposerState childState;
+            transaction.states.emplace_back(layerState);
+            ResolvedComposerState childState;
             childState.state.surface = fakeChildLayerHandle;
             childState.state.what = layer_state_t::eLayerChanged;
             childState.state.z = 43;
-            transaction.states.add(childState);
+            transaction.states.emplace_back(childState);
             mTracing.addQueuedTransaction(transaction);
 
             std::vector<TransactionState> transactions;
@@ -138,12 +138,12 @@ protected:
         {
             TransactionState transaction;
             transaction.id = 51;
-            ComposerState layerState;
+            ResolvedComposerState layerState;
             layerState.state.surface = fakeLayerHandle;
             layerState.state.what = layer_state_t::eLayerChanged | layer_state_t::ePositionChanged;
             layerState.state.z = 41;
             layerState.state.x = 22;
-            transaction.states.add(layerState);
+            transaction.states.emplace_back(layerState);
             mTracing.addQueuedTransaction(transaction);
 
             std::vector<TransactionState> transactions;
@@ -247,16 +247,16 @@ protected:
         {
             TransactionState transaction;
             transaction.id = 50;
-            ComposerState layerState;
+            ResolvedComposerState layerState;
             layerState.state.surface = fakeLayerHandle;
             layerState.state.what = layer_state_t::eLayerChanged;
             layerState.state.z = 42;
-            transaction.states.add(layerState);
-            ComposerState mirrorState;
+            transaction.states.emplace_back(layerState);
+            ResolvedComposerState mirrorState;
             mirrorState.state.surface = fakeMirrorLayerHandle;
             mirrorState.state.what = layer_state_t::eLayerChanged;
             mirrorState.state.z = 43;
-            transaction.states.add(mirrorState);
+            transaction.states.emplace_back(mirrorState);
             mTracing.addQueuedTransaction(transaction);
 
             std::vector<TransactionState> transactions;

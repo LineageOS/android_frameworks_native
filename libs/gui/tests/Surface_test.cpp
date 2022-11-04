@@ -696,7 +696,7 @@ public:
     }
 
     status_t setTransactionState(const FrameTimelineInfo& /*frameTimelineInfo*/,
-                                 const Vector<ComposerState>& /*state*/,
+                                 Vector<ComposerState>& /*state*/,
                                  const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
                                  const sp<IBinder>& /*applyToken*/,
                                  const InputWindowCommands& /*inputWindowCommands*/,
