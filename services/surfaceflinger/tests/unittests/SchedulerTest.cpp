@@ -20,7 +20,6 @@
 
 #include <mutex>
 
-#include "FakeDisplayInjector.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "TestableScheduler.h"
@@ -41,7 +40,6 @@ namespace {
 
 using MockEventThread = android::mock::EventThread;
 using MockLayer = android::mock::MockLayer;
-using FakeDisplayDeviceInjector = TestableSurfaceFlinger::FakeDisplayDeviceInjector;
 
 class SchedulerTest : public testing::Test {
 protected:
@@ -90,10 +88,6 @@ protected:
     sp<MockEventThreadConnection> mEventThreadConnection;
 
     TestableSurfaceFlinger mFlinger;
-    Hwc2::mock::PowerAdvisor mPowerAdvisor;
-    sp<android::mock::NativeWindow> mNativeWindow = sp<android::mock::NativeWindow>::make();
-
-    FakeDisplayInjector mFakeDisplayInjector{mFlinger, mPowerAdvisor, mNativeWindow};
 };
 
 SchedulerTest::SchedulerTest() {
@@ -240,14 +234,11 @@ MATCHER(Is120Hz, "") {
 }
 
 TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
-    const auto display = mFakeDisplayInjector.injectInternalDisplay(
-            [&](FakeDisplayDeviceInjector& injector) {
-                injector.setDisplayModes(kDisplay1Modes, kDisplay1Mode60->getId());
-            },
-            {.displayId = kDisplayId1});
+    const auto selectorPtr =
+            std::make_shared<RefreshRateSelector>(kDisplay1Modes, kDisplay1Mode60->getId());
 
-    mScheduler->registerDisplay(display);
-    mScheduler->setRefreshRateSelector(display->holdRefreshRateSelector());
+    mScheduler->registerDisplay(kDisplayId1, selectorPtr);
+    mScheduler->setRefreshRateSelector(selectorPtr);
 
     const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
     EXPECT_CALL(*layer, isVisible()).WillOnce(Return(true));
@@ -269,13 +260,9 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
 }
 
 TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
-    const auto display = mFakeDisplayInjector.injectInternalDisplay(
-            [&](FakeDisplayDeviceInjector& injector) {
-                injector.setDisplayModes(kDisplay1Modes, kDisplay1Mode60->getId());
-            },
-            {.displayId = kDisplayId1});
-
-    mScheduler->registerDisplay(display);
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
 
     std::vector<RefreshRateSelector::LayerRequirement> layers =
             std::vector<RefreshRateSelector::LayerRequirement>({{.weight = 1.f}, {.weight = 1.f}});
@@ -314,23 +301,16 @@ TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
     EXPECT_EQ(choice->get(), DisplayModeChoice(kDisplay1Mode120, globalSignals));
 
     mScheduler->unregisterDisplay(kDisplayId1);
-    EXPECT_TRUE(mScheduler->mutableDisplays().empty());
+    EXPECT_FALSE(mScheduler->hasRefreshRateSelectors());
 }
 
 TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
-    const auto display1 = mFakeDisplayInjector.injectInternalDisplay(
-            [&](FakeDisplayDeviceInjector& injector) {
-                injector.setDisplayModes(kDisplay1Modes, kDisplay1Mode60->getId());
-            },
-            {.displayId = kDisplayId1, .hwcDisplayId = 42, .isPrimary = true});
-    const auto display2 = mFakeDisplayInjector.injectInternalDisplay(
-            [&](FakeDisplayDeviceInjector& injector) {
-                injector.setDisplayModes(kDisplay2Modes, kDisplay2Mode60->getId());
-            },
-            {.displayId = kDisplayId2, .hwcDisplayId = 41, .isPrimary = false});
-
-    mScheduler->registerDisplay(display1);
-    mScheduler->registerDisplay(display2);
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
 
     using DisplayModeChoice = TestableScheduler::DisplayModeChoice;
     TestableScheduler::DisplayModeChoiceMap expectedChoices;
@@ -380,13 +360,10 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
     }
     {
         // This display does not support 120 Hz, so we should choose 60 Hz despite the touch signal.
-        const auto display3 = mFakeDisplayInjector.injectInternalDisplay(
-                [&](FakeDisplayDeviceInjector& injector) {
-                    injector.setDisplayModes(kDisplay3Modes, kDisplay3Mode60->getId());
-                },
-                {.displayId = kDisplayId3, .hwcDisplayId = 40, .isPrimary = false});
-
-        mScheduler->registerDisplay(display3);
+        mScheduler
+                ->registerDisplay(kDisplayId3,
+                                  std::make_shared<RefreshRateSelector>(kDisplay3Modes,
+                                                                        kDisplay3Mode60->getId()));
 
         const GlobalSignals globalSignals = {.touch = true};
         mScheduler->replaceTouchTimer(10);

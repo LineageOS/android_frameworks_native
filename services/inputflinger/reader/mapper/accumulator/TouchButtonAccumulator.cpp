@@ -108,13 +108,13 @@ void TouchButtonAccumulator::process(const RawEvent* rawEvent) {
 }
 
 void TouchButtonAccumulator::processMappedKey(int32_t scanCode, bool down) {
-    int32_t outKeyCode, outMetaState;
-    uint32_t outFlags;
+    int32_t keyCode, metaState;
+    uint32_t flags;
     if (mDeviceContext.mapKey(scanCode, mHidUsageAccumulator.consumeCurrentHidUsage(),
-                              0 /*metaState*/, &outKeyCode, &outMetaState, &outFlags) != OK) {
+                              0 /*metaState*/, &keyCode, &metaState, &flags) != OK) {
         return;
     }
-    switch (outKeyCode) {
+    switch (keyCode) {
         case AKEYCODE_STYLUS_BUTTON_PRIMARY:
             mBtnStylus = down;
             break;
