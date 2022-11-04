@@ -9082,6 +9082,7 @@ TEST_F(MultiTouchInputMapperTest, Process_SendsReadTime) {
  */
 TEST_F(MultiTouchInputMapperTest, WhenViewportIsNotActive_TouchesAreDropped) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
+    // Don't set touch.enableForInactiveViewport to verify the default behavior.
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                     DISPLAY_ORIENTATION_0, false /*isActive*/, UNIQUE_ID, NO_PORT,
                                     ViewportType::INTERNAL);
@@ -9096,8 +9097,31 @@ TEST_F(MultiTouchInputMapperTest, WhenViewportIsNotActive_TouchesAreDropped) {
     mFakeListener->assertNotifyMotionWasNotCalled();
 }
 
+/**
+ * When the viewport is not active (isActive=false) and touch.enableForInactiveViewport is true,
+ * the touch mapper can process the events and the events can be delivered to the listener.
+ */
+TEST_F(MultiTouchInputMapperTest, WhenViewportIsNotActive_TouchesAreProcessed) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    addConfigurationProperty("touch.enableForInactiveViewport", "1");
+    mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, false /*isActive*/, UNIQUE_ID, NO_PORT,
+                                    ViewportType::INTERNAL);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    prepareAxes(POSITION);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+    processPosition(mapper, 100, 100);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+}
+
 TEST_F(MultiTouchInputMapperTest, Process_DeactivateViewport_AbortTouches) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
+    addConfigurationProperty("touch.enableForInactiveViewport", "0");
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                     DISPLAY_ORIENTATION_0, true /*isActive*/, UNIQUE_ID, NO_PORT,
                                     ViewportType::INTERNAL);
