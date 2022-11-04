@@ -3919,12 +3919,17 @@ status_t SurfaceFlinger::setTransactionState(
         auto& resolvedState = resolvedStates.back();
         if (resolvedState.state.hasBufferChanges() && resolvedState.state.hasValidBuffer() &&
             resolvedState.state.surface) {
+            sp<Layer> layer = LayerHandle::getLayer(resolvedState.state.surface);
+            std::string layerName = (layer) ?
+                    layer->getDebugName() : std::to_string(resolvedState.state.layerId);
             resolvedState.externalTexture =
                     getExternalTextureFromBufferData(*resolvedState.state.bufferData,
-                                                     std::to_string(resolvedState.state.layerId)
-                                                             .c_str(),
-                                                     transactionId);
+                                                     layerName.c_str(), transactionId);
             mBufferCountTracker.increment(resolvedState.state.surface->localBinder());
+            if (layer) {
+                resolvedState.hwcBufferSlot =
+                        layer->getHwcCacheSlot(resolvedState.state.bufferData->cachedBuffer);
+            }
         }
     }
 
@@ -4391,7 +4396,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     if (what & layer_state_t::eBufferChanged) {
         if (layer->setBuffer(composerState.externalTexture, *s.bufferData, postTime,
                              desiredPresentTime, isAutoTimestamp, dequeueBufferTimestamp,
-                             frameTimelineInfo)) {
+                             frameTimelineInfo, composerState.hwcBufferSlot)) {
             flags |= eTraversalNeeded;
         }
     } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {

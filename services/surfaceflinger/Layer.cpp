@@ -2846,7 +2846,7 @@ bool Layer::setPosition(float x, float y) {
 bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
                       const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
                       bool isAutoTimestamp, std::optional<nsecs_t> dequeueTime,
-                      const FrameTimelineInfo& info) {
+                      const FrameTimelineInfo& info, int hwcBufferSlot) {
     ATRACE_FORMAT("setBuffer %s - hasBuffer=%s", getDebugName(), (buffer ? "true" : "false"));
     if (!buffer) {
         return false;
@@ -2892,7 +2892,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     mDrawingState.releaseBufferListener = bufferData.releaseBufferListener;
     mDrawingState.buffer = std::move(buffer);
     mDrawingState.clientCacheId = bufferData.cachedBuffer;
-
+    mDrawingState.hwcBufferSlot = hwcBufferSlot;
     mDrawingState.acquireFence = bufferData.flags.test(BufferData::BufferDataChange::fenceChanged)
             ? bufferData.acquireFence
             : Fence::NO_FENCE;
@@ -3191,7 +3191,7 @@ void Layer::gatherBufferInfo() {
     mBufferInfo.mHdrMetadata = mDrawingState.hdrMetadata;
     mBufferInfo.mApi = mDrawingState.api;
     mBufferInfo.mTransformToDisplayInverse = mDrawingState.transformToDisplayInverse;
-    mBufferInfo.mBufferSlot = mHwcSlotGenerator->getHwcCacheSlot(mDrawingState.clientCacheId);
+    mBufferInfo.mBufferSlot = mDrawingState.hwcBufferSlot;
 }
 
 Rect Layer::computeBufferCrop(const State& s) {
@@ -3210,7 +3210,6 @@ sp<Layer> Layer::createClone() {
     LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0, LayerMetadata());
     args.textureName = mTextureName;
     sp<Layer> layer = mFlinger->getFactory().createBufferStateLayer(args);
-    layer->mHwcSlotGenerator = mHwcSlotGenerator;
     layer->setInitialValuesForClone(sp<Layer>::fromExisting(this));
     return layer;
 }
@@ -3967,6 +3966,10 @@ void Layer::updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMet
         }
         relative->updateRelativeMetadataSnapshot(childRelativeLayerMetadata, visited);
     }
+}
+
+int Layer::getHwcCacheSlot(const client_cache_t& clientCacheId) {
+    return mHwcSlotGenerator->getHwcCacheSlot(clientCacheId);
 }
 
 LayerSnapshotGuard::LayerSnapshotGuard(Layer* layer) : mLayer(layer) {

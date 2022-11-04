@@ -33,6 +33,7 @@ public:
     ResolvedComposerState() = default;
     ResolvedComposerState(ComposerState&& source) { state = std::move(source.state); }
     std::shared_ptr<renderengine::ExternalTexture> externalTexture;
+    int hwcBufferSlot = 0;
 };
 
 struct TransactionState {
