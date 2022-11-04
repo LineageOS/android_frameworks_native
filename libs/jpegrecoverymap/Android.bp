@@ -23,7 +23,7 @@ package {
 
 cc_library_static {
     name: "libjpegrecoverymap",
-    vendor_available: true,
+    host_supported: true,
 
     export_include_dirs: ["include"],
     local_include_dirs: ["include"],
@@ -33,6 +33,7 @@ cc_library_static {
     ],
 
     shared_libs: [
+        "libimage_io",
         "libutils",
     ],
 }
