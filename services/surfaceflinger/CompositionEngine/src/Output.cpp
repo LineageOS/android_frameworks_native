@@ -1178,15 +1178,9 @@ void Output::updateProtectedContentState() {
         bool needsProtected = std::any_of(layers.begin(), layers.end(), [](auto* layer) {
             return layer->getLayerFE().getCompositionState()->hasProtectedContent;
         });
-        if (needsProtected != renderEngine.isProtected()) {
-            renderEngine.useProtectedContext(needsProtected);
-        }
-        if (needsProtected != mRenderSurface->isProtected() &&
-            needsProtected == renderEngine.isProtected()) {
+        if (needsProtected != mRenderSurface->isProtected()) {
             mRenderSurface->setProtected(needsProtected);
         }
-    } else if (!outputState.isSecure && renderEngine.isProtected()) {
-        renderEngine.useProtectedContext(false);
     }
 }
 
@@ -1340,10 +1334,13 @@ std::optional<base::unique_fd> Output::composeSurfaces(
 
     const auto fence = std::move(fenceResult).value_or(Fence::NO_FENCE);
 
-    if (auto& timeStats = getCompositionEngine().getTimeStats(); fence->isValid()) {
-        timeStats.recordRenderEngineDuration(renderEngineStart, std::make_shared<FenceTime>(fence));
-    } else {
-        timeStats.recordRenderEngineDuration(renderEngineStart, systemTime());
+    if (auto timeStats = getCompositionEngine().getTimeStats()) {
+        if (fence->isValid()) {
+            timeStats->recordRenderEngineDuration(renderEngineStart,
+                                                  std::make_shared<FenceTime>(fence));
+        } else {
+            timeStats->recordRenderEngineDuration(renderEngineStart, systemTime());
+        }
     }
 
     for (auto* clientComposedLayer : clientCompositionLayersFE) {
