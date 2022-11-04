@@ -29,3 +29,12 @@ void fuzzService(AIBinder* binder, FuzzedDataProvider&& provider) {
 }
 
 } // namespace android
+
+extern "C" {
+// This API is used by fuzzers to automatically fuzz aidl services
+void fuzzRustService(void* binder, const uint8_t* data, size_t len) {
+    AIBinder* aiBinder = static_cast<AIBinder*>(binder);
+    FuzzedDataProvider provider(data, len);
+    android::fuzzService(aiBinder, std::move(provider));
+}
+} // extern "C"
