@@ -138,4 +138,9 @@ sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
     return nullptr;
 }
 
+bool TouchState::isDown() const {
+    return std::any_of(windows.begin(), windows.end(),
+                       [](const TouchedWindow& window) { return !window.pointerIds.isEmpty(); });
+}
+
 } // namespace android::inputdispatcher

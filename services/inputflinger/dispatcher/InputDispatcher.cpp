@@ -2104,7 +2104,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
     const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
     if (newGesture) {
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
-        if (switchedDevice && tempTouchState.down && !down && !isHoverAction) {
+        if (switchedDevice && tempTouchState.isDown() && !down && !isHoverAction) {
             ALOGI("Dropping event because a pointer for a different device is already down "
                   "in display %" PRId32,
                   displayId);
@@ -2113,7 +2113,6 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
             return touchedWindows; // wrong device
         }
         tempTouchState.reset();
-        tempTouchState.down = down;
         tempTouchState.deviceId = entry.deviceId;
         tempTouchState.source = entry.source;
         tempTouchState.displayId = displayId;
@@ -2234,7 +2233,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
         /* Case 2: Pointer move, up, cancel or non-splittable pointer down. */
 
         // If the pointer is not currently down, then ignore the event.
-        if (!tempTouchState.down) {
+        if (!tempTouchState.isDown()) {
             if (DEBUG_FOCUS) {
                 ALOGD("Dropping event because the pointer is not down or we previously "
                       "dropped the pointer down event in display %" PRId32,
@@ -2445,7 +2444,7 @@ Failed:
 
     if (isHoverAction) {
         // Started hovering, therefore no longer down.
-        if (oldState && oldState->down) {
+        if (oldState && oldState->isDown()) {
             if (DEBUG_FOCUS) {
                 ALOGD("Conflicting pointer actions: Hover received while pointer was "
                       "down.");
@@ -2465,7 +2464,7 @@ Failed:
         tempTouchState.reset();
     } else if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
         // First pointer went down.
-        if (oldState && oldState->down) {
+        if (oldState && oldState->isDown()) {
             if (DEBUG_FOCUS) {
                 ALOGD("Conflicting pointer actions: Down received while already down.");
             }
@@ -5326,9 +5325,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
         for (const std::pair<int32_t, TouchState>& pair : mTouchStatesByDisplay) {
             const TouchState& state = pair.second;
-            dump += StringPrintf(INDENT2 "%d: down=%s, deviceId=%d, source=0x%08x\n",
-                                 state.displayId, toString(state.down), state.deviceId,
-                                 state.source);
+            dump += StringPrintf(INDENT2 "%d: deviceId=%d, source=0x%08x\n", state.displayId,
+                                 state.deviceId, state.source);
             if (!state.windows.empty()) {
                 dump += INDENT3 "Windows:\n";
                 for (size_t i = 0; i < state.windows.size(); i++) {
@@ -5688,7 +5686,7 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
     }
 
     auto [statePtr, windowPtr] = findTouchStateAndWindowLocked(token);
-    if (statePtr == nullptr || windowPtr == nullptr || !statePtr->down) {
+    if (statePtr == nullptr || windowPtr == nullptr || windowPtr->pointerIds.isEmpty()) {
         ALOGW("Attempted to pilfer points from a channel without any on-going pointer streams."
               " Ignoring.");
         return BAD_VALUE;

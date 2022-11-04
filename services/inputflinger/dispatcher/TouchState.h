@@ -28,8 +28,6 @@ class WindowInfoHandle;
 namespace inputdispatcher {
 
 struct TouchState {
-    bool down = false;
-
     // id of the device that is currently down, others are rejected
     int32_t deviceId = -1;
     // source of the device that is current down, others are rejected
@@ -59,6 +57,8 @@ struct TouchState {
     sp<android::gui::WindowInfoHandle> getFirstForegroundWindowHandle() const;
     bool isSlippery() const;
     sp<android::gui::WindowInfoHandle> getWallpaperWindow() const;
+    // Whether any of the windows are currently being touched
+    bool isDown() const;
 };
 
 } // namespace inputdispatcher
