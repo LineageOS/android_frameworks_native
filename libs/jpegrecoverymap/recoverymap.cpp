@@ -20,11 +20,18 @@ namespace android::recoverymap {
 
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
-                                  void* dest) {
+                                  void* dest,
+                                  int quality,
+                                  jr_exif_ptr /* exif */,
+                                  float /* hdr_ratio */) {
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (quality < 0 || quality > 100) {
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   // TBD
@@ -34,7 +41,8 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
                                   void* compressed_jpeg_image,
-                                  void* dest) {
+                                  void* dest,
+                                  float /* hdr_ratio */) {
 
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
@@ -49,7 +57,8 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   void* compressed_jpeg_image,
-                                  void* dest) {
+                                  void* dest,
+                                  float /* hdr_ratio */) {
   if (uncompressed_p010_image == nullptr
    || compressed_jpeg_image == nullptr
    || dest == nullptr) {
@@ -60,7 +69,10 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   return NO_ERROR;
 }
 
-status_t RecoveryMap::decodeJPEGR(void* compressed_jpegr_image, jr_uncompressed_ptr dest) {
+status_t RecoveryMap::decodeJPEGR(void* compressed_jpegr_image,
+                                  jr_uncompressed_ptr dest,
+                                  jr_exif_ptr /* exif */,
+                                  bool /* request_sdr */) {
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
