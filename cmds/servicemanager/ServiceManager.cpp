@@ -612,7 +612,8 @@ void ServiceManager::binderDied(const wp<IBinder>& who) {
 }
 
 void ServiceManager::tryStartService(const std::string& name) {
-    ALOGI("Since '%s' could not be found, trying to start it as a lazy AIDL service",
+    ALOGI("Since '%s' could not be found, trying to start it as a lazy AIDL service. (if it's not "
+          "configured to be a lazy service, it may be stuck starting or still starting).",
           name.c_str());
 
     std::thread([=] {
