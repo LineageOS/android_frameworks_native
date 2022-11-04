@@ -30,11 +30,11 @@
 #include <android/binder_internal_logging.h>
 #include <android/binder_parcel.h>
 #include <android/binder_status.h>
-
 #include <assert.h>
-
 #include <unistd.h>
+
 #include <cstddef>
+#include <iostream>
 #include <string>
 
 namespace ndk {
@@ -314,6 +314,11 @@ class ScopedAStatus : public impl::ScopedAResource<AStatus*, AStatus_delete, nul
         return ScopedAStatus(AStatus_fromStatus(status));
     }
 };
+
+static inline std::ostream& operator<<(std::ostream& os, const ScopedAStatus& status) {
+    return os << status.getDescription();
+    return os;
+}
 
 /**
  * Convenience wrapper. See AIBinder_DeathRecipient.
