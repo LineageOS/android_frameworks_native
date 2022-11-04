@@ -59,7 +59,6 @@ struct TouchState {
     sp<android::gui::WindowInfoHandle> getFirstForegroundWindowHandle() const;
     bool isSlippery() const;
     sp<android::gui::WindowInfoHandle> getWallpaperWindow() const;
-    sp<android::gui::WindowInfoHandle> getWindow(const sp<IBinder>&) const;
 };
 
 } // namespace inputdispatcher

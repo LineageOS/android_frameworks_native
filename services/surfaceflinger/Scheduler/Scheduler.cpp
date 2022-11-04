@@ -94,7 +94,7 @@ void Scheduler::startTimers() {
     }
 }
 
-void Scheduler::setRefreshRateSelector(std::shared_ptr<RefreshRateSelector> selectorPtr) {
+void Scheduler::setRefreshRateSelector(RefreshRateSelectorPtr selectorPtr) {
     // The current RefreshRateSelector instance may outlive this call, so unbind its idle timer.
     {
         // mRefreshRateSelectorLock is not locked here to avoid the deadlock
@@ -126,13 +126,12 @@ void Scheduler::setRefreshRateSelector(std::shared_ptr<RefreshRateSelector> sele
     mRefreshRateSelector->startIdleTimer();
 }
 
-void Scheduler::registerDisplay(sp<const DisplayDevice> display) {
-    if (display->isPrimary()) {
-        mLeaderDisplayId = display->getPhysicalId();
+void Scheduler::registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
+    if (!mLeaderDisplayId) {
+        mLeaderDisplayId = displayId;
     }
 
-    const bool ok = mDisplays.try_emplace(display->getPhysicalId(), std::move(display)).second;
-    ALOGE_IF(!ok, "%s: Duplicate display", __func__);
+    mRefreshRateSelectors.emplace_or_replace(displayId, std::move(selectorPtr));
 }
 
 void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
@@ -140,7 +139,7 @@ void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
         mLeaderDisplayId.reset();
     }
 
-    mDisplays.erase(displayId);
+    mRefreshRateSelectors.erase(displayId);
 }
 
 void Scheduler::run() {
@@ -711,10 +710,9 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
 
     const auto globalSignals = makeGlobalSignals();
 
-    for (const auto& [id, display] : mDisplays) {
+    for (const auto& [id, selectorPtr] : mRefreshRateSelectors) {
         auto rankedRefreshRates =
-                display->holdRefreshRateSelector()
-                        ->getRankedRefreshRates(mPolicy.contentRequirements, globalSignals);
+                selectorPtr->getRankedRefreshRates(mPolicy.contentRequirements, globalSignals);
 
         for (const auto& [modePtr, score] : rankedRefreshRates.ranking) {
             const auto [it, inserted] = refreshRateTallies.try_emplace(modePtr->getFps(), score);
@@ -733,7 +731,7 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
 
     // Find the first refresh rate common to all displays.
     while (maxScoreIt != refreshRateTallies.cend() &&
-           maxScoreIt->second.displayCount != mDisplays.size()) {
+           maxScoreIt->second.displayCount != mRefreshRateSelectors.size()) {
         ++maxScoreIt;
     }
 
@@ -742,7 +740,8 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
         for (auto it = maxScoreIt + 1; it != refreshRateTallies.cend(); ++it) {
             const auto [fps, tally] = *it;
 
-            if (tally.displayCount == mDisplays.size() && tally.score > maxScoreIt->second.score) {
+            if (tally.displayCount == mRefreshRateSelectors.size() &&
+                tally.score > maxScoreIt->second.score) {
                 maxScoreIt = it;
             }
         }

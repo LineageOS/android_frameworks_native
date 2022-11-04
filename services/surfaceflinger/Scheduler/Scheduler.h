@@ -39,7 +39,6 @@
 
 #include "Display/DisplayMap.h"
 #include "Display/DisplayModeRequest.h"
-#include "DisplayDevice.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
 #include "LayerHistory.h"
@@ -107,10 +106,11 @@ public:
     virtual ~Scheduler();
 
     void startTimers();
-    void setRefreshRateSelector(std::shared_ptr<RefreshRateSelector>)
-            EXCLUDES(mRefreshRateSelectorLock);
 
-    void registerDisplay(sp<const DisplayDevice>);
+    using RefreshRateSelectorPtr = std::shared_ptr<RefreshRateSelector>;
+    void setRefreshRateSelector(RefreshRateSelectorPtr) EXCLUDES(mRefreshRateSelectorLock);
+
+    void registerDisplay(PhysicalDisplayId, RefreshRateSelectorPtr);
     void unregisterDisplay(PhysicalDisplayId);
 
     void run();
@@ -299,8 +299,7 @@ private:
             EXCLUDES(mRefreshRateSelectorLock);
     android::impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
 
-    std::shared_ptr<RefreshRateSelector> holdRefreshRateSelector() const
-            EXCLUDES(mRefreshRateSelectorLock) {
+    RefreshRateSelectorPtr holdRefreshRateSelector() const EXCLUDES(mRefreshRateSelectorLock) {
         std::scoped_lock lock(mRefreshRateSelectorLock);
         return mRefreshRateSelector;
     }
@@ -336,7 +335,7 @@ private:
 
     mutable std::mutex mPolicyLock;
 
-    display::PhysicalDisplayMap<PhysicalDisplayId, sp<const DisplayDevice>> mDisplays;
+    display::PhysicalDisplayMap<PhysicalDisplayId, RefreshRateSelectorPtr> mRefreshRateSelectors;
     std::optional<PhysicalDisplayId> mLeaderDisplayId;
 
     struct Policy {
@@ -359,8 +358,9 @@ private:
         std::optional<ModeChangedParams> cachedModeChangedParams;
     } mPolicy GUARDED_BY(mPolicyLock);
 
+    // TODO(b/255635821): Remove this by instead looking up the `mLeaderDisplayId` selector.
     mutable std::mutex mRefreshRateSelectorLock;
-    std::shared_ptr<RefreshRateSelector> mRefreshRateSelector GUARDED_BY(mRefreshRateSelectorLock);
+    RefreshRateSelectorPtr mRefreshRateSelector GUARDED_BY(mRefreshRateSelectorLock);
 
     std::mutex mVsyncTimelineLock;
     std::optional<hal::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline

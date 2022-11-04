@@ -138,14 +138,4 @@ sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
     return nullptr;
 }
 
-sp<WindowInfoHandle> TouchState::getWindow(const sp<IBinder>& token) const {
-    for (const TouchedWindow& touchedWindow : windows) {
-        const auto& windowHandle = touchedWindow.windowHandle;
-        if (windowHandle->getToken() == token) {
-            return windowHandle;
-        }
-    }
-    return nullptr;
-}
-
 } // namespace android::inputdispatcher
