@@ -104,7 +104,7 @@ public:
 
     Error getDozeSupport(Display display, bool* outSupport) override;
     Error hasDisplayIdleTimerCapability(Display display, bool* outSupport) override;
-    Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes, float* outMaxLuminance,
+    Error getHdrCapabilities(Display display, std::vector<Hdr>* outHdrTypes, float* outMaxLuminance,
                              float* outMaxAverageLuminance, float* outMinLuminance) override;
     Error getOverlaySupport(OverlayProperties* outProperties) override;
 

@@ -320,17 +320,17 @@ Error Display::getHdrCapabilities(HdrCapabilities* outCapabilities) const
     float maxLuminance = -1.0f;
     float maxAverageLuminance = -1.0f;
     float minLuminance = -1.0f;
-    std::vector<Hwc2::Hdr> types;
-    auto intError = mComposer.getHdrCapabilities(mId, &types,
-            &maxLuminance, &maxAverageLuminance, &minLuminance);
+    std::vector<Hwc2::Hdr> hdrTypes;
+    auto intError = mComposer.getHdrCapabilities(mId, &hdrTypes, &maxLuminance,
+                                                 &maxAverageLuminance, &minLuminance);
     auto error = static_cast<HWC2::Error>(intError);
 
     if (error != Error::NONE) {
         return error;
     }
 
-    *outCapabilities = HdrCapabilities(std::move(types),
-            maxLuminance, maxAverageLuminance, minLuminance);
+    *outCapabilities =
+            HdrCapabilities(std::move(hdrTypes), maxLuminance, maxAverageLuminance, minLuminance);
     return Error::NONE;
 }
 

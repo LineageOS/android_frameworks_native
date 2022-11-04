@@ -535,7 +535,7 @@ Error AidlComposer::getHdrCapabilities(Display display, std::vector<Hdr>* outTyp
         return static_cast<Error>(status.getServiceSpecificError());
     }
 
-    *outTypes = translate<Hdr>(capabilities.types);
+    *outTypes = capabilities.types;
     *outMaxLuminance = capabilities.maxLuminance;
     *outMaxAverageLuminance = capabilities.maxAverageLuminance;
     *outMinLuminance = capabilities.minLuminance;
