@@ -111,6 +111,13 @@ MATCHER_P2(WithCoords, x, y, "MotionEvent with specified action") {
     return arg.pointerCoords[0].getX() == x && arg.pointerCoords[0].getY();
 }
 
+MATCHER_P(WithToolType, toolType, "InputEvent with specified tool type") {
+    const auto argToolType = arg.pointerProperties[0].toolType;
+    *result_listener << "expected tool type " << motionToolTypeToString(toolType) << ", but got "
+                     << motionToolTypeToString(argToolType);
+    return argToolType == toolType;
+}
+
 template<typename T>
 static inline T min(T a, T b) {
     return a < b ? a : b;
@@ -6809,6 +6816,55 @@ TEST_F(SingleTouchInputMapperTest, Reset_RecreatesTouchState) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
 
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, WhenViewportActiveStatusChanged_PointerGestureIsReset) {
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+    fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+    fakePointerController->setPosition(100, 200);
+    fakePointerController->setButtonState(0);
+    mFakePolicy->setPointerController(fakePointerController);
+
+    addConfigurationProperty("touch.deviceType", "pointer");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareButtons();
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
+    prepareAxes(POSITION);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+
+    // Start a stylus gesture.
+    processKey(mapper, BTN_TOOL_PEN, 1);
+    processDown(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithSource(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+    // TODO(b/257078296): Pointer mode generates extra event.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithSource(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Make the viewport inactive. This will put the device in disabled mode, and the ongoing stylus
+    // gesture should be disabled.
+    auto viewport = mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
+    viewport->isActive = false;
+    mFakePolicy->updateViewport(*viewport);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithAction(AMOTION_EVENT_ACTION_CANCEL),
+                  WithSource(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+    // TODO(b/257078296): Pointer mode generates extra event.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithAction(AMOTION_EVENT_ACTION_CANCEL),
+                  WithSource(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
