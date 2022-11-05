@@ -14,15 +14,38 @@
  * limitations under the License.
  */
 
-#include "image_io/xml/xml_writer.h"
+// TODO: need to clean up handling around hdr_ratio and passing it around
+// TODO: need to handle color space information; currently we assume everything
+// is srgb in.
+// TODO: handle PQ encode/decode (currently only HLG)
 
 #include <jpegrecoverymap/recoverymap.h>
+
+#include <jpegrecoverymap/jpegencoder.h>
+#include <jpegrecoverymap/jpegdecoder.h>
+#include <jpegrecoverymap/recoverymapmath.h>
+
+#include <image_io/xml/xml_writer.h>
+
+#include <memory>
 #include <sstream>
 #include <string>
 
 using namespace std;
 
 namespace android::recoverymap {
+
+#define JPEGR_CHECK(x)          \
+  {                             \
+    status_t status = (x);      \
+    if ((status) != NO_ERROR) { \
+      return status;            \
+    }                           \
+  }
+
+// Map is quarter res / sixteenth size
+static const size_t kMapDimensionScaleFactor = 4;
+
 
 /*
  * Helper function used for generating XMP metadata.
@@ -39,7 +62,7 @@ string Name(const string &prefix, const string &suffix) {
 
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
-                                  void* dest,
+                                  jr_compressed_ptr dest,
                                   int quality,
                                   jr_exif_ptr /* exif */,
                                   float /* hdr_ratio */) {
@@ -53,16 +76,44 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  // TBD
+  if (uncompressed_p010_image->width != uncompressed_yuv_420_image->width
+   || uncompressed_p010_image->height != uncompressed_yuv_420_image->height) {
+    return ERROR_JPEGR_RESOLUTION_MISMATCH;
+  }
+
+  jpegr_uncompressed_struct map;
+  JPEGR_CHECK(generateRecoveryMap(uncompressed_yuv_420_image, uncompressed_p010_image, &map));
+  std::unique_ptr<uint8_t[]> map_data;
+  map_data.reset(reinterpret_cast<uint8_t*>(map.data));
+
+  jpegr_compressed_struct compressed_map;
+  std::unique_ptr<uint8_t[]> compressed_map_data =
+      std::make_unique<uint8_t[]>(map.width * map.height);
+  compressed_map.data = compressed_map_data.get();
+  JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
+
+  JpegEncoder jpeg_encoder;
+  // TODO: what quality to use?
+  // TODO: ICC data - need color space information
+  if (!jpeg_encoder.compressImage(uncompressed_yuv_420_image->data,
+                                  uncompressed_yuv_420_image->width,
+                                  uncompressed_yuv_420_image->height, 95, nullptr, 0)) {
+    return ERROR_JPEGR_ENCODE_ERROR;
+  }
+  jpegr_compressed_struct jpeg;
+  jpeg.data = jpeg_encoder.getCompressedImagePtr();
+  jpeg.length = jpeg_encoder.getCompressedImageSize();
+
+  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, dest));
+
   return NO_ERROR;
 }
 
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
-                                  void* compressed_jpeg_image,
-                                  void* dest,
+                                  jr_compressed_ptr compressed_jpeg_image,
+                                  jr_compressed_ptr dest,
                                   float /* hdr_ratio */) {
-
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
    || compressed_jpeg_image == nullptr
@@ -70,13 +121,30 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TBD
+  if (uncompressed_p010_image->width != uncompressed_yuv_420_image->width
+   || uncompressed_p010_image->height != uncompressed_yuv_420_image->height) {
+    return ERROR_JPEGR_RESOLUTION_MISMATCH;
+  }
+
+  jpegr_uncompressed_struct map;
+  JPEGR_CHECK(generateRecoveryMap(uncompressed_yuv_420_image, uncompressed_p010_image, &map));
+  std::unique_ptr<uint8_t[]> map_data;
+  map_data.reset(reinterpret_cast<uint8_t*>(map.data));
+
+  jpegr_compressed_struct compressed_map;
+  std::unique_ptr<uint8_t[]> compressed_map_data =
+      std::make_unique<uint8_t[]>(map.width * map.height);
+  compressed_map.data = compressed_map_data.get();
+  JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
+
+  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, dest));
+
   return NO_ERROR;
 }
 
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
-                                  void* compressed_jpeg_image,
-                                  void* dest,
+                                  jr_compressed_ptr compressed_jpeg_image,
+                                  jr_compressed_ptr dest,
                                   float /* hdr_ratio */) {
   if (uncompressed_p010_image == nullptr
    || compressed_jpeg_image == nullptr
@@ -84,11 +152,37 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TBD
+  JpegDecoder jpeg_decoder;
+  if (!jpeg_decoder.decompressImage(compressed_jpeg_image->data, compressed_jpeg_image->length)) {
+    return ERROR_JPEGR_DECODE_ERROR;
+  }
+  jpegr_uncompressed_struct uncompressed_yuv_420_image;
+  uncompressed_yuv_420_image.data = jpeg_decoder.getDecompressedImagePtr();
+  uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
+  uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
+
+  if (uncompressed_p010_image->width != uncompressed_yuv_420_image.width
+   || uncompressed_p010_image->height != uncompressed_yuv_420_image.height) {
+    return ERROR_JPEGR_RESOLUTION_MISMATCH;
+  }
+
+  jpegr_uncompressed_struct map;
+  JPEGR_CHECK(generateRecoveryMap(&uncompressed_yuv_420_image, uncompressed_p010_image, &map));
+  std::unique_ptr<uint8_t[]> map_data;
+  map_data.reset(reinterpret_cast<uint8_t*>(map.data));
+
+  jpegr_compressed_struct compressed_map;
+  std::unique_ptr<uint8_t[]> compressed_map_data =
+      std::make_unique<uint8_t[]>(map.width * map.height);
+  compressed_map.data = compressed_map_data.get();
+  JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
+
+  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, dest));
+
   return NO_ERROR;
 }
 
-status_t RecoveryMap::decodeJPEGR(void* compressed_jpegr_image,
+status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                                   jr_uncompressed_ptr dest,
                                   jr_exif_ptr /* exif */,
                                   bool /* request_sdr */) {
@@ -96,27 +190,67 @@ status_t RecoveryMap::decodeJPEGR(void* compressed_jpegr_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TBD
+  jpegr_compressed_struct compressed_map;
+  JPEGR_CHECK(extractRecoveryMap(compressed_jpegr_image, &compressed_map));
+
+  jpegr_uncompressed_struct map;
+  JPEGR_CHECK(decompressRecoveryMap(&compressed_map, &map));
+
+  JpegDecoder jpeg_decoder;
+  if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length)) {
+    return ERROR_JPEGR_DECODE_ERROR;
+  }
+
+  jpegr_uncompressed_struct uncompressed_yuv_420_image;
+  uncompressed_yuv_420_image.data = jpeg_decoder.getDecompressedImagePtr();
+  uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
+  uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
+
+  JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, dest));
+
   return NO_ERROR;
 }
 
-status_t RecoveryMap::decodeRecoveryMap(jr_compressed_ptr compressed_recovery_map,
-                                        jr_uncompressed_ptr dest) {
+status_t RecoveryMap::decompressRecoveryMap(jr_compressed_ptr compressed_recovery_map,
+                                            jr_uncompressed_ptr dest) {
   if (compressed_recovery_map == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TBD
+  JpegDecoder jpeg_decoder;
+  if (!jpeg_decoder.decompressImage(compressed_recovery_map->data,
+                                    compressed_recovery_map->length)) {
+    return ERROR_JPEGR_DECODE_ERROR;
+  }
+
+  dest->data = jpeg_decoder.getDecompressedImagePtr();
+  dest->width = jpeg_decoder.getDecompressedImageWidth();
+  dest->height = jpeg_decoder.getDecompressedImageHeight();
+
   return NO_ERROR;
 }
 
-status_t RecoveryMap::encodeRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
-                                        jr_compressed_ptr dest) {
+status_t RecoveryMap::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
+                                          jr_compressed_ptr dest) {
   if (uncompressed_recovery_map == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TBD
+  // TODO: should we have ICC data?
+  JpegEncoder jpeg_encoder;
+  if (!jpeg_encoder.compressImage(uncompressed_recovery_map->data, uncompressed_recovery_map->width,
+                                  uncompressed_recovery_map->height, 85, nullptr, 0,
+                                  true /* isSingleChannel */)) {
+    return ERROR_JPEGR_ENCODE_ERROR;
+  }
+
+  if (dest->length < jpeg_encoder.getCompressedImageSize()) {
+    return ERROR_JPEGR_BUFFER_TOO_SMALL;
+  }
+
+  memcpy(dest->data, jpeg_encoder.getCompressedImagePtr(), jpeg_encoder.getCompressedImageSize());
+  dest->length = jpeg_encoder.getCompressedImageSize();
+
   return NO_ERROR;
 }
 
@@ -129,7 +263,51 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TBD
+  if (uncompressed_yuv_420_image->width != uncompressed_p010_image->width
+   || uncompressed_yuv_420_image->height != uncompressed_p010_image->height) {
+    return ERROR_JPEGR_RESOLUTION_MISMATCH;
+  }
+
+  size_t image_width = uncompressed_yuv_420_image->width;
+  size_t image_height = uncompressed_yuv_420_image->height;
+  size_t map_width = image_width / kMapDimensionScaleFactor;
+  size_t map_height = image_height / kMapDimensionScaleFactor;
+
+  dest->width = map_width;
+  dest->height = map_height;
+  dest->data = new uint8_t[map_width * map_height];
+  std::unique_ptr<uint8_t[]> map_data;
+  map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
+
+  uint16_t yp_hdr_max = 0;
+  for (size_t y = 0; y < image_height; ++y) {
+    for (size_t x = 0; x < image_width; ++x) {
+      size_t pixel_idx =  x + y * image_width;
+      uint16_t yp_hdr = reinterpret_cast<uint8_t*>(uncompressed_yuv_420_image->data)[pixel_idx];
+      if (yp_hdr > yp_hdr_max) {
+        yp_hdr_max = yp_hdr;
+      }
+    }
+  }
+
+  float y_hdr_max_nits = hlgInvOetf(yp_hdr_max);
+  float hdr_ratio = y_hdr_max_nits / kSdrWhiteNits;
+
+  for (size_t y = 0; y < map_height; ++y) {
+    for (size_t x = 0; x < map_width; ++x) {
+      float yp_sdr = sampleYuv420Y(uncompressed_yuv_420_image, kMapDimensionScaleFactor, x, y);
+      float yp_hdr = sampleP010Y(uncompressed_p010_image, kMapDimensionScaleFactor, x, y);
+
+      float y_sdr_nits = srgbInvOetf(yp_sdr);
+      float y_hdr_nits = hlgInvOetf(yp_hdr);
+
+      size_t pixel_idx =  x + y * map_width;
+      reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
+          encodeRecovery(y_sdr_nits, y_hdr_nits, hdr_ratio);
+    }
+  }
+
+  map_data.release();
   return NO_ERROR;
 }
 
@@ -142,11 +320,44 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TBD
+  // TODO: need to get this from the XMP; should probably be a function
+  // parameter
+  float hdr_ratio = 4.0f;
+
+  size_t width = uncompressed_yuv_420_image->width;
+  size_t height = uncompressed_yuv_420_image->height;
+
+  dest->width = width;
+  dest->height = height;
+  size_t pixel_count = width * height;
+
+  for (size_t y = 0; y < height; ++y) {
+    for (size_t x = 0; x < width; ++x) {
+      size_t pixel_y_idx =  x + y * width;
+
+      size_t pixel_uv_idx = x / 2 + (y / 2) * (width / 2);
+
+      Color ypuv_sdr = getYuv420Pixel(uncompressed_yuv_420_image, x, y);
+      Color rgbp_sdr = srgbYuvToRgb(ypuv_sdr);
+      Color rgb_sdr = srgbInvOetf(rgbp_sdr);
+
+      float recovery = sampleMap(uncompressed_recovery_map, kMapDimensionScaleFactor, x, y);
+      Color rgb_hdr = applyRecovery(rgb_sdr, recovery, hdr_ratio);
+
+      Color rgbp_hdr = hlgOetf(rgb_hdr);
+      Color ypuv_hdr = bt2100RgbToYuv(rgbp_hdr);
+
+      reinterpret_cast<uint16_t*>(dest->data)[pixel_y_idx] = ypuv_hdr.r;
+      reinterpret_cast<uint16_t*>(dest->data)[pixel_count + pixel_uv_idx] = ypuv_hdr.g;
+      reinterpret_cast<uint16_t*>(dest->data)[pixel_count + pixel_uv_idx + 1] = ypuv_hdr.b;
+    }
+  }
+
   return NO_ERROR;
 }
 
-status_t RecoveryMap::extractRecoveryMap(void* compressed_jpegr_image, jr_compressed_ptr dest) {
+status_t RecoveryMap::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
+                                         jr_compressed_ptr dest) {
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -155,9 +366,9 @@ status_t RecoveryMap::extractRecoveryMap(void* compressed_jpegr_image, jr_compre
   return NO_ERROR;
 }
 
-status_t RecoveryMap::appendRecoveryMap(void* compressed_jpeg_image,
-                                     jr_compressed_ptr compressed_recovery_map,
-                                     void* dest) {
+status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
+                                        jr_compressed_ptr compressed_recovery_map,
+                                        jr_compressed_ptr dest) {
   if (compressed_jpeg_image == nullptr
    || compressed_recovery_map == nullptr
    || dest == nullptr) {

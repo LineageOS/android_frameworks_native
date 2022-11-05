@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#ifndef ANDROID_JPEGRECOVERYMAP_RECOVERYMAP_H
+#define ANDROID_JPEGRECOVERYMAP_RECOVERYMAP_H
+
 #include "jpegrerrorcode.h"
 
 namespace android::recoverymap {
@@ -71,7 +74,8 @@ public:
      * Compress JPEGR image from 10-bit HDR YUV and 8-bit SDR YUV.
      *
      * Generate recovery map from the HDR and SDR inputs, compress SDR YUV to 8-bit JPEG and append
-     * the recovery map to the end of the compressed JPEG.
+     * the recovery map to the end of the compressed JPEG. HDR and SDR inputs must be the same
+     * resolution and color space.
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param dest destination of the compressed JPEGR image
@@ -84,7 +88,7 @@ public:
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                          jr_uncompressed_ptr uncompressed_yuv_420_image,
-                         void* dest,
+                         jr_compressed_ptr dest,
                          int quality,
                          jr_exif_ptr exif,
                          float hdr_ratio = 0.0f);
@@ -95,7 +99,7 @@ public:
      * This method requires HAL Hardware JPEG encoder.
      *
      * Generate recovery map from the HDR and SDR inputs, append the recovery map to the end of the
-     * compressed JPEG.
+     * compressed JPEG. HDR and SDR inputs must be the same resolution and color space.
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param compressed_jpeg_image compressed 8-bit JPEG image
@@ -106,8 +110,8 @@ public:
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                          jr_uncompressed_ptr uncompressed_yuv_420_image,
-                         void* compressed_jpeg_image,
-                         void* dest,
+                         jr_compressed_ptr compressed_jpeg_image,
+                         jr_compressed_ptr dest,
                          float hdr_ratio = 0.0f);
 
     /*
@@ -116,7 +120,8 @@ public:
      * This method requires HAL Hardware JPEG encoder.
      *
      * Decode the compressed 8-bit JPEG image to YUV SDR, generate recovery map from the HDR input
-     * and the decoded SDR result, append the recovery map to the end of the compressed JPEG.
+     * and the decoded SDR result, append the recovery map to the end of the compressed JPEG. HDR
+     * and SDR inputs must be the same resolution and color space.
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param dest destination of the compressed JPEGR image
@@ -125,8 +130,8 @@ public:
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
-                         void* compressed_jpeg_image,
-                         void* dest,
+                         jr_compressed_ptr compressed_jpeg_image,
+                         jr_compressed_ptr dest,
                          float hdr_ratio = 0.0f);
 
     /*
@@ -147,7 +152,7 @@ public:
      *                    |       SDR      |     false     |          SDR         |
      * @return NO_ERROR if decoding succeeds, error code if error occurs.
      */
-    status_t decodeJPEGR(void* compressed_jpegr_image,
+    status_t decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                          jr_uncompressed_ptr dest,
                          jr_exif_ptr exif = nullptr,
                          bool request_sdr = false);
@@ -159,7 +164,7 @@ private:
      * @param dest decoded recover map
      * @return NO_ERROR if decoding succeeds, error code if error occurs.
      */
-    status_t decodeRecoveryMap(jr_compressed_ptr compressed_recovery_map,
+    status_t decompressRecoveryMap(jr_compressed_ptr compressed_recovery_map,
                                jr_uncompressed_ptr dest);
 
     /*
@@ -169,16 +174,17 @@ private:
      * @param dest encoded recover map
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
-    status_t encodeRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
+    status_t compressRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
                                jr_compressed_ptr dest);
 
     /*
      * This method is called in the encoding pipeline. It will take the uncompressed 8-bit and
-     * 10-bit yuv images as input, and calculate the uncompressed recovery map.
+     * 10-bit yuv images as input, and calculate the uncompressed recovery map. The input images
+     * must be the same resolution.
      *
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
-     * @param dest recover map
+     * @param dest recovery map; caller responsible for memory of data
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
@@ -207,7 +213,7 @@ private:
      * @param dest destination of compressed recovery map
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
-    status_t extractRecoveryMap(void* compressed_jpegr_image, jr_compressed_ptr dest);
+    status_t extractRecoveryMap(jr_compressed_ptr compressed_jpegr_image, jr_compressed_ptr dest);
 
     /*
      * This method is called in the encoding pipeline. It will take the standard 8-bit JPEG image
@@ -219,9 +225,9 @@ private:
      * @param dest compressed JPEGR image
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
-    status_t appendRecoveryMap(void* compressed_jpeg_image,
+    status_t appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
                                jr_compressed_ptr compressed_recovery_map,
-                               void* dest);
+                               jr_compressed_ptr dest);
 
     /*
      * This method generates XMP metadata.
@@ -266,3 +272,5 @@ private:
 };
 
 } // namespace android::recoverymap
+
+#endif // ANDROID_JPEGRECOVERYMAP_RECOVERYMAP_H
