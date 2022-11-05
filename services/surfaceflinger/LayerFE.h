@@ -57,6 +57,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     gui::LayerMetadata relativeLayerMetadata;
     bool contentDirty;
     bool hasReadyFrame;
+    ui::Transform blurRegionTransform;
 };
 
 struct CompositionResult {

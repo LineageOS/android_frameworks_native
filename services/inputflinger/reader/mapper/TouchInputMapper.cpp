@@ -437,6 +437,10 @@ void TouchInputMapper::configureParameters() {
     mParameters.supportsUsi = false;
     getDeviceContext().getConfiguration().tryGetProperty("touch.supportsUsi",
                                                          mParameters.supportsUsi);
+
+    mParameters.enableForInactiveViewport = false;
+    getDeviceContext().getConfiguration().tryGetProperty("touch.enableForInactiveViewport",
+                                                         mParameters.enableForInactiveViewport);
 }
 
 void TouchInputMapper::dumpParameters(std::string& dump) {
@@ -454,6 +458,8 @@ void TouchInputMapper::dumpParameters(std::string& dump) {
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
     dump += INDENT4 "Orientation: " + ftl::enum_string(mParameters.orientation) + "\n";
     dump += StringPrintf(INDENT4 "SupportsUsi: %s\n", toString(mParameters.supportsUsi));
+    dump += StringPrintf(INDENT4 "EnableForInactiveViewport: %s\n",
+                         toString(mParameters.enableForInactiveViewport));
 }
 
 void TouchInputMapper::configureRawPointerAxes() {
@@ -824,6 +830,8 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         mDeviceMode = DeviceMode::POINTER;
         if (hasStylus()) {
             mSource |= AINPUT_SOURCE_STYLUS;
+        } else {
+            mSource |= AINPUT_SOURCE_TOUCHPAD;
         }
     } else if (isTouchScreen()) {
         mSource = AINPUT_SOURCE_TOUCHSCREEN;
@@ -856,7 +864,7 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
               "becomes available.",
               getDeviceName().c_str());
         mDeviceMode = DeviceMode::DISABLED;
-    } else if (!newViewportOpt->isActive) {
+    } else if (!mParameters.enableForInactiveViewport && !newViewportOpt->isActive) {
         ALOGI("Disabling %s (device %i) because the associated viewport is not active",
               getDeviceName().c_str(), getDeviceId());
         mDeviceMode = DeviceMode::DISABLED;
@@ -3556,6 +3564,8 @@ std::list<NotifyArgs> TouchInputMapper::abortPointerMouse(nsecs_t when, nsecs_t 
 std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime,
                                                               uint32_t policyFlags, bool down,
                                                               bool hovering) {
+    LOG_ALWAYS_FATAL_IF(mDeviceMode != DeviceMode::POINTER,
+                        "%s cannot be used when the device is not in POINTER mode.", __func__);
     std::list<NotifyArgs> out;
     int32_t metaState = getContext()->getGlobalMetaState();
 
@@ -3682,6 +3692,10 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
     if (down || hovering) {
         mPointerSimple.lastCoords.copyFrom(mPointerSimple.currentCoords);
         mPointerSimple.lastProperties.copyFrom(mPointerSimple.currentProperties);
+        mPointerSimple.displayId = displayId;
+        mPointerSimple.source = mSource;
+        mPointerSimple.lastCursorX = xCursorPosition;
+        mPointerSimple.lastCursorY = yCursorPosition;
     } else {
         mPointerSimple.reset();
     }
@@ -3690,10 +3704,25 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
 
 std::list<NotifyArgs> TouchInputMapper::abortPointerSimple(nsecs_t when, nsecs_t readTime,
                                                            uint32_t policyFlags) {
-    mPointerSimple.currentCoords.clear();
-    mPointerSimple.currentProperties.clear();
-
-    return dispatchPointerSimple(when, readTime, policyFlags, false, false);
+    std::list<NotifyArgs> out;
+    if (mPointerSimple.down || mPointerSimple.hovering) {
+        int32_t metaState = getContext()->getGlobalMetaState();
+        out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
+                                       mPointerSimple.source, mPointerSimple.displayId, policyFlags,
+                                       AMOTION_EVENT_ACTION_CANCEL, 0, AMOTION_EVENT_FLAG_CANCELED,
+                                       metaState, mLastRawState.buttonState,
+                                       MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                                       &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
+                                       mOrientedXPrecision, mOrientedYPrecision,
+                                       mPointerSimple.lastCursorX, mPointerSimple.lastCursorY,
+                                       mPointerSimple.downTime,
+                                       /* videoFrames */ {}));
+        if (mPointerController != nullptr) {
+            mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
+        }
+    }
+    mPointerSimple.reset();
+    return out;
 }
 
 NotifyMotionArgs TouchInputMapper::dispatchMotion(

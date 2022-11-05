@@ -1,0 +1,25 @@
+package {
+    // See: http://go/android-license-faq
+    default_applicable_licenses: ["frameworks_native_license"],
+}
+
+rust_fuzz {
+    name: "parcel_fuzzer_rs",
+    srcs: [
+        "parcel_fuzzer.rs",
+    ],
+    rustlibs: [
+        "libarbitrary",
+        "libnum_traits",
+        "libbinder_rs",
+        "libbinder_random_parcel_rs",
+        "binderReadParcelIface-rust",
+    ],
+
+    fuzz_config: {
+        cc: [
+            "waghpawan@google.com",
+            "smoreland@google.com",
+        ],
+    },
+}
