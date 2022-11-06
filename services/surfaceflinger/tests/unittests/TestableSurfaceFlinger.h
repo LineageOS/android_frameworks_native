@@ -455,14 +455,9 @@ public:
         return SurfaceFlinger::calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
     }
 
-    auto setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode,
-                                    bool allowGroupSwitching, float primaryRefreshRateMin,
-                                    float primaryRefreshRateMax, float appRequestRefreshRateMin,
-                                    float appRequestRefreshRateMax) {
-        return mFlinger->setDesiredDisplayModeSpecs(displayToken, defaultMode, allowGroupSwitching,
-                                                    primaryRefreshRateMin, primaryRefreshRateMax,
-                                                    appRequestRefreshRateMin,
-                                                    appRequestRefreshRateMax);
+    auto setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                    const gui::DisplayModeSpecs& specs) {
+        return mFlinger->setDesiredDisplayModeSpecs(displayToken, specs);
     }
 
     void onActiveDisplayChanged(const sp<DisplayDevice>& activeDisplay) {

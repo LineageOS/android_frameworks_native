@@ -67,40 +67,31 @@ public:
         DisplayModeId defaultMode;
         // Whether or not we switch mode groups to get the best frame rate.
         bool allowGroupSwitching = kAllowGroupSwitchingDefault;
-        // The primary refresh rate range represents display manager's general guidance on the
-        // display modes we'll consider when switching refresh rates. Unless we get an explicit
-        // signal from an app, we should stay within this range.
-        FpsRange primaryRange;
-        // The app request refresh rate range allows us to consider more display modes when
-        // switching refresh rates. Although we should generally stay within the primary range,
-        // specific considerations, such as layer frame rate settings specified via the
-        // setFrameRate() api, may cause us to go outside the primary range. We never go outside the
-        // app request range. The app request range will be greater than or equal to the primary
-        // refresh rate range, never smaller.
-        FpsRange appRequestRange;
+        // The primary refresh rate ranges. @see DisplayModeSpecs.aidl for details.
+        // TODO(b/257072060): use the render range when selecting SF render rate
+        //  or the app override frame rate
+        FpsRanges primaryRanges;
+        // The app request refresh rate ranges. @see DisplayModeSpecs.aidl for details.
+        FpsRanges appRequestRanges;
 
         Policy() = default;
 
-        Policy(DisplayModeId defaultMode, FpsRange range)
-              : Policy(defaultMode, kAllowGroupSwitchingDefault, range, range) {}
+        Policy(DisplayModeId defaultMode, FpsRange range,
+               bool allowGroupSwitching = kAllowGroupSwitchingDefault)
+              : Policy(defaultMode, FpsRanges{range, range}, FpsRanges{range, range},
+                       allowGroupSwitching) {}
 
-        Policy(DisplayModeId defaultMode, bool allowGroupSwitching, FpsRange range)
-              : Policy(defaultMode, allowGroupSwitching, range, range) {}
-
-        Policy(DisplayModeId defaultMode, FpsRange primaryRange, FpsRange appRequestRange)
-              : Policy(defaultMode, kAllowGroupSwitchingDefault, primaryRange, appRequestRange) {}
-
-        Policy(DisplayModeId defaultMode, bool allowGroupSwitching, FpsRange primaryRange,
-               FpsRange appRequestRange)
+        Policy(DisplayModeId defaultMode, FpsRanges primaryRanges, FpsRanges appRequestRanges,
+               bool allowGroupSwitching = kAllowGroupSwitchingDefault)
               : defaultMode(defaultMode),
                 allowGroupSwitching(allowGroupSwitching),
-                primaryRange(primaryRange),
-                appRequestRange(appRequestRange) {}
+                primaryRanges(primaryRanges),
+                appRequestRanges(appRequestRanges) {}
 
         bool operator==(const Policy& other) const {
             using namespace fps_approx_ops;
-            return defaultMode == other.defaultMode && primaryRange == other.primaryRange &&
-                    appRequestRange == other.appRequestRange &&
+            return defaultMode == other.defaultMode && primaryRanges == other.primaryRanges &&
+                    appRequestRanges == other.appRequestRanges &&
                     allowGroupSwitching == other.allowGroupSwitching;
         }
 
@@ -260,7 +251,20 @@ public:
 
     // Configuration flags.
     struct Config {
-        bool enableFrameRateOverride = false;
+        enum class FrameRateOverride {
+            // Do not override the frame rate for an app
+            Disabled,
+
+            // Override the frame rate for an app to a value which is also
+            // a display refresh rate
+            EnabledForNativeRefreshRates,
+
+            // Override the frame rate for an app to any value
+            Enabled,
+
+            ftl_last = Enabled
+        };
+        FrameRateOverride enableFrameRateOverride = FrameRateOverride::Disabled;
 
         // Specifies the upper refresh rate threshold (inclusive) for layer vote types of multiple
         // or heuristic, such that refresh rates higher than this value will not be voted for. 0 if
@@ -275,11 +279,12 @@ public:
         std::optional<KernelIdleTimerController> kernelIdleTimerController;
     };
 
-    RefreshRateSelector(DisplayModes, DisplayModeId activeModeId,
-                        Config config = {.enableFrameRateOverride = false,
-                                         .frameRateMultipleThreshold = 0,
-                                         .idleTimerTimeout = 0ms,
-                                         .kernelIdleTimerController = {}});
+    RefreshRateSelector(
+            DisplayModes, DisplayModeId activeModeId,
+            Config config = {.enableFrameRateOverride = Config::FrameRateOverride::Disabled,
+                             .frameRateMultipleThreshold = 0,
+                             .idleTimerTimeout = 0ms,
+                             .kernelIdleTimerController = {}});
 
     RefreshRateSelector(const RefreshRateSelector&) = delete;
     RefreshRateSelector& operator=(const RefreshRateSelector&) = delete;
@@ -302,7 +307,9 @@ public:
     // refresh rates.
     KernelIdleTimerAction getIdleTimerAction() const;
 
-    bool supportsFrameRateOverrideByContent() const { return mSupportsFrameRateOverrideByContent; }
+    bool supportsFrameRateOverrideByContent() const {
+        return mFrameRateOverrideConfig != Config::FrameRateOverride::Disabled;
+    }
 
     // Return the display refresh rate divisor to match the layer
     // frame rate, or 0 if the display refresh rate is not a multiple of the
@@ -455,7 +462,7 @@ private:
     const std::vector<Fps> mKnownFrameRates;
 
     const Config mConfig;
-    bool mSupportsFrameRateOverrideByContent;
+    Config::FrameRateOverride mFrameRateOverrideConfig;
 
     struct GetRankedRefreshRatesCache {
         std::pair<std::vector<LayerRequirement>, GlobalSignals> arguments;

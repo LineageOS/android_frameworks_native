@@ -71,7 +71,7 @@ TEST_F(CompositionEngineTest, canSetRenderEngine) {
 TEST_F(CompositionEngineTest, canSetTimeStats) {
     mEngine.setTimeStats(mTimeStats);
 
-    EXPECT_EQ(mTimeStats.get(), &mEngine.getTimeStats());
+    EXPECT_EQ(mTimeStats.get(), mEngine.getTimeStats());
 }
 
 /*

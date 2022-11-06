@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "mock/MockDisplayModeSpecs.h"
 #include "mock/MockEventThread.h"
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
@@ -119,8 +120,9 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRe
 
     mFlinger.onActiveDisplayChanged(mDisplay);
 
-    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(), kModeId90.value(),
-                                        false, 0.f, 120.f, 0.f, 120.f);
+    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(),
+                                        mock::createDisplayModeSpecs(kModeId90.value(), false, 0,
+                                                                     120));
 
     ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
     ASSERT_EQ(mDisplay->getDesiredActiveMode()->mode->getId(), kModeId90);
@@ -157,8 +159,9 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithoutRefres
 
     mFlinger.onActiveDisplayChanged(mDisplay);
 
-    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(), kModeId90.value(),
-                                        true, 0.f, 120.f, 0.f, 120.f);
+    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(),
+                                        mock::createDisplayModeSpecs(kModeId90.value(), true, 0,
+                                                                     120));
 
     ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
     ASSERT_EQ(mDisplay->getDesiredActiveMode()->mode->getId(), kModeId90);
@@ -191,8 +194,9 @@ TEST_F(DisplayModeSwitchingTest, twoConsecutiveSetDesiredDisplayModeSpecs) {
 
     mFlinger.onActiveDisplayChanged(mDisplay);
 
-    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(), kModeId90.value(),
-                                        false, 0.f, 120.f, 0.f, 120.f);
+    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(),
+                                        mock::createDisplayModeSpecs(kModeId90.value(), false, 0,
+                                                                     120));
 
     const VsyncPeriodChangeTimeline timeline{.refreshRequired = true};
     EXPECT_CALL(*mComposer,
@@ -202,8 +206,9 @@ TEST_F(DisplayModeSwitchingTest, twoConsecutiveSetDesiredDisplayModeSpecs) {
 
     mFlinger.commit();
 
-    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(), kModeId120.value(),
-                                        false, 0.f, 180.f, 0.f, 180.f);
+    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(),
+                                        mock::createDisplayModeSpecs(kModeId120.value(), false, 0,
+                                                                     180));
 
     ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
     ASSERT_EQ(mDisplay->getDesiredActiveMode()->mode->getId(), kModeId120);
@@ -232,8 +237,9 @@ TEST_F(DisplayModeSwitchingTest, changeResolution_OnActiveDisplay_WithoutRefresh
 
     mFlinger.onActiveDisplayChanged(mDisplay);
 
-    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(), kModeId90_4K.value(),
-                                        false, 0.f, 120.f, 0.f, 120.f);
+    mFlinger.setDesiredDisplayModeSpecs(mDisplay->getDisplayToken().promote(),
+                                        mock::createDisplayModeSpecs(kModeId90_4K.value(), false, 0,
+                                                                     120));
 
     ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
     ASSERT_EQ(mDisplay->getDesiredActiveMode()->mode->getId(), kModeId90_4K);
