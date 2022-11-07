@@ -64,8 +64,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
                                   jr_compressed_ptr dest,
                                   int quality,
-                                  jr_exif_ptr /* exif */,
-                                  float /* hdr_ratio */) {
+                                  jr_exif_ptr /* exif */) {
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
    || dest == nullptr) {
@@ -93,11 +92,10 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
   JpegEncoder jpeg_encoder;
-  // TODO: what quality to use?
   // TODO: ICC data - need color space information
   if (!jpeg_encoder.compressImage(uncompressed_yuv_420_image->data,
                                   uncompressed_yuv_420_image->width,
-                                  uncompressed_yuv_420_image->height, 95, nullptr, 0)) {
+                                  uncompressed_yuv_420_image->height, quality, nullptr, 0)) {
     return ERROR_JPEGR_ENCODE_ERROR;
   }
   jpegr_compressed_struct jpeg;
@@ -112,8 +110,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
                                   jr_compressed_ptr compressed_jpeg_image,
-                                  jr_compressed_ptr dest,
-                                  float /* hdr_ratio */) {
+                                  jr_compressed_ptr dest) {
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
    || compressed_jpeg_image == nullptr
@@ -144,8 +141,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_compressed_ptr compressed_jpeg_image,
-                                  jr_compressed_ptr dest,
-                                  float /* hdr_ratio */) {
+                                  jr_compressed_ptr dest) {
   if (uncompressed_p010_image == nullptr
    || compressed_jpeg_image == nullptr
    || dest == nullptr) {
