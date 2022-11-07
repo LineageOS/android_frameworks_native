@@ -2182,13 +2182,14 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
     refreshArgs.updatingGeometryThisFrame = mGeometryDirty.exchange(false) || mVisibleRegionsDirty;
-    std::vector<Layer*> layers;
+    std::vector<sp<Layer>> layers;
 
     mDrawingState.traverseInZOrder([&refreshArgs, &layers](Layer* layer) {
+        auto strongLayer = sp<Layer>::fromExisting(layer);
         if (auto layerFE = layer->getCompositionEngineLayerFE()) {
             layer->updateSnapshot(refreshArgs.updatingGeometryThisFrame);
             refreshArgs.layers.push_back(layerFE);
-            layers.push_back(layer);
+            layers.push_back(std::move(strongLayer));
         }
     });
     refreshArgs.blursAreExpensive = mBlursAreExpensive;
@@ -2220,8 +2221,8 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     {
         std::vector<LayerSnapshotGuard> layerSnapshotGuards;
-        for (Layer* layer : layers) {
-            layerSnapshotGuards.emplace_back(layer);
+        for (auto& layer : layers) {
+            layerSnapshotGuards.emplace_back(layer.get());
         }
         mCompositionEngine->present(refreshArgs);
     }
@@ -3327,7 +3328,12 @@ void SurfaceFlinger::updateCursorAsync() {
 
     std::vector<LayerSnapshotGuard> layerSnapshotGuards;
     mDrawingState.traverse([&layerSnapshotGuards](Layer* layer) {
-        if (layer->getLayerSnapshot()->compositionType ==
+        auto strongLayer = sp<Layer>::fromExisting(layer);
+        const LayerSnapshot* snapshot = layer->getLayerSnapshot();
+        if (!snapshot) {
+            LOG_ALWAYS_FATAL("Layer snapshot unexpectedly null");
+        }
+        if (snapshot->compositionType ==
             aidl::android::hardware::graphics::composer3::Composition::CURSOR) {
             layer->updateSnapshot(false /* updateGeometry */);
             layerSnapshotGuards.emplace_back(layer);
@@ -6461,6 +6467,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     std::vector<Layer*> renderedLayers;
     bool disableBlurs = false;
     traverseLayers([&](Layer* layer) FTL_FAKE_GUARD(kMainThreadContext) {
+        auto strongLayer = sp<Layer>::fromExisting(layer);
         auto layerFE = layer->getCompositionEngineLayerFE();
         if (!layerFE) {
             return;
