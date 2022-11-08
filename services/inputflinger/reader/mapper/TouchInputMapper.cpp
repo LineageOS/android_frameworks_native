@@ -1461,6 +1461,9 @@ std::list<NotifyArgs> TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     const RawState& last =
             mRawStatesPending.size() == 1 ? mCurrentRawState : mRawStatesPending.rbegin()[1];
 
+    next.when = applyBluetoothTimestampSmoothening(getDeviceContext().getDeviceIdentifier(), when,
+                                                   last.when);
+
     // Assign pointer ids.
     if (!mHavePointerIds) {
         assignPointerIds(last, next);

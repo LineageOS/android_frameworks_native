@@ -99,6 +99,11 @@ static constexpr int32_t ACTION_POINTER_1_UP =
 // Error tolerance for floating point assertions.
 static const float EPSILON = 0.001f;
 
+// Minimum timestamp separation between subsequent input events from a Bluetooth device.
+static constexpr nsecs_t MIN_BLUETOOTH_TIMESTAMP_DELTA = ms2ns(4);
+// Maximum smoothing time delta so that we don't generate events too far into the future.
+constexpr static nsecs_t MAX_BLUETOOTH_SMOOTHING_DELTA = ms2ns(32);
+
 template<typename T>
 static inline T min(T a, T b) {
     return a < b ? a : b;
@@ -530,10 +535,11 @@ public:
 
     FakeEventHub() { }
 
-    void addDevice(int32_t deviceId, const std::string& name,
-                   ftl::Flags<InputDeviceClass> classes) {
+    void addDevice(int32_t deviceId, const std::string& name, ftl::Flags<InputDeviceClass> classes,
+                   int bus = 0) {
         Device* device = new Device(classes);
         device->identifier.name = name;
+        device->identifier.bus = bus;
         mDevices.add(deviceId, device);
 
         enqueueEvent(ARBITRARY_TIME, READ_TIME, deviceId, EventHubInterface::DEVICE_ADDED, 0, 0);
@@ -3165,13 +3171,13 @@ protected:
     std::unique_ptr<InstrumentedInputReader> mReader;
     std::shared_ptr<InputDevice> mDevice;
 
-    virtual void SetUp(ftl::Flags<InputDeviceClass> classes) {
+    virtual void SetUp(ftl::Flags<InputDeviceClass> classes, int bus = 0) {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = sp<FakeInputReaderPolicy>::make();
         mFakeListener = std::make_unique<TestInputListener>();
         mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
                                                             *mFakeListener);
-        mDevice = newDevice(DEVICE_ID, DEVICE_NAME, DEVICE_LOCATION, EVENTHUB_ID, classes);
+        mDevice = newDevice(DEVICE_ID, DEVICE_NAME, DEVICE_LOCATION, EVENTHUB_ID, classes, bus);
         // Consume the device reset notification generated when adding a new device.
         mFakeListener->assertNotifyDeviceResetWasCalled();
     }
@@ -3209,15 +3215,16 @@ protected:
 
     std::shared_ptr<InputDevice> newDevice(int32_t deviceId, const std::string& name,
                                            const std::string& location, int32_t eventHubId,
-                                           ftl::Flags<InputDeviceClass> classes) {
+                                           ftl::Flags<InputDeviceClass> classes, int bus = 0) {
         InputDeviceIdentifier identifier;
         identifier.name = name;
         identifier.location = location;
+        identifier.bus = bus;
         std::shared_ptr<InputDevice> device =
                 std::make_shared<InputDevice>(mReader->getContext(), deviceId, DEVICE_GENERATION,
                                               identifier);
         mReader->pushNextDevice(device);
-        mFakeEventHub->addDevice(eventHubId, name, classes);
+        mFakeEventHub->addDevice(eventHubId, name, classes, bus);
         mReader->loopOnce();
         return device;
     }
@@ -5396,6 +5403,106 @@ TEST_F(CursorInputMapperTest, ConfigureDisplayId_IgnoresEventsForMismatchedPoint
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
+// --- BluetoothCursorInputMapperTest ---
+
+class BluetoothCursorInputMapperTest : public CursorInputMapperTest {
+protected:
+    void SetUp() override {
+        InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::EXTERNAL, BUS_BLUETOOTH);
+
+        mFakePointerController = std::make_shared<FakePointerController>();
+        mFakePolicy->setPointerController(mFakePointerController);
+    }
+};
+
+TEST_F(BluetoothCursorInputMapperTest, TimestampSmoothening) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+
+    nsecs_t kernelEventTime = ARBITRARY_TIME;
+    nsecs_t expectedEventTime = ARBITRARY_TIME;
+    process(mapper, kernelEventTime, READ_TIME, EV_REL, REL_X, 1);
+    process(mapper, kernelEventTime, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithEventTime(expectedEventTime))));
+
+    // Process several events that come in quick succession, according to their timestamps.
+    for (int i = 0; i < 3; i++) {
+        constexpr static nsecs_t delta = ms2ns(1);
+        static_assert(delta < MIN_BLUETOOTH_TIMESTAMP_DELTA);
+        kernelEventTime += delta;
+        expectedEventTime += MIN_BLUETOOTH_TIMESTAMP_DELTA;
+
+        process(mapper, kernelEventTime, READ_TIME, EV_REL, REL_X, 1);
+        process(mapper, kernelEventTime, READ_TIME, EV_SYN, SYN_REPORT, 0);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                      WithEventTime(expectedEventTime))));
+    }
+}
+
+TEST_F(BluetoothCursorInputMapperTest, TimestampSmootheningIsCapped) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+
+    nsecs_t expectedEventTime = ARBITRARY_TIME;
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 1);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithEventTime(expectedEventTime))));
+
+    // Process several events with the same timestamp from the kernel.
+    // Ensure that we do not generate events too far into the future.
+    constexpr static int32_t numEvents =
+            MAX_BLUETOOTH_SMOOTHING_DELTA / MIN_BLUETOOTH_TIMESTAMP_DELTA;
+    for (int i = 0; i < numEvents; i++) {
+        expectedEventTime += MIN_BLUETOOTH_TIMESTAMP_DELTA;
+
+        process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 1);
+        process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                      WithEventTime(expectedEventTime))));
+    }
+
+    // By processing more events with the same timestamp, we should not generate events with a
+    // timestamp that is more than the specified max time delta from the timestamp at its injection.
+    const nsecs_t cappedEventTime = ARBITRARY_TIME + MAX_BLUETOOTH_SMOOTHING_DELTA;
+    for (int i = 0; i < 3; i++) {
+        process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 1);
+        process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                      WithEventTime(cappedEventTime))));
+    }
+}
+
+TEST_F(BluetoothCursorInputMapperTest, TimestampSmootheningNotUsed) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+
+    nsecs_t kernelEventTime = ARBITRARY_TIME;
+    nsecs_t expectedEventTime = ARBITRARY_TIME;
+    process(mapper, kernelEventTime, READ_TIME, EV_REL, REL_X, 1);
+    process(mapper, kernelEventTime, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithEventTime(expectedEventTime))));
+
+    // If the next event has a timestamp that is sufficiently spaced out so that Bluetooth timestamp
+    // smoothening is not needed, its timestamp is not affected.
+    kernelEventTime += MAX_BLUETOOTH_SMOOTHING_DELTA + ms2ns(1);
+    expectedEventTime = kernelEventTime;
+
+    process(mapper, kernelEventTime, READ_TIME, EV_REL, REL_X, 1);
+    process(mapper, kernelEventTime, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithEventTime(expectedEventTime))));
+}
+
 // --- TouchInputMapperTest ---
 
 class TouchInputMapperTest : public InputMapperTest {
@@ -7389,7 +7496,8 @@ protected:
     void processKey(MultiTouchInputMapper& mapper, int32_t code, int32_t value);
     void processHidUsage(MultiTouchInputMapper& mapper, int32_t usageCode, int32_t value);
     void processMTSync(MultiTouchInputMapper& mapper);
-    void processSync(MultiTouchInputMapper& mapper);
+    void processSync(MultiTouchInputMapper& mapper, nsecs_t eventTime = ARBITRARY_TIME,
+                     nsecs_t readTime = READ_TIME);
 };
 
 void MultiTouchInputMapperTest::prepareAxes(int axes) {
@@ -7502,8 +7610,9 @@ void MultiTouchInputMapperTest::processMTSync(MultiTouchInputMapper& mapper) {
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_MT_REPORT, 0);
 }
 
-void MultiTouchInputMapperTest::processSync(MultiTouchInputMapper& mapper) {
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+void MultiTouchInputMapperTest::processSync(MultiTouchInputMapper& mapper, nsecs_t eventTime,
+                                            nsecs_t readTime) {
+    process(mapper, eventTime, readTime, EV_SYN, SYN_REPORT, 0);
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_NormalMultiTouchGesture_WithoutTrackingIds) {
@@ -10113,6 +10222,56 @@ TEST_F(MultiTouchInputMapperTest, WhenCapturedAndNotCaptured_GetSources) {
     configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
     ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
 }
+
+// --- BluetoothMultiTouchInputMapperTest ---
+
+class BluetoothMultiTouchInputMapperTest : public MultiTouchInputMapperTest {
+protected:
+    void SetUp() override {
+        InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::EXTERNAL, BUS_BLUETOOTH);
+    }
+};
+
+TEST_F(BluetoothMultiTouchInputMapperTest, TimestampSmoothening) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT | PRESSURE);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    nsecs_t kernelEventTime = ARBITRARY_TIME;
+    nsecs_t expectedEventTime = ARBITRARY_TIME;
+    // Touch down.
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, 100, 200);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper, ARBITRARY_TIME);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithEventTime(ARBITRARY_TIME))));
+
+    // Process several events that come in quick succession, according to their timestamps.
+    for (int i = 0; i < 3; i++) {
+        constexpr static nsecs_t delta = ms2ns(1);
+        static_assert(delta < MIN_BLUETOOTH_TIMESTAMP_DELTA);
+        kernelEventTime += delta;
+        expectedEventTime += MIN_BLUETOOTH_TIMESTAMP_DELTA;
+
+        processPosition(mapper, 101 + i, 201 + i);
+        processSync(mapper, kernelEventTime);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                      WithEventTime(expectedEventTime))));
+    }
+
+    // Release the touch.
+    processId(mapper, INVALID_TRACKING_ID);
+    processPressure(mapper, RAW_PRESSURE_MIN);
+    processSync(mapper, ARBITRARY_TIME + ms2ns(50));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                  WithEventTime(ARBITRARY_TIME + ms2ns(50)))));
+}
+
+// --- MultiTouchPointerModeTest ---
 
 class MultiTouchPointerModeTest : public MultiTouchInputMapperTest {
 protected:
