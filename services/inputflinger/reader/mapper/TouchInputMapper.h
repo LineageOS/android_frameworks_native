@@ -236,9 +236,6 @@ protected:
 
         // Whether the device supports the Universal Stylus Initiative (USI) protocol for styluses.
         bool supportsUsi;
-
-        // Allows touches while the display is off.
-        bool enableForInactiveViewport;
     } mParameters;
 
     // Immutable calibration parameters in parsed form.
@@ -681,12 +678,6 @@ private:
         // Time the pointer last went down.
         nsecs_t downTime;
 
-        // Values reported for the last pointer event.
-        uint32_t source;
-        int32_t displayId;
-        float lastCursorX;
-        float lastCursorY;
-
         void reset() {
             currentCoords.clear();
             currentProperties.clear();
@@ -695,10 +686,6 @@ private:
             down = false;
             hovering = false;
             downTime = 0;
-            source = 0;
-            displayId = ADISPLAY_ID_NONE;
-            lastCursorX = 0.f;
-            lastCursorY = 0.f;
         }
     } mPointerSimple;
 

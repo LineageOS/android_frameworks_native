@@ -159,11 +159,18 @@ public:
     static status_t getActiveDisplayMode(const sp<IBinder>& display, ui::DisplayMode*);
 
     // Sets the refresh rate boundaries for the display.
-    static status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
-                                               const gui::DisplayModeSpecs&);
+    static status_t setDesiredDisplayModeSpecs(
+            const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode,
+            bool allowGroupSwitching, float primaryRefreshRateMin, float primaryRefreshRateMax,
+            float appRequestRefreshRateMin, float appRequestRefreshRateMax);
     // Gets the refresh rate boundaries for the display.
     static status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
-                                               gui::DisplayModeSpecs*);
+                                               ui::DisplayModeId* outDefaultMode,
+                                               bool* outAllowGroupSwitching,
+                                               float* outPrimaryRefreshRateMin,
+                                               float* outPrimaryRefreshRateMax,
+                                               float* outAppRequestRefreshRateMin,
+                                               float* outAppRequestRefreshRateMax);
 
     // Get the coordinates of the display's native color primaries
     static status_t getDisplayNativePrimaries(const sp<IBinder>& display,

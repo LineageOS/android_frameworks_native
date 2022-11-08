@@ -148,14 +148,14 @@ std::optional<compositionengine::LayerFE::LayerSettings> LayerFE::prepareClientC
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled:
             layerSettings.backgroundBlurRadius = mSnapshot->backgroundBlurRadius;
             layerSettings.blurRegions = mSnapshot->blurRegions;
-            layerSettings.blurRegionTransform = mSnapshot->blurRegionTransform.asMatrix4();
+            layerSettings.blurRegionTransform = mSnapshot->geomInverseLayerTransform.asMatrix4();
             break;
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::BackgroundBlurOnly:
             layerSettings.backgroundBlurRadius = mSnapshot->backgroundBlurRadius;
             break;
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::BlurRegionsOnly:
             layerSettings.blurRegions = mSnapshot->blurRegions;
-            layerSettings.blurRegionTransform = mSnapshot->blurRegionTransform.asMatrix4();
+            layerSettings.blurRegionTransform = mSnapshot->geomInverseLayerTransform.asMatrix4();
             break;
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::Disabled:
         default:

@@ -36,7 +36,7 @@ public:
     renderengine::RenderEngine& getRenderEngine() const override;
     void setRenderEngine(renderengine::RenderEngine*) override;
 
-    TimeStats* getTimeStats() const override;
+    TimeStats& getTimeStats() const override;
     void setTimeStats(const std::shared_ptr<TimeStats>&) override;
 
     bool needsAnotherUpdate() const override;

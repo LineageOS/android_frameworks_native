@@ -95,20 +95,12 @@ bool JpegDecoder::decompressImage(const void* image, int length) {
     return true;
 }
 
-void* JpegDecoder::getDecompressedImagePtr() {
+const void* JpegDecoder::getDecompressedImagePtr() {
     return mResultBuffer.data();
 }
 
 size_t JpegDecoder::getDecompressedImageSize() {
     return mResultBuffer.size();
-}
-
-size_t JpegDecoder::getDecompressedImageWidth() {
-    return mWidth;
-}
-
-size_t JpegDecoder::getDecompressedImageHeight() {
-    return mHeight;
 }
 
 bool JpegDecoder::decode(const void* image, int length) {
@@ -126,9 +118,6 @@ bool JpegDecoder::decode(const void* image, int length) {
 
     cinfo.src = &mgr;
     jpeg_read_header(&cinfo, TRUE);
-
-    mWidth = cinfo.image_width;
-    mHeight = cinfo.image_height;
 
     if (cinfo.jpeg_color_space == JCS_YCbCr) {
         mResultBuffer.resize(cinfo.image_width * cinfo.image_height * 3 / 2, 0);

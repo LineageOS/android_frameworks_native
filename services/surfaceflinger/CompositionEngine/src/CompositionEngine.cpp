@@ -72,8 +72,8 @@ void CompositionEngine::setRenderEngine(renderengine::RenderEngine* renderEngine
     mRenderEngine = renderEngine;
 }
 
-TimeStats* CompositionEngine::getTimeStats() const {
-    return mTimeStats.get();
+TimeStats& CompositionEngine::getTimeStats() const {
+    return *mTimeStats.get();
 }
 
 void CompositionEngine::setTimeStats(const std::shared_ptr<TimeStats>& timeStats) {

@@ -19,7 +19,4 @@
 extern "C" {
     // This API is used by rust to fill random parcel.
     void createRandomParcel(void* aParcel, const uint8_t* data, size_t len);
-
-    // This API is used by fuzzers to automatically fuzz aidl services
-    void fuzzRustService(void* binder, const uint8_t* data, size_t len);
 }

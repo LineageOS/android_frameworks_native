@@ -39,19 +39,37 @@ namespace android {
  */
 class RefreshRateRangeTest : public ::testing::Test {
 private:
-    gui::DisplayModeSpecs mSpecs;
+    ui::DisplayModeId initialDefaultMode;
+    bool initialAllowGroupSwitching;
+    float initialPrimaryMin;
+    float initialPrimaryMax;
+    float initialAppRequestMin;
+    float initialAppRequestMax;
 
 protected:
     void SetUp() override {
         const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
         ASSERT_FALSE(ids.empty());
         mDisplayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
-        status_t res = SurfaceComposerClient::getDesiredDisplayModeSpecs(mDisplayToken, &mSpecs);
+        status_t res =
+                SurfaceComposerClient::getDesiredDisplayModeSpecs(mDisplayToken,
+                                                                  &initialDefaultMode,
+                                                                  &initialAllowGroupSwitching,
+                                                                  &initialPrimaryMin,
+                                                                  &initialPrimaryMax,
+                                                                  &initialAppRequestMin,
+                                                                  &initialAppRequestMax);
         ASSERT_EQ(res, NO_ERROR);
     }
 
     void TearDown() override {
-        status_t res = SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, mSpecs);
+        status_t res =
+                SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, initialDefaultMode,
+                                                                  initialAllowGroupSwitching,
+                                                                  initialPrimaryMin,
+                                                                  initialPrimaryMax,
+                                                                  initialAppRequestMin,
+                                                                  initialAppRequestMax);
         ASSERT_EQ(res, NO_ERROR);
     }
 
@@ -67,39 +85,61 @@ TEST_F(RefreshRateRangeTest, setAllConfigs) {
     ASSERT_EQ(res, NO_ERROR);
     ASSERT_GT(modes.size(), 0);
 
-    gui::DisplayModeSpecs setSpecs;
-    setSpecs.allowGroupSwitching = false;
     for (size_t i = 0; i < modes.size(); i++) {
-        setSpecs.defaultMode = modes[i].id;
-        setSpecs.primaryRanges.physical.min = modes[i].refreshRate;
-        setSpecs.primaryRanges.physical.max = modes[i].refreshRate;
-        setSpecs.primaryRanges.render = setSpecs.primaryRanges.physical;
-        setSpecs.appRequestRanges = setSpecs.primaryRanges;
-        res = SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, setSpecs);
+        res = SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, modes[i].id, false,
+                                                                modes[i].refreshRate,
+                                                                modes[i].refreshRate,
+                                                                modes[i].refreshRate,
+                                                                modes[i].refreshRate);
         ASSERT_EQ(res, NO_ERROR);
 
-        gui::DisplayModeSpecs getSpecs;
-        res = SurfaceComposerClient::getDesiredDisplayModeSpecs(mDisplayToken, &getSpecs);
+        ui::DisplayModeId defaultConfig;
+        bool allowGroupSwitching;
+        float primaryRefreshRateMin;
+        float primaryRefreshRateMax;
+        float appRequestRefreshRateMin;
+        float appRequestRefreshRateMax;
+        res = SurfaceComposerClient::getDesiredDisplayModeSpecs(mDisplayToken, &defaultConfig,
+                                                                &allowGroupSwitching,
+                                                                &primaryRefreshRateMin,
+                                                                &primaryRefreshRateMax,
+                                                                &appRequestRefreshRateMin,
+                                                                &appRequestRefreshRateMax);
         ASSERT_EQ(res, NO_ERROR);
-        ASSERT_EQ(setSpecs, getSpecs);
+        ASSERT_EQ(defaultConfig, i);
+        ASSERT_EQ(allowGroupSwitching, false);
+        ASSERT_EQ(primaryRefreshRateMin, modes[i].refreshRate);
+        ASSERT_EQ(primaryRefreshRateMax, modes[i].refreshRate);
+        ASSERT_EQ(appRequestRefreshRateMin, modes[i].refreshRate);
+        ASSERT_EQ(appRequestRefreshRateMax, modes[i].refreshRate);
     }
 }
 
 void RefreshRateRangeTest::testSetAllowGroupSwitching(bool allowGroupSwitching) {
-    gui::DisplayModeSpecs setSpecs;
-    setSpecs.defaultMode = 0;
-    setSpecs.allowGroupSwitching = allowGroupSwitching;
-    setSpecs.primaryRanges.physical.min = 0;
-    setSpecs.primaryRanges.physical.max = 90;
-    setSpecs.primaryRanges.render = setSpecs.primaryRanges.physical;
-    setSpecs.appRequestRanges = setSpecs.primaryRanges;
+    status_t res =
+            SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, 0, allowGroupSwitching,
+                                                              0.f, 90.f, 0.f, 90.f);
+    ASSERT_EQ(res, NO_ERROR);
+    ui::DisplayModeId defaultConfig;
+    bool newAllowGroupSwitching;
+    float primaryRefreshRateMin;
+    float primaryRefreshRateMax;
+    float appRequestRefreshRateMin;
+    float appRequestRefreshRateMax;
 
-    status_t res = SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, setSpecs);
+    res = SurfaceComposerClient::getDesiredDisplayModeSpecs(mDisplayToken, &defaultConfig,
+                                                            &newAllowGroupSwitching,
+                                                            &primaryRefreshRateMin,
+                                                            &primaryRefreshRateMax,
+                                                            &appRequestRefreshRateMin,
+                                                            &appRequestRefreshRateMax);
     ASSERT_EQ(res, NO_ERROR);
-    gui::DisplayModeSpecs getSpecs;
-    res = SurfaceComposerClient::getDesiredDisplayModeSpecs(mDisplayToken, &getSpecs);
-    ASSERT_EQ(res, NO_ERROR);
-    ASSERT_EQ(setSpecs, getSpecs);
+    ASSERT_EQ(defaultConfig, 0);
+    ASSERT_EQ(newAllowGroupSwitching, allowGroupSwitching);
+    ASSERT_EQ(primaryRefreshRateMin, 0.f);
+    ASSERT_EQ(primaryRefreshRateMax, 90.f);
+    ASSERT_EQ(appRequestRefreshRateMin, 0.f);
+    ASSERT_EQ(appRequestRefreshRateMax, 90.f);
 }
 
 TEST_F(RefreshRateRangeTest, setAllowGroupSwitching) {

@@ -2375,22 +2375,42 @@ status_t SurfaceComposerClient::getActiveDisplayMode(const sp<IBinder>& display,
     return NAME_NOT_FOUND;
 }
 
-status_t SurfaceComposerClient::setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
-                                                           const gui::DisplayModeSpecs& specs) {
+status_t SurfaceComposerClient::setDesiredDisplayModeSpecs(
+        const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode, bool allowGroupSwitching,
+        float primaryRefreshRateMin, float primaryRefreshRateMax, float appRequestRefreshRateMin,
+        float appRequestRefreshRateMax) {
     binder::Status status =
-            ComposerServiceAIDL::getComposerService()->setDesiredDisplayModeSpecs(displayToken,
-                                                                                  specs);
+            ComposerServiceAIDL::getComposerService()
+                    ->setDesiredDisplayModeSpecs(displayToken, defaultMode, allowGroupSwitching,
+                                                 primaryRefreshRateMin, primaryRefreshRateMax,
+                                                 appRequestRefreshRateMin,
+                                                 appRequestRefreshRateMax);
     return statusTFromBinderStatus(status);
 }
 
 status_t SurfaceComposerClient::getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
-                                                           gui::DisplayModeSpecs* outSpecs) {
-    if (!outSpecs) {
+                                                           ui::DisplayModeId* outDefaultMode,
+                                                           bool* outAllowGroupSwitching,
+                                                           float* outPrimaryRefreshRateMin,
+                                                           float* outPrimaryRefreshRateMax,
+                                                           float* outAppRequestRefreshRateMin,
+                                                           float* outAppRequestRefreshRateMax) {
+    if (!outDefaultMode || !outAllowGroupSwitching || !outPrimaryRefreshRateMin ||
+        !outPrimaryRefreshRateMax || !outAppRequestRefreshRateMin || !outAppRequestRefreshRateMax) {
         return BAD_VALUE;
     }
+    gui::DisplayModeSpecs specs;
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->getDesiredDisplayModeSpecs(displayToken,
-                                                                                  outSpecs);
+                                                                                  &specs);
+    if (status.isOk()) {
+        *outDefaultMode = specs.defaultMode;
+        *outAllowGroupSwitching = specs.allowGroupSwitching;
+        *outPrimaryRefreshRateMin = specs.primaryRefreshRateMin;
+        *outPrimaryRefreshRateMax = specs.primaryRefreshRateMax;
+        *outAppRequestRefreshRateMin = specs.appRequestRefreshRateMin;
+        *outAppRequestRefreshRateMax = specs.appRequestRefreshRateMax;
+    }
     return statusTFromBinderStatus(status);
 }
 

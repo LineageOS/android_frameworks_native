@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_JPEGENCODER_H
-#define ANDROID_JPEGRECOVERYMAP_JPEGENCODER_H
-
 // We must include cstdio before jpeglib.h. It is a requirement of libjpeg.
 #include <cstdio>
 
@@ -53,7 +50,7 @@ public:
      * Returns the compressed JPEG buffer pointer. This method must be called only after calling
      * compressImage().
      */
-    void* getCompressedImagePtr();
+    const void* getCompressedImagePtr();
 
     /*
      * Returns the compressed JPEG buffer size. This method must be called only after calling
@@ -91,5 +88,3 @@ private:
 };
 
 } /* namespace android  */
-
-#endif // ANDROID_JPEGRECOVERYMAP_JPEGENCODER_H

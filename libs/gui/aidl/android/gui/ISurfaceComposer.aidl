@@ -327,9 +327,25 @@ interface ISurfaceComposer {
     /**
      * Sets the refresh rate boundaries for the display.
      *
-     * @see DisplayModeSpecs.aidl for details.
+     * The primary refresh rate range represents display manager's general guidance on the display
+     * modes we'll consider when switching refresh rates. Unless we get an explicit signal from an
+     * app, we should stay within this range.
+     *
+     * The app request refresh rate range allows us to consider more display modes when switching
+     * refresh rates. Although we should generally stay within the primary range, specific
+     * considerations, such as layer frame rate settings specified via the setFrameRate() api, may
+     * cause us to go outside the primary range. We never go outside the app request range. The app
+     * request range will be greater than or equal to the primary refresh rate range, never smaller.
+     *
+     * defaultMode is used to narrow the list of display modes SurfaceFlinger will consider
+     * switching between. Only modes with a mode group and resolution matching defaultMode
+     * will be considered for switching. The defaultMode corresponds to an ID of mode in the list
+     * of supported modes returned from getDynamicDisplayInfo().
      */
-    void setDesiredDisplayModeSpecs(IBinder displayToken, in DisplayModeSpecs specs);
+    void setDesiredDisplayModeSpecs(
+            IBinder displayToken, int defaultMode,
+            boolean allowGroupSwitching, float primaryRefreshRateMin, float primaryRefreshRateMax,
+            float appRequestRefreshRateMin, float appRequestRefreshRateMax);
 
     DisplayModeSpecs getDesiredDisplayModeSpecs(IBinder displayToken);
 

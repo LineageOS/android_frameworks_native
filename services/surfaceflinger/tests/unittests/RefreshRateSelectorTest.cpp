@@ -37,7 +37,6 @@ namespace android::scheduler {
 
 namespace hal = android::hardware::graphics::composer::hal;
 
-using Config = RefreshRateSelector::Config;
 using LayerRequirement = RefreshRateSelector::LayerRequirement;
 using LayerVoteType = RefreshRateSelector::LayerVoteType;
 using SetPolicyResult = RefreshRateSelector::SetPolicyResult;
@@ -358,7 +357,7 @@ TEST_F(RefreshRateSelectorTest, getBestRefreshRate_noLayers) {
         constexpr bool kAllowGroupSwitching = true;
         EXPECT_EQ(SetPolicyResult::Changed,
                   selector.setDisplayManagerPolicy(
-                          {kModeId90, {0_Hz, 90_Hz}, kAllowGroupSwitching}));
+                          {kModeId90, kAllowGroupSwitching, {0_Hz, 90_Hz}}));
         EXPECT_EQ(kMode90_G1, selector.getBestRefreshRate());
     }
 }
@@ -1106,7 +1105,7 @@ TEST_F(RefreshRateSelectorTest, getMinRefreshRatesByPolicyOutsideTheGroup) {
     TestableRefreshRateSelector selector(kModes_30_60_90, kModeId72);
 
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}));
 
     const auto refreshRates =
             selector.rankRefreshRates(/*anchorGroupOpt*/ std::nullopt, RefreshRateOrder::Ascending);
@@ -1127,7 +1126,7 @@ TEST_F(RefreshRateSelectorTest, getMaxRefreshRatesByPolicyOutsideTheGroup) {
     TestableRefreshRateSelector selector(kModes_30_60_90, kModeId72);
 
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 90_Hz}, {30_Hz, 90_Hz}}));
 
     const auto refreshRates = selector.rankRefreshRates(/*anchorGroupOpt*/ std::nullopt,
                                                         RefreshRateOrder::Descending);
@@ -1352,10 +1351,8 @@ TEST_F(RefreshRateSelectorTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_ignoresTouchFlag) {
     TestableRefreshRateSelector selector(kModes_60_90, kModeId90);
 
-    constexpr FpsRange k90 = {90_Hz, 90_Hz};
-    constexpr FpsRange k60_90 = {60_Hz, 90_Hz};
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId90, {k90, k90}, {k60_90, k60_90}}));
+              selector.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}, {60_Hz, 90_Hz}}));
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     auto& lr = layers[0];
@@ -1376,11 +1373,8 @@ TEST_F(RefreshRateSelectorTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_ignoresIdleFlag) {
     TestableRefreshRateSelector selector(kModes_60_90, kModeId60);
 
-    constexpr FpsRange k60 = {60_Hz, 60_Hz};
-    constexpr FpsRange k60_90 = {60_Hz, 90_Hz};
-
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {k60, k60}, {k60_90, k60_90}}));
+              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}, {60_Hz, 90_Hz}}));
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     auto& lr = layers[0];
@@ -1519,11 +1513,8 @@ TEST_F(RefreshRateSelectorTest,
        getBestRefreshRate_withDisplayManagerRequestingSingleRate_onlySwitchesRatesForExplicitFocusedLayers) {
     TestableRefreshRateSelector selector(kModes_60_90, kModeId90);
 
-    constexpr FpsRange k90 = {90_Hz, 90_Hz};
-    constexpr FpsRange k60_90 = {60_Hz, 90_Hz};
-
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId90, {k90, k90}, {k60_90, k60_90}}));
+              selector.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}, {60_Hz, 90_Hz}}));
 
     const auto [ranking, signals] = selector.getRankedRefreshRates({}, {});
     EXPECT_EQ(ranking.front().modePtr, kMode90);
@@ -1858,11 +1849,8 @@ TEST_F(RefreshRateSelectorTest, primaryVsAppRequestPolicy) {
         return selector.getBestRefreshRate(layers, {.touch = args.touch})->getId();
     };
 
-    constexpr FpsRange k30_60 = {30_Hz, 60_Hz};
-    constexpr FpsRange k30_90 = {30_Hz, 90_Hz};
-
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {k30_60, k30_60}, {k30_90, k30_90}}));
+              selector.setDisplayManagerPolicy({kModeId60, {30_Hz, 60_Hz}, {30_Hz, 90_Hz}}));
 
     EXPECT_EQ(kModeId60, selector.getBestRefreshRate()->getId());
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::NoVote, 90_Hz));
@@ -1887,7 +1875,7 @@ TEST_F(RefreshRateSelectorTest, primaryVsAppRequestPolicy) {
               getFrameRate(LayerVoteType::ExplicitExactOrMultiple, 90_Hz, {.touch = true}));
 
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}, {60_Hz, 60_Hz}}));
 
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::NoVote, 90_Hz));
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::Min, 90_Hz));
@@ -1916,7 +1904,7 @@ TEST_F(RefreshRateSelectorTest, idle) {
     };
 
     EXPECT_EQ(SetPolicyResult::Changed,
-              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 90_Hz}}));
+              selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 90_Hz}, {60_Hz, 90_Hz}}));
 
     // Idle should be lower priority than touch boost.
     {
@@ -2035,8 +2023,7 @@ TEST_F(RefreshRateSelectorTest, getBestRefreshRate_ExplicitExact) {
 
 TEST_F(RefreshRateSelectorTest, getBestRefreshRate_ExplicitExactEnableFrameRateOverride) {
     TestableRefreshRateSelector selector(kModes_30_60_72_90_120, kModeId60,
-                                         {.enableFrameRateOverride =
-                                                  Config::FrameRateOverride::Enabled});
+                                         {.enableFrameRateOverride = true});
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 0.5f}};
     auto& explicitExactLayer = layers[0];
@@ -2102,8 +2089,7 @@ TEST_F(RefreshRateSelectorTest, getBestRefreshRate_WritesCache) {
 
 TEST_F(RefreshRateSelectorTest, getBestRefreshRate_ExplicitExactTouchBoost) {
     TestableRefreshRateSelector selector(kModes_60_120, kModeId60,
-                                         {.enableFrameRateOverride =
-                                                  Config::FrameRateOverride::Enabled});
+                                         {.enableFrameRateOverride = true});
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 0.5f}};
     auto& explicitExactLayer = layers[0];
@@ -2128,8 +2114,7 @@ TEST_F(RefreshRateSelectorTest, getBestRefreshRate_ExplicitExactTouchBoost) {
 
 TEST_F(RefreshRateSelectorTest, getBestRefreshRate_FractionalRefreshRates_ExactAndDefault) {
     TestableRefreshRateSelector selector(kModes_24_25_30_50_60_Frac, kModeId60,
-                                         {.enableFrameRateOverride =
-                                                  Config::FrameRateOverride::Enabled});
+                                         {.enableFrameRateOverride = true});
 
     std::vector<LayerRequirement> layers = {{.weight = 0.5f}, {.weight = 0.5f}};
     auto& explicitDefaultLayer = layers[0];
@@ -2323,7 +2308,7 @@ TEST_F(RefreshRateSelectorTest, getFrameRateOverrides_noLayers) {
 
 TEST_F(RefreshRateSelectorTest, getFrameRateOverrides_60on120) {
     RefreshRateSelector selector(kModes_30_60_72_90_120, kModeId120,
-                                 {.enableFrameRateOverride = Config::FrameRateOverride::Enabled});
+                                 {.enableFrameRateOverride = true});
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
     layers[0].name = "Test layer";
@@ -2361,7 +2346,7 @@ TEST_F(RefreshRateSelectorTest, getFrameRateOverrides_60on120) {
 
 TEST_F(RefreshRateSelectorTest, getFrameRateOverrides_twoUids) {
     RefreshRateSelector selector(kModes_30_60_72_90_120, kModeId120,
-                                 {.enableFrameRateOverride = Config::FrameRateOverride::Enabled});
+                                 {.enableFrameRateOverride = true});
 
     std::vector<LayerRequirement> layers = {{.ownerUid = 1234, .weight = 1.f},
                                             {.ownerUid = 5678, .weight = 1.f}};
@@ -2394,7 +2379,7 @@ TEST_F(RefreshRateSelectorTest, getFrameRateOverrides_twoUids) {
 
 TEST_F(RefreshRateSelectorTest, getFrameRateOverrides_touch) {
     RefreshRateSelector selector(kModes_30_60_72_90_120, kModeId120,
-                                 {.enableFrameRateOverride = Config::FrameRateOverride::Enabled});
+                                 {.enableFrameRateOverride = true});
 
     std::vector<LayerRequirement> layers = {{.ownerUid = 1234, .weight = 1.f}};
     layers[0].name = "Test layer";
@@ -2430,140 +2415,6 @@ TEST_F(RefreshRateSelectorTest, getFrameRateOverrides_touch) {
 
     frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
     EXPECT_TRUE(frameRateOverrides.empty());
-}
-
-TEST_F(RefreshRateSelectorTest, getFrameRateOverrides_DivisorIsNotDisplayRefreshRate_Enabled) {
-    RefreshRateSelector selector(kModes_60_120, kModeId120,
-                                 {.enableFrameRateOverride = Config::FrameRateOverride::Enabled});
-
-    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
-    layers[0].name = "Test layer";
-    layers[0].ownerUid = 1234;
-    layers[0].desiredRefreshRate = 30_Hz;
-    layers[0].vote = LayerVoteType::ExplicitDefault;
-
-    auto frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_EQ(1u, frameRateOverrides.size());
-    ASSERT_EQ(1u, frameRateOverrides.count(1234));
-    EXPECT_EQ(30_Hz, frameRateOverrides.at(1234));
-
-    layers[0].vote = LayerVoteType::ExplicitExactOrMultiple;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_EQ(1u, frameRateOverrides.size());
-    ASSERT_EQ(1u, frameRateOverrides.count(1234));
-    EXPECT_EQ(30_Hz, frameRateOverrides.at(1234));
-
-    layers[0].vote = LayerVoteType::NoVote;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_TRUE(frameRateOverrides.empty());
-
-    layers[0].vote = LayerVoteType::Min;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_TRUE(frameRateOverrides.empty());
-
-    layers[0].vote = LayerVoteType::Max;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_TRUE(frameRateOverrides.empty());
-
-    layers[0].vote = LayerVoteType::Heuristic;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_TRUE(frameRateOverrides.empty());
-}
-
-TEST_F(RefreshRateSelectorTest,
-       getFrameRateOverrides_DivisorIsNotDisplayRefreshRate_EnabledForNativeRefreshRates) {
-    RefreshRateSelector selector(kModes_60_120, kModeId120,
-                                 {.enableFrameRateOverride =
-                                          Config::FrameRateOverride::EnabledForNativeRefreshRates});
-
-    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
-    layers[0].name = "Test layer";
-    layers[0].ownerUid = 1234;
-    layers[0].desiredRefreshRate = 30_Hz;
-    layers[0].vote = LayerVoteType::ExplicitDefault;
-
-    auto frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_EQ(1u, frameRateOverrides.size());
-    ASSERT_EQ(1u, frameRateOverrides.count(1234));
-    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
-
-    layers[0].vote = LayerVoteType::ExplicitExactOrMultiple;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_EQ(1u, frameRateOverrides.size());
-    ASSERT_EQ(1u, frameRateOverrides.count(1234));
-    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
-
-    layers[0].vote = LayerVoteType::NoVote;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_TRUE(frameRateOverrides.empty());
-
-    layers[0].vote = LayerVoteType::Min;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_TRUE(frameRateOverrides.empty());
-
-    layers[0].vote = LayerVoteType::Max;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_TRUE(frameRateOverrides.empty());
-
-    layers[0].vote = LayerVoteType::Heuristic;
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_TRUE(frameRateOverrides.empty());
-}
-
-TEST_F(RefreshRateSelectorTest, getFrameRateOverrides_InPolicy) {
-    TestableRefreshRateSelector selector(kModes_30_60_72_90_120, kModeId120,
-                                         {.enableFrameRateOverride =
-                                                  Config::FrameRateOverride::Enabled});
-
-    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
-    {
-        const FpsRange physical = {120_Hz, 120_Hz};
-        const FpsRange render = {60_Hz, 90_Hz};
-        EXPECT_EQ(SetPolicyResult::Changed,
-                  selector.setDisplayManagerPolicy(
-                          {kModeId120, {physical, render}, {physical, render}}));
-    }
-
-    layers[0].name = "30Hz";
-    layers[0].ownerUid = 1234;
-    layers[0].desiredRefreshRate = 30_Hz;
-    layers[0].vote = LayerVoteType::ExplicitDefault;
-
-    auto frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_EQ(1u, frameRateOverrides.size());
-    EXPECT_EQ(1u, frameRateOverrides.count(1234));
-    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
-
-    {
-        const FpsRange physical = {120_Hz, 120_Hz};
-        const FpsRange render = {30_Hz, 90_Hz};
-        EXPECT_EQ(SetPolicyResult::Changed,
-                  selector.setDisplayManagerPolicy(
-                          {kModeId120, {physical, render}, {physical, render}}));
-    }
-
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_EQ(1u, frameRateOverrides.size());
-    EXPECT_EQ(1u, frameRateOverrides.count(1234));
-    EXPECT_EQ(30_Hz, frameRateOverrides.at(1234));
-
-    {
-        const FpsRange physical = {120_Hz, 120_Hz};
-        const FpsRange render = {30_Hz, 30_Hz};
-        EXPECT_EQ(SetPolicyResult::Changed,
-                  selector.setDisplayManagerPolicy(
-                          {kModeId120, {physical, render}, {physical, render}}));
-    }
-
-    layers[0].name = "60Hz";
-    layers[0].ownerUid = 1234;
-    layers[0].desiredRefreshRate = 60_Hz;
-    layers[0].vote = LayerVoteType::ExplicitDefault;
-
-    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
-    EXPECT_EQ(1u, frameRateOverrides.size());
-    EXPECT_EQ(1u, frameRateOverrides.count(1234));
-    EXPECT_EQ(30_Hz, frameRateOverrides.at(1234));
 }
 
 } // namespace

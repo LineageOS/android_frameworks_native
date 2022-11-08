@@ -551,8 +551,17 @@ private:
     status_t addTunnelModeEnabledListener(const sp<gui::ITunnelModeEnabledListener>& listener);
     status_t removeTunnelModeEnabledListener(const sp<gui::ITunnelModeEnabledListener>& listener);
     status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
-                                        const gui::DisplayModeSpecs&);
-    status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, gui::DisplayModeSpecs*);
+                                        ui::DisplayModeId displayModeId, bool allowGroupSwitching,
+                                        float primaryRefreshRateMin, float primaryRefreshRateMax,
+                                        float appRequestRefreshRateMin,
+                                        float appRequestRefreshRateMax);
+    status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                        ui::DisplayModeId* outDefaultMode,
+                                        bool* outAllowGroupSwitching,
+                                        float* outPrimaryRefreshRateMin,
+                                        float* outPrimaryRefreshRateMax,
+                                        float* outAppRequestRefreshRateMin,
+                                        float* outAppRequestRefreshRateMax);
     status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken, bool* outSupport) const;
     status_t setDisplayBrightness(const sp<IBinder>& displayToken,
                                   const gui::DisplayBrightness& brightness);
@@ -1442,8 +1451,11 @@ public:
             const sp<gui::ITunnelModeEnabledListener>& listener) override;
     binder::Status removeTunnelModeEnabledListener(
             const sp<gui::ITunnelModeEnabledListener>& listener) override;
-    binder::Status setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
-                                              const gui::DisplayModeSpecs&) override;
+    binder::Status setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, int32_t defaultMode,
+                                              bool allowGroupSwitching, float primaryRefreshRateMin,
+                                              float primaryRefreshRateMax,
+                                              float appRequestRefreshRateMin,
+                                              float appRequestRefreshRateMax) override;
     binder::Status getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
                                               gui::DisplayModeSpecs* outSpecs) override;
     binder::Status getDisplayBrightnessSupport(const sp<IBinder>& displayToken,

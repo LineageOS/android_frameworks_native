@@ -505,8 +505,16 @@ public:
     }
 
     void getDesiredDisplayModeSpecs(sp<IBinder> &display) {
-        gui::DisplayModeSpecs _;
-        mFlinger->getDesiredDisplayModeSpecs(display, &_);
+        ui::DisplayModeId outDefaultMode;
+        bool outAllowGroupSwitching;
+        float outPrimaryRefreshRateMin;
+        float outPrimaryRefreshRateMax;
+        float outAppRequestRefreshRateMin;
+        float outAppRequestRefreshRateMax;
+        mFlinger->getDesiredDisplayModeSpecs(display, &outDefaultMode, &outAllowGroupSwitching,
+                                             &outPrimaryRefreshRateMin, &outPrimaryRefreshRateMax,
+                                             &outAppRequestRefreshRateMin,
+                                             &outAppRequestRefreshRateMax);
     }
 
     void setVsyncConfig(FuzzedDataProvider *fdp) {

@@ -52,7 +52,7 @@ bool JpegEncoder::compressImage(const void* image, int width, int height, int qu
     return true;
 }
 
-void* JpegEncoder::getCompressedImagePtr() {
+const void* JpegEncoder::getCompressedImagePtr() {
     return mResultBuffer.data();
 }
 

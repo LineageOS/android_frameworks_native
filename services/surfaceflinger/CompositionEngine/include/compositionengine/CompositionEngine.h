@@ -58,7 +58,7 @@ public:
     virtual renderengine::RenderEngine& getRenderEngine() const = 0;
     virtual void setRenderEngine(renderengine::RenderEngine*) = 0;
 
-    virtual TimeStats* getTimeStats() const = 0;
+    virtual TimeStats& getTimeStats() const = 0;
     virtual void setTimeStats(const std::shared_ptr<TimeStats>&) = 0;
 
     virtual bool needsAnotherUpdate() const = 0;
