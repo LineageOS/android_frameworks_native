@@ -20,11 +20,11 @@
 // TODO: handle PQ encode/decode (currently only HLG)
 
 #include <jpegrecoverymap/recoverymap.h>
-
 #include <jpegrecoverymap/jpegencoder.h>
 #include <jpegrecoverymap/jpegdecoder.h>
 #include <jpegrecoverymap/recoverymapmath.h>
 
+#include <image_io/jpeg/jpeg_marker.h>
 #include <image_io/xml/xml_writer.h>
 
 #include <memory>
@@ -60,6 +60,25 @@ string Name(const string &prefix, const string &suffix) {
   return ss.str();
 }
 
+/*
+ * Helper function used for writing data to destination.
+ *
+ * @param destination destination of the data to be written.
+ * @param source source of data being written.
+ * @param length length of the data to be written.
+ * @param position cursor in desitination where the data is to be written.
+ * @return status of succeed or error code.
+ */
+status_t Write(jr_compressed_ptr destination, const void* source, size_t length, int &position) {
+  if (position + length > destination->length) {
+    return ERROR_JPEGR_BUFFER_TOO_SMALL;
+  }
+
+  memcpy((uint8_t*)destination->data + sizeof(uint8_t) * position, source, length);
+  position += length;
+  return NO_ERROR;
+}
+
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
                                   jr_compressed_ptr dest,
@@ -82,7 +101,9 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   }
 
   jpegr_uncompressed_struct map;
-  JPEGR_CHECK(generateRecoveryMap(uncompressed_yuv_420_image, uncompressed_p010_image, &map));
+  float hdr_ratio = 0.0f;
+  JPEGR_CHECK(generateRecoveryMap(
+      uncompressed_yuv_420_image, uncompressed_p010_image, &map, hdr_ratio));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -104,7 +125,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   jpeg.data = jpeg_encoder.getCompressedImagePtr();
   jpeg.length = jpeg_encoder.getCompressedImageSize();
 
-  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, dest));
+  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, hdr_ratio, dest));
 
   return NO_ERROR;
 }
@@ -127,7 +148,9 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   }
 
   jpegr_uncompressed_struct map;
-  JPEGR_CHECK(generateRecoveryMap(uncompressed_yuv_420_image, uncompressed_p010_image, &map));
+  float hdr_ratio = 0.0f;
+  JPEGR_CHECK(generateRecoveryMap(
+      uncompressed_yuv_420_image, uncompressed_p010_image, &map, hdr_ratio));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -137,7 +160,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
-  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, dest));
+  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, hdr_ratio, dest));
 
   return NO_ERROR;
 }
@@ -167,7 +190,9 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   }
 
   jpegr_uncompressed_struct map;
-  JPEGR_CHECK(generateRecoveryMap(&uncompressed_yuv_420_image, uncompressed_p010_image, &map));
+  float hdr_ratio = 0.0f;
+  JPEGR_CHECK(generateRecoveryMap(
+      &uncompressed_yuv_420_image, uncompressed_p010_image, &map, hdr_ratio));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -177,7 +202,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
-  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, dest));
+  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, hdr_ratio, dest));
 
   return NO_ERROR;
 }
@@ -256,7 +281,8 @@ status_t RecoveryMap::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recov
 
 status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                           jr_uncompressed_ptr uncompressed_p010_image,
-                                          jr_uncompressed_ptr dest) {
+                                          jr_uncompressed_ptr dest,
+                                          float &hdr_ratio) {
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_p010_image == nullptr
    || dest == nullptr) {
@@ -291,7 +317,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   }
 
   float y_hdr_max_nits = hlgInvOetf(yp_hdr_max);
-  float hdr_ratio = y_hdr_max_nits / kSdrWhiteNits;
+  hdr_ratio = y_hdr_max_nits / kSdrWhiteNits;
 
   for (size_t y = 0; y < map_height; ++y) {
     for (size_t x = 0; x < map_width; ++x) {
@@ -368,6 +394,7 @@ status_t RecoveryMap::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_imag
 
 status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
                                         jr_compressed_ptr compressed_recovery_map,
+                                        float hdr_ratio,
                                         jr_compressed_ptr dest) {
   if (compressed_jpeg_image == nullptr
    || compressed_recovery_map == nullptr
@@ -375,7 +402,39 @@ status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TBD
+  string xmp = generateXmp(compressed_recovery_map->length, hdr_ratio);
+  string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
+
+  // 2 bytes: APP1 sign (ff e1)
+  // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0"
+  // x bytes: length of xmp packet
+  int length = 2 + nameSpace.size() + xmp.size();
+  uint8_t lengthH = ((length >> 8) & 0xff);
+  uint8_t lengthL = (length & 0xff);
+
+  int pos = 0;
+
+  // JPEG/R structure:
+  // SOI (ff d8)
+  // APP1 (ff e1)
+  // 2 bytes of length (2 + 29 + length of xmp packet)
+  // name space ("http://ns.adobe.com/xap/1.0/\0")
+  // xmp
+  // primary image (without the first two bytes, the SOI sign)
+  // secondary image (the recovery map)
+  JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
+  JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kSOI, 1, pos));
+  JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
+  JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP1, 1, pos));
+  JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
+  JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
+  JPEGR_CHECK(Write(dest, (void*)nameSpace.c_str(), nameSpace.size(), pos));
+  JPEGR_CHECK(Write(dest, (void*)xmp.c_str(), xmp.size(), pos));
+  JPEGR_CHECK(Write(dest,
+      (uint8_t*)compressed_jpeg_image->data + 2, compressed_jpeg_image->length - 2, pos));
+  JPEGR_CHECK(Write(dest, compressed_recovery_map->data, compressed_recovery_map->length, pos));
+  dest->length = pos;
+
   return NO_ERROR;
 }
 
