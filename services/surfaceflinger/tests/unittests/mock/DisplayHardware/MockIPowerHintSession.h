@@ -42,6 +42,7 @@ public:
     MOCK_METHOD(Status, updateTargetWorkDuration, (int64_t), (override));
     MOCK_METHOD(Status, reportActualWorkDuration, (const ::std::vector<WorkDuration>&), (override));
     MOCK_METHOD(Status, sendHint, (SessionHint), (override));
+    MOCK_METHOD(Status, setThreads, (const ::std::vector<int32_t>&), (override));
 };
 
 } // namespace android::Hwc2::mock
