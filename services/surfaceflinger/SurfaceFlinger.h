@@ -1100,7 +1100,6 @@ private:
 
     // constant members (no synchronization needed for access)
     const nsecs_t mBootTime = systemTime();
-    bool mGpuToCpuSupported = false;
     bool mIsUserBuild = true;
 
     // Can only accessed from the main thread, these members
