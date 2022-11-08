@@ -22,7 +22,7 @@ extern crate libfuzzer_sys;
 
 mod read_utils;
 
-use crate::read_utils::get_read_funcs;
+use crate::read_utils::READ_FUNCS;
 use binder::binder_impl::{
     Binder, BorrowedParcel, IBinderInternal, Parcel, Stability, TransactionCode,
 };
@@ -34,18 +34,18 @@ use binder_random_parcel_rs::create_random_parcel;
 use libfuzzer_sys::arbitrary::Arbitrary;
 
 #[derive(Arbitrary, Debug)]
-enum ReadOperations {
+enum ReadOperation {
     SetDataPosition { pos: i32 },
     GetDataSize,
     ReadParcelableHolder { is_vintf: bool },
-    ReadBasicTypes { indexes: Vec<usize> },
+    ReadBasicTypes { instructions: Vec<usize> },
 }
 
 #[derive(Arbitrary, Debug)]
-enum Operations<'a> {
+enum Operation<'a> {
     Transact { code: u32, flag: u32, data: &'a [u8] },
     Append { start: i32, len: i32, data1: &'a [u8], data2: &'a [u8], append_all: bool },
-    Read { indexes: Vec<ReadOperations>, data: &'a [u8] },
+    Read { read_operations: Vec<ReadOperation>, data: &'a [u8] },
 }
 
 /// Interface to fuzz transact with random parcel
@@ -102,13 +102,12 @@ fn do_append_fuzz(start: i32, len: i32, data1: &[u8], data2: &[u8], append_all: 
     };
 }
 
-fn do_read_fuzz(read_operations: Vec<ReadOperations>, data: &[u8]) {
-    let read_funcs = get_read_funcs();
+fn do_read_fuzz(read_operations: Vec<ReadOperation>, data: &[u8]) {
     let parcel = create_random_parcel(data);
 
     for operation in read_operations {
         match operation {
-            ReadOperations::SetDataPosition { pos } => {
+            ReadOperation::SetDataPosition { pos } => {
                 unsafe {
                     // Safety: Safe if pos is less than current size of the parcel.
                     // It relies on C++ code for bound checks
@@ -119,12 +118,12 @@ fn do_read_fuzz(read_operations: Vec<ReadOperations>, data: &[u8]) {
                 }
             }
 
-            ReadOperations::GetDataSize => {
+            ReadOperation::GetDataSize => {
                 let data_size = parcel.get_data_size();
                 println!("data size from parcel: {:?}", data_size);
             }
 
-            ReadOperations::ReadParcelableHolder { is_vintf } => {
+            ReadOperation::ReadParcelableHolder { is_vintf } => {
                 let stability = if is_vintf { Stability::Vintf } else { Stability::Local };
                 let mut holder: ParcelableHolder = ParcelableHolder::new(stability);
                 match holder.read_from_parcel(parcel.borrowed_ref()) {
@@ -135,30 +134,28 @@ fn do_read_fuzz(read_operations: Vec<ReadOperations>, data: &[u8]) {
                 }
             }
 
-            ReadOperations::ReadBasicTypes { indexes } => {
-                for index in indexes.iter() {
-                    let read_index = index % read_funcs.len();
-                    read_funcs[read_index](parcel.borrowed_ref());
+            ReadOperation::ReadBasicTypes { instructions } => {
+                for instruction in instructions.iter() {
+                    let read_index = instruction % READ_FUNCS.len();
+                    READ_FUNCS[read_index](parcel.borrowed_ref());
                 }
             }
         }
     }
 }
 
-fuzz_target!(|operations: Vec<Operations>| {
-    for operation in operations {
-        match operation {
-            Operations::Transact { code, flag, data } => {
-                do_transact(code, data, flag);
-            }
+fuzz_target!(|operation: Operation| {
+    match operation {
+        Operation::Transact { code, flag, data } => {
+            do_transact(code, data, flag);
+        }
 
-            Operations::Append { start, len, data1, data2, append_all } => {
-                do_append_fuzz(start, len, data1, data2, append_all);
-            }
+        Operation::Append { start, len, data1, data2, append_all } => {
+            do_append_fuzz(start, len, data1, data2, append_all);
+        }
 
-            Operations::Read { indexes, data } => {
-                do_read_fuzz(indexes, data);
-            }
+        Operation::Read { read_operations, data } => {
+            do_read_fuzz(read_operations, data);
         }
     }
 });
