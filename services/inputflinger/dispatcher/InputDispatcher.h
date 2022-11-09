@@ -676,8 +676,8 @@ private:
                                              bool handled) REQUIRES(mLock);
 
     // Find touched state and touched window by token.
-    std::pair<TouchState*, TouchedWindow*> findTouchStateAndWindowLocked(const sp<IBinder>& token)
-            REQUIRES(mLock);
+    std::tuple<TouchState*, TouchedWindow*, int32_t /*displayId*/>
+    findTouchStateWindowAndDisplayLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     // Statistics gathering.
     LatencyAggregator mLatencyAggregator GUARDED_BY(mLock);
