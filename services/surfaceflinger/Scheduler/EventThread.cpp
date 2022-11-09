@@ -668,6 +668,7 @@ void EventThread::dump(std::string& result) const {
             StringAppendF(&result, "    %s\n", toString(*connection).c_str());
         }
     }
+    result += '\n';
 }
 
 const char* EventThread::toCString(State state) {

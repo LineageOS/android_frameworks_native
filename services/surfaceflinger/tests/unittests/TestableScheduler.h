@@ -17,6 +17,7 @@
 #pragma once
 
 #include <Scheduler/Scheduler.h>
+#include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <gui/ISurfaceComposer.h>
 
@@ -68,6 +69,11 @@ public:
 
     auto refreshRateSelector() { return holdRefreshRateSelector(); }
     bool hasRefreshRateSelectors() const { return !mRefreshRateSelectors.empty(); }
+
+    void setRefreshRateSelector(RefreshRateSelectorPtr selectorPtr) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return Scheduler::setRefreshRateSelector(std::move(selectorPtr));
+    }
 
     auto& mutableLayerHistory() { return mLayerHistory; }
 

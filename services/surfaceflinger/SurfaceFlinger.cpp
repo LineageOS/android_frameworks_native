@@ -54,6 +54,7 @@
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
 #include <ftl/algorithm.h>
+#include <ftl/concat.h>
 #include <ftl/fake_guard.h>
 #include <ftl/future.h>
 #include <ftl/unit.h>
@@ -160,6 +161,7 @@ namespace android {
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 using namespace hardware::configstore;
 using namespace hardware::configstore::V1_0;
@@ -2952,6 +2954,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
 
         // Display modes are reloaded on hotplug reconnect.
         if (display->isPrimary()) {
+            // TODO(b/241285876): Annotate `processDisplayAdded` instead.
+            ftl::FakeGuard guard(kMainThreadContext);
             mScheduler->setRefreshRateSelector(selectorPtr);
         }
 
@@ -3273,7 +3277,7 @@ void SurfaceFlinger::persistDisplayBrightness(bool needsComposite) {
 
                 ALOGE_IF(error != NO_ERROR,
                          "Error setting display brightness for display %s: %d (%s)",
-                         display->getDebugName().c_str(), error, strerror(error));
+                         to_string(display->getId()).c_str(), error, strerror(error));
             }
             display->persistBrightness(needsComposite);
         }
@@ -3417,19 +3421,18 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
         features |= Feature::kPresentFences;
     }
 
+    auto selectorPtr = display->holdRefreshRateSelector();
+    if (selectorPtr->kernelIdleTimerController()) {
+        features |= Feature::kKernelIdleTimer;
+    }
+
     mScheduler = std::make_unique<scheduler::Scheduler>(static_cast<ICompositor&>(*this),
                                                         static_cast<ISchedulerCallback&>(*this),
                                                         features);
-    {
-        auto selectorPtr = display->holdRefreshRateSelector();
-        if (selectorPtr->kernelIdleTimerController()) {
-            features |= Feature::kKernelIdleTimer;
-        }
+    mScheduler->createVsyncSchedule(features);
+    mScheduler->setRefreshRateSelector(selectorPtr);
+    mScheduler->registerDisplay(display->getPhysicalId(), std::move(selectorPtr));
 
-        mScheduler->createVsyncSchedule(features);
-        mScheduler->setRefreshRateSelector(selectorPtr);
-        mScheduler->registerDisplay(display->getPhysicalId(), std::move(selectorPtr));
-    }
     setVsyncEnabled(false);
     mScheduler->startTimers();
 
@@ -4771,17 +4774,18 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--comp-displays"s, dumper(&SurfaceFlinger::dumpCompositionDisplays)},
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
                 {"--displays"s, dumper(&SurfaceFlinger::dumpDisplays)},
-                {"--dispsync"s, dumper([this](std::string& s) { mScheduler->dumpVsync(s); })},
                 {"--edid"s, argsDumper(&SurfaceFlinger::dumpRawDisplayIdentificationData)},
+                {"--events"s, dumper(&SurfaceFlinger::dumpEvents)},
+                {"--frametimeline"s, argsDumper(&SurfaceFlinger::dumpFrameTimeline)},
+                {"--hwclayers"s, dumper(&SurfaceFlinger::dumpHwcLayersMinidumpLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
                 {"--list"s, dumper(&SurfaceFlinger::listLayersLocked)},
                 {"--planner"s, argsDumper(&SurfaceFlinger::dumpPlannerInfo)},
+                {"--scheduler"s, dumper(&SurfaceFlinger::dumpScheduler)},
                 {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
-                {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
+                {"--vsync"s, dumper(&SurfaceFlinger::dumpVsync)},
                 {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
-                {"--frametimeline"s, argsDumper(&SurfaceFlinger::dumpFrameTimeline)},
-                {"--hwclayers"s, dumper(&SurfaceFlinger::dumpHwcLayersMinidumpLocked)},
         };
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
@@ -4905,24 +4909,39 @@ void SurfaceFlinger::appendSfConfigString(std::string& result) const {
     result.append("]");
 }
 
-void SurfaceFlinger::dumpVSync(std::string& result) const {
-    mScheduler->dump(result);
+void SurfaceFlinger::dumpScheduler(std::string& result) const {
+    utils::Dumper dumper{result};
+
+    mScheduler->dump(dumper);
+
+    // TODO(b/241286146): Move to Scheduler.
+    {
+        utils::Dumper::Indent indent(dumper);
+        dumper.dump("lastHwcVsyncState"sv, mLastHWCVsyncState);
+        dumper.dump("pendingHwcVsyncState"sv, mHWCVsyncPendingState);
+    }
+    dumper.eol();
+
+    // TODO(b/241285876): Move to DisplayModeController.
+    dumper.dump("debugDisplayModeSetByBackdoor"sv, mDebugDisplayModeSetByBackdoor);
+    dumper.eol();
 
     mRefreshRateStats->dump(result);
-    result.append("\n");
+    dumper.eol();
 
     mVsyncConfiguration->dump(result);
     StringAppendF(&result,
-                  "      present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
+                  "         present offset: %9" PRId64 " ns\t        VSYNC period: %9" PRId64
+                  " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriodFromHWC());
+}
 
-    StringAppendF(&result, "(mode override by backdoor: %s)\n\n",
-                  mDebugDisplayModeSetByBackdoor ? "yes" : "no");
-
+void SurfaceFlinger::dumpEvents(std::string& result) const {
     mScheduler->dump(mAppConnectionHandle, result);
+}
+
+void SurfaceFlinger::dumpVsync(std::string& result) const {
     mScheduler->dumpVsync(result);
-    StringAppendF(&result, "mHWCVsyncPendingState=%s mLastHWCVsyncState=%s\n",
-                  to_string(mHWCVsyncPendingState).c_str(), to_string(mLastHWCVsyncState).c_str());
 }
 
 void SurfaceFlinger::dumpPlannerInfo(const DumpArgs& args, std::string& result) const {
@@ -4943,19 +4962,21 @@ void SurfaceFlinger::dumpDisplays(std::string& result) const {
     utils::Dumper dumper{result};
 
     for (const auto& [id, display] : mPhysicalDisplays) {
+        utils::Dumper::Section section(dumper, ftl::Concat("Display ", id.value).str());
+
+        display.snapshot().dump(dumper);
+
         if (const auto device = getDisplayDeviceLocked(id)) {
             device->dump(dumper);
         }
-
-        utils::Dumper::Indent indent(dumper);
-        display.snapshot().dump(dumper);
-        dumper.eol();
     }
 
     for (const auto& [token, display] : mDisplays) {
         if (display->isVirtual()) {
+            const auto displayId = display->getId();
+            utils::Dumper::Section section(dumper,
+                                           ftl::Concat("Virtual Display ", displayId.value).str());
             display->dump(dumper);
-            dumper.eol();
         }
     }
 }
@@ -5166,7 +5187,9 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     colorizer.bold(result);
     result.append("Scheduler:\n");
     colorizer.reset(result);
-    dumpVSync(result);
+    dumpScheduler(result);
+    dumpEvents(result);
+    dumpVsync(result);
     result.append("\n");
 
     StringAppendF(&result, "Total missed frame count: %u\n", mFrameMissedCount.load());

@@ -249,7 +249,9 @@ void SchedulerFuzzer::fuzzLayerHistory() {
     scheduler->setDuration(handle, (std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>(),
                            (std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>());
 
-    dump<scheduler::TestableScheduler>(scheduler, &mFdp);
+    std::string result = mFdp.ConsumeRandomLengthString(kRandomStringLength);
+    utils::Dumper dumper(result);
+    scheduler->dump(dumper);
 }
 
 void SchedulerFuzzer::fuzzVSyncReactor() {
