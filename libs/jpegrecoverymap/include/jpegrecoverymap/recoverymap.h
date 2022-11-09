@@ -82,16 +82,13 @@ public:
      * @param quality target quality of the JPEG encoding, must be in range of 0-100 where 100 is
      *                the highest quality
      * @param exif pointer to the exif metadata.
-     * @param hdr_ratio HDR ratio. If not configured, this value will be calculated by the JPEG/R
-     *                  encoder.
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                          jr_uncompressed_ptr uncompressed_yuv_420_image,
                          jr_compressed_ptr dest,
                          int quality,
-                         jr_exif_ptr exif,
-                         float hdr_ratio = 0.0f);
+                         jr_exif_ptr exif);
 
     /*
      * Compress JPEGR image from 10-bit HDR YUV, 8-bit SDR YUV and compressed 8-bit JPEG.
@@ -104,15 +101,12 @@ public:
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param dest destination of the compressed JPEGR image
-     * @param hdr_ratio HDR ratio. If not configured, this value will be calculated by the JPEG/R
-     *                  encoder.
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                          jr_uncompressed_ptr uncompressed_yuv_420_image,
                          jr_compressed_ptr compressed_jpeg_image,
-                         jr_compressed_ptr dest,
-                         float hdr_ratio = 0.0f);
+                         jr_compressed_ptr dest);
 
     /*
      * Compress JPEGR image from 10-bit HDR YUV and 8-bit SDR YUV.
@@ -125,14 +119,11 @@ public:
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param dest destination of the compressed JPEGR image
-     * @param hdr_ratio HDR ratio. If not configured, this value will be calculated by the JPEG/R
-     *                  encoder.
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                          jr_compressed_ptr compressed_jpeg_image,
-                         jr_compressed_ptr dest,
-                         float hdr_ratio = 0.0f);
+                         jr_compressed_ptr dest);
 
     /*
      * Decompress JPEGR image.
@@ -185,11 +176,13 @@ private:
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param dest recovery map; caller responsible for memory of data
+     * @param hdr_ratio HDR ratio will be updated in this method
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                  jr_uncompressed_ptr uncompressed_p010_image,
-                                 jr_uncompressed_ptr dest);
+                                 jr_uncompressed_ptr dest,
+                                 float &hdr_ratio);
 
     /*
      * This method is called in the decoding pipeline. It will take the uncompressed (decoded)
@@ -222,11 +215,13 @@ private:
      *
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param compress_recovery_map compressed recover map
+     * @param hdr_ratio HDR ratio
      * @param dest compressed JPEGR image
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
                                jr_compressed_ptr compressed_recovery_map,
+                               float hdr_ratio,
                                jr_compressed_ptr dest);
 
     /*

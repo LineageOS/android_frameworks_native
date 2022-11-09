@@ -55,6 +55,7 @@ filegroup {
         "mapper/accumulator/CursorButtonAccumulator.cpp",
         "mapper/accumulator/CursorScrollAccumulator.cpp",
         "mapper/accumulator/HidUsageAccumulator.cpp",
+        "mapper/accumulator/MultiTouchMotionAccumulator.cpp",
         "mapper/accumulator/SingleTouchMotionAccumulator.cpp",
         "mapper/accumulator/TouchButtonAccumulator.cpp",
     ],

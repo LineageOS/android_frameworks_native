@@ -2092,9 +2092,8 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
     }
 
     bool isSplit = shouldSplitTouch(tempTouchState, entry);
-    const bool switchedDevice = tempTouchState.deviceId >= 0 && tempTouchState.displayId >= 0 &&
-            (tempTouchState.deviceId != entry.deviceId || tempTouchState.source != entry.source ||
-             tempTouchState.displayId != displayId);
+    const bool switchedDevice = (oldState != nullptr) &&
+            (tempTouchState.deviceId != entry.deviceId || tempTouchState.source != entry.source);
 
     const bool isHoverAction = (maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE ||
                                 maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
@@ -2104,7 +2103,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
     const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
     if (newGesture) {
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
-        if (switchedDevice && tempTouchState.down && !down && !isHoverAction) {
+        if (switchedDevice && tempTouchState.isDown() && !down && !isHoverAction) {
             ALOGI("Dropping event because a pointer for a different device is already down "
                   "in display %" PRId32,
                   displayId);
@@ -2113,10 +2112,8 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
             return touchedWindows; // wrong device
         }
         tempTouchState.reset();
-        tempTouchState.down = down;
         tempTouchState.deviceId = entry.deviceId;
         tempTouchState.source = entry.source;
-        tempTouchState.displayId = displayId;
         isSplit = false;
     } else if (switchedDevice && maskedAction == AMOTION_EVENT_ACTION_MOVE) {
         ALOGI("Dropping move event because a pointer for a different device is already active "
@@ -2234,7 +2231,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
         /* Case 2: Pointer move, up, cancel or non-splittable pointer down. */
 
         // If the pointer is not currently down, then ignore the event.
-        if (!tempTouchState.down) {
+        if (!tempTouchState.isDown()) {
             if (DEBUG_FOCUS) {
                 ALOGD("Dropping event because the pointer is not down or we previously "
                       "dropped the pointer down event in display %" PRId32,
@@ -2445,7 +2442,7 @@ Failed:
 
     if (isHoverAction) {
         // Started hovering, therefore no longer down.
-        if (oldState && oldState->down) {
+        if (oldState && oldState->isDown()) {
             if (DEBUG_FOCUS) {
                 ALOGD("Conflicting pointer actions: Hover received while pointer was "
                       "down.");
@@ -2457,7 +2454,6 @@ Failed:
             maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
             tempTouchState.deviceId = entry.deviceId;
             tempTouchState.source = entry.source;
-            tempTouchState.displayId = displayId;
         }
     } else if (maskedAction == AMOTION_EVENT_ACTION_UP ||
                maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
@@ -2465,7 +2461,7 @@ Failed:
         tempTouchState.reset();
     } else if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
         // First pointer went down.
-        if (oldState && oldState->down) {
+        if (oldState && oldState->isDown()) {
             if (DEBUG_FOCUS) {
                 ALOGD("Conflicting pointer actions: Down received while already down.");
             }
@@ -2501,7 +2497,7 @@ Failed:
     // Save changes unless the action was scroll in which case the temporary touch
     // state was only valid for this one action.
     if (maskedAction != AMOTION_EVENT_ACTION_SCROLL) {
-        if (tempTouchState.displayId >= 0) {
+        if (displayId >= 0) {
             mTouchStatesByDisplay[displayId] = tempTouchState;
         } else {
             mTouchStatesByDisplay.erase(displayId);
@@ -5104,16 +5100,16 @@ void InputDispatcher::setMaximumObscuringOpacityForTouch(float opacity) {
     mMaximumObscuringOpacityForTouch = opacity;
 }
 
-std::pair<TouchState*, TouchedWindow*> InputDispatcher::findTouchStateAndWindowLocked(
-        const sp<IBinder>& token) {
+std::tuple<TouchState*, TouchedWindow*, int32_t /*displayId*/>
+InputDispatcher::findTouchStateWindowAndDisplayLocked(const sp<IBinder>& token) {
     for (auto& [displayId, state] : mTouchStatesByDisplay) {
         for (TouchedWindow& w : state.windows) {
             if (w.windowHandle->getToken() == token) {
-                return std::make_pair(&state, &w);
+                return std::make_tuple(&state, &w, displayId);
             }
         }
     }
-    return std::make_pair(nullptr, nullptr);
+    return std::make_tuple(nullptr, nullptr, ADISPLAY_ID_DEFAULT);
 }
 
 bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
@@ -5129,13 +5125,12 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         std::scoped_lock _l(mLock);
 
         // Find the target touch state and touched window by fromToken.
-        auto [state, touchedWindow] = findTouchStateAndWindowLocked(fromToken);
+        auto [state, touchedWindow, displayId] = findTouchStateWindowAndDisplayLocked(fromToken);
         if (state == nullptr || touchedWindow == nullptr) {
             ALOGD("Focus transfer failed because from window is not being touched.");
             return false;
         }
 
-        const int32_t displayId = state->displayId;
         sp<WindowInfoHandle> toWindowHandle = getWindowHandleLocked(toToken, displayId);
         if (toWindowHandle == nullptr) {
             ALOGW("Cannot transfer focus because to window not found.");
@@ -5324,11 +5319,9 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
 
     if (!mTouchStatesByDisplay.empty()) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
-        for (const std::pair<int32_t, TouchState>& pair : mTouchStatesByDisplay) {
-            const TouchState& state = pair.second;
-            dump += StringPrintf(INDENT2 "%d: down=%s, deviceId=%d, source=0x%08x\n",
-                                 state.displayId, toString(state.down), state.deviceId,
-                                 state.source);
+        for (const auto& [displayId, state] : mTouchStatesByDisplay) {
+            dump += StringPrintf(INDENT2 "%d: deviceId=%d, source=0x%08x\n", displayId,
+                                 state.deviceId, state.source);
             if (!state.windows.empty()) {
                 dump += INDENT3 "Windows:\n";
                 for (size_t i = 0; i < state.windows.size(); i++) {
@@ -5687,8 +5680,8 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
         return BAD_VALUE;
     }
 
-    auto [statePtr, windowPtr] = findTouchStateAndWindowLocked(token);
-    if (statePtr == nullptr || windowPtr == nullptr || !statePtr->down) {
+    auto [statePtr, windowPtr, displayId] = findTouchStateWindowAndDisplayLocked(token);
+    if (statePtr == nullptr || windowPtr == nullptr || windowPtr->pointerIds.isEmpty()) {
         ALOGW("Attempted to pilfer points from a channel without any on-going pointer streams."
               " Ignoring.");
         return BAD_VALUE;
@@ -5700,7 +5693,7 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
     CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
                                "input channel stole pointer stream");
     options.deviceId = state.deviceId;
-    options.displayId = state.displayId;
+    options.displayId = displayId;
     options.pointerIds = window.pointerIds;
     std::string canceledWindows;
     for (const TouchedWindow& w : state.windows) {

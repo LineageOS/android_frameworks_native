@@ -24,7 +24,8 @@ namespace android {
 
 // --- UinputDevice ---
 
-UinputDevice::UinputDevice(const char* name) : mName(name) {}
+UinputDevice::UinputDevice(const char* name, int16_t productId)
+      : mName(name), mProductId(productId) {}
 
 UinputDevice::~UinputDevice() {
     if (ioctl(mDeviceFd, UI_DEV_DESTROY)) {
@@ -43,7 +44,7 @@ void UinputDevice::init() {
     strlcpy(device.name, mName, UINPUT_MAX_NAME_SIZE);
     device.id.bustype = BUS_USB;
     device.id.vendor = 0x01;
-    device.id.product = 0x01;
+    device.id.product = mProductId;
     device.id.version = 1;
 
     ASSERT_NO_FATAL_FAILURE(configureDevice(mDeviceFd, &device));
@@ -76,8 +77,8 @@ void UinputDevice::injectEvent(uint16_t type, uint16_t code, int32_t value) {
 
 // --- UinputKeyboard ---
 
-UinputKeyboard::UinputKeyboard(const char* name, std::initializer_list<int> keys)
-      : UinputDevice(name), mKeys(keys.begin(), keys.end()) {}
+UinputKeyboard::UinputKeyboard(const char* name, int16_t productId, std::initializer_list<int> keys)
+      : UinputDevice(name, productId), mKeys(keys.begin(), keys.end()) {}
 
 void UinputKeyboard::configureDevice(int fd, uinput_user_dev* device) {
     // enable key press/release event
@@ -121,23 +122,26 @@ void UinputKeyboard::pressAndReleaseKey(int key) {
 
 // --- UinputHomeKey ---
 
-UinputHomeKey::UinputHomeKey() : UinputKeyboard("Test Uinput Home Key", {KEY_HOME}) {}
+UinputHomeKey::UinputHomeKey() : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, {KEY_HOME}) {}
 
 void UinputHomeKey::pressAndReleaseHomeKey() {
     pressAndReleaseKey(KEY_HOME);
 }
 
-// --- UinputSteamController
-UinputSteamController::UinputSteamController()
-      : UinputKeyboard("Test Uinput Steam Controller", {BTN_GEAR_DOWN, BTN_GEAR_UP}) {}
+// --- UinputSteamController ---
 
-// --- UinputExternalStylus
+UinputSteamController::UinputSteamController()
+      : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, {BTN_GEAR_DOWN, BTN_GEAR_UP}) {}
+
+// --- UinputExternalStylus ---
+
 UinputExternalStylus::UinputExternalStylus()
-      : UinputKeyboard("Test Uinput External Stylus", {BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}) {}
+      : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, {BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}) {}
 
 // --- UinputTouchScreen ---
-UinputTouchScreen::UinputTouchScreen(const Rect* size)
-      : UinputDevice(UinputTouchScreen::DEVICE_NAME), mSize(*size) {}
+
+UinputTouchScreen::UinputTouchScreen(const Rect& size)
+      : UinputDevice(DEVICE_NAME, PRODUCT_ID), mSize(size) {}
 
 void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     // Setup the touch screen device
