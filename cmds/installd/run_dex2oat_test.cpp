@@ -115,6 +115,7 @@ class RunDex2OatTest : public testing::Test {
         bool enable_hidden_api_checks = false;
         bool generate_compact_dex = true;
         bool use_jitzygote = false;
+        bool background_job_compile = false;
         const char* compilation_reason = nullptr;
     };
 
@@ -259,6 +260,7 @@ class RunDex2OatTest : public testing::Test {
                           args->enable_hidden_api_checks,
                           args->generate_compact_dex,
                           args->use_jitzygote,
+                          args->background_job_compile,
                           args->compilation_reason);
         runner.Exec(/*exit_code=*/ 0);
     }
@@ -375,6 +377,30 @@ TEST_F(RunDex2OatTest, CpuSetPostBootCompleteNotForRestore) {
     VerifyExpectedFlags();
 }
 
+TEST_F(RunDex2OatTest, CpuSetPostBootCompleteBackground) {
+    setSystemProperty("dalvik.vm.background-dex2oat-cpu-set", "1,3");
+    setSystemProperty("dalvik.vm.dex2oat-cpu-set", "1,2");
+    auto args = RunDex2OatArgs::MakeDefaultTestArgs();
+    args->post_bootcomplete = true;
+    args->background_job_compile = true;
+    CallRunDex2Oat(std::move(args));
+
+    SetExpectedFlagUsed("--cpu-set", "=1,3");
+    VerifyExpectedFlags();
+}
+
+TEST_F(RunDex2OatTest, CpuSetPostBootCompleteBackground_Backup) {
+    setSystemProperty("dalvik.vm.background-dex2oat-cpu-set", "");
+    setSystemProperty("dalvik.vm.dex2oat-cpu-set", "1,2");
+    auto args = RunDex2OatArgs::MakeDefaultTestArgs();
+    args->post_bootcomplete = true;
+    args->background_job_compile = true;
+    CallRunDex2Oat(std::move(args));
+
+    SetExpectedFlagUsed("--cpu-set", "=1,2");
+    VerifyExpectedFlags();
+}
+
 TEST_F(RunDex2OatTest, CpuSetPostBootCompleteForRestore) {
     setSystemProperty("dalvik.vm.restore-dex2oat-cpu-set", "1,2");
     setSystemProperty("dalvik.vm.dex2oat-cpu-set", "2,3");
@@ -475,6 +501,30 @@ TEST_F(RunDex2OatTest, ThreadsPostBootCompleteNotForRestore) {
     auto args = RunDex2OatArgs::MakeDefaultTestArgs();
     args->post_bootcomplete = true;
     args->for_restore = false;
+    CallRunDex2Oat(std::move(args));
+
+    SetExpectedFlagUsed("-j", "3");
+    VerifyExpectedFlags();
+}
+
+TEST_F(RunDex2OatTest, ThreadsPostBootCompleteBackground) {
+    setSystemProperty("dalvik.vm.background-dex2oat-threads", "2");
+    setSystemProperty("dalvik.vm.dex2oat-threads", "3");
+    auto args = RunDex2OatArgs::MakeDefaultTestArgs();
+    args->post_bootcomplete = true;
+    args->background_job_compile = true;
+    CallRunDex2Oat(std::move(args));
+
+    SetExpectedFlagUsed("-j", "2");
+    VerifyExpectedFlags();
+}
+
+TEST_F(RunDex2OatTest, ThreadsPostBootCompleteBackground_Backup) {
+    setSystemProperty("dalvik.vm.background-dex2oat-threads", "");
+    setSystemProperty("dalvik.vm.dex2oat-threads", "3");
+    auto args = RunDex2OatArgs::MakeDefaultTestArgs();
+    args->post_bootcomplete = true;
+    args->background_job_compile = true;
     CallRunDex2Oat(std::move(args));
 
     SetExpectedFlagUsed("-j", "3");
