@@ -62,7 +62,6 @@ cc_defaults {
         "libutils",
         "libnativewindow",
         "libvndksupport",
-        "libbufferhubqueue",
     ],
     header_libs: [
         "libdvr_headers",
