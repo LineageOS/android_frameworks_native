@@ -136,8 +136,10 @@ class ToEmptyString {
     template <typename _U>
     static std::enable_if_t<
 #ifdef HAS_NDK_INTERFACE
-            std::is_base_of_v<::ndk::ICInterface, _U> ||
-                    std::is_same_v<::ndk::AParcelableHolder, _U>
+            std::is_base_of_v<::ndk::ICInterface, _U>
+#if __ANDROID_API__ >= 31
+                    || std::is_same_v<::ndk::AParcelableHolder, _U>
+#endif
 #else
             std::is_base_of_v<IInterface, _U> || std::is_same_v<IBinder, _U> ||
                     std::is_same_v<os::ParcelFileDescriptor, _U> ||
