@@ -41,68 +41,34 @@ enum {
         if (_status != STATUS_OK) return _status; \
     } while (false)
 
+// AParcelableHolder has been introduced in 31.
+#if __ANDROID_API__ >= 31
 class AParcelableHolder {
    public:
     AParcelableHolder() = delete;
     explicit AParcelableHolder(parcelable_stability_t stability)
         : mParcel(AParcel_create()), mStability(stability) {}
 
-#if __ANDROID_API__ >= 31
     AParcelableHolder(const AParcelableHolder& other)
         : mParcel(AParcel_create()), mStability(other.mStability) {
-        // AParcelableHolder has been introduced in 31.
-#ifdef __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
-        if (__builtin_available(android 31, *)) {
-#else
-        if (__ANDROID_API__ >= 31) {
-#endif
-            AParcel_appendFrom(other.mParcel.get(), this->mParcel.get(), 0,
-                               AParcel_getDataSize(other.mParcel.get()));
-        } else {
-            syslog(LOG_ERR,
-                   "sdk_version not compatible, AParcelableHolder need sdk_version >= 31!");
-        }
+        AParcel_appendFrom(other.mParcel.get(), this->mParcel.get(), 0,
+                           AParcel_getDataSize(other.mParcel.get()));
     }
-#endif
 
     AParcelableHolder(AParcelableHolder&& other) = default;
     virtual ~AParcelableHolder() = default;
 
     binder_status_t writeToParcel(AParcel* parcel) const {
         RETURN_ON_FAILURE(AParcel_writeInt32(parcel, static_cast<int32_t>(this->mStability)));
-#ifdef __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
-        if (__builtin_available(android 31, *)) {
-#else
-        if (__ANDROID_API__ >= 31) {
-#endif
-            int32_t size = AParcel_getDataSize(this->mParcel.get());
-            RETURN_ON_FAILURE(AParcel_writeInt32(parcel, size));
-        } else {
-            return STATUS_INVALID_OPERATION;
-        }
-#ifdef __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
-        if (__builtin_available(android 31, *)) {
-#else
-        if (__ANDROID_API__ >= 31) {
-#endif
-            int32_t size = AParcel_getDataSize(this->mParcel.get());
-            RETURN_ON_FAILURE(AParcel_appendFrom(this->mParcel.get(), parcel, 0, size));
-        } else {
-            return STATUS_INVALID_OPERATION;
-        }
+        int32_t size = AParcel_getDataSize(this->mParcel.get());
+        RETURN_ON_FAILURE(AParcel_writeInt32(parcel, size));
+        size = AParcel_getDataSize(this->mParcel.get());
+        RETURN_ON_FAILURE(AParcel_appendFrom(this->mParcel.get(), parcel, 0, size));
         return STATUS_OK;
     }
 
     binder_status_t readFromParcel(const AParcel* parcel) {
-#ifdef __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
-        if (__builtin_available(android 31, *)) {
-#else
-        if (__ANDROID_API__ >= 31) {
-#endif
-            AParcel_reset(mParcel.get());
-        } else {
-            return STATUS_INVALID_OPERATION;
-        }
+        AParcel_reset(mParcel.get());
 
         parcelable_stability_t wireStability;
         RETURN_ON_FAILURE(AParcel_readInt32(parcel, &wireStability));
@@ -123,15 +89,7 @@ class AParcelableHolder {
             return STATUS_BAD_VALUE;
         }
 
-#ifdef __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
-        if (__builtin_available(android 31, *)) {
-#else
-        if (__ANDROID_API__ >= 31) {
-#endif
-            status = AParcel_appendFrom(parcel, mParcel.get(), dataStartPos, dataSize);
-        } else {
-            status = STATUS_INVALID_OPERATION;
-        }
+        status = AParcel_appendFrom(parcel, mParcel.get(), dataStartPos, dataSize);
         if (status != STATUS_OK) {
             return status;
         }
@@ -143,15 +101,7 @@ class AParcelableHolder {
         if (this->mStability > T::_aidl_stability) {
             return STATUS_BAD_VALUE;
         }
-#ifdef __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
-        if (__builtin_available(android 31, *)) {
-#else
-        if (__ANDROID_API__ >= 31) {
-#endif
-            AParcel_reset(mParcel.get());
-        } else {
-            return STATUS_INVALID_OPERATION;
-        }
+        AParcel_reset(mParcel.get());
         AParcel_writeString(mParcel.get(), T::descriptor, strlen(T::descriptor));
         p.writeToParcel(mParcel.get());
         return STATUS_OK;
@@ -161,17 +111,9 @@ class AParcelableHolder {
     binder_status_t getParcelable(std::optional<T>* ret) const {
         const std::string parcelableDesc(T::descriptor);
         AParcel_setDataPosition(mParcel.get(), 0);
-#ifdef __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
-        if (__builtin_available(android 31, *)) {
-#else
-        if (__ANDROID_API__ >= 31) {
-#endif
-            if (AParcel_getDataSize(mParcel.get()) == 0) {
-                *ret = std::nullopt;
-                return STATUS_OK;
-            }
-        } else {
-            return STATUS_INVALID_OPERATION;
+        if (AParcel_getDataSize(mParcel.get()) == 0) {
+            *ret = std::nullopt;
+            return STATUS_OK;
         }
         std::string parcelableDescInParcel;
         binder_status_t status = AParcel_readString(mParcel.get(), &parcelableDescInParcel);
@@ -188,18 +130,7 @@ class AParcelableHolder {
         return STATUS_OK;
     }
 
-    void reset() {
-#ifdef __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
-        if (__builtin_available(android 31, *)) {
-#else
-        if (__ANDROID_API__ >= 31) {
-#endif
-            AParcel_reset(mParcel.get());
-        } else {
-            syslog(LOG_ERR,
-                   "sdk_version not compatible, AParcelableHolder need sdk_version >= 31!");
-        }
-    }
+    void reset() { AParcel_reset(mParcel.get()); }
 
     inline bool operator!=(const AParcelableHolder& rhs) const { return this != &rhs; }
     inline bool operator<(const AParcelableHolder& rhs) const { return this < &rhs; }
@@ -207,34 +138,23 @@ class AParcelableHolder {
     inline bool operator==(const AParcelableHolder& rhs) const { return this == &rhs; }
     inline bool operator>(const AParcelableHolder& rhs) const { return this > &rhs; }
     inline bool operator>=(const AParcelableHolder& rhs) const { return this >= &rhs; }
-#if __ANDROID_API__ >= 31
     inline AParcelableHolder& operator=(const AParcelableHolder& rhs) {
-        // AParcelableHolder has been introduced in 31.
-#ifdef __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
-        if (__builtin_available(android 31, *)) {
-#else
-        if (__ANDROID_API__ >= 31) {
-#endif
-            this->reset();
-            if (this->mStability != rhs.mStability) {
-                syslog(LOG_ERR, "AParcelableHolder stability mismatch: this %d rhs %d!",
-                       this->mStability, rhs.mStability);
-                abort();
-            }
-            AParcel_appendFrom(rhs.mParcel.get(), this->mParcel.get(), 0,
-                               AParcel_getDataSize(rhs.mParcel.get()));
-        } else {
-            syslog(LOG_ERR,
-                   "sdk_version not compatible, AParcelableHolder need sdk_version >= 31!");
+        this->reset();
+        if (this->mStability != rhs.mStability) {
+            syslog(LOG_ERR, "AParcelableHolder stability mismatch: this %d rhs %d!",
+                   this->mStability, rhs.mStability);
+            abort();
         }
+        AParcel_appendFrom(rhs.mParcel.get(), this->mParcel.get(), 0,
+                           AParcel_getDataSize(rhs.mParcel.get()));
         return *this;
     }
-#endif
 
    private:
     mutable ndk::ScopedAParcel mParcel;
     parcelable_stability_t mStability;
 };
+#endif  // __ANDROID_API__ >= 31
 
 #undef RETURN_ON_FAILURE
 }  // namespace ndk
