@@ -1956,7 +1956,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                       join_fds(context_input_fds), swap_fd.get(), instruction_set, compiler_filter,
                       debuggable, boot_complete, for_restore, target_sdk_version,
                       enable_hidden_api_checks, generate_compact_dex, use_jitzygote_image,
-                      compilation_reason);
+                      background_job_compile, compilation_reason);
 
     bool cancelled = false;
     pid_t pid = dexopt_status_->check_cancellation_and_fork(&cancelled);
