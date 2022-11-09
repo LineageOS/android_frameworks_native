@@ -55,6 +55,7 @@ public:
         TRACE_EXTRA = 1 << 3,
         TRACE_HWC = 1 << 4,
         TRACE_BUFFERS = 1 << 5,
+        TRACE_VIRTUAL_DISPLAYS = 1 << 6,
         TRACE_ALL = TRACE_INPUT | TRACE_COMPOSITION | TRACE_EXTRA,
     };
     void setTraceFlags(uint32_t flags);

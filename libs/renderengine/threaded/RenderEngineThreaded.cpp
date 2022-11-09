@@ -90,7 +90,6 @@ void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_S
     }
 
     mRenderEngine = factory();
-    mIsProtected = mRenderEngine->isProtected();
 
     pthread_setname_np(pthread_self(), mThreadName);
 
@@ -255,39 +254,9 @@ size_t RenderEngineThreaded::getMaxViewportDims() const {
     return mRenderEngine->getMaxViewportDims();
 }
 
-bool RenderEngineThreaded::isProtected() const {
-    waitUntilInitialized();
-    std::lock_guard lock(mThreadMutex);
-    return mIsProtected;
-}
-
 bool RenderEngineThreaded::supportsProtectedContent() const {
     waitUntilInitialized();
     return mRenderEngine->supportsProtectedContent();
-}
-
-void RenderEngineThreaded::useProtectedContext(bool useProtectedContext) {
-    if (isProtected() == useProtectedContext ||
-        (useProtectedContext && !supportsProtectedContent())) {
-        return;
-    }
-
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([useProtectedContext, this](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::useProtectedContext");
-            instance.useProtectedContext(useProtectedContext);
-            if (instance.isProtected() != useProtectedContext) {
-                ALOGE("Failed to switch RenderEngine context.");
-                // reset the cached mIsProtected value to a good state, but this does not
-                // prevent other callers of this method and isProtected from reading the
-                // invalid cached value.
-                mIsProtected = instance.isProtected();
-            }
-        });
-        mIsProtected = useProtectedContext;
-    }
-    mCondition.notify_one();
 }
 
 void RenderEngineThreaded::cleanupPostRender() {
@@ -334,6 +303,7 @@ ftl::Future<FenceResult> RenderEngineThreaded::drawLayers(
         mFunctionCalls.push([resultPromise, display, layers, buffer, useFramebufferCache,
                              fd](renderengine::RenderEngine& instance) {
             ATRACE_NAME("REThreaded::drawLayers");
+            instance.updateProtectedContext(layers, buffer);
             instance.drawLayersInternal(std::move(resultPromise), display, layers, buffer,
                                         useFramebufferCache, base::unique_fd(fd));
         });

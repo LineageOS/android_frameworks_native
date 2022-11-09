@@ -13,13 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <cstdint>
-#include <cstddef>
 
-extern "C" {
-    // This API is used by rust to fill random parcel.
-    void createRandomParcel(void* aParcel, const uint8_t* data, size_t len);
+#![allow(missing_docs)]
+#![no_main]
+#[macro_use]
+extern crate libfuzzer_sys;
 
-    // This API is used by fuzzers to automatically fuzz aidl services
-    void fuzzRustService(void* binder, const uint8_t* data, size_t len);
+use binder::{self, BinderFeatures, Interface};
+use binder_random_parcel_rs::fuzz_service;
+use testServiceInterface::aidl::ITestService::{self, BnTestService};
+
+struct TestService;
+
+impl Interface for TestService {}
+
+impl ITestService::ITestService for TestService {
+    fn repeatData(&self, token: bool) -> binder::Result<bool> {
+        Ok(token)
+    }
 }
+
+fuzz_target!(|data: &[u8]| {
+    let service = BnTestService::new_binder(TestService, BinderFeatures::default());
+    fuzz_service(&mut service.as_binder(), data);
+});

@@ -127,9 +127,7 @@ public:
     MOCK_METHOD(binder::Status, removeTunnelModeEnabledListener,
                 (const sp<gui::ITunnelModeEnabledListener>&), (override));
     MOCK_METHOD(binder::Status, setDesiredDisplayModeSpecs,
-                (const sp<IBinder>&, int32_t, bool, float, float, float,
-                 float appRequestRefreshRateMax),
-                (override));
+                (const sp<IBinder>&, const gui::DisplayModeSpecs&), (override));
     MOCK_METHOD(binder::Status, getDesiredDisplayModeSpecs,
                 (const sp<IBinder>&, gui::DisplayModeSpecs*), (override));
     MOCK_METHOD(binder::Status, getDisplayBrightnessSupport, (const sp<IBinder>&, bool*),

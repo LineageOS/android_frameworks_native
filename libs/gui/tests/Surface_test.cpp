@@ -920,16 +920,12 @@ public:
     }
 
     binder::Status setDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/,
-                                              int32_t /*defaultMode*/, bool /*allowGroupSwitching*/,
-                                              float /*primaryRefreshRateMin*/,
-                                              float /*primaryRefreshRateMax*/,
-                                              float /*appRequestRefreshRateMin*/,
-                                              float /*appRequestRefreshRateMax*/) override {
+                                              const gui::DisplayModeSpecs&) override {
         return binder::Status::ok();
     }
 
     binder::Status getDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/,
-                                              gui::DisplayModeSpecs* /*outSpecs*/) override {
+                                              gui::DisplayModeSpecs*) override {
         return binder::Status::ok();
     }
 

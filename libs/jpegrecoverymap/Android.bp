@@ -23,16 +23,19 @@ package {
 
 cc_library_static {
     name: "libjpegrecoverymap",
-    vendor_available: true,
+    host_supported: true,
 
     export_include_dirs: ["include"],
     local_include_dirs: ["include"],
 
     srcs: [
         "recoverymap.cpp",
+        "recoverymapmath.cpp",
     ],
 
     shared_libs: [
+        "libimage_io",
+        "libjpeg",
         "libutils",
     ],
 }

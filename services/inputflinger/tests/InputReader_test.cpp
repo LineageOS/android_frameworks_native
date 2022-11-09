@@ -5666,7 +5666,7 @@ TEST_F(SingleTouchInputMapperTest, GetSources_WhenDeviceTypeIsNotSpecifiedAndNot
     prepareAxes(POSITION);
     SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
 
-    ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
 }
 
 TEST_F(SingleTouchInputMapperTest, GetSources_WhenDeviceTypeIsTouchScreen_ReturnsTouchScreen) {
@@ -9038,8 +9038,8 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShouldHandleDisplayId) {
     prepareAxes(POSITION);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
-    // Check source is mouse that would obtain the PointerController.
-    ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
+    // Check source is a touchpad that would obtain the PointerController.
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
 
     NotifyMotionArgs motionArgs;
     processPosition(mapper, 100, 100);
@@ -9082,6 +9082,7 @@ TEST_F(MultiTouchInputMapperTest, Process_SendsReadTime) {
  */
 TEST_F(MultiTouchInputMapperTest, WhenViewportIsNotActive_TouchesAreDropped) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
+    // Don't set touch.enableForInactiveViewport to verify the default behavior.
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                     DISPLAY_ORIENTATION_0, false /*isActive*/, UNIQUE_ID, NO_PORT,
                                     ViewportType::INTERNAL);
@@ -9096,8 +9097,31 @@ TEST_F(MultiTouchInputMapperTest, WhenViewportIsNotActive_TouchesAreDropped) {
     mFakeListener->assertNotifyMotionWasNotCalled();
 }
 
+/**
+ * When the viewport is not active (isActive=false) and touch.enableForInactiveViewport is true,
+ * the touch mapper can process the events and the events can be delivered to the listener.
+ */
+TEST_F(MultiTouchInputMapperTest, WhenViewportIsNotActive_TouchesAreProcessed) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    addConfigurationProperty("touch.enableForInactiveViewport", "1");
+    mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, false /*isActive*/, UNIQUE_ID, NO_PORT,
+                                    ViewportType::INTERNAL);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    prepareAxes(POSITION);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+    processPosition(mapper, 100, 100);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+}
+
 TEST_F(MultiTouchInputMapperTest, Process_DeactivateViewport_AbortTouches) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
+    addConfigurationProperty("touch.enableForInactiveViewport", "0");
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                     DISPLAY_ORIENTATION_0, true /*isActive*/, UNIQUE_ID, NO_PORT,
                                     ViewportType::INTERNAL);
@@ -10042,11 +10066,11 @@ TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
 
-    // non captured touchpad should be a mouse source
+    // A non captured touchpad should have a mouse and touchpad source.
     mFakePolicy->setPointerCapture(false);
     configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
-    ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_UnCapturedTouchpadPointer) {
@@ -10105,10 +10129,10 @@ TEST_F(MultiTouchInputMapperTest, WhenCapturedAndNotCaptured_GetSources) {
     mFakePolicy->setPointerCapture(false);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
-    // uncaptured touchpad should be a pointer device
-    ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
+    // An uncaptured touchpad should be a pointer device, with additional touchpad source.
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
 
-    // captured touchpad should be a touchpad device
+    // A captured touchpad should just have a touchpad source.
     mFakePolicy->setPointerCapture(true);
     configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
     ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
@@ -10418,6 +10442,46 @@ TEST_F(MultiTouchPointerModeTest, TwoFingerSwipeOffsets) {
     ASSERT_EQ(MotionClassification::TWO_FINGER_SWIPE, motionArgs.classification);
     ASSERT_LT(motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET), 0);
     ASSERT_GT(motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET), 0);
+}
+
+TEST_F(MultiTouchPointerModeTest, WhenViewportActiveStatusChanged_PointerGestureIsReset) {
+    preparePointerMode(25 /*xResolution*/, 25 /*yResolution*/);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+
+    // Start a stylus gesture.
+    processKey(mapper, BTN_TOOL_PEN, 1);
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithSource(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+    // TODO(b/257078296): Pointer mode generates extra event.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithSource(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Make the viewport inactive. This will put the device in disabled mode, and the ongoing stylus
+    // gesture should be disabled.
+    auto viewport = mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
+    viewport->isActive = false;
+    mFakePolicy->updateViewport(*viewport);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
+                  WithSource(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+    // TODO(b/257078296): Pointer mode generates extra event.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
+                  WithSource(AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
 // --- JoystickInputMapperTest ---
