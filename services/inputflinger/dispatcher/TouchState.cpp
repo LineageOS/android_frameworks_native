@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+#include <android-base/stringprintf.h>
 #include <gui/WindowInfo.h>
 
 #include "InputTarget.h"
-
 #include "TouchState.h"
 
+using android::base::StringPrintf;
 using android::gui::WindowInfo;
 using android::gui::WindowInfoHandle;
 
@@ -141,6 +142,21 @@ sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
 bool TouchState::isDown() const {
     return std::any_of(windows.begin(), windows.end(),
                        [](const TouchedWindow& window) { return !window.pointerIds.isEmpty(); });
+}
+
+std::string TouchState::dump() const {
+    std::string out;
+    out += StringPrintf("deviceId=%d, source=0x%08x\n", deviceId, source);
+    if (!windows.empty()) {
+        out += "  Windows:\n";
+        for (size_t i = 0; i < windows.size(); i++) {
+            const TouchedWindow& touchedWindow = windows[i];
+            out += StringPrintf("    %zu : ", i) + touchedWindow.dump();
+        }
+    } else {
+        out += "  Windows: <none>\n";
+    }
+    return out;
 }
 
 } // namespace android::inputdispatcher

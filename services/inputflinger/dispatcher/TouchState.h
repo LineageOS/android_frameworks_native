@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include "Monitor.h"
 #include "TouchedWindow.h"
 
 namespace android {
@@ -57,6 +56,7 @@ struct TouchState {
     sp<android::gui::WindowInfoHandle> getWallpaperWindow() const;
     // Whether any of the windows are currently being touched
     bool isDown() const;
+    std::string dump() const;
 };
 
 } // namespace inputdispatcher

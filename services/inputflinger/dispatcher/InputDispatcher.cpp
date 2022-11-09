@@ -29,6 +29,7 @@
 #include <gui/SurfaceComposerClient.h>
 #endif
 #include <input/InputDevice.h>
+#include <input/PrintTools.h>
 #include <powermanager/PowerManager.h>
 #include <unistd.h>
 #include <utils/Trace.h>
@@ -2232,11 +2233,10 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
 
         // If the pointer is not currently down, then ignore the event.
         if (!tempTouchState.isDown()) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Dropping event because the pointer is not down or we previously "
-                      "dropped the pointer down event in display %" PRId32,
-                      displayId);
-            }
+            ALOGD_IF(DEBUG_FOCUS,
+                     "Dropping event because the pointer is not down or we previously "
+                     "dropped the pointer down event in display %" PRId32 ": %s",
+                     displayId, entry.getDescription().c_str());
             outInjectionResult = InputEventInjectionResult::FAILED;
             goto Failed;
         }
@@ -2443,10 +2443,8 @@ Failed:
     if (isHoverAction) {
         // Started hovering, therefore no longer down.
         if (oldState && oldState->isDown()) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Conflicting pointer actions: Hover received while pointer was "
-                      "down.");
-            }
+            ALOGD_IF(DEBUG_FOCUS,
+                     "Conflicting pointer actions: Hover received while pointer was down.");
             *outConflictingPointerActions = true;
         }
         tempTouchState.reset();
@@ -2462,9 +2460,7 @@ Failed:
     } else if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
         // First pointer went down.
         if (oldState && oldState->isDown()) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Conflicting pointer actions: Down received while already down.");
-            }
+            ALOGD("Conflicting pointer actions: Down received while already down.");
             *outConflictingPointerActions = true;
         }
     } else if (maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
@@ -5320,22 +5316,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     if (!mTouchStatesByDisplay.empty()) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
         for (const auto& [displayId, state] : mTouchStatesByDisplay) {
-            dump += StringPrintf(INDENT2 "%d: deviceId=%d, source=0x%08x\n", displayId,
-                                 state.deviceId, state.source);
-            if (!state.windows.empty()) {
-                dump += INDENT3 "Windows:\n";
-                for (size_t i = 0; i < state.windows.size(); i++) {
-                    const TouchedWindow& touchedWindow = state.windows[i];
-                    dump += StringPrintf(INDENT4 "%zu: name='%s', pointerIds=0x%0x, "
-                                                 "targetFlags=0x%x, firstDownTimeInTarget=%" PRId64
-                                                 "ms\n",
-                                         i, touchedWindow.windowHandle->getName().c_str(),
-                                         touchedWindow.pointerIds.value, touchedWindow.targetFlags,
-                                         ns2ms(touchedWindow.firstDownTimeInTarget.value_or(0)));
-                }
-            } else {
-                dump += INDENT3 "Windows: <none>\n";
-            }
+            std::string touchStateDump = addLinePrefix(state.dump(), INDENT2);
+            dump += INDENT2 + std::to_string(displayId) + " : " + touchStateDump;
         }
     } else {
         dump += INDENT "TouchStates: <no displays touched>\n";

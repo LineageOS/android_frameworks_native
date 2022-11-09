@@ -46,6 +46,7 @@ filegroup {
         "LatencyAggregator.cpp",
         "LatencyTracker.cpp",
         "Monitor.cpp",
+        "TouchedWindow.cpp",
         "TouchState.cpp",
     ],
 }
