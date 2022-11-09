@@ -42,6 +42,19 @@ static const float MIN_FREEFORM_GESTURE_WIDTH_IN_MILLIMETER = 30;
 
 static const DisplayViewport kUninitializedViewport;
 
+static std::string toString(const Rect& rect) {
+    return base::StringPrintf("Rect{%d, %d, %d, %d}", rect.left, rect.top, rect.right, rect.bottom);
+}
+
+static std::string toString(const ui::Size& size) {
+    return base::StringPrintf("%dx%d", size.width, size.height);
+}
+
+static bool isPointInRect(const Rect& rect, int32_t x, int32_t y) {
+    // Consider all four sides as "inclusive".
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
 template <typename T>
 inline static void swap(T& a, T& b) {
     T temp = a;
@@ -93,12 +106,6 @@ TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
         mTouchButtonAccumulator(deviceContext),
         mSource(0),
         mDeviceMode(DeviceMode::DISABLED),
-        mDisplayWidth(-1),
-        mDisplayHeight(-1),
-        mPhysicalWidth(-1),
-        mPhysicalHeight(-1),
-        mPhysicalLeft(0),
-        mPhysicalTop(0),
         mInputDeviceOrientation(DISPLAY_ORIENTATION_0) {}
 
 TouchInputMapper::~TouchInputMapper() {}
@@ -564,7 +571,7 @@ void TouchInputMapper::initializeSizeRanges() {
     }
 
     // Size of diagonal axis.
-    const float diagonalSize = hypotf(mDisplayWidth, mDisplayHeight);
+    const float diagonalSize = hypotf(mDisplayBounds.width, mDisplayBounds.height);
 
     // Size factors.
     if (mRawPointerAxes.touchMajor.valid && mRawPointerAxes.touchMajor.maxValue != 0) {
@@ -647,8 +654,8 @@ void TouchInputMapper::initializeSizeRanges() {
 
 void TouchInputMapper::initializeOrientedRanges() {
     // Configure X and Y factors.
-    mXScale = float(mDisplayWidth) / mRawPointerAxes.getRawWidth();
-    mYScale = float(mDisplayHeight) / mRawPointerAxes.getRawHeight();
+    mXScale = float(mDisplayBounds.width) / mRawPointerAxes.getRawWidth();
+    mYScale = float(mDisplayBounds.height) / mRawPointerAxes.getRawHeight();
     mXPrecision = 1.0f / mXScale;
     mYPrecision = 1.0f / mYScale;
 
@@ -784,13 +791,13 @@ void TouchInputMapper::initializeOrientedRanges() {
             mOrientedYPrecision = mXPrecision;
 
             mOrientedRanges.x.min = 0;
-            mOrientedRanges.x.max = mDisplayHeight - 1;
+            mOrientedRanges.x.max = mDisplayBounds.height - 1;
             mOrientedRanges.x.flat = 0;
             mOrientedRanges.x.fuzz = 0;
             mOrientedRanges.x.resolution = mRawPointerAxes.y.resolution * mYScale;
 
             mOrientedRanges.y.min = 0;
-            mOrientedRanges.y.max = mDisplayWidth - 1;
+            mOrientedRanges.y.max = mDisplayBounds.width - 1;
             mOrientedRanges.y.flat = 0;
             mOrientedRanges.y.fuzz = 0;
             mOrientedRanges.y.resolution = mRawPointerAxes.x.resolution * mXScale;
@@ -801,13 +808,13 @@ void TouchInputMapper::initializeOrientedRanges() {
             mOrientedYPrecision = mYPrecision;
 
             mOrientedRanges.x.min = 0;
-            mOrientedRanges.x.max = mDisplayWidth - 1;
+            mOrientedRanges.x.max = mDisplayBounds.width - 1;
             mOrientedRanges.x.flat = 0;
             mOrientedRanges.x.fuzz = 0;
             mOrientedRanges.x.resolution = mRawPointerAxes.x.resolution * mXScale;
 
             mOrientedRanges.y.min = 0;
-            mOrientedRanges.y.max = mDisplayHeight - 1;
+            mOrientedRanges.y.max = mDisplayBounds.height - 1;
             mOrientedRanges.y.flat = 0;
             mOrientedRanges.y.fuzz = 0;
             mOrientedRanges.y.resolution = mRawPointerAxes.y.resolution * mYScale;
@@ -868,8 +875,7 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
     }
 
     // Raw width and height in the natural orientation.
-    const int32_t rawWidth = mRawPointerAxes.getRawWidth();
-    const int32_t rawHeight = mRawPointerAxes.getRawHeight();
+    const ui::Size rawSize{mRawPointerAxes.getRawWidth(), mRawPointerAxes.getRawHeight()};
     const int32_t rawXResolution = mRawPointerAxes.x.resolution;
     const int32_t rawYResolution = mRawPointerAxes.y.resolution;
     // Calculate the mean resolution when both x and y resolution are set, otherwise set it to 0.
@@ -937,15 +943,12 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                 naturalPhysicalWidth = naturalPhysicalWidth == 0 ? 1 : naturalPhysicalWidth;
             }
 
-            mPhysicalWidth = naturalPhysicalWidth;
-            mPhysicalHeight = naturalPhysicalHeight;
-            mPhysicalLeft = naturalPhysicalLeft;
-            mPhysicalTop = naturalPhysicalTop;
+            mPhysicalFrameInDisplay = Rect{naturalPhysicalLeft, naturalPhysicalTop,
+                                           naturalPhysicalLeft + naturalPhysicalWidth,
+                                           naturalPhysicalTop + naturalPhysicalHeight};
 
-            const int32_t oldDisplayWidth = mDisplayWidth;
-            const int32_t oldDisplayHeight = mDisplayHeight;
-            mDisplayWidth = naturalDeviceWidth;
-            mDisplayHeight = naturalDeviceHeight;
+            const auto oldDisplayBounds = mDisplayBounds;
+            mDisplayBounds = ui::Size{naturalDeviceWidth, naturalDeviceHeight};
 
             // InputReader works in the un-rotated display coordinate space, so we don't need to do
             // anything if the device is already orientation-aware. If the device is not
@@ -958,20 +961,14 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
             // For orientation-aware devices that work in the un-rotated coordinate space, the
             // viewport update should be skipped if it is only a change in the orientation.
             skipViewportUpdate = !viewportDisplayIdChanged && mParameters.orientationAware &&
-                    mDisplayWidth == oldDisplayWidth && mDisplayHeight == oldDisplayHeight &&
-                    viewportOrientationChanged;
+                    mDisplayBounds == oldDisplayBounds && viewportOrientationChanged;
 
             // Apply the input device orientation for the device.
             mInputDeviceOrientation =
                     (mInputDeviceOrientation + static_cast<int32_t>(mParameters.orientation)) % 4;
         } else {
-            mPhysicalWidth = rawWidth;
-            mPhysicalHeight = rawHeight;
-            mPhysicalLeft = 0;
-            mPhysicalTop = 0;
-
-            mDisplayWidth = rawWidth;
-            mDisplayHeight = rawHeight;
+            mDisplayBounds = rawSize;
+            mPhysicalFrameInDisplay = Rect{mDisplayBounds};
             mInputDeviceOrientation = DISPLAY_ORIENTATION_0;
         }
     }
@@ -1003,9 +1000,9 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
     }
 
     if ((viewportChanged && !skipViewportUpdate) || deviceModeChanged) {
-        ALOGI("Device reconfigured: id=%d, name='%s', size %dx%d, orientation %d, mode %d, "
+        ALOGI("Device reconfigured: id=%d, name='%s', size %s, orientation %d, mode %d, "
               "display id %d",
-              getDeviceId(), getDeviceName().c_str(), mDisplayWidth, mDisplayHeight,
+              getDeviceId(), getDeviceName().c_str(), toString(mDisplayBounds).c_str(),
               mInputDeviceOrientation, mDeviceMode, mViewport.displayId);
 
         configureVirtualKeys();
@@ -1017,8 +1014,8 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
 
         if (mDeviceMode == DeviceMode::POINTER) {
             // Compute pointer gesture detection parameters.
-            float rawDiagonal = hypotf(rawWidth, rawHeight);
-            float displayDiagonal = hypotf(mDisplayWidth, mDisplayHeight);
+            float rawDiagonal = hypotf(rawSize.width, rawSize.height);
+            float displayDiagonal = hypotf(mDisplayBounds.width, mDisplayBounds.height);
 
             // Scale movements such that one whole swipe of the touch pad covers a
             // given area relative to the diagonal size of the display when no acceleration
@@ -1054,12 +1051,8 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
 
 void TouchInputMapper::dumpDisplay(std::string& dump) {
     dump += StringPrintf(INDENT3 "%s\n", mViewport.toString().c_str());
-    dump += StringPrintf(INDENT3 "DisplayWidth: %dpx\n", mDisplayWidth);
-    dump += StringPrintf(INDENT3 "DisplayHeight: %dpx\n", mDisplayHeight);
-    dump += StringPrintf(INDENT3 "PhysicalWidth: %dpx\n", mPhysicalWidth);
-    dump += StringPrintf(INDENT3 "PhysicalHeight: %dpx\n", mPhysicalHeight);
-    dump += StringPrintf(INDENT3 "PhysicalLeft: %d\n", mPhysicalLeft);
-    dump += StringPrintf(INDENT3 "PhysicalTop: %d\n", mPhysicalTop);
+    dump += StringPrintf(INDENT3 "DisplayBounds: %s\n", toString(mDisplayBounds).c_str());
+    dump += StringPrintf(INDENT3 "PhysicalFrame: %s\n", toString(mPhysicalFrameInDisplay).c_str());
     dump += StringPrintf(INDENT3 "InputDeviceOrientation: %d\n", mInputDeviceOrientation);
 }
 
@@ -1098,17 +1091,17 @@ void TouchInputMapper::configureVirtualKeys() {
         int32_t halfWidth = virtualKeyDefinition.width / 2;
         int32_t halfHeight = virtualKeyDefinition.height / 2;
 
-        virtualKey.hitLeft =
-                (virtualKeyDefinition.centerX - halfWidth) * touchScreenWidth / mDisplayWidth +
+        virtualKey.hitLeft = (virtualKeyDefinition.centerX - halfWidth) * touchScreenWidth /
+                        mDisplayBounds.width +
                 touchScreenLeft;
-        virtualKey.hitRight =
-                (virtualKeyDefinition.centerX + halfWidth) * touchScreenWidth / mDisplayWidth +
+        virtualKey.hitRight = (virtualKeyDefinition.centerX + halfWidth) * touchScreenWidth /
+                        mDisplayBounds.width +
                 touchScreenLeft;
-        virtualKey.hitTop =
-                (virtualKeyDefinition.centerY - halfHeight) * touchScreenHeight / mDisplayHeight +
+        virtualKey.hitTop = (virtualKeyDefinition.centerY - halfHeight) * touchScreenHeight /
+                        mDisplayBounds.height +
                 touchScreenTop;
-        virtualKey.hitBottom =
-                (virtualKeyDefinition.centerY + halfHeight) * touchScreenHeight / mDisplayHeight +
+        virtualKey.hitBottom = (virtualKeyDefinition.centerY + halfHeight) * touchScreenHeight /
+                        mDisplayBounds.height +
                 touchScreenTop;
         mVirtualKeys.push_back(virtualKey);
     }
@@ -3859,9 +3852,8 @@ bool TouchInputMapper::isPointInsidePhysicalFrame(int32_t x, int32_t y) const {
     const float yScaled = (y - mRawPointerAxes.y.minValue) * mYScale;
 
     return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue &&
-            xScaled >= mPhysicalLeft && xScaled <= (mPhysicalLeft + mPhysicalWidth) &&
             y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue &&
-            yScaled >= mPhysicalTop && yScaled <= (mPhysicalTop + mPhysicalHeight);
+            isPointInRect(mPhysicalFrameInDisplay, xScaled, yScaled);
 }
 
 const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(int32_t x, int32_t y) {
