@@ -51,6 +51,7 @@ class RunDex2Oat {
                     bool enable_hidden_api_checks,
                     bool generate_compact_dex,
                     bool use_jitzygote,
+                    bool background_job_compile,
                     const char* compilation_reason);
 
     void Exec(int exit_code);
@@ -76,7 +77,9 @@ class RunDex2Oat {
                                     bool enable_hidden_api_checks,
                                     bool generate_compact_dex,
                                     const char* compilation_reason);
-    void PrepareCompilerRuntimeAndPerfConfigFlags(bool post_bootcomplete, bool for_restore);
+    void PrepareCompilerRuntimeAndPerfConfigFlags(bool post_bootcomplete,
+                                                  bool for_restore,
+                                                  bool background_job_compile);
 
     virtual std::string GetProperty(const std::string& key, const std::string& default_value);
     virtual bool GetBoolProperty(const std::string& key, bool default_value);
