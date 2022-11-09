@@ -27,9 +27,9 @@ namespace inputdispatcher {
 
 std::string TouchedWindow::dump() const {
     return StringPrintf("name='%s', pointerIds=0x%0x, "
-                        "targetFlags=0x%x, firstDownTimeInTarget=%s\n",
-                        windowHandle->getName().c_str(), pointerIds.value, targetFlags,
-                        toString(firstDownTimeInTarget).c_str());
+                        "targetFlags=%s, firstDownTimeInTarget=%s\n",
+                        windowHandle->getName().c_str(), pointerIds.value,
+                        targetFlags.string().c_str(), toString(firstDownTimeInTarget).c_str());
 }
 
 } // namespace inputdispatcher

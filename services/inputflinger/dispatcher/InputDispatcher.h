@@ -553,7 +553,7 @@ private:
             const std::vector<Monitor>& gestureMonitors) const REQUIRES(mLock);
 
     void addWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
-                               int32_t targetFlags, BitSet32 pointerIds,
+                               ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
                                std::optional<nsecs_t> firstDownTimeInTarget,
                                std::vector<InputTarget>& inputTargets) const REQUIRES(mLock);
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
@@ -600,8 +600,8 @@ private:
                                       std::shared_ptr<EventEntry>, const InputTarget& inputTarget)
             REQUIRES(mLock);
     void enqueueDispatchEntryLocked(const sp<Connection>& connection, std::shared_ptr<EventEntry>,
-                                    const InputTarget& inputTarget, int32_t dispatchMode)
-            REQUIRES(mLock);
+                                    const InputTarget& inputTarget,
+                                    ftl::Flags<InputTarget::Flags> dispatchMode) REQUIRES(mLock);
     status_t publishMotionEvent(Connection& connection, DispatchEntry& dispatchEntry) const;
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);

@@ -24,24 +24,6 @@ using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
 
-std::string dispatchModeToString(int32_t dispatchMode) {
-    switch (dispatchMode) {
-        case InputTarget::FLAG_DISPATCH_AS_IS:
-            return "DISPATCH_AS_IS";
-        case InputTarget::FLAG_DISPATCH_AS_OUTSIDE:
-            return "DISPATCH_AS_OUTSIDE";
-        case InputTarget::FLAG_DISPATCH_AS_HOVER_ENTER:
-            return "DISPATCH_AS_HOVER_ENTER";
-        case InputTarget::FLAG_DISPATCH_AS_HOVER_EXIT:
-            return "DISPATCH_AS_HOVER_EXIT";
-        case InputTarget::FLAG_DISPATCH_AS_SLIPPERY_EXIT:
-            return "DISPATCH_AS_SLIPPERY_EXIT";
-        case InputTarget::FLAG_DISPATCH_AS_SLIPPERY_ENTER:
-            return "DISPATCH_AS_SLIPPERY_ENTER";
-    }
-    return StringPrintf("%" PRId32, dispatchMode);
-}
-
 void InputTarget::addPointers(BitSet32 newPointerIds, const ui::Transform& transform) {
     // The pointerIds can be empty, but still a valid InputTarget. This can happen when there is no
     // valid pointer property from the input event.
