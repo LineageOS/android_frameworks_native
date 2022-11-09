@@ -5120,7 +5120,7 @@ void SurfaceFlinger::dumpHwcLayersMinidumpLocked(std::string& result) const {
         Layer::miniDumpHeader(result);
 
         const DisplayDevice& ref = *display;
-        mCurrentState.traverseInZOrder([&](Layer* layer) { layer->miniDump(result, ref); });
+        mDrawingState.traverseInZOrder([&](Layer* layer) { layer->miniDump(result, ref); });
         result.append("\n");
     }
 }
