@@ -410,9 +410,9 @@ private:
     // Always starts at (0, 0).
     ui::Size mDisplayBounds{ui::kInvalidSize};
 
-    // The physical frame is the rectangle in the natural display's coordinate space that maps to
+    // The physical frame is the rectangle in the rotated display's coordinate space that maps to
     // the logical display frame.
-    Rect mPhysicalFrameInDisplay{Rect::INVALID_RECT};
+    Rect mPhysicalFrameInRotatedDisplay{Rect::INVALID_RECT};
 
     // The orientation of the input device relative to that of the display panel. It specifies
     // the rotation of the input device coordinates required to produce the display panel
@@ -422,6 +422,11 @@ private:
     // The transform that maps the input device's raw coordinate space to the un-rotated display's
     // coordinate space. InputReader generates events in the un-rotated display's coordinate space.
     ui::Transform mRawToDisplay;
+
+    // The transform that maps the input device's raw coordinate space to the rotated display's
+    // coordinate space. This used to perform hit-testing of raw events with the physical frame in
+    // the rotated coordinate space. See mPhysicalFrameInRotatedDisplay.
+    ui::Transform mRawToRotatedDisplay;
 
     // Translation and scaling factors, orientation-independent.
     float mXScale;
@@ -817,7 +822,7 @@ private:
 
     static void assignPointerIds(const RawState& last, RawState& current);
 
-    ui::Transform computeInputTransform() const;
+    void computeInputTransforms();
 
     void configureDeviceType();
 };

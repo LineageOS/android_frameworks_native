@@ -51,9 +51,8 @@ static std::string toString(const ui::Size& size) {
     return base::StringPrintf("%dx%d", size.width, size.height);
 }
 
-static bool isPointInRect(const Rect& rect, int32_t x, int32_t y) {
-    // Consider all four sides as "inclusive".
-    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+static bool isPointInRect(const Rect& rect, vec2 p) {
+    return p.x >= rect.left && p.x < rect.right && p.y >= rect.top && p.y < rect.bottom;
 }
 
 template <typename T>
@@ -81,29 +80,12 @@ inline static int32_t signExtendNybble(int32_t value) {
     return value >= 8 ? value - 16 : value;
 }
 
-static std::tuple<ui::Size /*displayBounds*/, Rect /*physicalFrame*/> getNaturalDisplayInfo(
-        const DisplayViewport& viewport) {
+static ui::Size getNaturalDisplaySize(const DisplayViewport& viewport) {
     ui::Size rotatedDisplaySize{viewport.deviceWidth, viewport.deviceHeight};
     if (viewport.orientation == ui::ROTATION_90 || viewport.orientation == ui::ROTATION_270) {
         std::swap(rotatedDisplaySize.width, rotatedDisplaySize.height);
     }
-
-    ui::Transform rotate(ui::Transform::toRotationFlags(viewport.orientation),
-                         rotatedDisplaySize.width, rotatedDisplaySize.height);
-
-    Rect physicalFrame{viewport.physicalLeft, viewport.physicalTop, viewport.physicalRight,
-                       viewport.physicalBottom};
-    physicalFrame = rotate.transform(physicalFrame);
-
-    LOG_ALWAYS_FATAL_IF(!physicalFrame.isValid());
-    if (physicalFrame.isEmpty()) {
-        ALOGE("Viewport is not set properly: %s", viewport.toString().c_str());
-        physicalFrame.right =
-                physicalFrame.left + (physicalFrame.width() == 0 ? 1 : physicalFrame.width());
-        physicalFrame.bottom =
-                physicalFrame.top + (physicalFrame.height() == 0 ? 1 : physicalFrame.height());
-    }
-    return {rotatedDisplaySize, physicalFrame};
+    return rotatedDisplaySize;
 }
 
 // --- RawPointerData ---
@@ -856,7 +838,7 @@ void TouchInputMapper::initializeOrientedRanges() {
     }
 }
 
-ui::Transform TouchInputMapper::computeInputTransform() const {
+void TouchInputMapper::computeInputTransforms() {
     const ui::Size rawSize{mRawPointerAxes.getRawWidth(), mRawPointerAxes.getRawHeight()};
 
     ui::Size rotatedRawSize = rawSize;
@@ -881,7 +863,13 @@ ui::Transform TouchInputMapper::computeInputTransform() const {
     const float yScale = static_cast<float>(mDisplayBounds.height) / rotatedRawSize.height;
     scaleToDisplay.set(xScale, 0, 0, yScale);
 
-    return (scaleToDisplay * (rotate * undoRawOffset));
+    mRawToDisplay = (scaleToDisplay * (rotate * undoRawOffset));
+
+    // Calculate the transform that takes raw coordinates to the rotated display space.
+    ui::Transform displayToRotatedDisplay;
+    displayToRotatedDisplay.set(ui::Transform::toRotationFlags(-mViewport.orientation),
+                                mViewport.deviceWidth, mViewport.deviceHeight);
+    mRawToRotatedDisplay = displayToRotatedDisplay * mRawToDisplay;
 }
 
 void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) {
@@ -955,7 +943,9 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         if (mDeviceMode == DeviceMode::DIRECT || mDeviceMode == DeviceMode::POINTER) {
             const auto oldDisplayBounds = mDisplayBounds;
 
-            std::tie(mDisplayBounds, mPhysicalFrameInDisplay) = getNaturalDisplayInfo(mViewport);
+            mDisplayBounds = getNaturalDisplaySize(mViewport);
+            mPhysicalFrameInRotatedDisplay = {mViewport.physicalLeft, mViewport.physicalTop,
+                                              mViewport.physicalRight, mViewport.physicalBottom};
 
             // InputReader works in the un-rotated display coordinate space, so we don't need to do
             // anything if the device is already orientation-aware. If the device is not
@@ -972,13 +962,14 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
 
             // Apply the input device orientation for the device.
             mInputDeviceOrientation = mInputDeviceOrientation + mParameters.orientation;
-            mRawToDisplay = computeInputTransform();
+            computeInputTransforms();
         } else {
             mDisplayBounds = rawSize;
-            mPhysicalFrameInDisplay = Rect{mDisplayBounds};
+            mPhysicalFrameInRotatedDisplay = Rect{mDisplayBounds};
             mInputDeviceOrientation = ui::ROTATION_0;
             mRawToDisplay.reset();
             mRawToDisplay.set(-mRawPointerAxes.x.minValue, -mRawPointerAxes.y.minValue);
+            mRawToRotatedDisplay = mRawToDisplay;
         }
     }
 
@@ -1061,7 +1052,8 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
 void TouchInputMapper::dumpDisplay(std::string& dump) {
     dump += StringPrintf(INDENT3 "%s\n", mViewport.toString().c_str());
     dump += StringPrintf(INDENT3 "DisplayBounds: %s\n", toString(mDisplayBounds).c_str());
-    dump += StringPrintf(INDENT3 "PhysicalFrame: %s\n", toString(mPhysicalFrameInDisplay).c_str());
+    dump += StringPrintf(INDENT3 "PhysicalFrameInRotatedDisplay: %s\n",
+                         toString(mPhysicalFrameInRotatedDisplay).c_str());
     dump += StringPrintf(INDENT3 "InputDeviceOrientation: %d\n", mInputDeviceOrientation);
 }
 
@@ -3822,12 +3814,9 @@ std::list<NotifyArgs> TouchInputMapper::cancelTouch(nsecs_t when, nsecs_t readTi
 }
 
 bool TouchInputMapper::isPointInsidePhysicalFrame(int32_t x, int32_t y) const {
-    const float xScaled = (x - mRawPointerAxes.x.minValue) * mXScale;
-    const float yScaled = (y - mRawPointerAxes.y.minValue) * mYScale;
-
     return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue &&
             y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue &&
-            isPointInRect(mPhysicalFrameInDisplay, xScaled, yScaled);
+            isPointInRect(mPhysicalFrameInRotatedDisplay, mRawToRotatedDisplay.transform(x, y));
 }
 
 const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(int32_t x, int32_t y) {

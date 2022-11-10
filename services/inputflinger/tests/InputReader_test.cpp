@@ -5740,6 +5740,61 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationSpecified_RotatesMotio
     EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
 }
 
+TEST_F(SingleTouchInputMapperTest, Process_IgnoresTouchesOutsidePhysicalFrame) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareButtons();
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.orientationAware", "1");
+    prepareDisplay(ui::ROTATION_0);
+    auto& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    // Set a physical frame in the display viewport.
+    auto viewport = mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
+    viewport->physicalLeft = 20;
+    viewport->physicalTop = 600;
+    viewport->physicalRight = 30;
+    viewport->physicalBottom = 610;
+    mFakePolicy->updateViewport(*viewport);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    // Start the touch.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_TOUCH, 1);
+    processSync(mapper);
+
+    // Expect all input starting outside the physical frame to be ignored.
+    const std::array<Point, 6> outsidePoints = {
+            {{0, 0}, {19, 605}, {31, 605}, {25, 599}, {25, 611}, {DISPLAY_WIDTH, DISPLAY_HEIGHT}}};
+    for (const auto& p : outsidePoints) {
+        processMove(mapper, toRawX(p.x), toRawY(p.y));
+        processSync(mapper);
+        EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+    }
+
+    // Move the touch into the physical frame.
+    processMove(mapper, toRawX(25), toRawY(605));
+    processSync(mapper);
+    NotifyMotionArgs args;
+    EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
+    EXPECT_NEAR(25, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+    EXPECT_NEAR(605, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+
+    // Once the touch down is reported, continue reporting input, even if it is outside the frame.
+    for (const auto& p : outsidePoints) {
+        processMove(mapper, toRawX(p.x), toRawY(p.y));
+        processSync(mapper);
+        EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+        EXPECT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+        EXPECT_NEAR(p.x, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X), 1);
+        EXPECT_NEAR(p.y, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y), 1);
+    }
+
+    processUp(mapper);
+    processSync(mapper);
+    EXPECT_NO_FATAL_FAILURE(
+            mFakeListener->assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_UP)));
+}
+
 TEST_F(SingleTouchInputMapperTest, Process_AllAxes_DefaultCalibration) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(ui::ROTATION_0);
