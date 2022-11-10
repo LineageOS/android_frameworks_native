@@ -419,6 +419,10 @@ private:
     // orientation, so it will depend on whether the device is orientation aware.
     ui::Rotation mInputDeviceOrientation;
 
+    // The transform that maps the input device's raw coordinate space to the un-rotated display's
+    // coordinate space. InputReader generates events in the un-rotated display's coordinate space.
+    ui::Transform mRawToDisplay;
+
     // Translation and scaling factors, orientation-independent.
     float mXScale;
     float mXPrecision;
@@ -813,7 +817,7 @@ private:
 
     static void assignPointerIds(const RawState& last, RawState& current);
 
-    void rotateAndScale(float& x, float& y) const;
+    ui::Transform computeInputTransform() const;
 
     void configureDeviceType();
 };

@@ -5535,7 +5535,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenNotOrientationAware_RotatesMotion
     // Rotation 90.
     clearViewports();
     prepareDisplay(ui::ROTATION_90);
-    processDown(mapper, toRawX(75), RAW_Y_MAX - toRawY(50) + RAW_Y_MIN);
+    processDown(mapper, toRotatedRawX(75), RAW_Y_MAX - toRotatedRawY(50) + RAW_Y_MIN);
     processSync(mapper);
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
@@ -5563,7 +5563,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenNotOrientationAware_RotatesMotion
     // Rotation 270.
     clearViewports();
     prepareDisplay(ui::ROTATION_270);
-    processDown(mapper, RAW_X_MAX - toRawX(75) + RAW_X_MIN, toRawY(50));
+    processDown(mapper, RAW_X_MAX - toRotatedRawX(75) + RAW_X_MIN, toRotatedRawY(50));
     processSync(mapper);
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
@@ -5700,7 +5700,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationSpecified_RotatesMotio
     // Orientation 90, Rotation 90.
     clearViewports();
     prepareDisplay(ui::ROTATION_90);
-    processDown(mapper, toRotatedRawX(50), toRotatedRawY(75));
+    processDown(mapper, toRawX(50), toRawY(75));
     processSync(mapper);
 
     EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
@@ -5728,8 +5728,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationSpecified_RotatesMotio
     // Orientation 90, Rotation 270.
     clearViewports();
     prepareDisplay(ui::ROTATION_270);
-    processDown(mapper, RAW_X_MAX - toRotatedRawX(50) + RAW_X_MIN,
-                RAW_Y_MAX - toRotatedRawY(75) + RAW_Y_MIN);
+    processDown(mapper, RAW_X_MAX - toRawX(50) + RAW_X_MIN, RAW_Y_MAX - toRawY(75) + RAW_Y_MIN);
     processSync(mapper);
 
     EXPECT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
