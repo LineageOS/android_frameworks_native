@@ -97,34 +97,33 @@ std::list<NotifyArgs> RotaryEncoderInputMapper::process(const RawEvent* rawEvent
 
 std::list<NotifyArgs> RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     std::list<NotifyArgs> out;
-    PointerCoords pointerCoords;
-    pointerCoords.clear();
-
-    PointerProperties pointerProperties;
-    pointerProperties.clear();
-    pointerProperties.id = 0;
-    pointerProperties.toolType = AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
 
     float scroll = mRotaryEncoderScrollAccumulator.getRelativeVWheel();
     bool scrolled = scroll != 0;
 
-    // This is not a pointer, so it's not associated with a display.
-    int32_t displayId = ADISPLAY_ID_NONE;
-
-    // Moving the rotary encoder should wake the device (if specified).
-    uint32_t policyFlags = 0;
-    if (scrolled && getDeviceContext().isExternal()) {
-        policyFlags |= POLICY_FLAG_WAKE;
-    }
-
-    if (mOrientation == DISPLAY_ORIENTATION_180) {
-        scroll = -scroll;
-    }
-
     // Send motion event.
     if (scrolled) {
         int32_t metaState = getContext()->getGlobalMetaState();
+        // This is not a pointer, so it's not associated with a display.
+        int32_t displayId = ADISPLAY_ID_NONE;
+
+        if (mOrientation == DISPLAY_ORIENTATION_180) {
+            scroll = -scroll;
+        }
+
+        PointerCoords pointerCoords;
+        pointerCoords.clear();
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_SCROLL, scroll * mScalingFactor);
+
+        PointerProperties pointerProperties;
+        pointerProperties.clear();
+        pointerProperties.id = 0;
+        pointerProperties.toolType = AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
+
+        uint32_t policyFlags = 0;
+        if (getDeviceContext().isExternal()) {
+            policyFlags |= POLICY_FLAG_WAKE;
+        }
 
         out.push_back(
                 NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
