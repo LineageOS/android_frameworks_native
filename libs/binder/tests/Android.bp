@@ -232,6 +232,7 @@ cc_defaults {
     srcs: [
         "binderRpcTest.cpp",
         "binderRpcTestCommon.cpp",
+        "binderRpcUniversalTests.cpp",
     ],
 
     test_suites: ["general-tests"],
