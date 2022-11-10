@@ -173,6 +173,7 @@ message SurfaceflingerStatsLayerInfo {
          GAME_MODE_STANDARD = 2;
          GAME_MODE_PERFORMANCE = 3;
          GAME_MODE_BATTERY = 4;
+         GAME_MODE_CUSTOM = 5;
     }
 
     // Game mode that the layer was running at. Used to track user engagement

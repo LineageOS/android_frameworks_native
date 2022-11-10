@@ -1320,6 +1320,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_multipleGameModes) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 3000000, {}, GameMode::Performance);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 4, 4000000, {}, GameMode::Battery);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 5, 4000000, {}, GameMode::Battery);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 6, 5000000, {}, GameMode::Custom);
 
     std::string pulledData;
     EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
@@ -1327,9 +1328,9 @@ TEST_F(TimeStatsTest, layerStatsCallback_multipleGameModes) {
     SurfaceflingerStatsLayerInfoWrapper atomList;
     ASSERT_TRUE(atomList.ParseFromString(pulledData));
     // The first time record is never uploaded to stats.
-    ASSERT_EQ(atomList.atom_size(), 3);
+    ASSERT_EQ(atomList.atom_size(), 4);
     // Layers are ordered based on the hash in LayerStatsKey. For this test, the order happens to
-    // be: 0 - Battery 1 - Performance 2 - Standard
+    // be: 0 - Battery 1 - Custom 2 - Performance 3 - Standard
     const SurfaceflingerStatsLayerInfo& atom0 = atomList.atom(0);
 
     EXPECT_EQ(atom0.layer_name(), genLayerName(LAYER_ID_0));
@@ -1364,7 +1365,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_multipleGameModes) {
     EXPECT_EQ(atom1.uid(), UID_0);
     EXPECT_EQ(atom1.display_refresh_rate_bucket(), REFRESH_RATE_BUCKET_0);
     EXPECT_EQ(atom1.render_rate_bucket(), RENDER_RATE_BUCKET_0);
-    EXPECT_EQ(atom1.game_mode(), SurfaceflingerStatsLayerInfo::GAME_MODE_PERFORMANCE);
+    EXPECT_EQ(atom1.game_mode(), SurfaceflingerStatsLayerInfo::GAME_MODE_CUSTOM);
 
     const SurfaceflingerStatsLayerInfo& atom2 = atomList.atom(2);
 
@@ -1377,12 +1378,30 @@ TEST_F(TimeStatsTest, layerStatsCallback_multipleGameModes) {
     EXPECT_THAT(atom2.latch_to_present(), HistogramEq(buildExpectedHistogram({2}, {1})));
     EXPECT_THAT(atom2.desired_to_present(), HistogramEq(buildExpectedHistogram({1}, {1})));
     EXPECT_THAT(atom2.post_to_acquire(), HistogramEq(buildExpectedHistogram({1}, {1})));
-    EXPECT_EQ(atom2.late_acquire_frames(), LATE_ACQUIRE_FRAMES);
-    EXPECT_EQ(atom2.bad_desired_present_frames(), BAD_DESIRED_PRESENT_FRAMES);
+    EXPECT_EQ(atom2.late_acquire_frames(), 0);
+    EXPECT_EQ(atom2.bad_desired_present_frames(), 0);
     EXPECT_EQ(atom2.uid(), UID_0);
     EXPECT_EQ(atom2.display_refresh_rate_bucket(), REFRESH_RATE_BUCKET_0);
     EXPECT_EQ(atom2.render_rate_bucket(), RENDER_RATE_BUCKET_0);
-    EXPECT_EQ(atom2.game_mode(), SurfaceflingerStatsLayerInfo::GAME_MODE_STANDARD);
+    EXPECT_EQ(atom2.game_mode(), SurfaceflingerStatsLayerInfo::GAME_MODE_PERFORMANCE);
+
+    const SurfaceflingerStatsLayerInfo& atom3 = atomList.atom(3);
+
+    EXPECT_EQ(atom3.layer_name(), genLayerName(LAYER_ID_0));
+    EXPECT_EQ(atom3.total_frames(), 1);
+    EXPECT_EQ(atom3.dropped_frames(), 0);
+    EXPECT_THAT(atom3.present_to_present(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_THAT(atom3.post_to_present(), HistogramEq(buildExpectedHistogram({4}, {1})));
+    EXPECT_THAT(atom3.acquire_to_present(), HistogramEq(buildExpectedHistogram({3}, {1})));
+    EXPECT_THAT(atom3.latch_to_present(), HistogramEq(buildExpectedHistogram({2}, {1})));
+    EXPECT_THAT(atom3.desired_to_present(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_THAT(atom3.post_to_acquire(), HistogramEq(buildExpectedHistogram({1}, {1})));
+    EXPECT_EQ(atom3.late_acquire_frames(), LATE_ACQUIRE_FRAMES);
+    EXPECT_EQ(atom3.bad_desired_present_frames(), BAD_DESIRED_PRESENT_FRAMES);
+    EXPECT_EQ(atom3.uid(), UID_0);
+    EXPECT_EQ(atom3.display_refresh_rate_bucket(), REFRESH_RATE_BUCKET_0);
+    EXPECT_EQ(atom3.render_rate_bucket(), RENDER_RATE_BUCKET_0);
+    EXPECT_EQ(atom3.game_mode(), SurfaceflingerStatsLayerInfo::GAME_MODE_STANDARD);
 }
 
 TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleLayers) {

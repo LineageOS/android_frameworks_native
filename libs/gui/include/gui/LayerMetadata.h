@@ -66,8 +66,9 @@ enum class GameMode : int32_t {
     Standard = 1,
     Performance = 2,
     Battery = 3,
+    Custom = 4,
 
-    ftl_last = Battery
+    ftl_last = Custom
 };
 
 } // namespace android::gui
