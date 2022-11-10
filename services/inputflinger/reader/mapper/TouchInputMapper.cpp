@@ -80,6 +80,33 @@ inline static int32_t signExtendNybble(int32_t value) {
     return value >= 8 ? value - 16 : value;
 }
 
+static std::tuple<ui::Size /*displayBounds*/, Rect /*physicalFrame*/> getNaturalDisplayInfo(
+        const DisplayViewport& viewport, int32_t naturalOrientation) {
+    const auto rotation = ui::toRotation(naturalOrientation);
+
+    ui::Size rotatedDisplaySize{viewport.deviceWidth, viewport.deviceHeight};
+    if (rotation == ui::ROTATION_90 || rotation == ui::ROTATION_270) {
+        std::swap(rotatedDisplaySize.width, rotatedDisplaySize.height);
+    }
+
+    ui::Transform rotate(ui::Transform::toRotationFlags(rotation), rotatedDisplaySize.width,
+                         rotatedDisplaySize.height);
+
+    Rect physicalFrame{viewport.physicalLeft, viewport.physicalTop, viewport.physicalRight,
+                       viewport.physicalBottom};
+    physicalFrame = rotate.transform(physicalFrame);
+
+    LOG_ALWAYS_FATAL_IF(!physicalFrame.isValid());
+    if (physicalFrame.isEmpty()) {
+        ALOGE("Viewport is not set properly: %s", viewport.toString().c_str());
+        physicalFrame.right =
+                physicalFrame.left + (physicalFrame.width() == 0 ? 1 : physicalFrame.width());
+        physicalFrame.bottom =
+                physicalFrame.top + (physicalFrame.height() == 0 ? 1 : physicalFrame.height());
+    }
+    return {rotatedDisplaySize, physicalFrame};
+}
+
 // --- RawPointerData ---
 
 void RawPointerData::getCentroidOfTouchingPointers(float* outX, float* outY) const {
@@ -891,64 +918,16 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         mViewport = newViewport;
 
         if (mDeviceMode == DeviceMode::DIRECT || mDeviceMode == DeviceMode::POINTER) {
-            // Convert rotated viewport to the natural orientation.
-            int32_t naturalPhysicalWidth, naturalPhysicalHeight;
-            int32_t naturalPhysicalLeft, naturalPhysicalTop;
-            int32_t naturalDeviceWidth, naturalDeviceHeight;
+            const auto oldDisplayBounds = mDisplayBounds;
 
             // Apply the inverse of the input device orientation so that the input device is
             // configured in the same orientation as the viewport. The input device orientation will
             // be re-applied by mInputDeviceOrientation.
             const int32_t naturalDeviceOrientation =
                     (mViewport.orientation - static_cast<int32_t>(mParameters.orientation) + 4) % 4;
-            switch (naturalDeviceOrientation) {
-                case DISPLAY_ORIENTATION_90:
-                    naturalPhysicalWidth = mViewport.physicalBottom - mViewport.physicalTop;
-                    naturalPhysicalHeight = mViewport.physicalRight - mViewport.physicalLeft;
-                    naturalPhysicalLeft = mViewport.deviceHeight - mViewport.physicalBottom;
-                    naturalPhysicalTop = mViewport.physicalLeft;
-                    naturalDeviceWidth = mViewport.deviceHeight;
-                    naturalDeviceHeight = mViewport.deviceWidth;
-                    break;
-                case DISPLAY_ORIENTATION_180:
-                    naturalPhysicalWidth = mViewport.physicalRight - mViewport.physicalLeft;
-                    naturalPhysicalHeight = mViewport.physicalBottom - mViewport.physicalTop;
-                    naturalPhysicalLeft = mViewport.deviceWidth - mViewport.physicalRight;
-                    naturalPhysicalTop = mViewport.deviceHeight - mViewport.physicalBottom;
-                    naturalDeviceWidth = mViewport.deviceWidth;
-                    naturalDeviceHeight = mViewport.deviceHeight;
-                    break;
-                case DISPLAY_ORIENTATION_270:
-                    naturalPhysicalWidth = mViewport.physicalBottom - mViewport.physicalTop;
-                    naturalPhysicalHeight = mViewport.physicalRight - mViewport.physicalLeft;
-                    naturalPhysicalLeft = mViewport.physicalTop;
-                    naturalPhysicalTop = mViewport.deviceWidth - mViewport.physicalRight;
-                    naturalDeviceWidth = mViewport.deviceHeight;
-                    naturalDeviceHeight = mViewport.deviceWidth;
-                    break;
-                case DISPLAY_ORIENTATION_0:
-                default:
-                    naturalPhysicalWidth = mViewport.physicalRight - mViewport.physicalLeft;
-                    naturalPhysicalHeight = mViewport.physicalBottom - mViewport.physicalTop;
-                    naturalPhysicalLeft = mViewport.physicalLeft;
-                    naturalPhysicalTop = mViewport.physicalTop;
-                    naturalDeviceWidth = mViewport.deviceWidth;
-                    naturalDeviceHeight = mViewport.deviceHeight;
-                    break;
-            }
 
-            if (naturalPhysicalHeight == 0 || naturalPhysicalWidth == 0) {
-                ALOGE("Viewport is not set properly: %s", mViewport.toString().c_str());
-                naturalPhysicalHeight = naturalPhysicalHeight == 0 ? 1 : naturalPhysicalHeight;
-                naturalPhysicalWidth = naturalPhysicalWidth == 0 ? 1 : naturalPhysicalWidth;
-            }
-
-            mPhysicalFrameInDisplay = Rect{naturalPhysicalLeft, naturalPhysicalTop,
-                                           naturalPhysicalLeft + naturalPhysicalWidth,
-                                           naturalPhysicalTop + naturalPhysicalHeight};
-
-            const auto oldDisplayBounds = mDisplayBounds;
-            mDisplayBounds = ui::Size{naturalDeviceWidth, naturalDeviceHeight};
+            std::tie(mDisplayBounds, mPhysicalFrameInDisplay) =
+                    getNaturalDisplayInfo(mViewport, naturalDeviceOrientation);
 
             // InputReader works in the un-rotated display coordinate space, so we don't need to do
             // anything if the device is already orientation-aware. If the device is not

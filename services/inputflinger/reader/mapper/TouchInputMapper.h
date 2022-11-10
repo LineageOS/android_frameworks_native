@@ -412,11 +412,12 @@ private:
     // The components of the viewport are specified in the display's rotated orientation.
     DisplayViewport mViewport;
 
-    // The display size obtained from the viewport in the natural orientation.
+    // We refer to the display as being in the "natural orientation" when there is no rotation
+    // applied. The display size obtained from the viewport in the natural orientation.
     // Always starts at (0, 0).
     ui::Size mDisplayBounds{ui::kInvalidSize};
 
-    // The physical frame is the rectangle in the display's coordinate space that maps to
+    // The physical frame is the rectangle in the natural display's coordinate space that maps to
     // the logical display frame.
     Rect mPhysicalFrameInDisplay{Rect::INVALID_RECT};
 
