@@ -685,7 +685,7 @@ private:
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
-    void initScheduler(const sp<const DisplayDevice>&) REQUIRES(mStateLock);
+    void initScheduler(const sp<const DisplayDevice>&) REQUIRES(kMainThreadContext, mStateLock);
     void updatePhaseConfiguration(const Fps&) REQUIRES(mStateLock);
     void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 
@@ -1013,7 +1013,9 @@ private:
     void dumpFrameTimeline(const DumpArgs& args, std::string& result) const;
     void logFrameStats(TimePoint now) REQUIRES(kMainThreadContext);
 
-    void dumpVSync(std::string& result) const REQUIRES(mStateLock);
+    void dumpScheduler(std::string& result) const REQUIRES(mStateLock);
+    void dumpEvents(std::string& result) const REQUIRES(mStateLock);
+    void dumpVsync(std::string& result) const REQUIRES(mStateLock);
 
     void dumpCompositionDisplays(std::string& result) const REQUIRES(mStateLock);
     void dumpDisplays(std::string& result) const REQUIRES(mStateLock);

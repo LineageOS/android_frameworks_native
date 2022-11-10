@@ -248,10 +248,6 @@ public:
     // release HWC resources (if any) for removable displays
     void disconnect();
 
-    /* ------------------------------------------------------------------------
-     * Debugging
-     */
-    std::string getDebugName() const;
     void dump(utils::Dumper&) const;
 
 private:

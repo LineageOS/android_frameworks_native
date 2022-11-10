@@ -275,7 +275,7 @@ void LayerHistory::clear() {
 
 std::string LayerHistory::dump() const {
     std::lock_guard lock(mLock);
-    return base::StringPrintf("LayerHistory{size=%zu, active=%zu}",
+    return base::StringPrintf("{size=%zu, active=%zu}",
                               mActiveLayerInfos.size() + mInactiveLayerInfos.size(),
                               mActiveLayerInfos.size());
 }

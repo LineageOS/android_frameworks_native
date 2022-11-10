@@ -16,9 +16,10 @@
 
 #pragma once
 
-#include <optional>
 #include <string>
 #include <string_view>
+
+#include <ftl/optional.h>
 
 namespace android::utils {
 
@@ -44,16 +45,48 @@ public:
         eol();
     }
 
+    void dump(std::string_view name, const std::string& value) {
+        dump(name, static_cast<const std::string_view&>(value));
+    }
+
     void dump(std::string_view name, bool value) {
         using namespace std::string_view_literals;
         dump(name, value ? "true"sv : "false"sv);
     }
 
     template <typename T>
-    void dump(std::string_view name, const std::optional<T>& value) {
-        using namespace std::string_view_literals;
+    void dump(std::string_view name, const std::optional<T>& opt) {
+        if (opt) {
+            dump(name, *opt);
+        } else {
+            using namespace std::string_view_literals;
+            dump(name, "nullopt"sv);
+        }
+    }
+
+    template <typename T>
+    void dump(std::string_view name, const ftl::Optional<T>& opt) {
+        dump(name, static_cast<const std::optional<T>&>(opt));
+    }
+
+    template <typename T, typename... Ts>
+    void dump(std::string_view name, const T& value, const Ts&... rest) {
+        std::string string;
+
+        constexpr bool kIsTuple = sizeof...(Ts) > 0;
+        if constexpr (kIsTuple) {
+            string += '{';
+        }
+
         using std::to_string;
-        dump(name, value ? to_string(*value) : "nullopt"sv);
+        string += to_string(value);
+
+        if constexpr (kIsTuple) {
+            string += ((", " + to_string(rest)) + ...);
+            string += '}';
+        }
+
+        dump(name, string);
     }
 
     struct Indent {
@@ -61,6 +94,21 @@ public:
         ~Indent() { dumper.mIndent--; }
 
         Dumper& dumper;
+    };
+
+    struct Section {
+        Section(Dumper& dumper, std::string_view heading) : dumper(dumper) {
+            dumper.dump({}, heading);
+            indent.emplace(dumper);
+        }
+
+        ~Section() {
+            indent.reset();
+            dumper.eol();
+        }
+
+        Dumper& dumper;
+        std::optional<Indent> indent;
     };
 
 private:

@@ -25,6 +25,7 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
+#include <ftl/enum.h>
 #include <ftl/fake_guard.h>
 #include <ftl/small_map.h>
 #include <gui/WindowInfo.h>
@@ -94,36 +95,24 @@ void Scheduler::startTimers() {
     }
 }
 
-void Scheduler::setRefreshRateSelector(RefreshRateSelectorPtr selectorPtr) {
-    // The current RefreshRateSelector instance may outlive this call, so unbind its idle timer.
-    {
-        // mRefreshRateSelectorLock is not locked here to avoid the deadlock
-        // as the callback can attempt to acquire the lock before stopIdleTimer can finish
-        // the execution. It's safe to FakeGuard as main thread is the only thread that
-        // writes to the mRefreshRateSelector.
-        ftl::FakeGuard guard(mRefreshRateSelectorLock);
-        if (mRefreshRateSelector) {
-            mRefreshRateSelector->stopIdleTimer();
-            mRefreshRateSelector->clearIdleTimerCallbacks();
-        }
+void Scheduler::setRefreshRateSelector(RefreshRateSelectorPtr newSelectorPtr) {
+    // No need to lock for reads on kMainThreadContext.
+    if (const auto& selectorPtr = FTL_FAKE_GUARD(mRefreshRateSelectorLock, mRefreshRateSelector)) {
+        unbindIdleTimer(*selectorPtr);
     }
+
     {
-        // Clear state that depends on the current instance.
+        // Clear state that depends on the current RefreshRateSelector.
         std::scoped_lock lock(mPolicyLock);
         mPolicy = {};
     }
 
     std::scoped_lock lock(mRefreshRateSelectorLock);
-    mRefreshRateSelector = std::move(selectorPtr);
-    if (!mRefreshRateSelector) return;
+    mRefreshRateSelector = std::move(newSelectorPtr);
 
-    mRefreshRateSelector->setIdleTimerCallbacks(
-            {.platform = {.onReset = [this] { idleTimerCallback(TimerState::Reset); },
-                          .onExpired = [this] { idleTimerCallback(TimerState::Expired); }},
-             .kernel = {.onReset = [this] { kernelIdleTimerCallback(TimerState::Reset); },
-                        .onExpired = [this] { kernelIdleTimerCallback(TimerState::Expired); }}});
-
-    mRefreshRateSelector->startIdleTimer();
+    if (mRefreshRateSelector) {
+        bindIdleTimer(*mRefreshRateSelector);
+    }
 }
 
 void Scheduler::registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
@@ -546,6 +535,21 @@ void Scheduler::setDisplayPowerMode(hal::PowerMode powerMode) {
     mLayerHistory.clear();
 }
 
+void Scheduler::bindIdleTimer(RefreshRateSelector& selector) {
+    selector.setIdleTimerCallbacks(
+            {.platform = {.onReset = [this] { idleTimerCallback(TimerState::Reset); },
+                          .onExpired = [this] { idleTimerCallback(TimerState::Expired); }},
+             .kernel = {.onReset = [this] { kernelIdleTimerCallback(TimerState::Reset); },
+                        .onExpired = [this] { kernelIdleTimerCallback(TimerState::Expired); }}});
+
+    selector.startIdleTimer();
+}
+
+void Scheduler::unbindIdleTimer(RefreshRateSelector& selector) {
+    selector.stopIdleTimer();
+    selector.clearIdleTimerCallbacks();
+}
+
 void Scheduler::kernelIdleTimerCallback(TimerState state) {
     ATRACE_INT("ExpiredKernelIdleTimer", static_cast<int>(state));
 
@@ -596,22 +600,36 @@ void Scheduler::displayPowerTimerCallback(TimerState state) {
     ATRACE_INT("ExpiredDisplayPowerTimer", static_cast<int>(state));
 }
 
-void Scheduler::dump(std::string& result) const {
-    using base::StringAppendF;
-
-    StringAppendF(&result, "+  Touch timer: %s\n",
-                  mTouchTimer ? mTouchTimer->dump().c_str() : "off");
-    StringAppendF(&result, "+  Content detection: %s %s\n\n",
-                  mFeatures.test(Feature::kContentDetection) ? "on" : "off",
-                  mLayerHistory.dump().c_str());
-
-    mFrameRateOverrideMappings.dump(result);
+void Scheduler::dump(utils::Dumper& dumper) const {
+    using namespace std::string_view_literals;
 
     {
+        utils::Dumper::Section section(dumper, "Features"sv);
+
+        for (Feature feature : ftl::enum_range<Feature>()) {
+            if (const auto flagOpt = ftl::flag_name(feature)) {
+                dumper.dump(flagOpt->substr(1), mFeatures.test(feature));
+            }
+        }
+    }
+    {
+        utils::Dumper::Section section(dumper, "Policy"sv);
+
+        dumper.dump("layerHistory"sv, mLayerHistory.dump());
+        dumper.dump("touchTimer"sv, mTouchTimer.transform(&OneShotTimer::interval));
+        dumper.dump("displayPowerTimer"sv, mDisplayPowerTimer.transform(&OneShotTimer::interval));
+    }
+
+    mFrameRateOverrideMappings.dump(dumper);
+    dumper.eol();
+
+    {
+        utils::Dumper::Section section(dumper, "Hardware VSYNC"sv);
+
         std::lock_guard lock(mHWVsyncLock);
-        StringAppendF(&result,
-                      "mScreenAcquired=%d mPrimaryHWVsyncEnabled=%d mHWVsyncAvailable=%d\n",
-                      mScreenAcquired.load(), mPrimaryHWVsyncEnabled, mHWVsyncAvailable);
+        dumper.dump("screenAcquired"sv, mScreenAcquired.load());
+        dumper.dump("hwVsyncAvailable"sv, mHWVsyncAvailable);
+        dumper.dump("hwVsyncEnabled"sv, mPrimaryHWVsyncEnabled);
     }
 }
 
