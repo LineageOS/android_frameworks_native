@@ -1157,20 +1157,15 @@ void RefreshRateSelector::dump(utils::Dumper& dumper) const {
 
     dumper.dump("frameRateOverrideConfig"sv, *ftl::enum_name(mFrameRateOverrideConfig));
 
-    std::string idleTimer;
-    if (mIdleTimer) {
-        idleTimer = mIdleTimer->dump();
-    } else {
-        idleTimer = "off"sv;
+    dumper.dump("idleTimer"sv);
+    {
+        utils::Dumper::Indent indent(dumper);
+        dumper.dump("interval"sv, mIdleTimer.transform(&OneShotTimer::interval));
+        dumper.dump("controller"sv,
+                    mConfig.kernelIdleTimerController
+                            .and_then(&ftl::enum_name<KernelIdleTimerController>)
+                            .value_or("Platform"sv));
     }
-
-    if (const auto controller = mConfig.kernelIdleTimerController) {
-        base::StringAppendF(&idleTimer, " (kernel via %s)", ftl::enum_string(*controller).c_str());
-    } else {
-        idleTimer += " (platform)"sv;
-    }
-
-    dumper.dump("idleTimer"sv, idleTimer);
 }
 
 std::chrono::milliseconds RefreshRateSelector::getIdleTimerTimeout() {

@@ -313,26 +313,10 @@ ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
     return sPrimaryDisplayRotationFlags;
 }
 
-std::string DisplayDevice::getDebugName() const {
-    using namespace std::string_literals;
-
-    std::string name = "Display "s + to_string(getId()) + " ("s;
-
-    name += isVirtual() ? "virtual"s : "physical"s;
-
-    if (isPrimary()) {
-        name += ", primary"s;
-    }
-
-    return name + ", \""s + mDisplayName + "\")"s;
-}
-
 void DisplayDevice::dump(utils::Dumper& dumper) const {
     using namespace std::string_view_literals;
 
-    dumper.dump({}, getDebugName());
-
-    utils::Dumper::Indent indent(dumper);
+    dumper.dump("name"sv, '"' + mDisplayName + '"');
     dumper.dump("powerMode"sv, mPowerMode);
 
     if (mRefreshRateSelector) {

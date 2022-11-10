@@ -23,7 +23,10 @@
 #include <map>
 #include <optional>
 
+#include "Utils/Dumper.h"
+
 namespace android::scheduler {
+
 class FrameRateOverrideMappings {
     using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
     using UidToFrameRateOverride = std::map<uid_t, Fps>;
@@ -34,7 +37,6 @@ public:
             EXCLUDES(mFrameRateOverridesLock);
     std::vector<FrameRateOverride> getAllFrameRateOverrides(bool supportsFrameRateOverrideByContent)
             EXCLUDES(mFrameRateOverridesLock);
-    void dump(std::string& result) const;
     bool updateFrameRateOverridesByContent(const UidToFrameRateOverride& frameRateOverrides)
             EXCLUDES(mFrameRateOverridesLock);
     void setGameModeRefreshRateForUid(FrameRateOverride frameRateOverride)
@@ -42,7 +44,17 @@ public:
     void setPreferredRefreshRateForUid(FrameRateOverride frameRateOverride)
             EXCLUDES(mFrameRateOverridesLock);
 
+    void dump(utils::Dumper&) const;
+
 private:
+    size_t maxOverridesCount() const REQUIRES(mFrameRateOverridesLock) {
+        return std::max({mFrameRateOverridesByContent.size(),
+                         mFrameRateOverridesFromGameManager.size(),
+                         mFrameRateOverridesFromBackdoor.size()});
+    }
+
+    void dump(utils::Dumper&, std::string_view name, const UidToFrameRateOverride&) const;
+
     // The frame rate override lists need their own mutex as they are being read
     // by SurfaceFlinger, Scheduler and EventThread (as a callback) to prevent deadlocks
     mutable std::mutex mFrameRateOverridesLock;
@@ -53,4 +65,5 @@ private:
     UidToFrameRateOverride mFrameRateOverridesFromBackdoor GUARDED_BY(mFrameRateOverridesLock);
     UidToFrameRateOverride mFrameRateOverridesFromGameManager GUARDED_BY(mFrameRateOverridesLock);
 };
+
 } // namespace android::scheduler
