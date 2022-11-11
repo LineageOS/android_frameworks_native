@@ -69,6 +69,7 @@ enum class SocketType {
     PRECONNECTED,
     UNIX,
     UNIX_BOOTSTRAP,
+    UNIX_RAW,
     VSOCK,
     INET,
 };
@@ -81,6 +82,8 @@ static inline std::string PrintToString(SocketType socketType) {
             return "unix_domain_socket";
         case SocketType::UNIX_BOOTSTRAP:
             return "unix_domain_socket_bootstrap";
+        case SocketType::UNIX_RAW:
+            return "raw_uds";
         case SocketType::VSOCK:
             return "vm_socket";
         case SocketType::INET:

@@ -54,6 +54,9 @@ int main(int argc, const char* argv[]) {
         case SocketType::UNIX_BOOTSTRAP:
             CHECK_EQ(OK, server->setupUnixDomainSocketBootstrapServer(std::move(unixBootstrapFd)));
             break;
+        case SocketType::UNIX_RAW:
+            CHECK_EQ(OK, server->setupRawSocketServer(base::unique_fd(serverConfig.socketFd)));
+            break;
         case SocketType::VSOCK:
             CHECK_EQ(OK, server->setupVsockServer(serverConfig.vsockPort));
             break;
