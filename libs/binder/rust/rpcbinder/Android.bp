@@ -20,6 +20,7 @@ rust_library {
         "libbinder_rs",
         "libdowncast_rs",
         "liblibc",
+        "liblog_rust",
     ],
     apex_available: [
         "com.android.compos",

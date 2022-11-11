@@ -20,7 +20,9 @@ mod client;
 mod server;
 
 pub use client::{
-    get_preconnected_rpc_interface, get_preconnected_rpc_service, get_vsock_rpc_interface,
-    get_vsock_rpc_service,
+    get_preconnected_rpc_interface, get_preconnected_rpc_service, get_unix_domain_rpc_interface,
+    get_unix_domain_rpc_service, get_vsock_rpc_interface, get_vsock_rpc_service,
 };
-pub use server::{run_vsock_rpc_server, run_vsock_rpc_server_with_factory};
+pub use server::{
+    run_init_unix_domain_rpc_server, run_vsock_rpc_server, run_vsock_rpc_server_with_factory,
+};
