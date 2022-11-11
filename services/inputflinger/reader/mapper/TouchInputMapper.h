@@ -362,7 +362,10 @@ protected:
 
     // State provided by an external stylus
     StylusState mExternalStylusState;
-    int64_t mExternalStylusId;
+    // If an external stylus is capable of reporting pointer-specific data like pressure, we will
+    // attempt to fuse the pointer data reported by the stylus to the first touch pointer. This is
+    // the id of the pointer to which the external stylus data is fused.
+    std::optional<uint32_t> mFusedStylusPointerId;
     nsecs_t mExternalStylusFusionTimeout;
     bool mExternalStylusDataPending;
     // A subset of the buttons in mCurrentRawState that came from an external stylus.

@@ -21,6 +21,7 @@
 #include "TouchInputMapper.h"
 
 #include <ftl/enum.h>
+#include <input/PrintTools.h>
 
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
@@ -251,7 +252,8 @@ void TouchInputMapper::dump(std::string& dump) {
     dump += INDENT3 "Stylus Fusion:\n";
     dump += StringPrintf(INDENT4 "ExternalStylusConnected: %s\n",
                          toString(mExternalStylusConnected));
-    dump += StringPrintf(INDENT4 "External Stylus ID: %" PRId64 "\n", mExternalStylusId);
+    dump += StringPrintf(INDENT4 "Fused External Stylus Pointer ID: %s\n",
+                         toString(mFusedStylusPointerId).c_str());
     dump += StringPrintf(INDENT4 "External Stylus Data Timeout: %" PRId64 "\n",
                          mExternalStylusFusionTimeout);
     dump += StringPrintf(INDENT4 " External Stylus Buttons Applied: 0x%08x",
@@ -1412,7 +1414,7 @@ std::list<NotifyArgs> TouchInputMapper::reset(nsecs_t when) {
 
 void TouchInputMapper::resetExternalStylus() {
     mExternalStylusState.clear();
-    mExternalStylusId = -1;
+    mFusedStylusPointerId.reset();
     mExternalStylusFusionTimeout = LLONG_MAX;
     mExternalStylusDataPending = false;
     mExternalStylusButtonsApplied = 0;
@@ -1704,17 +1706,18 @@ void TouchInputMapper::applyExternalStylusTouchState(nsecs_t when) {
     CookedPointerData& currentPointerData = mCurrentCookedState.cookedPointerData;
     const CookedPointerData& lastPointerData = mLastCookedState.cookedPointerData;
 
-    if (mExternalStylusId != -1 && currentPointerData.isTouching(mExternalStylusId)) {
+    if (mFusedStylusPointerId && currentPointerData.isTouching(*mFusedStylusPointerId)) {
         float pressure = mExternalStylusState.pressure;
-        if (pressure == 0.0f && lastPointerData.isTouching(mExternalStylusId)) {
-            const PointerCoords& coords = lastPointerData.pointerCoordsForId(mExternalStylusId);
+        if (pressure == 0.0f && lastPointerData.isTouching(*mFusedStylusPointerId)) {
+            const PointerCoords& coords =
+                    lastPointerData.pointerCoordsForId(*mFusedStylusPointerId);
             pressure = coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE);
         }
-        PointerCoords& coords = currentPointerData.editPointerCoordsWithId(mExternalStylusId);
+        PointerCoords& coords = currentPointerData.editPointerCoordsWithId(*mFusedStylusPointerId);
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, pressure);
 
         PointerProperties& properties =
-                currentPointerData.editPointerPropertiesWithId(mExternalStylusId);
+                currentPointerData.editPointerPropertiesWithId(*mFusedStylusPointerId);
         if (mExternalStylusState.toolType != AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
             properties.toolType = mExternalStylusState.toolType;
         }
@@ -1731,10 +1734,10 @@ bool TouchInputMapper::assignExternalStylusId(const RawState& state, bool timeou
     if (initialDown) {
         if (mExternalStylusState.pressure != 0.0f) {
             ALOGD_IF(DEBUG_STYLUS_FUSION, "Have both stylus and touch data, beginning fusion");
-            mExternalStylusId = state.rawPointerData.touchingIdBits.firstMarkedBit();
+            mFusedStylusPointerId = state.rawPointerData.touchingIdBits.firstMarkedBit();
         } else if (timeout) {
             ALOGD_IF(DEBUG_STYLUS_FUSION, "Timeout expired, assuming touch is not a stylus.");
-            mExternalStylusId = -1;
+            mFusedStylusPointerId.reset();
             mExternalStylusFusionTimeout = LLONG_MAX;
         } else {
             if (mExternalStylusFusionTimeout == LLONG_MAX) {
@@ -1749,9 +1752,10 @@ bool TouchInputMapper::assignExternalStylusId(const RawState& state, bool timeou
     }
 
     // Check if the stylus pointer has gone up.
-    if (mExternalStylusId != -1 && !state.rawPointerData.touchingIdBits.hasBit(mExternalStylusId)) {
+    if (mFusedStylusPointerId &&
+        !state.rawPointerData.touchingIdBits.hasBit(*mFusedStylusPointerId)) {
         ALOGD_IF(DEBUG_STYLUS_FUSION, "Stylus pointer is going up");
-        mExternalStylusId = -1;
+        mFusedStylusPointerId.reset();
     }
 
     return false;
@@ -1779,7 +1783,7 @@ std::list<NotifyArgs> TouchInputMapper::updateExternalStylusState(const StylusSt
     std::list<NotifyArgs> out;
     const bool buttonsChanged = mExternalStylusState.buttons != state.buttons;
     mExternalStylusState.copyFrom(state);
-    if (mExternalStylusId != -1 || mExternalStylusFusionTimeout != LLONG_MAX || buttonsChanged) {
+    if (mFusedStylusPointerId || mExternalStylusFusionTimeout != LLONG_MAX || buttonsChanged) {
         // The following three cases are handled here:
         // - We're in the middle of a fused stream of data;
         // - We're waiting on external stylus data before dispatching the initial down; or
