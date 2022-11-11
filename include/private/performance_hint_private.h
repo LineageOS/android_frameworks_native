@@ -63,6 +63,12 @@ enum SessionHint {
  */
 int APerformanceHint_sendHint(void* session, int hint);
 
+/**
+ * Return the list of thread ids, this API should only be used for testing only.
+ */
+int APerformanceHint_getThreadIds(void* aPerformanceHintSession,
+                                  int32_t* const threadIds, size_t* const size);
+
 __END_DECLS
 
 #endif // ANDROID_PRIVATE_NATIVE_PERFORMANCE_HINT_PRIVATE_H
