@@ -44,7 +44,7 @@ __BEGIN_DECLS
  *
  * Available since API level 34.
  */
-ASurfaceControl* _Nonnull ASurfaceControl_fromSurfaceControl(JNIEnv* _Nonnull env,
+ASurfaceControl* _Nonnull ASurfaceControl_fromJava(JNIEnv* _Nonnull env,
         jobject _Nonnull surfaceControlObj) __INTRODUCED_IN(__ANDROID_API_U__);
 
 /**
@@ -59,7 +59,7 @@ ASurfaceControl* _Nonnull ASurfaceControl_fromSurfaceControl(JNIEnv* _Nonnull en
  *
  * Available since API level 34.
  */
-ASurfaceTransaction* _Nonnull ASurfaceTransaction_fromTransaction(JNIEnv* _Nonnull env,
+ASurfaceTransaction* _Nonnull ASurfaceTransaction_fromJava(JNIEnv* _Nonnull env,
         jobject _Nonnull transactionObj) __INTRODUCED_IN(__ANDROID_API_U__);
 
 __END_DECLS
