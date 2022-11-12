@@ -1226,40 +1226,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
 
     ALOGV("hasClientComposition");
 
-    renderengine::DisplaySettings clientCompositionDisplay;
-    clientCompositionDisplay.physicalDisplay = outputState.framebufferSpace.getContent();
-    clientCompositionDisplay.clip = outputState.layerStackSpace.getContent();
-    clientCompositionDisplay.orientation =
-            ui::Transform::toRotationFlags(outputState.displaySpace.getOrientation());
-    clientCompositionDisplay.outputDataspace = mDisplayColorProfile->hasWideColorGamut()
-            ? outputState.dataspace
-            : ui::Dataspace::UNKNOWN;
-
-    // If we have a valid current display brightness use that, otherwise fall back to the
-    // display's max desired
-    clientCompositionDisplay.currentLuminanceNits = outputState.displayBrightnessNits > 0.f
-            ? outputState.displayBrightnessNits
-            : mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
-    clientCompositionDisplay.maxLuminance =
-            mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
-    clientCompositionDisplay.targetLuminanceNits =
-            outputState.clientTargetBrightness * outputState.displayBrightnessNits;
-    clientCompositionDisplay.dimmingStage = outputState.clientTargetDimmingStage;
-    clientCompositionDisplay.renderIntent =
-            static_cast<aidl::android::hardware::graphics::composer3::RenderIntent>(
-                    outputState.renderIntent);
-
-    // Compute the global color transform matrix.
-    clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
-    for (auto& info : outputState.borderInfoList) {
-        renderengine::BorderRenderInfo borderInfo;
-        borderInfo.width = info.width;
-        borderInfo.color = info.color;
-        borderInfo.combinedRegion = info.combinedRegion;
-        clientCompositionDisplay.borderInfoList.emplace_back(std::move(borderInfo));
-    }
-    clientCompositionDisplay.deviceHandlesColorTransform =
-            outputState.usesDeviceComposition || getSkipColorTransform();
+    renderengine::DisplaySettings clientCompositionDisplay =
+            generateClientCompositionDisplaySettings();
 
     // Generate the client composition requests for the layers on this output.
     auto& renderEngine = getCompositionEngine().getRenderEngine();
@@ -1350,6 +1318,46 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     return base::unique_fd(fence->dup());
 }
 
+renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings() const {
+    const auto& outputState = getState();
+
+    renderengine::DisplaySettings clientCompositionDisplay;
+    clientCompositionDisplay.physicalDisplay = outputState.framebufferSpace.getContent();
+    clientCompositionDisplay.clip = outputState.layerStackSpace.getContent();
+    clientCompositionDisplay.orientation =
+            ui::Transform::toRotationFlags(outputState.displaySpace.getOrientation());
+    clientCompositionDisplay.outputDataspace = mDisplayColorProfile->hasWideColorGamut()
+            ? outputState.dataspace
+            : ui::Dataspace::UNKNOWN;
+
+    // If we have a valid current display brightness use that, otherwise fall back to the
+    // display's max desired
+    clientCompositionDisplay.currentLuminanceNits = outputState.displayBrightnessNits > 0.f
+            ? outputState.displayBrightnessNits
+            : mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
+    clientCompositionDisplay.maxLuminance =
+            mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
+    clientCompositionDisplay.targetLuminanceNits =
+            outputState.clientTargetBrightness * outputState.displayBrightnessNits;
+    clientCompositionDisplay.dimmingStage = outputState.clientTargetDimmingStage;
+    clientCompositionDisplay.renderIntent =
+            static_cast<aidl::android::hardware::graphics::composer3::RenderIntent>(
+                    outputState.renderIntent);
+
+    // Compute the global color transform matrix.
+    clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
+    for (auto& info : outputState.borderInfoList) {
+        renderengine::BorderRenderInfo borderInfo;
+        borderInfo.width = info.width;
+        borderInfo.color = info.color;
+        borderInfo.combinedRegion = info.combinedRegion;
+        clientCompositionDisplay.borderInfoList.emplace_back(std::move(borderInfo));
+    }
+    clientCompositionDisplay.deviceHandlesColorTransform =
+            outputState.usesDeviceComposition || getSkipColorTransform();
+    return clientCompositionDisplay;
+}
+
 std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
       bool supportsProtectedContent, ui::Dataspace outputDataspace, std::vector<LayerFE*>& outLayerFEs) {
     std::vector<LayerFE::LayerSettings> clientCompositionLayers;
@@ -1415,7 +1423,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                                              Enabled);
                 compositionengine::LayerFE::ClientCompositionTargetSettings
                         targetSettings{.clip = clip,
-                                       .needsFiltering = layer->needsFiltering() ||
+                                       .needsFiltering = layerNeedsFiltering(layer) ||
                                                outputState.needsFiltering,
                                        .isSecure = outputState.isSecure,
                                        .supportsProtectedContent = supportsProtectedContent,
@@ -1444,6 +1452,10 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
     }
 
     return clientCompositionLayers;
+}
+
+bool Output::layerNeedsFiltering(const compositionengine::OutputLayer* layer) const {
+    return layer->needsFiltering();
 }
 
 void Output::appendRegionFlashRequests(

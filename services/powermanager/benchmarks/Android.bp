@@ -40,7 +40,7 @@ cc_benchmark {
         "android.hardware.power@1.1",
         "android.hardware.power@1.2",
         "android.hardware.power@1.3",
-        "android.hardware.power-V3-cpp",
+        "android.hardware.power-V4-cpp",
     ],
     static_libs: [
         "libtestUtil",
