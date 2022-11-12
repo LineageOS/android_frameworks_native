@@ -71,6 +71,16 @@ public:
     [[nodiscard]] status_t setupUnixDomainServer(const char* path);
 
     /**
+     * Sets up an RPC server with a raw socket file descriptor.
+     * The socket should be created and bound to a socket address already, e.g.
+     * the socket can be created in init.rc.
+     *
+     * This method is used in the libbinder_rpc_unstable API
+     * RunInitUnixDomainRpcServer().
+     */
+    [[nodiscard]] status_t setupRawSocketServer(base::unique_fd socket_fd);
+
+    /**
      * Creates an RPC server at the current port.
      */
     [[nodiscard]] status_t setupVsockServer(unsigned int port);

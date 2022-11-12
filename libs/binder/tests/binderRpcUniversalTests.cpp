@@ -86,7 +86,7 @@ TEST_P(BinderRpc, SeparateRootObject) {
 
     SocketType type = std::get<0>(GetParam());
     if (type == SocketType::PRECONNECTED || type == SocketType::UNIX ||
-        type == SocketType::UNIX_BOOTSTRAP) {
+        type == SocketType::UNIX_BOOTSTRAP || type == SocketType::UNIX_RAW) {
         // we can't get port numbers for unix sockets
         return;
     }

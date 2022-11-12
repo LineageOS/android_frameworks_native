@@ -3,6 +3,8 @@ LIBBINDER_RPC_UNSTABLE_SHIM { # platform-only
     RunVsockRpcServer;
     RunVsockRpcServerCallback;
     VsockRpcClient;
+    RunInitUnixDomainRpcServer;
+    UnixDomainRpcClient;
     RpcPreconnectedClient;
   local:
     *;
