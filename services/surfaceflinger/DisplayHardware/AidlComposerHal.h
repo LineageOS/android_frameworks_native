@@ -17,10 +17,12 @@
 #pragma once
 
 #include "ComposerHal.h"
+#include <ftl/shared_mutex.h>
+#include <ftl/small_map.h>
 
+#include <functional>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -70,10 +72,10 @@ public:
 
     // Reset all pending commands in the command buffer. Useful if you want to
     // skip a frame but have already queued some commands.
-    void resetCommands() override;
+    void resetCommands(Display) override;
 
     // Explicitly flush all pending commands in the command buffer.
-    Error executeCommands() override;
+    Error executeCommands(Display) override;
 
     uint32_t getMaxVirtualDisplayCount() override;
     Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
@@ -228,15 +230,28 @@ public:
 
     Error getPhysicalDisplayOrientation(Display displayId,
                                         AidlTransform* outDisplayOrientation) override;
+    void onHotplugConnect(Display) override;
+    void onHotplugDisconnect(Display) override;
 
 private:
     // Many public functions above simply write a command into the command
     // queue to batch the calls.  validateDisplay and presentDisplay will call
     // this function to execute the command queue.
-    Error execute();
+    Error execute(Display) REQUIRES_SHARED(mMutex);
 
     // returns the default instance name for the given service
     static std::string instance(const std::string& serviceName);
+
+    ftl::Optional<std::reference_wrapper<ComposerClientWriter>> getWriter(Display)
+            REQUIRES_SHARED(mMutex);
+    ftl::Optional<std::reference_wrapper<ComposerClientReader>> getReader(Display)
+            REQUIRES_SHARED(mMutex);
+    void addDisplay(Display) EXCLUDES(mMutex);
+    void removeDisplay(Display) EXCLUDES(mMutex);
+    void addReader(Display) REQUIRES(mMutex);
+    void removeReader(Display) REQUIRES(mMutex);
+
+    bool hasMultiThreadedPresentSupport(Display);
 
     // 64KiB minus a small space for metadata such as read/write pointers
     static constexpr size_t kWriterInitialSize = 64 * 1024 / sizeof(uint32_t) - 16;
@@ -245,8 +260,25 @@ private:
     // 1. Tightly coupling this cache to the max size of BufferQueue
     // 2. Adding an additional slot for the layer caching feature in SurfaceFlinger (see: Planner.h)
     static const constexpr uint32_t kMaxLayerBufferCount = BufferQueue::NUM_BUFFER_SLOTS + 1;
-    ComposerClientWriter mWriter;
-    ComposerClientReader mReader;
+
+    // Without DisplayCapability::MULTI_THREADED_PRESENT, we use a single reader
+    // for all displays. With the capability, we use a separate reader for each
+    // display.
+    bool mSingleReader = true;
+    // Invalid displayId used as a key to mReaders when mSingleReader is true.
+    static constexpr int64_t kSingleReaderKey = 0;
+
+    // TODO (b/256881188): Use display::PhysicalDisplayMap instead of hard-coded `3`
+    ftl::SmallMap<Display, ComposerClientWriter, 3> mWriters GUARDED_BY(mMutex);
+    ftl::SmallMap<Display, ComposerClientReader, 3> mReaders GUARDED_BY(mMutex);
+    // Protect access to mWriters and mReaders with a shared_mutex. Adding and
+    // removing a display require exclusive access, since the iterator or the
+    // writer/reader may be invalidated. Other calls need shared access while
+    // using the writer/reader, so they can use their display's writer/reader
+    // without it being deleted or the iterator being invalidated.
+    // TODO (b/257958323): Use std::shared_mutex and RAII once they support
+    // threading annotations.
+    ftl::SharedMutex mMutex;
 
     // Aidl interface
     using AidlIComposer = aidl::android::hardware::graphics::composer3::IComposer;

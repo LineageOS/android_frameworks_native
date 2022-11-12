@@ -177,10 +177,10 @@ public:
 
     // Reset all pending commands in the command buffer. Useful if you want to
     // skip a frame but have already queued some commands.
-    void resetCommands() override;
+    void resetCommands(Display) override;
 
     // Explicitly flush all pending commands in the command buffer.
-    Error executeCommands() override;
+    Error executeCommands(Display) override;
 
     uint32_t getMaxVirtualDisplayCount() override;
     Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
@@ -339,6 +339,8 @@ public:
 
     Error getPhysicalDisplayOrientation(Display displayId,
                                         AidlTransform* outDisplayOrientation) override;
+    void onHotplugConnect(Display) override;
+    void onHotplugDisconnect(Display) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

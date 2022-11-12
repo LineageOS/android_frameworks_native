@@ -273,11 +273,11 @@ void HidlComposer::registerCallback(const sp<IComposerCallback>& callback) {
     }
 }
 
-void HidlComposer::resetCommands() {
+void HidlComposer::resetCommands(Display) {
     mWriter.reset();
 }
 
-Error HidlComposer::executeCommands() {
+Error HidlComposer::executeCommands(Display) {
     return execute();
 }
 
@@ -1356,6 +1356,9 @@ void HidlComposer::registerCallback(ComposerCallback& callback) {
 
     registerCallback(sp<ComposerCallbackBridge>::make(callback, vsyncSwitchingSupported));
 }
+
+void HidlComposer::onHotplugConnect(Display) {}
+void HidlComposer::onHotplugDisconnect(Display) {}
 
 CommandReader::~CommandReader() {
     resetData();
