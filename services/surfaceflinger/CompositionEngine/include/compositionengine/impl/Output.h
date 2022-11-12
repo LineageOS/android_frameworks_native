@@ -155,6 +155,8 @@ protected:
 
     bool mustRecompose() const;
 
+    const std::string& getNamePlusId() const { return mNamePlusId; }
+
 private:
     void dirtyEntireOutput();
     void updateCompositionStateForBorder(const compositionengine::CompositionRefreshArgs&);
@@ -165,6 +167,7 @@ private:
             const compositionengine::CompositionRefreshArgs&) const;
 
     std::string mName;
+    std::string mNamePlusId;
 
     std::unique_ptr<compositionengine::DisplayColorProfile> mDisplayColorProfile;
     std::unique_ptr<compositionengine::RenderSurface> mRenderSurface;

@@ -636,7 +636,7 @@ void SkiaRenderEngine::drawLayersInternal(
         const DisplaySettings& display, const std::vector<LayerSettings>& layers,
         const std::shared_ptr<ExternalTexture>& buffer, const bool /*useFramebufferCache*/,
         base::unique_fd&& bufferFence) {
-    ATRACE_NAME("SkiaGL::drawLayersInternal");
+    ATRACE_FORMAT("%s for %s", __func__, display.namePlusId.c_str());
 
     std::lock_guard<std::mutex> lock(mRenderingMutex);
 
