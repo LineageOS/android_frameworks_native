@@ -2763,7 +2763,7 @@ TEST_F(SensorInputMapperTest, ProcessGyroscopeSensor) {
 class KeyboardInputMapperTest : public InputMapperTest {
 protected:
     const std::string UNIQUE_ID = "local:0";
-
+    const KeyboardLayoutInfo DEVICE_KEYBOARD_LAYOUT_INFO = KeyboardLayoutInfo("en-US", "qwerty");
     void prepareDisplay(ui::Rotation orientation);
 
     void testDPadKeyRotation(KeyboardInputMapper& mapper, int32_t originalScanCode,
@@ -3580,6 +3580,24 @@ TEST_F(KeyboardInputMapperTest, Process_DisabledDevice) {
     ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
     ASSERT_EQ(KEY_HOME, args.scanCode);
     ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED, args.flags);
+}
+
+TEST_F(KeyboardInputMapperTest, Configure_AssignKeyboardLayoutInfo) {
+    mDevice->addMapper<KeyboardInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD,
+                                            AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    std::list<NotifyArgs> unused =
+            mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0);
+
+    mFakePolicy->addKeyboardLayoutAssociation(DEVICE_LOCATION, DEVICE_KEYBOARD_LAYOUT_INFO);
+
+    unused += mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                                 InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUT_ASSOCIATION);
+
+    InputDeviceInfo deviceInfo = mDevice->getDeviceInfo();
+    ASSERT_EQ(DEVICE_KEYBOARD_LAYOUT_INFO.languageTag,
+              deviceInfo.getKeyboardLayoutInfo()->languageTag);
+    ASSERT_EQ(DEVICE_KEYBOARD_LAYOUT_INFO.layoutType,
+              deviceInfo.getKeyboardLayoutInfo()->layoutType);
 }
 
 // --- KeyboardInputMapperTest_ExternalDevice ---
