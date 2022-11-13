@@ -780,7 +780,7 @@ private:
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, const sp<IScreenCaptureListener>&);
     ftl::SharedFuture<FenceResult> renderScreenImpl(
-            const RenderArea&, TraverseLayersFunction,
+            std::unique_ptr<RenderArea>, TraverseLayersFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool canCaptureBlackoutContent,
             bool regionSampling, bool grayscale, ScreenCaptureResults&) EXCLUDES(mStateLock)
             REQUIRES(kMainThreadContext);
@@ -1285,8 +1285,8 @@ private:
     sp<TunnelModeEnabledReporter> mTunnelModeEnabledReporter;
     ui::DisplayPrimaries mInternalDisplayPrimaries;
 
-    const float mInternalDisplayDensity;
     const float mEmulatedDisplayDensity;
+    const float mInternalDisplayDensity;
 
     // Should only be accessed by the main thread.
     sp<os::IInputFlinger> mInputFlinger;

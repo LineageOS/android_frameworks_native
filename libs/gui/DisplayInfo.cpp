@@ -20,7 +20,12 @@
 #include <gui/DisplayInfo.h>
 #include <private/gui/ParcelUtils.h>
 
+#include <android-base/stringprintf.h>
 #include <log/log.h>
+
+#include <inttypes.h>
+
+#define INDENT "  "
 
 namespace android::gui {
 
@@ -65,6 +70,19 @@ status_t DisplayInfo::writeToParcel(android::Parcel* parcel) const {
     SAFE_PARCEL(parcel->writeFloat, transform.ty());
 
     return OK;
+}
+
+void DisplayInfo::dump(std::string& out, const char* prefix) const {
+    using android::base::StringAppendF;
+
+    out += prefix;
+    StringAppendF(&out, "DisplayViewport[id=%" PRId32 "]\n", displayId);
+    out += prefix;
+    StringAppendF(&out, INDENT "Width=%" PRId32 ", Height=%" PRId32 "\n", logicalWidth,
+                  logicalHeight);
+    std::string transformPrefix(prefix);
+    transformPrefix.append(INDENT);
+    transform.dump(out, "Transform", transformPrefix.c_str());
 }
 
 } // namespace android::gui

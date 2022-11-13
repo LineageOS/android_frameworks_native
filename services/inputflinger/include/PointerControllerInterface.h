@@ -79,6 +79,8 @@ public:
         POINTER,
         // Show spots and a spot anchor in place of the mouse pointer.
         SPOT,
+
+        ftl_last = SPOT,
     };
 
     /* Sets the mode of the pointer controller. */

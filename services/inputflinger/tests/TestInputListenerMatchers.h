@@ -91,4 +91,9 @@ MATCHER_P(WithButtonState, buttons, "InputEvent with specified button state") {
     return arg.buttonState == buttons;
 }
 
+MATCHER_P(WithEventTime, eventTime, "InputEvent with specified eventTime") {
+    *result_listener << "expected event time " << eventTime << ", but got " << arg.eventTime;
+    return arg.eventTime == eventTime;
+}
+
 } // namespace android

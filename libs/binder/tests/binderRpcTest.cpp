@@ -129,6 +129,15 @@ static unsigned int allocateVsockPort() {
     return vsockPort++;
 }
 
+static base::unique_fd initUnixSocket(std::string addr) {
+    auto socket_addr = UnixSocketAddress(addr.c_str());
+    base::unique_fd fd(
+            TEMP_FAILURE_RETRY(socket(socket_addr.addr()->sa_family, SOCK_STREAM, AF_UNIX)));
+    CHECK(fd.ok());
+    CHECK_EQ(0, TEMP_FAILURE_RETRY(bind(fd.get(), socket_addr.addr(), socket_addr.addrSize())));
+    return fd;
+}
+
 // Destructors need to be defined, even if pure virtual
 ProcessSession::~ProcessSession() {}
 
@@ -243,12 +252,17 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
                                                    singleThreaded ? "_single_threaded" : "",
                                                    noKernel ? "_no_kernel" : "");
 
-    base::unique_fd bootstrapClientFd, bootstrapServerFd;
+    base::unique_fd bootstrapClientFd, bootstrapServerFd, socketFd;
     // Do not set O_CLOEXEC, bootstrapServerFd needs to survive fork/exec.
     // This is because we cannot pass ParcelFileDescriptor over a pipe.
     if (!base::Socketpair(SOCK_STREAM, &bootstrapClientFd, &bootstrapServerFd)) {
         int savedErrno = errno;
         LOG(FATAL) << "Failed socketpair(): " << strerror(savedErrno);
+    }
+    auto addr = allocateSocketAddress();
+    // Initializes the socket before the fork/exec.
+    if (socketType == SocketType::UNIX_RAW) {
+        socketFd = initUnixSocket(addr);
     }
 
     auto ret = std::make_unique<LinuxProcessSession>(
@@ -265,8 +279,9 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
     serverConfig.rpcSecurity = static_cast<int32_t>(rpcSecurity);
     serverConfig.serverVersion = serverVersion;
     serverConfig.vsockPort = allocateVsockPort();
-    serverConfig.addr = allocateSocketAddress();
+    serverConfig.addr = addr;
     serverConfig.unixBootstrapFd = bootstrapServerFd.get();
+    serverConfig.socketFd = socketFd.get();
     for (auto mode : options.serverSupportedFileDescriptorTransportModes) {
         serverConfig.serverSupportedFileDescriptorTransportModes.push_back(
                 static_cast<int32_t>(mode));
@@ -312,6 +327,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
                     return connectTo(UnixSocketAddress(serverConfig.addr.c_str()));
                 });
                 break;
+            case SocketType::UNIX_RAW:
             case SocketType::UNIX:
                 status = session->setupUnixDomainClient(serverConfig.addr.c_str());
                 break;
@@ -1042,7 +1058,8 @@ static bool testSupportVsockLoopback() {
 }
 
 static std::vector<SocketType> testSocketTypes(bool hasPreconnected = true) {
-    std::vector<SocketType> ret = {SocketType::UNIX, SocketType::UNIX_BOOTSTRAP, SocketType::INET};
+    std::vector<SocketType> ret = {SocketType::UNIX, SocketType::UNIX_BOOTSTRAP, SocketType::INET,
+                                   SocketType::UNIX_RAW};
 
     if (hasPreconnected) ret.push_back(SocketType::PRECONNECTED);
 
@@ -1283,6 +1300,17 @@ public:
                     mBootstrapSocket = RpcTransportFd(std::move(bootstrapFdClient));
                     mAcceptConnection = &Server::recvmsgServerConnection;
                     mConnectToServer = [this] { return connectToUnixBootstrap(mBootstrapSocket); };
+                } break;
+                case SocketType::UNIX_RAW: {
+                    auto addr = allocateSocketAddress();
+                    auto status = rpcServer->setupRawSocketServer(initUnixSocket(addr));
+                    if (status != OK) {
+                        return AssertionFailure()
+                                << "setupRawSocketServer: " << statusToString(status);
+                    }
+                    mConnectToServer = [addr] {
+                        return connectTo(UnixSocketAddress(addr.c_str()));
+                    };
                 } break;
                 case SocketType::VSOCK: {
                     auto port = allocateVsockPort();

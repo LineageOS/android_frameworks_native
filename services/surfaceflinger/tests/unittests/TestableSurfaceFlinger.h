@@ -37,6 +37,7 @@
 #include "FrontEnd/LayerHandle.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
+#include "RenderArea.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "StartPropertySetThread.h"
@@ -399,14 +400,14 @@ public:
         return mFlinger->setPowerModeInternal(display, mode);
     }
 
-    auto renderScreenImpl(const RenderArea& renderArea,
-                                SurfaceFlinger::TraverseLayersFunction traverseLayers,
-                                const std::shared_ptr<renderengine::ExternalTexture>& buffer,
-                                bool forSystem, bool regionSampling) {
+    auto renderScreenImpl(std::unique_ptr<RenderArea> renderArea,
+                          SurfaceFlinger::TraverseLayersFunction traverseLayers,
+                          const std::shared_ptr<renderengine::ExternalTexture>& buffer,
+                          bool forSystem, bool regionSampling) {
         ScreenCaptureResults captureResults;
         return FTL_FAKE_GUARD(kMainThreadContext,
-                              mFlinger->renderScreenImpl(renderArea, traverseLayers, buffer,
-                                                         forSystem, regionSampling,
+                              mFlinger->renderScreenImpl(std::move(renderArea), traverseLayers,
+                                                         buffer, forSystem, regionSampling,
                                                          false /* grayscale */, captureResults));
     }
 

@@ -3499,6 +3499,12 @@ const compositionengine::LayerFECompositionState* Layer::getCompositionState() c
     return mSnapshot.get();
 }
 
+sp<LayerFE> Layer::copyCompositionEngineLayerFE() const {
+    auto result = mFlinger->getFactory().createLayerFE(mLayerFE->getDebugName());
+    result->mSnapshot = std::make_unique<LayerSnapshot>(*mSnapshot);
+    return result;
+}
+
 void Layer::useSurfaceDamage() {
     if (mFlinger->mForceFullDamage) {
         surfaceDamageRegion = Region::INVALID_REGION;

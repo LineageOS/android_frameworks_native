@@ -14,15 +14,23 @@
  * limitations under the License.
  */
 
-//! API for RPC Binder services.
+#include "TouchedWindow.h"
 
-mod client;
-mod server;
+#include <android-base/stringprintf.h>
+#include <input/PrintTools.h>
 
-pub use client::{
-    get_preconnected_rpc_interface, get_preconnected_rpc_service, get_unix_domain_rpc_interface,
-    get_unix_domain_rpc_service, get_vsock_rpc_interface, get_vsock_rpc_service,
-};
-pub use server::{
-    run_init_unix_domain_rpc_server, run_vsock_rpc_server, run_vsock_rpc_server_with_factory,
-};
+using android::base::StringPrintf;
+
+namespace android {
+
+namespace inputdispatcher {
+
+std::string TouchedWindow::dump() const {
+    return StringPrintf("name='%s', pointerIds=0x%0x, "
+                        "targetFlags=%s, firstDownTimeInTarget=%s\n",
+                        windowHandle->getName().c_str(), pointerIds.value,
+                        targetFlags.string().c_str(), toString(firstDownTimeInTarget).c_str());
+}
+
+} // namespace inputdispatcher
+} // namespace android

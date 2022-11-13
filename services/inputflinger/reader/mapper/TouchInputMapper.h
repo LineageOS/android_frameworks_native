@@ -318,7 +318,7 @@ protected:
     RawPointerAxes mRawPointerAxes;
 
     struct RawState {
-        nsecs_t when{};
+        nsecs_t when{std::numeric_limits<nsecs_t>::min()};
         nsecs_t readTime{};
 
         // Raw pointer sample data.

@@ -134,9 +134,11 @@ protected:
     void applyCompositionStrategy(const std::optional<DeviceRequestedChanges>&) override{};
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentAndGetFrameFences() override;
+    virtual renderengine::DisplaySettings generateClientCompositionDisplaySettings() const;
     std::vector<LayerFE::LayerSettings> generateClientCompositionRequests(
           bool supportsProtectedContent, ui::Dataspace outputDataspace,
           std::vector<LayerFE*> &outLayerFEs) override;
+    virtual bool layerNeedsFiltering(const OutputLayer*) const;
     void appendRegionFlashRequests(const Region&, std::vector<LayerFE::LayerSettings>&) override;
     void setExpensiveRenderingExpected(bool enabled) override;
     void setHintSessionGpuFence(std::unique_ptr<FenceTime>&& gpuFence) override;
@@ -153,6 +155,8 @@ protected:
 
     bool mustRecompose() const;
 
+    const std::string& getNamePlusId() const { return mNamePlusId; }
+
 private:
     void dirtyEntireOutput();
     void updateCompositionStateForBorder(const compositionengine::CompositionRefreshArgs&);
@@ -163,6 +167,7 @@ private:
             const compositionengine::CompositionRefreshArgs&) const;
 
     std::string mName;
+    std::string mNamePlusId;
 
     std::unique_ptr<compositionengine::DisplayColorProfile> mDisplayColorProfile;
     std::unique_ptr<compositionengine::RenderSurface> mRenderSurface;

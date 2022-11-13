@@ -25,6 +25,7 @@
 #include <compositionengine/impl/DumpHelpers.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/RenderSurface.h>
+#include <gui/TraceUtils.h>
 
 #include <utils/Trace.h>
 
@@ -235,7 +236,7 @@ void Display::beginFrame() {
 
 bool Display::chooseCompositionStrategy(
         std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
-    ATRACE_CALL();
+    ATRACE_FORMAT("%s for %s", __func__, getNamePlusId().c_str());
     ALOGV(__FUNCTION__);
 
     if (mIsDisconnected) {

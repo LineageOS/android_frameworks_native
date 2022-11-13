@@ -108,7 +108,8 @@ public:
     bool supportsFdTransport() const {
         return clientVersion() >= 1 && serverVersion() >= 1 && rpcSecurity() != RpcSecurity::TLS &&
                 (socketType() == SocketType::PRECONNECTED || socketType() == SocketType::UNIX ||
-                 socketType() == SocketType::UNIX_BOOTSTRAP);
+                 socketType() == SocketType::UNIX_BOOTSTRAP ||
+                 socketType() == SocketType::UNIX_RAW);
     }
 
     void SetUp() override {
