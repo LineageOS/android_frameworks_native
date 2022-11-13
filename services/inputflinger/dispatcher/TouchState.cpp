@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+#include <android-base/stringprintf.h>
 #include <gui/WindowInfo.h>
 
 #include "InputTarget.h"
-
 #include "TouchState.h"
 
+using namespace android::ftl::flag_operators;
+using android::base::StringPrintf;
 using android::gui::WindowInfo;
 using android::gui::WindowInfoHandle;
 
@@ -29,14 +31,15 @@ void TouchState::reset() {
     *this = TouchState();
 }
 
-void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int32_t targetFlags,
-                                   BitSet32 pointerIds, std::optional<nsecs_t> eventTime) {
+void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
+                                   ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
+                                   std::optional<nsecs_t> eventTime) {
     for (size_t i = 0; i < windows.size(); i++) {
         TouchedWindow& touchedWindow = windows[i];
         if (touchedWindow.windowHandle == windowHandle) {
             touchedWindow.targetFlags |= targetFlags;
-            if (targetFlags & InputTarget::FLAG_DISPATCH_AS_SLIPPERY_EXIT) {
-                touchedWindow.targetFlags &= ~InputTarget::FLAG_DISPATCH_AS_IS;
+            if (targetFlags.test(InputTarget::Flags::DISPATCH_AS_SLIPPERY_EXIT)) {
+                touchedWindow.targetFlags.clear(InputTarget::Flags::DISPATCH_AS_IS);
             }
             // For cases like hover enter/exit or DISPATCH_AS_OUTSIDE a touch window might not have
             // downTime set initially. Need to update existing window when an pointer is down for
@@ -69,10 +72,10 @@ void TouchState::removeWindowByToken(const sp<IBinder>& token) {
 void TouchState::filterNonAsIsTouchWindows() {
     for (size_t i = 0; i < windows.size();) {
         TouchedWindow& window = windows[i];
-        if (window.targetFlags &
-            (InputTarget::FLAG_DISPATCH_AS_IS | InputTarget::FLAG_DISPATCH_AS_SLIPPERY_ENTER)) {
-            window.targetFlags &= ~InputTarget::FLAG_DISPATCH_MASK;
-            window.targetFlags |= InputTarget::FLAG_DISPATCH_AS_IS;
+        if (window.targetFlags.any(InputTarget::Flags::DISPATCH_AS_IS |
+                                   InputTarget::Flags::DISPATCH_AS_SLIPPERY_ENTER)) {
+            window.targetFlags.clear(InputTarget::DISPATCH_MASK);
+            window.targetFlags |= InputTarget::Flags::DISPATCH_AS_IS;
             i += 1;
         } else {
             windows.erase(windows.begin() + i);
@@ -104,7 +107,7 @@ void TouchState::cancelPointersForNonPilferingWindows(const BitSet32 pointerIds)
 sp<WindowInfoHandle> TouchState::getFirstForegroundWindowHandle() const {
     for (size_t i = 0; i < windows.size(); i++) {
         const TouchedWindow& window = windows[i];
-        if (window.targetFlags & InputTarget::FLAG_FOREGROUND) {
+        if (window.targetFlags.test(InputTarget::Flags::FOREGROUND)) {
             return window.windowHandle;
         }
     }
@@ -115,7 +118,7 @@ bool TouchState::isSlippery() const {
     // Must have exactly one foreground window.
     bool haveSlipperyForegroundWindow = false;
     for (const TouchedWindow& window : windows) {
-        if (window.targetFlags & InputTarget::FLAG_FOREGROUND) {
+        if (window.targetFlags.test(InputTarget::Flags::FOREGROUND)) {
             if (haveSlipperyForegroundWindow ||
                 !window.windowHandle->getInfo()->inputConfig.test(
                         WindowInfo::InputConfig::SLIPPERY)) {
@@ -141,6 +144,21 @@ sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
 bool TouchState::isDown() const {
     return std::any_of(windows.begin(), windows.end(),
                        [](const TouchedWindow& window) { return !window.pointerIds.isEmpty(); });
+}
+
+std::string TouchState::dump() const {
+    std::string out;
+    out += StringPrintf("deviceId=%d, source=0x%08x\n", deviceId, source);
+    if (!windows.empty()) {
+        out += "  Windows:\n";
+        for (size_t i = 0; i < windows.size(); i++) {
+            const TouchedWindow& touchedWindow = windows[i];
+            out += StringPrintf("    %zu : ", i) + touchedWindow.dump();
+        }
+    } else {
+        out += "  Windows: <none>\n";
+    }
+    return out;
 }
 
 } // namespace android::inputdispatcher

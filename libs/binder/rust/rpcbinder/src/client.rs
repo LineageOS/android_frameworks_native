@@ -15,6 +15,7 @@
  */
 
 use binder::{unstable_api::new_spibinder, FromIBinder, SpIBinder, StatusCode, Strong};
+use std::ffi::CString;
 use std::os::{
     raw::{c_int, c_void},
     unix::io::RawFd,
@@ -33,6 +34,27 @@ pub fn get_vsock_rpc_interface<T: FromIBinder + ?Sized>(
     port: u32,
 ) -> Result<Strong<T>, StatusCode> {
     interface_cast(get_vsock_rpc_service(cid, port))
+}
+
+/// Connects to an RPC Binder server over Unix domain socket.
+pub fn get_unix_domain_rpc_service(socket_name: &str) -> Option<SpIBinder> {
+    let socket_name = match CString::new(socket_name) {
+        Ok(s) => s,
+        Err(e) => {
+            log::error!("Cannot convert {} to CString. Error: {:?}", socket_name, e);
+            return None;
+        }
+    };
+    // SAFETY: AIBinder returned by UnixDomainRpcClient has correct reference count,
+    // and the ownership can safely be taken by new_spibinder.
+    unsafe { new_spibinder(binder_rpc_unstable_bindgen::UnixDomainRpcClient(socket_name.as_ptr())) }
+}
+
+/// Connects to an RPC Binder server for a particular interface over Unix domain socket.
+pub fn get_unix_domain_rpc_interface<T: FromIBinder + ?Sized>(
+    socket_name: &str,
+) -> Result<Strong<T>, StatusCode> {
+    interface_cast(get_unix_domain_rpc_service(socket_name))
 }
 
 /// Connects to an RPC Binder server, using the given callback to get (and take ownership of)

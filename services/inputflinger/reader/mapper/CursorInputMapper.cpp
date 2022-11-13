@@ -67,7 +67,7 @@ void CursorMotionAccumulator::finishSync() {
 // --- CursorInputMapper ---
 
 CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext) {}
+      : InputMapper(deviceContext), mLastEventTime(std::numeric_limits<nsecs_t>::min()) {}
 
 CursorInputMapper::~CursorInputMapper() {
     if (mPointerController != nullptr) {
@@ -276,6 +276,7 @@ void CursorInputMapper::dumpParameters(std::string& dump) {
 std::list<NotifyArgs> CursorInputMapper::reset(nsecs_t when) {
     mButtonState = 0;
     mDownTime = 0;
+    mLastEventTime = std::numeric_limits<nsecs_t>::min();
 
     mPointerVelocityControl.reset();
     mWheelXVelocityControl.reset();
@@ -295,7 +296,11 @@ std::list<NotifyArgs> CursorInputMapper::process(const RawEvent* rawEvent) {
     mCursorScrollAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        out += sync(rawEvent->when, rawEvent->readTime);
+        const nsecs_t eventTime =
+                applyBluetoothTimestampSmoothening(getDeviceContext().getDeviceIdentifier(),
+                                                   rawEvent->when, mLastEventTime);
+        out += sync(eventTime, rawEvent->readTime);
+        mLastEventTime = eventTime;
     }
     return out;
 }

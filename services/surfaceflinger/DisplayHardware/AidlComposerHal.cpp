@@ -230,6 +230,8 @@ AidlComposer::AidlComposer(const std::string& serviceName) {
         return;
     }
 
+    addReader(translate<Display>(kSingleReaderKey));
+
     ALOGI("Loaded AIDL composer3 HAL service");
 }
 
@@ -298,12 +300,19 @@ void AidlComposer::registerCallback(HWC2::ComposerCallback& callback) {
     }
 }
 
-void AidlComposer::resetCommands() {
-    mWriter.reset();
+void AidlComposer::resetCommands(Display display) {
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().reset();
+    }
+    mMutex.unlock_shared();
 }
 
-Error AidlComposer::executeCommands() {
-    return execute();
+Error AidlComposer::executeCommands(Display display) {
+    mMutex.lock_shared();
+    auto error = execute(display);
+    mMutex.unlock_shared();
+    return error;
 }
 
 uint32_t AidlComposer::getMaxVirtualDisplayCount() {
@@ -334,6 +343,7 @@ Error AidlComposer::createVirtualDisplay(uint32_t width, uint32_t height, PixelF
 
     *outDisplay = translate<Display>(virtualDisplay.display);
     *format = static_cast<PixelFormat>(virtualDisplay.format);
+    addDisplay(translate<Display>(virtualDisplay.display));
     return Error::NONE;
 }
 
@@ -343,12 +353,20 @@ Error AidlComposer::destroyVirtualDisplay(Display display) {
         ALOGE("destroyVirtualDisplay failed %s", status.getDescription().c_str());
         return static_cast<Error>(status.getServiceSpecificError());
     }
+    removeDisplay(display);
     return Error::NONE;
 }
 
 Error AidlComposer::acceptDisplayChanges(Display display) {
-    mWriter.acceptDisplayChanges(translate<int64_t>(display));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().acceptDisplayChanges(translate<int64_t>(display));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::createLayer(Display display, Layer* outLayer) {
@@ -388,7 +406,17 @@ Error AidlComposer::getActiveConfig(Display display, Config* outConfig) {
 Error AidlComposer::getChangedCompositionTypes(
         Display display, std::vector<Layer>* outLayers,
         std::vector<aidl::android::hardware::graphics::composer3::Composition>* outTypes) {
-    const auto changedLayers = mReader.takeChangedCompositionTypes(translate<int64_t>(display));
+    std::vector<ChangedCompositionLayer> changedLayers;
+    Error error = Error::NONE;
+    {
+        mMutex.lock_shared();
+        if (auto reader = getReader(display)) {
+            changedLayers = reader->get().takeChangedCompositionTypes(translate<int64_t>(display));
+        } else {
+            error = Error::BAD_DISPLAY;
+        }
+        mMutex.unlock_shared();
+    }
     outLayers->reserve(changedLayers.size());
     outTypes->reserve(changedLayers.size());
 
@@ -396,7 +424,7 @@ Error AidlComposer::getChangedCompositionTypes(
         outLayers->emplace_back(translate<Layer>(layer.layer));
         outTypes->emplace_back(layer.composition);
     }
-    return Error::NONE;
+    return error;
 }
 
 Error AidlComposer::getColorModes(Display display, std::vector<ColorMode>* outModes) {
@@ -448,7 +476,17 @@ Error AidlComposer::getDisplayName(Display display, std::string* outName) {
 Error AidlComposer::getDisplayRequests(Display display, uint32_t* outDisplayRequestMask,
                                        std::vector<Layer>* outLayers,
                                        std::vector<uint32_t>* outLayerRequestMasks) {
-    const auto displayRequests = mReader.takeDisplayRequests(translate<int64_t>(display));
+    Error error = Error::NONE;
+    DisplayRequest displayRequests;
+    {
+        mMutex.lock_shared();
+        if (auto reader = getReader(display)) {
+            displayRequests = reader->get().takeDisplayRequests(translate<int64_t>(display));
+        } else {
+            error = Error::BAD_DISPLAY;
+        }
+        mMutex.unlock_shared();
+    }
     *outDisplayRequestMask = translate<uint32_t>(displayRequests.mask);
     outLayers->reserve(displayRequests.layerRequests.size());
     outLayerRequestMasks->reserve(displayRequests.layerRequests.size());
@@ -457,7 +495,7 @@ Error AidlComposer::getDisplayRequests(Display display, uint32_t* outDisplayRequ
         outLayers->emplace_back(translate<Layer>(layer.layer));
         outLayerRequestMasks->emplace_back(translate<uint32_t>(layer.mask));
     }
-    return Error::NONE;
+    return error;
 }
 
 Error AidlComposer::getDozeSupport(Display display, bool* outSupport) {
@@ -511,7 +549,17 @@ Error AidlComposer::getOverlaySupport(AidlOverlayProperties* /*outProperties*/) 
 
 Error AidlComposer::getReleaseFences(Display display, std::vector<Layer>* outLayers,
                                      std::vector<int>* outReleaseFences) {
-    auto fences = mReader.takeReleaseFences(translate<int64_t>(display));
+    Error error = Error::NONE;
+    std::vector<ReleaseFences::Layer> fences;
+    {
+        mMutex.lock_shared();
+        if (auto reader = getReader(display)) {
+            fences = reader->get().takeReleaseFences(translate<int64_t>(display));
+        } else {
+            error = Error::BAD_DISPLAY;
+        }
+        mMutex.unlock_shared();
+    }
     outLayers->reserve(fences.size());
     outReleaseFences->reserve(fences.size());
 
@@ -522,19 +570,29 @@ Error AidlComposer::getReleaseFences(Display display, std::vector<Layer>* outLay
         *fence.fence.getR() = -1;
         outReleaseFences->emplace_back(fenceOwner);
     }
-    return Error::NONE;
+    return error;
 }
 
 Error AidlComposer::presentDisplay(Display display, int* outPresentFence) {
     ATRACE_NAME("HwcPresentDisplay");
-    mWriter.presentDisplay(translate<int64_t>(display));
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    auto writer = getWriter(display);
+    auto reader = getReader(display);
+    if (writer && reader) {
+        writer->get().presentDisplay(translate<int64_t>(display));
+        error = execute(display);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
 
-    Error error = execute();
     if (error != Error::NONE) {
+        mMutex.unlock_shared();
         return error;
     }
 
-    auto fence = mReader.takePresentFence(translate<int64_t>(display));
+    auto fence = reader->get().takePresentFence(translate<int64_t>(display));
+    mMutex.unlock_shared();
     // take ownership
     *outPresentFence = fence.get();
     *fence.getR() = -1;
@@ -559,11 +617,19 @@ Error AidlComposer::setClientTarget(Display display, uint32_t slot, const sp<Gra
         handle = target->getNativeBuffer()->handle;
     }
 
-    mWriter.setClientTarget(translate<int64_t>(display), slot, handle, acquireFence,
-                            translate<aidl::android::hardware::graphics::common::Dataspace>(
-                                    dataspace),
-                            translate<AidlRect>(damage));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get()
+                .setClientTarget(translate<int64_t>(display), slot, handle, acquireFence,
+                                 translate<aidl::android::hardware::graphics::common::Dataspace>(
+                                         dataspace),
+                                 translate<AidlRect>(damage));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setColorMode(Display display, ColorMode mode, RenderIntent renderIntent) {
@@ -579,14 +645,28 @@ Error AidlComposer::setColorMode(Display display, ColorMode mode, RenderIntent r
 }
 
 Error AidlComposer::setColorTransform(Display display, const float* matrix) {
-    mWriter.setColorTransform(translate<int64_t>(display), matrix);
-    return Error::NONE;
+    auto error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setColorTransform(translate<int64_t>(display), matrix);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setOutputBuffer(Display display, const native_handle_t* buffer,
                                     int releaseFence) {
-    mWriter.setOutputBuffer(translate<int64_t>(display), 0, buffer, dup(releaseFence));
-    return Error::NONE;
+    auto error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setOutputBuffer(translate<int64_t>(display), 0, buffer, dup(releaseFence));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setPowerMode(Display display, IComposerClient::PowerMode mode) {
@@ -624,16 +704,26 @@ Error AidlComposer::setClientTargetSlotCount(Display display) {
 Error AidlComposer::validateDisplay(Display display, nsecs_t expectedPresentTime,
                                     uint32_t* outNumTypes, uint32_t* outNumRequests) {
     ATRACE_NAME("HwcValidateDisplay");
-    mWriter.validateDisplay(translate<int64_t>(display),
-                            ClockMonotonicTimestamp{expectedPresentTime});
+    const auto displayId = translate<int64_t>(display);
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    auto writer = getWriter(display);
+    auto reader = getReader(display);
+    if (writer && reader) {
+        writer->get().validateDisplay(displayId, ClockMonotonicTimestamp{expectedPresentTime});
+        error = execute(display);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
 
-    Error error = execute();
     if (error != Error::NONE) {
+        mMutex.unlock_shared();
         return error;
     }
 
-    mReader.hasChanges(translate<int64_t>(display), outNumTypes, outNumRequests);
+    reader->get().hasChanges(displayId, outNumTypes, outNumRequests);
 
+    mMutex.unlock_shared();
     return Error::NONE;
 }
 
@@ -641,39 +731,59 @@ Error AidlComposer::presentOrValidateDisplay(Display display, nsecs_t expectedPr
                                              uint32_t* outNumTypes, uint32_t* outNumRequests,
                                              int* outPresentFence, uint32_t* state) {
     ATRACE_NAME("HwcPresentOrValidateDisplay");
-    mWriter.presentOrvalidateDisplay(translate<int64_t>(display),
-                                     ClockMonotonicTimestamp{expectedPresentTime});
+    const auto displayId = translate<int64_t>(display);
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    auto writer = getWriter(display);
+    auto reader = getReader(display);
+    if (writer && reader) {
+        writer->get().presentOrvalidateDisplay(displayId,
+                                               ClockMonotonicTimestamp{expectedPresentTime});
+        error = execute(display);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
 
-    Error error = execute();
     if (error != Error::NONE) {
+        mMutex.unlock_shared();
         return error;
     }
 
-    const auto result = mReader.takePresentOrValidateStage(translate<int64_t>(display));
+    const auto result = reader->get().takePresentOrValidateStage(displayId);
     if (!result.has_value()) {
         *state = translate<uint32_t>(-1);
+        mMutex.unlock_shared();
         return Error::NO_RESOURCES;
     }
 
     *state = translate<uint32_t>(*result);
 
     if (*result == PresentOrValidate::Result::Presented) {
-        auto fence = mReader.takePresentFence(translate<int64_t>(display));
+        auto fence = reader->get().takePresentFence(displayId);
         // take ownership
         *outPresentFence = fence.get();
         *fence.getR() = -1;
     }
 
     if (*result == PresentOrValidate::Result::Validated) {
-        mReader.hasChanges(translate<int64_t>(display), outNumTypes, outNumRequests);
+        reader->get().hasChanges(displayId, outNumTypes, outNumRequests);
     }
 
+    mMutex.unlock_shared();
     return Error::NONE;
 }
 
 Error AidlComposer::setCursorPosition(Display display, Layer layer, int32_t x, int32_t y) {
-    mWriter.setLayerCursorPosition(translate<int64_t>(display), translate<int64_t>(layer), x, y);
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerCursorPosition(translate<int64_t>(display), translate<int64_t>(layer),
+                                             x, y);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerBuffer(Display display, Layer layer, uint32_t slot,
@@ -683,90 +793,190 @@ Error AidlComposer::setLayerBuffer(Display display, Layer layer, uint32_t slot,
         handle = buffer->getNativeBuffer()->handle;
     }
 
-    mWriter.setLayerBuffer(translate<int64_t>(display), translate<int64_t>(layer), slot, handle,
-                           acquireFence);
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerBuffer(translate<int64_t>(display), translate<int64_t>(layer), slot,
+                                     handle, acquireFence);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerSurfaceDamage(Display display, Layer layer,
                                           const std::vector<IComposerClient::Rect>& damage) {
-    mWriter.setLayerSurfaceDamage(translate<int64_t>(display), translate<int64_t>(layer),
-                                  translate<AidlRect>(damage));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerSurfaceDamage(translate<int64_t>(display), translate<int64_t>(layer),
+                                            translate<AidlRect>(damage));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerBlendMode(Display display, Layer layer,
                                       IComposerClient::BlendMode mode) {
-    mWriter.setLayerBlendMode(translate<int64_t>(display), translate<int64_t>(layer),
-                              translate<BlendMode>(mode));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerBlendMode(translate<int64_t>(display), translate<int64_t>(layer),
+                                        translate<BlendMode>(mode));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerColor(Display display, Layer layer, const Color& color) {
-    mWriter.setLayerColor(translate<int64_t>(display), translate<int64_t>(layer), color);
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerColor(translate<int64_t>(display), translate<int64_t>(layer), color);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerCompositionType(
         Display display, Layer layer,
         aidl::android::hardware::graphics::composer3::Composition type) {
-    mWriter.setLayerCompositionType(translate<int64_t>(display), translate<int64_t>(layer), type);
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerCompositionType(translate<int64_t>(display),
+                                              translate<int64_t>(layer), type);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerDataspace(Display display, Layer layer, Dataspace dataspace) {
-    mWriter.setLayerDataspace(translate<int64_t>(display), translate<int64_t>(layer),
-                              translate<AidlDataspace>(dataspace));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerDataspace(translate<int64_t>(display), translate<int64_t>(layer),
+                                        translate<AidlDataspace>(dataspace));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerDisplayFrame(Display display, Layer layer,
                                          const IComposerClient::Rect& frame) {
-    mWriter.setLayerDisplayFrame(translate<int64_t>(display), translate<int64_t>(layer),
-                                 translate<AidlRect>(frame));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerDisplayFrame(translate<int64_t>(display), translate<int64_t>(layer),
+                                           translate<AidlRect>(frame));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerPlaneAlpha(Display display, Layer layer, float alpha) {
-    mWriter.setLayerPlaneAlpha(translate<int64_t>(display), translate<int64_t>(layer), alpha);
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerPlaneAlpha(translate<int64_t>(display), translate<int64_t>(layer),
+                                         alpha);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerSidebandStream(Display display, Layer layer,
                                            const native_handle_t* stream) {
-    mWriter.setLayerSidebandStream(translate<int64_t>(display), translate<int64_t>(layer), stream);
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerSidebandStream(translate<int64_t>(display), translate<int64_t>(layer),
+                                             stream);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerSourceCrop(Display display, Layer layer,
                                        const IComposerClient::FRect& crop) {
-    mWriter.setLayerSourceCrop(translate<int64_t>(display), translate<int64_t>(layer),
-                               translate<AidlFRect>(crop));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerSourceCrop(translate<int64_t>(display), translate<int64_t>(layer),
+                                         translate<AidlFRect>(crop));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerTransform(Display display, Layer layer, Transform transform) {
-    mWriter.setLayerTransform(translate<int64_t>(display), translate<int64_t>(layer),
-                              translate<AidlTransform>(transform));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerTransform(translate<int64_t>(display), translate<int64_t>(layer),
+                                        translate<AidlTransform>(transform));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerVisibleRegion(Display display, Layer layer,
                                           const std::vector<IComposerClient::Rect>& visible) {
-    mWriter.setLayerVisibleRegion(translate<int64_t>(display), translate<int64_t>(layer),
-                                  translate<AidlRect>(visible));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerVisibleRegion(translate<int64_t>(display), translate<int64_t>(layer),
+                                            translate<AidlRect>(visible));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerZOrder(Display display, Layer layer, uint32_t z) {
-    mWriter.setLayerZOrder(translate<int64_t>(display), translate<int64_t>(layer), z);
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerZOrder(translate<int64_t>(display), translate<int64_t>(layer), z);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
-Error AidlComposer::execute() {
-    const auto& commands = mWriter.getPendingCommands();
+Error AidlComposer::execute(Display display) {
+    auto writer = getWriter(display);
+    auto reader = getReader(display);
+    if (!writer || !reader) {
+        return Error::BAD_DISPLAY;
+    }
+
+    const auto& commands = writer->get().getPendingCommands();
     if (commands.empty()) {
-        mWriter.reset();
+        writer->get().reset();
         return Error::NONE;
     }
 
@@ -778,9 +988,9 @@ Error AidlComposer::execute() {
             return static_cast<Error>(status.getServiceSpecificError());
         }
 
-        mReader.parse(std::move(results));
+        reader->get().parse(std::move(results));
     }
-    const auto commandErrors = mReader.takeErrors();
+    const auto commandErrors = reader->get().takeErrors();
     Error error = Error::NONE;
     for (const auto& cmdErr : commandErrors) {
         const auto index = static_cast<size_t>(cmdErr.commandIndex);
@@ -798,7 +1008,7 @@ Error AidlComposer::execute() {
         }
     }
 
-    mWriter.reset();
+    writer->get().reset();
 
     return error;
 }
@@ -806,9 +1016,17 @@ Error AidlComposer::execute() {
 Error AidlComposer::setLayerPerFrameMetadata(
         Display display, Layer layer,
         const std::vector<IComposerClient::PerFrameMetadata>& perFrameMetadatas) {
-    mWriter.setLayerPerFrameMetadata(translate<int64_t>(display), translate<int64_t>(layer),
-                                     translate<AidlPerFrameMetadata>(perFrameMetadatas));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerPerFrameMetadata(translate<int64_t>(display),
+                                               translate<int64_t>(layer),
+                                               translate<AidlPerFrameMetadata>(perFrameMetadatas));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 std::vector<IComposerClient::PerFrameMetadataKey> AidlComposer::getPerFrameMetadataKeys(
@@ -868,8 +1086,16 @@ Error AidlComposer::getDisplayIdentificationData(Display display, uint8_t* outPo
 }
 
 Error AidlComposer::setLayerColorTransform(Display display, Layer layer, const float* matrix) {
-    mWriter.setLayerColorTransform(translate<int64_t>(display), translate<int64_t>(layer), matrix);
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerColorTransform(translate<int64_t>(display), translate<int64_t>(layer),
+                                             matrix);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
@@ -932,20 +1158,36 @@ Error AidlComposer::getDisplayedContentSample(Display display, uint64_t maxFrame
 Error AidlComposer::setLayerPerFrameMetadataBlobs(
         Display display, Layer layer,
         const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) {
-    mWriter.setLayerPerFrameMetadataBlobs(translate<int64_t>(display), translate<int64_t>(layer),
-                                          translate<AidlPerFrameMetadataBlob>(metadata));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerPerFrameMetadataBlobs(translate<int64_t>(display),
+                                                    translate<int64_t>(layer),
+                                                    translate<AidlPerFrameMetadataBlob>(metadata));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setDisplayBrightness(Display display, float brightness, float brightnessNits,
                                          const DisplayBrightnessOptions& options) {
-    mWriter.setDisplayBrightness(translate<int64_t>(display), brightness, brightnessNits);
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setDisplayBrightness(translate<int64_t>(display), brightness, brightnessNits);
 
-    if (options.applyImmediately) {
-        return execute();
+        if (options.applyImmediately) {
+            error = execute(display);
+            mMutex.unlock_shared();
+            return error;
+        }
+    } else {
+        error = Error::BAD_DISPLAY;
     }
-
-    return Error::NONE;
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::getDisplayCapabilities(Display display,
@@ -1085,20 +1327,43 @@ Error AidlComposer::getPreferredBootDisplayConfig(Display display, Config* confi
 
 Error AidlComposer::getClientTargetProperty(
         Display display, ClientTargetPropertyWithBrightness* outClientTargetProperty) {
-    *outClientTargetProperty = mReader.takeClientTargetProperty(translate<int64_t>(display));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto reader = getReader(display)) {
+        *outClientTargetProperty =
+                reader->get().takeClientTargetProperty(translate<int64_t>(display));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerBrightness(Display display, Layer layer, float brightness) {
-    mWriter.setLayerBrightness(translate<int64_t>(display), translate<int64_t>(layer), brightness);
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerBrightness(translate<int64_t>(display), translate<int64_t>(layer),
+                                         brightness);
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::setLayerBlockingRegion(Display display, Layer layer,
                                            const std::vector<IComposerClient::Rect>& blocking) {
-    mWriter.setLayerBlockingRegion(translate<int64_t>(display), translate<int64_t>(layer),
-                                   translate<AidlRect>(blocking));
-    return Error::NONE;
+    Error error = Error::NONE;
+    mMutex.lock_shared();
+    if (auto writer = getWriter(display)) {
+        writer->get().setLayerBlockingRegion(translate<int64_t>(display), translate<int64_t>(layer),
+                                             translate<AidlRect>(blocking));
+    } else {
+        error = Error::BAD_DISPLAY;
+    }
+    mMutex.unlock_shared();
+    return error;
 }
 
 Error AidlComposer::getDisplayDecorationSupport(Display display,
@@ -1136,5 +1401,88 @@ Error AidlComposer::getPhysicalDisplayOrientation(Display displayId,
     return Error::NONE;
 }
 
+ftl::Optional<std::reference_wrapper<ComposerClientWriter>> AidlComposer::getWriter(Display display)
+        REQUIRES_SHARED(mMutex) {
+    return mWriters.get(display);
+}
+
+ftl::Optional<std::reference_wrapper<ComposerClientReader>> AidlComposer::getReader(Display display)
+        REQUIRES_SHARED(mMutex) {
+    if (mSingleReader) {
+        display = translate<Display>(kSingleReaderKey);
+    }
+    return mReaders.get(display);
+}
+
+void AidlComposer::removeDisplay(Display display) {
+    mMutex.lock();
+    bool wasErased = mWriters.erase(display);
+    ALOGW_IF(!wasErased,
+             "Attempting to remove writer for display %" PRId64 " which is not connected",
+             translate<int64_t>(display));
+    if (!mSingleReader) {
+        removeReader(display);
+    }
+    mMutex.unlock();
+}
+
+void AidlComposer::onHotplugDisconnect(Display display) {
+    removeDisplay(display);
+}
+
+bool AidlComposer::hasMultiThreadedPresentSupport(Display display) {
+    const auto displayId = translate<int64_t>(display);
+    std::vector<AidlDisplayCapability> capabilities;
+    const auto status = mAidlComposerClient->getDisplayCapabilities(displayId, &capabilities);
+    if (!status.isOk()) {
+        ALOGE("getDisplayCapabilities failed %s", status.getDescription().c_str());
+        return false;
+    }
+    return std::find(capabilities.begin(), capabilities.end(),
+                     AidlDisplayCapability::MULTI_THREADED_PRESENT) != capabilities.end();
+}
+
+void AidlComposer::addReader(Display display) {
+    const auto displayId = translate<int64_t>(display);
+    std::optional<int64_t> displayOpt;
+    if (displayId != kSingleReaderKey) {
+        displayOpt.emplace(displayId);
+    }
+    auto [it, added] = mReaders.try_emplace(display, std::move(displayOpt));
+    ALOGW_IF(!added, "Attempting to add writer for display %" PRId64 " which is already connected",
+             displayId);
+}
+
+void AidlComposer::removeReader(Display display) {
+    bool wasErased = mReaders.erase(display);
+    ALOGW_IF(!wasErased,
+             "Attempting to remove reader for display %" PRId64 " which is not connected",
+             translate<int64_t>(display));
+}
+
+void AidlComposer::addDisplay(Display display) {
+    const auto displayId = translate<int64_t>(display);
+    mMutex.lock();
+    auto [it, added] = mWriters.try_emplace(display, displayId);
+    ALOGW_IF(!added, "Attempting to add writer for display %" PRId64 " which is already connected",
+             displayId);
+    if (mSingleReader) {
+        if (hasMultiThreadedPresentSupport(display)) {
+            mSingleReader = false;
+            removeReader(translate<Display>(kSingleReaderKey));
+            // Note that this includes the new display.
+            for (const auto& [existingDisplay, _] : mWriters) {
+                addReader(existingDisplay);
+            }
+        }
+    } else {
+        addReader(display);
+    }
+    mMutex.unlock();
+}
+
+void AidlComposer::onHotplugConnect(Display display) {
+    addDisplay(display);
+}
 } // namespace Hwc2
 } // namespace android

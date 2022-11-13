@@ -29,6 +29,7 @@
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/impl/planner/Planner.h>
 #include <ftl/future.h>
+#include <gui/TraceUtils.h>
 
 #include <thread>
 
@@ -116,6 +117,9 @@ const std::string& Output::getName() const {
 
 void Output::setName(const std::string& name) {
     mName = name;
+    auto displayIdOpt = getDisplayId();
+    mNamePlusId = base::StringPrintf("%s (%s)", mName.c_str(),
+                                     displayIdOpt ? to_string(*displayIdOpt).c_str() : "NA");
 }
 
 void Output::setCompositionEnabled(bool enabled) {
@@ -427,7 +431,7 @@ void Output::prepare(const compositionengine::CompositionRefreshArgs& refreshArg
 }
 
 void Output::present(const compositionengine::CompositionRefreshArgs& refreshArgs) {
-    ATRACE_CALL();
+    ATRACE_FORMAT("%s for %s", __func__, mNamePlusId.c_str());
     ALOGV(__FUNCTION__);
 
     updateColorProfile(refreshArgs);
@@ -1322,6 +1326,7 @@ renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings()
     const auto& outputState = getState();
 
     renderengine::DisplaySettings clientCompositionDisplay;
+    clientCompositionDisplay.namePlusId = mNamePlusId;
     clientCompositionDisplay.physicalDisplay = outputState.framebufferSpace.getContent();
     clientCompositionDisplay.clip = outputState.layerStackSpace.getContent();
     clientCompositionDisplay.orientation =
@@ -1488,7 +1493,7 @@ bool Output::isPowerHintSessionEnabled() {
 }
 
 void Output::postFramebuffer() {
-    ATRACE_CALL();
+    ATRACE_FORMAT("%s for %s", __func__, mNamePlusId.c_str());
     ALOGV(__FUNCTION__);
 
     if (!getState().isEnabled) {

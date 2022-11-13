@@ -125,7 +125,7 @@ public:
     /* Tests whether all of the given flags are set */
     bool all(Flags<F> f) const { return (mFlags & f.mFlags) == f.mFlags; }
 
-    Flags<F> operator|(Flags<F> rhs) const { return static_cast<F>(mFlags | rhs.mFlags); }
+    constexpr Flags<F> operator|(Flags<F> rhs) const { return static_cast<F>(mFlags | rhs.mFlags); }
     Flags<F>& operator|=(Flags<F> rhs) {
         mFlags = mFlags | rhs.mFlags;
         return *this;
@@ -217,7 +217,7 @@ inline Flags<F> operator~(F f) {
 }
 
 template <typename F, typename = std::enable_if_t<is_scoped_enum_v<F>>>
-Flags<F> operator|(F lhs, F rhs) {
+constexpr Flags<F> operator|(F lhs, F rhs) {
     return static_cast<F>(to_underlying(lhs) | to_underlying(rhs));
 }
 

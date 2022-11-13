@@ -110,10 +110,10 @@ public:
 
     // Reset all pending commands in the command buffer. Useful if you want to
     // skip a frame but have already queued some commands.
-    virtual void resetCommands() = 0;
+    virtual void resetCommands(Display) = 0;
 
     // Explicitly flush all pending commands in the command buffer.
-    virtual Error executeCommands() = 0;
+    virtual Error executeCommands(Display) = 0;
 
     virtual uint32_t getMaxVirtualDisplayCount() = 0;
     virtual Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat*,
@@ -283,6 +283,8 @@ public:
     virtual Error getPhysicalDisplayOrientation(Display displayId,
                                                 AidlTransform* outDisplayOrientation) = 0;
     virtual Error getOverlaySupport(V3_0::OverlayProperties* outProperties) = 0;
+    virtual void onHotplugConnect(Display) = 0;
+    virtual void onHotplugDisconnect(Display) = 0;
 };
 
 } // namespace Hwc2

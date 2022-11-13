@@ -19,6 +19,7 @@
 #include <android/binder_libbinder.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcSession.h>
+#include <cutils/sockets.h>
 #include <linux/vm_sockets.h>
 
 using android::OK;
@@ -29,6 +30,17 @@ using android::statusToString;
 using android::base::unique_fd;
 
 extern "C" {
+
+void RunRpcServer(android::sp<RpcServer>& server, AIBinder* service,
+                  void (*readyCallback)(void* param), void* param) {
+    server->setRootObject(AIBinder_toPlatformBinder(service));
+
+    if (readyCallback) readyCallback(param);
+    server->join();
+
+    // Shutdown any open sessions since server failed.
+    (void)server->shutdown();
+}
 
 bool RunVsockRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* context),
                                   void* factoryContext, unsigned int port) {
@@ -60,13 +72,7 @@ bool RunVsockRpcServerCallback(AIBinder* service, unsigned int port,
                    << " error: " << statusToString(status).c_str();
         return false;
     }
-    server->setRootObject(AIBinder_toPlatformBinder(service));
-
-    if (readyCallback) readyCallback(param);
-    server->join();
-
-    // Shutdown any open sessions since server failed.
-    (void)server->shutdown();
+    RunRpcServer(server, service, readyCallback, param);
     return true;
 }
 
@@ -78,6 +84,31 @@ AIBinder* VsockRpcClient(unsigned int cid, unsigned int port) {
     auto session = RpcSession::make();
     if (status_t status = session->setupVsockClient(cid, port); status != OK) {
         LOG(ERROR) << "Failed to set up vsock client with CID " << cid << " and port " << port
+                   << " error: " << statusToString(status).c_str();
+        return nullptr;
+    }
+    return AIBinder_fromPlatformBinder(session->getRootObject());
+}
+
+bool RunInitUnixDomainRpcServer(AIBinder* service, const char* name,
+                                void (*readyCallback)(void* param), void* param) {
+    auto server = RpcServer::make();
+    auto fd = unique_fd(android_get_control_socket(name));
+    if (status_t status = server->setupRawSocketServer(std::move(fd)); status != OK) {
+        LOG(ERROR) << "Failed to set up Unix Domain RPC server with name " << name
+                   << " error: " << statusToString(status).c_str();
+        return false;
+    }
+    RunRpcServer(server, service, readyCallback, param);
+    return true;
+}
+
+AIBinder* UnixDomainRpcClient(const char* name) {
+    std::string pathname(name);
+    pathname = ANDROID_SOCKET_DIR "/" + pathname;
+    auto session = RpcSession::make();
+    if (status_t status = session->setupUnixDomainClient(pathname.c_str()); status != OK) {
+        LOG(ERROR) << "Failed to set up Unix Domain RPC client with path: " << pathname
                    << " error: " << statusToString(status).c_str();
         return nullptr;
     }

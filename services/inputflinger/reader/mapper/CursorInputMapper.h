@@ -121,6 +121,7 @@ private:
 
     int32_t mButtonState;
     nsecs_t mDownTime;
+    nsecs_t mLastEventTime;
 
     void configureParameters();
     void dumpParameters(std::string& dump);

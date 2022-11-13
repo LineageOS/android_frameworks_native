@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include "Monitor.h"
 #include "TouchedWindow.h"
 
 namespace android {
@@ -41,7 +40,7 @@ struct TouchState {
 
     void reset();
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
-                           int32_t targetFlags, BitSet32 pointerIds,
+                           ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
                            std::optional<nsecs_t> eventTime = std::nullopt);
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
@@ -57,6 +56,7 @@ struct TouchState {
     sp<android::gui::WindowInfoHandle> getWallpaperWindow() const;
     // Whether any of the windows are currently being touched
     bool isDown() const;
+    std::string dump() const;
 };
 
 } // namespace inputdispatcher
