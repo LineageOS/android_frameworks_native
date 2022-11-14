@@ -86,7 +86,6 @@ struct RequestedLayerState : layer_state_t {
     ui::Transform requestedTransform;
     std::shared_ptr<FenceTime> acquireFenceTime;
     std::shared_ptr<renderengine::ExternalTexture> externalTexture;
-    int hwcBufferSlot = 0;
 
     // book keeping states
     bool handleAlive = true;

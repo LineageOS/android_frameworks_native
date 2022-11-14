@@ -428,6 +428,7 @@ void Output::prepare(const compositionengine::CompositionRefreshArgs& refreshArg
     ALOGV(__FUNCTION__);
 
     rebuildLayerStacks(refreshArgs, geomSnapshots);
+    uncacheBuffers(refreshArgs.bufferIdsToUncache);
 }
 
 void Output::present(const compositionengine::CompositionRefreshArgs& refreshArgs) {
@@ -453,6 +454,15 @@ void Output::present(const compositionengine::CompositionRefreshArgs& refreshArg
     finishFrame(refreshArgs, std::move(result));
     postFramebuffer();
     renderCachedSets(refreshArgs);
+}
+
+void Output::uncacheBuffers(std::vector<uint64_t> const& bufferIdsToUncache) {
+    if (bufferIdsToUncache.empty()) {
+        return;
+    }
+    for (auto outputLayer : getOutputLayersOrderedByZ()) {
+        outputLayer->uncacheBuffers(bufferIdsToUncache);
+    }
 }
 
 void Output::rebuildLayerStacks(const compositionengine::CompositionRefreshArgs& refreshArgs,

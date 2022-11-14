@@ -1192,14 +1192,49 @@ struct OutputPrepareTest : public testing::Test {
                           compositionengine::LayerFESet&));
     };
 
+    OutputPrepareTest() {
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0))
+                .WillRepeatedly(Return(&mLayer1.outputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1))
+                .WillRepeatedly(Return(&mLayer2.outputLayer));
+
+        mRefreshArgs.layers.push_back(mLayer1.layerFE);
+        mRefreshArgs.layers.push_back(mLayer2.layerFE);
+    }
+
+    struct Layer {
+        StrictMock<mock::OutputLayer> outputLayer;
+        sp<StrictMock<mock::LayerFE>> layerFE = sp<StrictMock<mock::LayerFE>>::make();
+    };
+
     StrictMock<OutputPartialMock> mOutput;
     CompositionRefreshArgs mRefreshArgs;
     LayerFESet mGeomSnapshots;
+    Layer mLayer1;
+    Layer mLayer2;
 };
 
-TEST_F(OutputPrepareTest, justInvokesRebuildLayerStacks) {
+TEST_F(OutputPrepareTest, callsUncacheBuffersOnEachOutputLayerAndThenRebuildsLayerStacks) {
     InSequence seq;
+
+    mRefreshArgs.bufferIdsToUncache = {1, 3, 5};
+
     EXPECT_CALL(mOutput, rebuildLayerStacks(Ref(mRefreshArgs), Ref(mGeomSnapshots)));
+    EXPECT_CALL(mLayer1.outputLayer, uncacheBuffers(Ref(mRefreshArgs.bufferIdsToUncache)));
+    EXPECT_CALL(mLayer2.outputLayer, uncacheBuffers(Ref(mRefreshArgs.bufferIdsToUncache)));
+
+    mOutput.prepare(mRefreshArgs, mGeomSnapshots);
+}
+
+TEST_F(OutputPrepareTest, skipsUncacheBuffersIfEmptyAndThenRebuildsLayerStacks) {
+    InSequence seq;
+
+    mRefreshArgs.bufferIdsToUncache = {};
+
+    EXPECT_CALL(mOutput, rebuildLayerStacks(Ref(mRefreshArgs), Ref(mGeomSnapshots)));
+    EXPECT_CALL(mLayer1.outputLayer, uncacheBuffers(_)).Times(0);
+    EXPECT_CALL(mLayer2.outputLayer, uncacheBuffers(_)).Times(0);
 
     mOutput.prepare(mRefreshArgs, mGeomSnapshots);
 }

@@ -144,7 +144,6 @@ Layer::Layer(const LayerCreationArgs& args)
         mLayerCreationFlags(args.flags),
         mBorderEnabled(false),
         mTextureName(args.textureName),
-        mHwcSlotGenerator(sp<HwcSlotGenerator>::make()),
         mLayerFE(args.flinger->getFactory().createLayerFE(mName)) {
     ALOGV("Creating Layer %s", getDebugName());
 
@@ -573,9 +572,6 @@ void Layer::preparePerFrameBufferCompositionState() {
     }
 
     snapshot->buffer = getBuffer();
-    snapshot->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
-            ? 0
-            : mBufferInfo.mBufferSlot;
     snapshot->acquireFence = mBufferInfo.mFence;
     snapshot->frameNumber = mBufferInfo.mFrameNumber;
     snapshot->sidebandStreamHasFrame = false;
@@ -2840,7 +2836,7 @@ bool Layer::setPosition(float x, float y) {
 bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
                       const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
                       bool isAutoTimestamp, std::optional<nsecs_t> dequeueTime,
-                      const FrameTimelineInfo& info, int hwcBufferSlot) {
+                      const FrameTimelineInfo& info) {
     ATRACE_FORMAT("setBuffer %s - hasBuffer=%s", getDebugName(), (buffer ? "true" : "false"));
     if (!buffer) {
         return false;
@@ -2886,7 +2882,6 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     mDrawingState.releaseBufferListener = bufferData.releaseBufferListener;
     mDrawingState.buffer = std::move(buffer);
     mDrawingState.clientCacheId = bufferData.cachedBuffer;
-    mDrawingState.hwcBufferSlot = hwcBufferSlot;
     mDrawingState.acquireFence = bufferData.flags.test(BufferData::BufferDataChange::fenceChanged)
             ? bufferData.acquireFence
             : Fence::NO_FENCE;
@@ -3185,7 +3180,6 @@ void Layer::gatherBufferInfo() {
     mBufferInfo.mHdrMetadata = mDrawingState.hdrMetadata;
     mBufferInfo.mApi = mDrawingState.api;
     mBufferInfo.mTransformToDisplayInverse = mDrawingState.transformToDisplayInverse;
-    mBufferInfo.mBufferSlot = mDrawingState.hwcBufferSlot;
 }
 
 Rect Layer::computeBufferCrop(const State& s) {
@@ -3966,10 +3960,6 @@ void Layer::updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMet
         }
         relative->updateRelativeMetadataSnapshot(childRelativeLayerMetadata, visited);
     }
-}
-
-int Layer::getHwcCacheSlot(const client_cache_t& clientCacheId) {
-    return mHwcSlotGenerator->getHwcCacheSlot(clientCacheId);
 }
 
 LayerSnapshotGuard::LayerSnapshotGuard(Layer* layer) : mLayer(layer) {

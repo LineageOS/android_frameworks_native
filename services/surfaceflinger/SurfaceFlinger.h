@@ -96,6 +96,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include "Client.h"
@@ -1090,6 +1091,10 @@ private:
     std::atomic<int32_t> mTransactionFlags = 0;
     std::atomic<uint32_t> mUniqueTransactionId = 1;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
+
+    // Buffers that have been discarded by clients and need to be evicted from per-layer caches so
+    // the graphics memory can be immediately freed.
+    std::vector<uint64_t> mBufferIdsToUncache;
 
     // global color transform states
     Daltonizer mDaltonizer;

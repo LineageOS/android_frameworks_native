@@ -70,7 +70,6 @@ cc_test {
         ":libsurfaceflinger_sources",
         "libsurfaceflinger_unittest_main.cpp",
         "AidlPowerHalWrapperTest.cpp",
-        "CachingTest.cpp",
         "CompositionTest.cpp",
         "DispSyncSourceTest.cpp",
         "DisplayIdGeneratorTest.cpp",

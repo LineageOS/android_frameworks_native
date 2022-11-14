@@ -118,7 +118,8 @@ ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& buffer)
                                                                  Usage::READABLE));
 }
 
-void ClientCache::erase(const client_cache_t& cacheId) {
+sp<GraphicBuffer> ClientCache::erase(const client_cache_t& cacheId) {
+    sp<GraphicBuffer> buffer;
     auto& [processToken, id] = cacheId;
     std::vector<sp<ErasedRecipient>> pendingErase;
     {
@@ -126,8 +127,10 @@ void ClientCache::erase(const client_cache_t& cacheId) {
         ClientCacheBuffer* buf = nullptr;
         if (!getBuffer(cacheId, &buf)) {
             ALOGE("failed to erase buffer, could not retrieve buffer");
-            return;
+            return nullptr;
         }
+
+        buffer = buf->buffer->getBuffer();
 
         for (auto& recipient : buf->recipients) {
             sp<ErasedRecipient> erasedRecipient = recipient.promote();
@@ -142,6 +145,7 @@ void ClientCache::erase(const client_cache_t& cacheId) {
     for (auto& recipient : pendingErase) {
         recipient->bufferErased(cacheId);
     }
+    return buffer;
 }
 
 std::shared_ptr<renderengine::ExternalTexture> ClientCache::get(const client_cache_t& cacheId) {

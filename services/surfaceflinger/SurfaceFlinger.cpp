@@ -112,6 +112,7 @@
 #include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
 #include "Client.h"
+#include "ClientCache.h"
 #include "Colorizer.h"
 #include "Display/DisplayMap.h"
 #include "DisplayDevice.h"
@@ -2255,6 +2256,8 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         });
     }
 
+    refreshArgs.bufferIdsToUncache = std::move(mBufferIdsToUncache);
+
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
     for (auto layer : mLayersWithQueuedFrames) {
         if (auto layerFE = layer->getCompositionEngineLayerFE())
@@ -3999,10 +4002,6 @@ status_t SurfaceFlinger::setTransactionState(
                     getExternalTextureFromBufferData(*resolvedState.state.bufferData,
                                                      layerName.c_str(), transactionId);
             mBufferCountTracker.increment(resolvedState.state.surface->localBinder());
-            if (layer) {
-                resolvedState.hwcBufferSlot =
-                        layer->getHwcCacheSlot(resolvedState.state.bufferData->cachedBuffer);
-            }
         }
     }
 
@@ -4078,7 +4077,10 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     }
 
     if (uncacheBuffer.isValid()) {
-        ClientCache::getInstance().erase(uncacheBuffer);
+        sp<GraphicBuffer> buffer = ClientCache::getInstance().erase(uncacheBuffer);
+        if (buffer != nullptr) {
+            mBufferIdsToUncache.push_back(buffer->getId());
+        }
     }
 
     // If a synchronous transaction is explicitly requested without any changes, force a transaction
@@ -4469,7 +4471,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     if (what & layer_state_t::eBufferChanged) {
         if (layer->setBuffer(composerState.externalTexture, *s.bufferData, postTime,
                              desiredPresentTime, isAutoTimestamp, dequeueBufferTimestamp,
-                             frameTimelineInfo, composerState.hwcBufferSlot)) {
+                             frameTimelineInfo)) {
             flags |= eTraversalNeeded;
         }
     } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {

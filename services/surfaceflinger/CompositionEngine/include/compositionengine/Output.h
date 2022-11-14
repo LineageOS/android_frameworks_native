@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <compositionengine/LayerFE.h>
 #include <renderengine/LayerSettings.h>
@@ -272,6 +273,7 @@ protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
 
+    virtual void uncacheBuffers(const std::vector<uint64_t>&) = 0;
     virtual void rebuildLayerStacks(const CompositionRefreshArgs&, LayerFESet&) = 0;
     virtual void collectVisibleLayers(const CompositionRefreshArgs&, CoverageState&) = 0;
     virtual void ensureOutputLayerIfVisible(sp<LayerFE>&, CoverageState&) = 0;

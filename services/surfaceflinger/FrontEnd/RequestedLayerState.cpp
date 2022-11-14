@@ -190,7 +190,6 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
 
     if (clientState.what & layer_state_t::eBufferChanged) {
         externalTexture = resolvedComposerState.externalTexture;
-        hwcBufferSlot = resolvedComposerState.hwcBufferSlot;
     }
 
     if (clientState.what & layer_state_t::ePositionChanged) {
