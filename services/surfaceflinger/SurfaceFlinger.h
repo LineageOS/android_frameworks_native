@@ -1375,8 +1375,8 @@ private:
     sp<TunnelModeEnabledReporter> mTunnelModeEnabledReporter;
     ui::DisplayPrimaries mInternalDisplayPrimaries;
 
-    const float mInternalDisplayDensity;
     const float mEmulatedDisplayDensity;
+    const float mInternalDisplayDensity;
 
     // Should only be accessed by the main thread.
     sp<os::IInputFlinger> mInputFlinger;
