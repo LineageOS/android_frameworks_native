@@ -24,10 +24,16 @@
 
 namespace android {
 
-std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutputArgs&& args) {
+std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutputArgs args) {
     std::shared_ptr<ScreenCaptureOutput> output = compositionengine::impl::createOutputTemplated<
-            ScreenCaptureOutput, compositionengine::CompositionEngine,
-            ScreenCaptureOutputArgs&&>(args.compositionEngine, std::move(args));
+            ScreenCaptureOutput, compositionengine::CompositionEngine, const RenderArea&,
+            std::unordered_set<compositionengine::LayerFE*>,
+            const compositionengine::Output::ColorProfile&, bool>(args.compositionEngine,
+                                                                  args.renderArea,
+                                                                  std::move(
+                                                                          args.filterForScreenshot),
+                                                                  args.colorProfile,
+                                                                  args.regionSampling);
     output->editState().isSecure = args.renderArea.isSecure();
     output->setCompositionEnabled(true);
     output->setLayerFilter({args.layerStack});
@@ -50,11 +56,14 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
     return output;
 }
 
-ScreenCaptureOutput::ScreenCaptureOutput(ScreenCaptureOutputArgs&& args)
-      : mRenderArea(args.renderArea),
-        mFilterForScreenshot(std::move(args.filterForScreenshot)),
-        mColorProfile(args.colorProfile),
-        mRegionSampling(args.regionSampling) {}
+ScreenCaptureOutput::ScreenCaptureOutput(
+        const RenderArea& renderArea,
+        std::unordered_set<compositionengine::LayerFE*> filterForScreenshot,
+        const compositionengine::Output::ColorProfile& colorProfile, bool regionSampling)
+      : mRenderArea(renderArea),
+        mFilterForScreenshot(std::move(filterForScreenshot)),
+        mColorProfile(colorProfile),
+        mRegionSampling(regionSampling) {}
 
 void ScreenCaptureOutput::updateColorProfile(const compositionengine::CompositionRefreshArgs&) {
     auto& outputState = editState();
