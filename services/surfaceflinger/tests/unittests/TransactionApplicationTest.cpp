@@ -32,6 +32,7 @@
 
 #include "FrontEnd/TransactionHandler.h"
 #include "TestableSurfaceFlinger.h"
+#include "TransactionState.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockVsyncController.h"
 
@@ -359,13 +360,23 @@ public:
         EXPECT_TRUE(mFlinger.getTransactionQueue().isEmpty());
         EXPECT_EQ(0u, mFlinger.getPendingTransactionQueue().size());
 
-        for (const auto& transaction : transactions) {
-            mFlinger.setTransactionState(transaction.frameTimelineInfo, transaction.states,
-                                         transaction.displays, transaction.flags,
-                                         transaction.applyToken, transaction.inputWindowCommands,
-                                         transaction.desiredPresentTime,
-                                         transaction.isAutoTimestamp, transaction.uncacheBuffer,
-                                         mHasListenerCallbacks, mCallbacks, transaction.id);
+        for (auto transaction : transactions) {
+            std::vector<ResolvedComposerState> resolvedStates;
+            resolvedStates.reserve(transaction.states.size());
+            for (auto& state : transaction.states) {
+                resolvedStates.emplace_back(std::move(state));
+            }
+
+            TransactionState transactionState(transaction.frameTimelineInfo, resolvedStates,
+                                              transaction.displays, transaction.flags,
+                                              transaction.applyToken,
+                                              transaction.inputWindowCommands,
+                                              transaction.desiredPresentTime,
+                                              transaction.isAutoTimestamp,
+                                              transaction.uncacheBuffer, systemTime(), 0,
+                                              mHasListenerCallbacks, mCallbacks, getpid(),
+                                              static_cast<int>(getuid()), transaction.id);
+            mFlinger.setTransactionStateInternal(transactionState);
         }
         mFlinger.flushTransactionQueues();
         EXPECT_TRUE(mFlinger.getTransactionQueue().isEmpty());

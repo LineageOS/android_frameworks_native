@@ -912,11 +912,11 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     client_cache_t uncacheBuffer;
     uncacheBuffer.token = BufferCache::getInstance().getToken();
     uncacheBuffer.id = cacheId;
-
+    Vector<ComposerState> composerStates;
     status_t status =
-            sf->setTransactionState(FrameTimelineInfo{}, {}, {}, ISurfaceComposer::eOneWay,
-                                    Transaction::getDefaultApplyToken(), {}, systemTime(), true,
-                                    uncacheBuffer, false, {}, generateId());
+            sf->setTransactionState(FrameTimelineInfo{}, composerStates, {},
+                                    ISurfaceComposer::eOneWay, Transaction::getDefaultApplyToken(),
+                                    {}, systemTime(), true, uncacheBuffer, false, {}, generateId());
     if (status != NO_ERROR) {
         ALOGE_AND_TRACE("SurfaceComposerClient::doUncacheBufferTransaction - %s",
                         strerror(-status));

@@ -107,6 +107,7 @@
 #include <optional>
 #include <type_traits>
 #include <unordered_map>
+#include <vector>
 
 #include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
@@ -3900,7 +3901,7 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
 }
 
 status_t SurfaceFlinger::setTransactionState(
-        const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
+        const FrameTimelineInfo& frameTimelineInfo, Vector<ComposerState>& states,
         const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
         const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
         bool isAutoTimestamp, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
@@ -3932,7 +3933,29 @@ status_t SurfaceFlinger::setTransactionState(
     IPCThreadState* ipc = IPCThreadState::self();
     const int originPid = ipc->getCallingPid();
     const int originUid = ipc->getCallingUid();
-    TransactionState state{frameTimelineInfo,  states,
+
+    std::vector<ResolvedComposerState> resolvedStates;
+    resolvedStates.reserve(states.size());
+    for (auto& state : states) {
+        resolvedStates.emplace_back(std::move(state));
+        auto& resolvedState = resolvedStates.back();
+        if (resolvedState.state.hasBufferChanges() && resolvedState.state.hasValidBuffer() &&
+            resolvedState.state.surface) {
+            sp<Layer> layer = LayerHandle::getLayer(resolvedState.state.surface);
+            std::string layerName = (layer) ?
+                    layer->getDebugName() : std::to_string(resolvedState.state.layerId);
+            resolvedState.externalTexture =
+                    getExternalTextureFromBufferData(*resolvedState.state.bufferData,
+                                                     layerName.c_str(), transactionId);
+            mBufferCountTracker.increment(resolvedState.state.surface->localBinder());
+            if (layer) {
+                resolvedState.hwcBufferSlot =
+                        layer->getHwcCacheSlot(resolvedState.state.bufferData->cachedBuffer);
+            }
+        }
+    }
+
+    TransactionState state{frameTimelineInfo,  resolvedStates,
                            displays,           flags,
                            applyToken,         inputWindowCommands,
                            desiredPresentTime, isAutoTimestamp,
@@ -3940,11 +3963,6 @@ status_t SurfaceFlinger::setTransactionState(
                            permissions,        hasListenerCallbacks,
                            listenerCallbacks,  originPid,
                            originUid,          transactionId};
-
-    // Check for incoming buffer updates and increment the pending buffer count.
-    state.traverseStatesWithBuffers([&](const layer_state_t& state) {
-        mBufferCountTracker.increment(state.surface->localBinder());
-    });
 
     if (mTransactionTracing) {
         mTransactionTracing->addQueuedTransaction(state);
@@ -3964,7 +3982,7 @@ status_t SurfaceFlinger::setTransactionState(
 }
 
 bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelineInfo,
-                                           Vector<ComposerState>& states,
+                                           std::vector<ResolvedComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -3986,13 +4004,12 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     }
 
     uint32_t clientStateFlags = 0;
-    for (int i = 0; i < states.size(); i++) {
-        ComposerState& state = states.editItemAt(i);
+    for (auto& resolvedState : states) {
         clientStateFlags |=
-                setClientStateLocked(frameTimelineInfo, state, desiredPresentTime, isAutoTimestamp,
-                                     postTime, permissions, transactionId);
-        if ((flags & eAnimation) && state.state.surface) {
-            if (const auto layer = LayerHandle::getLayer(state.state.surface)) {
+                setClientStateLocked(frameTimelineInfo, resolvedState, desiredPresentTime,
+                                     isAutoTimestamp, postTime, permissions, transactionId);
+        if ((flags & eAnimation) && resolvedState.state.surface) {
+            if (const auto layer = LayerHandle::getLayer(resolvedState.state.surface)) {
                 using LayerUpdateType = scheduler::LayerHistory::LayerUpdateType;
                 mScheduler->recordLayerHistory(layer.get(),
                                                isAutoTimestamp ? 0 : desiredPresentTime,
@@ -4104,7 +4121,7 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermis
 }
 
 uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTimelineInfo,
-                                              ComposerState& composerState,
+                                              ResolvedComposerState& composerState,
                                               int64_t desiredPresentTime, bool isAutoTimestamp,
                                               int64_t postTime, uint32_t permissions,
                                               uint64_t transactionId) {
@@ -4399,11 +4416,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
 
     if (what & layer_state_t::eBufferChanged) {
-        std::shared_ptr<renderengine::ExternalTexture> buffer =
-                getExternalTextureFromBufferData(*s.bufferData, layer->getDebugName(),
-                                                 transactionId);
-        if (layer->setBuffer(buffer, *s.bufferData, postTime, desiredPresentTime, isAutoTimestamp,
-                             dequeueBufferTimestamp, frameTimelineInfo)) {
+        if (layer->setBuffer(composerState.externalTexture, *s.bufferData, postTime,
+                             desiredPresentTime, isAutoTimestamp, dequeueBufferTimestamp,
+                             frameTimelineInfo, composerState.hwcBufferSlot)) {
             flags |= eTraversalNeeded;
         }
     } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
@@ -4611,7 +4626,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     LOG_ALWAYS_FATAL_IF(token == nullptr);
 
     // reset screen orientation and use primary layer stack
-    Vector<ComposerState> state;
+    std::vector<ResolvedComposerState> state;
     Vector<DisplayState> displays;
     DisplayState d;
     d.what = DisplayState::eDisplayProjectionChanged |
@@ -7022,9 +7037,12 @@ std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextur
         }
 
         if (result.error() == ClientCache::AddError::CacheFull) {
-            mTransactionHandler
-                    .onTransactionQueueStalled(transactionId, bufferData.releaseBufferListener,
-                                               "Buffer processing hung due to full buffer cache");
+            ALOGE("Attempted to create an ExternalTexture for layer %s but CacheFull", layerName);
+
+            if (bufferData.releaseBufferListener) {
+                bufferData.releaseBufferListener->onTransactionQueueStalled(
+                        String8("Buffer processing hung due to full buffer cache"));
+            }
         }
 
         return nullptr;
