@@ -92,7 +92,7 @@ inline constexpr bool is_scoped_enum_v = is_scoped_enum<T>::value;
 //   enum class E { A, B, C };
 //   static_assert(ftl::to_underlying(E::B) == 1);
 //
-template <typename E>
+template <typename E, typename = std::enable_if_t<std::is_enum_v<E>>>
 constexpr auto to_underlying(E v) {
   return static_cast<std::underlying_type_t<E>>(v);
 }
