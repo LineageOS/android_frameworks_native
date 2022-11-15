@@ -47,4 +47,20 @@ TEST(Algorithm, FindIf) {
   EXPECT_EQ(opt->get(), ftl::StaticVector("tiramisu"sv));
 }
 
+TEST(Algorithm, StaticRef) {
+  using namespace std::string_view_literals;
+
+  const ftl::SmallMap map = ftl::init::map(13, "tiramisu"sv)(14, "upside-down cake"sv);
+  ASSERT_EQ("???"sv,
+            map.get(20).or_else(ftl::static_ref<std::string_view>([] { return "???"sv; }))->get());
+
+  using Map = decltype(map);
+
+  ASSERT_EQ("snow cone"sv,
+            ftl::find_if(map, [](const auto& pair) { return pair.second.front() == 's'; })
+                .transform(ftl::to_mapped_ref<Map>)
+                .or_else(ftl::static_ref<std::string_view>([] { return "snow cone"sv; }))
+                ->get());
+}
+
 }  // namespace android::test
