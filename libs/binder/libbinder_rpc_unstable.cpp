@@ -94,6 +94,10 @@ bool RunInitUnixDomainRpcServer(AIBinder* service, const char* name,
                                 void (*readyCallback)(void* param), void* param) {
     auto server = RpcServer::make();
     auto fd = unique_fd(android_get_control_socket(name));
+    if (!fd.ok()) {
+        LOG(ERROR) << "Failed to get fd for the socket:" << name;
+        return false;
+    }
     if (status_t status = server->setupRawSocketServer(std::move(fd)); status != OK) {
         LOG(ERROR) << "Failed to set up Unix Domain RPC server with name " << name
                    << " error: " << statusToString(status).c_str();
