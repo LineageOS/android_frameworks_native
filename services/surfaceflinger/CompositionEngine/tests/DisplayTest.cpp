@@ -959,7 +959,7 @@ TEST_F(DisplayFinishFrameTest, doesNotSkipCompositionIfNotDirtyOnHwcDisplay) {
     mDisplay->editState().layerStackSpace.setContent(Rect(0, 0, 1, 1));
     mDisplay->editState().dirtyRegion = Region::INVALID_REGION;
 
-    mDisplay->finishFrame({}, std::move(mResultWithBuffer));
+    mDisplay->finishFrame(std::move(mResultWithBuffer));
 }
 
 TEST_F(DisplayFinishFrameTest, skipsCompositionIfNotDirty) {
@@ -980,7 +980,7 @@ TEST_F(DisplayFinishFrameTest, skipsCompositionIfNotDirty) {
     gpuDisplay->editState().lastCompositionHadVisibleLayers = true;
 
     gpuDisplay->beginFrame();
-    gpuDisplay->finishFrame({}, std::move(mResultWithoutBuffer));
+    gpuDisplay->finishFrame(std::move(mResultWithoutBuffer));
 }
 
 TEST_F(DisplayFinishFrameTest, skipsCompositionIfEmpty) {
@@ -1001,7 +1001,7 @@ TEST_F(DisplayFinishFrameTest, skipsCompositionIfEmpty) {
     gpuDisplay->editState().lastCompositionHadVisibleLayers = false;
 
     gpuDisplay->beginFrame();
-    gpuDisplay->finishFrame({}, std::move(mResultWithoutBuffer));
+    gpuDisplay->finishFrame(std::move(mResultWithoutBuffer));
 }
 
 TEST_F(DisplayFinishFrameTest, performsCompositionIfDirtyAndNotEmpty) {
@@ -1022,7 +1022,7 @@ TEST_F(DisplayFinishFrameTest, performsCompositionIfDirtyAndNotEmpty) {
     gpuDisplay->editState().lastCompositionHadVisibleLayers = true;
 
     gpuDisplay->beginFrame();
-    gpuDisplay->finishFrame({}, std::move(mResultWithBuffer));
+    gpuDisplay->finishFrame(std::move(mResultWithBuffer));
 }
 
 /*
