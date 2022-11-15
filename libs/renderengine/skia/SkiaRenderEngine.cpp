@@ -388,9 +388,11 @@ void SkiaRenderEngine::ensureGrContextsCreated() {
 
 void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
                                                   bool isRenderable) {
-    // Only run this if RE is running on its own thread. This way the access to GL
-    // operations is guaranteed to be happening on the same thread.
-    if (mRenderEngineType != RenderEngineType::SKIA_GL_THREADED) {
+    // Only run this if RE is running on its own thread. This
+    // way the access to GL operations is guaranteed to be happening on the
+    // same thread.
+    if (mRenderEngineType != RenderEngineType::SKIA_GL_THREADED &&
+        mRenderEngineType != RenderEngineType::SKIA_VK_THREADED) {
         return;
     }
     // We currently don't attempt to map a buffer if the buffer contains protected content

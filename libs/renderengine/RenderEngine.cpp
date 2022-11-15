@@ -23,6 +23,7 @@
 #include "threaded/RenderEngineThreaded.h"
 
 #include "skia/SkiaGLRenderEngine.h"
+#include "skia/SkiaVkRenderEngine.h"
 
 namespace android {
 namespace renderengine {
@@ -37,6 +38,9 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
         case RenderEngineType::SKIA_GL:
             ALOGD("RenderEngine with SkiaGL Backend");
             return renderengine::skia::SkiaGLRenderEngine::create(args);
+        case RenderEngineType::SKIA_VK:
+            ALOGD("RenderEngine with SkiaVK Backend");
+            return renderengine::skia::SkiaVkRenderEngine::create(args);
         case RenderEngineType::SKIA_GL_THREADED: {
             ALOGD("Threaded RenderEngine with SkiaGL Backend");
             return renderengine::threaded::RenderEngineThreaded::create(
@@ -45,6 +49,13 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
                     },
                     args.renderEngineType);
         }
+        case RenderEngineType::SKIA_VK_THREADED:
+            ALOGD("Threaded RenderEngine with SkiaVK Backend");
+            return renderengine::threaded::RenderEngineThreaded::create(
+                    [args]() {
+                        return android::renderengine::skia::SkiaVkRenderEngine::create(args);
+                    },
+                    args.renderEngineType);
         case RenderEngineType::GLES:
         default:
             ALOGD("RenderEngine with GLES Backend");

@@ -193,9 +193,9 @@ std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
     }
 
     // initialize the renderer while GL is current
-    std::unique_ptr<SkiaGLRenderEngine> engine =
-            std::make_unique<SkiaGLRenderEngine>(args, display, ctxt, placeholder, protectedContext,
-                                                 protectedPlaceholder);
+    std::unique_ptr<SkiaGLRenderEngine> engine(new SkiaGLRenderEngine(args, display, ctxt,
+                                                                      placeholder, protectedContext,
+                                                                      protectedPlaceholder));
     engine->ensureGrContextsCreated();
 
     ALOGI("OpenGL ES informations:");
