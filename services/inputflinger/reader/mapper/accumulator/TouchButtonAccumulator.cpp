@@ -48,6 +48,7 @@ void TouchButtonAccumulator::reset() {
     mBtnToolDoubleTap = mDeviceContext.isKeyPressed(BTN_TOOL_DOUBLETAP);
     mBtnToolTripleTap = mDeviceContext.isKeyPressed(BTN_TOOL_TRIPLETAP);
     mBtnToolQuadTap = mDeviceContext.isKeyPressed(BTN_TOOL_QUADTAP);
+    mBtnToolQuintTap = mDeviceContext.isKeyPressed(BTN_TOOL_QUINTTAP);
     mHidUsageAccumulator.reset();
 }
 
@@ -100,6 +101,9 @@ void TouchButtonAccumulator::process(const RawEvent* rawEvent) {
             case BTN_TOOL_QUADTAP:
                 mBtnToolQuadTap = rawEvent->value;
                 break;
+            case BTN_TOOL_QUINTTAP:
+                mBtnToolQuintTap = rawEvent->value;
+                break;
             default:
                 processMappedKey(rawEvent->code, rawEvent->value);
         }
@@ -147,7 +151,8 @@ int32_t TouchButtonAccumulator::getToolType() const {
     if (mBtnToolPen || mBtnToolBrush || mBtnToolPencil || mBtnToolAirbrush) {
         return AMOTION_EVENT_TOOL_TYPE_STYLUS;
     }
-    if (mBtnToolFinger || mBtnToolDoubleTap || mBtnToolTripleTap || mBtnToolQuadTap) {
+    if (mBtnToolFinger || mBtnToolDoubleTap || mBtnToolTripleTap || mBtnToolQuadTap ||
+        mBtnToolQuintTap) {
         return AMOTION_EVENT_TOOL_TYPE_FINGER;
     }
     return AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
@@ -156,7 +161,7 @@ int32_t TouchButtonAccumulator::getToolType() const {
 bool TouchButtonAccumulator::isToolActive() const {
     return mBtnTouch || mBtnToolFinger || mBtnToolPen || mBtnToolRubber || mBtnToolBrush ||
             mBtnToolPencil || mBtnToolAirbrush || mBtnToolMouse || mBtnToolLens ||
-            mBtnToolDoubleTap || mBtnToolTripleTap || mBtnToolQuadTap;
+            mBtnToolDoubleTap || mBtnToolTripleTap || mBtnToolQuadTap || mBtnToolQuintTap;
 }
 
 bool TouchButtonAccumulator::isHovering() const {
@@ -169,6 +174,17 @@ bool TouchButtonAccumulator::hasStylus() const {
 
 bool TouchButtonAccumulator::hasButtonTouch() const {
     return mHaveBtnTouch;
+}
+
+int TouchButtonAccumulator::getTouchCount() const {
+    if (mBtnTouch) {
+        if (mBtnToolQuintTap) return 5;
+        if (mBtnToolQuadTap) return 4;
+        if (mBtnToolTripleTap) return 3;
+        if (mBtnToolDoubleTap) return 2;
+        if (mBtnToolFinger) return 1;
+    }
+    return 0;
 }
 
 } // namespace android

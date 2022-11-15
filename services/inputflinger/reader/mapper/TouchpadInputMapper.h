@@ -16,10 +16,17 @@
 
 #pragma once
 
+#include <memory>
+
 #include "EventHub.h"
 #include "InputDevice.h"
 #include "InputMapper.h"
 #include "NotifyArgs.h"
+#include "accumulator/CursorButtonAccumulator.h"
+#include "accumulator/MultiTouchMotionAccumulator.h"
+#include "accumulator/TouchButtonAccumulator.h"
+
+#include "include/gestures.h"
 
 namespace android {
 
@@ -27,8 +34,20 @@ class TouchpadInputMapper : public InputMapper {
 public:
     explicit TouchpadInputMapper(InputDeviceContext& deviceContext);
 
-    virtual uint32_t getSources() const override;
-    [[nodiscard]] virtual std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
+    uint32_t getSources() const override;
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
+
+private:
+    void sync(nsecs_t when);
+
+    std::unique_ptr<gestures::GestureInterpreter, void (*)(gestures::GestureInterpreter*)>
+            mGestureInterpreter;
+
+    CursorButtonAccumulator mCursorButtonAccumulator;
+    MultiTouchMotionAccumulator mMotionAccumulator;
+    TouchButtonAccumulator mTouchButtonAccumulator;
+    int32_t mMscTimestamp = 0;
 };
 
 } // namespace android
