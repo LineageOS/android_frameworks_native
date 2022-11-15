@@ -2306,6 +2306,20 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
                                                  entry.eventTime);
             }
         }
+
+        // Update the pointerIds for non-splittable when it received pointer down.
+        if (!isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
+            // If no split, we suppose all touched windows should receive pointer down.
+            const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
+            for (size_t i = 0; i < tempTouchState.windows.size(); i++) {
+                TouchedWindow& touchedWindow = tempTouchState.windows[i];
+                // Ignore drag window for it should just track one pointer.
+                if (mDragState && mDragState->dragWindow == touchedWindow.windowHandle) {
+                    continue;
+                }
+                touchedWindow.pointerIds.markBit(entry.pointerProperties[pointerIndex].id);
+            }
+        }
     }
 
     // Update dispatching for hover enter and exit.
@@ -2479,17 +2493,6 @@ Failed:
                 continue;
             }
             i += 1;
-        }
-    } else if (!isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
-        // If no split, we suppose all touched windows should receive pointer down.
-        const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
-        for (size_t i = 0; i < tempTouchState.windows.size(); i++) {
-            TouchedWindow& touchedWindow = tempTouchState.windows[i];
-            // Ignore drag window for it should just track one pointer.
-            if (mDragState && mDragState->dragWindow == touchedWindow.windowHandle) {
-                continue;
-            }
-            touchedWindow.pointerIds.markBit(entry.pointerProperties[pointerIndex].id);
         }
     }
 
