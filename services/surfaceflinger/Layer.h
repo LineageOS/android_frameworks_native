@@ -146,6 +146,7 @@ public:
         bool transformToDisplayInverse;
         Region transparentRegionHint;
         std::shared_ptr<renderengine::ExternalTexture> buffer;
+        int hwcBufferSlot;
         client_cache_t clientCacheId;
         sp<Fence> acquireFence;
         std::shared_ptr<FenceTime> acquireFenceTime;
@@ -297,7 +298,8 @@ public:
     bool setBuffer(std::shared_ptr<renderengine::ExternalTexture>& /* buffer */,
                    const BufferData& /* bufferData */, nsecs_t /* postTime */,
                    nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
-                   std::optional<nsecs_t> /* dequeueTime */, const FrameTimelineInfo& /*info*/);
+                   std::optional<nsecs_t> /* dequeueTime */, const FrameTimelineInfo& /*info*/,
+                   int /* hwcBufferSlot */);
     bool setDataspace(ui::Dataspace /*dataspace*/);
     bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/);
     bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/);
@@ -811,6 +813,7 @@ public:
     void updateMetadataSnapshot(const LayerMetadata& parentMetadata);
     void updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMetadata,
                                         std::unordered_set<Layer*>& visited);
+    int getHwcCacheSlot(const client_cache_t& clientCacheId);
 
 protected:
     // For unit tests

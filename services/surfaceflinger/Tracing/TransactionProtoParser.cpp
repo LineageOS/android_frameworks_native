@@ -310,10 +310,10 @@ TransactionState TransactionProtoParser::fromProto(const proto::TransactionState
     int32_t layerCount = proto.layer_changes_size();
     t.states.reserve(static_cast<size_t>(layerCount));
     for (int i = 0; i < layerCount; i++) {
-        ComposerState s;
+        ResolvedComposerState s;
         s.state.what = 0;
         fromProto(proto.layer_changes(i), s.state);
-        t.states.add(s);
+        t.states.emplace_back(s);
     }
 
     int32_t displayCount = proto.display_changes_size();
