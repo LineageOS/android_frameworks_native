@@ -252,17 +252,19 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
                                                    singleThreaded ? "_single_threaded" : "",
                                                    noKernel ? "_no_kernel" : "");
 
-    base::unique_fd bootstrapClientFd, bootstrapServerFd, socketFd;
-    // Do not set O_CLOEXEC, bootstrapServerFd needs to survive fork/exec.
-    // This is because we cannot pass ParcelFileDescriptor over a pipe.
-    if (!base::Socketpair(SOCK_STREAM, &bootstrapClientFd, &bootstrapServerFd)) {
-        int savedErrno = errno;
-        LOG(FATAL) << "Failed socketpair(): " << strerror(savedErrno);
-    }
+    base::unique_fd bootstrapClientFd, socketFd;
+
     auto addr = allocateSocketAddress();
     // Initializes the socket before the fork/exec.
     if (socketType == SocketType::UNIX_RAW) {
         socketFd = initUnixSocket(addr);
+    } else if (socketType == SocketType::UNIX_BOOTSTRAP) {
+        // Do not set O_CLOEXEC, bootstrapServerFd needs to survive fork/exec.
+        // This is because we cannot pass ParcelFileDescriptor over a pipe.
+        if (!base::Socketpair(SOCK_STREAM, &bootstrapClientFd, &socketFd)) {
+            int savedErrno = errno;
+            LOG(FATAL) << "Failed socketpair(): " << strerror(savedErrno);
+        }
     }
 
     auto ret = std::make_unique<LinuxProcessSession>(
@@ -280,7 +282,6 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
     serverConfig.serverVersion = serverVersion;
     serverConfig.vsockPort = allocateVsockPort();
     serverConfig.addr = addr;
-    serverConfig.unixBootstrapFd = bootstrapServerFd.get();
     serverConfig.socketFd = socketFd.get();
     for (auto mode : options.serverSupportedFileDescriptorTransportModes) {
         serverConfig.serverSupportedFileDescriptorTransportModes.push_back(
