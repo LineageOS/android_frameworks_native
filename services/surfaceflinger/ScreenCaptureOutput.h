@@ -43,7 +43,10 @@ struct ScreenCaptureOutputArgs {
 // SurfaceFlinger::captureLayers and SurfaceFlinger::captureDisplay.
 class ScreenCaptureOutput : public compositionengine::impl::Output {
 public:
-    ScreenCaptureOutput(ScreenCaptureOutputArgs&&);
+    ScreenCaptureOutput(const RenderArea& renderArea,
+                        std::unordered_set<compositionengine::LayerFE*> filterForScreenshot,
+                        const compositionengine::Output::ColorProfile& colorProfile,
+                        bool regionSampling);
 
     void updateColorProfile(const compositionengine::CompositionRefreshArgs&) override;
 
@@ -64,6 +67,6 @@ private:
     const bool mRegionSampling;
 };
 
-std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutputArgs&&);
+std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutputArgs);
 
 } // namespace android

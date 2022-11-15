@@ -20,17 +20,27 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include "renderengine/ExternalTexture.h"
 
 #include <gui/LayerState.h>
 #include <system/window.h>
 
 namespace android {
 
+// Extends the client side composer state by resolving buffer cache ids.
+class ResolvedComposerState : public ComposerState {
+public:
+    ResolvedComposerState() = default;
+    ResolvedComposerState(ComposerState&& source) { state = std::move(source.state); }
+    std::shared_ptr<renderengine::ExternalTexture> externalTexture;
+    int hwcBufferSlot = 0;
+};
+
 struct TransactionState {
     TransactionState() = default;
 
     TransactionState(const FrameTimelineInfo& frameTimelineInfo,
-                     const Vector<ComposerState>& composerStates,
+                     std::vector<ResolvedComposerState>& composerStates,
                      const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
                      const sp<IBinder>& applyToken, const InputWindowCommands& inputWindowCommands,
                      int64_t desiredPresentTime, bool isAutoTimestamp,
@@ -38,7 +48,7 @@ struct TransactionState {
                      bool hasListenerCallbacks, std::vector<ListenerCallbacks> listenerCallbacks,
                      int originPid, int originUid, uint64_t transactionId)
           : frameTimelineInfo(frameTimelineInfo),
-            states(composerStates),
+            states(std::move(composerStates)),
             displays(displayStates),
             flags(transactionFlags),
             applyToken(applyToken),
@@ -57,18 +67,20 @@ struct TransactionState {
     // Invokes `void(const layer_state_t&)` visitor for matching layers.
     template <typename Visitor>
     void traverseStatesWithBuffers(Visitor&& visitor) const {
-        for (const auto& [state] : states) {
-            if (state.hasBufferChanges() && state.hasValidBuffer() && state.surface) {
-                visitor(state);
+        for (const auto& state : states) {
+            if (state.state.hasBufferChanges() && state.state.hasValidBuffer() &&
+                state.state.surface) {
+                visitor(state.state);
             }
         }
     }
 
     template <typename Visitor>
     void traverseStatesWithBuffersWhileTrue(Visitor&& visitor) const {
-        for (const auto& [state] : states) {
-            if (state.hasBufferChanges() && state.hasValidBuffer() && state.surface) {
-                if (!visitor(state)) return;
+        for (const auto& state : states) {
+            if (state.state.hasBufferChanges() && state.state.hasValidBuffer() &&
+                state.state.surface) {
+                if (!visitor(state.state)) return;
             }
         }
     }
@@ -79,8 +91,8 @@ struct TransactionState {
     bool isFrameActive() const {
         if (!displays.empty()) return true;
 
-        for (const auto& [state] : states) {
-            if (state.frameRateCompatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE) {
+        for (const auto& state : states) {
+            if (state.state.frameRateCompatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE) {
                 return true;
             }
         }
@@ -89,7 +101,7 @@ struct TransactionState {
     }
 
     FrameTimelineInfo frameTimelineInfo;
-    Vector<ComposerState> states;
+    std::vector<ResolvedComposerState> states;
     Vector<DisplayState> displays;
     uint32_t flags;
     sp<IBinder> applyToken;

@@ -240,13 +240,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
         for (int j = 0; j < entry.transactions_size(); j++) {
             // apply transactions
             TransactionState transaction = parser.fromProto(entry.transactions(j));
-            mFlinger.setTransactionState(transaction.frameTimelineInfo, transaction.states,
-                                         transaction.displays, transaction.flags,
-                                         transaction.applyToken, transaction.inputWindowCommands,
-                                         transaction.desiredPresentTime,
-                                         transaction.isAutoTimestamp, {},
-                                         transaction.hasListenerCallbacks,
-                                         transaction.listenerCallbacks, transaction.id);
+            mFlinger.setTransactionStateInternal(transaction);
         }
 
         const auto frameTime = TimePoint::fromNs(entry.elapsed_realtime_nanos());

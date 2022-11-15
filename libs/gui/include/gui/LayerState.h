@@ -311,7 +311,8 @@ struct layer_state_t {
     bool dimmingEnabled;
 };
 
-struct ComposerState {
+class ComposerState {
+public:
     layer_state_t state;
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);

@@ -46,14 +46,14 @@ TEST(TransactionProtoParserTest, parse) {
     size_t layerCount = 2;
     t1.states.reserve(layerCount);
     for (uint32_t i = 0; i < layerCount; i++) {
-        ComposerState s;
+        ResolvedComposerState s;
         if (i == 1) {
             layer.parentSurfaceControlForChild =
                     sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(), layerHandle, 42,
                                              "#42");
         }
         s.state = layer;
-        t1.states.add(s);
+        t1.states.emplace_back(s);
     }
 
     size_t displayCount = 2;
