@@ -66,6 +66,7 @@
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
 #include "FlagManager.h"
+#include "FrontEnd/FrontEndDisplayInfo.h"
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
@@ -1366,6 +1367,7 @@ private:
     } mPowerHintSessionMode;
 
     TransactionHandler mTransactionHandler;
+    display::DisplayMap<ui::LayerStack, FrontEndDisplayInfo> mFrontEndDisplayInfos;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

@@ -3122,6 +3122,10 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
     const bool displayTransactionNeeded = transactionFlags & eDisplayTransactionNeeded;
     if (displayTransactionNeeded) {
         processDisplayChangesLocked();
+        mFrontEndDisplayInfos.clear();
+        for (const auto& [_, display] : mDisplays) {
+            mFrontEndDisplayInfos.try_emplace(display->getLayerStack(), display->getFrontEndInfo());
+        }
     }
     mForceTransactionDisplayChange = displayTransactionNeeded;
 
@@ -3291,29 +3295,6 @@ void SurfaceFlinger::persistDisplayBrightness(bool needsComposite) {
 
 void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
                                       std::vector<DisplayInfo>& outDisplayInfos) {
-    display::DisplayMap<ui::LayerStack, DisplayDevice::InputInfo> displayInputInfos;
-
-    for (const auto& [_, display] : FTL_FAKE_GUARD(mStateLock, mDisplays)) {
-        const auto layerStack = display->getLayerStack();
-        const auto info = display->getInputInfo();
-
-        const auto [it, emplaced] = displayInputInfos.try_emplace(layerStack, info);
-        if (emplaced) {
-            continue;
-        }
-
-        // If the layer stack is mirrored on multiple displays, the first display that is configured
-        // to receive input takes precedence.
-        auto& otherInfo = it->second;
-        if (otherInfo.receivesInput) {
-            ALOGW_IF(display->receivesInput(),
-                     "Multiple displays claim to accept input for the same layer stack: %u",
-                     layerStack.id);
-        } else {
-            otherInfo = info;
-        }
-    }
-
     static size_t sNumWindowInfos = 0;
     outWindowInfos.reserve(sNumWindowInfos);
     sNumWindowInfos = 0;
@@ -3321,8 +3302,8 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
 
-        const auto opt = displayInputInfos.get(layer->getLayerStack())
-                                 .transform([](const DisplayDevice::InputInfo& info) {
+        const auto opt = mFrontEndDisplayInfos.get(layer->getLayerStack())
+                                 .transform([](const FrontEndDisplayInfo& info) {
                                      return Layer::InputDisplayArgs{&info.transform, info.isSecure};
                                  });
 
@@ -3331,8 +3312,8 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
 
     sNumWindowInfos = outWindowInfos.size();
 
-    outDisplayInfos.reserve(displayInputInfos.size());
-    for (const auto& [_, info] : displayInputInfos) {
+    outDisplayInfos.reserve(mFrontEndDisplayInfos.size());
+    for (const auto& [_, info] : mFrontEndDisplayInfos) {
         outDisplayInfos.push_back(info.info);
     }
 }
