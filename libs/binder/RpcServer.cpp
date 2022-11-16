@@ -565,12 +565,9 @@ status_t RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
 }
 
 status_t RpcServer::setupRawSocketServer(base::unique_fd socket_fd) {
+    LOG_ALWAYS_FATAL_IF(!socket_fd.ok(), "Socket must be setup to listen.");
     RpcTransportFd transportFd(std::move(socket_fd));
-    if (!transportFd.fd.ok()) {
-        int savedErrno = errno;
-        ALOGE("Could not get initialized Unix socket: %s", strerror(savedErrno));
-        return -savedErrno;
-    }
+
     // Right now, we create all threads at once, making accept4 slow. To avoid hanging the client,
     // the backlog is increased to a large number.
     // TODO(b/189955605): Once we create threads dynamically & lazily, the backlog can be reduced
