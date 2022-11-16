@@ -178,6 +178,7 @@ LIBVULKAN {
     vkGetImageSparseMemoryRequirements;
     vkGetImageSparseMemoryRequirements2; # introduced=28
     vkGetImageSubresourceLayout;
+    vkGetImageSubresourceLayout2EXT; # introduced=UpsideDownCake
     vkGetInstanceProcAddr;
     vkGetMemoryAndroidHardwareBufferANDROID; # introduced=28
     vkGetPhysicalDeviceExternalBufferProperties; # introduced=28
