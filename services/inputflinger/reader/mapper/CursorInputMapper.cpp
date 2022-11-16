@@ -117,6 +117,10 @@ void CursorInputMapper::dump(std::string& dump) {
                          toString(mCursorScrollAccumulator.haveRelativeVWheel()));
     dump += StringPrintf(INDENT3 "HaveHWheel: %s\n",
                          toString(mCursorScrollAccumulator.haveRelativeHWheel()));
+    dump += StringPrintf(INDENT3 "WheelYVelocityControlParameters: %s",
+                         mWheelYVelocityControl.getParameters().dump().c_str());
+    dump += StringPrintf(INDENT3 "WheelXVelocityControlParameters: %s",
+                         mWheelXVelocityControl.getParameters().dump().c_str());
     dump += StringPrintf(INDENT3 "VWheelScale: %0.3f\n", mVWheelScale);
     dump += StringPrintf(INDENT3 "HWheelScale: %0.3f\n", mHWheelScale);
     dump += StringPrintf(INDENT3 "DisplayId: %s\n", toString(mDisplayId).c_str());

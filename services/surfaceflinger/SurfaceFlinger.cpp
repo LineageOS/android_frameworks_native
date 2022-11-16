@@ -736,6 +736,10 @@ chooseRenderEngineTypeViaSysProp() {
         return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
     } else if (strcmp(prop, "skiaglthreaded") == 0) {
         return renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED;
+    } else if (strcmp(prop, "skiavk") == 0) {
+        return renderengine::RenderEngine::RenderEngineType::SKIA_VK;
+    } else if (strcmp(prop, "skiavkthreaded") == 0) {
+        return renderengine::RenderEngine::RenderEngineType::SKIA_VK_THREADED;
     } else {
         ALOGE("Unrecognized RenderEngineType %s; ignoring!", prop);
         return {};
@@ -7022,9 +7026,16 @@ std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextur
         BufferData& bufferData, const char* layerName, uint64_t transactionId) {
     if (bufferData.buffer &&
         exceedsMaxRenderTargetSize(bufferData.buffer->getWidth(), bufferData.buffer->getHeight())) {
-        ALOGE("Attempted to create an ExternalTexture for layer %s that exceeds render target "
-              "size limit.",
-              layerName);
+        std::string errorMessage =
+                base::StringPrintf("Attempted to create an ExternalTexture with size (%u, %u) for "
+                                   "layer %s that exceeds render target size limit of %u.",
+                                   bufferData.buffer->getWidth(), bufferData.buffer->getHeight(),
+                                   layerName, static_cast<uint32_t>(mMaxRenderTargetSize));
+        ALOGD("%s", errorMessage.c_str());
+        if (bufferData.releaseBufferListener) {
+            bufferData.releaseBufferListener->onTransactionQueueStalled(
+                    String8(errorMessage.c_str()));
+        }
         return nullptr;
     }
 
