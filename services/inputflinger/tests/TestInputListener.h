@@ -50,9 +50,11 @@ public:
 
     void assertNotifyKeyWasNotCalled();
 
-    void assertNotifyMotionWasCalled(NotifyMotionArgs* outEventArgs = nullptr);
+    void assertNotifyMotionWasCalled(NotifyMotionArgs* outEventArgs = nullptr,
+                                     std::optional<TimePoint> waitUntil = {});
 
-    void assertNotifyMotionWasCalled(const ::testing::Matcher<NotifyMotionArgs>& matcher);
+    void assertNotifyMotionWasCalled(const ::testing::Matcher<NotifyMotionArgs>& matcher,
+                                     std::optional<TimePoint> waitUntil = {});
 
     void assertNotifyMotionWasNotCalled(std::optional<TimePoint> waitUntil = {});
 
@@ -65,7 +67,8 @@ public:
 
 private:
     template <class NotifyArgsType>
-    void assertCalled(NotifyArgsType* outEventArgs, std::string message);
+    void assertCalled(NotifyArgsType* outEventArgs, std::string message,
+                      std::optional<TimePoint> waitUntil = {});
 
     template <class NotifyArgsType>
     void assertNotCalled(std::string message, std::optional<TimePoint> timeout = {});

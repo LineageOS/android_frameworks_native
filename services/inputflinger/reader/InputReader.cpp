@@ -66,8 +66,7 @@ static bool isStylusPointerGestureStart(const NotifyMotionArgs& motionArgs) {
         return false;
     }
     const auto actionIndex = MotionEvent::getActionIndex(motionArgs.action);
-    return motionArgs.pointerProperties[actionIndex].toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS ||
-            motionArgs.pointerProperties[actionIndex].toolType == AMOTION_EVENT_TOOL_TYPE_ERASER;
+    return isStylusToolType(motionArgs.pointerProperties[actionIndex].toolType);
 }
 
 // --- InputReader ---
