@@ -18,114 +18,89 @@ use binder::{
     unstable_api::{AIBinder, AsNative},
     SpIBinder,
 };
+use binder_rpc_unstable_bindgen::ARpcServer;
+use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
+use std::io::{Error, ErrorKind};
 use std::{ffi::CString, os::raw, ptr::null_mut};
 
-/// Runs a binder RPC server, serving the supplied binder service implementation on the given vsock
-/// port.
-///
-/// If and when the server is ready for connections (it is listening on the port), `on_ready` is
-/// called to allow appropriate action to be taken - e.g. to notify clients that they may now
-/// attempt to connect.
-///
-/// The current thread is joined to the binder thread pool to handle incoming messages.
-///
-/// Returns true if the server has shutdown normally, false if it failed in some way.
-pub fn run_vsock_rpc_server<F>(service: SpIBinder, port: u32, on_ready: F) -> bool
-where
-    F: FnOnce(),
-{
-    let mut ready_notifier = ReadyNotifier(Some(on_ready));
-    ready_notifier.run_vsock_server(service, port)
+foreign_type! {
+    type CType = binder_rpc_unstable_bindgen::ARpcServer;
+    fn drop = binder_rpc_unstable_bindgen::ARpcServer_free;
+
+    /// A type that represents a foreign instance of RpcServer.
+    #[derive(Debug)]
+    pub struct RpcServer;
+    /// A borrowed RpcServer.
+    pub struct RpcServerRef;
 }
 
-/// Runs a binder RPC server, serving the supplied binder service implementation on the given
-/// socket file name. The socket should be initialized in init.rc with the same name.
-///
-/// If and when the server is ready for connections, `on_ready` is called to allow appropriate
-/// action to be taken - e.g. to notify clients that they may now attempt to connect.
-///
-/// The current thread is joined to the binder thread pool to handle incoming messages.
-///
-/// Returns true if the server has shutdown normally, false if it failed in some way.
-pub fn run_init_unix_domain_rpc_server<F>(
-    service: SpIBinder,
-    socket_name: &str,
-    on_ready: F,
-) -> bool
-where
-    F: FnOnce(),
-{
-    let mut ready_notifier = ReadyNotifier(Some(on_ready));
-    ready_notifier.run_init_unix_domain_server(service, socket_name)
-}
+/// SAFETY - The opaque handle can be cloned freely.
+unsafe impl Send for RpcServer {}
+/// SAFETY - The underlying C++ RpcServer class is thread-safe.
+unsafe impl Sync for RpcServer {}
 
-struct ReadyNotifier<F>(Option<F>)
-where
-    F: FnOnce();
-
-impl<F> ReadyNotifier<F>
-where
-    F: FnOnce(),
-{
-    fn run_vsock_server(&mut self, mut service: SpIBinder, port: u32) -> bool {
+impl RpcServer {
+    /// Creates a binder RPC server, serving the supplied binder service implementation on the given
+    /// vsock port.
+    pub fn new_vsock(mut service: SpIBinder, port: u32) -> Result<RpcServer, Error> {
         let service = service.as_native_mut();
-        let param = self.as_void_ptr();
 
         // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
         // Plus the binder objects are threadsafe.
-        // RunVsockRpcServerCallback does not retain a reference to `ready_callback` or `param`; it only
-        // uses them before it returns, which is during the lifetime of `self`.
         unsafe {
-            binder_rpc_unstable_bindgen::RunVsockRpcServerCallback(
-                service,
-                port,
-                Some(Self::ready_callback),
-                param,
-            )
+            Self::checked_from_ptr(binder_rpc_unstable_bindgen::ARpcServer_newVsock(service, port))
         }
     }
 
-    fn run_init_unix_domain_server(&mut self, mut service: SpIBinder, socket_name: &str) -> bool {
+    /// Creates a binder RPC server, serving the supplied binder service implementation on the given
+    /// socket file name. The socket should be initialized in init.rc with the same name.
+    pub fn new_init_unix_domain(
+        mut service: SpIBinder,
+        socket_name: &str,
+    ) -> Result<RpcServer, Error> {
         let socket_name = match CString::new(socket_name) {
             Ok(s) => s,
             Err(e) => {
                 log::error!("Cannot convert {} to CString. Error: {:?}", socket_name, e);
-                return false;
+                return Err(Error::from(ErrorKind::InvalidInput));
             }
         };
         let service = service.as_native_mut();
-        let param = self.as_void_ptr();
 
         // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
         // Plus the binder objects are threadsafe.
-        // RunInitUnixDomainRpcServer does not retain a reference to `ready_callback` or `param`;
-        // it only uses them before it returns, which is during the lifetime of `self`.
         unsafe {
-            binder_rpc_unstable_bindgen::RunInitUnixDomainRpcServer(
+            Self::checked_from_ptr(binder_rpc_unstable_bindgen::ARpcServer_newInitUnixDomain(
                 service,
                 socket_name.as_ptr(),
-                Some(Self::ready_callback),
-                param,
-            )
+            ))
         }
     }
 
-    fn as_void_ptr(&mut self) -> *mut raw::c_void {
-        self as *mut _ as *mut raw::c_void
-    }
-
-    unsafe extern "C" fn ready_callback(param: *mut raw::c_void) {
-        // SAFETY: This is only ever called by `RunVsockRpcServerCallback`, within the lifetime of the
-        // `ReadyNotifier`, with `param` taking the value returned by `as_void_ptr` (so a properly
-        // aligned non-null pointer to an initialized instance).
-        let ready_notifier = param as *mut Self;
-        ready_notifier.as_mut().unwrap().notify()
-    }
-
-    fn notify(&mut self) {
-        if let Some(on_ready) = self.0.take() {
-            on_ready();
+    unsafe fn checked_from_ptr(ptr: *mut ARpcServer) -> Result<RpcServer, Error> {
+        if ptr.is_null() {
+            return Err(Error::new(ErrorKind::Other, "Failed to start server"));
         }
+        Ok(RpcServer::from_ptr(ptr))
+    }
+}
+
+impl RpcServerRef {
+    /// Starts a new background thread and calls join(). Returns immediately.
+    pub fn start(&self) {
+        unsafe { binder_rpc_unstable_bindgen::ARpcServer_start(self.as_ptr()) };
+    }
+
+    /// Joins the RpcServer thread. The call blocks until the server terminates.
+    /// This must be called from exactly one thread.
+    pub fn join(&self) {
+        unsafe { binder_rpc_unstable_bindgen::ARpcServer_join(self.as_ptr()) };
+    }
+
+    /// Shuts down the running RpcServer. Can be called multiple times and from
+    /// multiple threads. Called automatically during drop().
+    pub fn shutdown(&self) {
+        unsafe { binder_rpc_unstable_bindgen::ARpcServer_shutdown(self.as_ptr()) };
     }
 }
 
