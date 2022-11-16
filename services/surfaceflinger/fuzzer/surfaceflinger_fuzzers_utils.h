@@ -230,7 +230,10 @@ public:
                       ISchedulerCallback& callback)
           : Scheduler(*this, callback, Feature::kContentDetection) {
         mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
-        setRefreshRateSelector(std::move(selectorPtr));
+
+        const auto displayId = FTL_FAKE_GUARD(kMainThreadContext,
+                                              selectorPtr->getActiveMode().getPhysicalDisplayId());
+        registerDisplay(displayId, std::move(selectorPtr));
     }
 
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
@@ -242,7 +245,7 @@ public:
 
     auto &mutableLayerHistory() { return mLayerHistory; }
 
-    auto refreshRateSelector() { return holdRefreshRateSelector(); }
+    auto refreshRateSelector() { return leaderSelectorPtr(); }
 
     void replaceTouchTimer(int64_t millis) {
         if (mTouchTimer) {
