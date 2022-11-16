@@ -2961,6 +2961,82 @@ TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsSurroundingTouchGesture) {
                   WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
 }
 
+TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsSurroundingHoveringTouchGesture) {
+    const Point centerPoint = TestFixture::mTouchscreen->getCenterPoint();
+    const auto touchscreenId = TestFixture::mTouchscreenInfo.getId();
+    const auto stylusId = TestFixture::mStylusInfo.getId();
+    auto toolTypeDevice =
+            AllOf(WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithDeviceId(touchscreenId));
+
+    // Press the stylus button.
+    TestFixture::mStylus->pressKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD),
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
+
+    // Start hovering with the stylus.
+    TestFixture::mTouchscreen->sendSlot(FIRST_SLOT);
+    TestFixture::mTouchscreen->sendTrackingId(FIRST_TRACKING_ID);
+    TestFixture::mTouchscreen->sendToolType(MT_TOOL_PEN);
+    TestFixture::mTouchscreen->sendMove(centerPoint);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    // Touch down with the stylus.
+    TestFixture::mTouchscreen->sendTrackingId(FIRST_TRACKING_ID);
+    TestFixture::mTouchscreen->sendToolType(MT_TOOL_PEN);
+    TestFixture::mTouchscreen->sendDown(centerPoint);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    // Stop touching with the stylus, and start hovering.
+    TestFixture::mTouchscreen->sendUp();
+    TestFixture::mTouchscreen->sendTrackingId(FIRST_TRACKING_ID);
+    TestFixture::mTouchscreen->sendToolType(MT_TOOL_PEN);
+    TestFixture::mTouchscreen->sendMove(centerPoint);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    // Stop hovering.
+    TestFixture::mTouchscreen->sendTrackingId(INVALID_TRACKING_ID);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                  WithButtonState(0))));
+    // TODO(b/257971675): Fix inconsistent button state when exiting hover.
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(toolTypeDevice, WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT),
+                  WithButtonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY))));
+
+    // Release the stylus button.
+    TestFixture::mStylus->releaseKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP), WithSource(AINPUT_SOURCE_KEYBOARD),
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
+}
+
 TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsWithinTouchGesture) {
     const Point centerPoint = TestFixture::mTouchscreen->getCenterPoint();
     const auto touchscreenId = TestFixture::mTouchscreenInfo.getId();
