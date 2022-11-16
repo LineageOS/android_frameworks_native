@@ -496,6 +496,13 @@ const ProcHook g_proc_hooks[] = {
         nullptr,
     },
     {
+        "vkGetSwapchainGrallocUsage3ANDROID",
+        ProcHook::DEVICE,
+        ProcHook::ANDROID_native_buffer,
+        nullptr,
+        nullptr,
+    },
+    {
         "vkGetSwapchainGrallocUsageANDROID",
         ProcHook::DEVICE,
         ProcHook::ANDROID_native_buffer,
@@ -664,6 +671,7 @@ bool InitDriverTable(VkDevice dev,
     INIT_PROC(false, dev, GetDeviceQueue2);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
+    INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage3ANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, AcquireImageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, QueueSignalReleaseImageANDROID);
     // clang-format on
