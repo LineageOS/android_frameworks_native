@@ -24,9 +24,30 @@
 #include <binder/Parcel.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/LayerState.h>
+#include <gui/SurfaceControl.h>
 #include <private/gui/ParcelUtils.h>
 #include <system/window.h>
 #include <utils/Errors.h>
+
+#define CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD)          \
+    {                                                               \
+        if ((OTHER.what & CHANGE_FLAG) && (FIELD != OTHER.FIELD)) { \
+            DIFF_RESULT |= CHANGE_FLAG;                             \
+        }                                                           \
+    }
+
+#define CHECK_DIFF2(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD1, FIELD2) \
+    {                                                                \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD1)          \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD2)          \
+    }
+
+#define CHECK_DIFF3(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD1, FIELD2, FIELD3) \
+    {                                                                        \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD1)                  \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD2)                  \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD3)                  \
+    }
 
 namespace android {
 
@@ -624,6 +645,74 @@ void layer_state_t::merge(const layer_state_t& other) {
               "other.what=0x%" PRIX64 " what=0x%" PRIX64 " unmerged flags=0x%" PRIX64,
               other.what, what, (other.what & what) ^ other.what);
     }
+}
+
+uint64_t layer_state_t::diff(const layer_state_t& other) const {
+    uint64_t diff = 0;
+    CHECK_DIFF2(diff, ePositionChanged, other, x, y);
+    if (other.what & eLayerChanged) {
+        diff |= eLayerChanged;
+        diff &= ~eRelativeLayerChanged;
+    }
+    CHECK_DIFF(diff, eAlphaChanged, other, color.a);
+    CHECK_DIFF(diff, eMatrixChanged, other, matrix);
+    if (other.what & eTransparentRegionChanged &&
+        (!transparentRegion.hasSameRects(other.transparentRegion))) {
+        diff |= eTransparentRegionChanged;
+    }
+    if (other.what & eFlagsChanged) {
+        uint64_t changedFlags = (flags & other.mask) ^ (other.flags & other.mask);
+        if (changedFlags) diff |= eFlagsChanged;
+    }
+    CHECK_DIFF(diff, eLayerStackChanged, other, layerStack);
+    CHECK_DIFF(diff, eCornerRadiusChanged, other, cornerRadius);
+    CHECK_DIFF(diff, eBackgroundBlurRadiusChanged, other, backgroundBlurRadius);
+    if (other.what & eBlurRegionsChanged) diff |= eBlurRegionsChanged;
+    if (other.what & eRelativeLayerChanged) {
+        diff |= eRelativeLayerChanged;
+        diff &= ~eLayerChanged;
+    }
+    if (other.what & eReparent &&
+        !SurfaceControl::isSameSurface(parentSurfaceControlForChild,
+                                       other.parentSurfaceControlForChild)) {
+        diff |= eReparent;
+    }
+    CHECK_DIFF(diff, eBufferTransformChanged, other, bufferTransform);
+    CHECK_DIFF(diff, eTransformToDisplayInverseChanged, other, transformToDisplayInverse);
+    CHECK_DIFF(diff, eCropChanged, other, crop);
+    if (other.what & eBufferChanged) diff |= eBufferChanged;
+    CHECK_DIFF(diff, eDataspaceChanged, other, dataspace);
+    CHECK_DIFF(diff, eHdrMetadataChanged, other, hdrMetadata);
+    if (other.what & eSurfaceDamageRegionChanged &&
+        (!surfaceDamageRegion.hasSameRects(other.surfaceDamageRegion))) {
+        diff |= eSurfaceDamageRegionChanged;
+    }
+    CHECK_DIFF(diff, eApiChanged, other, api);
+    if (other.what & eSidebandStreamChanged) diff |= eSidebandStreamChanged;
+    CHECK_DIFF(diff, eApiChanged, other, api);
+    CHECK_DIFF(diff, eColorTransformChanged, other, colorTransform);
+    if (other.what & eHasListenerCallbacksChanged) diff |= eHasListenerCallbacksChanged;
+    if (other.what & eInputInfoChanged) diff |= eInputInfoChanged;
+    CHECK_DIFF3(diff, eBackgroundColorChanged, other, color.rgb, bgColorAlpha, bgColorDataspace);
+    if (other.what & eMetadataChanged) diff |= eMetadataChanged;
+    CHECK_DIFF(diff, eShadowRadiusChanged, other, shadowRadius);
+    CHECK_DIFF3(diff, eRenderBorderChanged, other, borderEnabled, borderWidth, borderColor);
+    CHECK_DIFF(diff, eDefaultFrameRateCompatibilityChanged, other, defaultFrameRateCompatibility);
+    CHECK_DIFF(diff, eFrameRateSelectionPriority, other, frameRateSelectionPriority);
+    CHECK_DIFF3(diff, eFrameRateChanged, other, frameRate, frameRateCompatibility,
+                changeFrameRateStrategy);
+    CHECK_DIFF(diff, eFixedTransformHintChanged, other, fixedTransformHint);
+    CHECK_DIFF(diff, eAutoRefreshChanged, other, autoRefresh);
+    CHECK_DIFF(diff, eTrustedOverlayChanged, other, isTrustedOverlay);
+    CHECK_DIFF(diff, eStretchChanged, other, stretchEffect);
+    CHECK_DIFF(diff, eBufferCropChanged, other, bufferCrop);
+    CHECK_DIFF(diff, eDestinationFrameChanged, other, destinationFrame);
+    if (other.what & eProducerDisconnect) diff |= eProducerDisconnect;
+    CHECK_DIFF(diff, eDropInputModeChanged, other, dropInputMode);
+    CHECK_DIFF(diff, eColorChanged, other, color.rgb);
+    CHECK_DIFF(diff, eColorSpaceAgnosticChanged, other, colorSpaceAgnostic);
+    CHECK_DIFF(diff, eDimmingEnabledChanged, other, dimmingEnabled);
+    return diff;
 }
 
 bool layer_state_t::hasBufferChanges() const {
