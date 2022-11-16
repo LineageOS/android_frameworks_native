@@ -136,6 +136,7 @@ static std::optional<std::string> getVintfUpdatableApex(const std::string& name)
             updatableViaApex = manifestInstance.updatableViaApex();
             return false; // break (libvintf uses opposite convention)
         });
+        if (updatableViaApex.has_value()) return true; // break (found match)
         return false; // continue
     });
 
@@ -154,7 +155,7 @@ static std::vector<std::string> getVintfUpdatableInstances(const std::string& ap
                         manifestInstance.interface() + "/" + manifestInstance.instance();
                 instances.push_back(aname);
             }
-            return false; // continue
+            return true; // continue (libvintf uses opposite convention)
         });
         return false; // continue
     });
