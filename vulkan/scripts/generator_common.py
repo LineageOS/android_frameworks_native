@@ -69,6 +69,7 @@ _EXPORTED_EXTENSIONS = [
 _OPTIONAL_COMMANDS = [
     'vkGetSwapchainGrallocUsageANDROID',
     'vkGetSwapchainGrallocUsage2ANDROID',
+    'vkGetSwapchainGrallocUsage3ANDROID',
 ]
 
 # Dict for mapping dispatch table to a type.
