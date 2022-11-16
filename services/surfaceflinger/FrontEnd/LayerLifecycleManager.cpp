@@ -42,10 +42,10 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
                              it->second.owner.getDebugString().c_str());
         }
 
-        linkLayer(layer.parentId, layer.id);
-        linkLayer(layer.relativeParentId, layer.id);
-        linkLayer(layer.mirrorId, layer.id);
-        linkLayer(layer.touchCropId, layer.id);
+        layer.parentId = linkLayer(layer.parentId, layer.id);
+        layer.relativeParentId = linkLayer(layer.relativeParentId, layer.id);
+        layer.mirrorId = linkLayer(layer.mirrorId, layer.id);
+        layer.touchCropId = linkLayer(layer.touchCropId, layer.id);
 
         mLayers.emplace_back(std::move(newLayer));
     }
@@ -83,10 +83,10 @@ void LayerLifecycleManager::onHandlesDestroyed(const std::vector<uint32_t>& dest
 
         RequestedLayerState& layer = it->second.owner;
 
-        unlinkLayer(layer.parentId, layer.id);
-        unlinkLayer(layer.relativeParentId, layer.id);
-        unlinkLayer(layer.mirrorId, layer.id);
-        unlinkLayer(layer.touchCropId, layer.id);
+        layer.parentId = unlinkLayer(layer.parentId, layer.id);
+        layer.relativeParentId = unlinkLayer(layer.relativeParentId, layer.id);
+        layer.mirrorId = unlinkLayer(layer.mirrorId, layer.id);
+        layer.touchCropId = unlinkLayer(layer.touchCropId, layer.id);
 
         auto& references = it->second.references;
         for (uint32_t linkedLayerId : references) {
@@ -195,15 +195,15 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
 
             if (oldParentId != layer->parentId) {
                 unlinkLayer(oldParentId, layer->id);
-                linkLayer(layer->parentId, layer->id);
+                layer->parentId = linkLayer(layer->parentId, layer->id);
             }
             if (oldRelativeParentId != layer->relativeParentId) {
                 unlinkLayer(oldRelativeParentId, layer->id);
-                linkLayer(layer->relativeParentId, layer->id);
+                layer->relativeParentId = linkLayer(layer->relativeParentId, layer->id);
             }
             if (oldTouchCropId != layer->touchCropId) {
                 unlinkLayer(oldTouchCropId, layer->id);
-                linkLayer(layer->touchCropId, layer->id);
+                layer->touchCropId = linkLayer(layer->touchCropId, layer->id);
             }
 
             mGlobalChanges |= layer->changes &
@@ -283,26 +283,28 @@ std::vector<uint32_t>* LayerLifecycleManager::getLinkedLayersFromId(uint32_t id)
     return &it->second.references;
 }
 
-void LayerLifecycleManager::linkLayer(uint32_t layerId, uint32_t layerToLink) {
-    if (layerToLink && layerId != UNASSIGNED_LAYER_ID) {
-        std::vector<uint32_t>* linkedLayers = getLinkedLayersFromId(layerId);
-        if (!linkedLayers) {
-            LOG_ALWAYS_FATAL("Could not find layer id %d to link %d", layerId, layerToLink);
-            return;
-        }
-        linkedLayers->emplace_back(layerToLink);
+uint32_t LayerLifecycleManager::linkLayer(uint32_t layerId, uint32_t layerToLink) {
+    if (layerId == UNASSIGNED_LAYER_ID) {
+        return UNASSIGNED_LAYER_ID;
     }
-}
-
-void LayerLifecycleManager::unlinkLayer(uint32_t& inOutLayerId, uint32_t linkedLayer) {
-    uint32_t layerId = inOutLayerId;
-    inOutLayerId = UNASSIGNED_LAYER_ID;
 
     std::vector<uint32_t>* linkedLayers = getLinkedLayersFromId(layerId);
     if (!linkedLayers) {
-        return;
+        ALOGV("Could not find layer id %d to link %d. Parent is probably destroyed", layerId,
+              layerToLink);
+        return UNASSIGNED_LAYER_ID;
+    }
+    linkedLayers->emplace_back(layerToLink);
+    return layerId;
+}
+
+uint32_t LayerLifecycleManager::unlinkLayer(uint32_t layerId, uint32_t linkedLayer) {
+    std::vector<uint32_t>* linkedLayers = getLinkedLayersFromId(layerId);
+    if (!linkedLayers) {
+        return UNASSIGNED_LAYER_ID;
     }
     swapErase(*linkedLayers, linkedLayer);
+    return UNASSIGNED_LAYER_ID;
 }
 
 std::string LayerLifecycleManager::References::getDebugString() const {
@@ -312,6 +314,18 @@ std::string LayerLifecycleManager::References::getDebugString() const {
                       debugInfo += std::to_string(reference) + ",";
                   });
     return debugInfo;
+}
+
+void LayerLifecycleManager::fixRelativeZLoop(uint32_t relativeRootId) {
+    auto it = mIdToLayer.find(relativeRootId);
+    if (it == mIdToLayer.end()) {
+        return;
+    }
+    RequestedLayerState& layer = it->second.owner;
+    layer.relativeParentId = unlinkLayer(layer.relativeParentId, layer.id);
+    layer.changes |=
+            RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::RelativeParent;
+    mGlobalChanges |= RequestedLayerState::Changes::Hierarchy;
 }
 
 } // namespace android::surfaceflinger::frontend
