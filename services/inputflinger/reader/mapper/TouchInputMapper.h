@@ -27,6 +27,13 @@
 
 namespace android {
 
+// Maximum amount of latency to add to touch events while waiting for data from an
+// external stylus.
+static constexpr nsecs_t EXTERNAL_STYLUS_DATA_TIMEOUT = ms2ns(72);
+
+// Maximum amount of time to wait on touch data before pushing out new pressure data.
+static constexpr nsecs_t TOUCH_DATA_TIMEOUT = ms2ns(20);
+
 /* Raw axis information from the driver. */
 struct RawPointerAxes {
     RawAbsoluteAxisInfo x{};
@@ -355,9 +362,14 @@ protected:
 
     // State provided by an external stylus
     StylusState mExternalStylusState;
-    int64_t mExternalStylusId;
+    // If an external stylus is capable of reporting pointer-specific data like pressure, we will
+    // attempt to fuse the pointer data reported by the stylus to the first touch pointer. This is
+    // the id of the pointer to which the external stylus data is fused.
+    std::optional<uint32_t> mFusedStylusPointerId;
     nsecs_t mExternalStylusFusionTimeout;
     bool mExternalStylusDataPending;
+    // A subset of the buttons in mCurrentRawState that came from an external stylus.
+    int32_t mExternalStylusButtonsApplied;
 
     // True if we sent a HOVER_ENTER event.
     bool mSentHoverEnter;

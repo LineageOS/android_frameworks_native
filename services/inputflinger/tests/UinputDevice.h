@@ -89,9 +89,9 @@ protected:
     explicit UinputKeyboard(const char* name, int16_t productId = PRODUCT_ID,
                             std::initializer_list<int> keys = {});
 
-private:
     void configureDevice(int fd, uinput_user_dev* device) override;
 
+private:
     std::set<int> mKeys;
 };
 
@@ -143,13 +143,35 @@ private:
     explicit UinputExternalStylus();
 };
 
+// --- UinputExternalStylusWithPressure ---
+
+// A stylus that reports button presses and pressure values.
+class UinputExternalStylusWithPressure : public UinputKeyboard {
+public:
+    static constexpr const char* DEVICE_NAME = "Test Uinput External Stylus With Pressure";
+    static constexpr int16_t PRODUCT_ID = 46;
+
+    static constexpr int32_t RAW_PRESSURE_MIN = 0;
+    static constexpr int32_t RAW_PRESSURE_MAX = 255;
+
+    void setPressure(int32_t pressure);
+
+    template <class D, class... Ts>
+    friend std::unique_ptr<D> createUinputDevice(Ts... args);
+
+private:
+    void configureDevice(int fd, uinput_user_dev* device) override;
+
+    explicit UinputExternalStylusWithPressure();
+};
+
 // --- UinputTouchScreen ---
 
 // A multi-touch touchscreen device with specific size that also supports styluses.
-class UinputTouchScreen : public UinputDevice {
+class UinputTouchScreen : public UinputKeyboard {
 public:
     static constexpr const char* DEVICE_NAME = "Test Uinput Touch Screen";
-    static constexpr int16_t PRODUCT_ID = 46;
+    static constexpr int16_t PRODUCT_ID = 47;
 
     static const int32_t RAW_TOUCH_MIN = 0;
     static const int32_t RAW_TOUCH_MAX = 31;
@@ -171,7 +193,6 @@ public:
     void sendUp();
     void sendToolType(int32_t toolType);
     void sendSync();
-    void sendKey(int32_t scanCode, int32_t value);
 
     const Point getCenterPoint();
 

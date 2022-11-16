@@ -82,9 +82,9 @@ void TestInputListener::assertNotifyMotionWasCalled(
     ASSERT_THAT(outEventArgs, matcher);
 }
 
-void TestInputListener::assertNotifyMotionWasNotCalled() {
+void TestInputListener::assertNotifyMotionWasNotCalled(std::optional<TimePoint> waitUntil) {
     ASSERT_NO_FATAL_FAILURE(
-            assertNotCalled<NotifyMotionArgs>("notifyMotion() should not be called."));
+            assertNotCalled<NotifyMotionArgs>("notifyMotion() should not be called.", waitUntil));
 }
 
 void TestInputListener::assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs) {
@@ -139,14 +139,16 @@ void TestInputListener::assertCalled(NotifyArgsType* outEventArgs, std::string m
 }
 
 template <class NotifyArgsType>
-void TestInputListener::assertNotCalled(std::string message) {
+void TestInputListener::assertNotCalled(std::string message, std::optional<TimePoint> waitUntil) {
     std::unique_lock<std::mutex> lock(mLock);
     base::ScopedLockAssertion assumeLocked(mLock);
 
     std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
-    const bool eventReceived =
-            mCondition.wait_for(lock, mEventDidNotHappenTimeout,
-                                [&queue]() REQUIRES(mLock) { return !queue.empty(); });
+    const auto time =
+            waitUntil.value_or(std::chrono::system_clock::now() + mEventDidNotHappenTimeout);
+    const bool eventReceived = mCondition.wait_until(lock, time, [&queue]() REQUIRES(mLock) {
+        return !queue.empty();
+    });
     if (eventReceived) {
         FAIL() << "Unexpected event: " << message.c_str();
     }
