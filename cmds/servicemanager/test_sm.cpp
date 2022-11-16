@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
+#include <android-base/properties.h>
+#include <android-base/strings.h>
 #include <android/os/BnServiceCallback.h>
 #include <binder/Binder.h>
-#include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
+#include <binder/ProcessState.h>
 #include <cutils/android_filesystem_config.h>
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include "Access.h"
 #include "ServiceManager.h"
@@ -73,6 +75,11 @@ static sp<ServiceManager> getPermissiveServiceManager() {
 
     sp<ServiceManager> sm = sp<NiceMock<MockServiceManager>>::make(std::move(access));
     return sm;
+}
+
+static bool isCuttlefish() {
+    return android::base::StartsWith(android::base::GetProperty("ro.product.vendor.device", ""),
+                                     "vsoc_");
 }
 
 TEST(AddService, HappyHappy) {
@@ -304,6 +311,49 @@ TEST(ListServices, CriticalServices) {
 
     // all there and in the right order
     EXPECT_THAT(out, ElementsAre("sa"));
+}
+
+TEST(Vintf, UpdatableViaApex) {
+    if (!isCuttlefish()) GTEST_SKIP() << "Skipping non-Cuttlefish devices";
+
+    auto sm = getPermissiveServiceManager();
+    std::optional<std::string> updatableViaApex;
+    EXPECT_TRUE(sm->updatableViaApex("android.hardware.camera.provider.ICameraProvider/internal/0",
+                                     &updatableViaApex)
+                        .isOk());
+    EXPECT_EQ(std::make_optional<std::string>("com.google.emulated.camera.provider.hal"),
+              updatableViaApex);
+}
+
+TEST(Vintf, UpdatableViaApex_InvalidNameReturnsNullOpt) {
+    if (!isCuttlefish()) GTEST_SKIP() << "Skipping non-Cuttlefish devices";
+
+    auto sm = getPermissiveServiceManager();
+    std::optional<std::string> updatableViaApex;
+    EXPECT_TRUE(sm->updatableViaApex("android.hardware.camera.provider.ICameraProvider",
+                                     &updatableViaApex)
+                        .isOk()); // missing instance name
+    EXPECT_EQ(std::nullopt, updatableViaApex);
+}
+
+TEST(Vintf, GetUpdatableNames) {
+    if (!isCuttlefish()) GTEST_SKIP() << "Skipping non-Cuttlefish devices";
+
+    auto sm = getPermissiveServiceManager();
+    std::vector<std::string> names;
+    EXPECT_TRUE(sm->getUpdatableNames("com.google.emulated.camera.provider.hal", &names).isOk());
+    EXPECT_EQ(std::vector<
+                      std::string>{"android.hardware.camera.provider.ICameraProvider/internal/0"},
+              names);
+}
+
+TEST(Vintf, GetUpdatableNames_InvalidApexNameReturnsEmpty) {
+    if (!isCuttlefish()) GTEST_SKIP() << "Skipping non-Cuttlefish devices";
+
+    auto sm = getPermissiveServiceManager();
+    std::vector<std::string> names;
+    EXPECT_TRUE(sm->getUpdatableNames("non.existing.apex.name", &names).isOk());
+    EXPECT_EQ(std::vector<std::string>{}, names);
 }
 
 class CallbackHistorian : public BnServiceCallback {
