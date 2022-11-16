@@ -300,10 +300,11 @@ std::list<NotifyArgs> CursorInputMapper::process(const RawEvent* rawEvent) {
     mCursorScrollAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        const nsecs_t eventTime =
+        const auto [eventTime, readTime] =
                 applyBluetoothTimestampSmoothening(getDeviceContext().getDeviceIdentifier(),
-                                                   rawEvent->when, mLastEventTime);
-        out += sync(eventTime, rawEvent->readTime);
+                                                   rawEvent->when, rawEvent->readTime,
+                                                   mLastEventTime);
+        out += sync(eventTime, readTime);
         mLastEventTime = eventTime;
     }
     return out;
