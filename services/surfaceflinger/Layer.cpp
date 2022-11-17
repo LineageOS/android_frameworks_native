@@ -3974,17 +3974,14 @@ int Layer::getHwcCacheSlot(const client_cache_t& clientCacheId) {
 }
 
 LayerSnapshotGuard::LayerSnapshotGuard(Layer* layer) : mLayer(layer) {
-    LOG_ALWAYS_FATAL_IF(!mLayer, "LayerSnapshotGuard received a null layer.");
-    mLayer->mLayerFE->mSnapshot = std::move(mLayer->mSnapshot);
-    LOG_ALWAYS_FATAL_IF(!mLayer->mLayerFE->mSnapshot,
-                        "LayerFE snapshot null after taking ownership from layer");
+    if (mLayer) {
+        mLayer->mLayerFE->mSnapshot = std::move(mLayer->mSnapshot);
+    }
 }
 
 LayerSnapshotGuard::~LayerSnapshotGuard() {
     if (mLayer) {
         mLayer->mSnapshot = std::move(mLayer->mLayerFE->mSnapshot);
-        LOG_ALWAYS_FATAL_IF(!mLayer->mSnapshot,
-                            "Layer snapshot null after taking ownership from LayerFE");
     }
 }
 
