@@ -531,40 +531,23 @@ status_t RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
     LOG_RPC_DETAIL("Setting up socket server %s", addr.toString().c_str());
     LOG_ALWAYS_FATAL_IF(hasServer(), "Each RpcServer can only have one server.");
 
-    RpcTransportFd transportFd(unique_fd(TEMP_FAILURE_RETRY(
-            socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0))));
-    if (!transportFd.fd.ok()) {
+    unique_fd socket_fd(TEMP_FAILURE_RETRY(
+            socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)));
+    if (!socket_fd.ok()) {
         int savedErrno = errno;
         ALOGE("Could not create socket: %s", strerror(savedErrno));
         return -savedErrno;
     }
-
-    if (0 != TEMP_FAILURE_RETRY(bind(transportFd.fd.get(), addr.addr(), addr.addrSize()))) {
+    if (0 != TEMP_FAILURE_RETRY(bind(socket_fd.get(), addr.addr(), addr.addrSize()))) {
         int savedErrno = errno;
         ALOGE("Could not bind socket at %s: %s", addr.toString().c_str(), strerror(savedErrno));
         return -savedErrno;
     }
 
-    // Right now, we create all threads at once, making accept4 slow. To avoid hanging the client,
-    // the backlog is increased to a large number.
-    // TODO(b/189955605): Once we create threads dynamically & lazily, the backlog can be reduced
-    //  to 1.
-    if (0 != TEMP_FAILURE_RETRY(listen(transportFd.fd.get(), 50 /*backlog*/))) {
-        int savedErrno = errno;
-        ALOGE("Could not listen socket at %s: %s", addr.toString().c_str(), strerror(savedErrno));
-        return -savedErrno;
-    }
-
-    LOG_RPC_DETAIL("Successfully setup socket server %s", addr.toString().c_str());
-
-    if (status_t status = setupExternalServer(std::move(transportFd.fd)); status != OK) {
-        ALOGE("Another thread has set up server while calling setupSocketServer. Race?");
-        return status;
-    }
-    return OK;
+    return setupRawSocketServer(std::move(socket_fd));
 }
 
-status_t RpcServer::setupRawSocketServer(base::unique_fd socket_fd) {
+status_t RpcServer::setupRawSocketServer(unique_fd socket_fd) {
     LOG_ALWAYS_FATAL_IF(!socket_fd.ok(), "Socket must be setup to listen.");
     RpcTransportFd transportFd(std::move(socket_fd));
 
