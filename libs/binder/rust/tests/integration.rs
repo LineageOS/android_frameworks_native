@@ -502,7 +502,7 @@ mod tests {
         let instances = binder::get_declared_instances("android.hardware.light.ILights")
             .expect("Could not get declared instances");
 
-        let expected_defaults = if has_lights { 1 } else { 0 };
+        let expected_defaults = usize::from(has_lights);
         assert_eq!(expected_defaults, instances.iter().filter(|i| i.as_str() == "default").count());
     }
 
