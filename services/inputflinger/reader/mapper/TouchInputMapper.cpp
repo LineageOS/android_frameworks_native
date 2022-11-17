@@ -207,10 +207,9 @@ void TouchInputMapper::dump(std::string& dump) {
 
     dump += StringPrintf(INDENT3 "Translation and Scaling Factors:\n");
     mRawToDisplay.dump(dump, "RawToDisplay Transform:", INDENT4);
-    dump += StringPrintf(INDENT4 "XScale: %0.3f\n", mXScale);
-    dump += StringPrintf(INDENT4 "YScale: %0.3f\n", mYScale);
-    dump += StringPrintf(INDENT4 "XPrecision: %0.3f\n", mXPrecision);
-    dump += StringPrintf(INDENT4 "YPrecision: %0.3f\n", mYPrecision);
+    mRawRotation.dump(dump, "RawRotation Transform:", INDENT4);
+    dump += StringPrintf(INDENT4 "OrientedXPrecision: %0.3f\n", mOrientedXPrecision);
+    dump += StringPrintf(INDENT4 "OrientedYPrecision: %0.3f\n", mOrientedYPrecision);
     dump += StringPrintf(INDENT4 "GeometricScale: %0.3f\n", mGeometricScale);
     dump += StringPrintf(INDENT4 "PressureScale: %0.3f\n", mPressureScale);
     dump += StringPrintf(INDENT4 "SizeScale: %0.3f\n", mSizeScale);
@@ -670,10 +669,10 @@ void TouchInputMapper::initializeSizeRanges() {
 
 void TouchInputMapper::initializeOrientedRanges() {
     // Configure X and Y factors.
-    mXScale = float(mDisplayBounds.width) / mRawPointerAxes.getRawWidth();
-    mYScale = float(mDisplayBounds.height) / mRawPointerAxes.getRawHeight();
-    mXPrecision = 1.0f / mXScale;
-    mYPrecision = 1.0f / mYScale;
+    const float orientedScaleX = mRawToDisplay.getScaleX();
+    const float orientedScaleY = mRawToDisplay.getScaleY();
+    mOrientedXPrecision = 1.0f / orientedScaleX;
+    mOrientedYPrecision = 1.0f / orientedScaleY;
 
     mOrientedRanges.x.axis = AMOTION_EVENT_AXIS_X;
     mOrientedRanges.x.source = mSource;
@@ -683,7 +682,7 @@ void TouchInputMapper::initializeOrientedRanges() {
     // Scale factor for terms that are not oriented in a particular axis.
     // If the pixels are square then xScale == yScale otherwise we fake it
     // by choosing an average.
-    mGeometricScale = avg(mXScale, mYScale);
+    mGeometricScale = avg(orientedScaleX, orientedScaleY);
 
     initializeSizeRanges();
 
@@ -800,40 +799,35 @@ void TouchInputMapper::initializeOrientedRanges() {
     // Compute oriented precision, scales and ranges.
     // Note that the maximum value reported is an inclusive maximum value so it is one
     // unit less than the total width or height of the display.
+    // TODO(b/20508709): Calculate the oriented ranges using the input device's raw frame.
     switch (mInputDeviceOrientation) {
         case ui::ROTATION_90:
         case ui::ROTATION_270:
-            mOrientedXPrecision = mYPrecision;
-            mOrientedYPrecision = mXPrecision;
-
             mOrientedRanges.x.min = 0;
             mOrientedRanges.x.max = mDisplayBounds.height - 1;
             mOrientedRanges.x.flat = 0;
             mOrientedRanges.x.fuzz = 0;
-            mOrientedRanges.x.resolution = mRawPointerAxes.y.resolution * mYScale;
+            mOrientedRanges.x.resolution = mRawPointerAxes.y.resolution * mRawToDisplay.getScaleY();
 
             mOrientedRanges.y.min = 0;
             mOrientedRanges.y.max = mDisplayBounds.width - 1;
             mOrientedRanges.y.flat = 0;
             mOrientedRanges.y.fuzz = 0;
-            mOrientedRanges.y.resolution = mRawPointerAxes.x.resolution * mXScale;
+            mOrientedRanges.y.resolution = mRawPointerAxes.x.resolution * mRawToDisplay.getScaleX();
             break;
 
         default:
-            mOrientedXPrecision = mXPrecision;
-            mOrientedYPrecision = mYPrecision;
-
             mOrientedRanges.x.min = 0;
             mOrientedRanges.x.max = mDisplayBounds.width - 1;
             mOrientedRanges.x.flat = 0;
             mOrientedRanges.x.fuzz = 0;
-            mOrientedRanges.x.resolution = mRawPointerAxes.x.resolution * mXScale;
+            mOrientedRanges.x.resolution = mRawPointerAxes.x.resolution * mRawToDisplay.getScaleX();
 
             mOrientedRanges.y.min = 0;
             mOrientedRanges.y.max = mDisplayBounds.height - 1;
             mOrientedRanges.y.flat = 0;
             mOrientedRanges.y.fuzz = 0;
-            mOrientedRanges.y.resolution = mRawPointerAxes.y.resolution * mYScale;
+            mOrientedRanges.y.resolution = mRawPointerAxes.y.resolution * mRawToDisplay.getScaleY();
             break;
     }
 }
@@ -845,6 +839,8 @@ void TouchInputMapper::computeInputTransforms() {
     if (mInputDeviceOrientation == ui::ROTATION_270 || mInputDeviceOrientation == ui::ROTATION_90) {
         std::swap(rotatedRawSize.width, rotatedRawSize.height);
     }
+    const auto rotationFlags = ui::Transform::toRotationFlags(-mInputDeviceOrientation);
+    mRawRotation = ui::Transform{rotationFlags};
 
     // Step 1: Undo the raw offset so that the raw coordinate space now starts at (0, 0).
     ui::Transform undoRawOffset;
@@ -854,8 +850,7 @@ void TouchInputMapper::computeInputTransforms() {
     ui::Transform rotate;
     // When rotating raw coordinates, the raw size will be used as an offset.
     // Account for the extra unit added to the raw range when the raw size was calculated.
-    rotate.set(ui::Transform::toRotationFlags(-mInputDeviceOrientation), rotatedRawSize.width - 1,
-               rotatedRawSize.height - 1);
+    rotate.set(rotationFlags, rotatedRawSize.width - 1, rotatedRawSize.height - 1);
 
     // Step 3: Scale the raw coordinates to the display space.
     ui::Transform scaleToDisplay;
@@ -2307,20 +2302,20 @@ void TouchInputMapper::cookPointerData() {
         if (mHaveTilt) {
             float tiltXAngle = (in.tiltX - mTiltXCenter) * mTiltXScale;
             float tiltYAngle = (in.tiltY - mTiltYCenter) * mTiltYScale;
-            orientation = atan2f(-sinf(tiltXAngle), sinf(tiltYAngle));
+            orientation = transformAngle(mRawRotation, atan2f(-sinf(tiltXAngle), sinf(tiltYAngle)));
             tilt = acosf(cosf(tiltXAngle) * cosf(tiltYAngle));
         } else {
             tilt = 0;
 
             switch (mCalibration.orientationCalibration) {
                 case Calibration::OrientationCalibration::INTERPOLATED:
-                    orientation = in.orientation * mOrientationScale;
+                    orientation = transformAngle(mRawRotation, in.orientation * mOrientationScale);
                     break;
                 case Calibration::OrientationCalibration::VECTOR: {
                     int32_t c1 = signExtendNybble((in.orientation & 0xf0) >> 4);
                     int32_t c2 = signExtendNybble(in.orientation & 0x0f);
                     if (c1 != 0 || c2 != 0) {
-                        orientation = atan2f(c1, c2) * 0.5f;
+                        orientation = transformAngle(mRawRotation, atan2f(c1, c2) * 0.5f);
                         float confidence = hypotf(c1, c2);
                         float scale = 1.0f + confidence / 16.0f;
                         touchMajor *= scale;
@@ -2348,69 +2343,20 @@ void TouchInputMapper::cookPointerData() {
         }
 
         // Coverage
-        int32_t rawLeft, rawTop, rawRight, rawBottom;
-        switch (mCalibration.coverageCalibration) {
-            case Calibration::CoverageCalibration::BOX:
-                rawLeft = (in.toolMinor & 0xffff0000) >> 16;
-                rawRight = in.toolMinor & 0x0000ffff;
-                rawBottom = in.toolMajor & 0x0000ffff;
-                rawTop = (in.toolMajor & 0xffff0000) >> 16;
-                break;
-            default:
-                rawLeft = rawTop = rawRight = rawBottom = 0;
-                break;
+        Rect rawCoverage{0, 0};
+        if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
+            rawCoverage.left = (in.toolMinor & 0xffff0000) >> 16;
+            rawCoverage.right = in.toolMinor & 0x0000ffff;
+            rawCoverage.bottom = in.toolMajor & 0x0000ffff;
+            rawCoverage.top = (in.toolMajor & 0xffff0000) >> 16;
         }
+        const auto coverage = mRawToDisplay.transform(rawCoverage);
 
         // Adjust X,Y coords for device calibration and convert to the natural display coordinates.
         vec2 transformed = {in.x, in.y};
         // TODO: Adjust coverage coords?
         mAffineTransform.applyTo(transformed.x /*byRef*/, transformed.y /*byRef*/);
         transformed = mRawToDisplay.transform(transformed);
-
-        // Adjust X, Y, and coverage coords for input device orientation.
-        float left, top, right, bottom;
-
-        switch (mInputDeviceOrientation) {
-            case ui::ROTATION_90:
-                left = float(rawTop - mRawPointerAxes.y.minValue) * mYScale;
-                right = float(rawBottom - mRawPointerAxes.y.minValue) * mYScale;
-                bottom = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale;
-                top = float(mRawPointerAxes.x.maxValue - rawRight) * mXScale;
-                orientation -= M_PI_2;
-                if (mOrientedRanges.orientation && orientation < mOrientedRanges.orientation->min) {
-                    orientation +=
-                            (mOrientedRanges.orientation->max - mOrientedRanges.orientation->min);
-                }
-                break;
-            case ui::ROTATION_180:
-                left = float(mRawPointerAxes.x.maxValue - rawRight) * mXScale;
-                right = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale;
-                bottom = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale;
-                top = float(mRawPointerAxes.y.maxValue - rawBottom) * mYScale;
-                orientation -= M_PI;
-                if (mOrientedRanges.orientation && orientation < mOrientedRanges.orientation->min) {
-                    orientation +=
-                            (mOrientedRanges.orientation->max - mOrientedRanges.orientation->min);
-                }
-                break;
-            case ui::ROTATION_270:
-                left = float(mRawPointerAxes.y.maxValue - rawBottom) * mYScale;
-                right = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale;
-                bottom = float(rawRight - mRawPointerAxes.x.minValue) * mXScale;
-                top = float(rawLeft - mRawPointerAxes.x.minValue) * mXScale;
-                orientation += M_PI_2;
-                if (mOrientedRanges.orientation && orientation > mOrientedRanges.orientation->max) {
-                    orientation -=
-                            (mOrientedRanges.orientation->max - mOrientedRanges.orientation->min);
-                }
-                break;
-            default:
-                left = float(rawLeft - mRawPointerAxes.x.minValue) * mXScale;
-                right = float(rawRight - mRawPointerAxes.x.minValue) * mXScale;
-                bottom = float(rawBottom - mRawPointerAxes.y.minValue) * mYScale;
-                top = float(rawTop - mRawPointerAxes.y.minValue) * mYScale;
-                break;
-        }
 
         // Write output coords.
         PointerCoords& out = mCurrentCookedState.cookedPointerData.pointerCoords[i];
@@ -2425,10 +2371,10 @@ void TouchInputMapper::cookPointerData() {
         out.setAxisValue(AMOTION_EVENT_AXIS_TILT, tilt);
         out.setAxisValue(AMOTION_EVENT_AXIS_DISTANCE, distance);
         if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
-            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_1, left);
-            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_2, top);
-            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_3, right);
-            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_4, bottom);
+            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_1, coverage.left);
+            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_2, coverage.top);
+            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_3, coverage.right);
+            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_4, coverage.bottom);
         } else {
             out.setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, toolMajor);
             out.setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, toolMinor);

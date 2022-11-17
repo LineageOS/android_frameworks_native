@@ -428,12 +428,8 @@ private:
     // the rotated coordinate space. See mPhysicalFrameInRotatedDisplay.
     ui::Transform mRawToRotatedDisplay;
 
-    // Translation and scaling factors, orientation-independent.
-    float mXScale;
-    float mXPrecision;
-
-    float mYScale;
-    float mYPrecision;
+    // The transform used for non-planar raw axes, such as orientation and tilt.
+    ui::Transform mRawRotation;
 
     float mGeometricScale;
 
