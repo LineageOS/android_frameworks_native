@@ -129,7 +129,13 @@ binder_status_t ReadArray(const AParcel* parcel, void* arrayData,
     }
 
     T* array;
-    if (!allocator(arrayData, length, &array)) return STATUS_NO_MEMORY;
+    if (!allocator(arrayData, length, &array)) {
+        if (length < 0) {
+            return STATUS_UNEXPECTED_NULL;
+        } else {
+            return STATUS_NO_MEMORY;
+        }
+    }
 
     if (length <= 0) return STATUS_OK;
     if (array == nullptr) return STATUS_NO_MEMORY;
@@ -157,7 +163,13 @@ binder_status_t ReadArray<char16_t>(const AParcel* parcel, void* arrayData,
     }
 
     char16_t* array;
-    if (!allocator(arrayData, length, &array)) return STATUS_NO_MEMORY;
+    if (!allocator(arrayData, length, &array)) {
+        if (length < 0) {
+            return STATUS_UNEXPECTED_NULL;
+        } else {
+            return STATUS_NO_MEMORY;
+        }
+    }
 
     if (length <= 0) return STATUS_OK;
     if (array == nullptr) return STATUS_NO_MEMORY;
@@ -204,7 +216,13 @@ binder_status_t ReadArray(const AParcel* parcel, void* arrayData, ArrayAllocator
         return status;
     }
 
-    if (!allocator(arrayData, length)) return STATUS_NO_MEMORY;
+    if (!allocator(arrayData, length)) {
+        if (length < 0) {
+            return STATUS_UNEXPECTED_NULL;
+        } else {
+            return STATUS_NO_MEMORY;
+        }
+    }
 
     if (length <= 0) return STATUS_OK;
 
