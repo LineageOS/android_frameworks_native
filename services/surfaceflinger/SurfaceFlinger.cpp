@@ -2959,18 +2959,16 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
                                                  displaySurface, producer);
 
     if (mScheduler && !display->isVirtual()) {
-        auto selectorPtr = display->holdRefreshRateSelector();
-
-        // Display modes are reloaded on hotplug reconnect.
-        if (display->isPrimary()) {
+        const auto displayId = display->getPhysicalId();
+        {
             // TODO(b/241285876): Annotate `processDisplayAdded` instead.
             ftl::FakeGuard guard(kMainThreadContext);
-            mScheduler->setRefreshRateSelector(selectorPtr);
+
+            // For hotplug reconnect, renew the registration since display modes have been reloaded.
+            mScheduler->registerDisplay(displayId, display->holdRefreshRateSelector());
         }
 
-        const auto displayId = display->getPhysicalId();
-        mScheduler->registerDisplay(displayId, std::move(selectorPtr));
-        dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
+        dispatchDisplayHotplugEvent(displayId, true);
     }
 
     mDisplays.try_emplace(displayToken, std::move(display));
@@ -3429,9 +3427,7 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
         !getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
         features |= Feature::kPresentFences;
     }
-
-    auto selectorPtr = display->holdRefreshRateSelector();
-    if (selectorPtr->kernelIdleTimerController()) {
+    if (display->refreshRateSelector().kernelIdleTimerController()) {
         features |= Feature::kKernelIdleTimer;
     }
 
@@ -3439,8 +3435,7 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
                                                         static_cast<ISchedulerCallback&>(*this),
                                                         features);
     mScheduler->createVsyncSchedule(features);
-    mScheduler->setRefreshRateSelector(selectorPtr);
-    mScheduler->registerDisplay(display->getPhysicalId(), std::move(selectorPtr));
+    mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
 
     setVsyncEnabled(false);
     mScheduler->startTimers();
@@ -6999,9 +6994,11 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
     }
     mActiveDisplayId = activeDisplay->getPhysicalId();
     activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
+
     updateInternalDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
-    mScheduler->setRefreshRateSelector(activeDisplay->holdRefreshRateSelector());
+    mScheduler->setLeaderDisplay(mActiveDisplayId);
+
     onActiveDisplaySizeChanged(activeDisplay);
     mActiveDisplayTransformHint = activeDisplay->getTransformHint();
 

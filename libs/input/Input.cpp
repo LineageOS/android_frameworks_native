@@ -238,6 +238,10 @@ bool isFromSource(uint32_t source, uint32_t test) {
     return (source & test) == test;
 }
 
+bool isStylusToolType(uint32_t toolType) {
+    return toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS || toolType == AMOTION_EVENT_TOOL_TYPE_ERASER;
+}
+
 VerifiedKeyEvent verifiedKeyEventFromKeyEvent(const KeyEvent& event) {
     return {{VerifiedInputEvent::Type::KEY, event.getDeviceId(), event.getEventTime(),
              event.getSource(), event.getDisplayId()},

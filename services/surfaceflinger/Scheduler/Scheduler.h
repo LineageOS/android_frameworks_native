@@ -22,7 +22,6 @@
 #include <future>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <unordered_map>
 #include <utility>
 
@@ -33,6 +32,8 @@
 #include <ui/GraphicTypes.h>
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
+#include <ftl/fake_guard.h>
+#include <ftl/optional.h>
 #include <scheduler/Features.h>
 #include <scheduler/Time.h>
 #include <ui/DisplayId.h>
@@ -108,12 +109,15 @@ public:
 
     void startTimers();
 
-    using RefreshRateSelectorPtr = std::shared_ptr<RefreshRateSelector>;
-    void setRefreshRateSelector(RefreshRateSelectorPtr) REQUIRES(kMainThreadContext)
-            EXCLUDES(mRefreshRateSelectorLock);
+    // TODO(b/241285191): Remove this API by promoting leader in onScreen{Acquired,Released}.
+    void setLeaderDisplay(std::optional<PhysicalDisplayId>) REQUIRES(kMainThreadContext)
+            EXCLUDES(mDisplayLock);
 
-    void registerDisplay(PhysicalDisplayId, RefreshRateSelectorPtr);
-    void unregisterDisplay(PhysicalDisplayId);
+    using RefreshRateSelectorPtr = std::shared_ptr<RefreshRateSelector>;
+
+    void registerDisplay(PhysicalDisplayId, RefreshRateSelectorPtr) REQUIRES(kMainThreadContext)
+            EXCLUDES(mDisplayLock);
+    void unregisterDisplay(PhysicalDisplayId) REQUIRES(kMainThreadContext) EXCLUDES(mDisplayLock);
 
     void run();
 
@@ -165,7 +169,7 @@ public:
     // Otherwise, if hardware vsync is not already enabled then this method will
     // no-op.
     void resyncToHardwareVsync(bool makeAvailable, Fps refreshRate);
-    void resync() EXCLUDES(mRefreshRateSelectorLock);
+    void resync() EXCLUDES(mDisplayLock);
     void forceNextResync() { mLastResyncTime = 0; }
 
     // Passes a vsync sample to VsyncController. periodFlushed will be true if
@@ -176,14 +180,14 @@ public:
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
-    void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType updateType)
-            EXCLUDES(mRefreshRateSelectorLock);
+    void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType)
+            EXCLUDES(mDisplayLock);
     void setModeChangePending(bool pending);
     void setDefaultFrameRateCompatibility(Layer*);
     void deregisterLayer(Layer*);
 
     // Detects content using layer history, and selects a matching refresh rate.
-    void chooseRefreshRateForContent() EXCLUDES(mRefreshRateSelectorLock);
+    void chooseRefreshRateForContent() EXCLUDES(mDisplayLock);
 
     void resetIdleTimer();
 
@@ -228,11 +232,10 @@ public:
     void setGameModeRefreshRateForUid(FrameRateOverride);
 
     // Retrieves the overridden refresh rate for a given uid.
-    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mRefreshRateSelectorLock);
+    std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);
 
-    nsecs_t getVsyncPeriodFromRefreshRateSelector() const EXCLUDES(mRefreshRateSelectorLock) {
-        std::scoped_lock lock(mRefreshRateSelectorLock);
-        return mRefreshRateSelector->getActiveModePtr()->getFps().getPeriodNsecs();
+    nsecs_t getLeaderVsyncPeriod() const EXCLUDES(mDisplayLock) {
+        return leaderSelectorPtr()->getActiveModePtr()->getFps().getPeriodNsecs();
     }
 
     // Returns the framerate of the layer with the given sequence ID
@@ -255,20 +258,22 @@ private:
     sp<EventThreadConnection> createConnectionInternal(
             EventThread*, EventRegistrationFlags eventRegistration = {});
 
-    void bindIdleTimer(RefreshRateSelector&) REQUIRES(kMainThreadContext, mRefreshRateSelectorLock);
-
-    // Blocks until the timer thread exits. `mRefreshRateSelectorLock` must not be locked by the
-    // caller on the main thread to avoid deadlock, since the timer thread locks it before exit.
-    static void unbindIdleTimer(RefreshRateSelector&) REQUIRES(kMainThreadContext)
-            EXCLUDES(mRefreshRateSelectorLock);
-
     // Update feature state machine to given state when corresponding timer resets or expires.
-    void kernelIdleTimerCallback(TimerState) EXCLUDES(mRefreshRateSelectorLock);
+    void kernelIdleTimerCallback(TimerState) EXCLUDES(mDisplayLock);
     void idleTimerCallback(TimerState);
     void touchTimerCallback(TimerState);
     void displayPowerTimerCallback(TimerState);
 
     void setVsyncPeriod(nsecs_t period);
+
+    // Chooses a leader among the registered displays, unless `leaderIdOpt` is specified. The new
+    // `mLeaderDisplayId` is never `std::nullopt`.
+    void promoteLeaderDisplay(std::optional<PhysicalDisplayId> leaderIdOpt = std::nullopt)
+            REQUIRES(kMainThreadContext, mDisplayLock);
+
+    // Blocks until the leader's idle timer thread exits. `mDisplayLock` must not be locked by the
+    // caller on the main thread to avoid deadlock, since the timer thread locks it before exit.
+    void demoteLeaderDisplay() REQUIRES(kMainThreadContext) EXCLUDES(mDisplayLock, mPolicyLock);
 
     struct Policy;
 
@@ -296,22 +301,19 @@ private:
     };
 
     using DisplayModeChoiceMap = display::PhysicalDisplayMap<PhysicalDisplayId, DisplayModeChoice>;
-    DisplayModeChoiceMap chooseDisplayModes() const REQUIRES(mPolicyLock);
+
+    // See mDisplayLock for thread safety.
+    DisplayModeChoiceMap chooseDisplayModes() const
+            REQUIRES(mPolicyLock, mDisplayLock, kMainThreadContext);
 
     GlobalSignals makeGlobalSignals() const REQUIRES(mPolicyLock);
 
     bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
 
-    void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mRefreshRateSelectorLock);
+    void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mDisplayLock);
 
-    android::impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const
-            EXCLUDES(mRefreshRateSelectorLock);
+    android::impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const;
     android::impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
-
-    RefreshRateSelectorPtr holdRefreshRateSelector() const EXCLUDES(mRefreshRateSelectorLock) {
-        std::scoped_lock lock(mRefreshRateSelectorLock);
-        return mRefreshRateSelector;
-    }
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -342,10 +344,34 @@ private:
 
     ISchedulerCallback& mSchedulerCallback;
 
+    // mDisplayLock may be locked while under mPolicyLock.
     mutable std::mutex mPolicyLock;
 
-    display::PhysicalDisplayMap<PhysicalDisplayId, RefreshRateSelectorPtr> mRefreshRateSelectors;
-    std::optional<PhysicalDisplayId> mLeaderDisplayId;
+    // Only required for reads outside kMainThreadContext. kMainThreadContext is the only writer, so
+    // must lock for writes but not reads. See also mPolicyLock for locking order.
+    mutable std::mutex mDisplayLock;
+
+    display::PhysicalDisplayMap<PhysicalDisplayId, RefreshRateSelectorPtr> mRefreshRateSelectors
+            GUARDED_BY(mDisplayLock) GUARDED_BY(kMainThreadContext);
+
+    ftl::Optional<PhysicalDisplayId> mLeaderDisplayId GUARDED_BY(mDisplayLock)
+            GUARDED_BY(kMainThreadContext);
+
+    RefreshRateSelectorPtr leaderSelectorPtr() const EXCLUDES(mDisplayLock) {
+        std::scoped_lock lock(mDisplayLock);
+        return leaderSelectorPtrLocked();
+    }
+
+    RefreshRateSelectorPtr leaderSelectorPtrLocked() const REQUIRES(mDisplayLock) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        const RefreshRateSelectorPtr noLeader;
+        return mLeaderDisplayId
+                .and_then([this](PhysicalDisplayId leaderId)
+                                  REQUIRES(mDisplayLock, kMainThreadContext) {
+                                      return mRefreshRateSelectors.get(leaderId);
+                                  })
+                .value_or(std::cref(noLeader));
+    }
 
     struct Policy {
         // Policy for choosing the display mode.
@@ -366,10 +392,6 @@ private:
         // Parameters for latest dispatch of mode change event.
         std::optional<ModeChangedParams> cachedModeChangedParams;
     } mPolicy GUARDED_BY(mPolicyLock);
-
-    // TODO(b/255635821): Remove this by instead looking up the `mLeaderDisplayId` selector.
-    mutable std::mutex mRefreshRateSelectorLock;
-    RefreshRateSelectorPtr mRefreshRateSelector GUARDED_BY(mRefreshRateSelectorLock);
 
     std::mutex mVsyncTimelineLock;
     std::optional<hal::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline

@@ -464,8 +464,7 @@ private:
               typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
     void modulateVsync(Handler handler, Args... args) {
         if (const auto config = (*mVsyncModulator.*handler)(args...)) {
-            const auto vsyncPeriod = mScheduler->getVsyncPeriodFromRefreshRateSelector();
-            setVsyncConfig(*config, vsyncPeriod);
+            setVsyncConfig(*config, mScheduler->getLeaderVsyncPeriod());
         }
     }
 
@@ -928,7 +927,8 @@ private:
             const sp<compositionengine::DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer) REQUIRES(mStateLock);
     void processDisplayChangesLocked() REQUIRES(mStateLock, kMainThreadContext);
-    void processDisplayRemoved(const wp<IBinder>& displayToken) REQUIRES(mStateLock);
+    void processDisplayRemoved(const wp<IBinder>& displayToken)
+            REQUIRES(mStateLock, kMainThreadContext);
     void processDisplayChanged(const wp<IBinder>& displayToken,
                                const DisplayDeviceState& currentState,
                                const DisplayDeviceState& drawingState)
