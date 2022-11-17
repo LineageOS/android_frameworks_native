@@ -201,7 +201,32 @@ struct layer_state_t {
     void merge(const layer_state_t& other);
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
+    // Compares two layer_state_t structs and returns a set of change flags describing all the
+    // states that are different.
+    uint64_t diff(const layer_state_t& other) const;
     bool hasBufferChanges() const;
+
+    // Changes to the tree structure.
+    static constexpr uint64_t HIERARCHY_CHANGES = layer_state_t::eLayerChanged |
+            layer_state_t::eRelativeLayerChanged | layer_state_t::eReparent |
+            layer_state_t::eBackgroundColorChanged;
+    // Content updates.
+    static constexpr uint64_t CONTENT_CHANGES = layer_state_t::eAlphaChanged |
+            layer_state_t::eTransparentRegionChanged | layer_state_t::eShadowRadiusChanged |
+            layer_state_t::eRenderBorderChanged | layer_state_t::eColorChanged |
+            layer_state_t::eBufferChanged | layer_state_t::eDataspaceChanged |
+            layer_state_t::eApiChanged | layer_state_t::eSidebandStreamChanged |
+            layer_state_t::eColorTransformChanged | layer_state_t::eCornerRadiusChanged |
+            layer_state_t::eBackgroundColorChanged | layer_state_t::eColorSpaceAgnosticChanged |
+            layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBlurRegionsChanged |
+            layer_state_t::eAutoRefreshChanged | layer_state_t::eStretchChanged;
+    // Changes to content or children size.
+    static constexpr uint64_t GEOMETRY_CHANGES = layer_state_t::ePositionChanged |
+            layer_state_t::eMatrixChanged | layer_state_t::eTransparentRegionChanged |
+            layer_state_t::eBufferCropChanged | layer_state_t::eBufferTransformChanged |
+            layer_state_t::eTransformToDisplayInverseChanged | layer_state_t::eCropChanged |
+            layer_state_t::eDestinationFrameChanged;
+
     bool hasValidBuffer() const;
     void sanitize(int32_t permissions);
 
@@ -212,6 +237,11 @@ struct layer_state_t {
         float dsdy{0};
         status_t write(Parcel& output) const;
         status_t read(const Parcel& input);
+        inline bool operator==(const matrix22_t& other) const {
+            return std::tie(dsdx, dtdx, dtdy, dsdy) ==
+                    std::tie(other.dsdx, other.dtdx, other.dtdy, other.dsdy);
+        }
+        inline bool operator!=(const matrix22_t& other) const { return !(*this == other); }
     };
     sp<IBinder> surface;
     int32_t layerId;
