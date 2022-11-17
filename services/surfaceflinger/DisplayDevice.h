@@ -45,11 +45,11 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
+#include "FrontEnd/FrontEndDisplayInfo.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "ThreadContext.h"
 #include "TracedOrdinal.h"
 #include "Utils/Dumper.h"
-
 namespace android {
 
 class Fence;
@@ -167,14 +167,7 @@ public:
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
 
-    struct InputInfo {
-        gui::DisplayInfo info;
-        ui::Transform transform;
-        bool receivesInput;
-        bool isSecure;
-    };
-
-    InputInfo getInputInfo() const;
+    surfaceflinger::FrontEndDisplayInfo getFrontEndInfo() const;
 
     /* ------------------------------------------------------------------------
      * Display power mode management.
