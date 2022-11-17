@@ -23,6 +23,9 @@
 
 namespace android::recoverymap {
 
+////////////////////////////////////////////////////////////////////////////////
+// Framework
+
 const float kSdrWhiteNits = 100.0f;
 
 struct Color {
@@ -40,33 +43,140 @@ struct Color {
   };
 };
 
-/*
- * Convert from OETF'd bt.2100 RGB to YUV, according to BT.2100
- */
-Color bt2100RgbToYuv(Color e);
+inline Color operator+=(Color& lhs, const Color& rhs) {
+  lhs.r += rhs.r;
+  lhs.g += rhs.g;
+  lhs.b += rhs.b;
+  return lhs;
+}
+inline Color operator-=(Color& lhs, const Color& rhs) {
+  lhs.r -= rhs.r;
+  lhs.g -= rhs.g;
+  lhs.b -= rhs.b;
+  return lhs;
+}
+
+inline Color operator+(const Color& lhs, const Color& rhs) {
+  Color temp = lhs;
+  return temp += rhs;
+}
+inline Color operator-(const Color& lhs, const Color& rhs) {
+  Color temp = lhs;
+  return temp -= rhs;
+}
+
+inline Color operator+=(Color& lhs, const float rhs) {
+  lhs.r += rhs;
+  lhs.g += rhs;
+  lhs.b += rhs;
+  return lhs;
+}
+inline Color operator-=(Color& lhs, const float rhs) {
+  lhs.r -= rhs;
+  lhs.g -= rhs;
+  lhs.b -= rhs;
+  return lhs;
+}
+inline Color operator*=(Color& lhs, const float rhs) {
+  lhs.r *= rhs;
+  lhs.g *= rhs;
+  lhs.b *= rhs;
+  return lhs;
+}
+inline Color operator/=(Color& lhs, const float rhs) {
+  lhs.r /= rhs;
+  lhs.g /= rhs;
+  lhs.b /= rhs;
+  return lhs;
+}
+
+inline Color operator+(const Color& lhs, const float rhs) {
+  Color temp = lhs;
+  return temp += rhs;
+}
+inline Color operator-(const Color& lhs, const float rhs) {
+  Color temp = lhs;
+  return temp -= rhs;
+}
+inline Color operator*(const Color& lhs, const float rhs) {
+  Color temp = lhs;
+  return temp *= rhs;
+}
+inline Color operator/(const Color& lhs, const float rhs) {
+  Color temp = lhs;
+  return temp /= rhs;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// sRGB transformations
 
 /*
- * Convert srgb YUV to RGB, according to ECMA TR/98.
+ * Calculate the luminance of a linear RGB sRGB pixel, according to IEC 61966-2-1.
  */
-Color srgbYuvToRgb(Color e);
+float srgbLuminance(Color e);
 
 /*
- * TODO: better source for srgb transfer function
- * Convert from srgb to linear, according to https://en.wikipedia.org/wiki/SRGB.
+ * Convert from OETF'd srgb YUV to RGB, according to ECMA TR/98.
+ */
+Color srgbYuvToRgb(Color e_gamma);
+
+/*
+ * Convert from OETF'd srgb RGB to YUV, according to ECMA TR/98.
+ */
+Color srgbRgbToYuv(Color e_gamma);
+
+/*
+ * Convert from srgb to linear, according to IEC 61966-2-1.
+ *
  * [0.0, 1.0] range in and out.
  */
-float srgbInvOetf(float e);
-Color srgbInvOetf(Color e);
+float srgbInvOetf(float e_gamma);
+Color srgbInvOetf(Color e_gamma);
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Display-P3 transformations
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// BT.2100 transformations - according to ITU-R BT.2100-2
 
 /*
- * Convert from HLG to scene luminance in nits, according to BT.2100.
+ * Calculate the luminance of a linear RGB BT.2100 pixel.
  */
-float hlgInvOetf(float e);
+float bt2100Luminance(Color e);
 
 /*
- * Convert from scene luminance in nits to HLG,  according to BT.2100.
+ * Convert from OETF'd BT.2100 RGB to YUV.
+ */
+Color bt2100RgbToYuv(Color e_gamma);
+
+/*
+ * Convert from OETF'd BT.2100 YUV to RGB.
+ */
+Color bt2100YuvToRgb(Color e_gamma);
+
+/*
+ * Convert from scene luminance in nits to HLG.
  */
 Color hlgOetf(Color e);
+
+/*
+ * Convert from HLG to scene luminance in nits.
+ */
+Color hlgInvOetf(Color e_gamma);
+
+////////////////////////////////////////////////////////////////////////////////
+// Color space conversions
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Recovery map calculations
 
 /*
  * Calculate the 8-bit unsigned integer recovery value for the given SDR and HDR
@@ -86,6 +196,11 @@ Color applyRecovery(Color e, float recovery, float hdr_ratio);
 Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y);
 
 /*
+ * Helper for sampling from images.
+ */
+Color getP010Pixel(jr_uncompressed_ptr image, size_t x, size_t y);
+
+/*
  * Sample the recovery value for the map from a given x,y coordinate on a scale
  * that is map scale factor larger than the map size.
  */
@@ -97,8 +212,13 @@ float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size
  *
  * Expect narrow-range image data for P010.
  */
-float sampleYuv420Y(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
-float sampleP010Y(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
+Color sampleYuv420(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
+
+/*
+ * Sample the image Y value at the provided location, with a weighting based on nearby pixels
+ * and the map scale factor. Assumes narrow-range image data for P010.
+ */
+Color sampleP010(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
 
 } // namespace android::recoverymap
 

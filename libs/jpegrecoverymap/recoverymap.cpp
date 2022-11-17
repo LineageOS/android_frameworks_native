@@ -301,31 +301,38 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
 
-  uint16_t yp_hdr_max = 0;
+  float hdr_y_nits_max = 0.0f;
   for (size_t y = 0; y < image_height; ++y) {
     for (size_t x = 0; x < image_width; ++x) {
-      size_t pixel_idx =  x + y * image_width;
-      uint16_t yp_hdr = reinterpret_cast<uint8_t*>(uncompressed_yuv_420_image->data)[pixel_idx];
-      if (yp_hdr > yp_hdr_max) {
-        yp_hdr_max = yp_hdr;
+      Color hdr_yuv_gamma = getP010Pixel(uncompressed_p010_image, x, y);
+      Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
+      Color hdr_rgb = hlgInvOetf(hdr_rgb_gamma);
+      float hdr_y_nits = bt2100Luminance(hdr_rgb);
+
+      if (hdr_y_nits > hdr_y_nits_max) {
+        hdr_y_nits_max = hdr_y_nits;
       }
     }
   }
 
-  float y_hdr_max_nits = hlgInvOetf(yp_hdr_max);
-  hdr_ratio = y_hdr_max_nits / kSdrWhiteNits;
+  hdr_ratio = hdr_y_nits_max / kSdrWhiteNits;
 
   for (size_t y = 0; y < map_height; ++y) {
     for (size_t x = 0; x < map_width; ++x) {
-      float yp_sdr = sampleYuv420Y(uncompressed_yuv_420_image, kMapDimensionScaleFactor, x, y);
-      float yp_hdr = sampleP010Y(uncompressed_p010_image, kMapDimensionScaleFactor, x, y);
+      Color sdr_yuv_gamma = sampleYuv420(uncompressed_yuv_420_image,
+                                         kMapDimensionScaleFactor, x, y);
+      Color sdr_rgb_gamma = srgbYuvToRgb(sdr_yuv_gamma);
+      Color sdr_rgb = srgbInvOetf(sdr_rgb_gamma);
+      float sdr_y_nits = srgbLuminance(sdr_rgb);
 
-      float y_sdr_nits = srgbInvOetf(yp_sdr);
-      float y_hdr_nits = hlgInvOetf(yp_hdr);
+      Color hdr_yuv_gamma = sampleP010(uncompressed_p010_image, kMapDimensionScaleFactor, x, y);
+      Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
+      Color hdr_rgb = hlgInvOetf(hdr_rgb_gamma);
+      float hdr_y_nits = bt2100Luminance(hdr_rgb);
 
       size_t pixel_idx =  x + y * map_width;
       reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
-          encodeRecovery(y_sdr_nits, y_hdr_nits, hdr_ratio);
+          encodeRecovery(sdr_y_nits, hdr_y_nits, hdr_ratio);
     }
   }
 
@@ -367,7 +374,8 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
       Color rgb_hdr = applyRecovery(rgb_sdr, recovery, hdr_ratio);
 
       Color rgbp_hdr = hlgOetf(rgb_hdr);
-      Color ypuv_hdr = bt2100RgbToYuv(rgbp_hdr);
+      // TODO: actually just leave in RGB and convert to RGBA1010102 instead.
+      Color ypuv_hdr = srgbRgbToYuv(rgbp_hdr);
 
       reinterpret_cast<uint16_t*>(dest->data)[pixel_y_idx] = ypuv_hdr.r;
       reinterpret_cast<uint16_t*>(dest->data)[pixel_count + pixel_uv_idx] = ypuv_hdr.g;
