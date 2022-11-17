@@ -66,7 +66,6 @@ float hlgInvOetf(float e);
 /*
  * Convert from scene luminance in nits to HLG,  according to BT.2100.
  */
-float hlgOetf(float e);
 Color hlgOetf(Color e);
 
 /*

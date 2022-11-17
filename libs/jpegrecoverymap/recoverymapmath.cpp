@@ -56,7 +56,7 @@ float hlgInvOetf(float e) {
   }
 }
 
-float hlgOetf(float e) {
+static float hlgOetf(float e) {
   if (e <= 1.0f/12.0f) {
     return sqrt(3.0f * e);
   } else {
@@ -68,7 +68,7 @@ Color hlgOetf(Color e) {
   return {{{ hlgOetf(e.r), hlgOetf(e.g), hlgOetf(e.b) }}};
 }
 
-uint8_t EncodeRecovery(float y_sdr, float y_hdr, float hdr_ratio) {
+uint8_t encodeRecovery(float y_sdr, float y_hdr, float hdr_ratio) {
   float gain = 1.0f;
   if (y_sdr > 0.0f) {
     gain = y_hdr / y_sdr;
@@ -80,8 +80,14 @@ uint8_t EncodeRecovery(float y_sdr, float y_hdr, float hdr_ratio) {
   return static_cast<uint8_t>(log2(gain) / log2(hdr_ratio) * 127.5f  + 127.5f);
 }
 
-float applyRecovery(float y_sdr, float recovery, float hdr_ratio) {
-  return exp2(log2(y_sdr) + recovery * log2(hdr_ratio));
+static float applyRecovery(float e, float recovery, float hdr_ratio) {
+  return exp2(log2(e) + recovery * log2(hdr_ratio));
+}
+
+Color applyRecovery(Color e, float recovery, float hdr_ratio) {
+  return {{{ applyRecovery(e.r, recovery, hdr_ratio),
+             applyRecovery(e.g, recovery, hdr_ratio),
+             applyRecovery(e.b, recovery, hdr_ratio) }}};
 }
 
 // TODO: do we need something more clever for filtering either the map or images
@@ -166,4 +172,5 @@ static float getP010Y(jr_uncompressed_ptr image, size_t x, size_t y) {
 float sampleP010Y(jr_uncompressed_ptr image, size_t map_scale_factor, size_t x, size_t y) {
   return sampleComponent(image, map_scale_factor, x, y, getP010Y);
 }
+
 } // namespace android::recoverymap

@@ -40,6 +40,7 @@ public:
     bool isToolActive() const;
     bool isHovering() const;
     bool hasStylus() const;
+    bool hasButtonTouch() const;
 
 private:
     bool mHaveBtnTouch{};

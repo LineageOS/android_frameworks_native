@@ -190,8 +190,10 @@ TEST_F(SchedulerTest, updateDisplayModes) {
     sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
     ASSERT_EQ(1u, mScheduler->layerHistorySize());
 
-    mScheduler->setRefreshRateSelector(
-            std::make_shared<RefreshRateSelector>(kDisplay1Modes, kDisplay1Mode60->getId()));
+    // Replace `mSelector` with a new `RefreshRateSelector` that has different display modes.
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
 
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
@@ -234,11 +236,9 @@ MATCHER(Is120Hz, "") {
 }
 
 TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
-    const auto selectorPtr =
-            std::make_shared<RefreshRateSelector>(kDisplay1Modes, kDisplay1Mode60->getId());
-
-    mScheduler->registerDisplay(kDisplayId1, selectorPtr);
-    mScheduler->setRefreshRateSelector(selectorPtr);
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
 
     const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
     EXPECT_CALL(*layer, isVisible()).WillOnce(Return(true));
