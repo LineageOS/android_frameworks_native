@@ -150,6 +150,9 @@ public:
     // Returns Status(EX_BAD_PARCELABLE) when the Parcel is not consumed.
     binder::Status enforceNoDataAvail() const;
 
+    // This Api is used by fuzzers to skip dataAvail checks.
+    void setEnforceNoDataAvail(bool enforceNoDataAvail);
+
     void                freeData();
 
     size_t              objectsCount() const;
@@ -1328,6 +1331,9 @@ private:
     // if this parcelable is involved in a secure transaction, force the
     // data to be overridden with zero when deallocated
     mutable bool        mDeallocZero;
+
+    // Set this to false to skip dataAvail checks.
+    bool mEnforceNoDataAvail;
 
     release_func        mOwner;
 
