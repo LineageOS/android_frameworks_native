@@ -1123,7 +1123,7 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* tran
 
     // We return whether this layer ot its children has a vote. We ignore ExactOrMultiple votes for
     // the same reason we are allowing touch boost for those layers. See
-    // RefreshRateSelector::rankRefreshRates for details.
+    // RefreshRateSelector::rankFrameRates for details.
     const auto layerVotedWithDefaultCompatibility =
             frameRate.rate.isValid() && frameRate.type == FrameRateCompatibility::Default;
     const auto layerVotedWithNoVote = frameRate.type == FrameRateCompatibility::NoVote;
