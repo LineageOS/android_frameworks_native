@@ -549,18 +549,17 @@ status_t RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
 
 status_t RpcServer::setupRawSocketServer(unique_fd socket_fd) {
     LOG_ALWAYS_FATAL_IF(!socket_fd.ok(), "Socket must be setup to listen.");
-    RpcTransportFd transportFd(std::move(socket_fd));
 
     // Right now, we create all threads at once, making accept4 slow. To avoid hanging the client,
     // the backlog is increased to a large number.
     // TODO(b/189955605): Once we create threads dynamically & lazily, the backlog can be reduced
     //  to 1.
-    if (0 != TEMP_FAILURE_RETRY(listen(transportFd.fd.get(), 50 /*backlog*/))) {
+    if (0 != TEMP_FAILURE_RETRY(listen(socket_fd.get(), 50 /*backlog*/))) {
         int savedErrno = errno;
         ALOGE("Could not listen initialized Unix socket: %s", strerror(savedErrno));
         return -savedErrno;
     }
-    if (status_t status = setupExternalServer(std::move(transportFd.fd)); status != OK) {
+    if (status_t status = setupExternalServer(std::move(socket_fd)); status != OK) {
         ALOGE("Another thread has set up server while calling setupSocketServer. Race?");
         return status;
     }
