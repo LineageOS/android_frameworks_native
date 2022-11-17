@@ -2190,14 +2190,13 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
     refreshArgs.updatingGeometryThisFrame = mGeometryDirty.exchange(false) || mVisibleRegionsDirty;
-    std::vector<sp<Layer>> layers;
+    std::vector<Layer*> layers;
 
     mDrawingState.traverseInZOrder([&refreshArgs, &layers](Layer* layer) {
-        auto strongLayer = sp<Layer>::fromExisting(layer);
         if (auto layerFE = layer->getCompositionEngineLayerFE()) {
             layer->updateSnapshot(refreshArgs.updatingGeometryThisFrame);
             refreshArgs.layers.push_back(layerFE);
-            layers.push_back(std::move(strongLayer));
+            layers.push_back(layer);
         }
     });
     refreshArgs.blursAreExpensive = mBlursAreExpensive;
@@ -2229,8 +2228,8 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     {
         std::vector<LayerSnapshotGuard> layerSnapshotGuards;
-        for (auto& layer : layers) {
-            layerSnapshotGuards.emplace_back(layer.get());
+        for (Layer* layer : layers) {
+            layerSnapshotGuards.emplace_back(layer);
         }
         mCompositionEngine->present(refreshArgs);
     }
@@ -3330,12 +3329,7 @@ void SurfaceFlinger::updateCursorAsync() {
 
     std::vector<LayerSnapshotGuard> layerSnapshotGuards;
     mDrawingState.traverse([&layerSnapshotGuards](Layer* layer) {
-        auto strongLayer = sp<Layer>::fromExisting(layer);
-        const LayerSnapshot* snapshot = layer->getLayerSnapshot();
-        if (!snapshot) {
-            LOG_ALWAYS_FATAL("Layer snapshot unexpectedly null");
-        }
-        if (snapshot->compositionType ==
+        if (layer->getLayerSnapshot()->compositionType ==
             aidl::android::hardware::graphics::composer3::Composition::CURSOR) {
             layer->updateSnapshot(false /* updateGeometry */);
             layerSnapshotGuards.emplace_back(layer);
@@ -6479,7 +6473,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     layers.reserve(layerCount);
     std::unordered_set<compositionengine::LayerFE*> filterForScreenshot;
     traverseLayers([&](Layer* layer) {
-        auto strongLayer = sp<Layer>::fromExisting(layer);
         captureResults.capturedHdrLayers |= isHdrLayer(layer);
         // Layer::prepareClientComposition uses the layer's snapshot to populate the resulting
         // LayerSettings. Calling Layer::updateSnapshot ensures that LayerSettings are
