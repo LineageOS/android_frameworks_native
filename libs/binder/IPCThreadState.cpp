@@ -132,12 +132,21 @@ static const void* printBinderTransactionData(std::ostream& out, const void* dat
     } else {
         out << "\ttarget.ptr=" << btd->target.ptr;
     }
-    out << "\t (cookie " << btd->cookie << ")"
-        << "\n"
+    out << "\t (cookie " << btd->cookie << ")\n"
         << "\tcode=" << TypeCode(btd->code) << ", flags=" << (void*)(uint64_t)btd->flags << "\n"
-        << "\tdata=" << btd->data.ptr.buffer << " (" << (void*)btd->data_size << " bytes)"
-        << "\n"
-        << "\toffsets=" << btd->data.ptr.offsets << " (" << (void*)btd->offsets_size << " bytes)";
+        << "\tdata=" << btd->data.ptr.buffer << " (" << (void*)btd->data_size << " bytes)\n"
+        << "\toffsets=" << btd->data.ptr.offsets << " (" << (void*)btd->offsets_size << " bytes)\n";
+    return btd + 1;
+}
+
+static const void* printBinderTransactionDataSecCtx(std::ostream& out, const void* data) {
+    const binder_transaction_data_secctx* btd = (const binder_transaction_data_secctx*)data;
+
+    printBinderTransactionData(out, &btd->transaction_data);
+
+    char* secctx = (char*)btd->secctx;
+    out << "\tsecctx=" << secctx << "\n";
+
     return btd+1;
 }
 
@@ -156,6 +165,11 @@ static const void* printReturnCommand(std::ostream& out, const void* _cmd) {
     out << "\t" << kReturnStrings[cmdIndex];
 
     switch (code) {
+        case BR_TRANSACTION_SEC_CTX: {
+            out << ": ";
+            cmd = (const int32_t*)printBinderTransactionDataSecCtx(out, cmd);
+        } break;
+
         case BR_TRANSACTION:
         case BR_REPLY: {
             out << ": ";
