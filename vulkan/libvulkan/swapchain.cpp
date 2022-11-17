@@ -715,6 +715,17 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     capabilities->minImageExtent = VkExtent2D{1, 1};
     capabilities->maxImageExtent = VkExtent2D{4096, 4096};
 
+    if (capabilities->maxImageExtent.height <
+        capabilities->currentExtent.height) {
+        capabilities->maxImageExtent.height =
+            capabilities->currentExtent.height;
+    }
+
+    if (capabilities->maxImageExtent.width <
+        capabilities->currentExtent.width) {
+        capabilities->maxImageExtent.width = capabilities->currentExtent.width;
+    }
+
     capabilities->maxImageArrayLayers = 1;
 
     capabilities->supportedTransforms = kSupportedTransforms;
