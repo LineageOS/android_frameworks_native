@@ -110,10 +110,11 @@ static bool isPointerDown(int32_t buttonState) {
 // coordinates result in extremely large instantaneous velocities, which can negatively impact
 // user experience. To avoid this, we augment the timestamps so that subsequent event timestamps
 // differ by at least a minimum delta value.
-static nsecs_t applyBluetoothTimestampSmoothening(const InputDeviceIdentifier& identifier,
-                                                  nsecs_t currentEventTime, nsecs_t lastEventTime) {
+static std::tuple<nsecs_t /*eventTime*/, nsecs_t /*readTime*/> applyBluetoothTimestampSmoothening(
+        const InputDeviceIdentifier& identifier, nsecs_t currentEventTime, nsecs_t readTime,
+        nsecs_t lastEventTime) {
     if (identifier.bus != BUS_BLUETOOTH) {
-        return currentEventTime;
+        return {currentEventTime, readTime};
     }
 
     // Assume the fastest rate at which a Bluetooth touch device can report input events is one
@@ -123,8 +124,14 @@ static nsecs_t applyBluetoothTimestampSmoothening(const InputDeviceIdentifier& i
     // We define a maximum smoothing time delta so that we don't generate events too far into the
     // future.
     constexpr static nsecs_t MAX_BLUETOOTH_SMOOTHING_DELTA = ms2ns(32);
-    return std::min(std::max(currentEventTime, lastEventTime + MIN_BLUETOOTH_TIMESTAMP_DELTA),
-                    currentEventTime + MAX_BLUETOOTH_SMOOTHING_DELTA);
+    const nsecs_t smoothenedEventTime =
+            std::min(std::max(currentEventTime, lastEventTime + MIN_BLUETOOTH_TIMESTAMP_DELTA),
+                     currentEventTime + MAX_BLUETOOTH_SMOOTHING_DELTA);
+    // If we are modifying the event time, treat this event as a synthetically generated event for
+    // latency tracking purposes and use the event time as the read time (zero read latency).
+    const nsecs_t smoothenedReadTime =
+            smoothenedEventTime != currentEventTime ? currentEventTime : readTime;
+    return {smoothenedEventTime, smoothenedReadTime};
 }
 
 } // namespace android
