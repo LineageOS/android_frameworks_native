@@ -1533,6 +1533,10 @@ VkResult CreateSwapchainKHR(VkDevice device,
             android::GpuStatsInfo::Stats::FALSE_PREROTATION);
     }
 
+    // Set stats for creating a Vulkan swapchain
+    android::GraphicsEnv::getInstance().setTargetStats(
+        android::GpuStatsInfo::Stats::CREATED_VULKAN_SWAPCHAIN);
+
     surface.swapchain_handle = HandleFromSwapchain(swapchain);
     *swapchain_handle = surface.swapchain_handle;
     return VK_SUCCESS;
