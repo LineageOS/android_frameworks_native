@@ -966,7 +966,15 @@ bool Parcel::enforceInterface(const char16_t* interface,
     }
 }
 
+void Parcel::setEnforceNoDataAvail(bool enforceNoDataAvail) {
+    mEnforceNoDataAvail = enforceNoDataAvail;
+}
+
 binder::Status Parcel::enforceNoDataAvail() const {
+    if (!mEnforceNoDataAvail) {
+        return binder::Status::ok();
+    }
+
     const auto n = dataAvail();
     if (n == 0) {
         return binder::Status::ok();
@@ -3077,6 +3085,7 @@ void Parcel::initState()
     mAllowFds = true;
     mDeallocZero = false;
     mOwner = nullptr;
+    mEnforceNoDataAvail = true;
 }
 
 void Parcel::scanForFds() const {
