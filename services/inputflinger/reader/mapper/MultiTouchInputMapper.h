@@ -50,6 +50,8 @@ private:
     // Specifies the pointer id bits that are in use, and their associated tracking id.
     BitSet32 mPointerIdBits;
     int32_t mPointerTrackingIdMap[MAX_POINTER_ID + 1];
+
+    bool mStylusMtToolSeen{false};
 };
 
 } // namespace android
