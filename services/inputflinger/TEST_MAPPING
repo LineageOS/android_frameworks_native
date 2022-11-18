@@ -41,6 +41,7 @@
           "include-filter": "android.view.cts.input",
           "include-filter": "android.view.cts.MotionEventTest",
           "include-filter": "android.view.cts.PointerCaptureTest",
+          "include-filter": "android.view.cts.TooltipTest",
           "include-filter": "android.view.cts.VerifyInputEventTest"
         }
       ]
@@ -128,6 +129,7 @@
         {
           "include-filter": "android.view.cts.MotionEventTest",
           "include-filter": "android.view.cts.PointerCaptureTest",
+          "include-filter": "android.view.cts.TooltipTest",
           "include-filter": "android.view.cts.VerifyInputEventTest"
         }
       ]

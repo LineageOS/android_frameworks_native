@@ -1769,15 +1769,16 @@ void InputDispatcher::dispatchDragLocked(nsecs_t currentTime, std::shared_ptr<Dr
 
 void InputDispatcher::logOutboundMotionDetails(const char* prefix, const MotionEntry& entry) {
     if (DEBUG_OUTBOUND_EVENT_DETAILS) {
-        ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
+        ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=%s, displayId=%" PRId32
               ", policyFlags=0x%x, "
               "action=%s, actionButton=0x%x, flags=0x%x, "
               "metaState=0x%x, buttonState=0x%x,"
               "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
-              prefix, entry.eventTime, entry.deviceId, entry.source, entry.displayId,
-              entry.policyFlags, MotionEvent::actionToString(entry.action).c_str(),
-              entry.actionButton, entry.flags, entry.metaState, entry.buttonState, entry.edgeFlags,
-              entry.xPrecision, entry.yPrecision, entry.downTime);
+              prefix, entry.eventTime, entry.deviceId,
+              inputEventSourceToString(entry.source).c_str(), entry.displayId, entry.policyFlags,
+              MotionEvent::actionToString(entry.action).c_str(), entry.actionButton, entry.flags,
+              entry.metaState, entry.buttonState, entry.edgeFlags, entry.xPrecision,
+              entry.yPrecision, entry.downTime);
 
         for (uint32_t i = 0; i < entry.pointerCount; i++) {
             ALOGD("  Pointer %d: id=%d, toolType=%d, "
@@ -2500,6 +2501,10 @@ Failed:
         } else {
             mTouchStatesByDisplay.erase(displayId);
         }
+    }
+
+    if (tempTouchState.windows.empty()) {
+        mTouchStatesByDisplay.erase(displayId);
     }
 
     // Update hover state.

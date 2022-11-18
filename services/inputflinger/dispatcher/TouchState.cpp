@@ -148,7 +148,8 @@ bool TouchState::isDown() const {
 
 std::string TouchState::dump() const {
     std::string out;
-    out += StringPrintf("deviceId=%d, source=0x%08x\n", deviceId, source);
+    out += StringPrintf("deviceId=%d, source=%s\n", deviceId,
+                        inputEventSourceToString(source).c_str());
     if (!windows.empty()) {
         out += "  Windows:\n";
         for (size_t i = 0; i < windows.size(); i++) {
