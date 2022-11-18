@@ -1250,6 +1250,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFlags
     if ((mask & layer_state_t::eLayerOpaque) || (mask & layer_state_t::eLayerHidden) ||
         (mask & layer_state_t::eLayerSecure) || (mask & layer_state_t::eLayerSkipScreenshot) ||
         (mask & layer_state_t::eEnableBackpressure) ||
+        (mask & layer_state_t::eIgnoreDestinationFrame) ||
         (mask & layer_state_t::eLayerIsDisplayDecoration)) {
         s->what |= layer_state_t::eFlagsChanged;
     }

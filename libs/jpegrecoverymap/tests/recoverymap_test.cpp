@@ -14,9 +14,33 @@
  * limitations under the License.
  */
 
+#include <gtest/gtest.h>
 #include <jpegrecoverymap/recoverymap.h>
 
-namespace android {
+namespace android::recoverymap {
 
-// Add new tests here.
-} // namespace android
+class RecoveryMapTest : public testing::Test {
+public:
+  RecoveryMapTest();
+  ~RecoveryMapTest();
+protected:
+  virtual void SetUp();
+  virtual void TearDown();
+};
+
+RecoveryMapTest::RecoveryMapTest() {}
+RecoveryMapTest::~RecoveryMapTest() {}
+
+void RecoveryMapTest::SetUp() {}
+void RecoveryMapTest::TearDown() {}
+
+TEST_F(RecoveryMapTest, build) {
+  // Force all of the recovery map lib to be linked by calling all public functions.
+  RecoveryMap recovery_map;
+  recovery_map.encodeJPEGR(nullptr, nullptr, nullptr, 0, nullptr);
+  recovery_map.encodeJPEGR(nullptr, nullptr, nullptr, nullptr);
+  recovery_map.encodeJPEGR(nullptr, nullptr, nullptr);
+  recovery_map.decodeJPEGR(nullptr, nullptr, nullptr, false);
+}
+
+} // namespace android::recoverymap

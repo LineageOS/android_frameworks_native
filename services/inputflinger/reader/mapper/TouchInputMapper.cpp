@@ -1467,8 +1467,9 @@ std::list<NotifyArgs> TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     const RawState& last =
             mRawStatesPending.size() == 1 ? mCurrentRawState : mRawStatesPending.rbegin()[1];
 
-    next.when = applyBluetoothTimestampSmoothening(getDeviceContext().getDeviceIdentifier(), when,
-                                                   last.when);
+    std::tie(next.when, next.readTime) =
+            applyBluetoothTimestampSmoothening(getDeviceContext().getDeviceIdentifier(), when,
+                                               readTime, last.when);
 
     // Assign pointer ids.
     if (!mHavePointerIds) {
@@ -3762,11 +3763,14 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
     PointerCoords pointerCoords[MAX_POINTERS];
     PointerProperties pointerProperties[MAX_POINTERS];
     uint32_t pointerCount = 0;
+    bool stylusToolFound = false;
     while (!idBits.isEmpty()) {
         uint32_t id = idBits.clearFirstMarkedBit();
         uint32_t index = idToIndex[id];
         pointerProperties[pointerCount].copyFrom(properties[index]);
         pointerCoords[pointerCount].copyFrom(coords[index]);
+
+        stylusToolFound |= isStylusToolType(pointerProperties[pointerCount].toolType);
 
         if (changedId >= 0 && id == uint32_t(changedId)) {
             action |= pointerCount << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
@@ -3798,6 +3802,12 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
     float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     if (mDeviceMode == DeviceMode::POINTER) {
         mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    }
+    if (stylusToolFound) {
+        // Dynamically add the stylus source when there's a stylus tool being used to cover the case
+        // where we cannot reliably detect whether a multi-touch device will ever produce stylus
+        // events when it is initially being configured.
+        source |= AINPUT_SOURCE_STYLUS;
     }
     const int32_t displayId = getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE);
     const int32_t deviceId = getDeviceId();

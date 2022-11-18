@@ -27,7 +27,15 @@ cc_test {
     srcs: [
         "recoverymap_test.cpp",
     ],
+    shared_libs: [
+        "libimage_io",
+        "libjpeg",
+        "liblog",
+    ],
     static_libs: [
+        "libgtest",
+        "libjpegdecoder",
+        "libjpegencoder",
         "libjpegrecoverymap",
     ],
 }
