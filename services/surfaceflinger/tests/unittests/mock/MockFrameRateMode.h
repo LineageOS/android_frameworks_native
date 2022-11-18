@@ -16,21 +16,8 @@
 
 #pragma once
 
-#include <ftl/non_null.h>
-
 #include <scheduler/FrameRateMode.h>
 
-namespace android::display {
-
-struct DisplayModeRequest {
-    scheduler::FrameRateMode mode;
-
-    // Whether to emit DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE.
-    bool emitEvent = false;
-};
-
-inline bool operator==(const DisplayModeRequest& lhs, const DisplayModeRequest& rhs) {
-    return lhs.mode == rhs.mode && lhs.emitEvent == rhs.emitEvent;
-}
-
-} // namespace android::display
+// Use a C style macro to keep the line numbers printed in gtest
+#define EXPECT_FRAME_RATE_MODE(modePtr, fps, mode) \
+    EXPECT_EQ((scheduler::FrameRateMode{(fps), (modePtr)}), (mode))

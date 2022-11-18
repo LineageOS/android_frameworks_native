@@ -221,7 +221,7 @@ public:
             selectorPtr = std::make_shared<scheduler::RefreshRateSelector>(modes, kModeId60);
         }
 
-        const auto fps = FTL_FAKE_GUARD(kMainThreadContext, selectorPtr->getActiveMode().getFps());
+        const auto fps = selectorPtr->getActiveMode().fps;
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
         mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
                 mFlinger->mVsyncConfiguration->getCurrentConfigs());
@@ -857,23 +857,24 @@ public:
 
                 const auto activeMode = modes.get(activeModeId);
                 LOG_ALWAYS_FATAL_IF(!activeMode);
+                const auto fps = activeMode->get()->getFps();
 
                 state.physical = {.id = physicalId,
                                   .hwcDisplayId = *mHwcDisplayId,
                                   .activeMode = activeMode->get()};
 
-                const auto it = mFlinger.mutablePhysicalDisplays()
-                                        .emplace_or_replace(physicalId, mDisplayToken, physicalId,
-                                                            *mConnectionType, std::move(modes),
-                                                            ui::ColorModes(), std::nullopt)
-                                        .first;
+                mFlinger.mutablePhysicalDisplays().emplace_or_replace(physicalId, mDisplayToken,
+                                                                      physicalId, *mConnectionType,
+                                                                      std::move(modes),
+                                                                      ui::ColorModes(),
+                                                                      std::nullopt);
 
                 if (mFlinger.scheduler()) {
                     mFlinger.scheduler()->registerDisplay(physicalId,
                                                           display->holdRefreshRateSelector());
                 }
 
-                display->setActiveMode(activeModeId, it->second.snapshot());
+                display->setActiveMode(activeModeId, fps, fps);
             }
 
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);

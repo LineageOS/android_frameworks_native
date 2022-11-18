@@ -381,7 +381,8 @@ void SchedulerFuzzer::fuzzRefreshRateSelector() {
                                                              mFdp.ConsumeFloatingPoint<float>())}});
         refreshRateSelector.setPolicy(RefreshRateSelector::NoOverridePolicy{});
 
-        refreshRateSelector.setActiveModeId(modeId);
+        refreshRateSelector.setActiveMode(modeId,
+                                          Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()));
     }
 
     RefreshRateSelector::isFractionalPairOrMultiple(Fps::fromValue(
