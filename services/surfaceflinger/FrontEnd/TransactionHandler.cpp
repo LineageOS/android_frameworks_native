@@ -24,7 +24,7 @@
 
 #include "TransactionHandler.h"
 
-namespace android {
+namespace android::surfaceflinger::frontend {
 
 void TransactionHandler::queueTransaction(TransactionState&& state) {
     mLocklessTransactionQueue.push(std::move(state));
@@ -186,4 +186,4 @@ void TransactionHandler::removeFromStalledTransactions(uint64_t id) {
         mStalledTransactions.erase(it);
     }
 }
-} // namespace android
+} // namespace android::surfaceflinger::frontend

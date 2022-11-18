@@ -45,7 +45,7 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
-#include "FrontEnd/FrontEndDisplayInfo.h"
+#include "FrontEnd/DisplayInfo.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "ThreadContext.h"
 #include "TracedOrdinal.h"
@@ -167,7 +167,7 @@ public:
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
 
-    surfaceflinger::FrontEndDisplayInfo getFrontEndInfo() const;
+    surfaceflinger::frontend::DisplayInfo getFrontEndInfo() const;
 
     /* ------------------------------------------------------------------------
      * Display power mode management.
