@@ -819,6 +819,20 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status getHdrConversionCapabilities(
+            std::vector<gui::HdrConversionCapability>*) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setHdrConversionStrategy(
+            const gui::HdrConversionStrategy& /*hdrConversionStrategy*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getHdrOutputConversionSupport(bool* /*outSupport*/) override {
+        return binder::Status::ok();
+    }
+
     binder::Status setAutoLowLatencyMode(const sp<IBinder>& /*display*/, bool /*on*/) override {
         return binder::Status::ok();
     }

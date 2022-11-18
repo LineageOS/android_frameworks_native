@@ -91,6 +91,11 @@ public:
     MOCK_METHOD(binder::Status, setBootDisplayMode, (const sp<IBinder>&, int), (override));
     MOCK_METHOD(binder::Status, clearBootDisplayMode, (const sp<IBinder>&), (override));
     MOCK_METHOD(binder::Status, getBootDisplayModeSupport, (bool*), (override));
+    MOCK_METHOD(binder::Status, getHdrConversionCapabilities,
+                (std::vector<gui::HdrConversionCapability>*), (override));
+    MOCK_METHOD(binder::Status, setHdrConversionStrategy, (const gui::HdrConversionStrategy&),
+                (override));
+    MOCK_METHOD(binder::Status, getHdrOutputConversionSupport, (bool*), (override));
     MOCK_METHOD(binder::Status, setAutoLowLatencyMode, (const sp<IBinder>&, bool), (override));
     MOCK_METHOD(binder::Status, setGameContentType, (const sp<IBinder>&, bool), (override));
     MOCK_METHOD(binder::Status, captureDisplay,
