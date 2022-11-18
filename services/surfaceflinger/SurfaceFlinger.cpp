@@ -180,6 +180,7 @@ using CompositionStrategyPredictionState = android::compositionengine::impl::
 using base::StringAppendF;
 using display::PhysicalDisplay;
 using display::PhysicalDisplays;
+using frontend::TransactionHandler;
 using gui::DisplayInfo;
 using gui::GameMode;
 using gui::IDisplayEventConnection;
@@ -3304,7 +3305,7 @@ void SurfaceFlinger::buildWindowInfos(std::vector<WindowInfo>& outWindowInfos,
         if (!layer->needsInputInfo()) return;
 
         const auto opt = mFrontEndDisplayInfos.get(layer->getLayerStack())
-                                 .transform([](const FrontEndDisplayInfo& info) {
+                                 .transform([](const frontend::DisplayInfo& info) {
                                      return Layer::InputDisplayArgs{&info.transform, info.isSecure};
                                  });
 

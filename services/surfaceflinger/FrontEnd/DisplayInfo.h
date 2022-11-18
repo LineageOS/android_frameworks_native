@@ -18,11 +18,10 @@
 
 #include <gui/DisplayInfo.h>
 
-// TODO (b/259553365) fix namespace to be consistent with other components
-namespace android::surfaceflinger {
+namespace android::surfaceflinger::frontend {
 
 // Display information needed to populate input and calculate layer geometry.
-struct FrontEndDisplayInfo {
+struct DisplayInfo {
     gui::DisplayInfo info;
     ui::Transform transform;
     bool receivesInput;
@@ -32,4 +31,4 @@ struct FrontEndDisplayInfo {
     ui::Transform::RotationFlags rotationFlags;
 };
 
-} // namespace android::surfaceflinger
+} // namespace android::surfaceflinger::frontend

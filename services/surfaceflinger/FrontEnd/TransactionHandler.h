@@ -18,9 +18,6 @@
 
 #include <semaphore.h>
 #include <cstdint>
-#include <mutex>
-#include <queue>
-#include <thread>
 #include <vector>
 
 #include <LocklessQueue.h>
@@ -30,6 +27,10 @@
 #include <ftl/small_vector.h>
 
 namespace android {
+
+class TestableSurfaceFlinger;
+namespace surfaceflinger::frontend {
+
 class TransactionHandler {
 public:
     struct TransactionFlushState {
@@ -60,7 +61,7 @@ public:
 
 private:
     // For unit tests
-    friend class TestableSurfaceFlinger;
+    friend class ::android::TestableSurfaceFlinger;
 
     int flushPendingTransactionQueues(std::vector<TransactionState>&, TransactionFlushState&);
     TransactionReadiness applyFilters(TransactionFlushState&);
@@ -71,5 +72,5 @@ private:
     ftl::SmallVector<TransactionFilter, 2> mTransactionReadyFilters;
     std::vector<uint64_t> mStalledTransactions;
 };
-
+} // namespace surfaceflinger::frontend
 } // namespace android
