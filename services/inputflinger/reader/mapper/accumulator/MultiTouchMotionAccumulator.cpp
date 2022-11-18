@@ -24,12 +24,11 @@ namespace android {
 // --- MultiTouchMotionAccumulator ---
 
 MultiTouchMotionAccumulator::MultiTouchMotionAccumulator()
-      : mCurrentSlot(-1), mUsingSlotsProtocol(false), mHaveStylus(false) {}
+      : mCurrentSlot(-1), mUsingSlotsProtocol(false) {}
 
 void MultiTouchMotionAccumulator::configure(InputDeviceContext& deviceContext, size_t slotCount,
                                             bool usingSlotsProtocol) {
     mUsingSlotsProtocol = usingSlotsProtocol;
-    mHaveStylus = deviceContext.hasAbsoluteAxis(ABS_MT_TOOL_TYPE);
     mSlots = std::vector<Slot>(slotCount);
 
     mCurrentSlot = -1;
@@ -144,10 +143,6 @@ void MultiTouchMotionAccumulator::finishSync() {
     if (!mUsingSlotsProtocol) {
         resetSlots();
     }
-}
-
-bool MultiTouchMotionAccumulator::hasStylus() const {
-    return mHaveStylus;
 }
 
 void MultiTouchMotionAccumulator::warnIfNotInUse(const RawEvent& event, const Slot& slot) {

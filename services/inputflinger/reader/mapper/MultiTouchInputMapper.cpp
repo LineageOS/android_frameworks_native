@@ -200,8 +200,7 @@ void MultiTouchInputMapper::configureRawPointerAxes() {
 }
 
 bool MultiTouchInputMapper::hasStylus() const {
-    return mMultiTouchMotionAccumulator.hasStylus() || mTouchButtonAccumulator.hasStylus() ||
-            shouldSimulateStylusWithTouch();
+    return mTouchButtonAccumulator.hasStylus() || shouldSimulateStylusWithTouch();
 }
 
 bool MultiTouchInputMapper::shouldSimulateStylusWithTouch() const {
