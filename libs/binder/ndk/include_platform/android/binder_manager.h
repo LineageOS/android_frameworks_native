@@ -108,6 +108,67 @@ __attribute__((warn_unused_result)) AIBinder* AServiceManager_waitForService(con
         __INTRODUCED_IN(31);
 
 /**
+ * Function to call when a service is registered. The instance is passed as well as
+ * ownership of the binder named 'registered'.
+ *
+ * WARNING: a lock is held when this method is called in order to prevent races with
+ * AServiceManager_NotificationRegistration_delete. Do not make synchronous binder calls when
+ * implementing this method to avoid deadlocks.
+ *
+ * \param instance instance name of service registered
+ * \param registered ownership-passed instance of service registered
+ * \param cookie data passed during registration for notifications
+ */
+typedef void (*AServiceManager_onRegister)(const char* instance, AIBinder* registered,
+                                           void* cookie);
+
+/**
+ * Represents a registration to servicemanager which can be cleared anytime.
+ */
+struct AServiceManager_NotificationRegistration;
+
+/**
+ * Get notifications when a service is registered. If the service is already registered,
+ * you will immediately get a notification.
+ *
+ * WARNING: it is strongly recommended to use AServiceManager_waitForService API instead.
+ * That API will wait synchronously, which is what you usually want in cases, including
+ * using some feature or during boot up. There is a history of bugs where waiting for
+ * notifications like this races with service startup. Also, when this API is used, a service
+ * bug will result in silent failure (rather than a debuggable deadlock). Furthermore, there
+ * is a history of this API being used to know when a service is up as a proxy for whethre
+ * that service should be started. This should only be used if you are intending to get
+ * ahold of the service as a client. For lazy services, whether a service is registered
+ * should not be used as a proxy for when it should be registered, which is only known
+ * by the real client.
+ *
+ * WARNING: if you use this API, you must also ensure that you check missing services are
+ * started and crash otherwise. If service failures are ignored, the system rots.
+ *
+ * \param instance name of service to wait for notifications about
+ * \param onRegister callback for when service is registered
+ * \param cookie data associated with this callback
+ *
+ * \return the token for this registration. Deleting this token will unregister.
+ */
+__attribute__((warn_unused_result)) AServiceManager_NotificationRegistration*
+AServiceManager_registerForServiceNotifications(const char* instance,
+                                                AServiceManager_onRegister onRegister, void* cookie)
+        __INTRODUCED_IN(34);
+
+/**
+ * Unregister for notifications and delete the object.
+ *
+ * After this method is called, the callback is guaranteed to no longer be invoked. This will block
+ * until any in-progress onRegister callbacks have completed. It is therefore safe to immediately
+ * destroy the void* cookie that was registered when this method returns.
+ *
+ * \param notification object to dismiss
+ */
+void AServiceManager_NotificationRegistration_delete(
+        AServiceManager_NotificationRegistration* notification) __INTRODUCED_IN(34);
+
+/**
  * Check if a service is declared (e.g. VINTF manifest).
  *
  * \param instance identifier of the service.

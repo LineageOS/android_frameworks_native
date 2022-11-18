@@ -28,6 +28,7 @@ using ::android::IBinder;
 using ::android::IServiceManager;
 using ::android::sp;
 using ::android::status_t;
+using ::android::statusToString;
 using ::android::String16;
 using ::android::String8;
 
@@ -86,6 +87,67 @@ AIBinder* AServiceManager_waitForService(const char* instance) {
     AIBinder_incStrong(ret.get());
     return ret.get();
 }
+typedef void (*AServiceManager_onRegister)(const char* instance, AIBinder* registered,
+                                           void* cookie);
+
+struct AServiceManager_NotificationRegistration
+    : public IServiceManager::LocalRegistrationCallback {
+    std::mutex m;
+    const char* instance = nullptr;
+    void* cookie = nullptr;
+    AServiceManager_onRegister onRegister = nullptr;
+
+    virtual void onServiceRegistration(const String16& smInstance, const sp<IBinder>& binder) {
+        std::lock_guard<std::mutex> l(m);
+        if (onRegister == nullptr) return;
+
+        CHECK_EQ(String8(smInstance), instance);
+
+        sp<AIBinder> ret = ABpBinder::lookupOrCreateFromBinder(binder);
+        AIBinder_incStrong(ret.get());
+
+        onRegister(instance, ret.get(), cookie);
+    }
+
+    void clear() {
+        std::lock_guard<std::mutex> l(m);
+        instance = nullptr;
+        cookie = nullptr;
+        onRegister = nullptr;
+    }
+};
+
+__attribute__((warn_unused_result)) AServiceManager_NotificationRegistration*
+AServiceManager_registerForServiceNotifications(const char* instance,
+                                                AServiceManager_onRegister onRegister,
+                                                void* cookie) {
+    CHECK_NE(instance, nullptr);
+    CHECK_NE(onRegister, nullptr) << instance;
+    // cookie can be nullptr
+
+    auto cb = sp<AServiceManager_NotificationRegistration>::make();
+    cb->instance = instance;
+    cb->onRegister = onRegister;
+    cb->cookie = cookie;
+
+    sp<IServiceManager> sm = defaultServiceManager();
+    if (status_t res = sm->registerForNotifications(String16(instance), cb); res != STATUS_OK) {
+        LOG(ERROR) << "Failed to register for service notifications for " << instance << ": "
+                   << statusToString(res);
+        return nullptr;
+    }
+
+    cb->incStrong(nullptr);
+    return cb.get();
+}
+
+void AServiceManager_NotificationRegistration_delete(
+        AServiceManager_NotificationRegistration* notification) {
+    CHECK_NE(notification, nullptr);
+    notification->clear();
+    notification->decStrong(nullptr);
+}
+
 bool AServiceManager_isDeclared(const char* instance) {
     if (instance == nullptr) {
         return false;
