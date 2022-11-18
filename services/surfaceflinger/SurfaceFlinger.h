@@ -74,6 +74,7 @@
 #include "FrontEnd/LayerSnapshot.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
+#include "Scheduler/ISchedulerCallback.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
@@ -618,7 +619,7 @@ private:
 
     // Toggles hardware VSYNC by calling into HWC.
     // TODO(b/241286146): Rename for self-explanatory API.
-    void setVsyncEnabled(bool) override;
+    void setVsyncEnabled(PhysicalDisplayId, bool) override;
     void requestDisplayModes(std::vector<display::DisplayModeRequest>) override;
     void kernelTimerChanged(bool expired) override;
     void triggerOnFrameRateOverridesChanged() override;
@@ -953,9 +954,9 @@ private:
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
 
-    void setHWCVsyncEnabled(PhysicalDisplayId id, hal::Vsync enabled) {
-        mLastHWCVsyncState = enabled;
-        getHwComposer().setVsyncEnabled(id, enabled);
+    void setHWCVsyncEnabled(PhysicalDisplayId id, bool enabled) {
+        hal::Vsync halState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
+        getHwComposer().setVsyncEnabled(id, halState);
     }
 
     using FenceTimePtr = std::shared_ptr<FenceTime>;
@@ -1090,7 +1091,15 @@ private:
     pid_t mPid;
     std::future<void> mRenderEnginePrimeCacheFuture;
 
-    // access must be protected by mStateLock
+    // mStateLock has conventions related to the current thread, because only
+    // the main thread should modify variables protected by mStateLock.
+    // - read access from a non-main thread must lock mStateLock, since the main
+    // thread may modify these variables.
+    // - write access from a non-main thread is not permitted.
+    // - read access from the main thread can use an ftl::FakeGuard, since other
+    // threads must not modify these variables.
+    // - write access from the main thread must lock mStateLock, since another
+    // thread may be reading these variables.
     mutable Mutex mStateLock;
     State mCurrentState{LayerVector::StateSet::Current};
     std::atomic<int32_t> mTransactionFlags = 0;
@@ -1280,9 +1289,6 @@ private:
 
     TimePoint mScheduledPresentTime GUARDED_BY(kMainThreadContext);
     TimePoint mExpectedPresentTime GUARDED_BY(kMainThreadContext);
-
-    hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
-    hal::Vsync mLastHWCVsyncState = hal::Vsync::DISABLE;
 
     // below flags are set by main thread only
     bool mSetActiveModePending = false;

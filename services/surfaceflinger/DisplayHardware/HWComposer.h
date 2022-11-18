@@ -221,7 +221,10 @@ public:
     // TODO(b/157555476): Remove when the framework has proper support for headless mode
     virtual bool updatesDeviceProductInfoOnHotplugReconnect() const = 0;
 
-    virtual bool onVsync(hal::HWDisplayId, nsecs_t timestamp) = 0;
+    // Called when a vsync happens. If the vsync is valid, returns the
+    // corresponding PhysicalDisplayId. Otherwise returns nullopt.
+    virtual std::optional<PhysicalDisplayId> onVsync(hal::HWDisplayId, nsecs_t timestamp) = 0;
+
     virtual void setVsyncEnabled(PhysicalDisplayId, hal::Vsync enabled) = 0;
 
     virtual bool isConnected(PhysicalDisplayId) const = 0;
@@ -402,7 +405,7 @@ public:
 
     bool updatesDeviceProductInfoOnHotplugReconnect() const override;
 
-    bool onVsync(hal::HWDisplayId, nsecs_t timestamp) override;
+    std::optional<PhysicalDisplayId> onVsync(hal::HWDisplayId, nsecs_t timestamp) override;
     void setVsyncEnabled(PhysicalDisplayId, hal::Vsync enabled) override;
 
     bool isConnected(PhysicalDisplayId) const override;
