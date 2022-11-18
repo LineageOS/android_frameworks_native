@@ -75,6 +75,7 @@ cc_library {
     static_libs: [
         "libaidlcommonsupport",
         "android.hardware.sensors@1.0-convert",
+        "android.hardware.sensors-V1-convert",
         "android.hardware.sensors-V1-ndk",
     ],
 
