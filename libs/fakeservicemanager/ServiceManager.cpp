@@ -106,4 +106,8 @@ std::vector<IServiceManager::ServiceDebugInfo> ServiceManager::getServiceDebugIn
     std::vector<IServiceManager::ServiceDebugInfo> ret;
     return ret;
 }
+
+void ServiceManager::clear() {
+    mNameToService.clear();
+}
 }  // namespace android
