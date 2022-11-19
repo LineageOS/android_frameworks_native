@@ -1123,7 +1123,7 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* tran
 
     // We return whether this layer ot its children has a vote. We ignore ExactOrMultiple votes for
     // the same reason we are allowing touch boost for those layers. See
-    // RefreshRateSelector::rankRefreshRates for details.
+    // RefreshRateSelector::rankFrameRates for details.
     const auto layerVotedWithDefaultCompatibility =
             frameRate.rate.isValid() && frameRate.type == FrameRateCompatibility::Default;
     const auto layerVotedWithNoVote = frameRate.type == FrameRateCompatibility::NoVote;
@@ -3973,17 +3973,14 @@ int Layer::getHwcCacheSlot(const client_cache_t& clientCacheId) {
 }
 
 LayerSnapshotGuard::LayerSnapshotGuard(Layer* layer) : mLayer(layer) {
-    LOG_ALWAYS_FATAL_IF(!mLayer, "LayerSnapshotGuard received a null layer.");
-    mLayer->mLayerFE->mSnapshot = std::move(mLayer->mSnapshot);
-    LOG_ALWAYS_FATAL_IF(!mLayer->mLayerFE->mSnapshot,
-                        "LayerFE snapshot null after taking ownership from layer");
+    if (mLayer) {
+        mLayer->mLayerFE->mSnapshot = std::move(mLayer->mSnapshot);
+    }
 }
 
 LayerSnapshotGuard::~LayerSnapshotGuard() {
     if (mLayer) {
         mLayer->mSnapshot = std::move(mLayer->mLayerFE->mSnapshot);
-        LOG_ALWAYS_FATAL_IF(!mLayer->mSnapshot,
-                            "Layer snapshot null after taking ownership from LayerFE");
     }
 }
 

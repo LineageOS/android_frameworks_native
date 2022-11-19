@@ -46,7 +46,8 @@ MATCHER_P(WithKeyAction, action, "KeyEvent with specified action") {
 }
 
 MATCHER_P(WithSource, source, "InputEvent with specified source") {
-    *result_listener << "expected source " << source << ", but got " << arg.source;
+    *result_listener << "expected source " << inputEventSourceToString(source) << ", but got "
+                     << inputEventSourceToString(arg.source);
     return arg.source == source;
 }
 

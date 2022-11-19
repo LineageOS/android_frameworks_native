@@ -66,6 +66,7 @@
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
 #include "FlagManager.h"
+#include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
@@ -120,6 +121,7 @@ class FrameTracer;
 class ScreenCapturer;
 class WindowInfosListenerInvoker;
 
+using frontend::TransactionHandler;
 using gui::CaptureArgs;
 using gui::DisplayCaptureArgs;
 using gui::IRegionSamplingListener;
@@ -1366,6 +1368,7 @@ private:
     } mPowerHintSessionMode;
 
     TransactionHandler mTransactionHandler;
+    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

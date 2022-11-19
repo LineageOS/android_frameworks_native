@@ -41,6 +41,7 @@
 
 #include "Display/DisplaySnapshot.h"
 #include "DisplayDevice.h"
+#include "FrontEnd/DisplayInfo.h"
 #include "Layer.h"
 #include "RefreshRateOverlay.h"
 #include "SurfaceFlinger.h"
@@ -131,7 +132,7 @@ void DisplayDevice::setDisplayName(const std::string& displayName) {
     }
 }
 
-auto DisplayDevice::getInputInfo() const -> InputInfo {
+auto DisplayDevice::getFrontEndInfo() const -> frontend::DisplayInfo {
     gui::DisplayInfo info;
     info.displayId = getLayerStack().id;
 
@@ -160,7 +161,9 @@ auto DisplayDevice::getInputInfo() const -> InputInfo {
     return {.info = info,
             .transform = displayTransform,
             .receivesInput = receivesInput(),
-            .isSecure = isSecure()};
+            .isSecure = isSecure(),
+            .isPrimary = isPrimary(),
+            .rotationFlags = ui::Transform::toRotationFlags(mOrientation)};
 }
 
 void DisplayDevice::setPowerMode(hal::PowerMode mode) {

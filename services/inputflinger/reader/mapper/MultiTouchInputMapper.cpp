@@ -119,6 +119,18 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
             if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
                 outPointer.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
             }
+        } else if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS && !mStylusMtToolSeen) {
+            mStylusMtToolSeen = true;
+            // The multi-touch device produced a stylus event with MT_TOOL_PEN. Dynamically
+            // re-configure this input device so that we add SOURCE_STYLUS if we haven't already.
+            // This is to cover the case where we cannot reliably detect whether a multi-touch
+            // device will ever produce stylus events when it is initially being configured.
+            if (!isFromSource(mSource, AINPUT_SOURCE_STYLUS)) {
+                // Add the stylus source immediately so that it is included in any events generated
+                // before we have a chance to re-configure the device.
+                mSource |= AINPUT_SOURCE_STYLUS;
+                bumpGeneration();
+            }
         }
         if (shouldSimulateStylusWithTouch() &&
             outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_FINGER) {
@@ -200,7 +212,8 @@ void MultiTouchInputMapper::configureRawPointerAxes() {
 }
 
 bool MultiTouchInputMapper::hasStylus() const {
-    return mTouchButtonAccumulator.hasStylus() || shouldSimulateStylusWithTouch();
+    return mStylusMtToolSeen || mTouchButtonAccumulator.hasStylus() ||
+            shouldSimulateStylusWithTouch();
 }
 
 bool MultiTouchInputMapper::shouldSimulateStylusWithTouch() const {
