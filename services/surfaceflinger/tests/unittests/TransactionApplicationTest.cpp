@@ -42,6 +42,8 @@ using testing::_;
 using testing::Return;
 
 using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
+using frontend::TransactionHandler;
+
 constexpr nsecs_t TRANSACTION_TIMEOUT = s2ns(5);
 class TransactionApplicationTest : public testing::Test {
 public:

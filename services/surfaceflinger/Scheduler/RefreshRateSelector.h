@@ -24,9 +24,11 @@
 
 #include <ftl/concat.h>
 #include <ftl/optional.h>
+#include <ftl/unit.h>
 #include <gui/DisplayEventReceiver.h>
 
 #include <scheduler/Fps.h>
+#include <scheduler/FrameRateMode.h>
 #include <scheduler/Seamlessness.h>
 
 #include "DisplayHardware/DisplayMode.h"
@@ -57,6 +59,9 @@ public:
     // Margin used when matching refresh rates to the content desired ones.
     static constexpr nsecs_t MARGIN_FOR_PERIOD_CALCULATION =
             std::chrono::nanoseconds(800us).count();
+
+    // The lowest Render Frame Rate that will ever be selected
+    static constexpr Fps kMinSupportedFrameRate = 20_Hz;
 
     class Policy {
         static constexpr int kAllowGroupSwitchingDefault = false;
@@ -196,12 +201,12 @@ public:
         }
     };
 
-    struct ScoredRefreshRate {
-        DisplayModePtr modePtr;
+    struct ScoredFrameRate {
+        FrameRateMode frameRateMode;
         float score = 0.0f;
 
-        bool operator==(const ScoredRefreshRate& other) const {
-            return modePtr == other.modePtr && score == other.score;
+        bool operator==(const ScoredFrameRate& other) const {
+            return frameRateMode == other.frameRateMode && score == other.score;
         }
 
         static bool scoresEqual(float lhs, float rhs) {
@@ -210,25 +215,25 @@ public:
         }
 
         struct DescendingScore {
-            bool operator()(const ScoredRefreshRate& lhs, const ScoredRefreshRate& rhs) const {
+            bool operator()(const ScoredFrameRate& lhs, const ScoredFrameRate& rhs) const {
                 return lhs.score > rhs.score && !scoresEqual(lhs.score, rhs.score);
             }
         };
     };
 
-    using RefreshRateRanking = std::vector<ScoredRefreshRate>;
+    using FrameRateRanking = std::vector<ScoredFrameRate>;
 
-    struct RankedRefreshRates {
-        RefreshRateRanking ranking; // Ordered by descending score.
+    struct RankedFrameRates {
+        FrameRateRanking ranking; // Ordered by descending score.
         GlobalSignals consideredSignals;
 
-        bool operator==(const RankedRefreshRates& other) const {
+        bool operator==(const RankedFrameRates& other) const {
             return ranking == other.ranking && consideredSignals == other.consideredSignals;
         }
     };
 
-    RankedRefreshRates getRankedRefreshRates(const std::vector<LayerRequirement>&,
-                                             GlobalSignals) const EXCLUDES(mLock);
+    RankedFrameRates getRankedFrameRates(const std::vector<LayerRequirement>&, GlobalSignals) const
+            EXCLUDES(mLock);
 
     FpsRange getSupportedRefreshRateRange() const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
@@ -257,9 +262,12 @@ public:
 
             // Override the frame rate for an app to a value which is also
             // a display refresh rate
-            EnabledForNativeRefreshRates,
+            AppOverrideNativeRefreshRates,
 
             // Override the frame rate for an app to any value
+            AppOverride,
+
+            // Override the frame rate for all apps and all values.
             Enabled,
 
             ftl_last = Enabled
@@ -291,10 +299,13 @@ public:
 
     // Returns whether switching modes (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the modes only
-    // differ in resolution.
+    //  differ in resolution. Once Config::FrameRateOverride::Enabled becomes the default,
+    //  we can probably remove canSwitch altogether since all devices will be able
+    //  to switch to a frame rate divisor.
     bool canSwitch() const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
-        return mDisplayModes.size() > 1;
+        return mDisplayModes.size() > 1 ||
+                mFrameRateOverrideConfig == Config::FrameRateOverride::Enabled;
     }
 
     // Class to enumerate options around toggling the kernel timer on and off.
@@ -307,8 +318,12 @@ public:
     // refresh rates.
     KernelIdleTimerAction getIdleTimerAction() const;
 
-    bool supportsFrameRateOverrideByContent() const {
+    bool supportsAppFrameRateOverrideByContent() const {
         return mFrameRateOverrideConfig != Config::FrameRateOverride::Disabled;
+    }
+
+    bool supportsFrameRateOverride() const {
+        return mFrameRateOverrideConfig == Config::FrameRateOverride::Enabled;
     }
 
     // Return the display refresh rate divisor to match the layer
@@ -387,8 +402,8 @@ private:
     // See mActiveModeIt for thread safety.
     DisplayModeIterator getActiveModeItLocked() const REQUIRES(mLock);
 
-    RankedRefreshRates getRankedRefreshRatesLocked(const std::vector<LayerRequirement>&,
-                                                   GlobalSignals) const REQUIRES(mLock);
+    RankedFrameRates getRankedFrameRatesLocked(const std::vector<LayerRequirement>& layers,
+                                               GlobalSignals signals) const REQUIRES(mLock);
 
     // Returns number of display frames and remainder when dividing the layer refresh period by
     // display refresh period.
@@ -404,18 +419,24 @@ private:
 
     struct RefreshRateScoreComparator;
 
-    enum class RefreshRateOrder { Ascending, Descending };
+    enum class RefreshRateOrder {
+        Ascending,
+        Descending,
+
+        ftl_last = Descending
+    };
 
     // Only uses the primary range, not the app request range.
-    RefreshRateRanking rankRefreshRates(std::optional<int> anchorGroupOpt, RefreshRateOrder,
-                                        std::optional<DisplayModeId> preferredDisplayModeOpt =
-                                                std::nullopt) const REQUIRES(mLock);
+    FrameRateRanking rankFrameRates(
+            std::optional<int> anchorGroupOpt, RefreshRateOrder refreshRateOrder,
+            std::optional<DisplayModeId> preferredDisplayModeOpt = std::nullopt) const
+            REQUIRES(mLock);
 
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
 
     // Returns the refresh rate score as a ratio to max refresh rate, which has a score of 1.
-    float calculateRefreshRateScoreForFps(Fps refreshRate) const REQUIRES(mLock);
+    float calculateDistanceScoreFromMax(Fps refreshRate) const REQUIRES(mLock);
     // calculates a score for a layer. Used to determine the display refresh rate
     // and the frame rate override for certains applications.
     float calculateLayerScoreLocked(const LayerRequirement&, Fps refreshRate,
@@ -436,10 +457,26 @@ private:
                                                              : mIdleTimerCallbacks->platform;
     }
 
+    bool isNativeRefreshRate(Fps fps) const REQUIRES(mLock) {
+        LOG_ALWAYS_FATAL_IF(mConfig.enableFrameRateOverride !=
+                                    Config::FrameRateOverride::AppOverrideNativeRefreshRates,
+                            "should only be called when "
+                            "Config::FrameRateOverride::AppOverrideNativeRefreshRates is used");
+        return mAppOverrideNativeRefreshRates.contains(fps);
+    }
+
+    std::vector<FrameRateMode> createFrameRateModes(
+            std::function<bool(const DisplayMode&)>&& filterModes, const FpsRange&) const
+            REQUIRES(mLock);
+
     // The display modes of the active display. The DisplayModeIterators below are pointers into
     // this container, so must be invalidated whenever the DisplayModes change. The Policy below
     // is also dependent, so must be reset as well.
     DisplayModes mDisplayModes GUARDED_BY(mLock);
+
+    // Set of supported display refresh rates for easy lookup
+    // when FrameRateOverride::AppOverrideNativeRefreshRates is in use.
+    ftl::SmallMap<Fps, ftl::Unit, 8, FpsApproxEqual> mAppOverrideNativeRefreshRates;
 
     // Written under mLock exclusively from kMainThreadContext, so reads from kMainThreadContext
     // need not be under mLock.
@@ -449,8 +486,8 @@ private:
     DisplayModeIterator mMaxRefreshRateModeIt GUARDED_BY(mLock);
 
     // Display modes that satisfy the Policy's ranges, filtered and sorted by refresh rate.
-    std::vector<DisplayModeIterator> mPrimaryRefreshRates GUARDED_BY(mLock);
-    std::vector<DisplayModeIterator> mAppRequestRefreshRates GUARDED_BY(mLock);
+    std::vector<FrameRateMode> mPrimaryFrameRates GUARDED_BY(mLock);
+    std::vector<FrameRateMode> mAppRequestFrameRates GUARDED_BY(mLock);
 
     Policy mDisplayManagerPolicy GUARDED_BY(mLock);
     std::optional<Policy> mOverridePolicy GUARDED_BY(mLock);
@@ -466,11 +503,11 @@ private:
     const Config mConfig;
     Config::FrameRateOverride mFrameRateOverrideConfig;
 
-    struct GetRankedRefreshRatesCache {
+    struct GetRankedFrameRatesCache {
         std::pair<std::vector<LayerRequirement>, GlobalSignals> arguments;
-        RankedRefreshRates result;
+        RankedFrameRates result;
     };
-    mutable std::optional<GetRankedRefreshRatesCache> mGetRankedRefreshRatesCache GUARDED_BY(mLock);
+    mutable std::optional<GetRankedFrameRatesCache> mGetRankedFrameRatesCache GUARDED_BY(mLock);
 
     // Declare mIdleTimer last to ensure its thread joins before the mutex/callbacks are destroyed.
     std::mutex mIdleTimerCallbacksMutex;

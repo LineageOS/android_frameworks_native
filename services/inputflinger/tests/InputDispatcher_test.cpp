@@ -22,6 +22,7 @@
 #include <android-base/thread_annotations.h>
 #include <binder/Binder.h>
 #include <fcntl.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <input/Input.h>
 #include <linux/input.h>
@@ -43,6 +44,7 @@ using android::os::InputEventInjectionSync;
 namespace android::inputdispatcher {
 
 using namespace ftl::flag_operators;
+using testing::AllOf;
 
 // An arbitrary time value.
 static constexpr nsecs_t ARBITRARY_TIME = 1234;
@@ -100,6 +102,28 @@ static void assertMotionAction(int32_t expectedAction, int32_t receivedAction) {
     ASSERT_EQ(expectedAction, receivedAction)
             << "expected " << MotionEvent::actionToString(expectedAction) << ", got "
             << MotionEvent::actionToString(receivedAction);
+}
+
+MATCHER_P(WithMotionAction, action, "MotionEvent with specified action") {
+    bool matches = action == arg.getAction();
+    if (!matches) {
+        *result_listener << "expected action " << MotionEvent::actionToString(action)
+                         << ", but got " << MotionEvent::actionToString(arg.getAction());
+    }
+    if (action == AMOTION_EVENT_ACTION_CANCEL) {
+        if (!matches) {
+            *result_listener << "; ";
+        }
+        *result_listener << "expected FLAG_CANCELED to be set with ACTION_CANCEL, but was not set";
+        matches &= (arg.getFlags() & AMOTION_EVENT_FLAG_CANCELED) != 0;
+    }
+    return matches;
+}
+
+MATCHER_P(WithSource, source, "InputEvent with specified source") {
+    *result_listener << "expected source " << inputEventSourceToString(source) << ", but got "
+                     << inputEventSourceToString(arg.getSource());
+    return arg.getSource() == source;
 }
 
 // --- FakeInputDispatcherPolicy ---
@@ -1205,6 +1229,12 @@ public:
         mInputReceiver->consumeCaptureEvent(hasCapture);
     }
 
+    void consumeMotionEvent(const ::testing::Matcher<MotionEvent>& matcher) {
+        MotionEvent* motionEvent = consumeMotion();
+        ASSERT_NE(nullptr, motionEvent) << "Did not get a motion event";
+        ASSERT_THAT(*motionEvent, matcher);
+    }
+
     void consumeEvent(int32_t expectedEventType, int32_t expectedAction,
                       std::optional<int32_t> expectedDisplayId,
                       std::optional<int32_t> expectedFlags) {
@@ -2205,6 +2235,48 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                         .build()));
     window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_EXIT,
                          ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+}
+
+/**
+ * Inject a mouse hover event followed by a tap from touchscreen.
+ * In the current implementation, the tap does not cause a HOVER_EXIT event.
+ */
+TEST_F(InputDispatcherTest, MouseHoverAndTouchTap) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 100, 100));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // Inject a hover_move from mouse.
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE,
+                               ADISPLAY_ID_DEFAULT, {{50, 50}});
+    motionArgs.xCursorPosition = 50;
+    motionArgs.yCursorPosition = 50;
+    mDispatcher->notifyMotion(&motionArgs);
+    ASSERT_NO_FATAL_FAILURE(
+            window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                                             WithSource(AINPUT_SOURCE_MOUSE))));
+    ASSERT_NO_FATAL_FAILURE(
+            window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                             WithSource(AINPUT_SOURCE_MOUSE))));
+
+    // Tap on the window
+    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                    ADISPLAY_ID_DEFAULT, {{10, 10}});
+    mDispatcher->notifyMotion(&motionArgs);
+    ASSERT_NO_FATAL_FAILURE(
+            window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                             WithSource(AINPUT_SOURCE_TOUCHSCREEN))));
+
+    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
+                                    ADISPLAY_ID_DEFAULT, {{10, 10}});
+    mDispatcher->notifyMotion(&motionArgs);
+    ASSERT_NO_FATAL_FAILURE(
+            window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                             WithSource(AINPUT_SOURCE_TOUCHSCREEN))));
 }
 
 TEST_F(InputDispatcherTest, DispatchMouseEventsUnderCursor) {
