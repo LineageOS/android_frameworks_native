@@ -66,6 +66,7 @@ struct FpsRange {
     Fps max = Fps::fromValue(std::numeric_limits<float>::max());
 
     bool includes(Fps) const;
+    bool includes(FpsRange) const;
 };
 
 struct FpsRanges {
@@ -75,6 +76,8 @@ struct FpsRanges {
     // the range of frame rates that refers to the render rate, which is
     // the rate that frames are swapped.
     FpsRange render;
+
+    bool valid() const;
 };
 
 static_assert(std::is_trivially_copyable_v<Fps>);
@@ -157,6 +160,16 @@ constexpr Fps operator/(Fps fps, unsigned divisor) {
 inline bool FpsRange::includes(Fps fps) const {
     using fps_approx_ops::operator<=;
     return min <= fps && fps <= max;
+}
+
+inline bool FpsRange::includes(FpsRange range) const {
+    using namespace fps_approx_ops;
+    return min <= range.min && max >= range.max;
+}
+
+inline bool FpsRanges::valid() const {
+    using fps_approx_ops::operator>=;
+    return physical.max >= render.max;
 }
 
 struct FpsApproxEqual {

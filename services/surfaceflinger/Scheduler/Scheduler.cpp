@@ -152,7 +152,7 @@ std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
 
 std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
     const bool supportsFrameRateOverrideByContent =
-            leaderSelectorPtr()->supportsFrameRateOverrideByContent();
+            leaderSelectorPtr()->supportsAppFrameRateOverrideByContent();
     return mFrameRateOverrideMappings
             .getFrameRateOverrideForUid(uid, supportsFrameRateOverrideByContent);
 }
@@ -268,7 +268,7 @@ void Scheduler::onScreenReleased(ConnectionHandle handle) {
 
 void Scheduler::onFrameRateOverridesChanged(ConnectionHandle handle, PhysicalDisplayId displayId) {
     const bool supportsFrameRateOverrideByContent =
-            leaderSelectorPtr()->supportsFrameRateOverrideByContent();
+            leaderSelectorPtr()->supportsAppFrameRateOverrideByContent();
 
     std::vector<FrameRateOverride> overrides =
             mFrameRateOverrideMappings.getAllFrameRateOverrides(supportsFrameRateOverrideByContent);
@@ -707,7 +707,7 @@ auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals 
 auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
     ATRACE_CALL();
 
-    using RankedRefreshRates = RefreshRateSelector::RankedRefreshRates;
+    using RankedRefreshRates = RefreshRateSelector::RankedFrameRates;
     display::PhysicalDisplayVector<RankedRefreshRates> perDisplayRanking;
 
     // Tallies the score of a refresh rate across `displayCount` displays.
@@ -726,9 +726,10 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
 
     for (const auto& [id, selectorPtr] : mRefreshRateSelectors) {
         auto rankedRefreshRates =
-                selectorPtr->getRankedRefreshRates(mPolicy.contentRequirements, globalSignals);
+                selectorPtr->getRankedFrameRates(mPolicy.contentRequirements, globalSignals);
 
-        for (const auto& [modePtr, score] : rankedRefreshRates.ranking) {
+        for (const auto& [frameRateMode, score] : rankedRefreshRates.ranking) {
+            const auto& modePtr = frameRateMode.modePtr;
             const auto [it, inserted] = refreshRateTallies.try_emplace(modePtr->getFps(), score);
 
             if (!inserted) {
@@ -771,16 +772,18 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
 
     for (auto& [ranking, signals] : perDisplayRanking) {
         if (!chosenFps) {
-            auto& [modePtr, _] = ranking.front();
+            const auto& [frameRateMode, _] = ranking.front();
+            const auto& modePtr = frameRateMode.modePtr;
             modeChoices.try_emplace(modePtr->getPhysicalDisplayId(),
-                                    DisplayModeChoice{std::move(modePtr), signals});
+                                    DisplayModeChoice{modePtr, signals});
             continue;
         }
 
-        for (auto& [modePtr, _] : ranking) {
+        for (auto& [frameRateMode, _] : ranking) {
+            const auto& modePtr = frameRateMode.modePtr;
             if (modePtr->getFps() == *chosenFps) {
                 modeChoices.try_emplace(modePtr->getPhysicalDisplayId(),
-                                        DisplayModeChoice{std::move(modePtr), signals});
+                                        DisplayModeChoice{modePtr, signals});
                 break;
             }
         }
@@ -804,10 +807,10 @@ DisplayModePtr Scheduler::getPreferredDisplayMode() {
     if (mPolicy.mode) {
         const auto ranking =
                 leaderSelectorPtr()
-                        ->getRankedRefreshRates(mPolicy.contentRequirements, makeGlobalSignals())
+                        ->getRankedFrameRates(mPolicy.contentRequirements, makeGlobalSignals())
                         .ranking;
 
-        mPolicy.mode = ranking.front().modePtr;
+        mPolicy.mode = ranking.front().frameRateMode.modePtr;
     }
     return mPolicy.mode;
 }
