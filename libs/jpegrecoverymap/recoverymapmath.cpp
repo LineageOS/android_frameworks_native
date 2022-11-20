@@ -64,6 +64,11 @@ Color srgbInvOetf(Color e_gamma) {
 ////////////////////////////////////////////////////////////////////////////////
 // Display-P3 transformations
 
+static const float kP3R = 0.22897f, kP3G = 0.69174f, kP3B = 0.07929f;
+
+float p3Luminance(Color e) {
+  return kP3R * e.r + kP3G * e.g + kP3B * e.b;
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,7 +133,7 @@ Color hlgOetf(Color e) {
   return {{{ hlgOetf(e.r), hlgOetf(e.g), hlgOetf(e.b) }}};
 }
 
-float hlgInvOetf(float e_gamma) {
+static float hlgInvOetf(float e_gamma) {
   if (e_gamma <= 0.5f) {
     return pow(e_gamma, 2.0f) / 3.0f;
   } else {
@@ -142,9 +147,117 @@ Color hlgInvOetf(Color e_gamma) {
              hlgInvOetf(e_gamma.b) }}};
 }
 
+static const float kPqM1 = 2610.0f / 16384.0f, kPqM2 = 2523.0f / 4096.0f * 128.0f;
+static const float kPqC1 = 3424.0f / 4096.0f, kPqC2 = 2413.0f / 4096.0f * 32.0f,
+                   kPqC3 = 2392.0f / 4096.0f * 32.0f;
+
+static float pqOetf(float e) {
+  if (e < 0.0f) e = 0.0f;
+  return pow((kPqC1 + kPqC2 * pow(e / 10000.0f, kPqM1)) / (1 + kPqC3 * pow(e / 10000.0f, kPqM1)),
+             kPqM2);
+}
+
+Color pqOetf(Color e) {
+  return {{{ pqOetf(e.r), pqOetf(e.g), pqOetf(e.b) }}};
+}
+
+static float pqInvOetf(float e_gamma) {
+  static const float kPqInvOetfCoef = log2(-(pow(kPqM1, 1.0f / kPqM2) - kPqC1)
+                                         / (kPqC3 * pow(kPqM1, 1.0f / kPqM2) - kPqC2));
+  return kPqInvOetfCoef / log2(e_gamma * 10000.0f);
+}
+
+Color pqInvOetf(Color e_gamma) {
+  return {{{ pqInvOetf(e_gamma.r),
+             pqInvOetf(e_gamma.g),
+             pqInvOetf(e_gamma.b) }}};
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Color conversions
+
+Color bt709ToP3(Color e) {
+ return {{{ 0.82254f * e.r + 0.17755f * e.g + 0.00006f * e.b,
+            0.03312f * e.r + 0.96684f * e.g + -0.00001f * e.b,
+            0.01706f * e.r + 0.07240f * e.g + 0.91049f * e.b }}};
+}
+
+Color bt709ToBt2100(Color e) {
+ return {{{ 0.62740f * e.r + 0.32930f * e.g + 0.04332f * e.b,
+            0.06904f * e.r + 0.91958f * e.g + 0.01138f * e.b,
+            0.01636f * e.r + 0.08799f * e.g + 0.89555f * e.b }}};
+}
+
+Color p3ToBt709(Color e) {
+ return {{{ 1.22482f * e.r + -0.22490f * e.g + -0.00007f * e.b,
+            -0.04196f * e.r + 1.04199f * e.g + 0.00001f * e.b,
+            -0.01961f * e.r + -0.07865f * e.g + 1.09831f * e.b }}};
+}
+
+Color p3ToBt2100(Color e) {
+ return {{{ 0.75378f * e.r + 0.19862f * e.g + 0.04754f * e.b,
+            0.04576f * e.r + 0.94177f * e.g + 0.01250f * e.b,
+            -0.00121f * e.r + 0.01757f * e.g + 0.98359f * e.b }}};
+}
+
+Color bt2100ToBt709(Color e) {
+ return {{{ 1.66045f * e.r + -0.58764f * e.g + -0.07286f * e.b,
+            -0.12445f * e.r + 1.13282f * e.g + -0.00837f * e.b,
+            -0.01811f * e.r + -0.10057f * e.g + 1.11878f * e.b }}};
+}
+
+Color bt2100ToP3(Color e) {
+ return {{{ 1.34369f * e.r + -0.28223f * e.g + -0.06135f * e.b,
+            -0.06533f * e.r + 1.07580f * e.g + -0.01051f * e.b,
+            0.00283f * e.r + -0.01957f * e.g + 1.01679f * e.b
+ }}};
+}
+
+// TODO: confirm we always want to convert like this before calculating
+// luminance.
+ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gamut hdr_gamut) {
+    switch (sdr_gamut) {
+    case JPEGR_COLORGAMUT_BT709:
+      switch (hdr_gamut) {
+        case JPEGR_COLORGAMUT_BT709:
+          return identityConversion;
+        case JPEGR_COLORGAMUT_P3:
+          return p3ToBt709;
+        case JPEGR_COLORGAMUT_BT2100:
+          return bt2100ToBt709;
+        case JPEGR_COLORGAMUT_UNSPECIFIED:
+          return nullptr;
+      }
+      break;
+    case JPEGR_COLORGAMUT_P3:
+      switch (hdr_gamut) {
+        case JPEGR_COLORGAMUT_BT709:
+          return bt709ToP3;
+        case JPEGR_COLORGAMUT_P3:
+          return identityConversion;
+        case JPEGR_COLORGAMUT_BT2100:
+          return bt2100ToP3;
+        case JPEGR_COLORGAMUT_UNSPECIFIED:
+          return nullptr;
+      }
+      break;
+    case JPEGR_COLORGAMUT_BT2100:
+      switch (hdr_gamut) {
+        case JPEGR_COLORGAMUT_BT709:
+          return bt709ToBt2100;
+        case JPEGR_COLORGAMUT_P3:
+          return p3ToBt2100;
+        case JPEGR_COLORGAMUT_BT2100:
+          return identityConversion;
+        case JPEGR_COLORGAMUT_UNSPECIFIED:
+          return nullptr;
+      }
+      break;
+    case JPEGR_COLORGAMUT_UNSPECIFIED:
+      return nullptr;
+  }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -255,6 +368,13 @@ Color sampleYuv420(jr_uncompressed_ptr image, size_t map_scale_factor, size_t x,
 
 Color sampleP010(jr_uncompressed_ptr image, size_t map_scale_factor, size_t x, size_t y) {
   return samplePixels(image, map_scale_factor, x, y, getP010Pixel);
+}
+
+uint32_t colorToRgba1010102(Color e_gamma) {
+  return (0x3ff & static_cast<uint32_t>(e_gamma.r * 1023.0f))
+       | ((0x3ff & static_cast<uint32_t>(e_gamma.g * 1023.0f)) << 10)
+       | ((0x3ff & static_cast<uint32_t>(e_gamma.b * 1023.0f)) << 20)
+       | (0x3 << 30);  // Set alpha to 1.0
 }
 
 } // namespace android::recoverymap

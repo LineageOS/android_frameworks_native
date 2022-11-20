@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-// TODO: need to clean up handling around hdr_ratio and passing it around
-// TODO: need to handle color space information; currently we assume everything
-// is srgb in.
-// TODO: handle PQ encode/decode (currently only HLG)
-
 #include <jpegrecoverymap/recoverymap.h>
 #include <jpegrecoverymap/jpegencoder.h>
 #include <jpegrecoverymap/jpegdecoder.h>
@@ -43,9 +38,21 @@ namespace android::recoverymap {
     }                           \
   }
 
+// The current JPEGR version that we encode to
+static const uint32_t kJpegrVersion = 1;
+
 // Map is quarter res / sixteenth size
 static const size_t kMapDimensionScaleFactor = 4;
 
+// TODO: fill in st2086 metadata
+static const st2086_metadata kSt2086Metadata = {
+  {0.0f, 0.0f},
+  {0.0f, 0.0f},
+  {0.0f, 0.0f},
+  {0.0f, 0.0f},
+  0,
+  1.0f,
+};
 
 /*
  * Helper function used for generating XMP metadata.
@@ -81,6 +88,7 @@ status_t Write(jr_compressed_ptr destination, const void* source, size_t length,
 
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
+                                  jpegr_transfer_function hdr_tf,
                                   jr_compressed_ptr dest,
                                   int quality,
                                   jr_exif_ptr /* exif */) {
@@ -99,10 +107,16 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
   }
 
+  jpegr_metadata metadata;
+  metadata.version = kJpegrVersion;
+  metadata.transferFunction = hdr_tf;
+  if (hdr_tf == JPEGR_TF_PQ) {
+    metadata.hdr10Metadata.st2086Metadata = kSt2086Metadata;
+  }
+
   jpegr_uncompressed_struct map;
-  float hdr_ratio = 0.0f;
   JPEGR_CHECK(generateRecoveryMap(
-      uncompressed_yuv_420_image, uncompressed_p010_image, &map, hdr_ratio));
+      uncompressed_yuv_420_image, uncompressed_p010_image, &metadata, &map));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -113,7 +127,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
   JpegEncoder jpeg_encoder;
-  // TODO: ICC data - need color space information
+  // TODO: determine ICC data based on color gamut information
   if (!jpeg_encoder.compressImage(uncompressed_yuv_420_image->data,
                                   uncompressed_yuv_420_image->width,
                                   uncompressed_yuv_420_image->height, quality, nullptr, 0)) {
@@ -123,7 +137,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   jpeg.data = jpeg_encoder.getCompressedImagePtr();
   jpeg.length = jpeg_encoder.getCompressedImageSize();
 
-  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, hdr_ratio, dest));
+  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, &metadata, dest));
 
   return NO_ERROR;
 }
@@ -131,6 +145,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
                                   jr_compressed_ptr compressed_jpeg_image,
+                                  jpegr_transfer_function hdr_tf,
                                   jr_compressed_ptr dest) {
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
@@ -144,10 +159,16 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
   }
 
+  jpegr_metadata metadata;
+  metadata.version = kJpegrVersion;
+  metadata.transferFunction = hdr_tf;
+  if (hdr_tf == JPEGR_TF_PQ) {
+    metadata.hdr10Metadata.st2086Metadata = kSt2086Metadata;
+  }
+
   jpegr_uncompressed_struct map;
-  float hdr_ratio = 0.0f;
   JPEGR_CHECK(generateRecoveryMap(
-      uncompressed_yuv_420_image, uncompressed_p010_image, &map, hdr_ratio));
+      uncompressed_yuv_420_image, uncompressed_p010_image, &metadata, &map));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -157,13 +178,14 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
-  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, hdr_ratio, dest));
+  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, &metadata, dest));
 
   return NO_ERROR;
 }
 
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_compressed_ptr compressed_jpeg_image,
+                                  jpegr_transfer_function hdr_tf,
                                   jr_compressed_ptr dest) {
   if (uncompressed_p010_image == nullptr
    || compressed_jpeg_image == nullptr
@@ -179,16 +201,23 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   uncompressed_yuv_420_image.data = jpeg_decoder.getDecompressedImagePtr();
   uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
+  uncompressed_yuv_420_image.colorGamut = compressed_jpeg_image->colorGamut;
 
   if (uncompressed_p010_image->width != uncompressed_yuv_420_image.width
    || uncompressed_p010_image->height != uncompressed_yuv_420_image.height) {
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
   }
 
+  jpegr_metadata metadata;
+  metadata.version = kJpegrVersion;
+  metadata.transferFunction = hdr_tf;
+  if (hdr_tf == JPEGR_TF_PQ) {
+    metadata.hdr10Metadata.st2086Metadata = kSt2086Metadata;
+  }
+
   jpegr_uncompressed_struct map;
-  float hdr_ratio = 0.0f;
   JPEGR_CHECK(generateRecoveryMap(
-      &uncompressed_yuv_420_image, uncompressed_p010_image, &map, hdr_ratio));
+      &uncompressed_yuv_420_image, uncompressed_p010_image, &metadata, &map));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -198,7 +227,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
-  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, hdr_ratio, dest));
+  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, &metadata, dest));
 
   return NO_ERROR;
 }
@@ -212,7 +241,8 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   }
 
   jpegr_compressed_struct compressed_map;
-  JPEGR_CHECK(extractRecoveryMap(compressed_jpegr_image, &compressed_map));
+  jpegr_metadata metadata;
+  JPEGR_CHECK(extractRecoveryMap(compressed_jpegr_image, &compressed_map, &metadata));
 
   jpegr_uncompressed_struct map;
   JPEGR_CHECK(decompressRecoveryMap(&compressed_map, &map));
@@ -227,7 +257,7 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
 
-  JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, dest));
+  JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &metadata, dest));
 
   return NO_ERROR;
 }
@@ -257,7 +287,7 @@ status_t RecoveryMap::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recov
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TODO: should we have ICC data?
+  // TODO: should we have ICC data for the map?
   JpegEncoder jpeg_encoder;
   if (!jpeg_encoder.compressImage(uncompressed_recovery_map->data, uncompressed_recovery_map->width,
                                   uncompressed_recovery_map->height, 85, nullptr, 0,
@@ -271,16 +301,18 @@ status_t RecoveryMap::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recov
 
   memcpy(dest->data, jpeg_encoder.getCompressedImagePtr(), jpeg_encoder.getCompressedImageSize());
   dest->length = jpeg_encoder.getCompressedImageSize();
+  dest->colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED;
 
   return NO_ERROR;
 }
 
 status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                           jr_uncompressed_ptr uncompressed_p010_image,
-                                          jr_uncompressed_ptr dest,
-                                          float &hdr_ratio) {
+                                          jr_metadata_ptr metadata,
+                                          jr_uncompressed_ptr dest) {
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_p010_image == nullptr
+   || metadata == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -290,6 +322,11 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
   }
 
+  if (uncompressed_yuv_420_image->colorGamut == JPEGR_COLORGAMUT_UNSPECIFIED
+   || uncompressed_p010_image->colorGamut == JPEGR_COLORGAMUT_UNSPECIFIED) {
+    return ERROR_JPEGR_INVALID_COLORGAMUT;
+  }
+
   size_t image_width = uncompressed_yuv_420_image->width;
   size_t image_height = uncompressed_yuv_420_image->height;
   size_t map_width = image_width / kMapDimensionScaleFactor;
@@ -297,25 +334,63 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
 
   dest->width = map_width;
   dest->height = map_height;
+  dest->colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED;
   dest->data = new uint8_t[map_width * map_height];
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
 
+  ColorTransformFn hdrInvOetf = nullptr;
+  switch (metadata->transferFunction) {
+    case JPEGR_TF_HLG:
+      hdrInvOetf = hlgInvOetf;
+      break;
+    case JPEGR_TF_PQ:
+      hdrInvOetf = pqInvOetf;
+      break;
+  }
+
+  ColorTransformFn hdrGamutConversionFn = getHdrConversionFn(
+      uncompressed_yuv_420_image->colorGamut, uncompressed_p010_image->colorGamut);
+
+  ColorCalculationFn luminanceFn = nullptr;
+  switch (uncompressed_yuv_420_image->colorGamut) {
+    case JPEGR_COLORGAMUT_BT709:
+      luminanceFn = srgbLuminance;
+      break;
+    case JPEGR_COLORGAMUT_P3:
+      luminanceFn = p3Luminance;
+      break;
+    case JPEGR_COLORGAMUT_BT2100:
+      luminanceFn = bt2100Luminance;
+      break;
+    case JPEGR_COLORGAMUT_UNSPECIFIED:
+      // Should be impossible to hit after input validation.
+      return ERROR_JPEGR_INVALID_COLORGAMUT;
+  }
+
   float hdr_y_nits_max = 0.0f;
+  double hdr_y_nits_avg = 0.0f;
   for (size_t y = 0; y < image_height; ++y) {
     for (size_t x = 0; x < image_width; ++x) {
       Color hdr_yuv_gamma = getP010Pixel(uncompressed_p010_image, x, y);
       Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
-      Color hdr_rgb = hlgInvOetf(hdr_rgb_gamma);
-      float hdr_y_nits = bt2100Luminance(hdr_rgb);
+      Color hdr_rgb = hdrInvOetf(hdr_rgb_gamma);
+      hdr_rgb = hdrGamutConversionFn(hdr_rgb);
+      float hdr_y_nits = luminanceFn(hdr_rgb);
 
+      hdr_y_nits_avg += hdr_y_nits;
       if (hdr_y_nits > hdr_y_nits_max) {
         hdr_y_nits_max = hdr_y_nits;
       }
     }
   }
+  hdr_y_nits_avg /= image_width * image_height;
 
-  hdr_ratio = hdr_y_nits_max / kSdrWhiteNits;
+  metadata->rangeScalingFactor = hdr_y_nits_max / kSdrWhiteNits;
+  if (metadata->transferFunction == JPEGR_TF_PQ) {
+    metadata->hdr10Metadata.maxFALL = hdr_y_nits_avg;
+    metadata->hdr10Metadata.maxCLL = hdr_y_nits_max;
+  }
 
   for (size_t y = 0; y < map_height; ++y) {
     for (size_t x = 0; x < map_width; ++x) {
@@ -323,16 +398,17 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
                                          kMapDimensionScaleFactor, x, y);
       Color sdr_rgb_gamma = srgbYuvToRgb(sdr_yuv_gamma);
       Color sdr_rgb = srgbInvOetf(sdr_rgb_gamma);
-      float sdr_y_nits = srgbLuminance(sdr_rgb);
+      float sdr_y_nits = luminanceFn(sdr_rgb);
 
       Color hdr_yuv_gamma = sampleP010(uncompressed_p010_image, kMapDimensionScaleFactor, x, y);
       Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
-      Color hdr_rgb = hlgInvOetf(hdr_rgb_gamma);
-      float hdr_y_nits = bt2100Luminance(hdr_rgb);
+      Color hdr_rgb = hdrInvOetf(hdr_rgb_gamma);
+      hdr_rgb = hdrGamutConversionFn(hdr_rgb);
+      float hdr_y_nits = luminanceFn(hdr_rgb);
 
       size_t pixel_idx =  x + y * map_width;
       reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
-          encodeRecovery(sdr_y_nits, hdr_y_nits, hdr_ratio);
+          encodeRecovery(sdr_y_nits, hdr_y_nits, metadata->rangeScalingFactor);
     }
   }
 
@@ -342,16 +418,14 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
 
 status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                        jr_uncompressed_ptr uncompressed_recovery_map,
+                                       jr_metadata_ptr metadata,
                                        jr_uncompressed_ptr dest) {
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_recovery_map == nullptr
+   || metadata == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
-
-  // TODO: need to get this from the XMP; should probably be a function
-  // parameter
-  float hdr_ratio = 4.0f;
 
   size_t width = uncompressed_yuv_420_image->width;
   size_t height = uncompressed_yuv_420_image->height;
@@ -360,26 +434,31 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
   dest->height = height;
   size_t pixel_count = width * height;
 
+  ColorTransformFn hdrOetf = nullptr;
+  switch (metadata->transferFunction) {
+    case JPEGR_TF_HLG:
+      hdrOetf = hlgOetf;
+      break;
+    case JPEGR_TF_PQ:
+      hdrOetf = pqOetf;
+      break;
+  }
+
   for (size_t y = 0; y < height; ++y) {
     for (size_t x = 0; x < width; ++x) {
-      size_t pixel_y_idx =  x + y * width;
+      Color yuv_gamma_sdr = getYuv420Pixel(uncompressed_yuv_420_image, x, y);
+      Color rgb_gamma_sdr = srgbYuvToRgb(yuv_gamma_sdr);
+      Color rgb_sdr = srgbInvOetf(rgb_gamma_sdr);
 
-      size_t pixel_uv_idx = x / 2 + (y / 2) * (width / 2);
-
-      Color ypuv_sdr = getYuv420Pixel(uncompressed_yuv_420_image, x, y);
-      Color rgbp_sdr = srgbYuvToRgb(ypuv_sdr);
-      Color rgb_sdr = srgbInvOetf(rgbp_sdr);
-
+      // TODO: determine map scaling factor based on actual map dims
       float recovery = sampleMap(uncompressed_recovery_map, kMapDimensionScaleFactor, x, y);
-      Color rgb_hdr = applyRecovery(rgb_sdr, recovery, hdr_ratio);
+      Color rgb_hdr = applyRecovery(rgb_sdr, recovery, metadata->rangeScalingFactor);
 
-      Color rgbp_hdr = hlgOetf(rgb_hdr);
-      // TODO: actually just leave in RGB and convert to RGBA1010102 instead.
-      Color ypuv_hdr = srgbRgbToYuv(rgbp_hdr);
+      Color rgb_gamma_hdr = hdrOetf(rgb_hdr);
+      uint32_t rgba1010102 = colorToRgba1010102(rgb_gamma_hdr);
 
-      reinterpret_cast<uint16_t*>(dest->data)[pixel_y_idx] = ypuv_hdr.r;
-      reinterpret_cast<uint16_t*>(dest->data)[pixel_count + pixel_uv_idx] = ypuv_hdr.g;
-      reinterpret_cast<uint16_t*>(dest->data)[pixel_count + pixel_uv_idx + 1] = ypuv_hdr.b;
+      size_t pixel_idx =  x + y * width;
+      reinterpret_cast<uint32_t*>(dest->data)[pixel_idx] = rgba1010102;
     }
   }
 
@@ -387,8 +466,9 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
 }
 
 status_t RecoveryMap::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
-                                         jr_compressed_ptr dest) {
-  if (compressed_jpegr_image == nullptr || dest == nullptr) {
+                                         jr_compressed_ptr dest,
+                                         jr_metadata_ptr metadata) {
+  if (compressed_jpegr_image == nullptr || dest == nullptr || metadata == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
@@ -398,15 +478,16 @@ status_t RecoveryMap::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_imag
 
 status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
                                         jr_compressed_ptr compressed_recovery_map,
-                                        float hdr_ratio,
+                                        jr_metadata_ptr metadata,
                                         jr_compressed_ptr dest) {
   if (compressed_jpeg_image == nullptr
    || compressed_recovery_map == nullptr
+   || metadata == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  string xmp = generateXmp(compressed_recovery_map->length, hdr_ratio);
+  string xmp = generateXmp(compressed_recovery_map->length, *metadata);
   string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
 
   // 2 bytes: APP1 sign (ff e1)
@@ -442,7 +523,7 @@ status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
   return NO_ERROR;
 }
 
-string RecoveryMap::generateXmp(int secondary_image_length, float hdr_ratio) {
+string RecoveryMap::generateXmp(int secondary_image_length, jpegr_metadata& metadata) {
   const string kContainerPrefix = "GContainer";
   const string kContainerUri    = "http://ns.google.com/photos/1.0/container/";
   const string kItemPrefix      = "Item";
@@ -455,7 +536,6 @@ string RecoveryMap::generateXmp(int secondary_image_length, float hdr_ratio) {
   const string kPrimary         = "Primary";
   const string kSemantic        = "Semantic";
   const string kVersion         = "Version";
-  const int    kVersionValue    = 1;
 
   const string kConDir          = Name(kContainerPrefix, kDirectory);
   const string kContainerItem   = Name(kContainerPrefix, kItem);
@@ -475,8 +555,11 @@ string RecoveryMap::generateXmp(int secondary_image_length, float hdr_ratio) {
   writer.WriteXmlns("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
   writer.StartWritingElement("rdf:Description");
   writer.WriteXmlns(kContainerPrefix, kContainerUri);
-  writer.WriteElementAndContent(Name(kContainerPrefix, kVersion), kVersionValue);
-  writer.WriteElementAndContent(Name(kContainerPrefix, "HdrRatio"), hdr_ratio);
+  writer.WriteElementAndContent(Name(kContainerPrefix, kVersion), metadata.version);
+  writer.WriteElementAndContent(Name(kContainerPrefix, "rangeScalingFactor"),
+                                metadata.rangeScalingFactor);
+  // TODO: determine structure for hdr10 metadata
+  // TODO: write rest of metadata
   writer.StartWritingElements(kConDirSeq);
   size_t item_depth = writer.StartWritingElements(kLiItem);
   writer.WriteAttributeNameAndValue(kItemSemantic, kPrimary);
