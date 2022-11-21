@@ -81,9 +81,6 @@ cc_test {
         "libc++fs",
         "libgmock",
     ],
-    shared_libs: [
-        "libinputreader",
-    ],
     require_root: true,
     test_options: {
         unit_test: true,
