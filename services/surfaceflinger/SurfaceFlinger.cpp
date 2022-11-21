@@ -845,8 +845,6 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
         }
     }
 
-    onActiveDisplaySizeChanged(display);
-
     // Inform native graphics APIs whether the present timestamp is supported:
 
     const bool presentFenceReliable =
@@ -3433,14 +3431,6 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
             sp<RegionSamplingThread>::make(*this,
                                            RegionSamplingThread::EnvironmentTimingTunables());
     mFpsReporter = sp<FpsReporter>::make(*mFrameTimeline, *this);
-    // Dispatch a mode change request for the primary display on scheduler
-    // initialization, so that the EventThreads always contain a reference to a
-    // prior configuration.
-    //
-    // This is a bit hacky, but this avoids a back-pointer into the main SF
-    // classes from EventThread, and there should be no run-time binder cost
-    // anyway since there are no connected apps at this point.
-    mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, activeModePtr);
 }
 
 void SurfaceFlinger::updatePhaseConfiguration(const Fps& refreshRate) {
@@ -4623,8 +4613,6 @@ void SurfaceFlinger::onInitializeDisplays() {
                           {}, mPid, getuid(), transactionId);
 
     setPowerModeInternal(display, hal::PowerMode::ON);
-
-    mActiveDisplayTransformHint = display->getTransformHint();
 }
 
 void SurfaceFlinger::initializeDisplays() {
@@ -6642,9 +6630,12 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         case SetPolicyResult::Unchanged:
             return NO_ERROR;
         case SetPolicyResult::Changed:
-            break;
+            return applyRefreshRateSelectorPolicy(displayId, selector);
     }
+}
 
+status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
+        PhysicalDisplayId displayId, const scheduler::RefreshRateSelector& selector) {
     const scheduler::RefreshRateSelector::Policy currentPolicy = selector.getCurrentPolicy();
     ALOGV("Setting desired display mode specs: %s", currentPolicy.toString().c_str());
 
@@ -6976,9 +6967,11 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
     onActiveDisplaySizeChanged(activeDisplay);
     mActiveDisplayTransformHint = activeDisplay->getTransformHint();
 
-    // Update the kernel timer for the current active display, since the policy
-    // for this display might have changed when it was not the active display.
-    toggleKernelIdleTimer();
+    // The policy of the new active/leader display may have changed while it was inactive. In that
+    // case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In either
+    // case, the Scheduler's cachedModeChangedParams must be initialized to the newly active mode,
+    // and the kernel idle timer of the newly active display must be toggled.
+    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay->refreshRateSelector());
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(
