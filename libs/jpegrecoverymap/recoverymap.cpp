@@ -43,6 +43,8 @@ static const uint32_t kJpegrVersion = 1;
 
 // Map is quarter res / sixteenth size
 static const size_t kMapDimensionScaleFactor = 4;
+// JPEG compress quality (0 ~ 100) for recovery map
+static const int kMapCompressQuality = 85;
 
 // TODO: fill in st2086 metadata
 static const st2086_metadata kSt2086Metadata = {
@@ -77,7 +79,7 @@ string Name(const string &prefix, const string &suffix) {
  * @return status of succeed or error code.
  */
 status_t Write(jr_compressed_ptr destination, const void* source, size_t length, int &position) {
-  if (position + length > destination->length) {
+  if (position + length > destination->maxLength) {
     return ERROR_JPEGR_BUFFER_TOO_SMALL;
   }
 
@@ -121,8 +123,8 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
   jpegr_compressed_struct compressed_map;
-  std::unique_ptr<uint8_t[]> compressed_map_data =
-      std::make_unique<uint8_t[]>(map.width * map.height);
+  compressed_map.maxLength = map.width * map.height;
+  unique_ptr<uint8_t[]> compressed_map_data = make_unique<uint8_t[]>(compressed_map.maxLength);
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
@@ -173,8 +175,8 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
   jpegr_compressed_struct compressed_map;
-  std::unique_ptr<uint8_t[]> compressed_map_data =
-      std::make_unique<uint8_t[]>(map.width * map.height);
+  compressed_map.maxLength = map.width * map.height;
+  unique_ptr<uint8_t[]> compressed_map_data = make_unique<uint8_t[]>(compressed_map.maxLength);
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
@@ -222,8 +224,8 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
   jpegr_compressed_struct compressed_map;
-  std::unique_ptr<uint8_t[]> compressed_map_data =
-      std::make_unique<uint8_t[]>(map.width * map.height);
+  compressed_map.maxLength = map.width * map.height;
+  unique_ptr<uint8_t[]> compressed_map_data = make_unique<uint8_t[]>(compressed_map.maxLength);
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
@@ -289,13 +291,17 @@ status_t RecoveryMap::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recov
 
   // TODO: should we have ICC data for the map?
   JpegEncoder jpeg_encoder;
-  if (!jpeg_encoder.compressImage(uncompressed_recovery_map->data, uncompressed_recovery_map->width,
-                                  uncompressed_recovery_map->height, 85, nullptr, 0,
+  if (!jpeg_encoder.compressImage(uncompressed_recovery_map->data,
+                                  uncompressed_recovery_map->width,
+                                  uncompressed_recovery_map->height,
+                                  kMapCompressQuality,
+                                  nullptr,
+                                  0,
                                   true /* isSingleChannel */)) {
     return ERROR_JPEGR_ENCODE_ERROR;
   }
 
-  if (dest->length < jpeg_encoder.getCompressedImageSize()) {
+  if (dest->maxLength < jpeg_encoder.getCompressedImageSize()) {
     return ERROR_JPEGR_BUFFER_TOO_SMALL;
   }
 

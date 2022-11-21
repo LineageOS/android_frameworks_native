@@ -54,8 +54,10 @@ struct jpegr_uncompressed_struct {
 struct jpegr_compressed_struct {
     // Pointer to the data location.
     void* data;
-    // Data length.
+    // Used data length in bytes.
     int length;
+    // Maximum available data length in bytes.
+    int maxLength;
     // Color gamut.
     jpegr_color_gamut colorGamut;
 };
