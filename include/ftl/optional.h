@@ -97,6 +97,16 @@ struct Optional final : std::optional<T> {
   }
 };
 
+template <typename T, typename U>
+constexpr bool operator==(const Optional<T>& lhs, const Optional<U>& rhs) {
+  return static_cast<std::optional<T>>(lhs) == static_cast<std::optional<U>>(rhs);
+}
+
+template <typename T, typename U>
+constexpr bool operator!=(const Optional<T>& lhs, const Optional<U>& rhs) {
+  return !(lhs == rhs);
+}
+
 // Deduction guides.
 template <typename T>
 Optional(T) -> Optional<T>;

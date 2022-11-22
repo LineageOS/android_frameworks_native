@@ -164,4 +164,35 @@ TEST(Optional, AndThen) {
                      }));
 }
 
+// Comparison.
+namespace {
+
+constexpr Optional<int> kOptional1 = 1;
+constexpr Optional<int> kAnotherOptional1 = 1;
+constexpr Optional<int> kOptional2 = 2;
+constexpr Optional<int> kOptionalEmpty, kAnotherOptionalEmpty;
+
+constexpr std::optional<int> kStdOptional1 = 1;
+
+static_assert(kOptional1 == kAnotherOptional1);
+
+static_assert(kOptional1 != kOptional2);
+static_assert(kOptional2 != kOptional1);
+
+static_assert(kOptional1 != kOptionalEmpty);
+static_assert(kOptionalEmpty != kOptional1);
+
+static_assert(kOptionalEmpty == kAnotherOptionalEmpty);
+
+static_assert(kOptional1 == kStdOptional1);
+static_assert(kStdOptional1 == kOptional1);
+
+static_assert(kOptional2 != kStdOptional1);
+static_assert(kStdOptional1 != kOptional2);
+
+static_assert(kOptional2 != kOptionalEmpty);
+static_assert(kOptionalEmpty != kOptional2);
+
+} // namespace
+
 }  // namespace android::test
