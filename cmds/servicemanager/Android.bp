@@ -48,17 +48,6 @@ cc_binary {
 }
 
 cc_binary {
-    name: "servicemanager.microdroid",
-    defaults: ["servicemanager_defaults"],
-    init_rc: ["servicemanager.microdroid.rc"],
-    srcs: ["main.cpp"],
-    bootstrap: true,
-    // Prevent this from being installed when running tests in this directory.
-    // This is okay because microdorid build rule can bundle this anyway.
-    installable: false,
-}
-
-cc_binary {
     name: "servicemanager.recovery",
     stem: "servicemanager",
     recovery: true,
