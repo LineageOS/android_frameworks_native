@@ -51,21 +51,26 @@ static void freeRpcServerHandle(ARpcServer* handle) {
     ref->decStrong(ref);
 }
 
+static unsigned int cidFromStructAddr(const void* addr, size_t addrlen) {
+    LOG_ALWAYS_FATAL_IF(addrlen < sizeof(sockaddr_vm), "sockaddr is truncated");
+    const sockaddr_vm* vaddr = reinterpret_cast<const sockaddr_vm*>(addr);
+    LOG_ALWAYS_FATAL_IF(vaddr->svm_family != AF_VSOCK, "address is not a vsock");
+    return vaddr->svm_cid;
+}
+
 extern "C" {
 
 bool RunVsockRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* context),
                                   void* factoryContext, unsigned int port) {
     auto server = RpcServer::make();
-    if (status_t status = server->setupVsockServer(port); status != OK) {
+    if (status_t status = server->setupVsockServer(VMADDR_CID_ANY, port); status != OK) {
         LOG(ERROR) << "Failed to set up vsock server with port " << port
                    << " error: " << statusToString(status).c_str();
         return false;
     }
     server->setPerSessionRootObject([=](const void* addr, size_t addrlen) {
-        LOG_ALWAYS_FATAL_IF(addrlen < sizeof(sockaddr_vm), "sockaddr is truncated");
-        const sockaddr_vm* vaddr = reinterpret_cast<const sockaddr_vm*>(addr);
-        LOG_ALWAYS_FATAL_IF(vaddr->svm_family != AF_VSOCK, "address is not a vsock");
-        return AIBinder_toPlatformBinder(factory(vaddr->svm_cid, factoryContext));
+        unsigned int cid = cidFromStructAddr(addr, addrlen);
+        return AIBinder_toPlatformBinder(factory(cid, factoryContext));
     });
 
     server->join();
@@ -75,12 +80,29 @@ bool RunVsockRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* c
     return true;
 }
 
-ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int port) {
+ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int cid, unsigned int port) {
     auto server = RpcServer::make();
-    if (status_t status = server->setupVsockServer(port); status != OK) {
+
+    unsigned int bindCid = VMADDR_CID_ANY; // bind to the remote interface
+    if (cid == VMADDR_CID_LOCAL) {
+        bindCid = VMADDR_CID_LOCAL; // bind to the local interface
+        cid = VMADDR_CID_ANY;       // no need for a connection filter
+    }
+
+    if (status_t status = server->setupVsockServer(bindCid, port); status != OK) {
         LOG(ERROR) << "Failed to set up vsock server with port " << port
                    << " error: " << statusToString(status).c_str();
         return nullptr;
+    }
+    if (cid != VMADDR_CID_ANY) {
+        server->setConnectionFilter([=](const void* addr, size_t addrlen) {
+            unsigned int remoteCid = cidFromStructAddr(addr, addrlen);
+            if (cid != remoteCid) {
+                LOG(ERROR) << "Rejected vsock connection from CID " << remoteCid;
+                return false;
+            }
+            return true;
+        });
     }
     server->setRootObject(AIBinder_toPlatformBinder(service));
     return createRpcServerHandle(server);

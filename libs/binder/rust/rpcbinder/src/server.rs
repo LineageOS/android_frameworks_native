@@ -41,14 +41,19 @@ unsafe impl Sync for RpcServer {}
 
 impl RpcServer {
     /// Creates a binder RPC server, serving the supplied binder service implementation on the given
-    /// vsock port.
-    pub fn new_vsock(mut service: SpIBinder, port: u32) -> Result<RpcServer, Error> {
+    /// vsock port. Only connections from the given CID are accepted.
+    ///
+    // Set `cid` to libc::VMADDR_CID_ANY to accept connections from any client.
+    // Set `cid` to libc::VMADDR_CID_LOCAL to only bind to the local vsock interface.
+    pub fn new_vsock(mut service: SpIBinder, cid: u32, port: u32) -> Result<RpcServer, Error> {
         let service = service.as_native_mut();
 
         // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
         // Plus the binder objects are threadsafe.
         unsafe {
-            Self::checked_from_ptr(binder_rpc_unstable_bindgen::ARpcServer_newVsock(service, port))
+            Self::checked_from_ptr(binder_rpc_unstable_bindgen::ARpcServer_newVsock(
+                service, cid, port,
+            ))
         }
     }
 
