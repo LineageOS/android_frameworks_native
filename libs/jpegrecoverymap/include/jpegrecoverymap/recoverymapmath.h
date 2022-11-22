@@ -43,6 +43,9 @@ struct Color {
   };
 };
 
+typedef Color (*ColorTransformFn)(Color);
+typedef float (*ColorCalculationFn)(Color);
+
 inline Color operator+=(Color& lhs, const Color& rhs) {
   lhs.r += rhs.r;
   lhs.g += rhs.g;
@@ -138,7 +141,10 @@ Color srgbInvOetf(Color e_gamma);
 ////////////////////////////////////////////////////////////////////////////////
 // Display-P3 transformations
 
-
+/*
+ * Calculated the luminance of a linear RGB P3 pixel, according to EG 432-1.
+ */
+float p3Luminance(Color e);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,10 +175,43 @@ Color hlgOetf(Color e);
  */
 Color hlgInvOetf(Color e_gamma);
 
+/*
+ * Convert from scene luminance in nits to PQ.
+ */
+Color pqOetf(Color e);
+
+/*
+ * Convert from PQ to scene luminance in nits.
+ */
+Color pqInvOetf(Color e_gamma);
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Color space conversions
 
+/*
+ * Convert between color spaces with linear RGB data, according to ITU-R BT.2407 and EG 432-1.
+ *
+ * All conversions are derived from multiplying the matrix for XYZ to output RGB color gamut by the
+ * matrix for input RGB color gamut to XYZ. The matrix for converting from XYZ to an RGB gamut is
+ * always the inverse of the RGB gamut to XYZ matrix.
+ */
+Color bt709ToP3(Color e);
+Color bt709ToBt2100(Color e);
+Color p3ToBt709(Color e);
+Color p3ToBt2100(Color e);
+Color bt2100ToBt709(Color e);
+Color bt2100ToP3(Color e);
 
+/*
+ * Identity conversion.
+ */
+inline Color identityConversion(Color e) { return e; }
+
+/*
+ * Get the conversion to apply to the HDR image for recovery map generation
+ */
+ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gamut hdr_gamut);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,6 +258,13 @@ Color sampleYuv420(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, s
  * and the map scale factor. Assumes narrow-range image data for P010.
  */
 Color sampleP010(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
+
+/*
+ * Convert from Color to RGBA1010102.
+ *
+ * Alpha always set to 1.0.
+ */
+uint32_t colorToRgba1010102(Color e_gamma);
 
 } // namespace android::recoverymap
 
