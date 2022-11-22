@@ -64,6 +64,15 @@ TEST(AddService, HappyOverExistingService) {
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
 }
 
+TEST(AddService, HappyClearAddedService) {
+    auto sm = new ServiceManager();
+    EXPECT_EQ(sm->addService(String16("foo"), getBinder(), false /*allowIsolated*/,
+        IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
+    EXPECT_NE(sm->getService(String16("foo")), nullptr);
+    sm->clear();
+    EXPECT_EQ(sm->getService(String16("foo")), nullptr);
+}
+
 TEST(GetService, HappyHappy) {
     auto sm = new ServiceManager();
     sp<IBinder> service = getBinder();
