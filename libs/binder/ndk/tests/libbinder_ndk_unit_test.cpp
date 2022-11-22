@@ -254,6 +254,47 @@ TEST(NdkBinder, CheckServiceThatDoesExist) {
     AIBinder_decStrong(binder);
 }
 
+struct ServiceData {
+    std::string instance;
+    ndk::SpAIBinder binder;
+
+    static void fillOnRegister(const char* instance, AIBinder* binder, void* cookie) {
+        ServiceData* d = reinterpret_cast<ServiceData*>(cookie);
+        d->instance = instance;
+        d->binder = ndk::SpAIBinder(binder);
+    }
+};
+
+TEST(NdkBinder, RegisterForServiceNotificationsNonExisting) {
+    ServiceData data;
+    auto* notif = AServiceManager_registerForServiceNotifications(
+            "DOES_NOT_EXIST", ServiceData::fillOnRegister, (void*)&data);
+    ASSERT_NE(notif, nullptr);
+
+    sleep(1);  // give us a chance to fail
+    AServiceManager_NotificationRegistration_delete(notif);
+
+    // checking after deleting to avoid needing a mutex over the data - otherwise
+    // in an environment w/ multiple threads, you would need to guard access
+    EXPECT_EQ(data.instance, "");
+    EXPECT_EQ(data.binder, nullptr);
+}
+
+TEST(NdkBinder, RegisterForServiceNotificationsExisting) {
+    ServiceData data;
+    auto* notif = AServiceManager_registerForServiceNotifications(
+            kExistingNonNdkService, ServiceData::fillOnRegister, (void*)&data);
+    ASSERT_NE(notif, nullptr);
+
+    sleep(1);  // give us a chance to fail
+    AServiceManager_NotificationRegistration_delete(notif);
+
+    // checking after deleting to avoid needing a mutex over the data - otherwise
+    // in an environment w/ multiple threads, you would need to guard access
+    EXPECT_EQ(data.instance, kExistingNonNdkService);
+    EXPECT_EQ(data.binder, ndk::SpAIBinder(AServiceManager_checkService(kExistingNonNdkService)));
+}
+
 TEST(NdkBinder, UnimplementedDump) {
     sp<IFoo> foo = IFoo::getService(IFoo::kSomeInstanceName);
     ASSERT_NE(foo, nullptr);
