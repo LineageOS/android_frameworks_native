@@ -68,6 +68,7 @@ __attribute__((warn_unused_result)) AIBinder* AServiceManager_checkService(const
  *
  * \param instance identifier of the service used to lookup the service.
  */
+[[deprecated("this polls 5s, use AServiceManager_waitForService or AServiceManager_checkService")]]
 __attribute__((warn_unused_result)) AIBinder* AServiceManager_getService(const char* instance)
         __INTRODUCED_IN(29);
 
