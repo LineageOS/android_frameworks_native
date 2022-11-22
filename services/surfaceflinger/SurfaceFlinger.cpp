@@ -4643,8 +4643,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     const auto displayId = display->getPhysicalId();
     ALOGD("Setting power mode %d on display %s", mode, to_string(displayId).c_str());
 
-    std::optional<hal::PowerMode> currentMode = display->getPowerMode();
-    if (currentMode.has_value() && mode == *currentMode) {
+    const auto currentModeOpt = display->getPowerMode();
+    if (currentModeOpt == mode) {
         return;
     }
 
@@ -4662,7 +4662,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     display->setPowerMode(mode);
 
     const auto refreshRate = display->refreshRateSelector().getActiveMode().getFps();
-    if (*currentMode == hal::PowerMode::OFF) {
+    if (!currentModeOpt || *currentModeOpt == hal::PowerMode::OFF) {
         // Turn on the display
         if (isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn())) {
             onActiveDisplayChangedLocked(display);
@@ -4692,7 +4692,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         if (SurfaceFlinger::setSchedAttr(false) != NO_ERROR) {
             ALOGW("Couldn't set uclamp.min on display off: %s\n", strerror(errno));
         }
-        if (isActiveDisplay && *currentMode != hal::PowerMode::DOZE_SUSPEND) {
+        if (isActiveDisplay && *currentModeOpt != hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
         }
@@ -4706,7 +4706,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
         // Update display while dozing
         getHwComposer().setPowerMode(displayId, mode);
-        if (isActiveDisplay && *currentMode == hal::PowerMode::DOZE_SUSPEND) {
+        if (isActiveDisplay && *currentModeOpt == hal::PowerMode::DOZE_SUSPEND) {
             ALOGI("Force repainting for DOZE_SUSPEND -> DOZE or ON.");
             mVisibleRegionsDirty = true;
             scheduleRepaint();
