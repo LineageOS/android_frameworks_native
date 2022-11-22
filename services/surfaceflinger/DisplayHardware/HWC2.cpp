@@ -334,9 +334,9 @@ Error Display::getHdrCapabilities(HdrCapabilities* outCapabilities) const
     return Error::NONE;
 }
 
-Error Display::getOverlaySupport(OverlayProperties* /*outProperties*/) const {
-    // TODO(b/242588489): implement details
-    return Error::NONE;
+Error Display::getOverlaySupport(OverlayProperties* outProperties) const {
+    auto intError = mComposer.getOverlaySupport(outProperties);
+    return static_cast<Error>(intError);
 }
 
 Error Display::getDisplayedContentSamplingAttributes(hal::PixelFormat* outFormat,
