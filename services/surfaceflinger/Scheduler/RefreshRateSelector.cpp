@@ -836,21 +836,25 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
     return frameRateOverrides;
 }
 
-std::optional<Fps> RefreshRateSelector::onKernelTimerChanged(
+ftl::Optional<FrameRateMode> RefreshRateSelector::onKernelTimerChanged(
         std::optional<DisplayModeId> desiredActiveModeId, bool timerExpired) const {
     std::lock_guard lock(mLock);
 
-    const DisplayModePtr& current = desiredActiveModeId
-            ? mDisplayModes.get(*desiredActiveModeId)->get()
-            : getActiveModeLocked().modePtr.get();
+    const auto current = [&]() REQUIRES(mLock) -> FrameRateMode {
+        if (desiredActiveModeId) {
+            const auto& modePtr = mDisplayModes.get(*desiredActiveModeId)->get();
+            return FrameRateMode{modePtr->getFps(), ftl::as_non_null(modePtr)};
+        }
+
+        return getActiveModeLocked();
+    }();
 
     const DisplayModePtr& min = mMinRefreshRateModeIt->second;
-    if (current == min) {
+    if (current.modePtr->getId() == min->getId()) {
         return {};
     }
 
-    const auto& mode = timerExpired ? min : current;
-    return mode->getFps();
+    return timerExpired ? FrameRateMode{min->getFps(), ftl::as_non_null(min)} : current;
 }
 
 const DisplayModePtr& RefreshRateSelector::getMinRefreshRateByPolicyLocked() const {

@@ -639,6 +639,8 @@ private:
     bool mKernelIdleTimerEnabled = false;
     // Show spinner with refresh rate overlay
     bool mRefreshRateOverlaySpinner = false;
+    // Show render rate with refresh rate overlay
+    bool mRefreshRateOverlayRenderRate = false;
 
     void setDesiredActiveMode(display::DisplayModeRequest&&) REQUIRES(mStateLock);
 
