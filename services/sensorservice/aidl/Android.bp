@@ -7,7 +7,7 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_library_shared {
+cc_library {
     name: "libsensorserviceaidl",
     srcs: [
         "EventQueue.cpp",
@@ -15,6 +15,7 @@ cc_library_shared {
         "SensorManager.cpp",
         "utils.cpp",
     ],
+    host_supported: true,
     cflags: [
         "-Wall",
         "-Werror",
