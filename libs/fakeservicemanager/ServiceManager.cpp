@@ -36,6 +36,9 @@ sp<IBinder> ServiceManager::checkService( const String16& name) const {
 status_t ServiceManager::addService(const String16& name, const sp<IBinder>& service,
                                 bool /*allowIsolated*/,
                                 int /*dumpsysFlags*/) {
+    if (service == nullptr) {
+        return UNEXPECTED_NULL;
+    }
     mNameToService[name] = service;
     return NO_ERROR;
 }
