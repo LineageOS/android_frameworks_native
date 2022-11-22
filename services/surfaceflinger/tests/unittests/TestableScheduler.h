@@ -26,6 +26,7 @@
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncTracker.h"
 #include "Scheduler/VsyncController.h"
+#include "mock/MockVSyncDispatch.h"
 #include "mock/MockVSyncTracker.h"
 #include "mock/MockVsyncController.h"
 
@@ -42,7 +43,9 @@ public:
                       std::unique_ptr<VSyncTracker> tracker, RefreshRateSelectorPtr selectorPtr,
                       ISchedulerCallback& callback)
           : Scheduler(*this, callback, Feature::kContentDetection) {
-        mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
+        mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker),
+                                             std::make_unique<mock::VSyncDispatch>(),
+                                             std::move(controller)));
 
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplay(displayId, std::move(selectorPtr));

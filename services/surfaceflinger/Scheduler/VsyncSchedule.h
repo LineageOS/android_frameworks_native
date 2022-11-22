@@ -22,6 +22,14 @@
 #include <scheduler/Features.h>
 #include <scheduler/Time.h>
 
+namespace android {
+class EventThreadTest;
+}
+
+namespace android::fuzz {
+class SchedulerFuzzer;
+}
+
 namespace android::scheduler {
 
 // TODO(b/185535769): Rename classes, and remove aliases.
@@ -54,6 +62,8 @@ public:
 
 private:
     friend class TestableScheduler;
+    friend class android::EventThreadTest;
+    friend class android::fuzz::SchedulerFuzzer;
 
     using TrackerPtr = std::unique_ptr<VsyncTracker>;
     using DispatchPtr = std::unique_ptr<VsyncDispatch>;

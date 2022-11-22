@@ -78,7 +78,8 @@ void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, ns
 void MessageQueue::initVsync(scheduler::VSyncDispatch& dispatch,
                              frametimeline::TokenManager& tokenManager,
                              std::chrono::nanoseconds workDuration) {
-    setDuration(workDuration);
+    std::lock_guard lock(mVsync.mutex);
+    mVsync.workDuration = workDuration;
     mVsync.tokenManager = &tokenManager;
     mVsync.registration = std::make_unique<
             scheduler::VSyncCallbackRegistration>(dispatch,
@@ -89,16 +90,20 @@ void MessageQueue::initVsync(scheduler::VSyncDispatch& dispatch,
                                                   "sf");
 }
 
+void MessageQueue::destroyVsync() {
+    std::lock_guard lock(mVsync.mutex);
+    mVsync.tokenManager = nullptr;
+    mVsync.registration.reset();
+}
+
 void MessageQueue::setDuration(std::chrono::nanoseconds workDuration) {
     ATRACE_CALL();
     std::lock_guard lock(mVsync.mutex);
     mVsync.workDuration = workDuration;
-    if (mVsync.scheduledFrameTime) {
-        mVsync.scheduledFrameTime =
-                mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
-                                               .readyDuration = 0,
-                                               .earliestVsync = mVsync.lastCallbackTime.ns()});
-    }
+    mVsync.scheduledFrameTime =
+            mVsync.registration->update({.workDuration = mVsync.workDuration.get().count(),
+                                         .readyDuration = 0,
+                                         .earliestVsync = mVsync.lastCallbackTime.ns()});
 }
 
 void MessageQueue::waitMessage() {

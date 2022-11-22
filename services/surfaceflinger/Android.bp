@@ -176,7 +176,6 @@ filegroup {
         "RefreshRateOverlay.cpp",
         "RegionSamplingThread.cpp",
         "RenderArea.cpp",
-        "Scheduler/DispSyncSource.cpp",
         "Scheduler/EventThread.cpp",
         "Scheduler/FrameRateOverrideMappings.cpp",
         "Scheduler/OneShotTimer.cpp",
