@@ -50,6 +50,12 @@ TEST(AddService, HappyHappy) {
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
 }
 
+TEST(AddService, SadNullBinder) {
+    auto sm = new ServiceManager();
+    EXPECT_EQ(sm->addService(String16("foo"), nullptr, false /*allowIsolated*/,
+        IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), android::UNEXPECTED_NULL);
+}
+
 TEST(AddService, HappyOverExistingService) {
     auto sm = new ServiceManager();
     EXPECT_EQ(sm->addService(String16("foo"), getBinder(), false /*allowIsolated*/,
