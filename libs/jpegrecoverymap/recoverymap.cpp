@@ -493,15 +493,17 @@ status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  string xmp = generateXmp(compressed_recovery_map->length, *metadata);
-  string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
+  const string xmp = generateXmp(compressed_recovery_map->length, *metadata);
+  const string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
+  const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
 
   // 2 bytes: APP1 sign (ff e1)
-  // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0"
+  // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0",
   // x bytes: length of xmp packet
-  int length = 2 + nameSpace.size() + xmp.size();
-  uint8_t lengthH = ((length >> 8) & 0xff);
-  uint8_t lengthL = (length & 0xff);
+
+  const int length = 3 + nameSpaceLength + xmp.size();
+  const uint8_t lengthH = ((length >> 8) & 0xff);
+  const uint8_t lengthL = (length & 0xff);
 
   int pos = 0;
 
@@ -519,7 +521,7 @@ status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
   JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP1, 1, pos));
   JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
   JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
-  JPEGR_CHECK(Write(dest, (void*)nameSpace.c_str(), nameSpace.size(), pos));
+  JPEGR_CHECK(Write(dest, (void*)nameSpace.c_str(), nameSpaceLength, pos));
   JPEGR_CHECK(Write(dest, (void*)xmp.c_str(), xmp.size(), pos));
   JPEGR_CHECK(Write(dest,
       (uint8_t*)compressed_jpeg_image->data + 2, compressed_jpeg_image->length - 2, pos));
