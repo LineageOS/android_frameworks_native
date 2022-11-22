@@ -61,6 +61,21 @@ public:
      * decompressImage().
      */
     size_t getDecompressedImageHeight();
+    /*
+     * Returns the XMP data from the image.
+     */
+    void* getXMPPtr();
+    /*
+     * Returns the decompressed XMP buffer size. This method must be called only after
+     * calling decompressImage().
+     */
+    size_t getXMPSize();
+
+    bool getCompressedImageParameters(const void* image, int length,
+                              size_t* pWidth, size_t* pHeight,
+                              std::vector<uint8_t>* &iccData,
+                              std::vector<uint8_t>* &exifData);
+
 private:
     bool decode(const void* image, int length);
     // Returns false if errors occur.
@@ -72,6 +87,9 @@ private:
     static const int kCompressBatchSize = 16;
     // The buffer that holds the decompressed result.
     std::vector<JOCTET> mResultBuffer;
+    // The buffer that holds XMP Data.
+    std::vector<JOCTET> mXMPBuffer;
+
     // Resolution of the decompressed image.
     size_t mWidth;
     size_t mHeight;
