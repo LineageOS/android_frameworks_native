@@ -37,9 +37,11 @@ void RecoveryMapTest::TearDown() {}
 TEST_F(RecoveryMapTest, build) {
   // Force all of the recovery map lib to be linked by calling all public functions.
   RecoveryMap recovery_map;
-  recovery_map.encodeJPEGR(nullptr, nullptr, nullptr, 0, nullptr);
-  recovery_map.encodeJPEGR(nullptr, nullptr, nullptr, nullptr);
-  recovery_map.encodeJPEGR(nullptr, nullptr, nullptr);
+  recovery_map.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
+                           nullptr, 0, nullptr);
+  recovery_map.encodeJPEGR(nullptr, nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
+                           nullptr);
+  recovery_map.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0), nullptr);
   recovery_map.decodeJPEGR(nullptr, nullptr, nullptr, false);
 }
 
