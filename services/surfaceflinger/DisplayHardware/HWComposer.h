@@ -179,8 +179,8 @@ public:
     // Fetches the HDR capabilities of the given display
     virtual status_t getHdrCapabilities(HalDisplayId, HdrCapabilities* outCapabilities) = 0;
 
-    virtual status_t getOverlaySupport(
-            aidl::android::hardware::graphics::composer3::OverlayProperties* outProperties) = 0;
+    virtual const aidl::android::hardware::graphics::composer3::OverlayProperties&
+    getOverlaySupport() const = 0;
 
     virtual int32_t getSupportedPerFrameMetadata(HalDisplayId) const = 0;
 
@@ -366,8 +366,8 @@ public:
     // Fetches the HDR capabilities of the given display
     status_t getHdrCapabilities(HalDisplayId, HdrCapabilities* outCapabilities) override;
 
-    status_t getOverlaySupport(aidl::android::hardware::graphics::composer3::OverlayProperties*
-                                       outProperties) override;
+    const aidl::android::hardware::graphics::composer3::OverlayProperties& getOverlaySupport()
+            const override;
 
     int32_t getSupportedPerFrameMetadata(HalDisplayId) const override;
 
@@ -489,11 +489,13 @@ private:
 
     void loadCapabilities();
     void loadLayerMetadataSupport();
+    void loadOverlayProperties();
 
     std::unordered_map<HalDisplayId, DisplayData> mDisplayData;
 
     std::unique_ptr<android::Hwc2::Composer> mComposer;
     std::unordered_set<aidl::android::hardware::graphics::composer3::Capability> mCapabilities;
+    aidl::android::hardware::graphics::composer3::OverlayProperties mOverlayProperties;
     std::unordered_map<std::string, bool> mSupportedLayerGenericMetadata;
     bool mRegisteredCallback = false;
 

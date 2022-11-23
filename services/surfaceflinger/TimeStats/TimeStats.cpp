@@ -68,6 +68,8 @@ SurfaceflingerStatsLayerInfo_GameMode gameModeToProto(GameMode gameMode) {
             return SurfaceflingerStatsLayerInfo::GAME_MODE_PERFORMANCE;
         case GameMode::Battery:
             return SurfaceflingerStatsLayerInfo::GAME_MODE_BATTERY;
+        case GameMode::Custom:
+            return SurfaceflingerStatsLayerInfo::GAME_MODE_CUSTOM;
         default:
             return SurfaceflingerStatsLayerInfo::GAME_MODE_UNSPECIFIED;
     }

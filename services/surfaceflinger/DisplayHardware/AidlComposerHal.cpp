@@ -542,8 +542,12 @@ Error AidlComposer::getHdrCapabilities(Display display, std::vector<Hdr>* outTyp
     return Error::NONE;
 }
 
-Error AidlComposer::getOverlaySupport(AidlOverlayProperties* /*outProperties*/) {
-    // TODO(b/242588489): implement details
+Error AidlComposer::getOverlaySupport(AidlOverlayProperties* outProperties) {
+    const auto status = mAidlComposerClient->getOverlaySupport(outProperties);
+    if (!status.isOk()) {
+        ALOGE("getOverlaySupport failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
     return Error::NONE;
 }
 

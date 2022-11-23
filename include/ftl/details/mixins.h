@@ -14,10 +14,17 @@
  * limitations under the License.
  */
 
-package android.gui;
+#pragma once
 
-/** @hide */
-parcelable SupportedBufferCombinations {
-    int[] pixelFormats;
-    int[] dataspaces;
-}
+namespace android::ftl::details {
+
+template <typename Self, template <typename> class>
+class Mixin {
+ protected:
+  constexpr Self& self() { return *static_cast<Self*>(this); }
+  constexpr const Self& self() const { return *static_cast<const Self*>(this); }
+
+  constexpr auto& mut() { return self().value_; }
+};
+
+}  // namespace android::ftl::details

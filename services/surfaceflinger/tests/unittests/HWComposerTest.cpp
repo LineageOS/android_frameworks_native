@@ -146,6 +146,8 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
                                     {kMetadata2Name, kMetadata2Mandatory},
                             }),
                             Return(hardware::graphics::composer::V2_4::Error::NONE)));
+    EXPECT_CALL(*mHal, getOverlaySupport(_)).WillOnce(Return(HalError::NONE));
+
     EXPECT_CALL(*mHal, registerCallback(_));
 
     mHwc.setCallback(mCallback);
@@ -162,6 +164,7 @@ TEST_F(HWComposerSetCallbackTest, handlesUnsupportedCallToGetLayerGenericMetadat
     EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<aidl::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
+    EXPECT_CALL(*mHal, getOverlaySupport(_)).WillOnce(Return(HalError::UNSUPPORTED));
     EXPECT_CALL(*mHal, registerCallback(_));
 
     mHwc.setCallback(mCallback);

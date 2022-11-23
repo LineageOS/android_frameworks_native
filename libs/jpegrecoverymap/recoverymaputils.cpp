@@ -14,13 +14,18 @@
  * limitations under the License.
  */
 
-package android.gui;
+#include <jpegrecoverymap/recoverymaputils.h>
+#include <jpegrecoverymap/recoverymap.h>
 
-/** @hide */
-parcelable OverlayProperties {
-    parcelable SupportedBufferCombinations {
-        int[] pixelFormats;
-        int[] dataspaces;
-    }
-    SupportedBufferCombinations[] combinations;
+namespace android::recoverymap {
+
+bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* metadata) {
+    // TODO: Parse XMP Data
+    (void)xmp_data;
+    (void)xmp_size;
+    metadata->rangeScalingFactor = 0.0708864;
+    metadata->transferFunction = JPEGR_TF_HLG;
+    return true;
+}
+
 }

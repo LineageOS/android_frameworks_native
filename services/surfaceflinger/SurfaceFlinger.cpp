@@ -1394,7 +1394,26 @@ status_t SurfaceFlinger::getBootDisplayModeSupport(bool* outSupport) const {
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getOverlaySupport(gui::OverlayProperties* /*outProperties*/) const {
+status_t SurfaceFlinger::getOverlaySupport(gui::OverlayProperties* outProperties) const {
+    const auto& aidlProperties = getHwComposer().getOverlaySupport();
+    // convert aidl OverlayProperties to gui::OverlayProperties
+    outProperties->combinations.reserve(aidlProperties.combinations.size());
+    for (const auto& combination : aidlProperties.combinations) {
+        std::vector<int32_t> pixelFormats;
+        pixelFormats.reserve(combination.pixelFormats.size());
+        std::transform(combination.pixelFormats.cbegin(), combination.pixelFormats.cend(),
+                       std::back_inserter(pixelFormats),
+                       [](const auto& val) { return static_cast<int32_t>(val); });
+        std::vector<int32_t> dataspaces;
+        dataspaces.reserve(combination.dataspaces.size());
+        std::transform(combination.dataspaces.cbegin(), combination.dataspaces.cend(),
+                       std::back_inserter(dataspaces),
+                       [](const auto& val) { return static_cast<int32_t>(val); });
+        gui::OverlayProperties::SupportedBufferCombinations outCombination;
+        outCombination.pixelFormats = std::move(pixelFormats);
+        outCombination.dataspaces = std::move(dataspaces);
+        outProperties->combinations.emplace_back(outCombination);
+    }
     return NO_ERROR;
 }
 
