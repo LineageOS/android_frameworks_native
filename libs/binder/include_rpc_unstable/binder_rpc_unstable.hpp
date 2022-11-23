@@ -17,20 +17,41 @@
 #pragma once
 
 #include <sys/socket.h>
+#include <stdint.h>
 
 extern "C" {
 
 struct AIBinder;
+struct ARpcServer;
 
 // Starts an RPC server on a given port and a given root IBinder object.
-// This function sets up the server and joins before returning.
-bool RunVsockRpcServer(AIBinder* service, unsigned int port);
+// Returns an opaque handle to the running server instance, or null if the server
+// could not be started.
+[[nodiscard]] ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int port);
 
-// Starts an RPC server on a given port and a given root IBinder object.
-// This function sets up the server, calls readyCallback with a given param, and
-// then joins before returning.
-bool RunVsockRpcServerCallback(AIBinder* service, unsigned int port,
-                               void (*readyCallback)(void* param), void* param);
+// Starts a Unix domain RPC server with a given init-managed Unix domain `name`
+// and a given root IBinder object.
+// The socket should be created in init.rc with the same `name`.
+// Returns an opaque handle to the running server instance, or null if the server
+// could not be started.
+[[nodiscard]] ARpcServer* ARpcServer_newInitUnixDomain(AIBinder* service, const char* name);
+
+// Runs ARpcServer_join() in a background thread. Immediately returns.
+void ARpcServer_start(ARpcServer* server);
+
+// Joins the thread of a running RpcServer instance. At any given point, there
+// can only be one thread calling ARpcServer_join().
+// If a client needs to actively terminate join, call ARpcServer_shutdown() in
+// a separate thread.
+void ARpcServer_join(ARpcServer* server);
+
+// Shuts down any running ARpcServer_join().
+void ARpcServer_shutdown(ARpcServer* server);
+
+// Frees the ARpcServer handle and drops the reference count on the underlying
+// RpcServer instance. The handle must not be reused afterwards.
+// This automatically calls ARpcServer_shutdown().
+void ARpcServer_free(ARpcServer* server);
 
 // Starts an RPC server on a given port and a given root IBinder factory.
 // RunVsockRpcServerWithFactory acts like RunVsockRpcServerCallback, but instead of
@@ -41,15 +62,6 @@ bool RunVsockRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* c
                                   void* factoryContext, unsigned int port);
 
 AIBinder* VsockRpcClient(unsigned int cid, unsigned int port);
-
-// Starts a Unix domain RPC server with a given init-managed Unix domain `name` and
-// a given root IBinder object.
-// The socket should be created in init.rc with the same `name`.
-//
-// This function sets up the server, calls readyCallback with a given param, and
-// then joins before returning.
-bool RunInitUnixDomainRpcServer(AIBinder* service, const char* name,
-                                void (*readyCallback)(void* param), void* param);
 
 // Gets the service via the RPC binder with Unix domain socket with the given
 // Unix socket `name`.
