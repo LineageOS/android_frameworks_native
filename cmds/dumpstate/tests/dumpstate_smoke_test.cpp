@@ -160,7 +160,7 @@ class DumpstateListener : public BnDumpstateListener {
         return binder::Status::ok();
     }
 
-    binder::Status onFinished() override {
+    binder::Status onFinished([[maybe_unused]] const std::string& bugreport_file) override {
         std::lock_guard<std::mutex> lock(lock_);
         is_finished_ = true;
         dprintf(out_fd_, "\rFinished");

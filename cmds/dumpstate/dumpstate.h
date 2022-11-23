@@ -207,7 +207,9 @@ class Dumpstate {
     // The flags used to customize bugreport requests.
     enum BugreportFlag {
         BUGREPORT_USE_PREDUMPED_UI_DATA =
-          android::os::IDumpstate::BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA
+          android::os::IDumpstate::BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA,
+        BUGREPORT_FLAG_DEFER_CONSENT =
+          android::os::IDumpstate::BUGREPORT_FLAG_DEFER_CONSENT
     };
 
     static android::os::dumpstate::CommandOptions DEFAULT_DUMPSYS;
@@ -353,6 +355,15 @@ class Dumpstate {
      */
     RunStatus Run(int32_t calling_uid, const std::string& calling_package);
 
+    /*
+     * Entry point for retrieving a previous-generated bugreport.
+     *
+     * Initialize() dumpstate before calling this method.
+     */
+    RunStatus Retrieve(int32_t calling_uid, const std::string& calling_package);
+
+
+
     RunStatus ParseCommandlineAndRun(int argc, char* argv[]);
 
     /* Deletes in-progress files */
@@ -396,6 +407,7 @@ class Dumpstate {
         bool progress_updates_to_socket = false;
         bool do_screenshot = false;
         bool is_screenshot_copied = false;
+        bool is_consent_deferred = false;
         bool is_remote_mode = false;
         bool show_header_only = false;
         bool telephony_only = false;
@@ -548,6 +560,7 @@ class Dumpstate {
 
   private:
     RunStatus RunInternal(int32_t calling_uid, const std::string& calling_package);
+    RunStatus RetrieveInternal(int32_t calling_uid, const std::string& calling_package);
 
     RunStatus DumpstateDefaultAfterCritical();
     RunStatus dumpstate();
@@ -571,6 +584,8 @@ class Dumpstate {
     void ShutdownDumpPool();
 
     RunStatus HandleUserConsentDenied();
+
+    void HandleRunStatus(RunStatus status);
 
     // Copies bugreport artifacts over to the caller's directories provided there is user consent or
     // called by Shell.
