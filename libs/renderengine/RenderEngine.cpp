@@ -39,8 +39,12 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
             ALOGD("RenderEngine with SkiaGL Backend");
             return renderengine::skia::SkiaGLRenderEngine::create(args);
         case RenderEngineType::SKIA_VK:
+#ifdef RE_SKIAVK
             ALOGD("RenderEngine with SkiaVK Backend");
             return renderengine::skia::SkiaVkRenderEngine::create(args);
+#else
+            LOG_ALWAYS_FATAL("Requested VK backend, but RE_SKIAVK is not defined!");
+#endif
         case RenderEngineType::SKIA_GL_THREADED: {
             ALOGD("Threaded RenderEngine with SkiaGL Backend");
             return renderengine::threaded::RenderEngineThreaded::create(
@@ -50,12 +54,16 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
                     args.renderEngineType);
         }
         case RenderEngineType::SKIA_VK_THREADED:
+#ifdef RE_SKIAVK
             ALOGD("Threaded RenderEngine with SkiaVK Backend");
             return renderengine::threaded::RenderEngineThreaded::create(
                     [args]() {
                         return android::renderengine::skia::SkiaVkRenderEngine::create(args);
                     },
                     args.renderEngineType);
+#else
+            LOG_ALWAYS_FATAL("Requested VK backend, but RE_SKIAVK is not defined!");
+#endif
         case RenderEngineType::GLES:
         default:
             ALOGD("RenderEngine with GLES Backend");
