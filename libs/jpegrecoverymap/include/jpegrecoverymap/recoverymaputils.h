@@ -14,13 +14,27 @@
  * limitations under the License.
  */
 
-package android.gui;
+#ifndef ANDROID_JPEGRECOVERYMAP_RECOVERYMAPUTILS_H
+#define ANDROID_JPEGRECOVERYMAP_RECOVERYMAPUTILS_H
 
-/** @hide */
-parcelable OverlayProperties {
-    parcelable SupportedBufferCombinations {
-        int[] pixelFormats;
-        int[] dataspaces;
-    }
-    SupportedBufferCombinations[] combinations;
+#include <stdint.h>
+#include <cstdio>
+
+
+namespace android::recoverymap {
+
+struct jpegr_metadata;
+
+/*
+ * Parses XMP packet and fills metadata with data from XMP
+ *
+ * @param xmp_data pointer to XMP packet
+ * @param xmp_size size of XMP packet
+ * @param metadata place to store HDR metadata values
+ * @return true if metadata is successfully retrieved, false otherwise
+*/
+bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* metadata);
+
 }
+
+#endif //ANDROID_JPEGRECOVERYMAP_RECOVERYMAPUTILS_H

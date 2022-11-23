@@ -34,6 +34,13 @@ typedef enum {
   JPEGR_TF_PQ = 1,
 } jpegr_transfer_function;
 
+struct jpegr_info_struct {
+    size_t width;
+    size_t height;
+    std::vector<uint8_t>* iccData;
+    std::vector<uint8_t>* exifData;
+};
+
 /*
  * Holds information for uncompressed image or recovery map.
  */
@@ -117,6 +124,7 @@ typedef struct jpegr_uncompressed_struct* jr_uncompressed_ptr;
 typedef struct jpegr_compressed_struct* jr_compressed_ptr;
 typedef struct jpegr_exif_struct* jr_exif_ptr;
 typedef struct jpegr_metadata* jr_metadata_ptr;
+typedef struct jpegr_info_struct* jr_info_ptr;
 
 class RecoveryMap {
 public:
@@ -200,8 +208,19 @@ public:
      */
     status_t decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                          jr_uncompressed_ptr dest,
-                         jr_exif_ptr exif,
-                         bool request_sdr);
+                         jr_exif_ptr exif = nullptr,
+                         bool request_sdr = false);
+
+    /*
+    * Gets Info from JPEGR file without decoding it.
+    *
+    * The output is filled jpegr_info structure
+    * @param compressed_jpegr_image compressed JPEGR image
+    * @param jpegr_info pointer to output JPEGR info
+    * @return NO_ERROR if JPEGR parsing succeeds, error code otherwise
+    */
+    status_t getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
+                          jr_info_ptr jpegr_info);
 private:
     /*
      * This method is called in the decoding pipeline. It will decode the recovery map.
@@ -260,17 +279,26 @@ private:
                               jr_uncompressed_ptr dest);
 
     /*
+     * This methoud is called to separate primary image and recovery map image from JPEGR
+     *
+     * @param compressed_jpegr_image compressed JPEGR image
+     * @param primary_image destination of primary image
+     * @param recovery_map destination of compressed recovery map
+     * @return NO_ERROR if calculation succeeds, error code if error occurs.
+    */
+    status_t extractPrimaryImageAndRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
+                                               jr_compressed_ptr primary_image,
+                                               jr_compressed_ptr recovery_map);
+    /*
      * This method is called in the decoding pipeline. It will read XMP metadata to find the start
      * position of the compressed recovery map, and will extract the compressed recovery map.
      *
      * @param compressed_jpegr_image compressed JPEGR image
      * @param dest destination of compressed recovery map
-     * @param metadata destination of the recovery map metadata
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t extractRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
-                                jr_compressed_ptr dest,
-                                jr_metadata_ptr metadata);
+                                jr_compressed_ptr dest);
 
     /*
      * This method is called in the encoding pipeline. It will take the standard 8-bit JPEG image

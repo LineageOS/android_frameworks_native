@@ -288,6 +288,10 @@ Color applyRecovery(Color e, float recovery, float hdr_ratio) {
 // TODO: do we need something more clever for filtering either the map or images
 // to generate the map?
 
+static size_t clamp(const size_t& val, const size_t& low, const size_t& high) {
+  return val < low ? low : (high < val ? high : val);
+}
+
 static float mapUintToFloat(uint8_t map_uint) {
   return (static_cast<float>(map_uint) - 127.5f) / 127.5f;
 }
@@ -300,6 +304,11 @@ float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size
   size_t x_upper = x_lower + 1;
   size_t y_lower = static_cast<size_t>(floor(y_map));
   size_t y_upper = y_lower + 1;
+
+  x_lower = clamp(x_lower, 0, map->width - 1);
+  x_upper = clamp(x_upper, 0, map->width - 1);
+  y_lower = clamp(y_lower, 0, map->height - 1);
+  y_upper = clamp(y_upper, 0, map->height - 1);
 
   float x_influence = x_map - static_cast<float>(x_lower);
   float y_influence = y_map - static_cast<float>(y_lower);
@@ -338,9 +347,12 @@ Color getP010Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
   size_t pixel_y_idx = x + y * image->width;
   size_t pixel_uv_idx = x / 2 + (y / 2) * (image->width / 2);
 
-  uint16_t y_uint = reinterpret_cast<uint16_t*>(image->data)[pixel_y_idx];
-  uint16_t u_uint = reinterpret_cast<uint16_t*>(image->data)[pixel_count + pixel_uv_idx * 2];
-  uint16_t v_uint = reinterpret_cast<uint16_t*>(image->data)[pixel_count + pixel_uv_idx * 2 + 1];
+  uint16_t y_uint = reinterpret_cast<uint16_t*>(image->data)[pixel_y_idx]
+                  >> 6;
+  uint16_t u_uint = reinterpret_cast<uint16_t*>(image->data)[pixel_count + pixel_uv_idx * 2]
+                  >> 6;
+  uint16_t v_uint = reinterpret_cast<uint16_t*>(image->data)[pixel_count + pixel_uv_idx * 2 + 1]
+                  >> 6;
 
   // Conversions include taking narrow-range into account.
   return {{{ static_cast<float>(y_uint) / 940.0f,

@@ -272,6 +272,7 @@ public:
     WindowInfoHandle(const WindowInfo& other);
 
     inline const WindowInfo* getInfo() const { return &mInfo; }
+    inline WindowInfo* editInfo() { return &mInfo; }
 
     sp<IBinder> getToken() const;
 

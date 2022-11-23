@@ -96,6 +96,7 @@ HWComposer::~HWComposer() {
 void HWComposer::setCallback(HWC2::ComposerCallback& callback) {
     loadCapabilities();
     loadLayerMetadataSupport();
+    loadOverlayProperties();
 
     if (mRegisteredCallback) {
         ALOGW("Callback already registered. Ignored extra registration attempt.");
@@ -652,9 +653,9 @@ status_t HWComposer::getHdrCapabilities(HalDisplayId displayId, HdrCapabilities*
     return NO_ERROR;
 }
 
-status_t HWComposer::getOverlaySupport(
-        aidl::android::hardware::graphics::composer3::OverlayProperties* /*outProperties*/) {
-    return NO_ERROR;
+const aidl::android::hardware::graphics::composer3::OverlayProperties&
+HWComposer::getOverlaySupport() const {
+    return mOverlayProperties;
 }
 
 int32_t HWComposer::getSupportedPerFrameMetadata(HalDisplayId displayId) const {
@@ -972,6 +973,10 @@ void HWComposer::loadCapabilities() {
     for (auto capability : capabilities) {
         mCapabilities.emplace(capability);
     }
+}
+
+void HWComposer::loadOverlayProperties() {
+    mComposer->getOverlaySupport(&mOverlayProperties);
 }
 
 status_t HWComposer::setIdleTimerEnabled(PhysicalDisplayId displayId,

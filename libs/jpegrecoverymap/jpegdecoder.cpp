@@ -20,8 +20,15 @@
 
 #include <errno.h>
 #include <setjmp.h>
+#include <string>
+
+using namespace std;
 
 namespace android::recoverymap {
+
+const uint32_t kExifMarker = JPEG_APP0 + 1;
+const uint32_t kICCMarker = JPEG_APP0 + 2;
+
 struct jpegr_source_mgr : jpeg_source_mgr {
     jpegr_source_mgr(const uint8_t* ptr, int len);
     ~jpegr_source_mgr();
@@ -88,6 +95,7 @@ bool JpegDecoder::decompressImage(const void* image, int length) {
     }
 
     mResultBuffer.clear();
+    mXMPBuffer.clear();
     if (!decode(image, length)) {
         return false;
     }
@@ -103,6 +111,15 @@ size_t JpegDecoder::getDecompressedImageSize() {
     return mResultBuffer.size();
 }
 
+void* JpegDecoder::getXMPPtr() {
+    return mXMPBuffer.data();
+}
+
+size_t JpegDecoder::getXMPSize() {
+    return mXMPBuffer.size();
+}
+
+
 size_t JpegDecoder::getDecompressedImageWidth() {
     return mWidth;
 }
@@ -115,6 +132,8 @@ bool JpegDecoder::decode(const void* image, int length) {
     jpeg_decompress_struct cinfo;
     jpegr_source_mgr mgr(static_cast<const uint8_t*>(image), length);
     jpegrerror_mgr myerr;
+    string nameSpace = "http://ns.adobe.com/xap/1.0/";
+
     cinfo.err = jpeg_std_error(&myerr.pub);
     myerr.pub.error_exit = jpegrerror_exit;
 
@@ -124,8 +143,25 @@ bool JpegDecoder::decode(const void* image, int length) {
     }
     jpeg_create_decompress(&cinfo);
 
+    jpeg_save_markers(&cinfo, kExifMarker, 0xFFFF);
+
     cinfo.src = &mgr;
     jpeg_read_header(&cinfo, TRUE);
+
+    // Save XMP Data
+    for (jpeg_marker_struct* marker = cinfo.marker_list; marker; marker = marker->next) {
+        if (marker->marker == kExifMarker) {
+            const unsigned int len = marker->data_length;
+            if (len > nameSpace.size() &&
+                !strncmp(reinterpret_cast<const char*>(marker->data),
+                         nameSpace.c_str(), nameSpace.size())) {
+                mXMPBuffer.resize(len+1, 0);
+                memcpy(static_cast<void*>(mXMPBuffer.data()), marker->data, len);
+                break;
+            }
+        }
+    }
+
 
     mWidth = cinfo.image_width;
     mHeight = cinfo.image_height;
@@ -160,6 +196,43 @@ bool JpegDecoder::decompress(jpeg_decompress_struct* cinfo, const uint8_t* dest,
     }
     return decompressYUV(cinfo, dest);
 }
+
+bool JpegDecoder::getCompressedImageParameters(const void* image, int length,
+                              size_t *pWidth, size_t *pHeight,
+                              std::vector<uint8_t> *&iccData , std::vector<uint8_t> *&exifData) {
+    jpeg_decompress_struct cinfo;
+    jpegr_source_mgr mgr(static_cast<const uint8_t*>(image), length);
+    jpegrerror_mgr myerr;
+    cinfo.err = jpeg_std_error(&myerr.pub);
+    myerr.pub.error_exit = jpegrerror_exit;
+
+    if (setjmp(myerr.setjmp_buffer)) {
+        jpeg_destroy_decompress(&cinfo);
+        return false;
+    }
+    jpeg_create_decompress(&cinfo);
+
+    jpeg_save_markers(&cinfo, kExifMarker, 0xFFFF);
+    jpeg_save_markers(&cinfo, kICCMarker, 0xFFFF);
+
+    cinfo.src = &mgr;
+    if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
+        jpeg_destroy_decompress(&cinfo);
+        return false;
+    }
+
+    *pWidth = cinfo.image_width;
+    *pHeight = cinfo.image_height;
+
+    //TODO: Parse iccProfile and exifData
+    (void)iccData;
+    (void)exifData;
+
+
+    jpeg_destroy_decompress(&cinfo);
+    return true;
+}
+
 
 bool JpegDecoder::decompressYUV(jpeg_decompress_struct* cinfo, const uint8_t* dest) {
 

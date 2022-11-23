@@ -83,6 +83,7 @@ class SurfaceFrame;
 } // namespace frametimeline
 
 class Layer : public virtual RefBase {
+public:
     // The following constants represent priority of the window. SF uses this information when
     // deciding which window has a priority when deciding about the refresh rate of the screen.
     // Priority 0 is considered the highest priority. -1 means that the priority is unset.
@@ -94,7 +95,6 @@ class Layer : public virtual RefBase {
     // Windows that are not in focus, but voted for a specific mode ID.
     static constexpr int32_t PRIORITY_NOT_FOCUSED_WITH_MODE = 2;
 
-public:
     enum { // flags for doTransaction()
         eDontUpdateGeometryState = 0x00000001,
         eVisibleRegion = 0x00000002,
