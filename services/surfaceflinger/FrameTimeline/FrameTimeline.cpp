@@ -1175,7 +1175,7 @@ float FrameTimeline::computeFps(const std::unordered_set<int32_t>& layerIds) {
 std::optional<size_t> FrameTimeline::getFirstSignalFenceIndex() const {
     for (size_t i = 0; i < mPendingPresentFences.size(); i++) {
         const auto& [fence, _] = mPendingPresentFences[i];
-        if (fence && fence->isValid() && fence->getSignalTime() != Fence::SIGNAL_TIME_PENDING) {
+        if (fence && fence->getSignalTime() != Fence::SIGNAL_TIME_PENDING) {
             return i;
         }
     }
