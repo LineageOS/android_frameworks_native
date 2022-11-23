@@ -30,8 +30,9 @@ typedef enum {
 
 // Transfer functions as defined for XMP metadata
 typedef enum {
-  JPEGR_TF_HLG = 0,
-  JPEGR_TF_PQ = 1,
+  JPEGR_TF_LINEAR = 0,
+  JPEGR_TF_HLG = 1,
+  JPEGR_TF_PQ = 2,
 } jpegr_transfer_function;
 
 struct jpegr_info_struct {
@@ -342,47 +343,6 @@ private:
                                jr_compressed_ptr compressed_recovery_map,
                                jr_metadata_ptr metadata,
                                jr_compressed_ptr dest);
-
-    /*
-     * This method generates XMP metadata.
-     *
-     * below is an example of the XMP metadata that this function generates where
-     * secondary_image_length = 1000
-     * range_scaling_factor = 1.25
-     *
-     * <x:xmpmeta
-     *   xmlns:x="adobe:ns:meta/"
-     *   x:xmptk="Adobe XMP Core 5.1.2">
-     *   <rdf:RDF
-     *     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-     *     <rdf:Description
-     *       xmlns:GContainer="http://ns.google.com/photos/1.0/container/">
-     *       <GContainer:Version>1</GContainer:Version>
-     *       <GContainer:RangeScalingFactor>1.25</GContainer:RangeScalingFactor>
-     *       <GContainer:Directory>
-     *         <rdf:Seq>
-     *           <rdf:li>
-     *             <GContainer:Item
-     *               Item:Semantic="Primary"
-     *               Item:Mime="image/jpeg"/>
-     *           </rdf:li>
-     *           <rdf:li>
-     *             <GContainer:Item
-     *               Item:Semantic="RecoveryMap"
-     *               Item:Mime="image/jpeg"
-     *               Item:Length="1000"/>
-     *           </rdf:li>
-     *         </rdf:Seq>
-     *       </GContainer:Directory>
-     *     </rdf:Description>
-     *   </rdf:RDF>
-     * </x:xmpmeta>
-     *
-     * @param secondary_image_length length of secondary image
-     * @param metadata JPEG/R metadata to encode as XMP
-     * @return XMP metadata in type of string
-     */
-    std::string generateXmp(int secondary_image_length, jpegr_metadata& metadata);
 
     /*
      * This method will tone map a HDR image to an SDR image.
