@@ -104,7 +104,9 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
 
     mCompositionDisplay->getRenderSurface()->initialize();
 
-    if (args.initialPowerMode.has_value()) setPowerMode(args.initialPowerMode.value());
+    if (const auto powerModeOpt = args.initialPowerMode) {
+        setPowerMode(*powerModeOpt);
+    }
 
     // initialize the display orientation transform.
     setProjection(ui::ROTATION_0, Rect::INVALID_RECT, Rect::INVALID_RECT);
@@ -178,8 +180,7 @@ void DisplayDevice::setPowerMode(hal::PowerMode mode) {
 
     mPowerMode = mode;
 
-    getCompositionDisplay()->setCompositionEnabled(mPowerMode.has_value() &&
-                                                   *mPowerMode != hal::PowerMode::OFF);
+    getCompositionDisplay()->setCompositionEnabled(isPoweredOn());
 }
 
 void DisplayDevice::enableLayerCaching(bool enable) {

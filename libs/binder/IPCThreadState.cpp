@@ -45,11 +45,11 @@
 
 #define IF_LOG_TRANSACTIONS() if (false)
 #define IF_LOG_COMMANDS() if (false)
-#define LOG_REMOTEREFS(...) 
+#define LOG_REMOTEREFS(...)
 #define IF_LOG_REMOTEREFS() if (false)
 
-#define LOG_THREADPOOL(...) 
-#define LOG_ONEWAY(...) 
+#define LOG_THREADPOOL(...)
+#define LOG_ONEWAY(...)
 
 #else
 
@@ -394,12 +394,90 @@ void IPCThreadState::checkContextIsBinderForUse(const char* use) const {
     // context, so we don't abort
 }
 
+constexpr uint32_t encodeExplicitIdentity(bool hasExplicitIdentity, pid_t callingPid) {
+    uint32_t as_unsigned = static_cast<uint32_t>(callingPid);
+    if (hasExplicitIdentity) {
+        return as_unsigned | (1 << 30);
+    } else {
+        return as_unsigned & ~(1 << 30);
+    }
+}
+
+constexpr int64_t packCallingIdentity(bool hasExplicitIdentity, uid_t callingUid,
+                                      pid_t callingPid) {
+    // Calling PID is a 32-bit signed integer, but doesn't consume the entire 32 bit space.
+    // To future-proof this and because we have extra capacity, we decided to also support -1,
+    // since this constant is used to represent invalid UID in other places of the system.
+    // Thus, we pack hasExplicitIdentity into the 2nd bit from the left.  This allows us to
+    // preserve the (left-most) bit for the sign while also encoding the value of
+    // hasExplicitIdentity.
+    //               32b     |        1b         |         1b            |        30b
+    // token = [ calling uid | calling pid(sign) | has explicit identity | calling pid(rest) ]
+    uint64_t token = (static_cast<uint64_t>(callingUid) << 32) |
+            encodeExplicitIdentity(hasExplicitIdentity, callingPid);
+    return static_cast<int64_t>(token);
+}
+
+constexpr bool unpackHasExplicitIdentity(int64_t token) {
+    return static_cast<int32_t>(token) & (1 << 30);
+}
+
+constexpr uid_t unpackCallingUid(int64_t token) {
+    return static_cast<uid_t>(token >> 32);
+}
+
+constexpr pid_t unpackCallingPid(int64_t token) {
+    int32_t encodedPid = static_cast<int32_t>(token);
+    if (encodedPid & (1 << 31)) {
+        return encodedPid | (1 << 30);
+    } else {
+        return encodedPid & ~(1 << 30);
+    }
+}
+
+static_assert(unpackHasExplicitIdentity(packCallingIdentity(true, 1000, 9999)) == true,
+              "pack true hasExplicit");
+
+static_assert(unpackCallingUid(packCallingIdentity(true, 1000, 9999)) == 1000, "pack true uid");
+
+static_assert(unpackCallingPid(packCallingIdentity(true, 1000, 9999)) == 9999, "pack true pid");
+
+static_assert(unpackHasExplicitIdentity(packCallingIdentity(false, 1000, 9999)) == false,
+              "pack false hasExplicit");
+
+static_assert(unpackCallingUid(packCallingIdentity(false, 1000, 9999)) == 1000, "pack false uid");
+
+static_assert(unpackCallingPid(packCallingIdentity(false, 1000, 9999)) == 9999, "pack false pid");
+
+static_assert(unpackHasExplicitIdentity(packCallingIdentity(true, 1000, -1)) == true,
+              "pack true (negative) hasExplicit");
+
+static_assert(unpackCallingUid(packCallingIdentity(true, 1000, -1)) == 1000,
+              "pack true (negative) uid");
+
+static_assert(unpackCallingPid(packCallingIdentity(true, 1000, -1)) == -1,
+              "pack true (negative) pid");
+
+static_assert(unpackHasExplicitIdentity(packCallingIdentity(false, 1000, -1)) == false,
+              "pack false (negative) hasExplicit");
+
+static_assert(unpackCallingUid(packCallingIdentity(false, 1000, -1)) == 1000,
+              "pack false (negative) uid");
+
+static_assert(unpackCallingPid(packCallingIdentity(false, 1000, -1)) == -1,
+              "pack false (negative) pid");
+
 int64_t IPCThreadState::clearCallingIdentity()
 {
     // ignore mCallingSid for legacy reasons
-    int64_t token = ((int64_t)mCallingUid<<32) | mCallingPid;
+    int64_t token = packCallingIdentity(mHasExplicitIdentity, mCallingUid, mCallingPid);
     clearCaller();
+    mHasExplicitIdentity = true;
     return token;
+}
+
+bool IPCThreadState::hasExplicitIdentity() {
+    return mHasExplicitIdentity;
 }
 
 void IPCThreadState::setStrictModePolicy(int32_t policy)
@@ -474,9 +552,10 @@ ProcessState::CallRestriction IPCThreadState::getCallRestriction() const {
 
 void IPCThreadState::restoreCallingIdentity(int64_t token)
 {
-    mCallingUid = (int)(token>>32);
+    mCallingUid = unpackCallingUid(token);
     mCallingSid = nullptr;  // not enough data to restore
-    mCallingPid = (int)token;
+    mCallingPid = unpackCallingPid(token);
+    mHasExplicitIdentity = unpackHasExplicitIdentity(token);
 }
 
 void IPCThreadState::clearCaller()
@@ -889,6 +968,7 @@ IPCThreadState::IPCThreadState()
         mCallRestriction(mProcess->mCallRestriction) {
     pthread_setspecific(gTLS, this);
     clearCaller();
+    mHasExplicitIdentity = false;
     mIn.setDataCapacity(256);
     mOut.setDataCapacity(256);
 }
@@ -1279,6 +1359,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
             const pid_t origPid = mCallingPid;
             const char* origSid = mCallingSid;
             const uid_t origUid = mCallingUid;
+            const bool origHasExplicitIdentity = mHasExplicitIdentity;
             const int32_t origStrictModePolicy = mStrictModePolicy;
             const int32_t origTransactionBinderFlags = mLastTransactionBinderFlags;
             const int32_t origWorkSource = mWorkSource;
@@ -1292,6 +1373,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
             mCallingPid = tr.sender_pid;
             mCallingSid = reinterpret_cast<const char*>(tr_secctx.secctx);
             mCallingUid = tr.sender_euid;
+            mHasExplicitIdentity = false;
             mLastTransactionBinderFlags = tr.flags;
 
             // ALOGI(">>>> TRANSACT from pid %d sid %s uid %d\n", mCallingPid,
@@ -1367,6 +1449,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
             mCallingPid = origPid;
             mCallingSid = origSid;
             mCallingUid = origUid;
+            mHasExplicitIdentity = origHasExplicitIdentity;
             mStrictModePolicy = origStrictModePolicy;
             mLastTransactionBinderFlags = origTransactionBinderFlags;
             mWorkSource = origWorkSource;

@@ -19,6 +19,7 @@ rust_library {
         "libbinder_rpc_unstable_bindgen_sys",
         "libbinder_rs",
         "libdowncast_rs",
+        "libforeign_types",
         "liblibc",
         "liblog_rust",
     ],

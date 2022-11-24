@@ -50,12 +50,27 @@ TEST(AddService, HappyHappy) {
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
 }
 
+TEST(AddService, SadNullBinder) {
+    auto sm = new ServiceManager();
+    EXPECT_EQ(sm->addService(String16("foo"), nullptr, false /*allowIsolated*/,
+        IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), android::UNEXPECTED_NULL);
+}
+
 TEST(AddService, HappyOverExistingService) {
     auto sm = new ServiceManager();
     EXPECT_EQ(sm->addService(String16("foo"), getBinder(), false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
     EXPECT_EQ(sm->addService(String16("foo"), getBinder(), false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
+}
+
+TEST(AddService, HappyClearAddedService) {
+    auto sm = new ServiceManager();
+    EXPECT_EQ(sm->addService(String16("foo"), getBinder(), false /*allowIsolated*/,
+        IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
+    EXPECT_NE(sm->getService(String16("foo")), nullptr);
+    sm->clear();
+    EXPECT_EQ(sm->getService(String16("foo")), nullptr);
 }
 
 TEST(GetService, HappyHappy) {
