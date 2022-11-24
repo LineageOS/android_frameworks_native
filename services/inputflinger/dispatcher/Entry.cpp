@@ -166,7 +166,7 @@ KeyEntry::KeyEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t sou
         repeatCount(repeatCount),
         downTime(downTime),
         syntheticRepeat(false),
-        interceptKeyResult(KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN),
+        interceptKeyResult(KeyEntry::InterceptKeyResult::UNKNOWN),
         interceptKeyWakeupTime(0) {}
 
 KeyEntry::~KeyEntry() {}
@@ -189,7 +189,7 @@ void KeyEntry::recycle() {
 
     dispatchInProgress = false;
     syntheticRepeat = false;
-    interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN;
+    interceptKeyResult = KeyEntry::InterceptKeyResult::UNKNOWN;
     interceptKeyWakeupTime = 0;
 }
 

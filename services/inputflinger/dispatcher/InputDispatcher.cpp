@@ -60,7 +60,6 @@ using android::gui::FocusRequest;
 using android::gui::TouchOcclusionMode;
 using android::gui::WindowInfo;
 using android::gui::WindowInfoHandle;
-using android::os::IInputConstants;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
 
@@ -1033,8 +1032,8 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
                 KeyEntry& pendingKey = static_cast<KeyEntry&>(*mPendingEvent);
                 if (pendingKey.keyCode == keyEntry.keyCode &&
                     pendingKey.interceptKeyResult ==
-                            KeyEntry::INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER) {
-                    pendingKey.interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN;
+                            KeyEntry::InterceptKeyResult::TRY_AGAIN_LATER) {
+                    pendingKey.interceptKeyResult = KeyEntry::InterceptKeyResult::UNKNOWN;
                     pendingKey.interceptKeyWakeupTime = 0;
                     needWake = true;
                 }
@@ -1540,19 +1539,19 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<Key
     }
 
     // Handle case where the policy asked us to try again later last time.
-    if (entry->interceptKeyResult == KeyEntry::INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER) {
+    if (entry->interceptKeyResult == KeyEntry::InterceptKeyResult::TRY_AGAIN_LATER) {
         if (currentTime < entry->interceptKeyWakeupTime) {
             if (entry->interceptKeyWakeupTime < *nextWakeupTime) {
                 *nextWakeupTime = entry->interceptKeyWakeupTime;
             }
             return false; // wait until next wakeup
         }
-        entry->interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN;
+        entry->interceptKeyResult = KeyEntry::InterceptKeyResult::UNKNOWN;
         entry->interceptKeyWakeupTime = 0;
     }
 
     // Give the policy a chance to intercept the key.
-    if (entry->interceptKeyResult == KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN) {
+    if (entry->interceptKeyResult == KeyEntry::InterceptKeyResult::UNKNOWN) {
         if (entry->policyFlags & POLICY_FLAG_PASS_TO_USER) {
             sp<IBinder> focusedWindowToken =
                     mFocusResolver.getFocusedWindowToken(getTargetDisplayId(*entry));
@@ -1563,9 +1562,9 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<Key
             postCommandLocked(std::move(command));
             return false; // wait for the command to run
         } else {
-            entry->interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_CONTINUE;
+            entry->interceptKeyResult = KeyEntry::InterceptKeyResult::CONTINUE;
         }
-    } else if (entry->interceptKeyResult == KeyEntry::INTERCEPT_KEY_RESULT_SKIP) {
+    } else if (entry->interceptKeyResult == KeyEntry::InterceptKeyResult::SKIP) {
         if (*dropReason == DropReason::NOT_DROPPED) {
             *dropReason = DropReason::POLICY;
         }
@@ -5966,11 +5965,11 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& 
     } // acquire lock
 
     if (delay < 0) {
-        entry.interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_SKIP;
+        entry.interceptKeyResult = KeyEntry::InterceptKeyResult::SKIP;
     } else if (delay == 0) {
-        entry.interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_CONTINUE;
+        entry.interceptKeyResult = KeyEntry::InterceptKeyResult::CONTINUE;
     } else {
-        entry.interceptKeyResult = KeyEntry::INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER;
+        entry.interceptKeyResult = KeyEntry::InterceptKeyResult::TRY_AGAIN_LATER;
         entry.interceptKeyWakeupTime = now() + delay;
     }
 }
