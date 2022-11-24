@@ -64,6 +64,9 @@ public:
 
     std::vector<IServiceManager::ServiceDebugInfo> getServiceDebugInfo() override;
 
+    // Clear all of the registered services
+    void clear();
+
 private:
     std::map<String16, sp<IBinder>> mNameToService;
 };

@@ -36,6 +36,9 @@ sp<IBinder> ServiceManager::checkService( const String16& name) const {
 status_t ServiceManager::addService(const String16& name, const sp<IBinder>& service,
                                 bool /*allowIsolated*/,
                                 int /*dumpsysFlags*/) {
+    if (service == nullptr) {
+        return UNEXPECTED_NULL;
+    }
     mNameToService[name] = service;
     return NO_ERROR;
 }
@@ -102,5 +105,9 @@ status_t ServiceManager::unregisterForNotifications(const String16&,
 std::vector<IServiceManager::ServiceDebugInfo> ServiceManager::getServiceDebugInfo() {
     std::vector<IServiceManager::ServiceDebugInfo> ret;
     return ret;
+}
+
+void ServiceManager::clear() {
+    mNameToService.clear();
 }
 }  // namespace android

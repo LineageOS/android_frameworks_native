@@ -2472,6 +2472,43 @@ TEST_F(InputDispatcherTest, OnWindowInfosChanged_RemoveAllWindowsOnDisplay) {
     window->assertNoEvents();
 }
 
+TEST_F(InputDispatcherTest, NonSplitTouchableWindowReceivesMultiTouch) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
+                                                             "Fake Window", ADISPLAY_ID_DEFAULT);
+    // Ensure window is non-split and have some transform.
+    window->setPreventSplitting(true);
+    window->setWindowOffset(20, 40);
+    mDispatcher->onWindowInfosChanged({*window->getInfo()}, {});
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {50, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+
+    const MotionEvent secondFingerDownEvent =
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .displayId(ADISPLAY_ID_DEFAULT)
+                    .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
+                    .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/* id */ 1, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                     .x(-30)
+                                     .y(-50))
+                    .build();
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
+                                InputEventInjectionSync::WAIT_FOR_RESULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    const MotionEvent* event = window->consumeMotion();
+    EXPECT_EQ(POINTER_1_DOWN, event->getAction());
+    EXPECT_EQ(70, event->getX(0));  // 50 + 20
+    EXPECT_EQ(90, event->getY(0));  // 50 + 40
+    EXPECT_EQ(-10, event->getX(1)); // -30 + 20
+    EXPECT_EQ(-10, event->getY(1)); // -50 + 40
+}
+
 /**
  * Ensure the correct coordinate spaces are used by InputDispatcher.
  *
