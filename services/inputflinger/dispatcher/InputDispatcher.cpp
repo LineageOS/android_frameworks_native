@@ -2429,12 +2429,14 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
                 if (info->displayId == displayId &&
                     windowHandle->getInfo()->inputConfig.test(
                             WindowInfo::InputConfig::IS_WALLPAPER)) {
+                    BitSet32 pointerIds;
+                    pointerIds.markBit(entry.pointerProperties[0].id);
                     tempTouchState.addOrUpdateWindow(windowHandle,
                                                      InputTarget::Flags::WINDOW_IS_OBSCURED |
                                                              InputTarget::Flags::
                                                                      WINDOW_IS_PARTIALLY_OBSCURED |
                                                              InputTarget::Flags::DISPATCH_AS_IS,
-                                                     BitSet32(0), entry.eventTime);
+                                                     pointerIds, entry.eventTime);
                 }
             }
         }
