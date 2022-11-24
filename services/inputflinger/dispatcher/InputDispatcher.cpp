@@ -5435,9 +5435,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
 
     if (!mReplacedKeys.empty()) {
         dump += INDENT "ReplacedKeys:\n";
-        for (const std::pair<KeyReplacement, int32_t>& pair : mReplacedKeys) {
-            const KeyReplacement& replacement = pair.first;
-            int32_t newKeyCode = pair.second;
+        for (const auto& [replacement, newKeyCode] : mReplacedKeys) {
             dump += StringPrintf(INDENT2 "originalKeyCode=%d, deviceId=%d -> newKeyCode=%d\n",
                                  replacement.keyCode, replacement.deviceId, newKeyCode);
         }
