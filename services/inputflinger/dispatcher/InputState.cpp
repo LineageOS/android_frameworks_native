@@ -500,10 +500,10 @@ bool InputState::shouldCancelKey(const KeyMemento& memento, const CancelationOpt
     }
 
     switch (options.mode) {
-        case CancelationOptions::CANCEL_ALL_EVENTS:
-        case CancelationOptions::CANCEL_NON_POINTER_EVENTS:
+        case CancelationOptions::Mode::CANCEL_ALL_EVENTS:
+        case CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS:
             return true;
-        case CancelationOptions::CANCEL_FALLBACK_EVENTS:
+        case CancelationOptions::Mode::CANCEL_FALLBACK_EVENTS:
             return memento.flags & AKEY_EVENT_FLAG_FALLBACK;
         default:
             return false;
@@ -521,11 +521,11 @@ bool InputState::shouldCancelMotion(const MotionMemento& memento,
     }
 
     switch (options.mode) {
-        case CancelationOptions::CANCEL_ALL_EVENTS:
+        case CancelationOptions::Mode::CANCEL_ALL_EVENTS:
             return true;
-        case CancelationOptions::CANCEL_POINTER_EVENTS:
+        case CancelationOptions::Mode::CANCEL_POINTER_EVENTS:
             return memento.source & AINPUT_SOURCE_CLASS_POINTER;
-        case CancelationOptions::CANCEL_NON_POINTER_EVENTS:
+        case CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS:
             return !(memento.source & AINPUT_SOURCE_CLASS_POINTER);
         default:
             return false;
