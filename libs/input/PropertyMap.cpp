@@ -116,25 +116,24 @@ android::base::Result<std::unique_ptr<PropertyMap>> PropertyMap::load(const char
 
     Tokenizer* rawTokenizer;
     status_t status = Tokenizer::open(String8(filename), &rawTokenizer);
-    std::unique_ptr<Tokenizer> tokenizer(rawTokenizer);
     if (status) {
-        ALOGE("Error %d opening property file %s.", status, filename);
-    } else {
-#if DEBUG_PARSER_PERFORMANCE
-            nsecs_t startTime = systemTime(SYSTEM_TIME_MONOTONIC);
-#endif
-            Parser parser(outMap.get(), tokenizer.get());
-            status = parser.parse();
-#if DEBUG_PARSER_PERFORMANCE
-            nsecs_t elapsedTime = systemTime(SYSTEM_TIME_MONOTONIC) - startTime;
-            ALOGD("Parsed property file '%s' %d lines in %0.3fms.",
-                  tokenizer->getFilename().string(), tokenizer->getLineNumber(),
-                  elapsedTime / 1000000.0);
-#endif
-            if (status) {
-                return android::base::Error(BAD_VALUE) << "Could not parse " << filename;
-            }
+        return android::base::Error(-status) << "Could not open file: " << filename;
     }
+#if DEBUG_PARSER_PERFORMANCE
+    nsecs_t startTime = systemTime(SYSTEM_TIME_MONOTONIC);
+#endif
+    std::unique_ptr<Tokenizer> tokenizer(rawTokenizer);
+    Parser parser(outMap.get(), tokenizer.get());
+    status = parser.parse();
+#if DEBUG_PARSER_PERFORMANCE
+    nsecs_t elapsedTime = systemTime(SYSTEM_TIME_MONOTONIC) - startTime;
+    ALOGD("Parsed property file '%s' %d lines in %0.3fms.", tokenizer->getFilename().string(),
+          tokenizer->getLineNumber(), elapsedTime / 1000000.0);
+#endif
+    if (status) {
+        return android::base::Error(BAD_VALUE) << "Could not parse " << filename;
+    }
+
     return std::move(outMap);
 }
 
