@@ -24,7 +24,7 @@ namespace inputdispatcher {
 
 /* Specifies which events are to be canceled and why. */
 struct CancelationOptions {
-    enum Mode {
+    enum class Mode {
         CANCEL_ALL_EVENTS = 0,
         CANCEL_POINTER_EVENTS = 1,
         CANCEL_NON_POINTER_EVENTS = 2,

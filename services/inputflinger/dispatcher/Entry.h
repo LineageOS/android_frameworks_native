@@ -140,11 +140,11 @@ struct KeyEntry : EventEntry {
 
     bool syntheticRepeat; // set to true for synthetic key repeats
 
-    enum InterceptKeyResult {
-        INTERCEPT_KEY_RESULT_UNKNOWN,
-        INTERCEPT_KEY_RESULT_SKIP,
-        INTERCEPT_KEY_RESULT_CONTINUE,
-        INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER,
+    enum class InterceptKeyResult {
+        UNKNOWN,
+        SKIP,
+        CONTINUE,
+        TRY_AGAIN_LATER,
     };
     InterceptKeyResult interceptKeyResult; // set based on the interception result
     nsecs_t interceptKeyWakeupTime;        // used with INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER

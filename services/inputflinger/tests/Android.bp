@@ -46,6 +46,7 @@ cc_test {
         "InputDispatcher_test.cpp",
         "InputReader_test.cpp",
         "LatencyTracker_test.cpp",
+        "NotifyArgs_test.cpp",
         "PreferStylusOverTouch_test.cpp",
         "TestInputListener.cpp",
         "UinputDevice.cpp",

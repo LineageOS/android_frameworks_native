@@ -116,6 +116,8 @@ struct NotifyMotionArgs {
 
     NotifyMotionArgs(const NotifyMotionArgs& other);
 
+    NotifyMotionArgs& operator=(const android::NotifyMotionArgs&) = default;
+
     bool operator==(const NotifyMotionArgs& rhs) const;
 
     std::string dump() const;
