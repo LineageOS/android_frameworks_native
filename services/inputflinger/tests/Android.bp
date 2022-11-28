@@ -48,6 +48,7 @@ cc_test {
         "InputProcessorConverter_test.cpp",
         "InputDispatcher_test.cpp",
         "InputReader_test.cpp",
+        "InstrumentedInputReader.cpp",
         "LatencyTracker_test.cpp",
         "NotifyArgs_test.cpp",
         "PreferStylusOverTouch_test.cpp",
