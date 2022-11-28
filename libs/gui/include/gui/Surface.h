@@ -462,6 +462,11 @@ protected:
     // queue operation.  There is no HDR metadata by default.
     HdrMetadata mHdrMetadata;
 
+    // mHdrMetadataIsSet is a bitfield to track which HDR metadata has been set.
+    // Prevent Surface from resetting HDR metadata that was set on a bufer when
+    // HDR metadata is not set on this Surface.
+    uint32_t mHdrMetadataIsSet{0};
+
     // mCrop is the crop rectangle that will be used for the next buffer
     // that gets queued. It is set by calling setCrop.
     Rect mCrop;
