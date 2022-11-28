@@ -36,7 +36,7 @@ public:
     MockAidlPowerHalWrapper();
     ~MockAidlPowerHalWrapper() override;
     MOCK_METHOD(bool, setExpensiveRendering, (bool enabled), (override));
-    MOCK_METHOD(bool, notifyDisplayUpdateImminent, (), (override));
+    MOCK_METHOD(bool, notifyDisplayUpdateImminentAndCpuReset, (), (override));
     MOCK_METHOD(bool, supportsPowerHintSession, (), (override));
     MOCK_METHOD(bool, isPowerHintSessionRunning, (), (override));
     MOCK_METHOD(void, restartPowerHintSession, (), (override));
