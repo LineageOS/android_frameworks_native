@@ -44,6 +44,7 @@ cc_test {
         "FakeInputReaderPolicy.cpp",
         "FakePointerController.cpp",
         "FocusResolver_test.cpp",
+        "InputMapperTest.cpp",
         "InputProcessor_test.cpp",
         "InputProcessorConverter_test.cpp",
         "InputDispatcher_test.cpp",
