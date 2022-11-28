@@ -22,7 +22,6 @@ use crate::parcel::{BorrowedParcel, Serialize};
 use crate::proxy::SpIBinder;
 use crate::sys;
 
-use lazy_static::lazy_static;
 use std::convert::TryFrom;
 use std::ffi::{c_void, CStr, CString};
 use std::fs::File;
@@ -508,10 +507,8 @@ pub struct LazyServiceGuard {
     _private: (),
 }
 
-lazy_static! {
-    // Count of how many LazyServiceGuard objects are in existence.
-    static ref GUARD_COUNT: Mutex<u64> = Mutex::new(0);
-}
+// Count of how many LazyServiceGuard objects are in existence.
+static GUARD_COUNT: Mutex<u64> = Mutex::new(0);
 
 impl LazyServiceGuard {
     /// Create a new LazyServiceGuard to prevent the service manager prematurely killing this
