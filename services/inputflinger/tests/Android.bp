@@ -41,6 +41,7 @@ cc_test {
         "BlockingQueue_test.cpp",
         "EventHub_test.cpp",
         "FakeEventHub.cpp",
+        "FakePointerController.cpp",
         "FocusResolver_test.cpp",
         "InputProcessor_test.cpp",
         "InputProcessorConverter_test.cpp",

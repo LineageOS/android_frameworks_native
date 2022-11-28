@@ -41,6 +41,7 @@
 
 #include <thread>
 #include "FakeEventHub.h"
+#include "FakePointerController.h"
 #include "TestConstants.h"
 #include "android/hardware/input/InputDeviceCountryCode.h"
 #include "input/DisplayViewport.h"
@@ -147,97 +148,6 @@ static void assertAxisNotPresent(MultiTouchInputMapper& mapper, int axis) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
-
-// --- FakePointerController ---
-
-class FakePointerController : public PointerControllerInterface {
-    bool mHaveBounds;
-    float mMinX, mMinY, mMaxX, mMaxY;
-    float mX, mY;
-    int32_t mButtonState;
-    int32_t mDisplayId;
-
-public:
-    FakePointerController() :
-        mHaveBounds(false), mMinX(0), mMinY(0), mMaxX(0), mMaxY(0), mX(0), mY(0),
-        mButtonState(0), mDisplayId(ADISPLAY_ID_DEFAULT) {
-    }
-
-    virtual ~FakePointerController() {}
-
-    void setBounds(float minX, float minY, float maxX, float maxY) {
-        mHaveBounds = true;
-        mMinX = minX;
-        mMinY = minY;
-        mMaxX = maxX;
-        mMaxY = maxY;
-    }
-
-    void setPosition(float x, float y) override {
-        mX = x;
-        mY = y;
-    }
-
-    void setButtonState(int32_t buttonState) override { mButtonState = buttonState; }
-
-    int32_t getButtonState() const override { return mButtonState; }
-
-    void getPosition(float* outX, float* outY) const override {
-        *outX = mX;
-        *outY = mY;
-    }
-
-    int32_t getDisplayId() const override { return mDisplayId; }
-
-    void setDisplayViewport(const DisplayViewport& viewport) override {
-        mDisplayId = viewport.displayId;
-    }
-
-    const std::map<int32_t, std::vector<int32_t>>& getSpots() {
-        return mSpotsByDisplay;
-    }
-
-private:
-    bool getBounds(float* outMinX, float* outMinY, float* outMaxX, float* outMaxY) const override {
-        *outMinX = mMinX;
-        *outMinY = mMinY;
-        *outMaxX = mMaxX;
-        *outMaxY = mMaxY;
-        return mHaveBounds;
-    }
-
-    void move(float deltaX, float deltaY) override {
-        mX += deltaX;
-        if (mX < mMinX) mX = mMinX;
-        if (mX > mMaxX) mX = mMaxX;
-        mY += deltaY;
-        if (mY < mMinY) mY = mMinY;
-        if (mY > mMaxY) mY = mMaxY;
-    }
-
-    void fade(Transition) override {}
-
-    void unfade(Transition) override {}
-
-    void setPresentation(Presentation) override {}
-
-    void setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,
-                  int32_t displayId) override {
-        std::vector<int32_t> newSpots;
-        // Add spots for fingers that are down.
-        for (BitSet32 idBits(spotIdBits); !idBits.isEmpty(); ) {
-            uint32_t id = idBits.clearFirstMarkedBit();
-            newSpots.push_back(id);
-        }
-
-        mSpotsByDisplay[displayId] = newSpots;
-    }
-
-    void clearSpots() override { mSpotsByDisplay.clear(); }
-
-    std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;
-};
-
 
 // --- FakeInputReaderPolicy ---
 
