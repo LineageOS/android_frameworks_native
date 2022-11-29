@@ -412,17 +412,14 @@ private:
     // The components of the viewport are specified in the display's rotated orientation.
     DisplayViewport mViewport;
 
-    // The width and height are obtained from the viewport and are specified
-    // in the natural orientation.
-    int32_t mDisplayWidth;
-    int32_t mDisplayHeight;
+    // We refer to the display as being in the "natural orientation" when there is no rotation
+    // applied. The display size obtained from the viewport in the natural orientation.
+    // Always starts at (0, 0).
+    ui::Size mDisplayBounds{ui::kInvalidSize};
 
-    // The physical frame is the rectangle in the display's coordinate space that maps to the
+    // The physical frame is the rectangle in the natural display's coordinate space that maps to
     // the logical display frame.
-    int32_t mPhysicalWidth;
-    int32_t mPhysicalHeight;
-    int32_t mPhysicalLeft;
-    int32_t mPhysicalTop;
+    Rect mPhysicalFrameInDisplay{Rect::INVALID_RECT};
 
     // The orientation of the input device relative to that of the display panel. It specifies
     // the rotation of the input device coordinates required to produce the display panel
