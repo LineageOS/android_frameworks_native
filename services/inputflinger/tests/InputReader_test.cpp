@@ -6735,6 +6735,54 @@ TEST_F(SingleTouchInputMapperTest, WhenDeviceTypeIsChangedToTouchNavigation_upda
     ASSERT_EQ(AINPUT_SOURCE_TOUCH_NAVIGATION, mDevice->getSources());
 }
 
+TEST_F(SingleTouchInputMapperTest, HoverEventsOutsidePhysicalFrameAreIgnored) {
+    // Initialize the device without setting device source to touch navigation.
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(ui::ROTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
+
+    // Set a physical frame in the display viewport.
+    auto viewport = mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
+    viewport->physicalLeft = 0;
+    viewport->physicalTop = 0;
+    viewport->physicalRight = DISPLAY_WIDTH / 2;
+    viewport->physicalBottom = DISPLAY_HEIGHT / 2;
+    mFakePolicy->updateViewport(*viewport);
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    // Hovering inside the physical frame produces events.
+    processKey(mapper, BTN_TOOL_PEN, 1);
+    processMove(mapper, RAW_X_MIN + 1, RAW_Y_MIN + 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER)));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE)));
+
+    // Leaving the physical frame ends the hovering gesture.
+    processMove(mapper, RAW_X_MAX - 1, RAW_Y_MAX - 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT)));
+
+    // Moving outside the physical frame does not produce events.
+    processMove(mapper, RAW_X_MAX - 2, RAW_Y_MAX - 2);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Re-entering the physical frame produces events.
+    processMove(mapper, RAW_X_MIN, RAW_Y_MIN);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER)));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE)));
+}
+
 // --- TouchDisplayProjectionTest ---
 
 class TouchDisplayProjectionTest : public SingleTouchInputMapperTest {

@@ -1855,6 +1855,27 @@ std::list<NotifyArgs> TouchInputMapper::consumeRawTouches(nsecs_t when, nsecs_t 
         }
     }
 
+    if (!mCurrentRawState.rawPointerData.hoveringIdBits.isEmpty() &&
+        mCurrentRawState.rawPointerData.touchingIdBits.isEmpty() &&
+        mDeviceMode != DeviceMode::UNSCALED) {
+        // We have hovering pointers, and there are no touching pointers.
+        bool hoveringPointersInFrame = false;
+        auto hoveringIds = mCurrentRawState.rawPointerData.hoveringIdBits;
+        while (!hoveringIds.isEmpty()) {
+            uint32_t id = hoveringIds.clearFirstMarkedBit();
+            const auto& pointer = mCurrentRawState.rawPointerData.pointerForId(id);
+            if (isPointInsidePhysicalFrame(pointer.x, pointer.y)) {
+                hoveringPointersInFrame = true;
+                break;
+            }
+        }
+        if (!hoveringPointersInFrame) {
+            // All hovering pointers are outside the physical frame.
+            outConsumed = true;
+            return out;
+        }
+    }
+
     if (mLastRawState.rawPointerData.touchingIdBits.isEmpty() &&
         !mCurrentRawState.rawPointerData.touchingIdBits.isEmpty()) {
         // Pointer just went down.  Check for virtual key press or off-screen touches.
@@ -1865,7 +1886,7 @@ std::list<NotifyArgs> TouchInputMapper::consumeRawTouches(nsecs_t when, nsecs_t 
         if (!isPointInsidePhysicalFrame(pointer.x, pointer.y) &&
             mDeviceMode != DeviceMode::UNSCALED) {
             // If exactly one pointer went down, check for virtual key hit.
-            // Otherwise we will drop the entire stroke.
+            // Otherwise, we will drop the entire stroke.
             if (mCurrentRawState.rawPointerData.touchingIdBits.count() == 1) {
                 const VirtualKey* virtualKey = findVirtualKeyHit(pointer.x, pointer.y);
                 if (virtualKey) {
