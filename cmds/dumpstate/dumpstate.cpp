@@ -2761,6 +2761,11 @@ static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
     }
 }
 
+static bool IsConsentlessBugreportAllowed(const Dumpstate::DumpOptions& options) {
+    // only BUGREPORT_TELEPHONY does not allow using consentless bugreport
+    return !options.telephony_only;
+}
+
 static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOptions* options,
                                bool is_screenshot_requested) {
     // Modify com.android.shell.BugreportProgressService#isDefaultScreenshotRequired as well for
@@ -3332,9 +3337,12 @@ void Dumpstate::MaybeCheckUserConsent(int32_t calling_uid, const std::string& ca
     android::String16 package(calling_package.c_str());
     if (ics != nullptr) {
         MYLOGD("Checking user consent via incidentcompanion service\n");
+        int flags = 0x1; // IncidentManager.FLAG_CONFIRMATION_DIALOG
+        if (IsConsentlessBugreportAllowed(*options_)) {
+            flags |= 0x2; // IncidentManager.FLAG_ALLOW_CONSENTLESS_BUGREPORT
+        }
         android::interface_cast<android::os::IIncidentCompanion>(ics)->authorizeReport(
-            calling_uid, package, String16(), String16(),
-            0x1 /* FLAG_CONFIRMATION_DIALOG */, consent_callback_.get());
+            calling_uid, package, String16(), String16(), flags, consent_callback_.get());
     } else {
         MYLOGD("Unable to check user consent; incidentcompanion service unavailable\n");
     }
