@@ -40,6 +40,8 @@
 #include <gui/constants.h>
 
 #include <thread>
+#include "FakeEventHub.h"
+#include "TestConstants.h"
 #include "android/hardware/input/InputDeviceCountryCode.h"
 #include "input/DisplayViewport.h"
 #include "input/Input.h"
@@ -51,13 +53,6 @@ namespace android {
 using namespace ftl::flag_operators;
 using testing::AllOf;
 using std::chrono_literals::operator""ms;
-
-// Timeout for waiting for an expected event
-static constexpr std::chrono::duration WAIT_TIMEOUT = 100ms;
-
-// An arbitrary time value.
-static constexpr nsecs_t ARBITRARY_TIME = 1234;
-static constexpr nsecs_t READ_TIME = 4321;
 
 // Arbitrary display properties.
 static constexpr int32_t DISPLAY_ID = 0;
@@ -79,10 +74,6 @@ static constexpr int32_t INVALID_TRACKING_ID = -1;
 static constexpr int32_t FIRST_TRACKING_ID = 0;
 static constexpr int32_t SECOND_TRACKING_ID = 1;
 static constexpr int32_t THIRD_TRACKING_ID = 2;
-static constexpr int32_t DEFAULT_BATTERY = 1;
-static constexpr int32_t BATTERY_STATUS = 4;
-static constexpr int32_t BATTERY_CAPACITY = 66;
-static const std::string BATTERY_DEVPATH = "/sys/devices/mydevice/power_supply/mybattery";
 static constexpr int32_t LIGHT_BRIGHTNESS = 0x55000000;
 static constexpr int32_t LIGHT_COLOR = 0x7F448866;
 static constexpr int32_t LIGHT_PLAYER_ID = 2;
@@ -462,653 +453,6 @@ private:
         std::scoped_lock<std::mutex> lock(mLock);
         mStylusGestureNotified = deviceId;
     }
-};
-
-// --- FakeEventHub ---
-
-class FakeEventHub : public EventHubInterface {
-    struct KeyInfo {
-        int32_t keyCode;
-        uint32_t flags;
-    };
-
-    struct SensorInfo {
-        InputDeviceSensorType sensorType;
-        int32_t sensorDataIndex;
-    };
-
-    struct Device {
-        InputDeviceIdentifier identifier;
-        ftl::Flags<InputDeviceClass> classes;
-        PropertyMap configuration;
-        KeyedVector<int, RawAbsoluteAxisInfo> absoluteAxes;
-        KeyedVector<int, bool> relativeAxes;
-        KeyedVector<int32_t, int32_t> keyCodeStates;
-        KeyedVector<int32_t, int32_t> scanCodeStates;
-        KeyedVector<int32_t, int32_t> switchStates;
-        KeyedVector<int32_t, int32_t> absoluteAxisValue;
-        KeyedVector<int32_t, KeyInfo> keysByScanCode;
-        KeyedVector<int32_t, KeyInfo> keysByUsageCode;
-        KeyedVector<int32_t, bool> leds;
-        // fake mapping which would normally come from keyCharacterMap
-        std::unordered_map<int32_t, int32_t> keyCodeMapping;
-        std::unordered_map<int32_t, SensorInfo> sensorsByAbsCode;
-        BitArray<MSC_MAX> mscBitmask;
-        std::vector<VirtualKeyDefinition> virtualKeys;
-        bool enabled;
-        InputDeviceCountryCode countryCode;
-
-        status_t enable() {
-            enabled = true;
-            return OK;
-        }
-
-        status_t disable() {
-            enabled = false;
-            return OK;
-        }
-
-        explicit Device(ftl::Flags<InputDeviceClass> classes) : classes(classes), enabled(true) {}
-    };
-
-    std::mutex mLock;
-    std::condition_variable mEventsCondition;
-
-    KeyedVector<int32_t, Device*> mDevices;
-    std::vector<std::string> mExcludedDevices;
-    std::vector<RawEvent> mEvents GUARDED_BY(mLock);
-    std::unordered_map<int32_t /*deviceId*/, std::vector<TouchVideoFrame>> mVideoFrames;
-    std::vector<int32_t> mVibrators = {0, 1};
-    std::unordered_map<int32_t, RawLightInfo> mRawLightInfos;
-    // Simulates a device light brightness, from light id to light brightness.
-    std::unordered_map<int32_t /* lightId */, int32_t /* brightness*/> mLightBrightness;
-    // Simulates a device light intensities, from light id to light intensities map.
-    std::unordered_map<int32_t /* lightId */, std::unordered_map<LightColor, int32_t>>
-            mLightIntensities;
-
-public:
-    virtual ~FakeEventHub() {
-        for (size_t i = 0; i < mDevices.size(); i++) {
-            delete mDevices.valueAt(i);
-        }
-    }
-
-    FakeEventHub() { }
-
-    void addDevice(int32_t deviceId, const std::string& name, ftl::Flags<InputDeviceClass> classes,
-                   int bus = 0) {
-        Device* device = new Device(classes);
-        device->identifier.name = name;
-        device->identifier.bus = bus;
-        mDevices.add(deviceId, device);
-
-        enqueueEvent(ARBITRARY_TIME, READ_TIME, deviceId, EventHubInterface::DEVICE_ADDED, 0, 0);
-    }
-
-    void removeDevice(int32_t deviceId) {
-        delete mDevices.valueFor(deviceId);
-        mDevices.removeItem(deviceId);
-
-        enqueueEvent(ARBITRARY_TIME, READ_TIME, deviceId, EventHubInterface::DEVICE_REMOVED, 0, 0);
-    }
-
-    bool isDeviceEnabled(int32_t deviceId) const override {
-        Device* device = getDevice(deviceId);
-        if (device == nullptr) {
-            ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
-            return false;
-        }
-        return device->enabled;
-    }
-
-    status_t enableDevice(int32_t deviceId) override {
-        status_t result;
-        Device* device = getDevice(deviceId);
-        if (device == nullptr) {
-            ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
-            return BAD_VALUE;
-        }
-        if (device->enabled) {
-            ALOGW("Duplicate call to %s, device %" PRId32 " already enabled", __func__, deviceId);
-            return OK;
-        }
-        result = device->enable();
-        return result;
-    }
-
-    status_t disableDevice(int32_t deviceId) override {
-        Device* device = getDevice(deviceId);
-        if (device == nullptr) {
-            ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
-            return BAD_VALUE;
-        }
-        if (!device->enabled) {
-            ALOGW("Duplicate call to %s, device %" PRId32 " already disabled", __func__, deviceId);
-            return OK;
-        }
-        return device->disable();
-    }
-
-    void finishDeviceScan() {
-        enqueueEvent(ARBITRARY_TIME, READ_TIME, 0, EventHubInterface::FINISHED_DEVICE_SCAN, 0, 0);
-    }
-
-    void addConfigurationProperty(int32_t deviceId, const char* key, const char* value) {
-        Device* device = getDevice(deviceId);
-        device->configuration.addProperty(key, value);
-    }
-
-    void addConfigurationMap(int32_t deviceId, const PropertyMap* configuration) {
-        Device* device = getDevice(deviceId);
-        device->configuration.addAll(configuration);
-    }
-
-    void addAbsoluteAxis(int32_t deviceId, int axis,
-            int32_t minValue, int32_t maxValue, int flat, int fuzz, int resolution = 0) {
-        Device* device = getDevice(deviceId);
-
-        RawAbsoluteAxisInfo info;
-        info.valid = true;
-        info.minValue = minValue;
-        info.maxValue = maxValue;
-        info.flat = flat;
-        info.fuzz = fuzz;
-        info.resolution = resolution;
-        device->absoluteAxes.add(axis, info);
-    }
-
-    void addRelativeAxis(int32_t deviceId, int32_t axis) {
-        Device* device = getDevice(deviceId);
-        device->relativeAxes.add(axis, true);
-    }
-
-    void setKeyCodeState(int32_t deviceId, int32_t keyCode, int32_t state) {
-        Device* device = getDevice(deviceId);
-        device->keyCodeStates.replaceValueFor(keyCode, state);
-    }
-
-    void setCountryCode(int32_t deviceId, InputDeviceCountryCode countryCode) {
-        Device* device = getDevice(deviceId);
-        device->countryCode = countryCode;
-    }
-
-    void setScanCodeState(int32_t deviceId, int32_t scanCode, int32_t state) {
-        Device* device = getDevice(deviceId);
-        device->scanCodeStates.replaceValueFor(scanCode, state);
-    }
-
-    void setSwitchState(int32_t deviceId, int32_t switchCode, int32_t state) {
-        Device* device = getDevice(deviceId);
-        device->switchStates.replaceValueFor(switchCode, state);
-    }
-
-    void setAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t value) {
-        Device* device = getDevice(deviceId);
-        device->absoluteAxisValue.replaceValueFor(axis, value);
-    }
-
-    void addKey(int32_t deviceId, int32_t scanCode, int32_t usageCode,
-            int32_t keyCode, uint32_t flags) {
-        Device* device = getDevice(deviceId);
-        KeyInfo info;
-        info.keyCode = keyCode;
-        info.flags = flags;
-        if (scanCode) {
-            device->keysByScanCode.add(scanCode, info);
-        }
-        if (usageCode) {
-            device->keysByUsageCode.add(usageCode, info);
-        }
-    }
-
-    void addKeyCodeMapping(int32_t deviceId, int32_t fromKeyCode, int32_t toKeyCode) {
-        Device* device = getDevice(deviceId);
-        device->keyCodeMapping.insert_or_assign(fromKeyCode, toKeyCode);
-    }
-
-    void addLed(int32_t deviceId, int32_t led, bool initialState) {
-        Device* device = getDevice(deviceId);
-        device->leds.add(led, initialState);
-    }
-
-    void addSensorAxis(int32_t deviceId, int32_t absCode, InputDeviceSensorType sensorType,
-                       int32_t sensorDataIndex) {
-        Device* device = getDevice(deviceId);
-        SensorInfo info;
-        info.sensorType = sensorType;
-        info.sensorDataIndex = sensorDataIndex;
-        device->sensorsByAbsCode.emplace(absCode, info);
-    }
-
-    void setMscEvent(int32_t deviceId, int32_t mscEvent) {
-        Device* device = getDevice(deviceId);
-        typename BitArray<MSC_MAX>::Buffer buffer;
-        buffer[mscEvent / 32] = 1 << mscEvent % 32;
-        device->mscBitmask.loadFromBuffer(buffer);
-    }
-
-    void addRawLightInfo(int32_t rawId, RawLightInfo&& info) {
-        mRawLightInfos.emplace(rawId, std::move(info));
-    }
-
-    void fakeLightBrightness(int32_t rawId, int32_t brightness) {
-        mLightBrightness.emplace(rawId, brightness);
-    }
-
-    void fakeLightIntensities(int32_t rawId,
-                              const std::unordered_map<LightColor, int32_t> intensities) {
-        mLightIntensities.emplace(rawId, std::move(intensities));
-    }
-
-    bool getLedState(int32_t deviceId, int32_t led) {
-        Device* device = getDevice(deviceId);
-        return device->leds.valueFor(led);
-    }
-
-    std::vector<std::string>& getExcludedDevices() {
-        return mExcludedDevices;
-    }
-
-    void addVirtualKeyDefinition(int32_t deviceId, const VirtualKeyDefinition& definition) {
-        Device* device = getDevice(deviceId);
-        device->virtualKeys.push_back(definition);
-    }
-
-    void enqueueEvent(nsecs_t when, nsecs_t readTime, int32_t deviceId, int32_t type, int32_t code,
-                      int32_t value) {
-        std::scoped_lock<std::mutex> lock(mLock);
-        RawEvent event;
-        event.when = when;
-        event.readTime = readTime;
-        event.deviceId = deviceId;
-        event.type = type;
-        event.code = code;
-        event.value = value;
-        mEvents.push_back(event);
-
-        if (type == EV_ABS) {
-            setAbsoluteAxisValue(deviceId, code, value);
-        }
-    }
-
-    void setVideoFrames(std::unordered_map<int32_t /*deviceId*/,
-            std::vector<TouchVideoFrame>> videoFrames) {
-        mVideoFrames = std::move(videoFrames);
-    }
-
-    void assertQueueIsEmpty() {
-        std::unique_lock<std::mutex> lock(mLock);
-        base::ScopedLockAssertion assumeLocked(mLock);
-        const bool queueIsEmpty =
-                mEventsCondition.wait_for(lock, WAIT_TIMEOUT,
-                                          [this]() REQUIRES(mLock) { return mEvents.size() == 0; });
-        if (!queueIsEmpty) {
-            FAIL() << "Timed out waiting for EventHub queue to be emptied.";
-        }
-    }
-
-private:
-    Device* getDevice(int32_t deviceId) const {
-        ssize_t index = mDevices.indexOfKey(deviceId);
-        return index >= 0 ? mDevices.valueAt(index) : nullptr;
-    }
-
-    ftl::Flags<InputDeviceClass> getDeviceClasses(int32_t deviceId) const override {
-        Device* device = getDevice(deviceId);
-        return device ? device->classes : ftl::Flags<InputDeviceClass>(0);
-    }
-
-    InputDeviceIdentifier getDeviceIdentifier(int32_t deviceId) const override {
-        Device* device = getDevice(deviceId);
-        return device ? device->identifier : InputDeviceIdentifier();
-    }
-
-    int32_t getDeviceControllerNumber(int32_t) const override { return 0; }
-
-    void getConfiguration(int32_t deviceId, PropertyMap* outConfiguration) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            *outConfiguration = device->configuration;
-        }
-    }
-
-    status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
-                                 RawAbsoluteAxisInfo* outAxisInfo) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            ssize_t index = device->absoluteAxes.indexOfKey(axis);
-            if (index >= 0) {
-                *outAxisInfo = device->absoluteAxes.valueAt(index);
-                return OK;
-            }
-        }
-        outAxisInfo->clear();
-        return -1;
-    }
-
-    bool hasRelativeAxis(int32_t deviceId, int axis) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            return device->relativeAxes.indexOfKey(axis) >= 0;
-        }
-        return false;
-    }
-
-    bool hasInputProperty(int32_t, int) const override { return false; }
-
-    bool hasMscEvent(int32_t deviceId, int mscEvent) const override final {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            return mscEvent >= 0 && mscEvent <= MSC_MAX ? device->mscBitmask.test(mscEvent) : false;
-        }
-        return false;
-    }
-
-    status_t mapKey(int32_t deviceId, int32_t scanCode, int32_t usageCode, int32_t metaState,
-                    int32_t* outKeycode, int32_t* outMetaState, uint32_t* outFlags) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            const KeyInfo* key = getKey(device, scanCode, usageCode);
-            if (key) {
-                if (outKeycode) {
-                    *outKeycode = key->keyCode;
-                }
-                if (outFlags) {
-                    *outFlags = key->flags;
-                }
-                if (outMetaState) {
-                    *outMetaState = metaState;
-                }
-                return OK;
-            }
-        }
-        return NAME_NOT_FOUND;
-    }
-
-    const KeyInfo* getKey(Device* device, int32_t scanCode, int32_t usageCode) const {
-        if (usageCode) {
-            ssize_t index = device->keysByUsageCode.indexOfKey(usageCode);
-            if (index >= 0) {
-                return &device->keysByUsageCode.valueAt(index);
-            }
-        }
-        if (scanCode) {
-            ssize_t index = device->keysByScanCode.indexOfKey(scanCode);
-            if (index >= 0) {
-                return &device->keysByScanCode.valueAt(index);
-            }
-        }
-        return nullptr;
-    }
-
-    status_t mapAxis(int32_t, int32_t, AxisInfo*) const override { return NAME_NOT_FOUND; }
-
-    base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(
-            int32_t deviceId, int32_t absCode) const override {
-        Device* device = getDevice(deviceId);
-        if (!device) {
-            return Errorf("Sensor device not found.");
-        }
-        auto it = device->sensorsByAbsCode.find(absCode);
-        if (it == device->sensorsByAbsCode.end()) {
-            return Errorf("Sensor map not found.");
-        }
-        const SensorInfo& info = it->second;
-        return std::make_pair(info.sensorType, info.sensorDataIndex);
-    }
-
-    void setExcludedDevices(const std::vector<std::string>& devices) override {
-        mExcludedDevices = devices;
-    }
-
-    std::vector<RawEvent> getEvents(int) override {
-        std::scoped_lock lock(mLock);
-
-        std::vector<RawEvent> buffer;
-        std::swap(buffer, mEvents);
-
-        mEventsCondition.notify_all();
-        return buffer;
-    }
-
-    std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) override {
-        auto it = mVideoFrames.find(deviceId);
-        if (it != mVideoFrames.end()) {
-            std::vector<TouchVideoFrame> frames = std::move(it->second);
-            mVideoFrames.erase(deviceId);
-            return frames;
-        }
-        return {};
-    }
-
-    int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            ssize_t index = device->scanCodeStates.indexOfKey(scanCode);
-            if (index >= 0) {
-                return device->scanCodeStates.valueAt(index);
-            }
-        }
-        return AKEY_STATE_UNKNOWN;
-    }
-
-    InputDeviceCountryCode getCountryCode(int32_t deviceId) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            return device->countryCode;
-        }
-        return InputDeviceCountryCode::INVALID;
-    }
-
-    int32_t getKeyCodeState(int32_t deviceId, int32_t keyCode) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            ssize_t index = device->keyCodeStates.indexOfKey(keyCode);
-            if (index >= 0) {
-                return device->keyCodeStates.valueAt(index);
-            }
-        }
-        return AKEY_STATE_UNKNOWN;
-    }
-
-    int32_t getSwitchState(int32_t deviceId, int32_t sw) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            ssize_t index = device->switchStates.indexOfKey(sw);
-            if (index >= 0) {
-                return device->switchStates.valueAt(index);
-            }
-        }
-        return AKEY_STATE_UNKNOWN;
-    }
-
-    status_t getAbsoluteAxisValue(int32_t deviceId, int32_t axis,
-                                  int32_t* outValue) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            ssize_t index = device->absoluteAxisValue.indexOfKey(axis);
-            if (index >= 0) {
-                *outValue = device->absoluteAxisValue.valueAt(index);
-                return OK;
-            }
-        }
-        *outValue = 0;
-        return -1;
-    }
-
-    int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const override {
-        Device* device = getDevice(deviceId);
-        if (!device) {
-            return AKEYCODE_UNKNOWN;
-        }
-        auto it = device->keyCodeMapping.find(locationKeyCode);
-        return it != device->keyCodeMapping.end() ? it->second : locationKeyCode;
-    }
-
-    // Return true if the device has non-empty key layout.
-    bool markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,
-                               uint8_t* outFlags) const override {
-        bool result = false;
-        Device* device = getDevice(deviceId);
-        if (device) {
-            result = device->keysByScanCode.size() > 0 || device->keysByUsageCode.size() > 0;
-            for (size_t i = 0; i < keyCodes.size(); i++) {
-                for (size_t j = 0; j < device->keysByScanCode.size(); j++) {
-                    if (keyCodes[i] == device->keysByScanCode.valueAt(j).keyCode) {
-                        outFlags[i] = 1;
-                    }
-                }
-                for (size_t j = 0; j < device->keysByUsageCode.size(); j++) {
-                    if (keyCodes[i] == device->keysByUsageCode.valueAt(j).keyCode) {
-                        outFlags[i] = 1;
-                    }
-                }
-            }
-        }
-        return result;
-    }
-
-    bool hasScanCode(int32_t deviceId, int32_t scanCode) const override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            ssize_t index = device->keysByScanCode.indexOfKey(scanCode);
-            return index >= 0;
-        }
-        return false;
-    }
-
-    bool hasKeyCode(int32_t deviceId, int32_t keyCode) const override {
-        Device* device = getDevice(deviceId);
-        if (!device) {
-            return false;
-        }
-        for (size_t i = 0; i < device->keysByScanCode.size(); i++) {
-            if (keyCode == device->keysByScanCode.valueAt(i).keyCode) {
-                return true;
-            }
-        }
-        for (size_t j = 0; j < device->keysByUsageCode.size(); j++) {
-            if (keyCode == device->keysByUsageCode.valueAt(j).keyCode) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool hasLed(int32_t deviceId, int32_t led) const override {
-        Device* device = getDevice(deviceId);
-        return device && device->leds.indexOfKey(led) >= 0;
-    }
-
-    void setLedState(int32_t deviceId, int32_t led, bool on) override {
-        Device* device = getDevice(deviceId);
-        if (device) {
-            ssize_t index = device->leds.indexOfKey(led);
-            if (index >= 0) {
-                device->leds.replaceValueAt(led, on);
-            } else {
-                ADD_FAILURE()
-                        << "Attempted to set the state of an LED that the EventHub declared "
-                        "was not present.  led=" << led;
-            }
-        }
-    }
-
-    void getVirtualKeyDefinitions(
-            int32_t deviceId, std::vector<VirtualKeyDefinition>& outVirtualKeys) const override {
-        outVirtualKeys.clear();
-
-        Device* device = getDevice(deviceId);
-        if (device) {
-            outVirtualKeys = device->virtualKeys;
-        }
-    }
-
-    const std::shared_ptr<KeyCharacterMap> getKeyCharacterMap(int32_t) const override {
-        return nullptr;
-    }
-
-    bool setKeyboardLayoutOverlay(int32_t, std::shared_ptr<KeyCharacterMap>) override {
-        return false;
-    }
-
-    void vibrate(int32_t, const VibrationElement&) override {}
-
-    void cancelVibrate(int32_t) override {}
-
-    std::vector<int32_t> getVibratorIds(int32_t deviceId) const override { return mVibrators; };
-
-    std::optional<int32_t> getBatteryCapacity(int32_t, int32_t) const override {
-        return BATTERY_CAPACITY;
-    }
-
-    std::optional<int32_t> getBatteryStatus(int32_t, int32_t) const override {
-        return BATTERY_STATUS;
-    }
-
-    std::vector<int32_t> getRawBatteryIds(int32_t deviceId) const override {
-        return {DEFAULT_BATTERY};
-    }
-
-    std::optional<RawBatteryInfo> getRawBatteryInfo(int32_t deviceId,
-                                                    int32_t batteryId) const override {
-        if (batteryId != DEFAULT_BATTERY) return {};
-        static const auto BATTERY_INFO = RawBatteryInfo{.id = DEFAULT_BATTERY,
-                                                        .name = "default battery",
-                                                        .flags = InputBatteryClass::CAPACITY,
-                                                        .path = BATTERY_DEVPATH};
-        return BATTERY_INFO;
-    }
-
-    std::vector<int32_t> getRawLightIds(int32_t deviceId) const override {
-        std::vector<int32_t> ids;
-        for (const auto& [rawId, info] : mRawLightInfos) {
-            ids.push_back(rawId);
-        }
-        return ids;
-    }
-
-    std::optional<RawLightInfo> getRawLightInfo(int32_t deviceId, int32_t lightId) const override {
-        auto it = mRawLightInfos.find(lightId);
-        if (it == mRawLightInfos.end()) {
-            return std::nullopt;
-        }
-        return it->second;
-    }
-
-    void setLightBrightness(int32_t deviceId, int32_t lightId, int32_t brightness) override {
-        mLightBrightness.emplace(lightId, brightness);
-    }
-
-    void setLightIntensities(int32_t deviceId, int32_t lightId,
-                             std::unordered_map<LightColor, int32_t> intensities) override {
-        mLightIntensities.emplace(lightId, intensities);
-    };
-
-    std::optional<int32_t> getLightBrightness(int32_t deviceId, int32_t lightId) const override {
-        auto lightIt = mLightBrightness.find(lightId);
-        if (lightIt == mLightBrightness.end()) {
-            return std::nullopt;
-        }
-        return lightIt->second;
-    }
-
-    std::optional<std::unordered_map<LightColor, int32_t>> getLightIntensities(
-            int32_t deviceId, int32_t lightId) const override {
-        auto lightIt = mLightIntensities.find(lightId);
-        if (lightIt == mLightIntensities.end()) {
-            return std::nullopt;
-        }
-        return lightIt->second;
-    };
-
-    void dump(std::string&) const override {}
-
-    void monitor() const override {}
-
-    void requestReopenDevices() override {}
-
-    void wake() override {}
 };
 
 // --- FakeInputMapper ---
@@ -2283,8 +1627,9 @@ TEST_F(InputReaderTest, BatteryGetCapacity) {
 
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
 
-    ASSERT_EQ(controller.getBatteryCapacity(DEFAULT_BATTERY), BATTERY_CAPACITY);
-    ASSERT_EQ(mReader->getBatteryCapacity(deviceId), BATTERY_CAPACITY);
+    ASSERT_EQ(controller.getBatteryCapacity(FakeEventHub::DEFAULT_BATTERY),
+              FakeEventHub::BATTERY_CAPACITY);
+    ASSERT_EQ(mReader->getBatteryCapacity(deviceId), FakeEventHub::BATTERY_CAPACITY);
 }
 
 TEST_F(InputReaderTest, BatteryGetStatus) {
@@ -2300,8 +1645,9 @@ TEST_F(InputReaderTest, BatteryGetStatus) {
 
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
 
-    ASSERT_EQ(controller.getBatteryStatus(DEFAULT_BATTERY), BATTERY_STATUS);
-    ASSERT_EQ(mReader->getBatteryStatus(deviceId), BATTERY_STATUS);
+    ASSERT_EQ(controller.getBatteryStatus(FakeEventHub::DEFAULT_BATTERY),
+              FakeEventHub::BATTERY_STATUS);
+    ASSERT_EQ(mReader->getBatteryStatus(deviceId), FakeEventHub::BATTERY_STATUS);
 }
 
 TEST_F(InputReaderTest, BatteryGetDevicePath) {
@@ -2316,7 +1662,7 @@ TEST_F(InputReaderTest, BatteryGetDevicePath) {
 
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
 
-    ASSERT_EQ(mReader->getBatteryDevicePath(deviceId), BATTERY_DEVPATH);
+    ASSERT_EQ(mReader->getBatteryDevicePath(deviceId), FakeEventHub::BATTERY_DEVPATH);
 }
 
 TEST_F(InputReaderTest, LightGetColor) {
@@ -11629,15 +10975,17 @@ protected:
 TEST_F(BatteryControllerTest, GetBatteryCapacity) {
     PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
 
-    ASSERT_TRUE(controller.getBatteryCapacity(DEFAULT_BATTERY));
-    ASSERT_EQ(controller.getBatteryCapacity(DEFAULT_BATTERY).value_or(-1), BATTERY_CAPACITY);
+    ASSERT_TRUE(controller.getBatteryCapacity(FakeEventHub::DEFAULT_BATTERY));
+    ASSERT_EQ(controller.getBatteryCapacity(FakeEventHub::DEFAULT_BATTERY).value_or(-1),
+              FakeEventHub::BATTERY_CAPACITY);
 }
 
 TEST_F(BatteryControllerTest, GetBatteryStatus) {
     PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
 
-    ASSERT_TRUE(controller.getBatteryStatus(DEFAULT_BATTERY));
-    ASSERT_EQ(controller.getBatteryStatus(DEFAULT_BATTERY).value_or(-1), BATTERY_STATUS);
+    ASSERT_TRUE(controller.getBatteryStatus(FakeEventHub::DEFAULT_BATTERY));
+    ASSERT_EQ(controller.getBatteryStatus(FakeEventHub::DEFAULT_BATTERY).value_or(-1),
+              FakeEventHub::BATTERY_STATUS);
 }
 
 // --- LightControllerTest ---
