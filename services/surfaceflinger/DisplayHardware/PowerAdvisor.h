@@ -48,7 +48,7 @@ public:
     virtual void onBootFinished() = 0;
     virtual void setExpensiveRenderingExpected(DisplayId displayId, bool expected) = 0;
     virtual bool isUsingExpensiveRendering() = 0;
-    virtual void notifyDisplayUpdateImminent() = 0;
+    virtual void notifyDisplayUpdateImminentAndCpuReset() = 0;
     // Checks both if it supports and if it's enabled
     virtual bool usePowerHintSession() = 0;
     virtual bool supportsPowerHintSession() = 0;
@@ -106,7 +106,7 @@ public:
         virtual ~HalWrapper() = default;
 
         virtual bool setExpensiveRendering(bool enabled) = 0;
-        virtual bool notifyDisplayUpdateImminent() = 0;
+        virtual bool notifyDisplayUpdateImminentAndCpuReset() = 0;
         virtual bool supportsPowerHintSession() = 0;
         virtual bool isPowerHintSessionRunning() = 0;
         virtual void restartPowerHintSession() = 0;
@@ -126,7 +126,7 @@ public:
     void onBootFinished() override;
     void setExpensiveRenderingExpected(DisplayId displayId, bool expected) override;
     bool isUsingExpensiveRendering() override { return mNotifiedExpensiveRendering; };
-    void notifyDisplayUpdateImminent() override;
+    void notifyDisplayUpdateImminentAndCpuReset() override;
     bool usePowerHintSession() override;
     bool supportsPowerHintSession() override;
     bool isPowerHintSessionRunning() override;
@@ -289,7 +289,7 @@ public:
     static std::unique_ptr<HalWrapper> connect();
 
     bool setExpensiveRendering(bool enabled) override;
-    bool notifyDisplayUpdateImminent() override;
+    bool notifyDisplayUpdateImminentAndCpuReset() override;
     bool supportsPowerHintSession() override;
     bool isPowerHintSessionRunning() override;
     void restartPowerHintSession() override;
