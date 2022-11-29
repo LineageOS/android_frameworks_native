@@ -67,6 +67,8 @@ public:
 
     bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const final EXCLUDES(mMutex);
 
+    void setDivisor(unsigned divisor) final EXCLUDES(mMutex);
+
     void dump(std::string& result) const final EXCLUDES(mMutex);
 
 private:
@@ -89,6 +91,8 @@ private:
 
     nsecs_t nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) const REQUIRES(mMutex);
 
+    bool isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const REQUIRES(mMutex);
+
     nsecs_t mIdealPeriod GUARDED_BY(mMutex);
     std::optional<nsecs_t> mKnownTimestamp GUARDED_BY(mMutex);
 
@@ -100,6 +104,8 @@ private:
 
     size_t mLastTimestampIndex GUARDED_BY(mMutex) = 0;
     std::vector<nsecs_t> mTimestamps GUARDED_BY(mMutex);
+
+    unsigned mDivisor GUARDED_BY(mMutex) = 1;
 };
 
 } // namespace android::scheduler

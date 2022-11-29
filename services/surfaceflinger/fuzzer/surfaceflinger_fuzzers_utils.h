@@ -231,8 +231,7 @@ public:
           : Scheduler(*this, callback, Feature::kContentDetection) {
         mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
 
-        const auto displayId = FTL_FAKE_GUARD(kMainThreadContext,
-                                              selectorPtr->getActiveMode().getPhysicalDisplayId());
+        const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplay(displayId, std::move(selectorPtr));
     }
 
@@ -273,7 +272,7 @@ public:
         mPolicy.cachedModeChangedParams.reset();
     }
 
-    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, DisplayModePtr mode) {
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, const FrameRateMode &mode) {
         return Scheduler::onNonPrimaryDisplayModeChanged(handle, mode);
     }
 
@@ -658,8 +657,7 @@ public:
         }
 
         mRefreshRateSelector = std::make_shared<scheduler::RefreshRateSelector>(modes, kModeId60);
-        const auto fps =
-                FTL_FAKE_GUARD(kMainThreadContext, mRefreshRateSelector->getActiveMode().getFps());
+        const auto fps = mRefreshRateSelector->getActiveMode().modePtr->getFps();
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
         mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
                 mFlinger->mVsyncConfiguration->getCurrentConfigs());

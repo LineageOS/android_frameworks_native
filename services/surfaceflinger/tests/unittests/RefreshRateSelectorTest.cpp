@@ -31,6 +31,9 @@
 #include "FpsOps.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
+#include "mock/MockFrameRateMode.h"
+
+#include "libsurfaceflinger_unittest_main.h"
 
 using namespace std::chrono_literals;
 
@@ -45,44 +48,41 @@ using SetPolicyResult = RefreshRateSelector::SetPolicyResult;
 
 using mock::createDisplayMode;
 
-// Use a C style macro to keep the line numbers printed in gtest
-#define EXPECT_SCORED_FRAME_RATE(modePtr, fps, scored) \
-    EXPECT_EQ((FrameRateMode{(fps), (modePtr)}), (scored).frameRateMode)
-
 struct TestableRefreshRateSelector : RefreshRateSelector {
     using RefreshRateSelector::FrameRateRanking;
     using RefreshRateSelector::RefreshRateOrder;
 
     using RefreshRateSelector::RefreshRateSelector;
 
-    void setActiveModeId(DisplayModeId modeId) {
+    void setActiveMode(DisplayModeId modeId, Fps renderFrameRate) {
         ftl::FakeGuard guard(kMainThreadContext);
-        return RefreshRateSelector::setActiveModeId(modeId);
+        return RefreshRateSelector::setActiveMode(modeId, renderFrameRate);
     }
 
     const DisplayMode& getActiveMode() const {
-        ftl::FakeGuard guard(kMainThreadContext);
-        return RefreshRateSelector::getActiveMode();
+        std::lock_guard lock(mLock);
+        return *RefreshRateSelector::getActiveModeLocked().modePtr;
     }
 
-    DisplayModePtr getMinSupportedRefreshRate() const {
+    ftl::NonNull<DisplayModePtr> getMinSupportedRefreshRate() const {
         std::lock_guard lock(mLock);
-        return mMinRefreshRateModeIt->second;
+        return ftl::as_non_null(mMinRefreshRateModeIt->second);
     }
 
-    DisplayModePtr getMaxSupportedRefreshRate() const {
+    ftl::NonNull<DisplayModePtr> getMaxSupportedRefreshRate() const {
         std::lock_guard lock(mLock);
-        return mMaxRefreshRateModeIt->second;
+        return ftl::as_non_null(mMaxRefreshRateModeIt->second);
     }
 
-    DisplayModePtr getMinRefreshRateByPolicy() const {
+    ftl::NonNull<DisplayModePtr> getMinRefreshRateByPolicy() const {
         std::lock_guard lock(mLock);
-        return getMinRefreshRateByPolicyLocked();
+        return ftl::as_non_null(getMinRefreshRateByPolicyLocked());
     }
 
-    DisplayModePtr getMaxRefreshRateByPolicy() const {
+    ftl::NonNull<DisplayModePtr> getMaxRefreshRateByPolicy() const {
         std::lock_guard lock(mLock);
-        return getMaxRefreshRateByPolicyLocked(getActiveModeItLocked()->second->getGroup());
+        return ftl::as_non_null(
+                getMaxRefreshRateByPolicyLocked(getActiveModeLocked().modePtr->getGroup()));
     }
 
     FrameRateRanking rankRefreshRates(std::optional<int> anchorGroupOpt,
@@ -112,8 +112,8 @@ struct TestableRefreshRateSelector : RefreshRateSelector {
         return std::make_pair(ranking, consideredSignals);
     }
 
-    DisplayModePtr getBestFrameRateMode(const std::vector<LayerRequirement>& layers = {},
-                                        GlobalSignals signals = {}) const {
+    ftl::NonNull<DisplayModePtr> getBestFrameRateMode(
+            const std::vector<LayerRequirement>& layers = {}, GlobalSignals signals = {}) const {
         return getRankedFrameRates(layers, signals).ranking.front().frameRateMode.modePtr;
     }
 
@@ -154,25 +154,42 @@ protected:
     static constexpr DisplayModeId kModeId60Frac{10};
     static constexpr DisplayModeId kModeId35{11};
 
-    static inline const DisplayModePtr kMode60 = createDisplayMode(kModeId60, 60_Hz);
-    static inline const DisplayModePtr kMode60Frac = createDisplayMode(kModeId60Frac, 59.94_Hz);
-    static inline const DisplayModePtr kMode90 = createDisplayMode(kModeId90, 90_Hz);
-    static inline const DisplayModePtr kMode90_G1 = createDisplayMode(kModeId90, 90_Hz, 1);
-    static inline const DisplayModePtr kMode90_4K =
-            createDisplayMode(kModeId90, 90_Hz, 0, {3840, 2160});
-    static inline const DisplayModePtr kMode72 = createDisplayMode(kModeId72, 72_Hz);
-    static inline const DisplayModePtr kMode72_G1 = createDisplayMode(kModeId72, 72_Hz, 1);
-    static inline const DisplayModePtr kMode120 = createDisplayMode(kModeId120, 120_Hz);
-    static inline const DisplayModePtr kMode120_G1 = createDisplayMode(kModeId120, 120_Hz, 1);
-    static inline const DisplayModePtr kMode30 = createDisplayMode(kModeId30, 30_Hz);
-    static inline const DisplayModePtr kMode30_G1 = createDisplayMode(kModeId30, 30_Hz, 1);
-    static inline const DisplayModePtr kMode30Frac = createDisplayMode(kModeId30Frac, 29.97_Hz);
-    static inline const DisplayModePtr kMode25 = createDisplayMode(kModeId25, 25_Hz);
-    static inline const DisplayModePtr kMode25_G1 = createDisplayMode(kModeId25, 25_Hz, 1);
-    static inline const DisplayModePtr kMode35 = createDisplayMode(kModeId35, 35_Hz);
-    static inline const DisplayModePtr kMode50 = createDisplayMode(kModeId50, 50_Hz);
-    static inline const DisplayModePtr kMode24 = createDisplayMode(kModeId24, 24_Hz);
-    static inline const DisplayModePtr kMode24Frac = createDisplayMode(kModeId24Frac, 23.976_Hz);
+    static inline const ftl::NonNull<DisplayModePtr> kMode60 =
+            ftl::as_non_null(createDisplayMode(kModeId60, 60_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode60Frac =
+            ftl::as_non_null(createDisplayMode(kModeId60Frac, 59.94_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode90 =
+            ftl::as_non_null(createDisplayMode(kModeId90, 90_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode90_G1 =
+            ftl::as_non_null(createDisplayMode(kModeId90, 90_Hz, 1));
+    static inline const ftl::NonNull<DisplayModePtr> kMode90_4K =
+            ftl::as_non_null(createDisplayMode(kModeId90, 90_Hz, 0, {3840, 2160}));
+    static inline const ftl::NonNull<DisplayModePtr> kMode72 =
+            ftl::as_non_null(createDisplayMode(kModeId72, 72_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode72_G1 =
+            ftl::as_non_null(createDisplayMode(kModeId72, 72_Hz, 1));
+    static inline const ftl::NonNull<DisplayModePtr> kMode120 =
+            ftl::as_non_null(createDisplayMode(kModeId120, 120_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode120_G1 =
+            ftl::as_non_null(createDisplayMode(kModeId120, 120_Hz, 1));
+    static inline const ftl::NonNull<DisplayModePtr> kMode30 =
+            ftl::as_non_null(createDisplayMode(kModeId30, 30_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode30_G1 =
+            ftl::as_non_null(createDisplayMode(kModeId30, 30_Hz, 1));
+    static inline const ftl::NonNull<DisplayModePtr> kMode30Frac =
+            ftl::as_non_null(createDisplayMode(kModeId30Frac, 29.97_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode25 =
+            ftl::as_non_null(createDisplayMode(kModeId25, 25_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode25_G1 =
+            ftl::as_non_null(createDisplayMode(kModeId25, 25_Hz, 1));
+    static inline const ftl::NonNull<DisplayModePtr> kMode35 =
+            ftl::as_non_null(createDisplayMode(kModeId35, 35_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode50 =
+            ftl::as_non_null(createDisplayMode(kModeId50, 50_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode24 =
+            ftl::as_non_null(createDisplayMode(kModeId24, 24_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode24Frac =
+            ftl::as_non_null(createDisplayMode(kModeId24Frac, 23.976_Hz));
 
     // Test configurations.
     static inline const DisplayModes kModes_60 = makeModes(kMode60);
@@ -298,7 +315,7 @@ TEST_P(RefreshRateSelectorTest, twoModes_storesFullRefreshRateMap_differentGroup
 
     EXPECT_EQ(SetPolicyResult::Changed,
               selector.setDisplayManagerPolicy({kModeId90, {60_Hz, 90_Hz}}));
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
 
     const auto minRate90 = selector.getMinRefreshRateByPolicy();
     const auto performanceRate90 = selector.getMaxRefreshRateByPolicy();
@@ -322,7 +339,7 @@ TEST_P(RefreshRateSelectorTest, twoModes_storesFullRefreshRateMap_differentResol
 
     EXPECT_EQ(SetPolicyResult::Changed,
               selector.setDisplayManagerPolicy({kModeId90, {60_Hz, 90_Hz}}));
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
 
     const auto minRate90 = selector.getMinRefreshRateByPolicy();
     const auto performanceRate90 = selector.getMaxRefreshRateByPolicy();
@@ -358,7 +375,7 @@ TEST_P(RefreshRateSelectorTest, twoModes_getActiveMode) {
         EXPECT_EQ(mode.getId(), kModeId60);
     }
 
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
     {
         const auto& mode = selector.getActiveMode();
         EXPECT_EQ(mode.getId(), kModeId90);
@@ -1805,7 +1822,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayerOnlySeamlessDefaultFps
     policy.allowGroupSwitching = true;
     EXPECT_EQ(SetPolicyResult::Changed, selector.setPolicy(policy));
 
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
 
     // Verify that we won't do a seamless switch if we request the same mode as the default
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
@@ -1826,7 +1843,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayerDefaultSeamlessness) {
     policy.allowGroupSwitching = true;
     EXPECT_EQ(SetPolicyResult::Changed, selector.setPolicy(policy));
 
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
 
     // Verify that if the active mode is in another group and there are no layers with
     // Seamlessness::SeamedAndSeamless, we should switch back to the default group.
@@ -1850,7 +1867,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithTwoLayersOnlySeamlessAndSeamed
     policy.allowGroupSwitching = true;
     EXPECT_EQ(SetPolicyResult::Changed, selector.setPolicy(policy));
 
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
 
     // If there's a layer with Seamlessness::SeamedAndSeamless, another layer with
     // Seamlessness::OnlySeamless can't change the mode group.
@@ -1879,7 +1896,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithTwoLayersDefaultFocusedAndSeam
     policy.allowGroupSwitching = true;
     EXPECT_EQ(SetPolicyResult::Changed, selector.setPolicy(policy));
 
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
 
     // If there's a focused layer with Seamlessness::SeamedAndSeamless, another layer with
     // Seamlessness::Default can't change the mode group back to the group of the default
@@ -1912,7 +1929,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithTwoLayersDefaultNotFocusedAndS
     policy.allowGroupSwitching = true;
     EXPECT_EQ(SetPolicyResult::Changed, selector.setPolicy(policy));
 
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
 
     // Layer with Seamlessness::Default can change the mode group if there's an
     // unfocused layer with Seamlessness::SeamedAndSeamless. For example, this happens
@@ -1953,7 +1970,7 @@ TEST_P(RefreshRateSelectorTest, nonSeamlessVotePrefersSeamlessSwitches) {
 
     EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
 
-    selector.setActiveModeId(kModeId120);
+    selector.setActiveMode(kModeId120, 120_Hz);
     EXPECT_EQ(kModeId120, selector.getBestFrameRateMode(layers)->getId());
 }
 
@@ -1984,7 +2001,7 @@ TEST_P(RefreshRateSelectorTest, nonSeamlessExactAndSeamlessMultipleLayers) {
     auto& seamedLayer = layers[0];
     seamedLayer.desiredRefreshRate = 30_Hz;
     seamedLayer.name = "30Hz ExplicitDefault";
-    selector.setActiveModeId(kModeId30);
+    selector.setActiveMode(kModeId30, 30_Hz);
 
     EXPECT_EQ(kModeId25, selector.getBestFrameRateMode(layers)->getId());
 }
@@ -2102,7 +2119,7 @@ TEST_P(RefreshRateSelectorTest, idle) {
     EXPECT_EQ(kModeId90, selector.getBestFrameRateMode({}, {.touch = true, .idle = true})->getId());
 
     // Idle should be higher precedence than other layer frame rate considerations.
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
 
     {
         constexpr bool kTouchActive = false;
@@ -2142,7 +2159,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_KnownFrameRate) {
 
     struct Expectation {
         Fps fps;
-        DisplayModePtr mode;
+        ftl::NonNull<DisplayModePtr> mode;
     };
 
     const std::initializer_list<Expectation> knownFrameRatesExpectations = {
@@ -2185,33 +2202,39 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_ExplicitExact) {
     explicitExactOrMultipleLayer.desiredRefreshRate = 60_Hz;
 
     if (GetParam() == Config::FrameRateOverride::Disabled) {
-        EXPECT_SCORED_FRAME_RATE(kMode30, 30_Hz, selector.getBestScoredFrameRate(layers));
-        EXPECT_SCORED_FRAME_RATE(kMode30, 30_Hz,
-                                 selector.getBestScoredFrameRate(layers, {.touch = true}));
+        EXPECT_FRAME_RATE_MODE(kMode30, 30_Hz,
+                               selector.getBestScoredFrameRate(layers).frameRateMode);
+        EXPECT_FRAME_RATE_MODE(kMode30, 30_Hz,
+                               selector.getBestScoredFrameRate(layers, {.touch = true})
+                                       .frameRateMode);
 
     } else {
-        EXPECT_SCORED_FRAME_RATE(kMode60, 60_Hz, selector.getBestScoredFrameRate(layers));
-        EXPECT_SCORED_FRAME_RATE(kMode120, 120_Hz,
-                                 selector.getBestScoredFrameRate(layers, {.touch = true}));
+        EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz,
+                               selector.getBestScoredFrameRate(layers).frameRateMode);
+        EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz,
+                               selector.getBestScoredFrameRate(layers, {.touch = true})
+                                       .frameRateMode);
     }
 
     explicitExactOrMultipleLayer.desiredRefreshRate = 120_Hz;
     explicitExactLayer.desiredRefreshRate = 60_Hz;
 
     if (GetParam() == Config::FrameRateOverride::Disabled) {
-        EXPECT_SCORED_FRAME_RATE(kMode60, 60_Hz, selector.getBestScoredFrameRate(layers));
+        EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz,
+                               selector.getBestScoredFrameRate(layers).frameRateMode);
     } else {
-        EXPECT_SCORED_FRAME_RATE(kMode120, 120_Hz, selector.getBestScoredFrameRate(layers));
+        EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz,
+                               selector.getBestScoredFrameRate(layers).frameRateMode);
     }
 
     explicitExactLayer.desiredRefreshRate = 72_Hz;
-    EXPECT_SCORED_FRAME_RATE(kMode72, 72_Hz, selector.getBestScoredFrameRate(layers));
+    EXPECT_FRAME_RATE_MODE(kMode72, 72_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
 
     explicitExactLayer.desiredRefreshRate = 90_Hz;
-    EXPECT_SCORED_FRAME_RATE(kMode90, 90_Hz, selector.getBestScoredFrameRate(layers));
+    EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
 
     explicitExactLayer.desiredRefreshRate = 120_Hz;
-    EXPECT_SCORED_FRAME_RATE(kMode120, 120_Hz, selector.getBestScoredFrameRate(layers));
+    EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_ReadsCache) {
@@ -2295,6 +2318,10 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_FractionalRefreshRates_Exac
 
 // b/190578904
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withCloseRefreshRates) {
+    if (g_noSlowTests) {
+        GTEST_SKIP();
+    }
+
     const int kMinRefreshRate = RefreshRateSelector::kMinSupportedFrameRate.getIntValue();
     constexpr int kMaxRefreshRate = 240;
 
@@ -2409,23 +2436,23 @@ TEST_P(RefreshRateSelectorTest, getFrameRateDivisor) {
     Fps displayRefreshRate = selector.getActiveMode().getFps();
     EXPECT_EQ(1, RefreshRateSelector::getFrameRateDivisor(displayRefreshRate, frameRate));
 
-    selector.setActiveModeId(kModeId60);
+    selector.setActiveMode(kModeId60, 60_Hz);
     displayRefreshRate = selector.getActiveMode().getFps();
     EXPECT_EQ(2, RefreshRateSelector::getFrameRateDivisor(displayRefreshRate, frameRate));
 
-    selector.setActiveModeId(kModeId72);
+    selector.setActiveMode(kModeId72, 72_Hz);
     displayRefreshRate = selector.getActiveMode().getFps();
     EXPECT_EQ(0, RefreshRateSelector::getFrameRateDivisor(displayRefreshRate, frameRate));
 
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
     displayRefreshRate = selector.getActiveMode().getFps();
     EXPECT_EQ(3, RefreshRateSelector::getFrameRateDivisor(displayRefreshRate, frameRate));
 
-    selector.setActiveModeId(kModeId120);
+    selector.setActiveMode(kModeId120, 120_Hz);
     displayRefreshRate = selector.getActiveMode().getFps();
     EXPECT_EQ(4, RefreshRateSelector::getFrameRateDivisor(displayRefreshRate, frameRate));
 
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
     displayRefreshRate = selector.getActiveMode().getFps();
     EXPECT_EQ(4, RefreshRateSelector::getFrameRateDivisor(displayRefreshRate, 22.5_Hz));
 
@@ -2808,7 +2835,7 @@ TEST_P(RefreshRateSelectorTest, refreshRateIsCappedWithRenderFrameRate) {
     constexpr FpsRanges kAppRequest = {/*physical*/ k0_120Hz,
                                        /*render*/ k0_120Hz};
 
-    EXPECT_SCORED_FRAME_RATE(kMode120, 120_Hz, selector.getBestScoredFrameRate());
+    EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz, selector.getBestScoredFrameRate().frameRateMode);
     {
         constexpr FpsRanges kPrimary = {/*physical*/ k0_120Hz,
                                         /*render*/ k0_120Hz};
@@ -2819,7 +2846,7 @@ TEST_P(RefreshRateSelectorTest, refreshRateIsCappedWithRenderFrameRate) {
                                                     /*appRequestRanges*/
                                                     kAppRequest}));
     }
-    EXPECT_SCORED_FRAME_RATE(kMode120, 120_Hz, selector.getBestScoredFrameRate());
+    EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz, selector.getBestScoredFrameRate().frameRateMode);
 
     {
         constexpr FpsRanges kPrimary = {/*physical*/ k0_60Hz,
@@ -2831,7 +2858,7 @@ TEST_P(RefreshRateSelectorTest, refreshRateIsCappedWithRenderFrameRate) {
                                                     /*appRequestRanges*/
                                                     kAppRequest}));
     }
-    EXPECT_SCORED_FRAME_RATE(kMode60, 60_Hz, selector.getBestScoredFrameRate());
+    EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz, selector.getBestScoredFrameRate().frameRateMode);
 
     {
         constexpr FpsRanges kPrimary = {/*physical*/ k0_120Hz,
@@ -2843,7 +2870,7 @@ TEST_P(RefreshRateSelectorTest, refreshRateIsCappedWithRenderFrameRate) {
                                                     /*appRequestRanges*/
                                                     kAppRequest}));
     }
-    EXPECT_SCORED_FRAME_RATE(kMode60, 60_Hz, selector.getBestScoredFrameRate());
+    EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz, selector.getBestScoredFrameRate().frameRateMode);
 }
 
 TEST_P(RefreshRateSelectorTest, renderFrameRates_60_120) {
@@ -2858,17 +2885,20 @@ TEST_P(RefreshRateSelectorTest, renderFrameRates_60_120) {
     layer.name = "30Hz ExplicitDefault";
     layer.desiredRefreshRate = 30_Hz;
     layer.vote = LayerVoteType::ExplicitDefault;
-    EXPECT_SCORED_FRAME_RATE(kMode60, expectedRenderRate, selector.getBestScoredFrameRate(layers));
+    EXPECT_FRAME_RATE_MODE(kMode60, expectedRenderRate,
+                           selector.getBestScoredFrameRate(layers).frameRateMode);
 
     layer.name = "30Hz Heuristic";
     layer.desiredRefreshRate = 30_Hz;
     layer.vote = LayerVoteType::Heuristic;
-    EXPECT_SCORED_FRAME_RATE(kMode60, expectedRenderRate, selector.getBestScoredFrameRate(layers));
+    EXPECT_FRAME_RATE_MODE(kMode60, expectedRenderRate,
+                           selector.getBestScoredFrameRate(layers).frameRateMode);
 
     layer.name = "30Hz ExplicitExactOrMultiple";
     layer.desiredRefreshRate = 30_Hz;
     layer.vote = LayerVoteType::ExplicitExactOrMultiple;
-    EXPECT_SCORED_FRAME_RATE(kMode60, expectedRenderRate, selector.getBestScoredFrameRate(layers));
+    EXPECT_FRAME_RATE_MODE(kMode60, expectedRenderRate,
+                           selector.getBestScoredFrameRate(layers).frameRateMode);
 }
 
 TEST_P(RefreshRateSelectorTest, idleWhenLowestRefreshRateIsNotDivisor) {
@@ -2897,7 +2927,7 @@ TEST_P(RefreshRateSelectorTest, idleWhenLowestRefreshRateIsNotDivisor) {
     EXPECT_EQ(kModeId90, selector.getBestFrameRateMode({}, {.touch = true, .idle = true})->getId());
 
     // Idle should be higher precedence than other layer frame rate considerations.
-    selector.setActiveModeId(kModeId90);
+    selector.setActiveMode(kModeId90, 90_Hz);
     {
         constexpr bool kTouchActive = false;
         EXPECT_EQ(kModeId35, getIdleDisplayModeId(LayerVoteType::NoVote, kTouchActive));

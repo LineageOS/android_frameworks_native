@@ -3597,7 +3597,7 @@ void Layer::onPostComposition(const DisplayDevice* display,
     }
 
     if (display) {
-        const Fps refreshRate = display->refreshRateSelector().getActiveModePtr()->getFps();
+        const Fps refreshRate = display->refreshRateSelector().getActiveMode().fps;
         const std::optional<Fps> renderRate =
                 mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
 

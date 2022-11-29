@@ -253,7 +253,13 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) co
 
 nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     std::lock_guard lock(mMutex);
-    return nextAnticipatedVSyncTimeFromLocked(timePoint);
+
+    // TODO(b/246164114): This implementation is not efficient at all. Refactor.
+    nsecs_t nextVsync = nextAnticipatedVSyncTimeFromLocked(timePoint);
+    while (!isVSyncInPhaseLocked(nextVsync, mDivisor)) {
+        nextVsync = nextAnticipatedVSyncTimeFromLocked(nextVsync + 1);
+    }
+    return nextVsync;
 }
 
 /*
@@ -265,6 +271,13 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
  * isVSyncInPhase(50.0, 30) = true
  */
 bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const {
+    std::lock_guard lock(mMutex);
+    const auto divisor =
+            RefreshRateSelector::getFrameRateDivisor(Fps::fromPeriodNsecs(mIdealPeriod), frameRate);
+    return isVSyncInPhaseLocked(timePoint, static_cast<unsigned>(divisor));
+}
+
+bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const {
     struct VsyncError {
         nsecs_t vsyncTimestamp;
         float error;
@@ -272,9 +285,6 @@ bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const {
         bool operator<(const VsyncError& other) const { return error < other.error; }
     };
 
-    std::lock_guard lock(mMutex);
-    const auto divisor =
-            RefreshRateSelector::getFrameRateDivisor(Fps::fromPeriodNsecs(mIdealPeriod), frameRate);
     if (divisor <= 1 || timePoint == 0) {
         return true;
     }
@@ -310,6 +320,12 @@ bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const {
     const auto minVsyncError = std::min_element(vsyncs.begin(), vsyncs.end());
     mRateDivisorKnownTimestampMap[dividedPeriod] = minVsyncError->vsyncTimestamp;
     return std::abs(minVsyncError->vsyncTimestamp - timePoint) < period / 2;
+}
+
+void VSyncPredictor::setDivisor(unsigned divisor) {
+    ALOGV("%s: %d", __func__, divisor);
+    std::lock_guard lock(mMutex);
+    mDivisor = divisor;
 }
 
 VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModel() const {

@@ -54,6 +54,7 @@ public:
     void resetModel() final {}
     bool needsMoreSamples() const final { return false; }
     bool isVSyncInPhase(nsecs_t, Fps) const final { return false; }
+    void setDivisor(unsigned) final {}
     void dump(std::string&) const final {}
 
 private:
@@ -91,6 +92,7 @@ public:
     void resetModel() final {}
     bool needsMoreSamples() const final { return false; }
     bool isVSyncInPhase(nsecs_t, Fps) const final { return false; }
+    void setDivisor(unsigned) final {}
     void dump(std::string&) const final {}
 
 private:

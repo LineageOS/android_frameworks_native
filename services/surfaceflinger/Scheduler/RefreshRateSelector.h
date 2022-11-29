@@ -133,7 +133,7 @@ public:
     Policy getDisplayManagerPolicy() const EXCLUDES(mLock);
 
     // Returns true if mode is allowed by the current policy.
-    bool isModeAllowed(DisplayModeId) const EXCLUDES(mLock);
+    bool isModeAllowed(const FrameRateMode&) const EXCLUDES(mLock);
 
     // Describes the different options the layer voted for refresh rate
     enum class LayerVoteType {
@@ -243,11 +243,10 @@ public:
     std::optional<Fps> onKernelTimerChanged(std::optional<DisplayModeId> desiredActiveModeId,
                                             bool timerExpired) const EXCLUDES(mLock);
 
-    void setActiveModeId(DisplayModeId) EXCLUDES(mLock) REQUIRES(kMainThreadContext);
+    void setActiveMode(DisplayModeId, Fps renderFrameRate) EXCLUDES(mLock);
 
-    // See mActiveModeIt for thread safety.
-    DisplayModePtr getActiveModePtr() const EXCLUDES(mLock);
-    const DisplayMode& getActiveMode() const REQUIRES(kMainThreadContext);
+    // See mActiveModeOpt for thread safety.
+    FrameRateMode getActiveMode() const EXCLUDES(mLock);
 
     // Returns a known frame rate that is the closest to frameRate
     Fps findClosestKnownFrameRate(Fps frameRate) const;
@@ -399,8 +398,8 @@ private:
 
     void constructAvailableRefreshRates() REQUIRES(mLock);
 
-    // See mActiveModeIt for thread safety.
-    DisplayModeIterator getActiveModeItLocked() const REQUIRES(mLock);
+    // See mActiveModeOpt for thread safety.
+    const FrameRateMode& getActiveModeLocked() const REQUIRES(mLock);
 
     RankedFrameRates getRankedFrameRatesLocked(const std::vector<LayerRequirement>& layers,
                                                GlobalSignals signals) const REQUIRES(mLock);
@@ -478,9 +477,7 @@ private:
     // when FrameRateOverride::AppOverrideNativeRefreshRates is in use.
     ftl::SmallMap<Fps, ftl::Unit, 8, FpsApproxEqual> mAppOverrideNativeRefreshRates;
 
-    // Written under mLock exclusively from kMainThreadContext, so reads from kMainThreadContext
-    // need not be under mLock.
-    DisplayModeIterator mActiveModeIt GUARDED_BY(mLock) GUARDED_BY(kMainThreadContext);
+    ftl::Optional<FrameRateMode> mActiveModeOpt GUARDED_BY(mLock);
 
     DisplayModeIterator mMinRefreshRateModeIt GUARDED_BY(mLock);
     DisplayModeIterator mMaxRefreshRateModeIt GUARDED_BY(mLock);
