@@ -499,6 +499,9 @@ class Dumpstate {
     // List of open ANR dump files.
     std::vector<DumpData> anr_data_;
 
+    // List of open shutdown checkpoint files.
+    std::vector<DumpData> shutdown_checkpoints_;
+
     // A thread pool to execute dump tasks simultaneously if the parallel run is enabled.
     std::unique_ptr<android::os::dumpstate::DumpPool> dump_pool_;
 

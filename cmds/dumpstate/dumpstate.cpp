@@ -194,6 +194,8 @@ static const std::string TOMBSTONE_DIR = "/data/tombstones/";
 static const std::string TOMBSTONE_FILE_PREFIX = "tombstone_";
 static const std::string ANR_DIR = "/data/anr/";
 static const std::string ANR_FILE_PREFIX = "anr_";
+static const std::string SHUTDOWN_CHECKPOINTS_DIR = "/data/system/shutdown-checkpoints/";
+static const std::string SHUTDOWN_CHECKPOINTS_FILE_PREFIX = "checkpoints-";
 
 // TODO: temporary variables and functions used during C++ refactoring
 
@@ -1109,6 +1111,16 @@ static void DumpIpTablesAsRoot() {
     RunCommand("IP6TABLES RAW", {"ip6tables", "-t", "raw", "-L", "-nvx"});
 }
 
+static void DumpShutdownCheckpoints() {
+    const bool shutdown_checkpoints_dumped = AddDumps(
+        ds.shutdown_checkpoints_.begin(), ds.shutdown_checkpoints_.end(),
+        "SHUTDOWN CHECKPOINTS", false /* add_to_zip */);
+    if (!shutdown_checkpoints_dumped) {
+        printf("*** NO SHUTDOWN CHECKPOINTS to dump in %s\n\n",
+            SHUTDOWN_CHECKPOINTS_DIR.c_str());
+    }
+}
+
 static void DumpDynamicPartitionInfo() {
     if (!::android::base::GetBoolProperty("ro.boot.dynamic_partitions", false)) {
         return;
@@ -1701,6 +1713,8 @@ static Dumpstate::RunStatus dumpstate() {
 
     DoKmsg();
 
+    DumpShutdownCheckpoints();
+
     DumpIpAddrAndRules();
 
     dump_route_tables();
@@ -1855,6 +1869,8 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     if (!PropertiesHelper::IsDryRun()) {
         ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX);
         ds.anr_data_ = GetDumpFds(ANR_DIR, ANR_FILE_PREFIX);
+        ds.shutdown_checkpoints_ = GetDumpFds(
+            SHUTDOWN_CHECKPOINTS_DIR, SHUTDOWN_CHECKPOINTS_FILE_PREFIX);
     }
 
     ds.AddDir(RECOVERY_DIR, true);
@@ -2907,6 +2923,7 @@ void Dumpstate::Cancel() {
     }
     tombstone_data_.clear();
     anr_data_.clear();
+    shutdown_checkpoints_.clear();
 
     // Instead of shutdown the pool, we delete temporary files directly since
     // shutdown blocking the call.
@@ -3190,6 +3207,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
     tombstone_data_.clear();
     anr_data_.clear();
+    shutdown_checkpoints_.clear();
 
     return (consent_callback_ != nullptr &&
             consent_callback_->getResult() == UserConsentResult::UNAVAILABLE)
