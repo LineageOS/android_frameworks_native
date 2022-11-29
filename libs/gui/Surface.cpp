@@ -1108,9 +1108,12 @@ void Surface::applyGrallocMetadataLocked(
     ATRACE_CALL();
     auto& mapper = GraphicBufferMapper::get();
     mapper.setDataspace(buffer->handle, static_cast<ui::Dataspace>(queueBufferInput.dataSpace));
-    mapper.setSmpte2086(buffer->handle, queueBufferInput.getHdrMetadata().getSmpte2086());
-    mapper.setCta861_3(buffer->handle, queueBufferInput.getHdrMetadata().getCta8613());
-    mapper.setSmpte2094_40(buffer->handle, queueBufferInput.getHdrMetadata().getHdr10Plus());
+    if (mHdrMetadataIsSet & HdrMetadata::SMPTE2086)
+        mapper.setSmpte2086(buffer->handle, queueBufferInput.getHdrMetadata().getSmpte2086());
+    if (mHdrMetadataIsSet & HdrMetadata::CTA861_3)
+        mapper.setCta861_3(buffer->handle, queueBufferInput.getHdrMetadata().getCta8613());
+    if (mHdrMetadataIsSet & HdrMetadata::HDR10PLUS)
+        mapper.setSmpte2094_40(buffer->handle, queueBufferInput.getHdrMetadata().getHdr10Plus());
 }
 
 void Surface::onBufferQueuedLocked(int slot, sp<Fence> fence,
@@ -2252,6 +2255,7 @@ int Surface::setBuffersDataSpace(Dataspace dataSpace)
 int Surface::setBuffersSmpte2086Metadata(const android_smpte2086_metadata* metadata) {
     ALOGV("Surface::setBuffersSmpte2086Metadata");
     Mutex::Autolock lock(mMutex);
+    mHdrMetadataIsSet |= HdrMetadata::SMPTE2086;
     if (metadata) {
         mHdrMetadata.smpte2086 = *metadata;
         mHdrMetadata.validTypes |= HdrMetadata::SMPTE2086;
@@ -2264,6 +2268,7 @@ int Surface::setBuffersSmpte2086Metadata(const android_smpte2086_metadata* metad
 int Surface::setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata) {
     ALOGV("Surface::setBuffersCta8613Metadata");
     Mutex::Autolock lock(mMutex);
+    mHdrMetadataIsSet |= HdrMetadata::CTA861_3;
     if (metadata) {
         mHdrMetadata.cta8613 = *metadata;
         mHdrMetadata.validTypes |= HdrMetadata::CTA861_3;
@@ -2276,6 +2281,7 @@ int Surface::setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata
 int Surface::setBuffersHdr10PlusMetadata(const size_t size, const uint8_t* metadata) {
     ALOGV("Surface::setBuffersBlobMetadata");
     Mutex::Autolock lock(mMutex);
+    mHdrMetadataIsSet |= HdrMetadata::HDR10PLUS;
     if (size > 0) {
         mHdrMetadata.hdr10plus.assign(metadata, metadata + size);
         mHdrMetadata.validTypes |= HdrMetadata::HDR10PLUS;

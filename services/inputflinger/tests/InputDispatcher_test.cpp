@@ -2337,6 +2337,59 @@ TEST_F(InputDispatcherTest, MouseHoverAndTouchTap) {
                                              WithSource(AINPUT_SOURCE_TOUCHSCREEN))));
 }
 
+TEST_F(InputDispatcherTest, HoverEnterMoveRemoveWindowsInSecondDisplay) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> windowDefaultDisplay =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "DefaultDisplay",
+                                       ADISPLAY_ID_DEFAULT);
+    windowDefaultDisplay->setFrame(Rect(0, 0, 600, 800));
+    sp<FakeWindowHandle> windowSecondDisplay =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "SecondDisplay",
+                                       SECOND_DISPLAY_ID);
+    windowSecondDisplay->setFrame(Rect(0, 0, 600, 800));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowDefaultDisplay}},
+                                  {SECOND_DISPLAY_ID, {windowSecondDisplay}}});
+
+    // Set cursor position in window in default display and check that hover enter and move
+    // events are generated.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .displayId(ADISPLAY_ID_DEFAULT)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(600))
+                                        .build()));
+    windowDefaultDisplay->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
+                                       ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowDefaultDisplay->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                       ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+
+    // Remove all windows in secondary display and check that no event happens on window in
+    // primary display.
+    mDispatcher->setInputWindows({{SECOND_DISPLAY_ID, {}}});
+    windowDefaultDisplay->assertNoEvents();
+
+    // Move cursor position in window in default display and check that only hover move
+    // event is generated and not hover enter event.
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowDefaultDisplay}},
+                                  {SECOND_DISPLAY_ID, {windowSecondDisplay}}});
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .displayId(ADISPLAY_ID_DEFAULT)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(400)
+                                                         .y(700))
+                                        .build()));
+    windowDefaultDisplay->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                       ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowDefaultDisplay->assertNoEvents();
+}
+
 TEST_F(InputDispatcherTest, DispatchMouseEventsUnderCursor) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
 

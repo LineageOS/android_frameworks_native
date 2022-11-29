@@ -123,7 +123,11 @@ void LayerLifecycleManager::onHandlesDestroyed(const std::vector<uint32_t>& dest
             ALOGV("%s destroyed layer %s", __func__, layer->getDebugStringShort().c_str());
             std::iter_swap(it, mLayers.end() - 1);
             mDestroyedLayers.emplace_back(std::move(mLayers.back()));
-            mLayers.erase(mLayers.end() - 1);
+            if (it == mLayers.end() - 1) {
+                it = mLayers.erase(mLayers.end() - 1);
+            } else {
+                mLayers.erase(mLayers.end() - 1);
+            }
         } else {
             it++;
         }
