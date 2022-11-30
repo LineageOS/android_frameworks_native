@@ -26,13 +26,15 @@ cc_test {
     test_suites: ["device-tests"],
     srcs: [
         "recoverymap_test.cpp",
+        "recoverymapmath_test.cpp",
     ],
     shared_libs: [
-        "libimage_io",
         "libjpeg",
         "liblog",
     ],
     static_libs: [
+        "libimage_io",
+        "libgmock",
         "libgtest",
         "libjpegdecoder",
         "libjpegencoder",
