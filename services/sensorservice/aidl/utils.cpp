@@ -58,7 +58,7 @@ ndk::ScopedAStatus convertResult(status_t src) {
 ::aidl::android::hardware::sensors::Event convertEvent(const ::ASensorEvent& src) {
     ::aidl::android::hardware::sensors::Event dst;
     ::android::hardware::sensors::implementation::
-            convertFromASensorEvent(src, &dst);
+            convertFromSensorEvent(reinterpret_cast<const sensors_event_t&>(src), &dst);
     return dst;
 }
 
