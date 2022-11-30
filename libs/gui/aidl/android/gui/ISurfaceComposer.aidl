@@ -62,8 +62,6 @@ interface ISurfaceComposer {
      * Signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission
      */
-    // Note this must be the 1st method, so IBinder::FIRST_CALL_TRANSACTION
-    // is assigned, as it is called from Java by ActivityManagerService.
     void bootFinished();
 
     /**

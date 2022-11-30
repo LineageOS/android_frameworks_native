@@ -145,6 +145,9 @@ public:
     status_t linkToComposerDeath(const sp<IBinder::DeathRecipient>& recipient,
             void* cookie = nullptr, uint32_t flags = 0);
 
+    // Notify the SurfaceComposerClient that the boot procedure has completed
+    static status_t bootFinished();
+
     // Get transactional state of given display.
     static status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState*);
 
