@@ -288,7 +288,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
 
     if constexpr (Case::Display::CONNECTION_TYPE::value) {
         ftl::FakeGuard guard(kMainThreadContext);
-        EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveMode().getHwcId());
+        EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveMode().modePtr->getHwcId());
     }
 }
 

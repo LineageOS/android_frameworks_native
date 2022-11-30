@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <ftl/non_null.h>
 #include <scheduler/Fps.h>
 
 // TODO(b/241285191): Pull this to <ui/DisplayMode.h>
@@ -25,7 +26,7 @@ namespace android::scheduler {
 
 struct FrameRateMode {
     Fps fps; // The render frame rate, which is a divisor of modePtr->getFps().
-    DisplayModePtr modePtr;
+    ftl::NonNull<DisplayModePtr> modePtr;
 
     bool operator==(const FrameRateMode& other) const {
         return isApproxEqual(fps, other.fps) && modePtr == other.modePtr;
@@ -35,10 +36,7 @@ struct FrameRateMode {
 };
 
 inline std::string to_string(const FrameRateMode& mode) {
-    if (mode.modePtr) {
-        return to_string(mode.fps) + " (" + to_string(mode.modePtr->getFps()) + ")";
-    }
-    return "{invalid}";
+    return to_string(mode.fps) + " (" + to_string(mode.modePtr->getFps()) + ")";
 }
 
 } // namespace android::scheduler

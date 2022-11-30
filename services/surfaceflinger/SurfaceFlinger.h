@@ -660,7 +660,7 @@ private:
 
     // Returns the preferred mode for PhysicalDisplayId if the Scheduler has selected one for that
     // display. Falls back to the display's defaultModeId otherwise.
-    std::optional<ftl::NonNull<DisplayModePtr>> getPreferredDisplayMode(
+    ftl::Optional<scheduler::FrameRateMode> getPreferredDisplayMode(
             PhysicalDisplayId, DisplayModeId defaultModeId) const REQUIRES(mStateLock);
 
     status_t setDesiredDisplayModeSpecsInternal(

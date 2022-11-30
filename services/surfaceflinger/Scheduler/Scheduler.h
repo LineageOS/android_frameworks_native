@@ -149,8 +149,8 @@ public:
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
-    void onPrimaryDisplayModeChanged(ConnectionHandle, DisplayModePtr) EXCLUDES(mPolicyLock);
-    void onNonPrimaryDisplayModeChanged(ConnectionHandle, DisplayModePtr);
+    void onPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&) EXCLUDES(mPolicyLock);
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&);
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);
 
@@ -160,6 +160,9 @@ public:
     // Modifies work duration in the event thread.
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
+
+    // Sets the render rate for the scheduler to run at.
+    void setRenderRate(Fps);
 
     void enableHardwareVsync();
     void disableHardwareVsync(bool makeUnavailable);
@@ -207,7 +210,7 @@ public:
     void dumpVsync(std::string&) const;
 
     // Get the appropriate refresh for current conditions.
-    DisplayModePtr getPreferredDisplayMode();
+    ftl::Optional<FrameRateMode> getPreferredDisplayMode();
 
     // Notifies the scheduler about a refresh rate timeline change.
     void onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline);
@@ -235,7 +238,7 @@ public:
     std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);
 
     nsecs_t getLeaderVsyncPeriod() const EXCLUDES(mDisplayLock) {
-        return leaderSelectorPtr()->getActiveModePtr()->getFps().getPeriodNsecs();
+        return leaderSelectorPtr()->getActiveMode().fps.getPeriodNsecs();
     }
 
     // Returns the framerate of the layer with the given sequence ID
@@ -283,19 +286,19 @@ private:
     GlobalSignals applyPolicy(S Policy::*, T&&) EXCLUDES(mPolicyLock);
 
     struct DisplayModeChoice {
-        DisplayModeChoice(DisplayModePtr modePtr, GlobalSignals consideredSignals)
-              : modePtr(std::move(modePtr)), consideredSignals(consideredSignals) {}
+        DisplayModeChoice(FrameRateMode mode, GlobalSignals consideredSignals)
+              : mode(std::move(mode)), consideredSignals(consideredSignals) {}
 
-        DisplayModePtr modePtr;
+        FrameRateMode mode;
         GlobalSignals consideredSignals;
 
         bool operator==(const DisplayModeChoice& other) const {
-            return modePtr == other.modePtr && consideredSignals == other.consideredSignals;
+            return mode == other.mode && consideredSignals == other.consideredSignals;
         }
 
         // For tests.
         friend std::ostream& operator<<(std::ostream& stream, const DisplayModeChoice& choice) {
-            return stream << '{' << to_string(*choice.modePtr) << " considering "
+            return stream << '{' << to_string(*choice.mode.modePtr) << " considering "
                           << choice.consideredSignals.toString().c_str() << '}';
         }
     };
@@ -382,11 +385,11 @@ private:
         hal::PowerMode displayPowerMode = hal::PowerMode::ON;
 
         // Chosen display mode.
-        DisplayModePtr mode;
+        ftl::Optional<FrameRateMode> modeOpt;
 
         struct ModeChangedParams {
             ConnectionHandle handle;
-            DisplayModePtr mode;
+            FrameRateMode mode;
         };
 
         // Parameters for latest dispatch of mode change event.

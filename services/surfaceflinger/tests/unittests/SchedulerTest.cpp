@@ -58,22 +58,22 @@ protected:
     SchedulerTest();
 
     static constexpr PhysicalDisplayId kDisplayId1 = PhysicalDisplayId::fromPort(255u);
-    static inline const DisplayModePtr kDisplay1Mode60 =
-            createDisplayMode(kDisplayId1, DisplayModeId(0), 60_Hz);
-    static inline const DisplayModePtr kDisplay1Mode120 =
-            createDisplayMode(kDisplayId1, DisplayModeId(1), 120_Hz);
+    static inline const ftl::NonNull<DisplayModePtr> kDisplay1Mode60 =
+            ftl::as_non_null(createDisplayMode(kDisplayId1, DisplayModeId(0), 60_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kDisplay1Mode120 =
+            ftl::as_non_null(createDisplayMode(kDisplayId1, DisplayModeId(1), 120_Hz));
     static inline const DisplayModes kDisplay1Modes = makeModes(kDisplay1Mode60, kDisplay1Mode120);
 
     static constexpr PhysicalDisplayId kDisplayId2 = PhysicalDisplayId::fromPort(254u);
-    static inline const DisplayModePtr kDisplay2Mode60 =
-            createDisplayMode(kDisplayId2, DisplayModeId(0), 60_Hz);
-    static inline const DisplayModePtr kDisplay2Mode120 =
-            createDisplayMode(kDisplayId2, DisplayModeId(1), 120_Hz);
+    static inline const ftl::NonNull<DisplayModePtr> kDisplay2Mode60 =
+            ftl::as_non_null(createDisplayMode(kDisplayId2, DisplayModeId(0), 60_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kDisplay2Mode120 =
+            ftl::as_non_null(createDisplayMode(kDisplayId2, DisplayModeId(1), 120_Hz));
     static inline const DisplayModes kDisplay2Modes = makeModes(kDisplay2Mode60, kDisplay2Mode120);
 
     static constexpr PhysicalDisplayId kDisplayId3 = PhysicalDisplayId::fromPort(253u);
-    static inline const DisplayModePtr kDisplay3Mode60 =
-            createDisplayMode(kDisplayId3, DisplayModeId(0), 60_Hz);
+    static inline const ftl::NonNull<DisplayModePtr> kDisplay3Mode60 =
+            ftl::as_non_null(createDisplayMode(kDisplayId3, DisplayModeId(0), 60_Hz));
     static inline const DisplayModes kDisplay3Modes = makeModes(kDisplay3Mode60);
 
     std::shared_ptr<RefreshRateSelector> mSelector =
@@ -217,7 +217,9 @@ TEST_F(SchedulerTest, onNonPrimaryDisplayModeChanged_invalidParameters) {
     // If the handle is incorrect, the function should return before
     // onModeChange is called.
     ConnectionHandle invalidHandle = {.id = 123};
-    EXPECT_NO_FATAL_FAILURE(mScheduler->onNonPrimaryDisplayModeChanged(invalidHandle, mode));
+    EXPECT_NO_FATAL_FAILURE(
+            mScheduler->onNonPrimaryDisplayModeChanged(invalidHandle,
+                                                       {90_Hz, ftl::as_non_null(mode)}));
     EXPECT_CALL(*mEventThread, onModeChanged(_)).Times(0);
 }
 
@@ -232,7 +234,7 @@ TEST_F(SchedulerTest, calculateMaxAcquiredBufferCount) {
 }
 
 MATCHER(Is120Hz, "") {
-    return isApproxEqual(arg.front().modePtr->getFps(), 120_Hz);
+    return isApproxEqual(arg.front().mode.fps, 120_Hz);
 }
 
 TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
@@ -277,7 +279,7 @@ TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
 
     auto choice = modeChoices.get(kDisplayId1);
     ASSERT_TRUE(choice);
-    EXPECT_EQ(choice->get(), DisplayModeChoice(kDisplay1Mode60, globalSignals));
+    EXPECT_EQ(choice->get(), DisplayModeChoice({60_Hz, kDisplay1Mode60}, globalSignals));
 
     globalSignals = {.idle = false};
     mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
@@ -287,7 +289,7 @@ TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
 
     choice = modeChoices.get(kDisplayId1);
     ASSERT_TRUE(choice);
-    EXPECT_EQ(choice->get(), DisplayModeChoice(kDisplay1Mode120, globalSignals));
+    EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, globalSignals));
 
     globalSignals = {.touch = true};
     mScheduler->replaceTouchTimer(10);
@@ -298,7 +300,7 @@ TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
 
     choice = modeChoices.get(kDisplayId1);
     ASSERT_TRUE(choice);
-    EXPECT_EQ(choice->get(), DisplayModeChoice(kDisplay1Mode120, globalSignals));
+    EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, globalSignals));
 
     mScheduler->unregisterDisplay(kDisplayId1);
     EXPECT_FALSE(mScheduler->hasRefreshRateSelectors());
@@ -319,8 +321,11 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         const GlobalSignals globalSignals = {.idle = true};
         expectedChoices =
                 ftl::init::map<const PhysicalDisplayId&,
-                               DisplayModeChoice>(kDisplayId1, kDisplay1Mode60,
-                                                  globalSignals)(kDisplayId2, kDisplay2Mode60,
+                               DisplayModeChoice>(kDisplayId1,
+                                                  FrameRateMode{60_Hz, kDisplay1Mode60},
+                                                  globalSignals)(kDisplayId2,
+                                                                 FrameRateMode{60_Hz,
+                                                                               kDisplay2Mode60},
                                                                  globalSignals);
 
         std::vector<RefreshRateSelector::LayerRequirement> layers = {{.weight = 1.f},
@@ -335,8 +340,11 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         const GlobalSignals globalSignals = {.idle = false};
         expectedChoices =
                 ftl::init::map<const PhysicalDisplayId&,
-                               DisplayModeChoice>(kDisplayId1, kDisplay1Mode120,
-                                                  globalSignals)(kDisplayId2, kDisplay2Mode120,
+                               DisplayModeChoice>(kDisplayId1,
+                                                  FrameRateMode{120_Hz, kDisplay1Mode120},
+                                                  globalSignals)(kDisplayId2,
+                                                                 FrameRateMode{120_Hz,
+                                                                               kDisplay2Mode120},
                                                                  globalSignals);
 
         mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
@@ -351,8 +359,11 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
 
         expectedChoices =
                 ftl::init::map<const PhysicalDisplayId&,
-                               DisplayModeChoice>(kDisplayId1, kDisplay1Mode120,
-                                                  globalSignals)(kDisplayId2, kDisplay2Mode120,
+                               DisplayModeChoice>(kDisplayId1,
+                                                  FrameRateMode{120_Hz, kDisplay1Mode120},
+                                                  globalSignals)(kDisplayId2,
+                                                                 FrameRateMode{120_Hz,
+                                                                               kDisplay2Mode120},
                                                                  globalSignals);
 
         const auto actualChoices = mScheduler->chooseDisplayModes();
@@ -369,13 +380,15 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         mScheduler->replaceTouchTimer(10);
         mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
 
-        expectedChoices =
-                ftl::init::map<const PhysicalDisplayId&,
-                               DisplayModeChoice>(kDisplayId1, kDisplay1Mode60,
-                                                  globalSignals)(kDisplayId2, kDisplay2Mode60,
-                                                                 globalSignals)(kDisplayId3,
-                                                                                kDisplay3Mode60,
-                                                                                globalSignals);
+        expectedChoices = ftl::init::map<
+                const PhysicalDisplayId&,
+                DisplayModeChoice>(kDisplayId1, FrameRateMode{60_Hz, kDisplay1Mode60},
+                                   globalSignals)(kDisplayId2,
+                                                  FrameRateMode{60_Hz, kDisplay2Mode60},
+                                                  globalSignals)(kDisplayId3,
+                                                                 FrameRateMode{60_Hz,
+                                                                               kDisplay3Mode60},
+                                                                 globalSignals);
 
         const auto actualChoices = mScheduler->chooseDisplayModes();
         EXPECT_EQ(expectedChoices, actualChoices);
