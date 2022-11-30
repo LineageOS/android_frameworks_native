@@ -56,8 +56,7 @@ subdirs = [
 
 cc_library_headers {
     name: "libandroid_sensor_headers",
-    vendor_available: true,
-    host_supported: true,
+    vendor: true,
     export_include_dirs: ["include_sensor"],
 }
 
