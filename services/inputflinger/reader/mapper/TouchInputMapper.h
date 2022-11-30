@@ -291,14 +291,6 @@ protected:
         DistanceCalibration distanceCalibration;
         std::optional<float> distanceScale;
 
-        enum class CoverageCalibration {
-            DEFAULT,
-            NONE,
-            BOX,
-        };
-
-        CoverageCalibration coverageCalibration;
-
         inline void applySizeScaleAndBias(float& outSize) const {
             if (sizeScale) {
                 outSize *= *sizeScale;

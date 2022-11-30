@@ -179,18 +179,6 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     if (mCursorScrollAccumulator.haveRelativeHWheel()) {
         info->addMotionRange(AMOTION_EVENT_AXIS_HSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
     }
-    if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
-        const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
-        const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
-        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_1, mSource, x.min, x.max, x.flat, x.fuzz,
-                             x.resolution);
-        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_2, mSource, y.min, y.max, y.flat, y.fuzz,
-                             y.resolution);
-        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_3, mSource, x.min, x.max, x.flat, x.fuzz,
-                             x.resolution);
-        info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_4, mSource, y.min, y.max, y.flat, y.fuzz,
-                             y.resolution);
-    }
     info->setButtonUnderPad(mParameters.hasButtonUnderPad);
     info->setSupportsUsi(mParameters.supportsUsi);
 }
@@ -1209,19 +1197,6 @@ void TouchInputMapper::parseCalibration() {
     if (in.tryGetProperty("touch.distance.scale", distanceScale)) {
         out.distanceScale = distanceScale;
     }
-
-    out.coverageCalibration = Calibration::CoverageCalibration::DEFAULT;
-    std::string coverageCalibrationString;
-    if (in.tryGetProperty("touch.coverage.calibration", coverageCalibrationString)) {
-        if (coverageCalibrationString == "none") {
-            out.coverageCalibration = Calibration::CoverageCalibration::NONE;
-        } else if (coverageCalibrationString == "box") {
-            out.coverageCalibration = Calibration::CoverageCalibration::BOX;
-        } else if (coverageCalibrationString != "default") {
-            ALOGW("Invalid value for touch.coverage.calibration: '%s'",
-                  coverageCalibrationString.c_str());
-        }
-    }
 }
 
 void TouchInputMapper::resolveCalibration() {
@@ -1259,11 +1234,6 @@ void TouchInputMapper::resolveCalibration() {
         }
     } else {
         mCalibration.distanceCalibration = Calibration::DistanceCalibration::NONE;
-    }
-
-    // Coverage
-    if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::DEFAULT) {
-        mCalibration.coverageCalibration = Calibration::CoverageCalibration::NONE;
     }
 }
 
@@ -1334,17 +1304,6 @@ void TouchInputMapper::dumpCalibration(std::string& dump) {
 
     if (mCalibration.distanceScale) {
         dump += StringPrintf(INDENT4 "touch.distance.scale: %0.3f\n", *mCalibration.distanceScale);
-    }
-
-    switch (mCalibration.coverageCalibration) {
-        case Calibration::CoverageCalibration::NONE:
-            dump += INDENT4 "touch.coverage.calibration: none\n";
-            break;
-        case Calibration::CoverageCalibration::BOX:
-            dump += INDENT4 "touch.coverage.calibration: box\n";
-            break;
-        default:
-            ALOG_ASSERT(false);
     }
 }
 
@@ -2342,19 +2301,8 @@ void TouchInputMapper::cookPointerData() {
                 distance = 0;
         }
 
-        // Coverage
-        Rect rawCoverage{0, 0};
-        if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
-            rawCoverage.left = (in.toolMinor & 0xffff0000) >> 16;
-            rawCoverage.right = in.toolMinor & 0x0000ffff;
-            rawCoverage.bottom = in.toolMajor & 0x0000ffff;
-            rawCoverage.top = (in.toolMajor & 0xffff0000) >> 16;
-        }
-        const auto coverage = mRawToDisplay.transform(rawCoverage);
-
         // Adjust X,Y coords for device calibration and convert to the natural display coordinates.
         vec2 transformed = {in.x, in.y};
-        // TODO: Adjust coverage coords?
         mAffineTransform.applyTo(transformed.x /*byRef*/, transformed.y /*byRef*/);
         transformed = mRawToDisplay.transform(transformed);
 
@@ -2370,15 +2318,8 @@ void TouchInputMapper::cookPointerData() {
         out.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, orientation);
         out.setAxisValue(AMOTION_EVENT_AXIS_TILT, tilt);
         out.setAxisValue(AMOTION_EVENT_AXIS_DISTANCE, distance);
-        if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
-            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_1, coverage.left);
-            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_2, coverage.top);
-            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_3, coverage.right);
-            out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_4, coverage.bottom);
-        } else {
-            out.setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, toolMajor);
-            out.setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, toolMinor);
-        }
+        out.setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, toolMajor);
+        out.setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, toolMinor);
 
         // Write output relative fields if applicable.
         uint32_t id = in.id;
