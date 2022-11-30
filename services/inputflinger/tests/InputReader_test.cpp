@@ -4974,6 +4974,48 @@ TEST_F(CursorInputMapperTest, PointerCaptureDisablesVelocityProcessing) {
     ASSERT_EQ(20, args.pointerCoords[0].getY());
 }
 
+TEST_F(CursorInputMapperTest, PointerCaptureDisablesOrientationChanges) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
+    ASSERT_EQ(DEVICE_ID, resetArgs.deviceId);
+
+    // Ensure the display is rotated.
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+
+    NotifyMotionArgs args;
+
+    // Verify that the coordinates are rotated.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, args.source);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
+    ASSERT_EQ(-20, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X));
+    ASSERT_EQ(10, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
+
+    // Enable Pointer Capture.
+    mFakePolicy->setPointerCapture(true);
+    configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    NotifyPointerCaptureChangedArgs captureArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyCaptureWasCalled(&captureArgs));
+    ASSERT_TRUE(captureArgs.request.enable);
+
+    // Move and verify rotation is not applied.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE_RELATIVE, args.source);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_EQ(10, args.pointerCoords[0].getX());
+    ASSERT_EQ(20, args.pointerCoords[0].getY());
+}
+
 TEST_F(CursorInputMapperTest, Process_ShouldHandleDisplayId) {
     CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
 
