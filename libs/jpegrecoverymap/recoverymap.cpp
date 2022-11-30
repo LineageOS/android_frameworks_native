@@ -390,12 +390,15 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
 
   ColorTransformFn hdrInvOetf = nullptr;
+  float hdr_white_nits = 0.0f;
   switch (metadata->transferFunction) {
     case JPEGR_TF_HLG:
       hdrInvOetf = hlgInvOetf;
+      hdr_white_nits = kHlgMaxNits;
       break;
     case JPEGR_TF_PQ:
       hdrInvOetf = pqInvOetf;
+      hdr_white_nits = kPqMaxNits;
       break;
   }
 
@@ -426,7 +429,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
       Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
       Color hdr_rgb = hdrInvOetf(hdr_rgb_gamma);
       hdr_rgb = hdrGamutConversionFn(hdr_rgb);
-      float hdr_y_nits = luminanceFn(hdr_rgb);
+      float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
 
       hdr_y_nits_avg += hdr_y_nits;
       if (hdr_y_nits > hdr_y_nits_max) {
@@ -448,13 +451,13 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
                                          kMapDimensionScaleFactor, x, y);
       Color sdr_rgb_gamma = srgbYuvToRgb(sdr_yuv_gamma);
       Color sdr_rgb = srgbInvOetf(sdr_rgb_gamma);
-      float sdr_y_nits = luminanceFn(sdr_rgb);
+      float sdr_y_nits = luminanceFn(sdr_rgb) * kSdrWhiteNits;
 
       Color hdr_yuv_gamma = sampleP010(uncompressed_p010_image, kMapDimensionScaleFactor, x, y);
       Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
       Color hdr_rgb = hdrInvOetf(hdr_rgb_gamma);
       hdr_rgb = hdrGamutConversionFn(hdr_rgb);
-      float hdr_y_nits = luminanceFn(hdr_rgb);
+      float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
 
       size_t pixel_idx =  x + y * map_width;
       reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
