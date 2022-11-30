@@ -102,6 +102,33 @@ static const String16 sDumpPermission("android.permission.DUMP");
 static const String16 sLocationHardwarePermission("android.permission.LOCATION_HARDWARE");
 static const String16 sManageSensorsPermission("android.permission.MANAGE_SENSORS");
 
+namespace {
+
+// TODO(b/259227294): Move the sensor ranges to the HAL.
+int32_t nextRuntimeSensorHandle() {
+    static constexpr int32_t kRuntimeHandleBase = 0x5F000000;
+    static constexpr int32_t kRuntimeHandleEnd = 0x5FFFFFFF;
+    static int32_t nextHandle = kRuntimeHandleBase;
+    if (nextHandle == kRuntimeHandleEnd) {
+        return -1;
+    }
+    return nextHandle++;
+}
+
+class RuntimeSensorCallbackProxy : public RuntimeSensor::StateChangeCallback {
+ public:
+    RuntimeSensorCallbackProxy(sp<SensorService::RuntimeSensorStateChangeCallback> callback)
+        : mCallback(std::move(callback)) {}
+    void onStateChanged(bool enabled, int64_t samplingPeriodNs,
+                        int64_t batchReportLatencyNs) override {
+        mCallback->onStateChanged(enabled, samplingPeriodNs, batchReportLatencyNs);
+    }
+ private:
+    sp<SensorService::RuntimeSensorStateChangeCallback> mCallback;
+};
+
+} // namespace
+
 static bool isAutomotive() {
     sp<IServiceManager> serviceManager = defaultServiceManager();
     if (serviceManager.get() == nullptr) {
@@ -135,6 +162,60 @@ SensorService::SensorService()
     mUidPolicy = new UidPolicy(this);
     mSensorPrivacyPolicy = new SensorPrivacyPolicy(this);
     mMicSensorPrivacyPolicy = new MicrophonePrivacyPolicy(this);
+}
+
+int SensorService::registerRuntimeSensor(
+    const sensor_t& sensor, int deviceId, sp<RuntimeSensorStateChangeCallback> callback) {
+    int handle = 0;
+    while (handle == 0 || !mSensors.isNewHandle(handle)) {
+        handle = nextRuntimeSensorHandle();
+        if (handle < 0) {
+            // Ran out of the dedicated range for runtime sensors.
+            return handle;
+        }
+    }
+
+    ALOGI("Registering runtime sensor handle 0x%x, type %d, name %s",
+            handle, sensor.type, sensor.name);
+
+    sp<RuntimeSensor::StateChangeCallback> runtimeSensorCallback(
+        new RuntimeSensorCallbackProxy(std::move(callback)));
+    sensor_t runtimeSensor = sensor;
+    // force the handle to be consistent
+    runtimeSensor.handle = handle;
+    SensorInterface *si = new RuntimeSensor(runtimeSensor, std::move(runtimeSensorCallback));
+
+    Mutex::Autolock _l(mLock);
+    const Sensor& s = registerSensor(si, /* isDebug= */ false, /* isVirtual= */ false, deviceId);
+
+    if (s.getHandle() != handle) {
+        // The registration was unsuccessful.
+        return s.getHandle();
+    }
+    return handle;
+}
+
+status_t SensorService::unregisterRuntimeSensor(int handle) {
+    ALOGI("Unregistering runtime sensor handle 0x%x disconnected", handle);
+    {
+        Mutex::Autolock _l(mLock);
+        if (!unregisterDynamicSensorLocked(handle)) {
+            ALOGE("Runtime sensor release error.");
+            return UNKNOWN_ERROR;
+        }
+    }
+
+    ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
+    for (const sp<SensorEventConnection>& connection : connLock.getActiveConnections()) {
+        connection->removeSensor(handle);
+    }
+    return OK;
+}
+
+status_t SensorService::sendRuntimeSensorEvent(const sensors_event_t& event) {
+    Mutex::Autolock _l(mLock);
+    mRuntimeSensorEventQueue.push(event);
+    return OK;
 }
 
 bool SensorService::initializeHmacKey() {
@@ -407,10 +488,11 @@ bool SensorService::hasSensorAccessLocked(uid_t uid, const String16& opPackageNa
         && isUidActive(uid) && !isOperationRestrictedLocked(opPackageName);
 }
 
-const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bool isVirtual) {
+const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bool isVirtual,
+                                            int deviceId) {
     int handle = s->getSensor().getHandle();
     int type = s->getSensor().getType();
-    if (mSensors.add(handle, s, isDebug, isVirtual)){
+    if (mSensors.add(handle, s, isDebug, isVirtual, deviceId)) {
         mRecentEvent.emplace(handle, new SensorServiceUtil::RecentEventLogger(type));
         return s->getSensor();
     } else {
@@ -1003,6 +1085,7 @@ bool SensorService::threadLoop() {
         recordLastValueLocked(mSensorEventBuffer, count);
 
         // handle virtual sensors
+        bool bufferNeedsSorting = false;
         if (count && vcount) {
             sensors_event_t const * const event = mSensorEventBuffer;
             if (!mActiveVirtualSensors.empty()) {
@@ -1038,10 +1121,35 @@ bool SensorService::threadLoop() {
                     // record the last synthesized values
                     recordLastValueLocked(&mSensorEventBuffer[count], k);
                     count += k;
-                    // sort the buffer by time-stamps
-                    sortEventBuffer(mSensorEventBuffer, count);
+                    bufferNeedsSorting = true;
                 }
             }
+        }
+
+        // handle runtime sensors
+        {
+            size_t k = 0;
+            while (!mRuntimeSensorEventQueue.empty()) {
+                if (count + k >= minBufferSize) {
+                    ALOGE("buffer too small to hold all events: count=%zd, k=%zu, size=%zu",
+                          count, k, minBufferSize);
+                    break;
+                }
+                mSensorEventBuffer[count + k] = mRuntimeSensorEventQueue.front();
+                mRuntimeSensorEventQueue.pop();
+                k++;
+            }
+            if (k) {
+                // record the last synthesized values
+                recordLastValueLocked(&mSensorEventBuffer[count], k);
+                count += k;
+                bufferNeedsSorting = true;
+            }
+        }
+
+        if (bufferNeedsSorting) {
+            // sort the buffer by time-stamps
+            sortEventBuffer(mSensorEventBuffer, count);
         }
 
         // handle backward compatibility for RotationVector sensor
@@ -1342,19 +1450,37 @@ Vector<Sensor> SensorService::getSensorList(const String16& opPackageName) {
     return accessibleSensorList;
 }
 
+void SensorService::addSensorIfAccessible(const String16& opPackageName, const Sensor& sensor,
+        Vector<Sensor>& accessibleSensorList) {
+    if (canAccessSensor(sensor, "can't see", opPackageName)) {
+        accessibleSensorList.add(sensor);
+    } else if (sensor.getType() != SENSOR_TYPE_HEAD_TRACKER) {
+        ALOGI("Skipped sensor %s because it requires permission %s and app op %" PRId32,
+        sensor.getName().string(), sensor.getRequiredPermission().string(),
+        sensor.getRequiredAppOp());
+    }
+}
+
 Vector<Sensor> SensorService::getDynamicSensorList(const String16& opPackageName) {
     Vector<Sensor> accessibleSensorList;
     mSensors.forEachSensor(
             [this, &opPackageName, &accessibleSensorList] (const Sensor& sensor) -> bool {
                 if (sensor.isDynamicSensor()) {
-                    if (canAccessSensor(sensor, "can't see", opPackageName)) {
-                        accessibleSensorList.add(sensor);
-                    } else if (sensor.getType() != SENSOR_TYPE_HEAD_TRACKER) {
-                        ALOGI("Skipped sensor %s because it requires permission %s and app op %" PRId32,
-                              sensor.getName().string(),
-                              sensor.getRequiredPermission().string(),
-                              sensor.getRequiredAppOp());
-                    }
+                    addSensorIfAccessible(opPackageName, sensor, accessibleSensorList);
+                }
+                return true;
+            });
+    makeUuidsIntoIdsForSensorList(accessibleSensorList);
+    return accessibleSensorList;
+}
+
+Vector<Sensor> SensorService::getRuntimeSensorList(const String16& opPackageName, int deviceId) {
+    Vector<Sensor> accessibleSensorList;
+    mSensors.forEachEntry(
+            [this, &opPackageName, deviceId, &accessibleSensorList] (
+                    const SensorServiceUtil::SensorList::Entry& e) -> bool {
+                if (e.deviceId == deviceId) {
+                    addSensorIfAccessible(opPackageName, e.si->getSensor(), accessibleSensorList);
                 }
                 return true;
             });

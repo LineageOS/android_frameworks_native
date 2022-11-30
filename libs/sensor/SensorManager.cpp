@@ -201,6 +201,19 @@ ssize_t SensorManager::getDynamicSensorList(Vector<Sensor> & dynamicSensors) {
     return static_cast<ssize_t>(count);
 }
 
+ssize_t SensorManager::getRuntimeSensorList(int deviceId, Vector<Sensor>& runtimeSensors) {
+    Mutex::Autolock _l(mLock);
+    status_t err = assertStateLocked();
+    if (err < 0) {
+        return static_cast<ssize_t>(err);
+    }
+
+    runtimeSensors = mSensorServer->getRuntimeSensorList(mOpPackageName, deviceId);
+    size_t count = runtimeSensors.size();
+
+    return static_cast<ssize_t>(count);
+}
+
 ssize_t SensorManager::getDynamicSensorList(Sensor const* const** list) {
     Mutex::Autolock _l(mLock);
     status_t err = assertStateLocked();
