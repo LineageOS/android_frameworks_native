@@ -913,6 +913,33 @@ TEST_P(BinderRpc, SendTooManyFiles) {
     EXPECT_EQ(status.transactionError(), BAD_VALUE) << status;
 }
 
+TEST_P(BinderRpc, AppendInvalidFd) {
+    auto proc = createRpcTestSocketServerProcess({
+            .clientFileDescriptorTransportMode = RpcSession::FileDescriptorTransportMode::UNIX,
+            .serverSupportedFileDescriptorTransportModes =
+                    {RpcSession::FileDescriptorTransportMode::UNIX},
+    });
+
+    int badFd = fcntl(STDERR_FILENO, F_DUPFD_CLOEXEC, 0);
+    ASSERT_NE(badFd, -1);
+
+    // Close the file descriptor so it becomes invalid for dup
+    close(badFd);
+
+    Parcel p1;
+    p1.markForBinder(proc.rootBinder);
+    p1.writeInt32(3);
+    EXPECT_EQ(OK, p1.writeFileDescriptor(badFd, false));
+
+    Parcel pRaw;
+    pRaw.markForBinder(proc.rootBinder);
+    EXPECT_EQ(OK, pRaw.appendFrom(&p1, 0, p1.dataSize()));
+
+    pRaw.setDataPosition(0);
+    EXPECT_EQ(3, pRaw.readInt32());
+    ASSERT_EQ(-1, pRaw.readFileDescriptor());
+}
+
 TEST_P(BinderRpc, WorksWithLibbinderNdkPing) {
     if constexpr (!kEnableSharedLibs) {
         GTEST_SKIP() << "Test disabled because Binder was built as a static library";
