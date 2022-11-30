@@ -58,6 +58,7 @@ filegroup {
         "mapper/accumulator/MultiTouchMotionAccumulator.cpp",
         "mapper/accumulator/SingleTouchMotionAccumulator.cpp",
         "mapper/accumulator/TouchButtonAccumulator.cpp",
+        "mapper/gestures/GesturesLogging.cpp",
     ],
 }
 
@@ -69,12 +70,14 @@ cc_defaults {
         "libcap",
         "libcrypto",
         "libcutils",
+        "libjsoncpp",
         "liblog",
         "libstatslog",
         "libutils",
     ],
     static_libs: [
         "libc++fs",
+        "libchrome-gestures",
         "libui-types",
     ],
     header_libs: [
