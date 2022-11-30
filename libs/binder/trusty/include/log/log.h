@@ -120,3 +120,7 @@ static inline void __ignore_va_args__(...) {}
     do {                                                                 \
         TLOGE("android_errorWriteLog: tag:%x subTag:%s\n", tag, subTag); \
     } while (0)
+
+extern "C" inline void __assert(const char* file, int line, const char* str) {
+    LOG_ALWAYS_FATAL("%s:%d: assertion \"%s\" failed", file, line, str);
+}
