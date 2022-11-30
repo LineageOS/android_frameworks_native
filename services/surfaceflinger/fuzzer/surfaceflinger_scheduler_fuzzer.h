@@ -116,6 +116,8 @@ public:
         return true;
     }
 
+    void setDivisor(unsigned) override {}
+
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {
         if (timePoint % mPeriod == 0) {
             return timePoint;

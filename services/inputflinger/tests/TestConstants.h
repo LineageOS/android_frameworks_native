@@ -16,21 +16,15 @@
 
 #pragma once
 
-#include <ftl/non_null.h>
+namespace android {
 
-#include <scheduler/FrameRateMode.h>
+using std::chrono_literals::operator""ms;
 
-namespace android::display {
+// Timeout for waiting for an expected event
+static constexpr std::chrono::duration WAIT_TIMEOUT = 100ms;
 
-struct DisplayModeRequest {
-    scheduler::FrameRateMode mode;
+// An arbitrary time value.
+static constexpr nsecs_t ARBITRARY_TIME = 1234;
+static constexpr nsecs_t READ_TIME = 4321;
 
-    // Whether to emit DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE.
-    bool emitEvent = false;
-};
-
-inline bool operator==(const DisplayModeRequest& lhs, const DisplayModeRequest& rhs) {
-    return lhs.mode == rhs.mode && lhs.emitEvent == rhs.emitEvent;
-}
-
-} // namespace android::display
+} // namespace android

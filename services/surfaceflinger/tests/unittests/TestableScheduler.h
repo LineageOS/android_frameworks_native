@@ -44,8 +44,7 @@ public:
           : Scheduler(*this, callback, Feature::kContentDetection) {
         mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
 
-        const auto displayId = FTL_FAKE_GUARD(kMainThreadContext,
-                                              selectorPtr->getActiveMode().getPhysicalDisplayId());
+        const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplay(displayId, std::move(selectorPtr));
 
         ON_CALL(*this, postMessage).WillByDefault([](sp<MessageHandler>&& handler) {
@@ -147,7 +146,7 @@ public:
         mPolicy.cachedModeChangedParams.reset();
     }
 
-    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, DisplayModePtr mode) {
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, const FrameRateMode& mode) {
         Scheduler::onNonPrimaryDisplayModeChanged(handle, mode);
     }
 

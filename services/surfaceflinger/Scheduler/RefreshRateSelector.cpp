@@ -213,7 +213,7 @@ auto RefreshRateSelector::createFrameRateModes(
     std::vector<FrameRateMode> frameRateModes;
     frameRateModes.reserve(ratesMap.size());
     for (const auto& [key, mode] : ratesMap) {
-        frameRateModes.emplace_back(FrameRateMode{key.fps, mode->second});
+        frameRateModes.emplace_back(FrameRateMode{key.fps, ftl::as_non_null(mode->second)});
     }
 
     // We always want that the lowest frame rate will be corresponding to the
@@ -409,7 +409,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     ATRACE_CALL();
     ALOGV("%s: %zu layers", __func__, layers.size());
 
-    const auto& activeMode = *getActiveModeItLocked()->second;
+    const auto& activeMode = *getActiveModeLocked().modePtr;
 
     // Keep the display at max frame rate for the duration of powering on the display.
     if (signals.powerOnImminent) {
@@ -842,7 +842,7 @@ std::optional<Fps> RefreshRateSelector::onKernelTimerChanged(
 
     const DisplayModePtr& current = desiredActiveModeId
             ? mDisplayModes.get(*desiredActiveModeId)->get()
-            : getActiveModeItLocked()->second;
+            : getActiveModeLocked().modePtr.get();
 
     const DisplayModePtr& min = mMinRefreshRateModeIt->second;
     if (current == min) {
@@ -854,11 +854,11 @@ std::optional<Fps> RefreshRateSelector::onKernelTimerChanged(
 }
 
 const DisplayModePtr& RefreshRateSelector::getMinRefreshRateByPolicyLocked() const {
-    const auto& activeMode = *getActiveModeItLocked()->second;
+    const auto& activeMode = *getActiveModeLocked().modePtr;
 
     for (const FrameRateMode& mode : mPrimaryFrameRates) {
         if (activeMode.getGroup() == mode.modePtr->getGroup()) {
-            return mode.modePtr;
+            return mode.modePtr.get();
         }
     }
 
@@ -866,12 +866,12 @@ const DisplayModePtr& RefreshRateSelector::getMinRefreshRateByPolicyLocked() con
           to_string(activeMode).c_str());
 
     // Default to the lowest refresh rate.
-    return mPrimaryFrameRates.front().modePtr;
+    return mPrimaryFrameRates.front().modePtr.get();
 }
 
 const DisplayModePtr& RefreshRateSelector::getMaxRefreshRateByPolicyLocked(int anchorGroup) const {
-    const DisplayModePtr* maxByAnchor = &mPrimaryFrameRates.back().modePtr;
-    const DisplayModePtr* max = &mPrimaryFrameRates.back().modePtr;
+    const ftl::NonNull<DisplayModePtr>* maxByAnchor = &mPrimaryFrameRates.back().modePtr;
+    const ftl::NonNull<DisplayModePtr>* max = &mPrimaryFrameRates.back().modePtr;
 
     bool maxByAnchorFound = false;
     for (auto it = mPrimaryFrameRates.rbegin(); it != mPrimaryFrameRates.rend(); ++it) {
@@ -888,13 +888,13 @@ const DisplayModePtr& RefreshRateSelector::getMaxRefreshRateByPolicyLocked(int a
     }
 
     if (maxByAnchorFound) {
-        return *maxByAnchor;
+        return maxByAnchor->get();
     }
 
     ALOGE("Can't find max refresh rate by policy with the same group %d", anchorGroup);
 
     // Default to the highest refresh rate.
-    return *max;
+    return max->get();
 }
 
 auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
@@ -946,31 +946,26 @@ auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
     return rankFrameRates(kNoAnchorGroup, refreshRateOrder, preferredDisplayModeOpt);
 }
 
-DisplayModePtr RefreshRateSelector::getActiveModePtr() const {
+FrameRateMode RefreshRateSelector::getActiveMode() const {
     std::lock_guard lock(mLock);
-    return getActiveModeItLocked()->second;
+    return getActiveModeLocked();
 }
 
-const DisplayMode& RefreshRateSelector::getActiveMode() const {
-    // Reads from kMainThreadContext do not require mLock.
-    ftl::FakeGuard guard(mLock);
-    return *mActiveModeIt->second;
+const FrameRateMode& RefreshRateSelector::getActiveModeLocked() const {
+    return *mActiveModeOpt;
 }
 
-DisplayModeIterator RefreshRateSelector::getActiveModeItLocked() const {
-    // Reads under mLock do not require kMainThreadContext.
-    return FTL_FAKE_GUARD(kMainThreadContext, mActiveModeIt);
-}
-
-void RefreshRateSelector::setActiveModeId(DisplayModeId modeId) {
+void RefreshRateSelector::setActiveMode(DisplayModeId modeId, Fps renderFrameRate) {
     std::lock_guard lock(mLock);
 
     // Invalidate the cached invocation to getRankedFrameRates. This forces
     // the refresh rate to be recomputed on the next call to getRankedFrameRates.
     mGetRankedFrameRatesCache.reset();
 
-    mActiveModeIt = mDisplayModes.find(modeId);
-    LOG_ALWAYS_FATAL_IF(mActiveModeIt == mDisplayModes.end());
+    const auto activeModeOpt = mDisplayModes.get(modeId);
+    LOG_ALWAYS_FATAL_IF(!activeModeOpt);
+
+    mActiveModeOpt.emplace(FrameRateMode{renderFrameRate, ftl::as_non_null(activeModeOpt->get())});
 }
 
 RefreshRateSelector::RefreshRateSelector(DisplayModes modes, DisplayModeId activeModeId,
@@ -1007,8 +1002,10 @@ void RefreshRateSelector::updateDisplayModes(DisplayModes modes, DisplayModeId a
     mGetRankedFrameRatesCache.reset();
 
     mDisplayModes = std::move(modes);
-    mActiveModeIt = mDisplayModes.find(activeModeId);
-    LOG_ALWAYS_FATAL_IF(mActiveModeIt == mDisplayModes.end());
+    const auto activeModeOpt = mDisplayModes.get(activeModeId);
+    LOG_ALWAYS_FATAL_IF(!activeModeOpt);
+    mActiveModeOpt =
+            FrameRateMode{activeModeOpt->get()->getFps(), ftl::as_non_null(activeModeOpt->get())};
 
     const auto sortedModes = sortByRefreshRate(mDisplayModes);
     mMinRefreshRateModeIt = sortedModes.front();
@@ -1064,6 +1061,7 @@ bool RefreshRateSelector::isPolicyValidLocked(const Policy& policy) const {
 
 auto RefreshRateSelector::setPolicy(const PolicyVariant& policy) -> SetPolicyResult {
     Policy oldPolicy;
+    PhysicalDisplayId displayId;
     {
         std::lock_guard lock(mLock);
         oldPolicy = *getCurrentPolicyLocked();
@@ -1103,9 +1101,10 @@ auto RefreshRateSelector::setPolicy(const PolicyVariant& policy) -> SetPolicyRes
             return SetPolicyResult::Unchanged;
         }
         constructAvailableRefreshRates();
+
+        displayId = getActiveModeLocked().modePtr->getPhysicalDisplayId();
     }
 
-    const auto displayId = getActiveMode().getPhysicalDisplayId();
     const unsigned numModeChanges = std::exchange(mNumModeSwitchesInPolicy, 0u);
 
     ALOGI("Display %s policy changed\n"
@@ -1132,12 +1131,10 @@ auto RefreshRateSelector::getDisplayManagerPolicy() const -> Policy {
     return mDisplayManagerPolicy;
 }
 
-bool RefreshRateSelector::isModeAllowed(DisplayModeId modeId) const {
+bool RefreshRateSelector::isModeAllowed(const FrameRateMode& mode) const {
     std::lock_guard lock(mLock);
-    return std::any_of(mAppRequestFrameRates.begin(), mAppRequestFrameRates.end(),
-                       [modeId](const FrameRateMode& frameRateMode) {
-                           return frameRateMode.modePtr->getId() == modeId;
-                       });
+    return std::find(mAppRequestFrameRates.begin(), mAppRequestFrameRates.end(), mode) !=
+            mAppRequestFrameRates.end();
 }
 
 void RefreshRateSelector::constructAvailableRefreshRates() {
@@ -1211,7 +1208,7 @@ auto RefreshRateSelector::getIdleTimerAction() const -> KernelIdleTimerAction {
     }
 
     const DisplayModePtr& maxByPolicy =
-            getMaxRefreshRateByPolicyLocked(getActiveModeItLocked()->second->getGroup());
+            getMaxRefreshRateByPolicyLocked(getActiveModeLocked().modePtr->getGroup());
     if (minByPolicy == maxByPolicy) {
         // Turn on the timer when the min of the primary range is below the device min.
         if (const Policy* currentPolicy = getCurrentPolicyLocked();
@@ -1257,8 +1254,8 @@ void RefreshRateSelector::dump(utils::Dumper& dumper) const {
 
     std::lock_guard lock(mLock);
 
-    const auto activeModeId = getActiveModeItLocked()->first;
-    dumper.dump("activeModeId"sv, std::to_string(activeModeId.value()));
+    const auto activeMode = getActiveModeLocked();
+    dumper.dump("activeMode"sv, to_string(activeMode));
 
     dumper.dump("displayModes"sv);
     {
