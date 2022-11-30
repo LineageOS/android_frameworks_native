@@ -470,7 +470,7 @@ public:
     void onActiveDisplayChanged(const sp<DisplayDevice>& activeDisplay) {
         Mutex::Autolock lock(mFlinger->mStateLock);
         ftl::FakeGuard guard(kMainThreadContext);
-        mFlinger->onActiveDisplayChangedLocked(activeDisplay);
+        mFlinger->onActiveDisplayChangedLocked(nullptr, activeDisplay);
     }
 
     auto createLayer(LayerCreationArgs& args, const sp<IBinder>& parentHandle,
@@ -621,7 +621,7 @@ public:
             return *this;
         }
 
-        auto& setPowerMode(hal::PowerMode mode) {
+        auto& setPowerMode(std::optional<hal::PowerMode> mode) {
             mPowerMode = mode;
             return *this;
         }
@@ -645,7 +645,11 @@ public:
                                                          mHwcDisplayType);
 
             display->mutableIsConnected() = true;
-            display->setPowerMode(mPowerMode);
+
+            if (mPowerMode) {
+                display->setPowerMode(*mPowerMode);
+            }
+
             flinger->mutableHwcDisplayData()[mDisplayId].hwcDisplay = std::move(display);
 
             EXPECT_CALL(*composer, getDisplayConfigs(mHwcDisplayId, _))
@@ -711,7 +715,7 @@ public:
         int32_t mDpiY = DEFAULT_DPI;
         int32_t mConfigGroup = DEFAULT_CONFIG_GROUP;
         hal::HWConfigId mActiveConfig = DEFAULT_ACTIVE_CONFIG;
-        hal::PowerMode mPowerMode = DEFAULT_POWER_MODE;
+        std::optional<hal::PowerMode> mPowerMode = DEFAULT_POWER_MODE;
         const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>*
                 mCapabilities = nullptr;
     };
@@ -788,7 +792,7 @@ public:
             return *this;
         }
 
-        auto& setPowerMode(hal::PowerMode mode) {
+        auto& setPowerMode(std::optional<hal::PowerMode> mode) {
             mCreationArgs.initialPowerMode = mode;
             return *this;
         }
@@ -852,6 +856,10 @@ public:
                 const auto physicalIdOpt = PhysicalDisplayId::tryCast(*displayId);
                 LOG_ALWAYS_FATAL_IF(!physicalIdOpt);
                 const auto physicalId = *physicalIdOpt;
+
+                if (mCreationArgs.isPrimary) {
+                    mFlinger.mutableActiveDisplayId() = physicalId;
+                }
 
                 LOG_ALWAYS_FATAL_IF(!mHwcDisplayId);
 
