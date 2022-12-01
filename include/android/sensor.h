@@ -596,12 +596,15 @@ typedef struct AHeadingEvent {
     float accuracy;
 } AHeadingEvent;
 
+// LINT.IfChange
 /**
  * Information that describes a sensor event, refer to
  * <a href="/reference/android/hardware/SensorEvent">SensorEvent</a> for additional
  * documentation.
+ *
+ * NOTE: changes to this struct has to be backward compatible and reflected in
+ * sensors_event_t
  */
-/* NOTE: changes to this struct has to be backward compatible */
 typedef struct ASensorEvent {
     int32_t version; /* sizeof(struct ASensorEvent) */
     int32_t sensor;  /** The sensor that generates this event */
@@ -646,6 +649,7 @@ typedef struct ASensorEvent {
     uint32_t flags;
     int32_t reserved1[3];
 } ASensorEvent;
+// LINT.ThenChange (hardware/libhardware/include/hardware/sensors.h)
 
 struct ASensorManager;
 /**
