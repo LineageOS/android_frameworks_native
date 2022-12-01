@@ -702,6 +702,14 @@ uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t ahardwarebuffer_format) {
     return ahardwarebuffer_format;
 }
 
+int32_t AHardwareBuffer_getDataSpace(AHardwareBuffer* buffer) {
+    GraphicBuffer* gb = AHardwareBuffer_to_GraphicBuffer(buffer);
+    auto& mapper = GraphicBufferMapper::get();
+    ui::Dataspace dataspace = ui::Dataspace::UNKNOWN;
+    mapper.getDataspace(gb->handle, &dataspace);
+    return static_cast<int32_t>(dataspace);
+}
+
 uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage) {
     using android::hardware::graphics::common::V1_1::BufferUsage;
     static_assert(AHARDWAREBUFFER_USAGE_CPU_READ_NEVER == (uint64_t)BufferUsage::CPU_READ_NEVER,
