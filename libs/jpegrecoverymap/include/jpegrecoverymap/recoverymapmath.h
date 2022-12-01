@@ -27,6 +27,8 @@ namespace android::recoverymap {
 // Framework
 
 const float kSdrWhiteNits = 100.0f;
+const float kHlgMaxNits = 1000.0f;
+const float kPqMaxNits = 10000.0f;
 
 struct Color {
   union {
@@ -113,9 +115,14 @@ inline Color operator/(const Color& lhs, const float rhs) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // sRGB transformations
+// NOTE: sRGB has the same color primaries as BT.709, but different transfer
+// function. For this reason, all sRGB transformations here apply to BT.709,
+// except for those concerning transfer functions.
 
 /*
  * Calculate the luminance of a linear RGB sRGB pixel, according to IEC 61966-2-1.
+ *
+ * [0.0, 1.0] range in and out.
  */
 float srgbLuminance(Color e);
 
@@ -142,7 +149,9 @@ Color srgbInvOetf(Color e_gamma);
 // Display-P3 transformations
 
 /*
- * Calculated the luminance of a linear RGB P3 pixel, according to EG 432-1.
+ * Calculated the luminance of a linear RGB P3 pixel, according to SMPTE EG 432-1.
+ *
+ * [0.0, 1.0] range in and out.
  */
 float p3Luminance(Color e);
 
@@ -152,6 +161,8 @@ float p3Luminance(Color e);
 
 /*
  * Calculate the luminance of a linear RGB BT.2100 pixel.
+ *
+ * [0.0, 1.0] range in and out.
  */
 float bt2100Luminance(Color e);
 
@@ -166,23 +177,35 @@ Color bt2100RgbToYuv(Color e_gamma);
 Color bt2100YuvToRgb(Color e_gamma);
 
 /*
- * Convert from scene luminance in nits to HLG.
+ * Convert from scene luminance to HLG.
+ *
+ * [0.0, 1.0] range in and out.
  */
+float hlgOetf(float e);
 Color hlgOetf(Color e);
 
 /*
- * Convert from HLG to scene luminance in nits.
+ * Convert from HLG to scene luminance.
+ *
+ * [0.0, 1.0] range in and out.
  */
+float hlgInvOetf(float e_gamma);
 Color hlgInvOetf(Color e_gamma);
 
 /*
- * Convert from scene luminance in nits to PQ.
+ * Convert from scene luminance to PQ.
+ *
+ * [0.0, 1.0] range in and out.
  */
+float pqOetf(float e);
 Color pqOetf(Color e);
 
 /*
  * Convert from PQ to scene luminance in nits.
+ *
+ * [0.0, 1.0] range in and out.
  */
+float pqInvOetf(float e_gamma);
 Color pqInvOetf(Color e_gamma);
 
 
@@ -230,34 +253,36 @@ uint8_t encodeRecovery(float y_sdr, float y_hdr, float hdr_ratio);
 Color applyRecovery(Color e, float recovery, float hdr_ratio);
 
 /*
- * Helper for sampling from images.
+ * Helper for sampling from YUV 420 images.
  */
 Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y);
 
 /*
- * Helper for sampling from images.
+ * Helper for sampling from P010 images.
+ *
+ * Expect narrow-range image data for P010.
  */
 Color getP010Pixel(jr_uncompressed_ptr image, size_t x, size_t y);
+
+/*
+ * Sample the image at the provided location, with a weighting based on nearby
+ * pixels and the map scale factor.
+ */
+Color sampleYuv420(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
+
+/*
+ * Sample the image at the provided location, with a weighting based on nearby
+ * pixels and the map scale factor.
+ *
+ * Expect narrow-range image data for P010.
+ */
+Color sampleP010(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
 
 /*
  * Sample the recovery value for the map from a given x,y coordinate on a scale
  * that is map scale factor larger than the map size.
  */
 float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
-
-/*
- * Sample the image Y value at the provided location, with a weighting based on nearby pixels
- * and the map scale factor.
- *
- * Expect narrow-range image data for P010.
- */
-Color sampleYuv420(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
-
-/*
- * Sample the image Y value at the provided location, with a weighting based on nearby pixels
- * and the map scale factor. Assumes narrow-range image data for P010.
- */
-Color sampleP010(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
 
 /*
  * Convert from Color to RGBA1010102.
