@@ -196,6 +196,10 @@ class BnCInterface : public INTERFACE {
 
     bool isRemote() override final { return false; }
 
+    static std::string makeServiceName(std::string_view instance) {
+        return INTERFACE::descriptor + ("/" + std::string(instance));
+    }
+
    protected:
     /**
      * This function should only be called by asBinder. Otherwise, there is a possibility of
