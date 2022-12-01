@@ -125,9 +125,12 @@ public:
 
     /**
      * Set the touch mode state.
-     * Touch mode is a global state that apps may enter / exit based on specific
-     * user interactions with input devices.
-     * If true, the device is in touch mode.
+     * Touch mode is a per display state that apps may enter / exit based on specific user
+     * interactions with input devices. If <code>inTouchMode</code> is set to true, the display
+     * identified by <code>displayId</code> will be changed to touch mode. Performs a permission
+     * check if hasPermission is set to false.
+     *
+     * This method also enqueues a a TouchModeEntry message for dispatching.
      *
      * Returns true when changing touch mode state.
      */

@@ -104,6 +104,32 @@ protected:
 
 // ---------------------------------------------------------------------------
 
+class RuntimeSensor : public BaseSensor {
+public:
+    static constexpr int DEFAULT_DEVICE_ID = 0;
+
+    class StateChangeCallback : public virtual RefBase {
+      public:
+        virtual void onStateChanged(bool enabled, int64_t samplingPeriodNs,
+                                    int64_t batchReportLatencyNs) = 0;
+    };
+    RuntimeSensor(const sensor_t& sensor, sp<StateChangeCallback> callback);
+    virtual status_t activate(void* ident, bool enabled) override;
+    virtual status_t batch(void* ident, int handle, int flags, int64_t samplingPeriodNs,
+                           int64_t maxBatchReportLatencyNs) override;
+    virtual status_t setDelay(void* ident, int handle, int64_t ns) override;
+    virtual bool process(sensors_event_t*, const sensors_event_t&) { return false; }
+    virtual bool isVirtual() const override { return false; }
+
+private:
+    bool mEnabled = false;
+    int64_t mSamplingPeriodNs = 0;
+    int64_t mBatchReportLatencyNs = 0;
+    sp<StateChangeCallback> mCallback;
+};
+
+// ---------------------------------------------------------------------------
+
 class ProximitySensor : public HardwareSensor {
 public:
     explicit ProximitySensor(const sensor_t& sensor, SensorService& service);

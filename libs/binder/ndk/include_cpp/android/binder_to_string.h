@@ -160,7 +160,7 @@ class ToEmptyString {
 template <typename _T>
 std::string ToString(const _T& t) {
     if constexpr (details::ToEmptyString<_T>::value) {
-        return "<unimplemented>";
+        return "";
     } else if constexpr (std::is_same_v<bool, _T>) {
         return t ? "true" : "false";
     } else if constexpr (std::is_same_v<char16_t, _T>) {
@@ -176,11 +176,9 @@ std::string ToString(const _T& t) {
         return t;
 #ifdef HAS_NDK_INTERFACE
     } else if constexpr (std::is_same_v<::ndk::SpAIBinder, _T>) {
-        std::stringstream ss;
-        ss << "binder:" << std::hex << t.get();
-        return ss.str();
+        return (t.get() == nullptr) ? "(null)" : "";
     } else if constexpr (std::is_same_v<::ndk::ScopedFileDescriptor, _T>) {
-        return "fd:" + std::to_string(t.get());
+        return (t.get() == -1) ? "(null)" : "";
 #endif
 #ifdef HAS_STRING16
     } else if constexpr (std::is_same_v<String16, _T>) {

@@ -58,6 +58,7 @@ filegroup {
         "mapper/accumulator/MultiTouchMotionAccumulator.cpp",
         "mapper/accumulator/SingleTouchMotionAccumulator.cpp",
         "mapper/accumulator/TouchButtonAccumulator.cpp",
+        "mapper/gestures/GesturesLogging.cpp",
     ],
 }
 
@@ -69,16 +70,19 @@ cc_defaults {
         "libcap",
         "libcrypto",
         "libcutils",
+        "libjsoncpp",
         "liblog",
         "libstatslog",
         "libutils",
     ],
     static_libs: [
         "libc++fs",
+        "libchrome-gestures",
         "libui-types",
     ],
     header_libs: [
         "libbatteryservice_headers",
+        "libchrome-gestures_headers",
         "libinputreader_headers",
     ],
     target: {
@@ -95,6 +99,22 @@ cc_defaults {
             ],
         },
     },
+}
+
+cc_library_static {
+    name: "libinputreader_static",
+    defaults: [
+        "inputflinger_defaults",
+        "libinputreader_defaults",
+    ],
+    shared_libs: [
+        "libinputflinger_base",
+    ],
+    export_header_lib_headers: [
+        "libbatteryservice_headers",
+        "libchrome-gestures_headers",
+        "libinputreader_headers",
+    ],
 }
 
 cc_library_shared {
