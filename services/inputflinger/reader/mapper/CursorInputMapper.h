@@ -22,6 +22,7 @@
 
 #include <PointerControllerInterface.h>
 #include <input/VelocityControl.h>
+#include <ui/Rotation.h>
 
 namespace android {
 
@@ -115,7 +116,7 @@ private:
     // ADISPLAY_ID_NONE to target the focused display. If there is no display target (i.e.
     // std::nullopt), all events will be ignored.
     std::optional<int32_t> mDisplayId;
-    int32_t mOrientation;
+    ui::Rotation mOrientation;
 
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
