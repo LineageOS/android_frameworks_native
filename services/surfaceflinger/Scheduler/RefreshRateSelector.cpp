@@ -107,7 +107,8 @@ std::pair<unsigned, unsigned> divisorRange(Fps fps, FpsRange range,
     }
 
     using fps_approx_ops::operator/;
-    const auto start = std::max(1u, fps / range.max - 1);
+    // use signed type as `fps / range.max` might be 0
+    const auto start = std::max(1, static_cast<int>(fps / range.max) - 1);
     const auto end = fps /
             std::max(range.min, RefreshRateSelector::kMinSupportedFrameRate,
                      fps_approx_ops::operator<);
@@ -1053,8 +1054,12 @@ bool RefreshRateSelector::isPolicyValidLocked(const Policy& policy) const {
     const auto& primaryRanges = policy.primaryRanges;
     const auto& appRequestRanges = policy.appRequestRanges;
     ALOGE_IF(!appRequestRanges.physical.includes(primaryRanges.physical),
-             "Physical range is invalid");
-    ALOGE_IF(!appRequestRanges.render.includes(primaryRanges.render), "Render range is invalid");
+             "Physical range is invalid: primary: %s appRequest: %s",
+             to_string(primaryRanges.physical).c_str(),
+             to_string(appRequestRanges.physical).c_str());
+    ALOGE_IF(!appRequestRanges.render.includes(primaryRanges.render),
+             "Render range is invalid: primary: %s appRequest: %s",
+             to_string(primaryRanges.render).c_str(), to_string(appRequestRanges.render).c_str());
 
     return primaryRanges.valid() && appRequestRanges.valid();
 }
@@ -1156,8 +1161,8 @@ void RefreshRateSelector::constructAvailableRefreshRates() {
 
         const auto frameRateModes = createFrameRateModes(filterModes, ranges.render);
         LOG_ALWAYS_FATAL_IF(frameRateModes.empty(),
-                            "No matching frame rate modes for %s physicalRange %s", rangeName,
-                            to_string(ranges.physical).c_str());
+                            "No matching frame rate modes for %s range. policy: %s", rangeName,
+                            policy->toString().c_str());
 
         const auto stringifyModes = [&] {
             std::string str;
