@@ -110,6 +110,13 @@ MATCHER_P(WithMotionAction, action, "MotionEvent with specified action") {
         *result_listener << "expected action " << MotionEvent::actionToString(action)
                          << ", but got " << MotionEvent::actionToString(arg.getAction());
     }
+    if (action == AMOTION_EVENT_ACTION_DOWN) {
+        if (!matches) {
+            *result_listener << "; ";
+        }
+        *result_listener << "downTime should match eventTime for ACTION_DOWN events";
+        matches &= arg.getDownTime() == arg.getEventTime();
+    }
     if (action == AMOTION_EVENT_ACTION_CANCEL) {
         if (!matches) {
             *result_listener << "; ";
@@ -118,6 +125,10 @@ MATCHER_P(WithMotionAction, action, "MotionEvent with specified action") {
         matches &= (arg.getFlags() & AMOTION_EVENT_FLAG_CANCELED) != 0;
     }
     return matches;
+}
+
+MATCHER_P(WithDownTime, downTime, "InputEvent with specified downTime") {
+    return arg.getDownTime() == downTime;
 }
 
 MATCHER_P(WithSource, source, "InputEvent with specified source") {
@@ -1210,6 +1221,7 @@ public:
     void consumeMotionOutsideWithZeroedCoords(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                                               int32_t expectedFlags = 0) {
         InputEvent* event = consume();
+        ASSERT_NE(nullptr, event);
         ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
         const MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
         EXPECT_EQ(AMOTION_EVENT_ACTION_OUTSIDE, motionEvent.getActionMasked());
@@ -2056,6 +2068,7 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
 
     mDispatcher->waitForIdle();
     InputEvent* inputEvent1 = window1->consume();
+    ASSERT_NE(inputEvent1, nullptr);
     window2->assertNoEvents();
     MotionEvent& motionEvent1 = static_cast<MotionEvent&>(*inputEvent1);
     nsecs_t downTimeForWindow1 = motionEvent1.getDownTime();
@@ -2065,6 +2078,7 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
     mDispatcher->notifyMotion(&(args = generateTouchArgs(POINTER_1_DOWN, {{50, 50}, {150, 50}})));
     mDispatcher->waitForIdle();
     InputEvent* inputEvent2 = window2->consume();
+    ASSERT_NE(inputEvent2, nullptr);
     MotionEvent& motionEvent2 = static_cast<MotionEvent&>(*inputEvent2);
     nsecs_t downTimeForWindow2 = motionEvent2.getDownTime();
     ASSERT_NE(downTimeForWindow1, downTimeForWindow2);
@@ -2074,17 +2088,13 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
     mDispatcher->notifyMotion(
             &(args = generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{50, 50}, {151, 51}})));
     mDispatcher->waitForIdle();
-    InputEvent* inputEvent3 = window2->consume();
-    MotionEvent& motionEvent3 = static_cast<MotionEvent&>(*inputEvent3);
-    ASSERT_EQ(motionEvent3.getDownTime(), downTimeForWindow2);
+    window2->consumeMotionEvent(WithDownTime(downTimeForWindow2));
 
     // Now add new touch down on the second window
     mDispatcher->notifyMotion(
             &(args = generateTouchArgs(POINTER_2_DOWN, {{50, 50}, {151, 51}, {150, 50}})));
     mDispatcher->waitForIdle();
-    InputEvent* inputEvent4 = window2->consume();
-    MotionEvent& motionEvent4 = static_cast<MotionEvent&>(*inputEvent4);
-    ASSERT_EQ(motionEvent4.getDownTime(), downTimeForWindow2);
+    window2->consumeMotionEvent(WithDownTime(downTimeForWindow2));
 
     // TODO(b/232530217): do not send the unnecessary MOVE event and delete the next line
     window1->consumeMotionMove();
@@ -2094,16 +2104,12 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
     mDispatcher->notifyMotion(
             &(args = generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{51, 51}, {151, 51}})));
     mDispatcher->waitForIdle();
-    InputEvent* inputEvent5 = window1->consume();
-    MotionEvent& motionEvent5 = static_cast<MotionEvent&>(*inputEvent5);
-    ASSERT_EQ(motionEvent5.getDownTime(), downTimeForWindow1);
+    window1->consumeMotionEvent(WithDownTime(downTimeForWindow1));
 
     mDispatcher->notifyMotion(&(
             args = generateTouchArgs(POINTER_3_DOWN, {{51, 51}, {151, 51}, {150, 50}, {50, 50}})));
     mDispatcher->waitForIdle();
-    InputEvent* inputEvent6 = window1->consume();
-    MotionEvent& motionEvent6 = static_cast<MotionEvent&>(*inputEvent6);
-    ASSERT_EQ(motionEvent6.getDownTime(), downTimeForWindow1);
+    window1->consumeMotionEvent(WithDownTime(downTimeForWindow1));
 }
 
 TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
@@ -4693,6 +4699,7 @@ protected:
 
         const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
         assertMotionAction(expectedAction, motionEvent.getAction());
+        ASSERT_EQ(points.size(), motionEvent.getPointerCount());
 
         for (size_t i = 0; i < points.size(); i++) {
             float expectedX = points[i].x;
