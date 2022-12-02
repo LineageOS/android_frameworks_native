@@ -82,7 +82,7 @@ private:
     void configureParameters();
     void dumpParameters(std::string& dump) const;
 
-    int32_t getOrientation();
+    ui::Rotation getOrientation();
     int32_t getDisplayId();
 
     [[nodiscard]] std::list<NotifyArgs> processKey(nsecs_t when, nsecs_t readTime, bool down,

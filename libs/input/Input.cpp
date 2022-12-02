@@ -552,19 +552,19 @@ void MotionEvent::addSample(
                                 &pointerCoords[getPointerCount()]);
 }
 
-int MotionEvent::getSurfaceRotation() const {
+int32_t MotionEvent::getSurfaceRotation() const {
     // The surface rotation is the rotation from the window's coordinate space to that of the
     // display. Since the event's transform takes display space coordinates to window space, the
     // returned surface rotation is the inverse of the rotation for the surface.
     switch (mTransform.getOrientation()) {
         case ui::Transform::ROT_0:
-            return DISPLAY_ORIENTATION_0;
+            return static_cast<int32_t>(ui::ROTATION_0);
         case ui::Transform::ROT_90:
-            return DISPLAY_ORIENTATION_270;
+            return static_cast<int32_t>(ui::ROTATION_270);
         case ui::Transform::ROT_180:
-            return DISPLAY_ORIENTATION_180;
+            return static_cast<int32_t>(ui::ROTATION_180);
         case ui::Transform::ROT_270:
-            return DISPLAY_ORIENTATION_90;
+            return static_cast<int32_t>(ui::ROTATION_90);
         default:
             return -1;
     }

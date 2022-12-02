@@ -311,7 +311,7 @@ public:
         return mFdp->ConsumeRandomLengthString(32);
     }
     TouchAffineTransformation getTouchAffineTransformation(const std::string& inputDeviceDescriptor,
-                                                           int32_t surfaceRotation) override {
+                                                           ui::Rotation surfaceRotation) override {
         return mTransform;
     }
     void setTouchAffineTransformation(const TouchAffineTransformation t) { mTransform = t; }

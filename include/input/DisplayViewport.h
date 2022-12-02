@@ -21,6 +21,7 @@
 #include <ftl/string.h>
 #include <gui/constants.h>
 #include <input/Input.h>
+#include <ui/Rotation.h>
 
 #include <cinttypes>
 #include <optional>
@@ -28,13 +29,6 @@
 using android::base::StringPrintf;
 
 namespace android {
-
-enum {
-    DISPLAY_ORIENTATION_0 = 0,
-    DISPLAY_ORIENTATION_90 = 1,
-    DISPLAY_ORIENTATION_180 = 2,
-    DISPLAY_ORIENTATION_270 = 3
-};
 
 /**
  * Describes the different type of viewports supported by input flinger.
@@ -54,7 +48,7 @@ enum class ViewportType : int32_t {
  */
 struct DisplayViewport {
     int32_t displayId; // -1 if invalid
-    int32_t orientation;
+    ui::Rotation orientation;
     int32_t logicalLeft;
     int32_t logicalTop;
     int32_t logicalRight;
@@ -74,7 +68,7 @@ struct DisplayViewport {
 
     DisplayViewport()
           : displayId(ADISPLAY_ID_NONE),
-            orientation(DISPLAY_ORIENTATION_0),
+            orientation(ui::ROTATION_0),
             logicalLeft(0),
             logicalTop(0),
             logicalRight(0),
@@ -111,7 +105,7 @@ struct DisplayViewport {
 
     void setNonDisplayViewport(int32_t width, int32_t height) {
         displayId = ADISPLAY_ID_NONE;
-        orientation = DISPLAY_ORIENTATION_0;
+        orientation = ui::ROTATION_0;
         logicalLeft = 0;
         logicalTop = 0;
         logicalRight = width;

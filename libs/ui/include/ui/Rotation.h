@@ -20,7 +20,14 @@
 
 namespace android::ui {
 
-enum class Rotation { Rotation0 = 0, Rotation90 = 1, Rotation180 = 2, Rotation270 = 3 };
+enum class Rotation {
+    Rotation0 = 0,
+    Rotation90 = 1,
+    Rotation180 = 2,
+    Rotation270 = 3,
+
+    ftl_last = Rotation270
+};
 
 // Equivalent to Surface.java constants.
 constexpr auto ROTATION_0 = Rotation::Rotation0;
