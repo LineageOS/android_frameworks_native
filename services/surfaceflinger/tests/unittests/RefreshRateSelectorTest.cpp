@@ -2943,5 +2943,18 @@ TEST_P(RefreshRateSelectorTest, idleWhenLowestRefreshRateIsNotDivisor) {
     EXPECT_EQ(kModeId35, selector.getBestFrameRateMode({}, {.idle = true})->getId());
 }
 
+TEST_P(RefreshRateSelectorTest, policyCanBeInfinity) {
+    auto selector = createSelector(kModes_60_120, kModeId120);
+
+    constexpr Fps inf = Fps::fromValue(std::numeric_limits<float>::infinity());
+
+    using namespace fps_approx_ops;
+    selector.setDisplayManagerPolicy({kModeId60, {0_Hz, inf}});
+
+    // With no layers, idle should still be lower priority than touch boost.
+    EXPECT_EQ(kMode120, selector.getMaxRefreshRateByPolicy());
+    EXPECT_EQ(kMode60, selector.getMinRefreshRateByPolicy());
+}
+
 } // namespace
 } // namespace android::scheduler
