@@ -7028,6 +7028,49 @@ TEST_P(TouchscreenPrecisionTestsFixture, RotationPrecisionWhenOrientationAware) 
     }
 }
 
+TEST_P(TouchscreenPrecisionTestsFixture, RotationPrecisionOrientationAwareInOri270) {
+    static const std::map<ui::Rotation /*orientation*/, std::array<vec2, 4> /*mappedCorners*/>
+            kMappedCorners = {
+                    {ui::ROTATION_0, {{{799.75, 0}, {799.75, 479.5}, {0, 479.5}, {0, 0}}}},
+                    {ui::ROTATION_90, {{{800, 0}, {800, 479.5}, {0.25, 479.5}, {0.25, 0}}}},
+                    {ui::ROTATION_180, {{{800, 0.5}, {800, 480}, {0.25, 480}, {0.25, 0.5}}}},
+                    {ui::ROTATION_270, {{{799.75, 0.5}, {799.75, 480}, {0, 480}, {0, 0.5}}}},
+            };
+
+    const ui::Rotation displayRotation = GetParam();
+
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_270");
+
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    // Ori 270, so width and height swapped
+    const Rect physicalFrame{0, 0, DISPLAY_HEIGHT, DISPLAY_WIDTH};
+    prepareDisplay(displayRotation);
+    configurePhysicalDisplay(displayRotation, physicalFrame, DISPLAY_HEIGHT, DISPLAY_WIDTH);
+
+    const auto& expectedPoints = kMappedCorners.at(displayRotation);
+
+    // Test all four corners.
+    for (int i = 0; i < 4; i++) {
+        const auto& expected = expectedPoints[i];
+        const auto& raw = kRawCorners[i];
+        processDown(mapper, raw.x, raw.y);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                      WithCoords(expected.x, expected.y), WithPrecision(4, 2))))
+                << "Failed to process raw point (" << raw.x << ", " << raw.y << ") "
+                << "with display rotation " << ui::toCString(displayRotation)
+                << ", expected point (" << expected.x << ", " << expected.y << ").";
+        processUp(mapper);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                      WithCoords(expected.x, expected.y))));
+    }
+}
+
 // Run the precision tests for all rotations.
 INSTANTIATE_TEST_SUITE_P(TouchscreenPrecisionTests, TouchscreenPrecisionTestsFixture,
                          ::testing::Values(ui::ROTATION_0, ui::ROTATION_90, ui::ROTATION_180,
