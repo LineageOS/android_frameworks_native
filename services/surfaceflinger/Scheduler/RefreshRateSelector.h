@@ -240,8 +240,9 @@ public:
         return {mMinRefreshRateModeIt->second->getFps(), mMaxRefreshRateModeIt->second->getFps()};
     }
 
-    std::optional<Fps> onKernelTimerChanged(std::optional<DisplayModeId> desiredActiveModeId,
-                                            bool timerExpired) const EXCLUDES(mLock);
+    ftl::Optional<FrameRateMode> onKernelTimerChanged(
+            std::optional<DisplayModeId> desiredActiveModeId, bool timerExpired) const
+            EXCLUDES(mLock);
 
     void setActiveMode(DisplayModeId, Fps renderFrameRate) EXCLUDES(mLock);
 
