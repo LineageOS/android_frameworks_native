@@ -1141,7 +1141,7 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* ou
     return NO_ERROR;
 }
 
-void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request) {
+void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request, bool force) {
     ATRACE_CALL();
 
     auto display = getDisplayDeviceLocked(request.mode.modePtr->getPhysicalDisplayId());
@@ -1153,7 +1153,8 @@ void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request)
     const auto mode = request.mode;
     const bool emitEvent = request.emitEvent;
 
-    switch (display->setDesiredActiveMode(DisplayDevice::ActiveModeInfo(std::move(request)))) {
+    switch (display->setDesiredActiveMode(DisplayDevice::ActiveModeInfo(std::move(request)),
+                                          force)) {
         case DisplayDevice::DesiredActiveModeAction::InitiateDisplayModeSwitch:
             scheduleComposite(FrameHint::kNone);
 
@@ -3467,9 +3468,20 @@ void SurfaceFlinger::requestDisplayModes(std::vector<display::DisplayModeRequest
 
     for (auto& request : modeRequests) {
         const auto& modePtr = request.mode.modePtr;
-        const auto display = getDisplayDeviceLocked(modePtr->getPhysicalDisplayId());
+
+        const auto displayId = modePtr->getPhysicalDisplayId();
+        const auto display = getDisplayDeviceLocked(displayId);
 
         if (!display) continue;
+
+        const bool isInternalDisplay = mPhysicalDisplays.get(displayId)
+                                               .transform(&PhysicalDisplay::isInternal)
+                                               .value_or(false);
+
+        if (isInternalDisplay && displayId != mActiveDisplayId) {
+            ALOGV("%s(%s): Inactive display", __func__, to_string(displayId).c_str());
+            continue;
+        }
 
         if (display->refreshRateSelector().isModeAllowed(request.mode)) {
             setDesiredActiveMode(std::move(request));
@@ -6730,7 +6742,7 @@ void SurfaceFlinger::traverseLayersInLayerStack(ui::LayerStack layerStack, const
 ftl::Optional<scheduler::FrameRateMode> SurfaceFlinger::getPreferredDisplayMode(
         PhysicalDisplayId displayId, DisplayModeId defaultModeId) const {
     if (const auto schedulerMode = mScheduler->getPreferredDisplayMode();
-        schedulerMode && schedulerMode->modePtr->getPhysicalDisplayId() == displayId) {
+        schedulerMode.modePtr->getPhysicalDisplayId() == displayId) {
         return schedulerMode;
     }
 
@@ -6765,12 +6777,24 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         case SetPolicyResult::Unchanged:
             return NO_ERROR;
         case SetPolicyResult::Changed:
-            return applyRefreshRateSelectorPolicy(displayId, selector);
+            break;
     }
+
+    const bool isInternalDisplay = mPhysicalDisplays.get(displayId)
+                                           .transform(&PhysicalDisplay::isInternal)
+                                           .value_or(false);
+
+    if (isInternalDisplay && displayId != mActiveDisplayId) {
+        // The policy will be be applied when the display becomes active.
+        ALOGV("%s(%s): Inactive display", __func__, to_string(displayId).c_str());
+        return NO_ERROR;
+    }
+
+    return applyRefreshRateSelectorPolicy(displayId, selector);
 }
 
 status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
-        PhysicalDisplayId displayId, const scheduler::RefreshRateSelector& selector) {
+        PhysicalDisplayId displayId, const scheduler::RefreshRateSelector& selector, bool force) {
     const scheduler::RefreshRateSelector::Policy currentPolicy = selector.getCurrentPolicy();
     ALOGV("Setting desired display mode specs: %s", currentPolicy.toString().c_str());
 
@@ -6800,7 +6824,7 @@ status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
         return INVALID_OPERATION;
     }
 
-    setDesiredActiveMode({std::move(preferredMode), .emitEvent = true});
+    setDesiredActiveMode({std::move(preferredMode), .emitEvent = true}, force);
     return NO_ERROR;
 }
 
@@ -7104,7 +7128,8 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& inact
     // case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In either
     // case, the Scheduler's cachedModeChangedParams must be initialized to the newly active mode,
     // and the kernel idle timer of the newly active display must be toggled.
-    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay->refreshRateSelector());
+    constexpr bool kForce = true;
+    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay->refreshRateSelector(), kForce);
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(

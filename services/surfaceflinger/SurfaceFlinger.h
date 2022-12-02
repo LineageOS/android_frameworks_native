@@ -649,7 +649,8 @@ private:
     // Show render rate with refresh rate overlay
     bool mRefreshRateOverlayRenderRate = false;
 
-    void setDesiredActiveMode(display::DisplayModeRequest&&) REQUIRES(mStateLock);
+    void setDesiredActiveMode(display::DisplayModeRequest&&, bool force = false)
+            REQUIRES(mStateLock);
 
     status_t setActiveModeFromBackdoor(const sp<display::DisplayToken>&, DisplayModeId);
     // Sets the active mode and a new refresh rate in SF.
@@ -678,7 +679,8 @@ private:
 
     // TODO(b/241285191): Look up RefreshRateSelector on Scheduler to remove redundant parameter.
     status_t applyRefreshRateSelectorPolicy(PhysicalDisplayId,
-                                            const scheduler::RefreshRateSelector&)
+                                            const scheduler::RefreshRateSelector&,
+                                            bool force = false)
             REQUIRES(mStateLock, kMainThreadContext);
 
     void commitTransactions() EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
@@ -1187,7 +1189,9 @@ private:
     display::PhysicalDisplays mPhysicalDisplays GUARDED_BY(mStateLock);
 
     // The inner or outer display for foldables, assuming they have mutually exclusive power states.
-    PhysicalDisplayId mActiveDisplayId GUARDED_BY(mStateLock);
+    // Atomic because writes from onActiveDisplayChangedLocked are not always under mStateLock, but
+    // reads from ISchedulerCallback::requestDisplayModes may happen concurrently.
+    std::atomic<PhysicalDisplayId> mActiveDisplayId GUARDED_BY(mStateLock);
 
     struct {
         DisplayIdGenerator<GpuVirtualDisplayId> gpu;

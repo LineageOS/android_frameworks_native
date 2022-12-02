@@ -210,7 +210,8 @@ public:
         InitiateDisplayModeSwitch,
         InitiateRenderRateSwitch
     };
-    DesiredActiveModeAction setDesiredActiveMode(const ActiveModeInfo&) EXCLUDES(mActiveModeLock);
+    DesiredActiveModeAction setDesiredActiveMode(const ActiveModeInfo&, bool force = false)
+            EXCLUDES(mActiveModeLock);
     std::optional<ActiveModeInfo> getDesiredActiveMode() const EXCLUDES(mActiveModeLock);
     void clearDesiredActiveModeState() EXCLUDES(mActiveModeLock);
     ActiveModeInfo getUpcomingActiveMode() const REQUIRES(kMainThreadContext) {

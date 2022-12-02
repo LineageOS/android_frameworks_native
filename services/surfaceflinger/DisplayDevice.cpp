@@ -452,7 +452,8 @@ void DisplayDevice::animateRefreshRateOverlay() {
     }
 }
 
-auto DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info) -> DesiredActiveModeAction {
+auto DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info, bool force)
+        -> DesiredActiveModeAction {
     ATRACE_CALL();
 
     LOG_ALWAYS_FATAL_IF(!info.modeOpt, "desired mode not provided");
@@ -473,7 +474,7 @@ auto DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info) -> DesiredA
     const auto& desiredMode = *info.modeOpt->modePtr;
 
     // Check if we are already at the desired mode
-    if (refreshRateSelector().getActiveMode().modePtr->getId() == desiredMode.getId()) {
+    if (!force && refreshRateSelector().getActiveMode().modePtr->getId() == desiredMode.getId()) {
         if (refreshRateSelector().getActiveMode() == info.modeOpt) {
             return DesiredActiveModeAction::None;
         }
