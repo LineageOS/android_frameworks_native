@@ -68,6 +68,9 @@ struct LinearEffect {
     // fakeInputDataspace is used to essentially masquerade the input dataspace to be the output
     // dataspace for correct conversion to linear colors.
     ui::Dataspace fakeInputDataspace = ui::Dataspace::UNKNOWN;
+
+    enum SkSLType { Shader, ColorFilter };
+    SkSLType type = Shader;
 };
 
 static inline bool operator==(const LinearEffect& lhs, const LinearEffect& rhs) {
@@ -95,6 +98,10 @@ struct LinearEffectHasher {
 // 1. Apply tone-mapping
 // 2. Apply color transform matrices in linear space
 std::string buildLinearEffectSkSL(const LinearEffect& linearEffect);
+
+// Generates a shader string that applies color transforms in linear space.
+// This is intended to be plugged into an SkColorFilter
+std::string buildLinearEffectSkSLForColorFilter(const LinearEffect& linearEffect);
 
 // Generates a list of uniforms to set on the LinearEffect shader above.
 std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(

@@ -501,10 +501,6 @@ static int prepare_app_cache_dir(const std::string& parent, const char* name, mo
 }
 
 static bool prepare_app_profile_dir(const std::string& packageName, int32_t appId, int32_t userId) {
-    if (!property_get_bool("dalvik.vm.usejitprofiles", false)) {
-        return true;
-    }
-
     int32_t uid = multiuser_get_uid(userId, appId);
     int shared_app_gid = multiuser_get_shared_gid(userId, appId);
     if (shared_app_gid == -1) {

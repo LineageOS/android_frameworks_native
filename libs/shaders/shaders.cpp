@@ -386,12 +386,23 @@ void generateOETF(ui::Dataspace dataspace, std::string& shader) {
     }
 }
 
-void generateEffectiveOOTF(bool undoPremultipliedAlpha, std::string& shader) {
-    shader.append(R"(
-        uniform shader child;
-        half4 main(float2 xy) {
-            float4 c = float4(child.eval(xy));
-    )");
+void generateEffectiveOOTF(bool undoPremultipliedAlpha, LinearEffect::SkSLType type,
+                           std::string& shader) {
+    switch (type) {
+        case LinearEffect::SkSLType::ColorFilter:
+            shader.append(R"(
+                half4 main(half4 inputColor) {
+                    float4 c = float4(inputColor);
+            )");
+            break;
+        case LinearEffect::SkSLType::Shader:
+            shader.append(R"(
+                uniform shader child;
+                half4 main(float2 xy) {
+                    float4 c = float4(child.eval(xy));
+            )");
+            break;
+    }
     if (undoPremultipliedAlpha) {
         shader.append(R"(
             c.rgb = c.rgb / (c.a + 0.0019);
@@ -459,7 +470,7 @@ std::string buildLinearEffectSkSL(const LinearEffect& linearEffect) {
     generateXYZTransforms(shaderString);
     generateOOTF(linearEffect.inputDataspace, linearEffect.outputDataspace, shaderString);
     generateOETF(linearEffect.outputDataspace, shaderString);
-    generateEffectiveOOTF(linearEffect.undoPremultipliedAlpha, shaderString);
+    generateEffectiveOOTF(linearEffect.undoPremultipliedAlpha, linearEffect.type, shaderString);
     return shaderString;
 }
 
