@@ -65,6 +65,10 @@ props {
     prop_name: "ro.surface_flinger.frame_rate_override_for_native_rates"
   }
   prop {
+    api_name: "frame_rate_override_global"
+    prop_name: "ro.surface_flinger.frame_rate_override_global"
+  }
+  prop {
     api_name: "has_HDR_display"
     prop_name: "ro.surface_flinger.has_HDR_display"
   }

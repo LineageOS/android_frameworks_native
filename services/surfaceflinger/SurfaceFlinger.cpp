@@ -2830,7 +2830,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                 return Config::FrameRateOverride::AppOverrideNativeRefreshRates;
             }
 
-            if (!base::GetBoolProperty("debug.sf.frame_rate_override_global"s, false)) {
+            if (!sysprop::frame_rate_override_global(false)) {
                 return Config::FrameRateOverride::AppOverride;
             }
 
