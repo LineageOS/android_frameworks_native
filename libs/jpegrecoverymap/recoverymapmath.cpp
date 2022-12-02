@@ -296,7 +296,7 @@ uint8_t encodeRecovery(float y_sdr, float y_hdr, float hdr_ratio) {
 
 static float applyRecovery(float e, float recovery, float hdr_ratio) {
   if (e <= 0.0f) return 0.0f;
-  return exp2(log2(e) + recovery * log2(hdr_ratio));
+  return e * pow(hdr_ratio, recovery);
 }
 
 Color applyRecovery(Color e, float recovery, float hdr_ratio) {
