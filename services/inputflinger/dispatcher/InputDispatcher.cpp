@@ -148,21 +148,23 @@ bool validateKeyEvent(int32_t action) {
 }
 
 bool isValidMotionAction(int32_t action, int32_t actionButton, int32_t pointerCount) {
-    switch (action & AMOTION_EVENT_ACTION_MASK) {
+    switch (MotionEvent::getActionMasked(action)) {
         case AMOTION_EVENT_ACTION_DOWN:
         case AMOTION_EVENT_ACTION_UP:
-        case AMOTION_EVENT_ACTION_CANCEL:
+            return pointerCount == 1;
         case AMOTION_EVENT_ACTION_MOVE:
-        case AMOTION_EVENT_ACTION_OUTSIDE:
         case AMOTION_EVENT_ACTION_HOVER_ENTER:
         case AMOTION_EVENT_ACTION_HOVER_MOVE:
         case AMOTION_EVENT_ACTION_HOVER_EXIT:
+            return pointerCount >= 1;
+        case AMOTION_EVENT_ACTION_CANCEL:
+        case AMOTION_EVENT_ACTION_OUTSIDE:
         case AMOTION_EVENT_ACTION_SCROLL:
             return true;
         case AMOTION_EVENT_ACTION_POINTER_DOWN:
         case AMOTION_EVENT_ACTION_POINTER_UP: {
-            int32_t index = getMotionEventActionPointerIndex(action);
-            return index >= 0 && index < pointerCount;
+            const int32_t index = MotionEvent::getActionIndex(action);
+            return index >= 0 && index < pointerCount && pointerCount > 1;
         }
         case AMOTION_EVENT_ACTION_BUTTON_PRESS:
         case AMOTION_EVENT_ACTION_BUTTON_RELEASE:
@@ -4056,10 +4058,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                   args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION));
         }
     }
-    if (!validateMotionEvent(args->action, args->actionButton, args->pointerCount,
-                             args->pointerProperties)) {
-        return;
-    }
+    LOG_ALWAYS_FATAL_IF(!validateMotionEvent(args->action, args->actionButton, args->pointerCount,
+                                             args->pointerProperties),
+                        "Invalid event: %s", args->dump().c_str());
 
     uint32_t policyFlags = args->policyFlags;
     policyFlags |= POLICY_FLAG_TRUSTED;
