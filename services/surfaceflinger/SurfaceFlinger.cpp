@@ -1083,8 +1083,9 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
 
     const PhysicalDisplayId displayId = snapshot.displayId();
 
-    info->activeDisplayModeId =
-            display->refreshRateSelector().getActiveMode().modePtr->getId().value();
+    const auto mode = display->refreshRateSelector().getActiveMode();
+    info->activeDisplayModeId = mode.modePtr->getId().value();
+    info->renderFrameRate = mode.fps.getValue();
     info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
     info->hdrCapabilities = filterOut4k30(display->getHdrCapabilities());
 
@@ -1127,8 +1128,8 @@ void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request)
         return;
     }
 
-    const Fps renderFps = request.mode.fps;
-    const Fps displayFps = request.mode.modePtr->getFps();
+    const auto mode = request.mode;
+    const bool emitEvent = request.emitEvent;
 
     switch (display->setDesiredActiveMode(DisplayDevice::ActiveModeInfo(std::move(request)))) {
         case DisplayDevice::DesiredActiveModeAction::InitiateDisplayModeSwitch:
@@ -1136,21 +1137,22 @@ void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request)
 
             // Start receiving vsync samples now, so that we can detect a period
             // switch.
-            mScheduler->resyncToHardwareVsync(true, displayFps);
+            mScheduler->resyncToHardwareVsync(true, mode.modePtr->getFps());
             // As we called to set period, we will call to onRefreshRateChangeCompleted once
             // VsyncController model is locked.
             modulateVsync(&VsyncModulator::onRefreshRateChangeInitiated);
 
-            updatePhaseConfiguration(renderFps);
+            updatePhaseConfiguration(mode.fps);
             mScheduler->setModeChangePending(true);
             break;
         case DisplayDevice::DesiredActiveModeAction::InitiateRenderRateSwitch:
-            mScheduler->setRenderRate(renderFps);
-            updatePhaseConfiguration(renderFps);
-            mRefreshRateStats->setRefreshRate(renderFps);
+            mScheduler->setRenderRate(mode.fps);
+            updatePhaseConfiguration(mode.fps);
+            mRefreshRateStats->setRefreshRate(mode.fps);
+            if (display->getPhysicalId() == mActiveDisplayId && emitEvent) {
+                mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, mode);
+            }
 
-            // TODO(b/259740021): send event to display manager about
-            //  the render rate change
             break;
         case DisplayDevice::DesiredActiveModeAction::None:
             break;
@@ -7405,6 +7407,7 @@ binder::Status SurfaceComposerAIDL::getDynamicDisplayInfo(const sp<IBinder>& dis
         }
 
         outInfo->activeDisplayModeId = info.activeDisplayModeId;
+        outInfo->renderFrameRate = info.renderFrameRate;
 
         outInfo->supportedColorModes.clear();
         outInfo->supportedColorModes.reserve(info.supportedColorModes.size());

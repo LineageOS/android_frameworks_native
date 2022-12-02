@@ -35,6 +35,7 @@ struct DynamicDisplayInfo {
     // we can't use size_t because it may have different width
     // in the client process.
     ui::DisplayModeId activeDisplayModeId;
+    float renderFrameRate;
 
     std::vector<ui::ColorMode> supportedColorModes;
     ui::ColorMode activeColorMode;

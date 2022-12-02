@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <utils/Errors.h>
 
+#include <scheduler/FrameRateMode.h>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -134,7 +135,7 @@ public:
     virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
 
     // called when SF changes the active mode and apps needs to be notified about the change
-    virtual void onModeChanged(DisplayModePtr) = 0;
+    virtual void onModeChanged(const scheduler::FrameRateMode&) = 0;
 
     // called when SF updates the Frame Rate Override list
     virtual void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
@@ -185,7 +186,7 @@ public:
 
     void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 
-    void onModeChanged(DisplayModePtr) override;
+    void onModeChanged(const scheduler::FrameRateMode&) override;
 
     void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
                                      std::vector<FrameRateOverride> overrides) override;
