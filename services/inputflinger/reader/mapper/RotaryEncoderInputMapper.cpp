@@ -25,7 +25,7 @@
 namespace android {
 
 RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext), mOrientation(DISPLAY_ORIENTATION_0) {
+      : InputMapper(deviceContext), mOrientation(ui::ROTATION_0) {
     mSource = AINPUT_SOURCE_ROTARY_ENCODER;
 }
 
@@ -73,7 +73,7 @@ std::list<NotifyArgs> RotaryEncoderInputMapper::configure(nsecs_t when,
         if (internalViewport) {
             mOrientation = internalViewport->orientation;
         } else {
-            mOrientation = DISPLAY_ORIENTATION_0;
+            mOrientation = ui::ROTATION_0;
         }
     }
     return out;
@@ -107,7 +107,7 @@ std::list<NotifyArgs> RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readT
         // This is not a pointer, so it's not associated with a display.
         int32_t displayId = ADISPLAY_ID_NONE;
 
-        if (mOrientation == DISPLAY_ORIENTATION_180) {
+        if (mOrientation == ui::ROTATION_180) {
             scroll = -scroll;
         }
 

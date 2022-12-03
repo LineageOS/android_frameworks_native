@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <ui/Rotation.h>
+
 #include "CursorScrollAccumulator.h"
 #include "InputMapper.h"
 
@@ -40,7 +42,7 @@ private:
 
     int32_t mSource;
     float mScalingFactor;
-    int32_t mOrientation;
+    ui::Rotation mOrientation;
 
     [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when, nsecs_t readTime);
 };

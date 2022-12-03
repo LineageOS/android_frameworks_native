@@ -18,6 +18,7 @@
 
 #include <input/DisplayViewport.h>
 #include <stdint.h>
+#include <ui/Rotation.h>
 
 #include "EventHub.h"
 #include "InputListener.h"
@@ -27,32 +28,32 @@ namespace android {
 
 // --- Static Definitions ---
 
-static int32_t getInverseRotation(int32_t orientation) {
+static ui::Rotation getInverseRotation(ui::Rotation orientation) {
     switch (orientation) {
-        case DISPLAY_ORIENTATION_90:
-            return DISPLAY_ORIENTATION_270;
-        case DISPLAY_ORIENTATION_270:
-            return DISPLAY_ORIENTATION_90;
+        case ui::ROTATION_90:
+            return ui::ROTATION_270;
+        case ui::ROTATION_270:
+            return ui::ROTATION_90;
         default:
             return orientation;
     }
 }
 
-static void rotateDelta(int32_t orientation, float* deltaX, float* deltaY) {
+static void rotateDelta(ui::Rotation orientation, float* deltaX, float* deltaY) {
     float temp;
     switch (orientation) {
-        case DISPLAY_ORIENTATION_90:
+        case ui::ROTATION_90:
             temp = *deltaX;
             *deltaX = *deltaY;
             *deltaY = -temp;
             break;
 
-        case DISPLAY_ORIENTATION_180:
+        case ui::ROTATION_180:
             *deltaX = -*deltaX;
             *deltaY = -*deltaY;
             break;
 
-        case DISPLAY_ORIENTATION_270:
+        case ui::ROTATION_270:
             temp = *deltaX;
             *deltaX = -*deltaY;
             *deltaY = temp;
