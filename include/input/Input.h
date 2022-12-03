@@ -577,7 +577,7 @@ public:
 
     inline const ui::Transform& getTransform() const { return mTransform; }
 
-    int getSurfaceRotation() const;
+    std::optional<ui::Rotation> getSurfaceRotation() const;
 
     inline float getXPrecision() const { return mXPrecision; }
 

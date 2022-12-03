@@ -422,7 +422,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         android::hardware::details::setTrebleTestingOverride(true);
     }
 
-    mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
+    mRefreshRateOverlaySpinner = property_get_bool("debug.sf.show_refresh_rate_overlay_spinner", 0);
+    mRefreshRateOverlayRenderRate =
+            property_get_bool("debug.sf.show_refresh_rate_overlay_render_rate", 0);
 
     if (!mIsUserBuild && base::GetBoolProperty("debug.sf.enable_transaction_tracing"s, true)) {
         mTransactionTracing.emplace();
@@ -2830,7 +2832,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                 return Config::FrameRateOverride::AppOverrideNativeRefreshRates;
             }
 
-            if (!base::GetBoolProperty("debug.sf.frame_rate_override_global"s, false)) {
+            if (!sysprop::frame_rate_override_global(false)) {
                 return Config::FrameRateOverride::AppOverride;
             }
 
@@ -6882,7 +6884,8 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
     for (const auto& [id, display] : mPhysicalDisplays) {
         if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal) {
             if (const auto device = getDisplayDeviceLocked(id)) {
-                device->enableRefreshRateOverlay(enable, mRefreshRateOverlaySpinner);
+                device->enableRefreshRateOverlay(enable, mRefreshRateOverlaySpinner,
+                                                 mRefreshRateOverlayRenderRate);
             }
         }
     }

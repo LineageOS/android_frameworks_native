@@ -27,6 +27,7 @@
 #include "CursorScrollAccumulator.h"
 #include "TouchButtonAccumulator.h"
 #include "TouchCursorInputMapperCommon.h"
+#include "ui/Rotation.h"
 
 namespace android {
 
@@ -81,16 +82,14 @@ inline static int32_t signExtendNybble(int32_t value) {
 }
 
 static std::tuple<ui::Size /*displayBounds*/, Rect /*physicalFrame*/> getNaturalDisplayInfo(
-        const DisplayViewport& viewport, int32_t naturalOrientation) {
-    const auto rotation = ui::toRotation(naturalOrientation);
-
+        const DisplayViewport& viewport, ui::Rotation naturalOrientation) {
     ui::Size rotatedDisplaySize{viewport.deviceWidth, viewport.deviceHeight};
-    if (rotation == ui::ROTATION_90 || rotation == ui::ROTATION_270) {
+    if (naturalOrientation == ui::ROTATION_90 || naturalOrientation == ui::ROTATION_270) {
         std::swap(rotatedDisplaySize.width, rotatedDisplaySize.height);
     }
 
-    ui::Transform rotate(ui::Transform::toRotationFlags(rotation), rotatedDisplaySize.width,
-                         rotatedDisplaySize.height);
+    ui::Transform rotate(ui::Transform::toRotationFlags(naturalOrientation),
+                         rotatedDisplaySize.width, rotatedDisplaySize.height);
 
     Rect physicalFrame{viewport.physicalLeft, viewport.physicalTop, viewport.physicalRight,
                        viewport.physicalBottom};
@@ -133,7 +132,7 @@ TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
         mTouchButtonAccumulator(deviceContext),
         mSource(0),
         mDeviceMode(DeviceMode::DISABLED),
-        mInputDeviceOrientation(DISPLAY_ORIENTATION_0) {}
+        mInputDeviceOrientation(ui::ROTATION_0) {}
 
 TouchInputMapper::~TouchInputMapper() {}
 
@@ -424,18 +423,18 @@ void TouchInputMapper::configureParameters() {
     getDeviceContext().getConfiguration().tryGetProperty("touch.orientationAware",
                                                          mParameters.orientationAware);
 
-    mParameters.orientation = Parameters::Orientation::ORIENTATION_0;
+    mParameters.orientation = ui::ROTATION_0;
     std::string orientationString;
     if (getDeviceContext().getConfiguration().tryGetProperty("touch.orientation",
                                                              orientationString)) {
         if (mParameters.deviceType != Parameters::DeviceType::TOUCH_SCREEN) {
             ALOGW("The configuration 'touch.orientation' is only supported for touchscreens.");
         } else if (orientationString == "ORIENTATION_90") {
-            mParameters.orientation = Parameters::Orientation::ORIENTATION_90;
+            mParameters.orientation = ui::ROTATION_90;
         } else if (orientationString == "ORIENTATION_180") {
-            mParameters.orientation = Parameters::Orientation::ORIENTATION_180;
+            mParameters.orientation = ui::ROTATION_180;
         } else if (orientationString == "ORIENTATION_270") {
-            mParameters.orientation = Parameters::Orientation::ORIENTATION_270;
+            mParameters.orientation = ui::ROTATION_270;
         } else if (orientationString != "ORIENTATION_0") {
             ALOGW("Invalid value for touch.orientation: '%s'", orientationString.c_str());
         }
@@ -812,8 +811,8 @@ void TouchInputMapper::initializeOrientedRanges() {
     // Note that the maximum value reported is an inclusive maximum value so it is one
     // unit less than the total width or height of the display.
     switch (mInputDeviceOrientation) {
-        case DISPLAY_ORIENTATION_90:
-        case DISPLAY_ORIENTATION_270:
+        case ui::ROTATION_90:
+        case ui::ROTATION_270:
             mOrientedXPrecision = mYPrecision;
             mOrientedYPrecision = mXPrecision;
 
@@ -923,8 +922,8 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
             // Apply the inverse of the input device orientation so that the input device is
             // configured in the same orientation as the viewport. The input device orientation will
             // be re-applied by mInputDeviceOrientation.
-            const int32_t naturalDeviceOrientation =
-                    (mViewport.orientation - static_cast<int32_t>(mParameters.orientation) + 4) % 4;
+            const ui::Rotation naturalDeviceOrientation =
+                    mViewport.orientation - mParameters.orientation;
 
             std::tie(mDisplayBounds, mPhysicalFrameInDisplay) =
                     getNaturalDisplayInfo(mViewport, naturalDeviceOrientation);
@@ -935,7 +934,7 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
             // when the display rotation is applied later as a part of the per-window transform, we
             // get the expected screen coordinates.
             mInputDeviceOrientation = mParameters.orientationAware
-                    ? DISPLAY_ORIENTATION_0
+                    ? ui::ROTATION_0
                     : getInverseRotation(mViewport.orientation);
             // For orientation-aware devices that work in the un-rotated coordinate space, the
             // viewport update should be skipped if it is only a change in the orientation.
@@ -943,12 +942,11 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                     mDisplayBounds == oldDisplayBounds && viewportOrientationChanged;
 
             // Apply the input device orientation for the device.
-            mInputDeviceOrientation =
-                    (mInputDeviceOrientation + static_cast<int32_t>(mParameters.orientation)) % 4;
+            mInputDeviceOrientation = mInputDeviceOrientation + mParameters.orientation;
         } else {
             mDisplayBounds = rawSize;
             mPhysicalFrameInDisplay = Rect{mDisplayBounds};
-            mInputDeviceOrientation = DISPLAY_ORIENTATION_0;
+            mInputDeviceOrientation = ui::ROTATION_0;
         }
     }
 
@@ -2349,7 +2347,7 @@ void TouchInputMapper::cookPointerData() {
         float left, top, right, bottom;
 
         switch (mInputDeviceOrientation) {
-            case DISPLAY_ORIENTATION_90:
+            case ui::ROTATION_90:
                 left = float(rawTop - mRawPointerAxes.y.minValue) * mYScale;
                 right = float(rawBottom - mRawPointerAxes.y.minValue) * mYScale;
                 bottom = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale;
@@ -2360,7 +2358,7 @@ void TouchInputMapper::cookPointerData() {
                             (mOrientedRanges.orientation->max - mOrientedRanges.orientation->min);
                 }
                 break;
-            case DISPLAY_ORIENTATION_180:
+            case ui::ROTATION_180:
                 left = float(mRawPointerAxes.x.maxValue - rawRight) * mXScale;
                 right = float(mRawPointerAxes.x.maxValue - rawLeft) * mXScale;
                 bottom = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale;
@@ -2371,7 +2369,7 @@ void TouchInputMapper::cookPointerData() {
                             (mOrientedRanges.orientation->max - mOrientedRanges.orientation->min);
                 }
                 break;
-            case DISPLAY_ORIENTATION_270:
+            case ui::ROTATION_270:
                 left = float(mRawPointerAxes.y.maxValue - rawBottom) * mYScale;
                 right = float(mRawPointerAxes.y.maxValue - rawTop) * mYScale;
                 bottom = float(rawRight - mRawPointerAxes.x.minValue) * mXScale;
@@ -3805,19 +3803,19 @@ void TouchInputMapper::rotateAndScale(float& x, float& y) const {
     // 180 - reverse x, y.
     // 270 - swap x/y and reverse x.
     switch (mInputDeviceOrientation) {
-        case DISPLAY_ORIENTATION_0:
+        case ui::ROTATION_0:
             x = xScaled;
             y = yScaled;
             break;
-        case DISPLAY_ORIENTATION_90:
+        case ui::ROTATION_90:
             y = xScaledMax;
             x = yScaled;
             break;
-        case DISPLAY_ORIENTATION_180:
+        case ui::ROTATION_180:
             x = xScaledMax;
             y = yScaledMax;
             break;
-        case DISPLAY_ORIENTATION_270:
+        case ui::ROTATION_270:
             y = xScaled;
             x = yScaledMax;
             break;
