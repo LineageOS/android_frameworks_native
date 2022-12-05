@@ -508,6 +508,10 @@ android::PixelFormat GetNativePixelFormat(VkFormat format) {
         case VK_FORMAT_R8_UNORM:
             native_format = android::PIXEL_FORMAT_R_8;
             break;
+        // TODO: Do we need to query for VK_EXT_rgba10x6_formats here?
+        case VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16:
+            native_format = android::PIXEL_FORMAT_RGBA_10101010;
+            break;
         default:
             ALOGV("unsupported swapchain format %d", format);
             break;
@@ -852,6 +856,22 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         if (colorspace_ext) {
             all_formats.emplace_back(VkSurfaceFormatKHR{
                 VK_FORMAT_R8_UNORM, VK_COLOR_SPACE_PASS_THROUGH_EXT});
+        }
+    }
+
+    // TODO query VK_EXT_rgba10x6_formats support
+    desc.format = AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM;
+    if (AHardwareBuffer_isSupported(&desc)) {
+        all_formats.emplace_back(
+            VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
+                               VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
+        if (colorspace_ext) {
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
+                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
+                                   VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
         }
     }
 
