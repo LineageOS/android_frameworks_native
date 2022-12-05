@@ -20,6 +20,7 @@
 #include <android/hardware/graphics/composer/2.4/IComposer.h>
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 
+#include <aidl/android/hardware/graphics/common/Hdr.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
@@ -39,7 +40,6 @@ using types::V1_0::Transform;
 using types::V1_1::RenderIntent;
 using types::V1_2::ColorMode;
 using types::V1_2::Dataspace;
-using types::V1_2::Hdr;
 using types::V1_2::PixelFormat;
 
 using V2_1::Error;
@@ -69,6 +69,7 @@ using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
 using PowerMode = IComposerClient::PowerMode;
 using Vsync = IComposerClient::Vsync;
 using VsyncPeriodChangeConstraints = IComposerClient::VsyncPeriodChangeConstraints;
+using Hdr = aidl::android::hardware::graphics::common::Hdr;
 
 } // namespace hardware::graphics::composer::hal
 

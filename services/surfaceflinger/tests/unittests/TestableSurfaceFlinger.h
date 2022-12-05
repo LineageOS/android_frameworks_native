@@ -30,6 +30,7 @@
 #include <ftl/fake_guard.h>
 #include <gui/ScreenCaptureResults.h>
 
+#include <ui/DynamicDisplayInfo.h>
 #include "DisplayDevice.h"
 #include "FakeVsyncConfiguration.h"
 #include "FrameTracer/FrameTracer.h"
@@ -486,6 +487,11 @@ public:
 
     void updateLayerMetadataSnapshot() { mFlinger->updateLayerMetadataSnapshot(); }
 
+    void getDynamicDisplayInfo(const sp<IBinder>& displayToken,
+                               ui::DynamicDisplayInfo* dynamicDisplayInfo) {
+        mFlinger->getDynamicDisplayInfo(displayToken, dynamicDisplayInfo);
+    }
+
     /* ------------------------------------------------------------------------
      * Read-only access to private data to assert post-conditions.
      */
@@ -643,7 +649,6 @@ public:
             // is much longer lived.
             auto display = std::make_unique<HWC2Display>(*composer, *mCapabilities, mHwcDisplayId,
                                                          mHwcDisplayType);
-
             display->mutableIsConnected() = true;
             display->setPowerMode(mPowerMode);
             flinger->mutableHwcDisplayData()[mDisplayId].hwcDisplay = std::move(display);
@@ -652,7 +657,6 @@ public:
                     .WillRepeatedly(
                             DoAll(SetArgPointee<1>(std::vector<hal::HWConfigId>{mActiveConfig}),
                                   Return(hal::Error::NONE)));
-
             EXPECT_CALL(*composer,
                         getDisplayAttribute(mHwcDisplayId, mActiveConfig, hal::Attribute::WIDTH, _))
                     .WillRepeatedly(DoAll(SetArgPointee<3>(mResolution.getWidth()),
