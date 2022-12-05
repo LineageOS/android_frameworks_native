@@ -94,7 +94,7 @@ enum class InputDeviceClass : uint32_t {
     /* The input device is a cursor device such as a trackball or mouse. */
     CURSOR = 0x00000008,
 
-    /* The input device is a multi-touch touchscreen. */
+    /* The input device is a multi-touch touchscreen or touchpad. */
     TOUCH_MT = 0x00000010,
 
     /* The input device is a directional pad (implies keyboard, has DPAD keys). */
@@ -129,6 +129,9 @@ enum class InputDeviceClass : uint32_t {
 
     /* The input device has sysfs controllable lights */
     LIGHT = 0x00008000,
+
+    /* The input device is a touchpad, requiring an on-screen cursor. */
+    TOUCHPAD = 0x00010000,
 
     /* The input device is virtual (not a real device, not part of UI configuration). */
     VIRTUAL = 0x40000000,
