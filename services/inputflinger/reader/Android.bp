@@ -132,6 +132,7 @@ cc_library_shared {
         // This should consist only of dependencies from inputflinger. Other dependencies should be
         // in cc_defaults so that they are included in the tests.
         "libinputflinger_base",
+        "libjsoncpp",
     ],
     export_header_lib_headers: [
         "libinputreader_headers",
@@ -146,5 +147,6 @@ cc_library_shared {
     },
     static_libs: [
         "libc++fs",
+        "libchrome-gestures",
     ],
 }
