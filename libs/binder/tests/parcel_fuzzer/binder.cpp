@@ -16,9 +16,9 @@
 #define FUZZ_LOG_TAG "binder"
 
 #include "binder.h"
-#include "EmptyParcelable.h"
-#include "GenericDataParcelable.h"
-#include "SingleDataParcelable.h"
+#include "parcelables/EmptyParcelable.h"
+#include "parcelables/GenericDataParcelable.h"
+#include "parcelables/SingleDataParcelable.h"
 #include "util.h"
 
 #include <android-base/hex.h>
@@ -359,19 +359,19 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
     },
     [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to call readFromParcel() with status for EmptyParcelable";
-        EmptyParcelable emptyParcelable{};
+        parcelables::EmptyParcelable emptyParcelable{};
         status_t status = emptyParcelable.readFromParcel(&p);
         FUZZ_LOG() << " status: " << status;
     },
     [] (const ::android::Parcel& p , FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to call readFromParcel() with status for SingleDataParcelable";
-        SingleDataParcelable singleDataParcelable;
+        parcelables::SingleDataParcelable singleDataParcelable;
         status_t status = singleDataParcelable.readFromParcel(&p);
         FUZZ_LOG() <<" status: " << status;
     },
     [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to call readFromParcel() with status for GenericDataParcelable";
-        GenericDataParcelable genericDataParcelable;
+        parcelables::GenericDataParcelable genericDataParcelable;
         status_t status = genericDataParcelable.readFromParcel(&p);
         FUZZ_LOG() <<" status: " << status;
     },

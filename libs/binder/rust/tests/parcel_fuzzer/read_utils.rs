@@ -16,9 +16,9 @@
 
 use binder::binder_impl::BorrowedParcel;
 use binder::{ParcelFileDescriptor, Parcelable, SpIBinder};
-use binderReadParcelIface::aidl::EmptyParcelable::EmptyParcelable;
-use binderReadParcelIface::aidl::GenericDataParcelable::GenericDataParcelable;
-use binderReadParcelIface::aidl::SingleDataParcelable::SingleDataParcelable;
+use binderReadParcelIface::aidl::parcelables::EmptyParcelable::EmptyParcelable;
+use binderReadParcelIface::aidl::parcelables::GenericDataParcelable::GenericDataParcelable;
+use binderReadParcelIface::aidl::parcelables::SingleDataParcelable::SingleDataParcelable;
 
 macro_rules! read_parcel_interface {
     ($data_type:ty) => {
