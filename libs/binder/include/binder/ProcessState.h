@@ -50,6 +50,7 @@ public:
 
     sp<IBinder> getContextObject(const sp<IBinder>& caller);
 
+    // For main functions - dangerous for libraries to use
     void startThreadPool();
 
     bool becomeContextManager();
@@ -57,8 +58,10 @@ public:
     sp<IBinder> getStrongProxyForHandle(int32_t handle);
     void expungeHandle(int32_t handle, IBinder* binder);
 
+    // TODO: deprecate.
     void spawnPooledThread(bool isMain);
 
+    // For main functions - dangerous for libraries to use
     status_t setThreadPoolMaxThreadCount(size_t maxThreads);
     status_t enableOnewaySpamDetection(bool enable);
     void giveThreadPoolName();
