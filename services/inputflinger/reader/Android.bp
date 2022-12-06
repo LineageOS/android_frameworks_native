@@ -116,6 +116,9 @@ cc_library_static {
         "libchrome-gestures_headers",
         "libinputreader_headers",
     ],
+    whole_static_libs: [
+        "libchrome-gestures",
+    ],
 }
 
 cc_library_shared {
