@@ -95,6 +95,14 @@ struct Optional final : std::optional<T> {
     if (has_value()) return std::invoke(std::forward<F>(f), std::move(value()));
     return R();
   }
+
+  // Delete new for this class. Its base doesn't have a virtual destructor, and
+  // if it got deleted via base class pointer, it would cause undefined
+  // behavior. There's not a good reason to allocate this object on the heap
+  // anyway.
+  static void* operator new(size_t) = delete;
+  static void* operator new[](size_t) = delete;
+
 };
 
 template <typename T, typename U>

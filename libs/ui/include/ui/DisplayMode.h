@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <type_traits>
 
+#include <ui/GraphicTypes.h>
 #include <ui/Size.h>
 #include <utils/Flattenable.h>
 #include <utils/Timers.h>
@@ -34,6 +35,7 @@ struct DisplayMode {
     ui::Size resolution;
     float xDpi = 0;
     float yDpi = 0;
+    std::vector<ui::Hdr> supportedHdrTypes;
 
     float refreshRate = 0;
     nsecs_t appVsyncOffset = 0;

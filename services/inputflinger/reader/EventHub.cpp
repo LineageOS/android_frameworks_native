@@ -2215,6 +2215,10 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
         // a touch screen.
         if (device->keyBitmask.test(BTN_TOUCH) || !haveGamepadButtons) {
             device->classes |= (InputDeviceClass::TOUCH | InputDeviceClass::TOUCH_MT);
+            if (device->propBitmask.test(INPUT_PROP_POINTER) &&
+                !device->keyBitmask.any(BTN_TOOL_PEN, BTN_TOOL_FINGER) && !haveStylusButtons) {
+                device->classes |= InputDeviceClass::TOUCHPAD;
+            }
         }
         // Is this an old style single-touch driver?
     } else if (device->keyBitmask.test(BTN_TOUCH) && device->absBitmask.test(ABS_X) &&

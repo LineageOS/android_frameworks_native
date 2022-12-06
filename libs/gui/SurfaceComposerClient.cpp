@@ -2330,6 +2330,9 @@ status_t SurfaceComposerClient::getDynamicDisplayInfo(const sp<IBinder>& display
             outMode.sfVsyncOffset = mode.sfVsyncOffset;
             outMode.presentationDeadline = mode.presentationDeadline;
             outMode.group = mode.group;
+            std::transform(mode.supportedHdrTypes.begin(), mode.supportedHdrTypes.end(),
+                           std::back_inserter(outMode.supportedHdrTypes),
+                           [](const int32_t& value) { return static_cast<ui::Hdr>(value); });
             outInfo->supportedDisplayModes.push_back(outMode);
         }
 

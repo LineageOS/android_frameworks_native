@@ -32,6 +32,14 @@ public:
     void process(const RawEvent* rawEvent);
 
     uint32_t getButtonState() const;
+    inline bool isLeftPressed() const { return mBtnLeft; }
+    inline bool isRightPressed() const { return mBtnRight; }
+    inline bool isMiddlePressed() const { return mBtnMiddle; }
+    inline bool isBackPressed() const { return mBtnBack; }
+    inline bool isSidePressed() const { return mBtnSide; }
+    inline bool isForwardPressed() const { return mBtnForward; }
+    inline bool isExtraPressed() const { return mBtnExtra; }
+    inline bool isTaskPressed() const { return mBtnTask; }
 
 private:
     bool mBtnLeft;

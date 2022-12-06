@@ -41,6 +41,7 @@ public:
     bool isHovering() const;
     bool hasStylus() const;
     bool hasButtonTouch() const;
+    int getTouchCount() const;
 
 private:
     bool mHaveBtnTouch{};
@@ -60,6 +61,7 @@ private:
     bool mBtnToolDoubleTap{};
     bool mBtnToolTripleTap{};
     bool mBtnToolQuadTap{};
+    bool mBtnToolQuintTap{};
 
     HidUsageAccumulator mHidUsageAccumulator{};
 

@@ -56,7 +56,6 @@ using types::V1_0::Transform;
 using types::V1_1::RenderIntent;
 using types::V1_2::ColorMode;
 using types::V1_2::Dataspace;
-using types::V1_2::Hdr;
 using types::V1_2::PixelFormat;
 
 using V2_1::Config;
@@ -209,7 +208,7 @@ public:
 
     Error getDozeSupport(Display display, bool* outSupport) override;
     Error hasDisplayIdleTimerCapability(Display display, bool* outSupport) override;
-    Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes, float* outMaxLuminance,
+    Error getHdrCapabilities(Display display, std::vector<Hdr>* outHdrTypes, float* outMaxLuminance,
                              float* outMaxAverageLuminance, float* outMinLuminance) override;
     Error getOverlaySupport(aidl::android::hardware::graphics::composer3::OverlayProperties*
                                     outProperties) override;

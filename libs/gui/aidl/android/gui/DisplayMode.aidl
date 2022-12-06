@@ -27,6 +27,7 @@ parcelable DisplayMode {
     Size resolution;
     float xDpi = 0.0f;
     float yDpi = 0.0f;
+    int[] supportedHdrTypes;
 
     float refreshRate = 0.0f;
     long appVsyncOffset = 0;

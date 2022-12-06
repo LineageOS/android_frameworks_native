@@ -33,6 +33,7 @@
 #include "SensorInputMapper.h"
 #include "SingleTouchInputMapper.h"
 #include "SwitchInputMapper.h"
+#include "TouchpadInputMapper.h"
 #include "VibratorInputMapper.h"
 
 using android::hardware::input::InputDeviceCountryCode;
@@ -208,7 +209,12 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
     }
 
     // Touchscreens and touchpad devices.
-    if (classes.test(InputDeviceClass::TOUCH_MT)) {
+    // TODO(b/251196347): replace this with a proper flag.
+    constexpr bool ENABLE_NEW_TOUCHPAD_STACK = false;
+    if (ENABLE_NEW_TOUCHPAD_STACK && classes.test(InputDeviceClass::TOUCHPAD) &&
+        classes.test(InputDeviceClass::TOUCH_MT)) {
+        mappers.push_back(std::make_unique<TouchpadInputMapper>(*contextPtr));
+    } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(std::make_unique<MultiTouchInputMapper>(*contextPtr));
     } else if (classes.test(InputDeviceClass::TOUCH)) {
         mappers.push_back(std::make_unique<SingleTouchInputMapper>(*contextPtr));
