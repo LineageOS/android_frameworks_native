@@ -42,6 +42,8 @@ namespace hal = android::hardware::graphics::composer::hal;
 
 using testing::_;
 using testing::InSequence;
+using testing::Mock;
+using testing::NiceMock;
 using testing::Return;
 using testing::ReturnRef;
 using testing::StrictMock;
@@ -82,13 +84,13 @@ ui::Rotation toRotation(uint32_t rotationFlag) {
 
 struct OutputLayerTest : public testing::Test {
     struct OutputLayer final : public impl::OutputLayer {
-        OutputLayer(const compositionengine::Output& output, sp<compositionengine::LayerFE> layerFE)
+        OutputLayer(const compositionengine::Output& output, compositionengine::LayerFE& layerFE)
               : mOutput(output), mLayerFE(layerFE) {}
         ~OutputLayer() override = default;
 
         // compositionengine::OutputLayer overrides
         const compositionengine::Output& getOutput() const override { return mOutput; }
-        compositionengine::LayerFE& getLayerFE() const override { return *mLayerFE; }
+        compositionengine::LayerFE& getLayerFE() const override { return mLayerFE; }
         const impl::OutputLayerCompositionState& getState() const override { return mState; }
         impl::OutputLayerCompositionState& editState() override { return mState; }
 
@@ -96,21 +98,22 @@ struct OutputLayerTest : public testing::Test {
         void dumpState(std::string& out) const override { mState.dump(out); }
 
         const compositionengine::Output& mOutput;
-        sp<compositionengine::LayerFE> mLayerFE;
+        compositionengine::LayerFE& mLayerFE;
         impl::OutputLayerCompositionState mState;
     };
 
     OutputLayerTest() {
-        EXPECT_CALL(*mLayerFE, getDebugName()).WillRepeatedly(Return("Test LayerFE"));
-        EXPECT_CALL(mOutput, getName()).WillRepeatedly(ReturnRef(kOutputName));
+        ON_CALL(mLayerFE, getDebugName()).WillByDefault(Return("Test LayerFE"));
+        ON_CALL(mOutput, getName()).WillByDefault(ReturnRef(kOutputName));
 
-        EXPECT_CALL(*mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
-        EXPECT_CALL(mOutput, getState()).WillRepeatedly(ReturnRef(mOutputState));
+        ON_CALL(mLayerFE, getCompositionState()).WillByDefault(Return(&mLayerFEState));
+        ON_CALL(mOutput, getState()).WillByDefault(ReturnRef(mOutputState));
     }
 
-    compositionengine::mock::Output mOutput;
-    sp<StrictMock<compositionengine::mock::LayerFE>> mLayerFE =
-            sp<StrictMock<compositionengine::mock::LayerFE>>::make();
+    NiceMock<compositionengine::mock::Output> mOutput;
+    sp<NiceMock<compositionengine::mock::LayerFE>> mLayerFE_ =
+            sp<NiceMock<compositionengine::mock::LayerFE>>::make();
+    NiceMock<compositionengine::mock::LayerFE>& mLayerFE = *mLayerFE_;
     OutputLayer mOutputLayer{mOutput, mLayerFE};
 
     LayerFECompositionState mLayerFEState;
@@ -530,7 +533,7 @@ TEST_F(OutputLayerTest,
 
 struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLayer {
     OutputLayerPartialMockForUpdateCompositionState(const compositionengine::Output& output,
-                                                    sp<compositionengine::LayerFE> layerFE)
+                                                    compositionengine::LayerFE& layerFE)
           : mOutput(output), mLayerFE(layerFE) {}
     // Mock everything called by updateCompositionState to simplify testing it.
     MOCK_CONST_METHOD1(calculateOutputSourceCrop, FloatRect(uint32_t));
@@ -539,7 +542,7 @@ struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLaye
 
     // compositionengine::OutputLayer overrides
     const compositionengine::Output& getOutput() const override { return mOutput; }
-    compositionengine::LayerFE& getLayerFE() const override { return *mLayerFE; }
+    compositionengine::LayerFE& getLayerFE() const override { return mLayerFE; }
     const impl::OutputLayerCompositionState& getState() const override { return mState; }
     impl::OutputLayerCompositionState& editState() override { return mState; }
 
@@ -547,7 +550,7 @@ struct OutputLayerPartialMockForUpdateCompositionState : public impl::OutputLaye
     MOCK_CONST_METHOD1(dumpState, void(std::string&));
 
     const compositionengine::Output& mOutput;
-    sp<compositionengine::LayerFE> mLayerFE;
+    compositionengine::LayerFE& mLayerFE;
     impl::OutputLayerCompositionState mState;
 };
 
@@ -588,7 +591,7 @@ public:
 };
 
 TEST_F(OutputLayerUpdateCompositionStateTest, doesNothingIfNoFECompositionState) {
-    EXPECT_CALL(*mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
+    EXPECT_CALL(mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
 
     mOutputLayer.updateCompositionState(true, false, ui::Transform::RotationFlags::ROT_90);
 }
@@ -833,7 +836,6 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         EXPECT_CALL(mDisplayColorProfile, getSupportedPerFrameMetadata())
                 .WillRepeatedly(Return(kSupportedPerFrameMetadata));
     }
-
     // Some tests may need to simulate unsupported HWC calls
     enum class SimulateUnsupported { None, ColorTransform };
 
@@ -952,7 +954,10 @@ const Region OutputLayerWriteStateToHWCTest::kOverrideSurfaceDamage{Rect{1026, 1
 const HdrMetadata OutputLayerWriteStateToHWCTest::kHdrMetadata{{/* LightFlattenable */}, 1029};
 native_handle_t* OutputLayerWriteStateToHWCTest::kSidebandStreamHandle =
         reinterpret_cast<native_handle_t*>(1031);
-const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kBuffer;
+const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kBuffer =
+        sp<GraphicBuffer>::make(1, 2, PIXEL_FORMAT_RGBA_8888,
+                                AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
+                                        AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN);
 const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kOverrideBuffer =
         sp<GraphicBuffer>::make(4, 5, PIXEL_FORMAT_RGBA_8888,
                                 AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
@@ -968,7 +973,7 @@ const std::vector<uint8_t> OutputLayerWriteStateToHWCTest::kLayerGenericMetadata
         {4, 5, 6, 7}};
 
 TEST_F(OutputLayerWriteStateToHWCTest, doesNothingIfNoFECompositionState) {
-    EXPECT_CALL(*mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
+    EXPECT_CALL(mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -993,7 +998,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetAllState) {
     expectPerFrameCommonCalls();
 
     expectNoSetCompositionTypeCall();
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
+    EXPECT_CALL(mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1018,7 +1023,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSolidColor) {
     mLayerFEState.compositionType = Composition::SOLID_COLOR;
 
     expectPerFrameCommonCalls();
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
     // Setting the composition type should happen before setting the color. We
     // check this in this test only by setting up an testing::InSeqeuence
@@ -1038,8 +1042,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSideband) {
     expectSetSidebandHandleCall();
     expectSetCompositionTypeCall(Composition::SIDEBAND);
 
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
-
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
 }
@@ -1051,8 +1053,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForCursor) {
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::CURSOR);
 
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
-
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
 }
@@ -1063,8 +1063,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForDevice) {
     expectPerFrameCommonCalls();
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::DEVICE);
-
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1078,8 +1076,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsNotSetIfUnchanged) {
     expectPerFrameCommonCalls();
     expectSetColorCall();
     expectNoSetCompositionTypeCall();
-
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1119,8 +1115,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, allStateIncludesMetadataIfPresent) {
     expectGenericLayerMetadataCalls();
     expectSetCompositionTypeCall(Composition::DEVICE);
 
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
-
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
 }
@@ -1132,8 +1126,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, perFrameStateDoesNotIncludeMetadataIfPres
     expectPerFrameCommonCalls();
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::DEVICE);
-
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1149,7 +1141,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, overriddenSkipLayerDoesNotSendBuffer) {
                               kOverrideSurfaceDamage, kOverrideLayerBrightness);
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::DEVICE);
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ true, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1165,7 +1156,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, overriddenSkipLayerForSolidColorDoesNotSe
                               kOverrideSurfaceDamage, kOverrideLayerBrightness);
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::DEVICE);
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ true, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1181,7 +1171,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
                               kOverrideSurfaceDamage, kOverrideLayerBrightness);
     expectSetHdrMetadataAndBufferCalls(kOverrideHwcSlot, kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Composition::DEVICE);
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1197,7 +1186,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoForSolidColorIfPresen
                               kOverrideSurfaceDamage, kOverrideLayerBrightness);
     expectSetHdrMetadataAndBufferCalls(kOverrideHwcSlot, kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Composition::DEVICE);
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1212,7 +1200,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, previousOverriddenLayerSendsSurfaceDamage
                               Region::INVALID_REGION);
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::DEVICE);
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1229,7 +1216,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, previousSkipLayerSendsUpdatedDeviceCompos
                               Region::INVALID_REGION);
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::DEVICE);
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1247,22 +1233,20 @@ TEST_F(OutputLayerWriteStateToHWCTest, previousSkipLayerSendsUpdatedClientCompos
                               Region::INVALID_REGION);
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Composition::CLIENT);
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, peekThroughChangesBlendMode) {
-    auto peekThroughLayerFE = sp<compositionengine::mock::LayerFE>::make();
-    OutputLayer peekThroughLayer{mOutput, peekThroughLayerFE};
+    auto peekThroughLayerFE = sp<NiceMock<compositionengine::mock::LayerFE>>::make();
+    OutputLayer peekThroughLayer{mOutput, *peekThroughLayerFE};
 
     mOutputLayer.mState.overrideInfo.peekThroughLayer = &peekThroughLayer;
 
     expectGeometryCommonCalls(kDisplayFrame, kSourceCrop, kBufferTransform,
                               Hwc2::IComposerClient::BlendMode::PREMULTIPLIED);
     expectPerFrameCommonCalls();
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
@@ -1280,7 +1264,6 @@ TEST_F(OutputLayerWriteStateToHWCTest, isPeekingThroughSetsOverride) {
 TEST_F(OutputLayerWriteStateToHWCTest, zIsOverriddenSetsOverride) {
     expectGeometryCommonCalls();
     expectPerFrameCommonCalls();
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ true, /*isPeekingThrough*/
@@ -1291,7 +1274,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, zIsOverriddenSetsOverride) {
 TEST_F(OutputLayerWriteStateToHWCTest, roundedCornersForceClientComposition) {
     expectGeometryCommonCalls();
     expectPerFrameCommonCalls();
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(true));
+    EXPECT_CALL(mLayerFE, hasRoundedCorners()).WillOnce(Return(true));
     expectSetCompositionTypeCall(Composition::CLIENT);
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
@@ -1303,7 +1286,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, roundedCornersPeekingThroughAllowsDeviceC
     expectGeometryCommonCalls();
     expectPerFrameCommonCalls();
     expectSetHdrMetadataAndBufferCalls();
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
     expectSetCompositionTypeCall(Composition::DEVICE);
 
     mLayerFEState.compositionType = Composition::DEVICE;
@@ -1322,12 +1305,79 @@ TEST_F(OutputLayerWriteStateToHWCTest, setBlockingRegion) {
     expectPerFrameCommonCalls(SimulateUnsupported::None, kDataspace, kOutputSpaceVisibleRegion,
                               kSurfaceDamage, kLayerBrightness, blockingRegion);
     expectSetHdrMetadataAndBufferCalls();
-    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
     expectSetCompositionTypeCall(Composition::DISPLAY_DECORATION);
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/
                                  false);
+}
+
+/*
+ * OutputLayer::uncacheBuffers
+ */
+struct OutputLayerUncacheBufferTest : public OutputLayerTest {
+    static const sp<GraphicBuffer> kBuffer1;
+    static const sp<GraphicBuffer> kBuffer2;
+    static const sp<Fence> kFence;
+
+    OutputLayerUncacheBufferTest() {
+        auto& outputLayerState = mOutputLayer.editState();
+        outputLayerState.hwc = impl::OutputLayerCompositionState::Hwc(mHwcLayer_);
+
+        mLayerFEState.compositionType = Composition::DEVICE;
+        mLayerFEState.acquireFence = kFence;
+
+        ON_CALL(mOutput, getDisplayColorProfile()).WillByDefault(Return(&mDisplayColorProfile));
+    }
+
+    std::shared_ptr<HWC2::mock::Layer> mHwcLayer_{std::make_shared<NiceMock<HWC2::mock::Layer>>()};
+    HWC2::mock::Layer& mHwcLayer = *mHwcLayer_;
+    NiceMock<mock::DisplayColorProfile> mDisplayColorProfile;
+};
+
+const sp<GraphicBuffer> OutputLayerUncacheBufferTest::kBuffer1 =
+        sp<GraphicBuffer>::make(1, 2, PIXEL_FORMAT_RGBA_8888,
+                                AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
+                                        AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN);
+const sp<GraphicBuffer> OutputLayerUncacheBufferTest::kBuffer2 =
+        sp<GraphicBuffer>::make(2, 3, PIXEL_FORMAT_RGBA_8888,
+                                AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
+                                        AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN);
+const sp<Fence> OutputLayerUncacheBufferTest::kFence = sp<Fence>::make();
+
+TEST_F(OutputLayerUncacheBufferTest, canUncacheAndReuseSlot) {
+    // Buffer1 is stored in slot 0
+    mLayerFEState.buffer = kBuffer1;
+    EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 0, kBuffer1, kFence));
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
+    Mock::VerifyAndClearExpectations(&mHwcLayer);
+
+    // Buffer2 is stored in slot 1
+    mLayerFEState.buffer = kBuffer2;
+    EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 1, kBuffer2, kFence));
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
+    Mock::VerifyAndClearExpectations(&mHwcLayer);
+
+    // buffer slots are cleared in HWC
+    EXPECT_CALL(mHwcLayer, clearBufferSlot(/*slot*/ 0));
+    EXPECT_CALL(mHwcLayer, clearBufferSlot(/*slot*/ 1));
+    mOutputLayer.uncacheBuffers({kBuffer1->getId(), kBuffer2->getId()});
+    Mock::VerifyAndClearExpectations(&mHwcLayer);
+
+    // slot 1 is reused for Buffer1
+    mLayerFEState.buffer = kBuffer1;
+    EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 1, kBuffer1, kFence));
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
+    Mock::VerifyAndClearExpectations(&mHwcLayer);
+
+    // slot 0 is reused for Buffer2
+    mLayerFEState.buffer = kBuffer2;
+    EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 0, kBuffer2, kFence));
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
 }
 
 /*
@@ -1358,7 +1408,7 @@ const Rect OutputLayerWriteCursorPositionToHWCTest::kDefaultDisplayViewport{0, 0
 const Rect OutputLayerWriteCursorPositionToHWCTest::kDefaultCursorFrame{1, 2, 3, 4};
 
 TEST_F(OutputLayerWriteCursorPositionToHWCTest, doesNothingIfNoFECompositionState) {
-    EXPECT_CALL(*mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
+    EXPECT_CALL(mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
 
     mOutputLayer.writeCursorPositionToHWC();
 }

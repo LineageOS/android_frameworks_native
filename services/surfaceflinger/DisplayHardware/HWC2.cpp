@@ -717,6 +717,14 @@ Error Layer::setBuffer(uint32_t slot, const sp<GraphicBuffer>& buffer,
     return static_cast<Error>(intError);
 }
 
+Error Layer::clearBufferSlot(uint32_t slot) {
+    if (CC_UNLIKELY(!mDisplay)) {
+        return Error::BAD_DISPLAY;
+    }
+    auto intError = mComposer.clearLayerBufferSlot(mDisplay->getId(), mId, slot);
+    return static_cast<Error>(intError);
+}
+
 Error Layer::setSurfaceDamage(const Region& damage)
 {
     if (CC_UNLIKELY(!mDisplay)) {

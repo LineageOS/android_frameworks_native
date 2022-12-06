@@ -186,9 +186,22 @@ std::vector<To> translate(const hidl_vec<From>& in) {
     return out;
 }
 
+sp<GraphicBuffer> allocateClearSlotBuffer() {
+    sp<GraphicBuffer> buffer = sp<GraphicBuffer>::make(1, 1, PIXEL_FORMAT_RGBX_8888,
+                                                       GraphicBuffer::USAGE_HW_COMPOSER |
+                                                               GraphicBuffer::USAGE_SW_READ_OFTEN |
+                                                               GraphicBuffer::USAGE_SW_WRITE_OFTEN,
+                                                       "HidlComposer");
+    if (!buffer || buffer->initCheck() != ::android::OK) {
+        return nullptr;
+    }
+    return std::move(buffer);
+}
+
 } // anonymous namespace
 
-HidlComposer::HidlComposer(const std::string& serviceName) : mWriter(kWriterInitialSize) {
+HidlComposer::HidlComposer(const std::string& serviceName)
+      : mClearSlotBuffer(allocateClearSlotBuffer()), mWriter(kWriterInitialSize) {
     mComposer = V2_1::IComposer::getService(serviceName);
 
     if (mComposer == nullptr) {
@@ -229,6 +242,11 @@ HidlComposer::HidlComposer(const std::string& serviceName) : mWriter(kWriterInit
 
     if (mClient == nullptr) {
         LOG_ALWAYS_FATAL("failed to create composer client");
+    }
+
+    if (!mClearSlotBuffer) {
+        LOG_ALWAYS_FATAL("Failed to allocate a buffer for clearing layer buffer slots");
+        return;
     }
 }
 
@@ -691,6 +709,13 @@ Error HidlComposer::setLayerBuffer(Display display, Layer layer, uint32_t slot,
     }
 
     mWriter.setLayerBuffer(slot, handle, acquireFence);
+    return Error::NONE;
+}
+
+Error HidlComposer::clearLayerBufferSlot(Display display, Layer layer, uint32_t slot) {
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerBuffer(slot, mClearSlotBuffer->handle, /*fence*/ -1);
     return Error::NONE;
 }
 

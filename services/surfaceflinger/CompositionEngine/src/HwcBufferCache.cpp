@@ -22,7 +22,7 @@
 namespace android::compositionengine::impl {
 
 HwcBufferCache::HwcBufferCache() {
-    for (uint32_t i = 0; i < kMaxLayerBufferCount; i++) {
+    for (uint32_t i = kMaxLayerBufferCount; i-- > 0;) {
         mFreeSlots.push(i);
     }
 }

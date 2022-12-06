@@ -618,8 +618,12 @@ void OutputLayer::uncacheBuffers(std::vector<uint64_t> const& bufferIdsToUncache
     }
 
     for (auto bufferId : bufferIdsToUncache) {
-        state.hwc->hwcBufferCache.uncache(bufferId);
-        // TODO(b/258196272): send uncache requests to Composer HAL
+        uint32_t slot = state.hwc->hwcBufferCache.uncache(bufferId);
+        if (slot != UINT32_MAX && state.hwc->hwcLayer) {
+            hal::Error error = state.hwc->hwcLayer->clearBufferSlot(slot);
+            ALOGE("[%s] Failed to clear buffer slot %d: %s (%d)", getLayerFE().getDebugName(), slot,
+                  to_string(error).c_str(), static_cast<int32_t>(error));
+        }
     }
 }
 
