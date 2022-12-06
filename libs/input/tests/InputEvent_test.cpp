@@ -715,10 +715,10 @@ TEST_F(MotionEventTest, ApplyTransform) {
 }
 
 TEST_F(MotionEventTest, JoystickAndTouchpadAreNotTransformed) {
-    constexpr static std::array kNonTransformedSources = {std::pair(AINPUT_SOURCE_TOUCHPAD,
-                                                                    AMOTION_EVENT_ACTION_DOWN),
-                                                          std::pair(AINPUT_SOURCE_JOYSTICK,
-                                                                    AMOTION_EVENT_ACTION_MOVE)};
+    constexpr static std::array kNonTransformedSources =
+            {std::pair(AINPUT_SOURCE_TOUCHPAD, AMOTION_EVENT_ACTION_DOWN),
+             std::pair(AINPUT_SOURCE_JOYSTICK, AMOTION_EVENT_ACTION_MOVE),
+             std::pair(AINPUT_SOURCE_MOUSE_RELATIVE, AMOTION_EVENT_ACTION_MOVE)};
     // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
     ui::Transform transform(ui::Transform::ROT_90, 800, 400);
     transform.set(transform.tx() + 20, transform.ty() + 40);
@@ -738,7 +738,7 @@ TEST_F(MotionEventTest, JoystickAndTouchpadAreNotTransformed) {
 TEST_F(MotionEventTest, NonPointerSourcesAreNotTranslated) {
     constexpr static std::array kNonPointerSources = {std::pair(AINPUT_SOURCE_TRACKBALL,
                                                                 AMOTION_EVENT_ACTION_DOWN),
-                                                      std::pair(AINPUT_SOURCE_MOUSE_RELATIVE,
+                                                      std::pair(AINPUT_SOURCE_TOUCH_NAVIGATION,
                                                                 AMOTION_EVENT_ACTION_MOVE)};
     // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
     ui::Transform transform(ui::Transform::ROT_90, 800, 400);

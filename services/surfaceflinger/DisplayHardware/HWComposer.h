@@ -199,6 +199,9 @@ public:
             PhysicalDisplayId, float brightness, float brightnessNits,
             const Hwc2::Composer::DisplayBrightnessOptions&) = 0;
 
+    // Get whether the display skipped validation on the latest present
+    virtual bool getValidateSkipped(HalDisplayId displayId) const = 0;
+
     // Events handling ---------------------------------------------------------
 
     // Returns stable display ID (and display name on connection of new or previously disconnected
@@ -396,6 +399,8 @@ public:
     std::vector<ui::ColorMode> getColorModes(PhysicalDisplayId) const override;
 
     status_t setActiveColorMode(PhysicalDisplayId, ui::ColorMode, ui::RenderIntent) override;
+
+    bool getValidateSkipped(HalDisplayId displayId) const override;
 
     // Composer 2.4
     ui::DisplayConnectionType getDisplayConnectionType(PhysicalDisplayId) const override;

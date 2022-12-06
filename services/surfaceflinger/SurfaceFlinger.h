@@ -1088,7 +1088,8 @@ private:
     /*
      * Debugging & dumpsys
      */
-    void dumpAllLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
+    void dumpAllLocked(const DumpArgs& args, const std::string& compositionLayers,
+                       std::string& result) const REQUIRES(mStateLock);
 
     void appendSfConfigString(std::string& result) const;
     void listLayersLocked(std::string& result) const;
@@ -1441,12 +1442,12 @@ private:
         return mScheduler->getLayerFramerate(now, id);
     }
 
+    bool mPowerHintSessionEnabled;
+
     struct {
-        bool sessionEnabled = false;
-        nsecs_t commitStart;
-        nsecs_t compositeStart;
-        nsecs_t presentEnd;
-    } mPowerHintSessionData GUARDED_BY(kMainThreadContext);
+        bool late = false;
+        bool early = false;
+    } mPowerHintSessionMode;
 
     nsecs_t mAnimationTransactionTimeout = s2ns(5);
 

@@ -38,11 +38,33 @@ public:
     MOCK_METHOD(bool, usePowerHintSession, (), (override));
     MOCK_METHOD(bool, supportsPowerHintSession, (), (override));
     MOCK_METHOD(bool, isPowerHintSessionRunning, (), (override));
-    MOCK_METHOD(void, setTargetWorkDuration, (int64_t targetDurationNanos), (override));
-    MOCK_METHOD(void, sendActualWorkDuration, (int64_t actualDurationNanos, nsecs_t timestamp),
-                (override));
+    MOCK_METHOD(void, setTargetWorkDuration, (int64_t targetDuration), (override));
+    MOCK_METHOD(void, sendActualWorkDuration, (), (override));
+    MOCK_METHOD(void, sendPredictedWorkDuration, (), (override));
     MOCK_METHOD(void, enablePowerHint, (bool enabled), (override));
     MOCK_METHOD(bool, startPowerHintSession, (const std::vector<int32_t>& threadIds), (override));
+    MOCK_METHOD(void, setGpuFenceTime,
+                (DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime), (override));
+    MOCK_METHOD(void, setHwcValidateTiming,
+                (DisplayId displayId, nsecs_t valiateStartTime, nsecs_t validateEndTime),
+                (override));
+    MOCK_METHOD(void, setHwcPresentTiming,
+                (DisplayId displayId, nsecs_t presentStartTime, nsecs_t presentEndTime),
+                (override));
+    MOCK_METHOD(void, setSkippedValidate, (DisplayId displayId, bool skipped), (override));
+    MOCK_METHOD(void, setRequiresClientComposition,
+                (DisplayId displayId, bool requiresClientComposition), (override));
+    MOCK_METHOD(void, setExpectedPresentTime, (nsecs_t expectedPresentTime), (override));
+    MOCK_METHOD(void, setSfPresentTiming, (nsecs_t presentFenceTime, nsecs_t presentEndTime),
+                (override));
+    MOCK_METHOD(void, setHwcPresentDelayedTime,
+                (DisplayId displayId,
+                 std::chrono::steady_clock::time_point earliestFrameStartTime));
+    MOCK_METHOD(void, setFrameDelay, (nsecs_t frameDelayDuration), (override));
+    MOCK_METHOD(void, setCommitStart, (nsecs_t commitStartTime), (override));
+    MOCK_METHOD(void, setCompositeEnd, (nsecs_t compositeEndtime), (override));
+    MOCK_METHOD(void, setDisplays, (std::vector<DisplayId> & displayIds), (override));
+    MOCK_METHOD(void, setTotalFrameTargetWorkDuration, (int64_t targetDuration), (override));
 };
 
 } // namespace mock

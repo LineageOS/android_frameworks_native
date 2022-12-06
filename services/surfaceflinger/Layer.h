@@ -844,7 +844,11 @@ public:
     bool getPremultipledAlpha() const;
     void setInputInfo(const gui::WindowInfo& info);
 
-    gui::WindowInfo fillInputInfo(const ui::Transform& displayTransform, bool displayIsSecure);
+    struct InputDisplayArgs {
+        const ui::Transform* transform = nullptr;
+        bool isSecure = false;
+    };
+    gui::WindowInfo fillInputInfo(const InputDisplayArgs& displayArgs);
 
     /**
      * Returns whether this layer has an explicitly set input-info.

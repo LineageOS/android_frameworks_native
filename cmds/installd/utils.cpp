@@ -1184,8 +1184,8 @@ static int wait_child(pid_t pid) {
 int wait_child_with_timeout(pid_t pid, int timeout_ms) {
     int pidfd = pidfd_open(pid, /*flags=*/0);
     if (pidfd < 0) {
-        PLOG(ERROR) << "pidfd_open failed for pid " << pid;
-        kill(pid, SIGKILL);
+        PLOG(ERROR) << "pidfd_open failed for pid " << pid
+                    << ", waiting for child process without timeout";
         return wait_child(pid);
     }
 

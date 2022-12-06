@@ -29,7 +29,39 @@
 
 using android::base::StringPrintf;
 
+/**
+ * This type is declared here to ensure consistency between the instantiated type (used in the
+ * constructor via std::make_unique) and the cast-to type (used in PalmRejector::dump() with
+ * static_cast). Due to the lack of rtti support, dynamic_cast is not available, so this can't be
+ * checked at runtime to avoid undefined behaviour.
+ */
+using PalmFilterImplementation = ::ui::NeuralStylusPalmDetectionFilter;
+
 namespace android {
+
+/**
+ * Log detailed debug messages about each inbound motion event notification to the blocker.
+ * Enable this via "adb shell setprop log.tag.UnwantedInteractionBlockerInboundMotion DEBUG"
+ * (requires restart)
+ */
+const bool DEBUG_INBOUND_MOTION =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "InboundMotion", ANDROID_LOG_INFO);
+
+/**
+ * Log detailed debug messages about each outbound motion event processed by the blocker.
+ * Enable this via "adb shell setprop log.tag.UnwantedInteractionBlockerOutboundMotion DEBUG"
+ * (requires restart)
+ */
+const bool DEBUG_OUTBOUND_MOTION =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "OutboundMotion", ANDROID_LOG_INFO);
+
+/**
+ * Log the data sent to the model and received back from the model.
+ * Enable this via "adb shell setprop log.tag.UnwantedInteractionBlockerModel DEBUG"
+ * (requires restart)
+ */
+const bool DEBUG_MODEL =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Model", ANDROID_LOG_INFO);
 
 // Category (=namespace) name for the input settings that are applied at boot time
 static const char* INPUT_NATIVE_BOOT = "input_native_boot";
@@ -45,13 +77,11 @@ static std::string toLower(std::string s) {
 }
 
 static bool isFromTouchscreen(int32_t source) {
-    return isFromSource(source, AINPUT_SOURCE_TOUCHSCREEN) &&
-            !isFromSource(source, AINPUT_SOURCE_STYLUS);
+    return isFromSource(source, AINPUT_SOURCE_TOUCHSCREEN);
 }
 
 static ::base::TimeTicks toChromeTimestamp(nsecs_t eventTime) {
-    return ::base::TimeTicks::UnixEpoch() +
-            ::base::Milliseconds(static_cast<float>(ns2ms(eventTime)));
+    return ::base::TimeTicks::UnixEpoch() + ::base::TimeDelta::FromNanosecondsD(eventTime);
 }
 
 /**
@@ -61,39 +91,22 @@ static ::base::TimeTicks toChromeTimestamp(nsecs_t eventTime) {
 static bool isPalmRejectionEnabled() {
     std::string value = toLower(
             server_configurable_flags::GetServerConfigurableFlag(INPUT_NATIVE_BOOT,
-                                                                 PALM_REJECTION_ENABLED, "false"));
-    if (value == "true" || value == "1") {
+                                                                 PALM_REJECTION_ENABLED, "0"));
+    if (value == "1") {
         return true;
     }
     return false;
 }
 
-static int getLinuxToolType(int32_t toolType) {
-    switch (toolType) {
-        case AMOTION_EVENT_TOOL_TYPE_FINGER:
-            return MT_TOOL_FINGER;
-        case AMOTION_EVENT_TOOL_TYPE_STYLUS:
-            return MT_TOOL_PEN;
-        case AMOTION_EVENT_TOOL_TYPE_PALM:
-            return MT_TOOL_PALM;
+static int getLinuxToolCode(int toolType) {
+    if (toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS) {
+        return BTN_TOOL_PEN;
     }
-    ALOGW("Got tool type %" PRId32 ", converting to MT_TOOL_FINGER", toolType);
-    return MT_TOOL_FINGER;
-}
-
-static std::string dumpDeviceInfo(const AndroidPalmFilterDeviceInfo& info) {
-    std::string out;
-    out += StringPrintf("max_x = %.2f\n", info.max_x);
-    out += StringPrintf("max_y = %.2f\n", info.max_y);
-    out += StringPrintf("x_res = %.2f\n", info.x_res);
-    out += StringPrintf("y_res = %.2f\n", info.y_res);
-    out += StringPrintf("major_radius_res = %.2f\n", info.major_radius_res);
-    out += StringPrintf("minor_radius_res = %.2f\n", info.minor_radius_res);
-    out += StringPrintf("minor_radius_supported = %s\n",
-                        info.minor_radius_supported ? "true" : "false");
-    out += StringPrintf("touch_major_res = %" PRId32 "\n", info.touch_major_res);
-    out += StringPrintf("touch_minor_res = %" PRId32 "\n", info.touch_minor_res);
-    return out;
+    if (toolType == AMOTION_EVENT_TOOL_TYPE_FINGER) {
+        return BTN_TOOL_FINGER;
+    }
+    ALOGW("Got tool type %" PRId32 ", converting to BTN_TOOL_FINGER", toolType);
+    return BTN_TOOL_FINGER;
 }
 
 static int32_t getActionUpForPointerId(const NotifyMotionArgs& args, int32_t pointerId) {
@@ -128,32 +141,6 @@ static int32_t resolveActionForPointer(uint8_t pointerIndex, int32_t action) {
     return AMOTION_EVENT_ACTION_MOVE;
 }
 
-std::string toString(const ::ui::InProgressTouchEvdev& touch) {
-    return StringPrintf("x=%.1f, y=%.1f, tracking_id=%i, slot=%zu,"
-                        " pressure=%.1f, major=%i, minor=%i, "
-                        "tool_type=%i, altered=%s, was_touching=%s, touching=%s",
-                        touch.x, touch.y, touch.tracking_id, touch.slot, touch.pressure,
-                        touch.major, touch.minor, touch.tool_type, toString(touch.altered),
-                        toString(touch.was_touching), toString(touch.touching));
-}
-
-/**
- * Remove the data for the provided pointers from the args. The pointers are identified by their
- * pointerId, not by the index inside the array.
- * Return the new NotifyMotionArgs struct that has the remaining pointers.
- * The only fields that may be different in the returned args from the provided args are:
- *     - action
- *     - pointerCount
- *     - pointerProperties
- *     - pointerCoords
- * Action might change because it contains a pointer index. If another pointer is removed, the
- * active pointer index would be shifted.
- * Do not call this function for events with POINTER_UP or POINTER_DOWN events when removed pointer
- * id is the acting pointer id.
- *
- * @param args the args from which the pointers should be removed
- * @param pointerIds the pointer ids of the pointers that should be removed
- */
 NotifyMotionArgs removePointerIds(const NotifyMotionArgs& args,
                                   const std::set<int32_t>& pointerIds) {
     const uint8_t actionIndex = MotionEvent::getActionIndex(args.action);
@@ -197,6 +184,26 @@ NotifyMotionArgs removePointerIds(const NotifyMotionArgs& args,
         }
     }
     return newArgs;
+}
+
+/**
+ * Remove stylus pointers from the provided NotifyMotionArgs.
+ *
+ * Return NotifyMotionArgs where the stylus pointers have been removed.
+ * If this results in removal of the active pointer, then return nullopt.
+ */
+static std::optional<NotifyMotionArgs> removeStylusPointerIds(const NotifyMotionArgs& args) {
+    std::set<int32_t> stylusPointerIds;
+    for (uint32_t i = 0; i < args.pointerCount; i++) {
+        if (args.pointerProperties[i].toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS) {
+            stylusPointerIds.insert(args.pointerProperties[i].id);
+        }
+    }
+    NotifyMotionArgs withoutStylusPointers = removePointerIds(args, stylusPointerIds);
+    if (withoutStylusPointers.pointerCount == 0 || withoutStylusPointers.action == ACTION_UNKNOWN) {
+        return std::nullopt;
+    }
+    return withoutStylusPointers;
 }
 
 std::optional<AndroidPalmFilterDeviceInfo> createPalmFilterDeviceInfo(
@@ -326,6 +333,7 @@ void UnwantedInteractionBlocker::notifyKey(const NotifyKeyArgs* args) {
 }
 
 void UnwantedInteractionBlocker::notifyMotion(const NotifyMotionArgs* args) {
+    ALOGD_IF(DEBUG_INBOUND_MOTION, "%s: %s", __func__, args->dump().c_str());
     { // acquire lock
         std::scoped_lock lock(mLock);
         const std::vector<NotifyMotionArgs> processedArgs =
@@ -339,17 +347,22 @@ void UnwantedInteractionBlocker::notifyMotion(const NotifyMotionArgs* args) {
     mQueuedListener.flush();
 }
 
+void UnwantedInteractionBlocker::enqueueOutboundMotionLocked(const NotifyMotionArgs& args) {
+    ALOGD_IF(DEBUG_OUTBOUND_MOTION, "%s: %s", __func__, args.dump().c_str());
+    mQueuedListener.notifyMotion(&args);
+}
+
 void UnwantedInteractionBlocker::notifyMotionLocked(const NotifyMotionArgs* args) {
     auto it = mPalmRejectors.find(args->deviceId);
     const bool sendToPalmRejector = it != mPalmRejectors.end() && isFromTouchscreen(args->source);
     if (!sendToPalmRejector) {
-        mQueuedListener.notifyMotion(args);
+        enqueueOutboundMotionLocked(*args);
         return;
     }
 
     std::vector<NotifyMotionArgs> processedArgs = it->second.processMotion(*args);
     for (const NotifyMotionArgs& loopArgs : processedArgs) {
-        mQueuedListener.notifyMotion(&loopArgs);
+        enqueueOutboundMotionLocked(loopArgs);
     }
 }
 
@@ -428,9 +441,10 @@ void UnwantedInteractionBlocker::dump(std::string& dump) {
     dump += "UnwantedInteractionBlocker:\n";
     dump += "  mPreferStylusOverTouchBlocker:\n";
     dump += addLinePrefix(mPreferStylusOverTouchBlocker.dump(), "    ");
-    dump += StringPrintf("  mEnablePalmRejection: %s\n", toString(mEnablePalmRejection));
+    dump += StringPrintf("  mEnablePalmRejection: %s\n",
+                         std::to_string(mEnablePalmRejection).c_str());
     dump += StringPrintf("  isPalmRejectionEnabled (flag value): %s\n",
-                         toString(isPalmRejectionEnabled()));
+                         std::to_string(isPalmRejectionEnabled()).c_str());
     dump += mPalmRejectors.empty() ? "  mPalmRejectors: None\n" : "  mPalmRejectors:\n";
     for (const auto& [deviceId, palmRejector] : mPalmRejectors) {
         dump += StringPrintf("    deviceId = %" PRId32 ":\n", deviceId);
@@ -512,6 +526,15 @@ std::string SlotState::dump() const {
     return out;
 }
 
+class AndroidPalmRejectionModel : public ::ui::OneDeviceTrainNeuralStylusPalmDetectionFilterModel {
+public:
+    AndroidPalmRejectionModel()
+          : ::ui::OneDeviceTrainNeuralStylusPalmDetectionFilterModel(/*default version*/ "",
+                                                                     std::vector<float>()) {
+        config_.resample_period = ::ui::kResamplePeriod;
+    }
+};
+
 PalmRejector::PalmRejector(const AndroidPalmFilterDeviceInfo& info,
                            std::unique_ptr<::ui::PalmDetectionFilter> filter)
       : mSharedPalmState(std::make_unique<::ui::SharedPalmDetectionFilterState>()),
@@ -523,11 +546,9 @@ PalmRejector::PalmRejector(const AndroidPalmFilterDeviceInfo& info,
         return;
     }
     std::unique_ptr<::ui::NeuralStylusPalmDetectionFilterModel> model =
-            std::make_unique<::ui::OneDeviceTrainNeuralStylusPalmDetectionFilterModel>(
-                    std::vector<float>());
-    mPalmDetectionFilter =
-            std::make_unique<::ui::NeuralStylusPalmDetectionFilter>(mDeviceInfo, std::move(model),
-                                                                    mSharedPalmState.get());
+            std::make_unique<AndroidPalmRejectionModel>();
+    mPalmDetectionFilter = std::make_unique<PalmFilterImplementation>(mDeviceInfo, std::move(model),
+                                                                      mSharedPalmState.get());
 }
 
 std::vector<::ui::InProgressTouchEvdev> getTouches(const NotifyMotionArgs& args,
@@ -541,7 +562,7 @@ std::vector<::ui::InProgressTouchEvdev> getTouches(const NotifyMotionArgs& args,
         touches.emplace_back(::ui::InProgressTouchEvdev());
         touches.back().major = args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR);
         touches.back().minor = args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR);
-        touches.back().tool_type = getLinuxToolType(args.pointerProperties[i].toolType);
+        // The field 'tool_type' is not used for palm rejection
 
         // Whether there is new information for the touch.
         touches.back().altered = true;
@@ -588,13 +609,55 @@ std::vector<::ui::InProgressTouchEvdev> getTouches(const NotifyMotionArgs& args,
 
         // The fields 'radius_x' and 'radius_x' are not used for palm rejection
         touches.back().pressure = args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE);
-        touches.back().tool_code = BTN_TOOL_FINGER;
+        touches.back().tool_code = getLinuxToolCode(args.pointerProperties[i].toolType);
         // The field 'orientation' is not used for palm rejection
         // The fields 'tilt_x' and 'tilt_y' are not used for palm rejection
-        touches.back().reported_tool_type = ::ui::EventPointerType::kTouch;
+        // The field 'reported_tool_type' is not used for palm rejection
         touches.back().stylus_button = false;
     }
     return touches;
+}
+
+std::set<int32_t> PalmRejector::detectPalmPointers(const NotifyMotionArgs& args) {
+    std::bitset<::ui::kNumTouchEvdevSlots> slotsToHold;
+    std::bitset<::ui::kNumTouchEvdevSlots> slotsToSuppress;
+
+    // Store the slot state before we call getTouches and update it. This way, we can find
+    // the slots that have been removed due to the incoming event.
+    SlotState oldSlotState = mSlotState;
+    mSlotState.update(args);
+
+    std::vector<::ui::InProgressTouchEvdev> touches =
+            getTouches(args, mDeviceInfo, oldSlotState, mSlotState);
+    ::base::TimeTicks chromeTimestamp = toChromeTimestamp(args.eventTime);
+
+    if (DEBUG_MODEL) {
+        std::stringstream touchesStream;
+        for (const ::ui::InProgressTouchEvdev& touch : touches) {
+            touchesStream << touch.tracking_id << " : " << touch << "\n";
+        }
+        ALOGD("Filter: touches = %s", touchesStream.str().c_str());
+    }
+
+    mPalmDetectionFilter->Filter(touches, chromeTimestamp, &slotsToHold, &slotsToSuppress);
+
+    ALOGD_IF(DEBUG_MODEL, "Response: slotsToHold = %s, slotsToSuppress = %s",
+             slotsToHold.to_string().c_str(), slotsToSuppress.to_string().c_str());
+
+    // Now that we know which slots should be suppressed, let's convert those to pointer id's.
+    std::set<int32_t> newSuppressedIds;
+    for (size_t i = 0; i < args.pointerCount; i++) {
+        const int32_t pointerId = args.pointerProperties[i].id;
+        std::optional<size_t> slot = oldSlotState.getSlotForPointerId(pointerId);
+        if (!slot) {
+            slot = mSlotState.getSlotForPointerId(pointerId);
+            LOG_ALWAYS_FATAL_IF(!slot, "Could not find slot for pointer id %" PRId32, pointerId);
+        }
+        if (slotsToSuppress.test(*slot)) {
+            newSuppressedIds.insert(pointerId);
+        }
+    }
+    return newSuppressedIds;
 }
 
 std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs& args) {
@@ -614,32 +677,17 @@ std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs
     if (args.action == AMOTION_EVENT_ACTION_DOWN) {
         mSuppressedPointerIds.clear();
     }
-    std::bitset<::ui::kNumTouchEvdevSlots> slotsToHold;
-    std::bitset<::ui::kNumTouchEvdevSlots> slotsToSuppress;
 
-    // Store the slot state before we call getTouches and update it. This way, we can find
-    // the slots that have been removed due to the incoming event.
-    SlotState oldSlotState = mSlotState;
-    mSlotState.update(args);
-    std::vector<::ui::InProgressTouchEvdev> touches =
-            getTouches(args, mDeviceInfo, oldSlotState, mSlotState);
-    ::base::TimeTicks chromeTimestamp = toChromeTimestamp(args.eventTime);
-
-    mPalmDetectionFilter->Filter(touches, chromeTimestamp, &slotsToHold, &slotsToSuppress);
-
-    // Now that we know which slots should be suppressed, let's convert those to pointer id's.
     std::set<int32_t> oldSuppressedIds;
     std::swap(oldSuppressedIds, mSuppressedPointerIds);
-    for (size_t i = 0; i < args.pointerCount; i++) {
-        const int32_t pointerId = args.pointerProperties[i].id;
-        std::optional<size_t> slot = oldSlotState.getSlotForPointerId(pointerId);
-        if (!slot) {
-            slot = mSlotState.getSlotForPointerId(pointerId);
-            LOG_ALWAYS_FATAL_IF(!slot, "Could not find slot for pointer id %" PRId32, pointerId);
-        }
-        if (slotsToSuppress.test(*slot)) {
-            mSuppressedPointerIds.insert(pointerId);
-        }
+
+    std::optional<NotifyMotionArgs> touchOnlyArgs = removeStylusPointerIds(args);
+    if (touchOnlyArgs) {
+        mSuppressedPointerIds = detectPalmPointers(*touchOnlyArgs);
+    } else {
+        // This is a stylus-only event.
+        // We can skip this event and just keep the suppressed pointer ids the same as before.
+        mSuppressedPointerIds = oldSuppressedIds;
     }
 
     std::vector<NotifyMotionArgs> argsWithoutUnwantedPointers =
@@ -648,29 +696,40 @@ std::vector<NotifyMotionArgs> PalmRejector::processMotion(const NotifyMotionArgs
         LOG_ALWAYS_FATAL_IF(checkArgs.action == ACTION_UNKNOWN, "%s", checkArgs.dump().c_str());
     }
 
-    if (mSuppressedPointerIds != oldSuppressedIds) {
-        if (argsWithoutUnwantedPointers.size() != 1 ||
-            argsWithoutUnwantedPointers[0].pointerCount != args.pointerCount) {
-            ALOGI("Palm detected, removing pointer ids %s from %s",
-                  dumpSet(mSuppressedPointerIds).c_str(), args.dump().c_str());
-        }
+    // Only log if new pointers are getting rejected. That means mSuppressedPointerIds is not a
+    // subset of oldSuppressedIds.
+    if (!std::includes(oldSuppressedIds.begin(), oldSuppressedIds.end(),
+                       mSuppressedPointerIds.begin(), mSuppressedPointerIds.end())) {
+        ALOGI("Palm detected, removing pointer ids %s after %" PRId64 "ms from %s",
+              dumpSet(mSuppressedPointerIds).c_str(), ns2ms(args.eventTime - args.downTime),
+              args.dump().c_str());
     }
 
     return argsWithoutUnwantedPointers;
 }
 
-const AndroidPalmFilterDeviceInfo& PalmRejector::getPalmFilterDeviceInfo() {
+const AndroidPalmFilterDeviceInfo& PalmRejector::getPalmFilterDeviceInfo() const {
     return mDeviceInfo;
 }
 
 std::string PalmRejector::dump() const {
     std::string out;
     out += "mDeviceInfo:\n";
-    out += addLinePrefix(dumpDeviceInfo(mDeviceInfo), "  ");
+    std::stringstream deviceInfo;
+    deviceInfo << mDeviceInfo << ", touch_major_res=" << mDeviceInfo.touch_major_res
+               << ", touch_minor_res=" << mDeviceInfo.touch_minor_res << "\n";
+    out += addLinePrefix(deviceInfo.str(), "  ");
     out += "mSlotState:\n";
     out += addLinePrefix(mSlotState.dump(), "  ");
     out += "mSuppressedPointerIds: ";
     out += dumpSet(mSuppressedPointerIds) + "\n";
+    std::stringstream state;
+    state << *mSharedPalmState;
+    out += "mSharedPalmState: " + state.str() + "\n";
+    std::stringstream filter;
+    filter << static_cast<const PalmFilterImplementation&>(*mPalmDetectionFilter);
+    out += "mPalmDetectionFilter:\n";
+    out += addLinePrefix(filter.str(), "  ") + "\n";
     return out;
 }
 

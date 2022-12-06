@@ -61,9 +61,7 @@ private:
     bool probeKeyMap(const InputDeviceIdentifier& deviceIdentifier, const std::string& name);
     status_t loadKeyLayout(const InputDeviceIdentifier& deviceIdentifier, const std::string& name);
     status_t loadKeyCharacterMap(const InputDeviceIdentifier& deviceIdentifier,
-            const std::string& name);
-    std::string getPath(const InputDeviceIdentifier& deviceIdentifier,
-            const std::string& name, InputDeviceConfigurationFileType type);
+                                 const std::string& name);
 };
 
 /**

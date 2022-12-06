@@ -196,9 +196,9 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
               "(ignored non-input device)",
               device->getId(), eventHubId, identifier.name.c_str(), identifier.descriptor.c_str());
     } else {
-        ALOGI("Device added: id=%d, eventHubId=%d, name='%s', descriptor='%s',sources=0x%08x",
+        ALOGI("Device added: id=%d, eventHubId=%d, name='%s', descriptor='%s',sources=%s",
               device->getId(), eventHubId, identifier.name.c_str(), identifier.descriptor.c_str(),
-              device->getSources());
+              inputEventSourceToString(device->getSources()).c_str());
     }
 
     mDevices.emplace(eventHubId, device);
@@ -250,9 +250,10 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
               device->getId(), eventHubId, device->getName().c_str(),
               device->getDescriptor().c_str());
     } else {
-        ALOGI("Device removed: id=%d, eventHubId=%d, name='%s', descriptor='%s', sources=0x%08x",
+        ALOGI("Device removed: id=%d, eventHubId=%d, name='%s', descriptor='%s', sources=%s",
               device->getId(), eventHubId, device->getName().c_str(),
-              device->getDescriptor().c_str(), device->getSources());
+              device->getDescriptor().c_str(),
+              inputEventSourceToString(device->getSources()).c_str());
     }
 
     device->removeEventHubDevice(eventHubId);

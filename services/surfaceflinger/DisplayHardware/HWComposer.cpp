@@ -738,6 +738,13 @@ ftl::Future<status_t> HWComposer::setDisplayBrightness(
             });
 }
 
+bool HWComposer::getValidateSkipped(HalDisplayId displayId) const {
+    if (mDisplayData.count(displayId) == 0) {
+        return false;
+    }
+    return mDisplayData.at(displayId).validateWasSkipped;
+}
+
 status_t HWComposer::setBootDisplayMode(PhysicalDisplayId displayId,
                                         hal::HWConfigId displayModeId) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);

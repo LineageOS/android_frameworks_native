@@ -1505,6 +1505,8 @@ struct OutputEnsureOutputLayerIfVisibleTest : public testing::Test {
     static const Region kTransparentRegionHint;
     static const Region kTransparentRegionHintTwo;
     static const Region kTransparentRegionHintTwo90Rotation;
+    static const Region kTransparentRegionHintNegative;
+    static const Region kTransparentRegionHintNegativeIntersectsBounds;
 
     StrictMock<OutputPartialMock> mOutput;
     LayerFESet mGeomSnapshots;
@@ -1528,6 +1530,10 @@ const Region OutputEnsureOutputLayerIfVisibleTest::kTransparentRegionHintTwo =
         Region(Rect(25, 20, 50, 75));
 const Region OutputEnsureOutputLayerIfVisibleTest::kTransparentRegionHintTwo90Rotation =
         Region(Rect(125, 25, 180, 50));
+const Region OutputEnsureOutputLayerIfVisibleTest::kTransparentRegionHintNegative =
+        Region(Rect(INT32_MIN, INT32_MIN, INT32_MIN + 100, INT32_MIN + 200));
+const Region OutputEnsureOutputLayerIfVisibleTest::kTransparentRegionHintNegativeIntersectsBounds =
+        Region(Rect(INT32_MIN, INT32_MIN, 100, 100));
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLayerIncluded) {
     EXPECT_CALL(mOutput, includesLayer(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
@@ -1995,6 +2001,41 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, blockingRegionIsInOutputSpace) {
 
     EXPECT_THAT(mLayer.outputLayerState.outputSpaceBlockingRegionHint,
                 RegionEq(kTransparentRegionHintTwo90Rotation));
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, transparentRegionExcludesOutputLayer) {
+    mLayer.layerFEState.isOpaque = false;
+    mLayer.layerFEState.contentDirty = true;
+    mLayer.layerFEState.geomLayerBounds = kFullBoundsNoRotation.bounds().toFloatRect();
+    mLayer.layerFEState.transparentRegionHint = kFullBoundsNoRotation;
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(_, _)).Times(0);
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, transparentRegionIgnoredWhenOutsideBounds) {
+    mLayer.layerFEState.isOpaque = false;
+    mLayer.layerFEState.contentDirty = true;
+    mLayer.layerFEState.geomLayerBounds = kFullBoundsNoRotation.bounds().toFloatRect();
+    mLayer.layerFEState.transparentRegionHint = kTransparentRegionHintNegative;
+
+    EXPECT_CALL(mOutput, ensureOutputLayer(_, _)).Times(0);
+}
+
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, transparentRegionClipsWhenOutsideBounds) {
+    mLayer.layerFEState.isOpaque = false;
+    mLayer.layerFEState.contentDirty = true;
+    mLayer.layerFEState.compositionType =
+            aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION;
+    mLayer.layerFEState.transparentRegionHint = kTransparentRegionHintNegativeIntersectsBounds;
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer.layerFE)))
+            .WillOnce(Return(&mLayer.outputLayer));
+    ensureOutputLayerIfVisible();
+
+    // Check that the blocking region clips an out-of-bounds transparent region.
+    EXPECT_THAT(mLayer.outputLayerState.outputSpaceBlockingRegionHint,
+                RegionEq(kTransparentRegionHint));
 }
 
 /*
@@ -3319,6 +3360,9 @@ struct OutputComposeSurfacesTest : public testing::Test {
         MOCK_METHOD2(appendRegionFlashRequests,
                      void(const Region&, std::vector<LayerFE::LayerSettings>&));
         MOCK_METHOD1(setExpensiveRenderingExpected, void(bool));
+        MOCK_METHOD(void, setHintSessionGpuFence, (std::unique_ptr<FenceTime> && gpuFence),
+                    (override));
+        MOCK_METHOD(bool, isPowerHintSessionEnabled, (), (override));
     };
 
     OutputComposeSurfacesTest() {

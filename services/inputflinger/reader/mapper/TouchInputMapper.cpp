@@ -44,6 +44,8 @@ static constexpr nsecs_t STYLUS_DATA_LATENCY = ms2ns(10);
 
 // --- Static Definitions ---
 
+static const DisplayViewport kUninitializedViewport;
+
 template <typename T>
 inline static void swap(T& a, T& b) {
     T temp = a;
@@ -390,6 +392,10 @@ void TouchInputMapper::configure(nsecs_t when, const InputReaderConfiguration* c
     }
 
     if (changes && resetNeeded) {
+        // If the device needs to be reset, cancel any ongoing gestures and reset the state.
+        cancelTouch(when, when);
+        reset(when);
+
         // Send reset, unless this is the first time the device has been configured,
         // in which case the reader will call reset itself after all mappers are ready.
         NotifyDeviceResetArgs args(getContext()->getNextId(), when, getDeviceId());
@@ -877,7 +883,7 @@ void TouchInputMapper::initializeOrientedRanges() {
 }
 
 void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) {
-    DeviceMode oldDeviceMode = mDeviceMode;
+    const DeviceMode oldDeviceMode = mDeviceMode;
 
     resolveExternalStylusPresence();
 
@@ -906,42 +912,37 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         mDeviceMode = DeviceMode::UNSCALED;
     }
 
-    // Ensure we have valid X and Y axes.
+    const std::optional<DisplayViewport> newViewportOpt = findViewport();
+
+    // Ensure the device is valid and can be used.
     if (!mRawPointerAxes.x.valid || !mRawPointerAxes.y.valid) {
         ALOGW("Touch device '%s' did not report support for X or Y axis!  "
               "The device will be inoperable.",
               getDeviceName().c_str());
         mDeviceMode = DeviceMode::DISABLED;
-        return;
-    }
-
-    // Get associated display dimensions.
-    std::optional<DisplayViewport> newViewport = findViewport();
-    if (!newViewport) {
+    } else if (!newViewportOpt) {
         ALOGI("Touch device '%s' could not query the properties of its associated "
               "display.  The device will be inoperable until the display size "
               "becomes available.",
               getDeviceName().c_str());
         mDeviceMode = DeviceMode::DISABLED;
-        return;
-    }
-
-    if (!newViewport->isActive) {
+    } else if (!newViewportOpt->isActive) {
         ALOGI("Disabling %s (device %i) because the associated viewport is not active",
               getDeviceName().c_str(), getDeviceId());
         mDeviceMode = DeviceMode::DISABLED;
-        return;
     }
 
     // Raw width and height in the natural orientation.
     const int32_t rawWidth = mRawPointerAxes.getRawWidth();
     const int32_t rawHeight = mRawPointerAxes.getRawHeight();
 
-    const bool viewportChanged = mViewport != *newViewport;
+    const DisplayViewport& newViewport = newViewportOpt.value_or(kUninitializedViewport);
+    const bool viewportChanged = mViewport != newViewport;
     bool skipViewportUpdate = false;
     if (viewportChanged) {
-        const bool viewportOrientationChanged = mViewport.orientation != newViewport->orientation;
-        mViewport = *newViewport;
+        const bool viewportOrientationChanged = mViewport.orientation != newViewport.orientation;
+        const bool viewportDisplayIdChanged = mViewport.displayId != newViewport.displayId;
+        mViewport = newViewport;
 
         if (mDeviceMode == DeviceMode::DIRECT || mDeviceMode == DeviceMode::POINTER) {
             // Convert rotated viewport to the natural orientation.
@@ -1016,8 +1017,9 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                     : getInverseRotation(mViewport.orientation);
             // For orientation-aware devices that work in the un-rotated coordinate space, the
             // viewport update should be skipped if it is only a change in the orientation.
-            skipViewportUpdate = mParameters.orientationAware && mDisplayWidth == oldDisplayWidth &&
-                    mDisplayHeight == oldDisplayHeight && viewportOrientationChanged;
+            skipViewportUpdate = !viewportDisplayIdChanged && mParameters.orientationAware &&
+                    mDisplayWidth == oldDisplayWidth && mDisplayHeight == oldDisplayHeight &&
+                    viewportOrientationChanged;
 
             // Apply the input device orientation for the device.
             mInputDeviceOrientation =
@@ -1094,10 +1096,6 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
             // of the diagonal axis of the touch pad.  Touches that are wider than this are
             // translated into freeform gestures.
             mPointerGestureMaxSwipeWidth = mConfig.pointerGestureSwipeMaxWidthRatio * rawDiagonal;
-
-            // Abort current pointer usages because the state has changed.
-            const nsecs_t readTime = when; // synthetic event
-            abortPointerUsage(when, readTime, 0 /*policyFlags*/);
         }
 
         // Inform the dispatcher about the changes.
@@ -1926,6 +1924,10 @@ void TouchInputMapper::dispatchVirtualKey(nsecs_t when, nsecs_t readTime, uint32
 }
 
 void TouchInputMapper::abortTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags) {
+    if (mCurrentMotionAborted) {
+        // Current motion event was already aborted.
+        return;
+    }
     BitSet32 currentIdBits = mCurrentCookedState.cookedPointerData.touchingIdBits;
     if (!currentIdBits.isEmpty()) {
         int32_t metaState = getContext()->getGlobalMetaState();
