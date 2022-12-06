@@ -110,6 +110,8 @@ constexpr int LOGTAG_INPUT_INTERACTION = 62000;
 constexpr int LOGTAG_INPUT_FOCUS = 62001;
 constexpr int LOGTAG_INPUT_CANCEL = 62003;
 
+const ui::Transform kIdentityTransform;
+
 inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
@@ -476,7 +478,7 @@ bool isUserActivityEvent(const EventEntry& eventEntry) {
 
 // Returns true if the given window can accept pointer events at the given display location.
 bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, float x, float y,
-                          bool isStylus) {
+                          bool isStylus, const ui::Transform& displayTransform) {
     const auto inputConfig = windowInfo.inputConfig;
     if (windowInfo.displayId != displayId ||
         inputConfig.test(WindowInfo::InputConfig::NOT_VISIBLE)) {
@@ -486,7 +488,17 @@ bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, float
     if (inputConfig.test(WindowInfo::InputConfig::NOT_TOUCHABLE) && !windowCanInterceptTouch) {
         return false;
     }
-    if (!windowInfo.touchableRegionContainsPoint(x, y)) {
+
+    // Window Manager works in the logical display coordinate space. When it specifies bounds for a
+    // window as (l, t, r, b), the range of x in [l, r) and y in [t, b) are considered to be inside
+    // the window. Points on the right and bottom edges should not be inside the window, so we need
+    // to be careful about performing a hit test when the display is rotated, since the "right" and
+    // "bottom" of the window will be different in the display (un-rotated) space compared to in the
+    // logical display in which WM determined the bounds. Perform the hit test in the logical
+    // display space to ensure these edges are considered correctly in all orientations.
+    const auto touchableRegion = displayTransform.transform(windowInfo.touchableRegion);
+    const auto p = displayTransform.transform(x, y);
+    if (!touchableRegion.contains(std::floor(p.x), std::floor(p.y))) {
         return false;
     }
     return true;
@@ -1167,7 +1179,8 @@ InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, float x, float y, 
         }
 
         const WindowInfo& info = *windowHandle->getInfo();
-        if (!info.isSpy() && windowAcceptsTouchAt(info, displayId, x, y, isStylus)) {
+        if (!info.isSpy() &&
+            windowAcceptsTouchAt(info, displayId, x, y, isStylus, getTransformLocked(displayId))) {
             return {windowHandle, outsideTargets};
         }
 
@@ -1188,7 +1201,7 @@ std::vector<sp<WindowInfoHandle>> InputDispatcher::findTouchedSpyWindowsAtLocked
     for (const sp<WindowInfoHandle>& windowHandle : windowHandles) {
         const WindowInfo& info = *windowHandle->getInfo();
 
-        if (!windowAcceptsTouchAt(info, displayId, x, y, isStylus)) {
+        if (!windowAcceptsTouchAt(info, displayId, x, y, isStylus, getTransformLocked(displayId))) {
             continue;
         }
         if (!info.isSpy()) {
@@ -4759,6 +4772,12 @@ sp<WindowInfoHandle> InputDispatcher::getWindowHandleLocked(
 sp<WindowInfoHandle> InputDispatcher::getFocusedWindowHandleLocked(int displayId) const {
     sp<IBinder> focusedToken = mFocusResolver.getFocusedWindowToken(displayId);
     return getWindowHandleLocked(focusedToken, displayId);
+}
+
+ui::Transform InputDispatcher::getTransformLocked(int32_t displayId) const {
+    auto displayInfoIt = mDisplayInfos.find(displayId);
+    return displayInfoIt != mDisplayInfos.end() ? displayInfoIt->second.transform
+                                                : kIdentityTransform;
 }
 
 bool InputDispatcher::canWindowReceiveMotionLocked(const sp<WindowInfoHandle>& window,
