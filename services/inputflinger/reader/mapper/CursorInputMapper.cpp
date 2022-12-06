@@ -227,7 +227,7 @@ std::list<NotifyArgs> CursorInputMapper::configure(nsecs_t when,
             mDisplayId = mPointerController->getDisplayId();
         }
 
-        mOrientation = ui::ROTATION_0;
+        mOrientation = DISPLAY_ORIENTATION_0;
         const bool isOrientedDevice =
                 (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
         // InputReader works in the un-rotated display coordinate space, so we don't need to do

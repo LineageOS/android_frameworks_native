@@ -20,7 +20,6 @@
 #include <gtest/gtest.h>
 
 #include "TestConstants.h"
-#include "ui/Rotation.h"
 
 namespace android {
 
@@ -77,11 +76,12 @@ void FakeInputReaderPolicy::addDisplayViewport(DisplayViewport viewport) {
 }
 
 void FakeInputReaderPolicy::addDisplayViewport(int32_t displayId, int32_t width, int32_t height,
-                                               ui::Rotation orientation, bool isActive,
+                                               int32_t orientation, bool isActive,
                                                const std::string& uniqueId,
                                                std::optional<uint8_t> physicalPort,
                                                ViewportType type) {
-    const bool isRotated = orientation == ui::ROTATION_90 || orientation == ui::ROTATION_270;
+    const bool isRotated =
+            (orientation == DISPLAY_ORIENTATION_90 || orientation == DISPLAY_ORIENTATION_270);
     DisplayViewport v;
     v.displayId = displayId;
     v.orientation = orientation;
@@ -153,7 +153,7 @@ const std::vector<InputDeviceInfo>& FakeInputReaderPolicy::getInputDevices() con
 }
 
 TouchAffineTransformation FakeInputReaderPolicy::getTouchAffineTransformation(
-        const std::string& inputDeviceDescriptor, ui::Rotation surfaceRotation) {
+        const std::string& inputDeviceDescriptor, int32_t surfaceRotation) {
     return transform;
 }
 

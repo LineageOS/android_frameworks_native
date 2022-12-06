@@ -20,13 +20,11 @@
 
 #include "KeyboardInputMapper.h"
 
-#include <ui/Rotation.h>
-
 namespace android {
 
 // --- Static Definitions ---
 
-static int32_t rotateKeyCode(int32_t keyCode, ui::Rotation orientation) {
+static int32_t rotateKeyCode(int32_t keyCode, int32_t orientation) {
     static constexpr int32_t KEYCODE_ROTATION_MAP[][4] = {
             // key codes enumerated counter-clockwise with the original (unrotated) key first
             // no rotation,        90 degree rotation,  180 degree rotation, 270 degree rotation
@@ -44,10 +42,11 @@ static int32_t rotateKeyCode(int32_t keyCode, ui::Rotation orientation) {
              AKEYCODE_SYSTEM_NAVIGATION_RIGHT, AKEYCODE_SYSTEM_NAVIGATION_UP},
     };
 
-    if (orientation != ui::ROTATION_0) {
+    LOG_ALWAYS_FATAL_IF(orientation < 0 || orientation > 3, "Invalid orientation: %d", orientation);
+    if (orientation != DISPLAY_ORIENTATION_0) {
         for (const auto& rotation : KEYCODE_ROTATION_MAP) {
-            if (rotation[static_cast<size_t>(ui::ROTATION_0)] == keyCode) {
-                return rotation[static_cast<size_t>(orientation)];
+            if (rotation[DISPLAY_ORIENTATION_0] == keyCode) {
+                return rotation[orientation];
             }
         }
     }
@@ -101,11 +100,11 @@ uint32_t KeyboardInputMapper::getSources() const {
     return mSource;
 }
 
-ui::Rotation KeyboardInputMapper::getOrientation() {
+int32_t KeyboardInputMapper::getOrientation() {
     if (mViewport) {
         return mViewport->orientation;
     }
-    return ui::ROTATION_0;
+    return DISPLAY_ORIENTATION_0;
 }
 
 int32_t KeyboardInputMapper::getDisplayId() {

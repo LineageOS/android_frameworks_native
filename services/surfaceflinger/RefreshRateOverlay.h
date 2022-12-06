@@ -19,7 +19,6 @@
 #include <SkColor.h>
 #include <vector>
 
-#include <ftl/flags.h>
 #include <ftl/small_map.h>
 #include <ui/LayerStack.h>
 #include <ui/Size.h>
@@ -51,16 +50,11 @@ private:
 
 class RefreshRateOverlay {
 public:
-    enum class Features {
-        Spinner = 1 << 0,
-        RenderRate = 1 << 1,
-    };
-
-    RefreshRateOverlay(FpsRange, ftl::Flags<Features>);
+    RefreshRateOverlay(FpsRange, bool showSpinner);
 
     void setLayerStack(ui::LayerStack);
     void setViewport(ui::Size);
-    void changeRefreshRate(Fps, Fps);
+    void changeRefreshRate(Fps);
     void animate();
 
 private:
@@ -68,39 +62,32 @@ private:
 
     class SevenSegmentDrawer {
     public:
-        static Buffers draw(int displayFps, int renderFps, SkColor, ui::Transform::RotationFlags,
-                            ftl::Flags<Features>);
+        static Buffers draw(int number, SkColor, ui::Transform::RotationFlags, bool showSpinner);
 
     private:
         enum class Segment { Upper, UpperLeft, UpperRight, Middle, LowerLeft, LowerRight, Bottom };
 
         static void drawSegment(Segment, int left, SkColor, SkCanvas&);
         static void drawDigit(int digit, int left, SkColor, SkCanvas&);
-        static void drawNumber(int number, int left, SkColor, SkCanvas&);
     };
 
-    const Buffers& getOrCreateBuffers(Fps, Fps);
+    const Buffers& getOrCreateBuffers(Fps);
 
     struct Key {
-        int displayFps;
-        int renderFps;
+        int fps;
         ui::Transform::RotationFlags flags;
 
-        bool operator==(Key other) const {
-            return displayFps == other.displayFps && renderFps == other.renderFps &&
-                    flags == other.flags;
-        }
+        bool operator==(Key other) const { return fps == other.fps && flags == other.flags; }
     };
 
     using BufferCache = ftl::SmallMap<Key, Buffers, 9>;
     BufferCache mBufferCache;
 
-    std::optional<Fps> mDisplayFps;
-    std::optional<Fps> mRenderFps;
+    std::optional<Fps> mCurrentFps;
     size_t mFrame = 0;
 
     const FpsRange mFpsRange; // For color interpolation.
-    const ftl::Flags<Features> mFeatures;
+    const bool mShowSpinner;
 
     const std::unique_ptr<SurfaceControlHolder> mSurfaceControl;
 };

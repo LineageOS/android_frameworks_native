@@ -21,7 +21,6 @@
 #include <cutils/compiler.h>
 #include <inttypes.h>
 #include <string.h>
-#include <optional>
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
@@ -553,21 +552,21 @@ void MotionEvent::addSample(
                                 &pointerCoords[getPointerCount()]);
 }
 
-std::optional<ui::Rotation> MotionEvent::getSurfaceRotation() const {
+int MotionEvent::getSurfaceRotation() const {
     // The surface rotation is the rotation from the window's coordinate space to that of the
     // display. Since the event's transform takes display space coordinates to window space, the
     // returned surface rotation is the inverse of the rotation for the surface.
     switch (mTransform.getOrientation()) {
         case ui::Transform::ROT_0:
-            return ui::ROTATION_0;
+            return DISPLAY_ORIENTATION_0;
         case ui::Transform::ROT_90:
-            return ui::ROTATION_270;
+            return DISPLAY_ORIENTATION_270;
         case ui::Transform::ROT_180:
-            return ui::ROTATION_180;
+            return DISPLAY_ORIENTATION_180;
         case ui::Transform::ROT_270:
-            return ui::ROTATION_90;
+            return DISPLAY_ORIENTATION_90;
         default:
-            return std::nullopt;
+            return -1;
     }
 }
 

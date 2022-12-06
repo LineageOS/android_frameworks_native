@@ -17,7 +17,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <ui/Rotation.h>
 
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
@@ -219,7 +218,15 @@ protected:
         bool associatedDisplayIsExternal;
         bool orientationAware;
 
-        ui::Rotation orientation;
+        enum class Orientation : int32_t {
+            ORIENTATION_0 = DISPLAY_ORIENTATION_0,
+            ORIENTATION_90 = DISPLAY_ORIENTATION_90,
+            ORIENTATION_180 = DISPLAY_ORIENTATION_180,
+            ORIENTATION_270 = DISPLAY_ORIENTATION_270,
+
+            ftl_last = ORIENTATION_270
+        };
+        Orientation orientation;
 
         bool hasButtonUnderPad;
         std::string uniqueDisplayId;
@@ -417,7 +424,7 @@ private:
     // The orientation of the input device relative to that of the display panel. It specifies
     // the rotation of the input device coordinates required to produce the display panel
     // orientation, so it will depend on whether the device is orientation aware.
-    ui::Rotation mInputDeviceOrientation;
+    int32_t mInputDeviceOrientation;
 
     // Translation and scaling factors, orientation-independent.
     float mXScale;
