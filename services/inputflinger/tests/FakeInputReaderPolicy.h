@@ -49,8 +49,8 @@ public:
     std::optional<DisplayViewport> getDisplayViewportByType(ViewportType type) const;
     std::optional<DisplayViewport> getDisplayViewportByPort(uint8_t displayPort) const;
     void addDisplayViewport(DisplayViewport viewport);
-    void addDisplayViewport(int32_t displayId, int32_t width, int32_t height, int32_t orientation,
-                            bool isActive, const std::string& uniqueId,
+    void addDisplayViewport(int32_t displayId, int32_t width, int32_t height,
+                            ui::Rotation orientation, bool isActive, const std::string& uniqueId,
                             std::optional<uint8_t> physicalPort, ViewportType type);
     bool updateViewport(const DisplayViewport& viewport);
     void addExcludedDeviceName(const std::string& deviceName);
@@ -63,7 +63,7 @@ public:
     const InputReaderConfiguration* getReaderConfiguration() const;
     const std::vector<InputDeviceInfo>& getInputDevices() const;
     TouchAffineTransformation getTouchAffineTransformation(const std::string& inputDeviceDescriptor,
-                                                           int32_t surfaceRotation);
+                                                           ui::Rotation surfaceRotation);
     void setTouchAffineTransformation(const TouchAffineTransformation t);
     PointerCaptureRequest setPointerCapture(bool enabled);
     void setShowTouches(bool enabled);

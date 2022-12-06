@@ -198,6 +198,9 @@ namespace hal = android::hardware::graphics::composer::hal;
 
 namespace {
 
+static constexpr int FOUR_K_WIDTH = 3840;
+static constexpr int FOUR_K_HEIGHT = 2160;
+
 // TODO(b/141333600): Consolidate with DisplayMode::Builder::getDefaultDensity.
 constexpr float FALLBACK_DENSITY = ACONFIGURATION_DENSITY_TV;
 
@@ -243,6 +246,44 @@ bool getKernelIdleTimerSyspropConfig(DisplayId displayId) {
     const auto displaySupportKernelIdleTimer =
             base::GetBoolProperty(displaySupportKernelIdleTimerKey, false);
     return displaySupportKernelIdleTimer || sysprop::support_kernel_idle_timer(false);
+}
+
+bool isAbove4k30(const ui::DisplayMode& outMode) {
+    using fps_approx_ops::operator>;
+    Fps refreshRate = Fps::fromValue(outMode.refreshRate);
+    return outMode.resolution.getWidth() >= FOUR_K_WIDTH &&
+            outMode.resolution.getHeight() >= FOUR_K_HEIGHT && refreshRate > 30_Hz;
+}
+
+void excludeDolbyVisionIf4k30Present(const std::vector<ui::Hdr>& displayHdrTypes,
+                                     ui::DisplayMode& outMode) {
+    if (isAbove4k30(outMode) &&
+        std::any_of(displayHdrTypes.begin(), displayHdrTypes.end(),
+                    [](ui::Hdr type) { return type == ui::Hdr::DOLBY_VISION_4K30; })) {
+        for (ui::Hdr type : displayHdrTypes) {
+            if (type != ui::Hdr::DOLBY_VISION_4K30 && type != ui::Hdr::DOLBY_VISION) {
+                outMode.supportedHdrTypes.push_back(type);
+            }
+        }
+    } else {
+        for (ui::Hdr type : displayHdrTypes) {
+            if (type != ui::Hdr::DOLBY_VISION_4K30) {
+                outMode.supportedHdrTypes.push_back(type);
+            }
+        }
+    }
+}
+
+HdrCapabilities filterOut4k30(const HdrCapabilities& displayHdrCapabilities) {
+    std::vector<ui::Hdr> hdrTypes;
+    for (ui::Hdr type : displayHdrCapabilities.getSupportedHdrTypes()) {
+        if (type != ui::Hdr::DOLBY_VISION_4K30) {
+            hdrTypes.push_back(type);
+        }
+    }
+    return {hdrTypes, displayHdrCapabilities.getDesiredMaxLuminance(),
+            displayHdrCapabilities.getDesiredMaxAverageLuminance(),
+            displayHdrCapabilities.getDesiredMinLuminance()};
 }
 
 }  // namespace anonymous
@@ -422,7 +463,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         android::hardware::details::setTrebleTestingOverride(true);
     }
 
-    mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
+    mRefreshRateOverlaySpinner = property_get_bool("debug.sf.show_refresh_rate_overlay_spinner", 0);
+    mRefreshRateOverlayRenderRate =
+            property_get_bool("debug.sf.show_refresh_rate_overlay_render_rate", 0);
 
     if (!mIsUserBuild && base::GetBoolProperty("debug.sf.enable_transaction_tracing"s, true)) {
         mTransactionTracing.emplace();
@@ -1031,7 +1074,8 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
         // We add an additional 1ms to allow for processing time and
         // differences between the ideal and actual refresh rate.
         outMode.presentationDeadline = period - outMode.sfVsyncOffset + 1000000;
-
+        excludeDolbyVisionIf4k30Present(display->getHdrCapabilities().getSupportedHdrTypes(),
+                                        outMode);
         info->supportedDisplayModes.push_back(outMode);
     }
 
@@ -1042,7 +1086,7 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
     info->activeDisplayModeId =
             display->refreshRateSelector().getActiveMode().modePtr->getId().value();
     info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
-    info->hdrCapabilities = display->getHdrCapabilities();
+    info->hdrCapabilities = filterOut4k30(display->getHdrCapabilities());
 
     info->autoLowLatencyModeSupported =
             getHwComposer().hasDisplayCapability(displayId,
@@ -2830,7 +2874,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                 return Config::FrameRateOverride::AppOverrideNativeRefreshRates;
             }
 
-            if (!base::GetBoolProperty("debug.sf.frame_rate_override_global"s, false)) {
+            if (!sysprop::frame_rate_override_global(false)) {
                 return Config::FrameRateOverride::AppOverride;
             }
 
@@ -6882,7 +6926,8 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
     for (const auto& [id, display] : mPhysicalDisplays) {
         if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal) {
             if (const auto device = getDisplayDeviceLocked(id)) {
-                device->enableRefreshRateOverlay(enable, mRefreshRateOverlaySpinner);
+                device->enableRefreshRateOverlay(enable, mRefreshRateOverlaySpinner,
+                                                 mRefreshRateOverlayRenderRate);
             }
         }
     }
@@ -7352,6 +7397,10 @@ binder::Status SurfaceComposerAIDL::getDynamicDisplayInfo(const sp<IBinder>& dis
             outMode.sfVsyncOffset = mode.sfVsyncOffset;
             outMode.presentationDeadline = mode.presentationDeadline;
             outMode.group = mode.group;
+            std::transform(mode.supportedHdrTypes.begin(), mode.supportedHdrTypes.end(),
+                           std::back_inserter(outMode.supportedHdrTypes),
+                           [](const ui::Hdr& value) { return static_cast<int32_t>(value); });
+
             outInfo->supportedDisplayModes.push_back(outMode);
         }
 

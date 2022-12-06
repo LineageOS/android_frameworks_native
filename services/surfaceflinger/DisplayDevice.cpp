@@ -203,7 +203,7 @@ void DisplayDevice::setActiveMode(DisplayModeId modeId, Fps displayFps, Fps rend
     mRefreshRateSelector->setActiveMode(modeId, renderFps);
 
     if (mRefreshRateOverlay) {
-        mRefreshRateOverlay->changeRefreshRate(displayFps);
+        mRefreshRateOverlay->changeRefreshRate(displayFps, renderFps);
     }
 }
 
@@ -410,26 +410,35 @@ HdrCapabilities DisplayDevice::getHdrCapabilities() const {
                            capabilities.getDesiredMinLuminance());
 }
 
-void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinnner) {
+void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinner, bool showRenderRate) {
     if (!enable) {
         mRefreshRateOverlay.reset();
         return;
     }
 
+    ftl::Flags<RefreshRateOverlay::Features> features;
+    if (showSpinner) {
+        features |= RefreshRateOverlay::Features::Spinner;
+    }
+
+    if (showRenderRate) {
+        features |= RefreshRateOverlay::Features::RenderRate;
+    }
+
     const auto fpsRange = mRefreshRateSelector->getSupportedRefreshRateRange();
-    mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(fpsRange, showSpinnner);
+    mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(fpsRange, features);
     mRefreshRateOverlay->setLayerStack(getLayerStack());
     mRefreshRateOverlay->setViewport(getSize());
-    mRefreshRateOverlay->changeRefreshRate(getActiveMode().modePtr->getFps());
+    mRefreshRateOverlay->changeRefreshRate(getActiveMode().modePtr->getFps(), getActiveMode().fps);
 }
 
 bool DisplayDevice::onKernelTimerChanged(std::optional<DisplayModeId> desiredModeId,
                                          bool timerExpired) {
     if (mRefreshRateSelector && mRefreshRateOverlay) {
-        const auto newRefreshRate =
+        const auto newMode =
                 mRefreshRateSelector->onKernelTimerChanged(desiredModeId, timerExpired);
-        if (newRefreshRate) {
-            mRefreshRateOverlay->changeRefreshRate(*newRefreshRate);
+        if (newMode) {
+            mRefreshRateOverlay->changeRefreshRate(newMode->modePtr->getFps(), newMode->fps);
             return true;
         }
     }

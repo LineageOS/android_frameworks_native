@@ -98,6 +98,8 @@ bool enable_frame_rate_override(bool defaultValue);
 
 bool frame_rate_override_for_native_rates(bool defaultValue);
 
+bool frame_rate_override_global(bool defaultValue);
+
 bool enable_layer_caching(bool defaultValue);
 
 bool enable_sdr_dimming(bool defaultValue);
