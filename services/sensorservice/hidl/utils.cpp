@@ -76,8 +76,8 @@ Result convertResult(status_t status) {
 
 ::android::hardware::sensors::V1_0::Event convertEvent(const ::ASensorEvent& src) {
     ::android::hardware::sensors::V1_0::Event dst;
-    ::android::hardware::sensors::V1_0::implementation::convertFromSensorEvent(
-            reinterpret_cast<const sensors_event_t&>(src), &dst);
+    ::android::hardware::sensors::V1_0::implementation::convertFromASensorEvent(
+            src, &dst);
     return dst;
 }
 
