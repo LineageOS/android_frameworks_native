@@ -12,13 +12,14 @@ aidl_interface {
     host_supported: true,
     unstable: true,
     srcs: [
-        "EmptyParcelable.aidl",
-        "SingleDataParcelable.aidl",
-        "GenericDataParcelable.aidl",
+        "parcelables/EmptyParcelable.aidl",
+        "parcelables/SingleDataParcelable.aidl",
+        "parcelables/GenericDataParcelable.aidl",
     ],
     backend: {
         java: {
-            enabled: false,
+            enabled: true,
+            platform_apis: true,
         },
         rust: {
             enabled: true,
