@@ -6990,6 +6990,44 @@ TEST_P(TouchscreenPrecisionTestsFixture, OrientationPrecision) {
     }
 }
 
+TEST_P(TouchscreenPrecisionTestsFixture, RotationPrecisionWhenOrientationAware) {
+    static const std::map<ui::Rotation /*rotation*/, std::array<vec2, 4> /*mappedCorners*/>
+            kMappedCorners = {
+                    {ui::ROTATION_0, {{{0, 0}, {479.5, 0}, {479.5, 799.75}, {0, 799.75}}}},
+                    {ui::ROTATION_90, {{{0.5, 0}, {480, 0}, {480, 799.75}, {0.5, 799.75}}}},
+                    {ui::ROTATION_180, {{{0.5, 0.25}, {480, 0.25}, {480, 800}, {0.5, 800}}}},
+                    {ui::ROTATION_270, {{{0, 0.25}, {479.5, 0.25}, {479.5, 800}, {0, 800}}}},
+            };
+
+    const ui::Rotation displayRotation = GetParam();
+
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(displayRotation);
+
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    const auto& expectedPoints = kMappedCorners.at(displayRotation);
+
+    // Test all four corners.
+    for (int i = 0; i < 4; i++) {
+        const auto& expected = expectedPoints[i];
+        const auto& raw = kRawCorners[i];
+        processDown(mapper, raw.x, raw.y);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                      WithCoords(expected.x, expected.y), WithPrecision(2, 4))))
+                << "Failed to process raw point (" << raw.x << ", " << raw.y << ") "
+                << "with display rotation " << ui::toCString(displayRotation)
+                << ", expected point (" << expected.x << ", " << expected.y << ").";
+        processUp(mapper);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                      WithCoords(expected.x, expected.y))));
+    }
+}
+
 // Run the precision tests for all rotations.
 INSTANTIATE_TEST_SUITE_P(TouchscreenPrecisionTests, TouchscreenPrecisionTestsFixture,
                          ::testing::Values(ui::ROTATION_0, ui::ROTATION_90, ui::ROTATION_180,
