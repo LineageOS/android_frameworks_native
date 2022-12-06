@@ -2357,8 +2357,7 @@ class InputDispatcherDisplayProjectionTest : public InputDispatcherTest {
 public:
     void SetUp() override {
         InputDispatcherTest::SetUp();
-        mDisplayInfos.clear();
-        mWindowInfos.clear();
+        removeAllWindowsAndDisplays();
     }
 
     void addDisplayInfo(int displayId, const ui::Transform& transform) {
@@ -2372,6 +2371,11 @@ public:
     void addWindow(const sp<WindowInfoHandle>& windowHandle) {
         mWindowInfos.push_back(*windowHandle->getInfo());
         mDispatcher->onWindowInfosChanged(mWindowInfos, mDisplayInfos);
+    }
+
+    void removeAllWindowsAndDisplays() {
+        mDisplayInfos.clear();
+        mWindowInfos.clear();
     }
 
     // Set up a test scenario where the display has a scaled projection and there are two windows
@@ -2405,11 +2409,11 @@ private:
     std::vector<gui::WindowInfo> mWindowInfos;
 };
 
-TEST_F(InputDispatcherDisplayProjectionTest, HitTestsInDisplaySpace) {
+TEST_F(InputDispatcherDisplayProjectionTest, HitTestCoordinateSpaceConsistency) {
     auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
     // Send down to the first window. The point is represented in the display space. The point is
-    // selected so that if the hit test was done with the transform applied to it, then it would
-    // end up in the incorrect window.
+    // selected so that if the hit test was performed with the point and the bounds being in
+    // different coordinate spaces, the event would end up in the incorrect window.
     NotifyMotionArgs downMotionArgs =
             generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
                                ADISPLAY_ID_DEFAULT, {PointF{75, 55}});
@@ -2483,6 +2487,78 @@ TEST_F(InputDispatcherDisplayProjectionTest, WindowGetsEventsInCorrectCoordinate
     EXPECT_EQ(100, event->getX(0));
     EXPECT_EQ(80, event->getY(0));
 }
+
+/** Ensure consistent behavior of InputDispatcher in all orientations. */
+class InputDispatcherDisplayOrientationFixture
+      : public InputDispatcherDisplayProjectionTest,
+        public ::testing::WithParamInterface<ui::Rotation> {};
+
+// This test verifies the touchable region of a window for all rotations of the display by tapping
+// in different locations on the display, specifically points close to the four corners of a
+// window.
+TEST_P(InputDispatcherDisplayOrientationFixture, HitTestInDifferentOrientations) {
+    constexpr static int32_t displayWidth = 400;
+    constexpr static int32_t displayHeight = 800;
+
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    const auto rotation = GetParam();
+
+    // Set up the display with the specified rotation.
+    const bool isRotated = rotation == ui::ROTATION_90 || rotation == ui::ROTATION_270;
+    const int32_t logicalDisplayWidth = isRotated ? displayHeight : displayWidth;
+    const int32_t logicalDisplayHeight = isRotated ? displayWidth : displayHeight;
+    const ui::Transform displayTransform(ui::Transform::toRotationFlags(rotation),
+                                         logicalDisplayWidth, logicalDisplayHeight);
+    addDisplayInfo(ADISPLAY_ID_DEFAULT, displayTransform);
+
+    // Create a window with its bounds determined in the logical display.
+    const Rect frameInLogicalDisplay(100, 100, 200, 300);
+    const Rect frameInDisplay = displayTransform.inverse().transform(frameInLogicalDisplay);
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(frameInDisplay, displayTransform);
+    addWindow(window);
+
+    // The following points in logical display space should be inside the window.
+    static const std::array<vec2, 4> insidePoints{
+            {{100, 100}, {199.99, 100}, {100, 299.99}, {199.99, 299.99}}};
+    for (const auto pointInsideWindow : insidePoints) {
+        const vec2 p = displayTransform.inverse().transform(pointInsideWindow);
+        const PointF pointInDisplaySpace{p.x, p.y};
+        const auto down = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                             ADISPLAY_ID_DEFAULT, {pointInDisplaySpace});
+        mDispatcher->notifyMotion(&down);
+        window->consumeMotionDown();
+
+        const auto up = generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
+                                           ADISPLAY_ID_DEFAULT, {pointInDisplaySpace});
+        mDispatcher->notifyMotion(&up);
+        window->consumeMotionUp();
+    }
+
+    // The following points in logical display space should be outside the window.
+    static const std::array<vec2, 5> outsidePoints{
+            {{200, 100}, {100, 300}, {200, 300}, {100, 99.99}, {99.99, 100}}};
+    for (const auto pointOutsideWindow : outsidePoints) {
+        const vec2 p = displayTransform.inverse().transform(pointOutsideWindow);
+        const PointF pointInDisplaySpace{p.x, p.y};
+        const auto down = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                             ADISPLAY_ID_DEFAULT, {pointInDisplaySpace});
+        mDispatcher->notifyMotion(&down);
+
+        const auto up = generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
+                                           ADISPLAY_ID_DEFAULT, {pointInDisplaySpace});
+        mDispatcher->notifyMotion(&up);
+    }
+    window->assertNoEvents();
+}
+
+// Run the precision tests for all rotations.
+INSTANTIATE_TEST_SUITE_P(InputDispatcherDisplayOrientationTests,
+                         InputDispatcherDisplayOrientationFixture,
+                         ::testing::Values(ui::ROTATION_0, ui::ROTATION_90, ui::ROTATION_180,
+                                           ui::ROTATION_270));
 
 using TransferFunction = std::function<bool(const std::unique_ptr<InputDispatcher>& dispatcher,
                                             sp<IBinder>, sp<IBinder>)>;
