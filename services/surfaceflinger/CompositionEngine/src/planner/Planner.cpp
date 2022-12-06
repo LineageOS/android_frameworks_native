@@ -201,11 +201,11 @@ void Planner::reportFinalPlan(
                             finalPlan);
 }
 
-void Planner::renderCachedSets(
-        const OutputCompositionState& outputState,
-        std::optional<std::chrono::steady_clock::time_point> renderDeadline) {
+void Planner::renderCachedSets(const OutputCompositionState& outputState,
+                               std::optional<std::chrono::steady_clock::time_point> renderDeadline,
+                               bool deviceHandlesColorTransform) {
     ATRACE_CALL();
-    mFlattener.renderCachedSets(outputState, renderDeadline);
+    mFlattener.renderCachedSets(outputState, renderDeadline, deviceHandlesColorTransform);
 }
 
 void Planner::dump(const Vector<String16>& args, std::string& result) {

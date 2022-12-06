@@ -75,11 +75,8 @@ const bool DEBUG_TOUCH_MODE =
 
 /**
  * Log debug messages about touch occlusion
- * Enable this via "adb shell setprop log.tag.InputDispatcherTouchOcclusion DEBUG" (requires
- * restart)
  */
-const bool DEBUG_TOUCH_OCCLUSION =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "TouchOcclusion", ANDROID_LOG_INFO);
+constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 
 /**
  * Log debug messages about the app switch latency optimization.

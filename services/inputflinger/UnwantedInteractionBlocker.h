@@ -43,6 +43,25 @@ std::optional<AndroidPalmFilterDeviceInfo> createPalmFilterDeviceInfo(
 
 static constexpr int32_t ACTION_UNKNOWN = -1;
 
+/**
+ * Remove the data for the provided pointers from the args. The pointers are identified by their
+ * pointerId, not by the index inside the array.
+ * Return the new NotifyMotionArgs struct that has the remaining pointers.
+ * The only fields that may be different in the returned args from the provided args are:
+ *     - action
+ *     - pointerCount
+ *     - pointerProperties
+ *     - pointerCoords
+ * Action might change because it contains a pointer index. If another pointer is removed, the
+ * active pointer index would be shifted.
+ *
+ * If the active pointer id is removed (for example, for events like
+ * POINTER_UP or POINTER_DOWN), then the action is set to ACTION_UNKNOWN. It is up to the caller
+ * to set the action appropriately after the call.
+ *
+ * @param args the args from which the pointers should be removed
+ * @param pointerIds the pointer ids of the pointers that should be removed
+ */
 NotifyMotionArgs removePointerIds(const NotifyMotionArgs& args,
                                   const std::set<int32_t>& pointerIds);
 
@@ -101,6 +120,9 @@ private:
     std::map<int32_t /*deviceId*/, PalmRejector> mPalmRejectors GUARDED_BY(mLock);
     // TODO(b/210159205): delete this when simultaneous stylus and touch is supported
     void notifyMotionLocked(const NotifyMotionArgs* args) REQUIRES(mLock);
+
+    // Call this function for outbound events so that they can be logged when logging is enabled.
+    void enqueueOutboundMotionLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
 };
 
 class SlotState {
@@ -144,13 +166,21 @@ public:
     std::vector<NotifyMotionArgs> processMotion(const NotifyMotionArgs& args);
 
     // Get the device info of this device, for comparison purposes
-    const AndroidPalmFilterDeviceInfo& getPalmFilterDeviceInfo();
+    const AndroidPalmFilterDeviceInfo& getPalmFilterDeviceInfo() const;
     std::string dump() const;
 
 private:
     PalmRejector(const PalmRejector&) = delete;
     PalmRejector& operator=(const PalmRejector&) = delete;
 
+    /**
+     * Update the slot state and send this event to the palm rejection model for palm detection.
+     * Return the pointer ids that should be suppressed.
+     *
+     * This function is not const because it has side-effects. It will update the slot state using
+     * the incoming args! Also, it will call Filter(..), which has side-effects.
+     */
+    std::set<int32_t> detectPalmPointers(const NotifyMotionArgs& args);
     std::unique_ptr<::ui::SharedPalmDetectionFilterState> mSharedPalmState;
     AndroidPalmFilterDeviceInfo mDeviceInfo;
     std::unique_ptr<::ui::PalmDetectionFilter> mPalmDetectionFilter;

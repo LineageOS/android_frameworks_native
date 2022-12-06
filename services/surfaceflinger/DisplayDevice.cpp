@@ -104,7 +104,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
 
     mCompositionDisplay->getRenderSurface()->initialize();
 
-    setPowerMode(args.initialPowerMode);
+    if (args.initialPowerMode.has_value()) setPowerMode(args.initialPowerMode.value());
 
     // initialize the display orientation transform.
     setProjection(ui::ROTATION_0, Rect::INVALID_RECT, Rect::INVALID_RECT);
@@ -173,20 +173,31 @@ auto DisplayDevice::getInputInfo() const -> InputInfo {
 }
 
 void DisplayDevice::setPowerMode(hal::PowerMode mode) {
+    if (mode == hal::PowerMode::OFF || mode == hal::PowerMode::ON) {
+        if (mStagedBrightness && mBrightness != *mStagedBrightness) {
+            getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
+            mBrightness = *mStagedBrightness;
+        }
+        mStagedBrightness = std::nullopt;
+        getCompositionDisplay()->applyDisplayBrightness(true);
+    }
+
     mPowerMode = mode;
-    getCompositionDisplay()->setCompositionEnabled(mPowerMode != hal::PowerMode::OFF);
+
+    getCompositionDisplay()->setCompositionEnabled(mPowerMode.has_value() &&
+                                                   *mPowerMode != hal::PowerMode::OFF);
 }
 
 void DisplayDevice::enableLayerCaching(bool enable) {
     getCompositionDisplay()->setLayerCachingEnabled(enable);
 }
 
-hal::PowerMode DisplayDevice::getPowerMode() const {
+std::optional<hal::PowerMode> DisplayDevice::getPowerMode() const {
     return mPowerMode;
 }
 
 bool DisplayDevice::isPoweredOn() const {
-    return mPowerMode != hal::PowerMode::OFF;
+    return mPowerMode && *mPowerMode != hal::PowerMode::OFF;
 }
 
 void DisplayDevice::setActiveMode(DisplayModeId id) {
@@ -211,6 +222,7 @@ status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
               to_string(getId()).c_str());
         return BAD_VALUE;
     }
+    mNumModeSwitchesInPolicy++;
     mUpcomingActiveMode = info;
     ATRACE_INT(mActiveModeFPSHwcTrace.c_str(), info.mode->getFps().getIntValue());
     return mHwComposer.setActiveModeWithConstraints(getPhysicalId(), info.mode->getHwcId(),
@@ -324,8 +336,10 @@ void DisplayDevice::stageBrightness(float brightness) {
 }
 
 void DisplayDevice::persistBrightness(bool needsComposite) {
-    if (needsComposite && mStagedBrightness && mBrightness != *mStagedBrightness) {
-        getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
+    if (mStagedBrightness && mBrightness != *mStagedBrightness) {
+        if (needsComposite) {
+            getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
+        }
         mBrightness = *mStagedBrightness;
     }
     mStagedBrightness = std::nullopt;
@@ -372,7 +386,7 @@ void DisplayDevice::dump(std::string& result) const {
     }
 
     result += "\n   powerMode="s;
-    result += to_string(mPowerMode);
+    result += mPowerMode.has_value() ? to_string(mPowerMode.value()) : "OFF(reset)";
     result += '\n';
 
     if (mRefreshRateConfigs) {
@@ -535,6 +549,27 @@ void DisplayDevice::clearDesiredActiveModeState() {
     std::scoped_lock lock(mActiveModeLock);
     mDesiredActiveMode.event = scheduler::DisplayModeEvent::None;
     mDesiredActiveModeChanged = false;
+}
+
+status_t DisplayDevice::setRefreshRatePolicy(
+        const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy) {
+    const auto oldPolicy = mRefreshRateConfigs->getCurrentPolicy();
+    const status_t setPolicyResult = overridePolicy
+            ? mRefreshRateConfigs->setOverridePolicy(policy)
+            : mRefreshRateConfigs->setDisplayManagerPolicy(*policy);
+
+    if (setPolicyResult == OK) {
+        const int numModeChanges = mNumModeSwitchesInPolicy.exchange(0);
+
+        ALOGI("Display %s policy changed\n"
+              "Previous: {%s}\n"
+              "Current:  {%s}\n"
+              "%d mode changes were performed under the previous policy",
+              to_string(getId()).c_str(), oldPolicy.toString().c_str(),
+              policy ? policy->toString().c_str() : "null", numModeChanges);
+    }
+
+    return setPolicyResult;
 }
 
 std::atomic<int32_t> DisplayDeviceState::sNextSequenceId(1);

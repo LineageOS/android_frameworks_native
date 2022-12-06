@@ -64,9 +64,10 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
 }
 
 bool shouldDisregardTransformation(uint32_t source) {
-    // Do not apply any transformations to axes from joysticks or touchpads.
+    // Do not apply any transformations to axes from joysticks, touchpads, or relative mice.
     return isFromSource(source, AINPUT_SOURCE_CLASS_JOYSTICK) ||
-            isFromSource(source, AINPUT_SOURCE_CLASS_POSITION);
+            isFromSource(source, AINPUT_SOURCE_CLASS_POSITION) ||
+            isFromSource(source, AINPUT_SOURCE_MOUSE_RELATIVE);
 }
 
 bool shouldDisregardOffset(uint32_t source) {
@@ -86,6 +87,25 @@ const char* motionClassificationToString(MotionClassification classification) {
             return "AMBIGUOUS_GESTURE";
         case MotionClassification::DEEP_PRESS:
             return "DEEP_PRESS";
+    }
+}
+
+const char* motionToolTypeToString(int32_t toolType) {
+    switch (toolType) {
+        case AMOTION_EVENT_TOOL_TYPE_UNKNOWN:
+            return "UNKNOWN";
+        case AMOTION_EVENT_TOOL_TYPE_FINGER:
+            return "FINGER";
+        case AMOTION_EVENT_TOOL_TYPE_STYLUS:
+            return "STYLUS";
+        case AMOTION_EVENT_TOOL_TYPE_MOUSE:
+            return "MOUSE";
+        case AMOTION_EVENT_TOOL_TYPE_ERASER:
+            return "ERASER";
+        case AMOTION_EVENT_TOOL_TYPE_PALM:
+            return "PALM";
+        default:
+            return "INVALID";
     }
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_TOUCHEDWINDOW_H
-#define _UI_INPUT_INPUTDISPATCHER_TOUCHEDWINDOW_H
+#include "MockAidlPowerHalWrapper.h"
+#include "MockIPower.h"
 
-namespace android {
+namespace android::Hwc2::mock {
 
-namespace gui {
-class WindowInfoHandle;
-}
+MockAidlPowerHalWrapper::MockAidlPowerHalWrapper()
+      : AidlPowerHalWrapper(sp<testing::NiceMock<MockIPower>>::make()){};
+MockAidlPowerHalWrapper::~MockAidlPowerHalWrapper() = default;
 
-namespace inputdispatcher {
-
-// Focus tracking for touch.
-struct TouchedWindow {
-    sp<gui::WindowInfoHandle> windowHandle;
-    int32_t targetFlags;
-    BitSet32 pointerIds;
-};
-
-} // namespace inputdispatcher
-} // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_TOUCHEDWINDOW_H
+} // namespace android::Hwc2::mock

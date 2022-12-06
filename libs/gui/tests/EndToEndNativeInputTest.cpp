@@ -1184,18 +1184,23 @@ public:
     std::vector<sp<IGraphicBufferProducer>> mProducers;
 };
 
-TEST_F(MultiDisplayTests, drop_input_if_layer_on_invalid_display) {
+TEST_F(MultiDisplayTests, drop_touch_if_layer_on_invalid_display) {
     ui::LayerStack layerStack = ui::LayerStack::fromValue(42);
     // Do not create a display associated with the LayerStack.
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
     surface->doTransaction([&](auto &t, auto &sc) { t.setLayerStack(sc, layerStack); });
     surface->showAt(100, 100);
 
+    // Touches should be dropped if the layer is on an invalid display.
     injectTapOnDisplay(101, 101, layerStack.id);
-    surface->requestFocus(layerStack.id);
-    injectKeyOnDisplay(AKEYCODE_V, layerStack.id);
-
     EXPECT_EQ(surface->consumeEvent(100), nullptr);
+
+    // However, we still let the window be focused and receive keys.
+    surface->requestFocus(layerStack.id);
+    surface->assertFocusChange(true);
+
+    injectKeyOnDisplay(AKEYCODE_V, layerStack.id);
+    surface->expectKey(AKEYCODE_V);
 }
 
 TEST_F(MultiDisplayTests, virtual_display_receives_input) {

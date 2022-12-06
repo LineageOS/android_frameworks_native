@@ -726,7 +726,7 @@ status_t AidlSensorHalWrapper::registerDirectChannel(const sensors_direct_mem_t 
             .type = type,
             .format = format,
             .size = static_cast<int32_t>(memory->size),
-            .memoryHandle = makeToAidl(memory->handle),
+            .memoryHandle = dupToAidl(memory->handle),
     };
 
     return convertToStatus(mSensors->registerDirectChannel(mem, channelHandle));
