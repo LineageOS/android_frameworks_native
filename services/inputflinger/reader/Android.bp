@@ -50,6 +50,7 @@ filegroup {
         "mapper/SensorInputMapper.cpp",
         "mapper/SingleTouchInputMapper.cpp",
         "mapper/SwitchInputMapper.cpp",
+        "mapper/TouchCursorInputMapperCommon.cpp",
         "mapper/TouchInputMapper.cpp",
         "mapper/TouchpadInputMapper.cpp",
         "mapper/VibratorInputMapper.cpp",
