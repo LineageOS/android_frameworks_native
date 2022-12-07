@@ -28,17 +28,26 @@ __BEGIN_DECLS
  *
  * When using this, it is expected that ABinderProcess_setupPolling and
  * ABinderProcess_handlePolledCommands are not used.
+ *
+ * Do not use this from a library. Apps setup their own threadpools, and otherwise, the main
+ * function should be responsible for configuring the threadpool for the entire application.
  */
 void ABinderProcess_startThreadPool();
 /**
  * This sets the maximum number of threads that can be started in the threadpool. By default, after
  * startThreadPool is called, this is 15. If it is called additional times, it will only prevent
  * the kernel from starting new threads and will not delete already existing threads.
+ *
+ * Do not use this from a library. Apps setup their own threadpools, and otherwise, the main
+ * function should be responsible for configuring the threadpool for the entire application.
  */
 bool ABinderProcess_setThreadPoolMaxThreadCount(uint32_t numThreads);
 /**
  * This adds the current thread to the threadpool. This may cause the threadpool to exceed the
  * maximum size.
+ *
+ * Do not use this from a library. Apps setup their own threadpools, and otherwise, the main
+ * function should be responsible for configuring the threadpool for the entire application.
  */
 void ABinderProcess_joinThreadPool();
 
