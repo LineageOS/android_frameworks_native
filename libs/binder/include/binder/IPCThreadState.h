@@ -141,11 +141,13 @@ public:
             void                restoreCallingIdentity(int64_t token);
             bool hasExplicitIdentity();
 
+            // For main functions - dangerous for libraries to use
             status_t            setupPolling(int* fd);
             status_t            handlePolledCommands();
             void                flushCommands();
             bool                flushIfNeeded();
 
+            // For main functions - dangerous for libraries to use
             void                joinThreadPool(bool isMain = true);
             
             // Stop the local process.
