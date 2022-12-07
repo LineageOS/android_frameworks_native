@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android/gui/DropInputMode.h>
 #include <compositionengine/LayerFE.h>
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
@@ -280,6 +281,11 @@ public:
         // a buffer of a different size. ui::Transform::ROT_INVALID means the
         // a fixed transform hint is not set.
         ui::Transform::RotationFlags fixedTransformHint;
+
+        // Whether or not this layer is a trusted overlay for input
+        bool isTrustedOverlay;
+
+        gui::DropInputMode dropInputMode;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -357,6 +363,7 @@ public:
     // is specified in pixels.
     virtual bool setBackgroundBlurRadius(int backgroundBlurRadius);
     virtual bool setTransparentRegionHint(const Region& transparent);
+    virtual bool setTrustedOverlay(bool);
     virtual bool setFlags(uint8_t flags, uint8_t mask);
     virtual bool setLayerStack(uint32_t layerStack);
     virtual uint32_t getLayerStack() const;
@@ -407,6 +414,8 @@ public:
     bool setShadowRadius(float shadowRadius);
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
+    bool setDropInputMode(gui::DropInputMode);
+
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
     //  rate priority from its parent.
     virtual int32_t getFrameRateSelectionPriority() const;
@@ -1097,6 +1106,9 @@ private:
                                           const std::vector<Layer*>& layersInTree);
 
     void updateTreeHasFrameRateVote();
+    bool isTrustedOverlay() const;
+    gui::DropInputMode getDropInputMode() const;
+    void handleDropInputMode(InputWindowInfo& info) const;
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling.

@@ -30,6 +30,14 @@ cc_library_headers {
     min_sdk_version: "29",
 }
 
+// AIDL files that should be exposed to java
+filegroup {
+    name: "guiconstants_aidl",
+    srcs: [
+        "android/gui/DropInputMode.aidl",
+    ],
+}
+
 cc_defaults {
     name: "libgui_defaults",
 
@@ -38,6 +46,7 @@ cc_defaults {
     defaults: ["libgui_bufferqueue-defaults"],
 
     srcs: [
+        ":guiconstants_aidl",
         ":framework_native_aidl",
         ":libgui_bufferqueue_sources",
 
