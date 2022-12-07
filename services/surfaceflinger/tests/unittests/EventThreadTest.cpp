@@ -633,9 +633,10 @@ TEST_F(EventThreadTest, postConfigChangedPrimary) {
                               .setId(DisplayModeId(7))
                               .setVsyncPeriod(16666666)
                               .build();
+    const Fps fps = mode->getFps() / 2;
 
-    mThread->onModeChanged(mode);
-    expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 7, 16666666);
+    mThread->onModeChanged({fps, ftl::as_non_null(mode)});
+    expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 7, fps.getPeriodNsecs());
 }
 
 TEST_F(EventThreadTest, postConfigChangedExternal) {
@@ -644,9 +645,10 @@ TEST_F(EventThreadTest, postConfigChangedExternal) {
                               .setId(DisplayModeId(5))
                               .setVsyncPeriod(16666666)
                               .build();
+    const Fps fps = mode->getFps() / 2;
 
-    mThread->onModeChanged(mode);
-    expectConfigChangedEventReceivedByConnection(EXTERNAL_DISPLAY_ID, 5, 16666666);
+    mThread->onModeChanged({fps, ftl::as_non_null(mode)});
+    expectConfigChangedEventReceivedByConnection(EXTERNAL_DISPLAY_ID, 5, fps.getPeriodNsecs());
 }
 
 TEST_F(EventThreadTest, postConfigChangedPrimary64bit) {
@@ -655,8 +657,9 @@ TEST_F(EventThreadTest, postConfigChangedPrimary64bit) {
                               .setId(DisplayModeId(7))
                               .setVsyncPeriod(16666666)
                               .build();
-    mThread->onModeChanged(mode);
-    expectConfigChangedEventReceivedByConnection(DISPLAY_ID_64BIT, 7, 16666666);
+    const Fps fps = mode->getFps() / 2;
+    mThread->onModeChanged({fps, ftl::as_non_null(mode)});
+    expectConfigChangedEventReceivedByConnection(DISPLAY_ID_64BIT, 7, fps.getPeriodNsecs());
 }
 
 TEST_F(EventThreadTest, suppressConfigChanged) {
@@ -669,9 +672,10 @@ TEST_F(EventThreadTest, suppressConfigChanged) {
                               .setId(DisplayModeId(9))
                               .setVsyncPeriod(16666666)
                               .build();
+    const Fps fps = mode->getFps() / 2;
 
-    mThread->onModeChanged(mode);
-    expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 9, 16666666);
+    mThread->onModeChanged({fps, ftl::as_non_null(mode)});
+    expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 9, fps.getPeriodNsecs());
 
     auto args = suppressConnectionEventRecorder.waitForCall();
     ASSERT_FALSE(args.has_value());

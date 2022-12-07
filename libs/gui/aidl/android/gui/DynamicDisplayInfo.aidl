@@ -27,6 +27,7 @@ parcelable DynamicDisplayInfo {
     List<DisplayMode> supportedDisplayModes;
 
     int activeDisplayModeId;
+    float renderFrameRate;
 
     int[] supportedColorModes;
     int activeColorMode;
