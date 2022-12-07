@@ -4731,18 +4731,18 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
                                            .value_or(false);
 
     const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayId);
-    if (isInternalDisplay && activeDisplay != display && activeDisplay &&
-        activeDisplay->isPoweredOn()) {
-        ALOGW("Trying to change power mode on non active display while the active display is ON");
-    }
+    const bool isActiveDisplayPoweredOn = activeDisplay && activeDisplay->isPoweredOn();
+
+    ALOGW_IF(display != activeDisplay && isInternalDisplay && isActiveDisplayPoweredOn,
+             "Trying to change power mode on inactive display without powering off active display");
 
     display->setPowerMode(mode);
 
     const auto refreshRate = display->refreshRateSelector().getActiveMode().modePtr->getFps();
     if (!currentModeOpt || *currentModeOpt == hal::PowerMode::OFF) {
         // Turn on the display
-        if (isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn())) {
-            onActiveDisplayChangedLocked(display);
+        if (isInternalDisplay && !isActiveDisplayPoweredOn) {
+            onActiveDisplayChangedLocked(activeDisplay, display);
         }
         // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
         // We can merge the syscall later.
@@ -7042,17 +7042,14 @@ void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<const DisplayDevice>& a
     getRenderEngine().onActiveDisplaySizeChanged(activeDisplay->getSize());
 }
 
-void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) {
+void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& inactiveDisplay,
+                                                  const sp<DisplayDevice>& activeDisplay) {
     ATRACE_CALL();
 
-    if (const auto display = getDisplayDeviceLocked(mActiveDisplayId)) {
-        display->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
+    if (inactiveDisplay) {
+        inactiveDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
     }
 
-    if (!activeDisplay) {
-        ALOGE("%s: activeDisplay is null", __func__);
-        return;
-    }
     mActiveDisplayId = activeDisplay->getPhysicalId();
     activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
 
