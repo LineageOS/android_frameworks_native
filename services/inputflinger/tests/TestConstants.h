@@ -27,4 +27,7 @@ static constexpr std::chrono::duration WAIT_TIMEOUT = 100ms;
 static constexpr nsecs_t ARBITRARY_TIME = 1234;
 static constexpr nsecs_t READ_TIME = 4321;
 
+// Error tolerance for floating point assertions.
+static const float EPSILON = 0.001f;
+
 } // namespace android

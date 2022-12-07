@@ -148,21 +148,23 @@ bool validateKeyEvent(int32_t action) {
 }
 
 bool isValidMotionAction(int32_t action, int32_t actionButton, int32_t pointerCount) {
-    switch (action & AMOTION_EVENT_ACTION_MASK) {
+    switch (MotionEvent::getActionMasked(action)) {
         case AMOTION_EVENT_ACTION_DOWN:
         case AMOTION_EVENT_ACTION_UP:
-        case AMOTION_EVENT_ACTION_CANCEL:
+            return pointerCount == 1;
         case AMOTION_EVENT_ACTION_MOVE:
-        case AMOTION_EVENT_ACTION_OUTSIDE:
         case AMOTION_EVENT_ACTION_HOVER_ENTER:
         case AMOTION_EVENT_ACTION_HOVER_MOVE:
         case AMOTION_EVENT_ACTION_HOVER_EXIT:
+            return pointerCount >= 1;
+        case AMOTION_EVENT_ACTION_CANCEL:
+        case AMOTION_EVENT_ACTION_OUTSIDE:
         case AMOTION_EVENT_ACTION_SCROLL:
             return true;
         case AMOTION_EVENT_ACTION_POINTER_DOWN:
         case AMOTION_EVENT_ACTION_POINTER_UP: {
-            int32_t index = getMotionEventActionPointerIndex(action);
-            return index >= 0 && index < pointerCount;
+            const int32_t index = MotionEvent::getActionIndex(action);
+            return index >= 0 && index < pointerCount && pointerCount > 1;
         }
         case AMOTION_EVENT_ACTION_BUTTON_PRESS:
         case AMOTION_EVENT_ACTION_BUTTON_RELEASE:
@@ -2096,7 +2098,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
 
     bool isSplit = shouldSplitTouch(tempTouchState, entry);
     const bool switchedDevice = (oldState != nullptr) &&
-            (tempTouchState.deviceId != entry.deviceId || tempTouchState.source != entry.source);
+            (oldState->deviceId != entry.deviceId || oldState->source != entry.source);
 
     const bool isHoverAction = (maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE ||
                                 maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
@@ -2104,6 +2106,7 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
     const bool newGesture = (maskedAction == AMOTION_EVENT_ACTION_DOWN ||
                              maskedAction == AMOTION_EVENT_ACTION_SCROLL || isHoverAction);
     const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
+
     if (newGesture) {
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
         if (switchedDevice && tempTouchState.isDown() && !down && !isHoverAction) {
@@ -2995,6 +2998,8 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
                              connection->getInputChannelName().c_str(), eventEntry->id);
         ATRACE_NAME(message.c_str());
     }
+    LOG_ALWAYS_FATAL_IF(!inputTarget.flags.any(InputTarget::DISPATCH_MASK),
+                        "No dispatch flags are set for %s", eventEntry->getDescription().c_str());
 
     const bool wasEmpty = connection->outboundQueue.empty();
 
@@ -4053,10 +4058,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                   args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION));
         }
     }
-    if (!validateMotionEvent(args->action, args->actionButton, args->pointerCount,
-                             args->pointerProperties)) {
-        return;
-    }
+    LOG_ALWAYS_FATAL_IF(!validateMotionEvent(args->action, args->actionButton, args->pointerCount,
+                                             args->pointerProperties),
+                        "Invalid event: %s", args->dump().c_str());
 
     uint32_t policyFlags = args->policyFlags;
     policyFlags |= POLICY_FLAG_TRUSTED;
@@ -4981,10 +4985,6 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
                 }
             }
         }
-
-        if (DEBUG_FOCUS) {
-            logDispatchStateLocked();
-        }
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.
@@ -5014,10 +5014,6 @@ void InputDispatcher::setInputDispatchMode(bool enabled, bool frozen) {
             changed = true;
         } else {
             changed = false;
-        }
-
-        if (DEBUG_FOCUS) {
-            logDispatchStateLocked();
         }
     } // release lock
 
@@ -5192,10 +5188,6 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
                             "transferring touch focus from this window to another window");
             synthesizeCancelationEventsForConnectionLocked(fromConnection, options);
             synthesizePointerDownEventsForConnectionLocked(downTimeInTarget, toConnection);
-        }
-
-        if (DEBUG_FOCUS) {
-            logDispatchStateLocked();
         }
     } // release lock
 

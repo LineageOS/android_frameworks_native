@@ -110,6 +110,13 @@ MATCHER_P(WithMotionAction, action, "MotionEvent with specified action") {
         *result_listener << "expected action " << MotionEvent::actionToString(action)
                          << ", but got " << MotionEvent::actionToString(arg.getAction());
     }
+    if (action == AMOTION_EVENT_ACTION_DOWN) {
+        if (!matches) {
+            *result_listener << "; ";
+        }
+        *result_listener << "downTime should match eventTime for ACTION_DOWN events";
+        matches &= arg.getDownTime() == arg.getEventTime();
+    }
     if (action == AMOTION_EVENT_ACTION_CANCEL) {
         if (!matches) {
             *result_listener << "; ";
@@ -118,6 +125,10 @@ MATCHER_P(WithMotionAction, action, "MotionEvent with specified action") {
         matches &= (arg.getFlags() & AMOTION_EVENT_FLAG_CANCELED) != 0;
     }
     return matches;
+}
+
+MATCHER_P(WithDownTime, downTime, "InputEvent with specified downTime") {
+    return arg.getDownTime() == downTime;
 }
 
 MATCHER_P(WithSource, source, "InputEvent with specified source") {
@@ -1210,6 +1221,7 @@ public:
     void consumeMotionOutsideWithZeroedCoords(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                                               int32_t expectedFlags = 0) {
         InputEvent* event = consume();
+        ASSERT_NE(nullptr, event);
         ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
         const MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
         EXPECT_EQ(AMOTION_EVENT_ACTION_OUTSIDE, motionEvent.getActionMasked());
@@ -1231,7 +1243,7 @@ public:
 
     void consumeMotionEvent(const ::testing::Matcher<MotionEvent>& matcher) {
         MotionEvent* motionEvent = consumeMotion();
-        ASSERT_NE(nullptr, motionEvent) << "Did not get a motion event";
+        ASSERT_NE(nullptr, motionEvent) << "Did not get a motion event, but expected " << matcher;
         ASSERT_THAT(*motionEvent, matcher);
     }
 
@@ -2056,6 +2068,7 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
 
     mDispatcher->waitForIdle();
     InputEvent* inputEvent1 = window1->consume();
+    ASSERT_NE(inputEvent1, nullptr);
     window2->assertNoEvents();
     MotionEvent& motionEvent1 = static_cast<MotionEvent&>(*inputEvent1);
     nsecs_t downTimeForWindow1 = motionEvent1.getDownTime();
@@ -2065,6 +2078,7 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
     mDispatcher->notifyMotion(&(args = generateTouchArgs(POINTER_1_DOWN, {{50, 50}, {150, 50}})));
     mDispatcher->waitForIdle();
     InputEvent* inputEvent2 = window2->consume();
+    ASSERT_NE(inputEvent2, nullptr);
     MotionEvent& motionEvent2 = static_cast<MotionEvent&>(*inputEvent2);
     nsecs_t downTimeForWindow2 = motionEvent2.getDownTime();
     ASSERT_NE(downTimeForWindow1, downTimeForWindow2);
@@ -2074,17 +2088,13 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
     mDispatcher->notifyMotion(
             &(args = generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{50, 50}, {151, 51}})));
     mDispatcher->waitForIdle();
-    InputEvent* inputEvent3 = window2->consume();
-    MotionEvent& motionEvent3 = static_cast<MotionEvent&>(*inputEvent3);
-    ASSERT_EQ(motionEvent3.getDownTime(), downTimeForWindow2);
+    window2->consumeMotionEvent(WithDownTime(downTimeForWindow2));
 
     // Now add new touch down on the second window
     mDispatcher->notifyMotion(
             &(args = generateTouchArgs(POINTER_2_DOWN, {{50, 50}, {151, 51}, {150, 50}})));
     mDispatcher->waitForIdle();
-    InputEvent* inputEvent4 = window2->consume();
-    MotionEvent& motionEvent4 = static_cast<MotionEvent&>(*inputEvent4);
-    ASSERT_EQ(motionEvent4.getDownTime(), downTimeForWindow2);
+    window2->consumeMotionEvent(WithDownTime(downTimeForWindow2));
 
     // TODO(b/232530217): do not send the unnecessary MOVE event and delete the next line
     window1->consumeMotionMove();
@@ -2094,16 +2104,12 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
     mDispatcher->notifyMotion(
             &(args = generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{51, 51}, {151, 51}})));
     mDispatcher->waitForIdle();
-    InputEvent* inputEvent5 = window1->consume();
-    MotionEvent& motionEvent5 = static_cast<MotionEvent&>(*inputEvent5);
-    ASSERT_EQ(motionEvent5.getDownTime(), downTimeForWindow1);
+    window1->consumeMotionEvent(WithDownTime(downTimeForWindow1));
 
     mDispatcher->notifyMotion(&(
             args = generateTouchArgs(POINTER_3_DOWN, {{51, 51}, {151, 51}, {150, 50}, {50, 50}})));
     mDispatcher->waitForIdle();
-    InputEvent* inputEvent6 = window1->consume();
-    MotionEvent& motionEvent6 = static_cast<MotionEvent&>(*inputEvent6);
-    ASSERT_EQ(motionEvent6.getDownTime(), downTimeForWindow1);
+    window1->consumeMotionEvent(WithDownTime(downTimeForWindow1));
 }
 
 TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
@@ -2128,10 +2134,8 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                          .x(900)
                                                          .y(400))
                                         .build()));
-    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
-                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
-    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
-                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
 
     // Move cursor into left window
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -2142,12 +2146,9 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_EXIT,
-                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
-    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
-                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
-    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
-                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+    windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
 
     // Inject a series of mouse events for a mouse click
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -2170,8 +2171,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_BUTTON_PRESS,
-                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher,
@@ -2183,8 +2183,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
-                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE));
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher,
@@ -2205,12 +2204,47 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                          .x(900)
                                                          .y(400))
                                         .build()));
-    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_EXIT,
-                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
-    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
-                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
-    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
-                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+    windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+
+    // No more events
+    windowLeft->assertNoEvents();
+    windowRight->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, HoverWithSpyWindows) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> spyWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy", ADISPLAY_ID_DEFAULT);
+    spyWindow->setFrame(Rect(0, 0, 600, 800));
+    spyWindow->setTrustedOverlay(true);
+    spyWindow->setSpy(true);
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 600, 800));
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spyWindow, window}}});
+
+    // Send mouse cursor to the window
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(100)
+                                                         .y(100))
+                                        .build()));
+
+    window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                                     WithSource(AINPUT_SOURCE_MOUSE)));
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                                        WithSource(AINPUT_SOURCE_MOUSE)));
+
+    window->assertNoEvents();
+    spyWindow->assertNoEvents();
 }
 
 // This test is different from the test above that HOVER_ENTER and HOVER_EXIT events are injected
@@ -2233,8 +2267,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
-                         ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
 
     // Inject a series of mouse events for a mouse click
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -2257,8 +2290,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_BUTTON_PRESS,
-                         ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher,
@@ -2270,8 +2302,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
-                         ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE));
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher,
@@ -2291,8 +2322,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_EXIT,
-                         ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
 }
 
 /**
@@ -2362,14 +2392,13 @@ TEST_F(InputDispatcherTest, HoverEnterMoveRemoveWindowsInSecondDisplay) {
                                                          .x(300)
                                                          .y(600))
                                         .build()));
-    windowDefaultDisplay->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
-                                       ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
-    windowDefaultDisplay->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
-                                       ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowDefaultDisplay->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    windowDefaultDisplay->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
 
     // Remove all windows in secondary display and check that no event happens on window in
     // primary display.
-    mDispatcher->setInputWindows({{SECOND_DISPLAY_ID, {}}});
+    mDispatcher->setInputWindows(
+            {{ADISPLAY_ID_DEFAULT, {windowDefaultDisplay}}, {SECOND_DISPLAY_ID, {}}});
     windowDefaultDisplay->assertNoEvents();
 
     // Move cursor position in window in default display and check that only hover move
@@ -2385,8 +2414,9 @@ TEST_F(InputDispatcherTest, HoverEnterMoveRemoveWindowsInSecondDisplay) {
                                                          .x(400)
                                                          .y(700))
                                         .build()));
-    windowDefaultDisplay->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
-                                       ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowDefaultDisplay->consumeMotionEvent(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithSource(AINPUT_SOURCE_MOUSE)));
     windowDefaultDisplay->assertNoEvents();
 }
 
@@ -4669,6 +4699,7 @@ protected:
 
         const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
         assertMotionAction(expectedAction, motionEvent.getAction());
+        ASSERT_EQ(points.size(), motionEvent.getPointerCount());
 
         for (size_t i = 0; i < points.size(); i++) {
             float expectedX = points[i].x;

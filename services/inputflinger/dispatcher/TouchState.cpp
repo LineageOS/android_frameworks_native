@@ -34,8 +34,7 @@ void TouchState::reset() {
 void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
                                    ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
                                    std::optional<nsecs_t> eventTime) {
-    for (size_t i = 0; i < windows.size(); i++) {
-        TouchedWindow& touchedWindow = windows[i];
+    for (TouchedWindow& touchedWindow : windows) {
         if (touchedWindow.windowHandle == windowHandle) {
             touchedWindow.targetFlags |= targetFlags;
             if (targetFlags.test(InputTarget::Flags::DISPATCH_AS_SLIPPERY_EXIT)) {

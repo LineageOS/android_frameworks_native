@@ -45,6 +45,7 @@
 #include "FakeEventHub.h"
 #include "FakeInputReaderPolicy.h"
 #include "FakePointerController.h"
+#include "InputMapperTest.h"
 #include "InstrumentedInputReader.h"
 #include "TestConstants.h"
 #include "android/hardware/input/InputDeviceCountryCode.h"
@@ -91,9 +92,6 @@ static constexpr int32_t ACTION_POINTER_1_DOWN =
         AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 static constexpr int32_t ACTION_POINTER_1_UP =
         AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-
-// Error tolerance for floating point assertions.
-static const float EPSILON = 0.001f;
 
 // Minimum timestamp separation between subsequent input events from a Bluetooth device.
 static constexpr nsecs_t MIN_BLUETOOTH_TIMESTAMP_DELTA = ms2ns(4);
@@ -2506,195 +2504,6 @@ TEST_F(InputDeviceTest, GetBluetoothAddress) {
     ASSERT_TRUE(address);
     ASSERT_EQ(DEVICE_BLUETOOTH_ADDRESS, *address);
 }
-
-// --- InputMapperTest ---
-
-class InputMapperTest : public testing::Test {
-protected:
-    static const char* DEVICE_NAME;
-    static const char* DEVICE_LOCATION;
-    static const int32_t DEVICE_ID;
-    static const int32_t DEVICE_GENERATION;
-    static const int32_t DEVICE_CONTROLLER_NUMBER;
-    static const ftl::Flags<InputDeviceClass> DEVICE_CLASSES;
-    static const int32_t EVENTHUB_ID;
-
-    std::shared_ptr<FakeEventHub> mFakeEventHub;
-    sp<FakeInputReaderPolicy> mFakePolicy;
-    std::unique_ptr<TestInputListener> mFakeListener;
-    std::unique_ptr<InstrumentedInputReader> mReader;
-    std::shared_ptr<InputDevice> mDevice;
-
-    virtual void SetUp(ftl::Flags<InputDeviceClass> classes, int bus = 0) {
-        mFakeEventHub = std::make_unique<FakeEventHub>();
-        mFakePolicy = sp<FakeInputReaderPolicy>::make();
-        mFakeListener = std::make_unique<TestInputListener>();
-        mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
-                                                            *mFakeListener);
-        mDevice = newDevice(DEVICE_ID, DEVICE_NAME, DEVICE_LOCATION, EVENTHUB_ID, classes, bus);
-        // Consume the device reset notification generated when adding a new device.
-        mFakeListener->assertNotifyDeviceResetWasCalled();
-    }
-
-    void SetUp() override {
-        SetUp(DEVICE_CLASSES);
-    }
-
-    void TearDown() override {
-        mFakeListener.reset();
-        mFakePolicy.clear();
-    }
-
-    void addConfigurationProperty(const char* key, const char* value) {
-        mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, key, value);
-    }
-
-    std::list<NotifyArgs> configureDevice(uint32_t changes) {
-        if (!changes ||
-            (changes &
-             (InputReaderConfiguration::CHANGE_DISPLAY_INFO |
-              InputReaderConfiguration::CHANGE_POINTER_CAPTURE))) {
-            mReader->requestRefreshConfiguration(changes);
-            mReader->loopOnce();
-        }
-        std::list<NotifyArgs> out =
-                mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), changes);
-        // Loop the reader to flush the input listener queue.
-        for (const NotifyArgs& args : out) {
-            mFakeListener->notify(args);
-        }
-        mReader->loopOnce();
-        return out;
-    }
-
-    std::shared_ptr<InputDevice> newDevice(int32_t deviceId, const std::string& name,
-                                           const std::string& location, int32_t eventHubId,
-                                           ftl::Flags<InputDeviceClass> classes, int bus = 0) {
-        InputDeviceIdentifier identifier;
-        identifier.name = name;
-        identifier.location = location;
-        identifier.bus = bus;
-        std::shared_ptr<InputDevice> device =
-                std::make_shared<InputDevice>(mReader->getContext(), deviceId, DEVICE_GENERATION,
-                                              identifier);
-        mReader->pushNextDevice(device);
-        mFakeEventHub->addDevice(eventHubId, name, classes, bus);
-        mReader->loopOnce();
-        return device;
-    }
-
-    template <class T, typename... Args>
-    T& addMapperAndConfigure(Args... args) {
-        T& mapper = mDevice->addMapper<T>(EVENTHUB_ID, args...);
-        configureDevice(0);
-        std::list<NotifyArgs> resetArgList = mDevice->reset(ARBITRARY_TIME);
-        resetArgList += mapper.reset(ARBITRARY_TIME);
-        // Loop the reader to flush the input listener queue.
-        for (const NotifyArgs& loopArgs : resetArgList) {
-            mFakeListener->notify(loopArgs);
-        }
-        mReader->loopOnce();
-        return mapper;
-    }
-
-    void setDisplayInfoAndReconfigure(int32_t displayId, int32_t width, int32_t height,
-                                      ui::Rotation orientation, const std::string& uniqueId,
-                                      std::optional<uint8_t> physicalPort,
-                                      ViewportType viewportType) {
-        mFakePolicy->addDisplayViewport(displayId, width, height, orientation, true /*isActive*/,
-                                        uniqueId, physicalPort, viewportType);
-        configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
-    }
-
-    void clearViewports() {
-        mFakePolicy->clearViewports();
-    }
-
-    std::list<NotifyArgs> process(InputMapper& mapper, nsecs_t when, nsecs_t readTime, int32_t type,
-                                  int32_t code, int32_t value) {
-        RawEvent event;
-        event.when = when;
-        event.readTime = readTime;
-        event.deviceId = mapper.getDeviceContext().getEventHubId();
-        event.type = type;
-        event.code = code;
-        event.value = value;
-        std::list<NotifyArgs> processArgList = mapper.process(&event);
-        for (const NotifyArgs& args : processArgList) {
-            mFakeListener->notify(args);
-        }
-        // Loop the reader to flush the input listener queue.
-        mReader->loopOnce();
-        return processArgList;
-    }
-
-    void resetMapper(InputMapper& mapper, nsecs_t when) {
-        const auto resetArgs = mapper.reset(when);
-        for (const auto& args : resetArgs) {
-            mFakeListener->notify(args);
-        }
-        // Loop the reader to flush the input listener queue.
-        mReader->loopOnce();
-    }
-
-    std::list<NotifyArgs> handleTimeout(InputMapper& mapper, nsecs_t when) {
-        std::list<NotifyArgs> generatedArgs = mapper.timeoutExpired(when);
-        for (const NotifyArgs& args : generatedArgs) {
-            mFakeListener->notify(args);
-        }
-        // Loop the reader to flush the input listener queue.
-        mReader->loopOnce();
-        return generatedArgs;
-    }
-
-    static void assertMotionRange(const InputDeviceInfo& info,
-            int32_t axis, uint32_t source, float min, float max, float flat, float fuzz) {
-        const InputDeviceInfo::MotionRange* range = info.getMotionRange(axis, source);
-        ASSERT_TRUE(range != nullptr) << "Axis: " << axis << " Source: " << source;
-        ASSERT_EQ(axis, range->axis) << "Axis: " << axis << " Source: " << source;
-        ASSERT_EQ(source, range->source) << "Axis: " << axis << " Source: " << source;
-        ASSERT_NEAR(min, range->min, EPSILON) << "Axis: " << axis << " Source: " << source;
-        ASSERT_NEAR(max, range->max, EPSILON) << "Axis: " << axis << " Source: " << source;
-        ASSERT_NEAR(flat, range->flat, EPSILON) << "Axis: " << axis << " Source: " << source;
-        ASSERT_NEAR(fuzz, range->fuzz, EPSILON) << "Axis: " << axis << " Source: " << source;
-    }
-
-    static void assertPointerCoords(const PointerCoords& coords, float x, float y, float pressure,
-                                    float size, float touchMajor, float touchMinor, float toolMajor,
-                                    float toolMinor, float orientation, float distance,
-                                    float scaledAxisEpsilon = 1.f) {
-        ASSERT_NEAR(x, coords.getAxisValue(AMOTION_EVENT_AXIS_X), scaledAxisEpsilon);
-        ASSERT_NEAR(y, coords.getAxisValue(AMOTION_EVENT_AXIS_Y), scaledAxisEpsilon);
-        ASSERT_NEAR(pressure, coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE), EPSILON);
-        ASSERT_NEAR(size, coords.getAxisValue(AMOTION_EVENT_AXIS_SIZE), EPSILON);
-        ASSERT_NEAR(touchMajor, coords.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR),
-                    scaledAxisEpsilon);
-        ASSERT_NEAR(touchMinor, coords.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR),
-                    scaledAxisEpsilon);
-        ASSERT_NEAR(toolMajor, coords.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR),
-                    scaledAxisEpsilon);
-        ASSERT_NEAR(toolMinor, coords.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR),
-                    scaledAxisEpsilon);
-        ASSERT_NEAR(orientation, coords.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION), EPSILON);
-        ASSERT_NEAR(distance, coords.getAxisValue(AMOTION_EVENT_AXIS_DISTANCE), EPSILON);
-    }
-
-    static void assertPosition(const FakePointerController& controller, float x, float y) {
-        float actualX, actualY;
-        controller.getPosition(&actualX, &actualY);
-        ASSERT_NEAR(x, actualX, 1);
-        ASSERT_NEAR(y, actualY, 1);
-    }
-};
-
-const char* InputMapperTest::DEVICE_NAME = "device";
-const char* InputMapperTest::DEVICE_LOCATION = "USB1";
-const int32_t InputMapperTest::DEVICE_ID = END_RESERVED_ID + 1000;
-const int32_t InputMapperTest::DEVICE_GENERATION = 2;
-const int32_t InputMapperTest::DEVICE_CONTROLLER_NUMBER = 0;
-const ftl::Flags<InputDeviceClass> InputMapperTest::DEVICE_CLASSES =
-        ftl::Flags<InputDeviceClass>(0); // not needed for current tests
-const int32_t InputMapperTest::EVENTHUB_ID = 1;
 
 // --- SwitchInputMapperTest ---
 
