@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <set>
 #include "TouchedWindow.h"
 
 namespace android {
@@ -40,16 +39,9 @@ struct TouchState {
     TouchState& operator=(const TouchState&) = default;
 
     void reset();
-    void clearWindowsWithoutPointers();
-
-    void removeTouchedPointer(int32_t pointerId);
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                            ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
                            std::optional<nsecs_t> eventTime = std::nullopt);
-    void addHoveringPointerToWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
-                                    int32_t deviceId, int32_t hoveringPointerId);
-    void removeHoveringPointer(int32_t deviceId, int32_t hoveringPointerId);
-    void clearHoveringPointers();
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
 
@@ -64,9 +56,6 @@ struct TouchState {
     sp<android::gui::WindowInfoHandle> getWallpaperWindow() const;
     // Whether any of the windows are currently being touched
     bool isDown() const;
-
-    std::set<sp<android::gui::WindowInfoHandle>> getWindowsWithHoveringPointer(
-            int32_t deviceId, int32_t pointerId) const;
     std::string dump() const;
 };
 
