@@ -93,6 +93,58 @@ TEST_F(RecoveryMapTest, build) {
   recovery_map.decodeJPEGR(nullptr, nullptr, nullptr, false);
 }
 
+TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
+  int ret;
+
+  // Load input files.
+  if (!loadFile(RAW_P010_IMAGE, mRawP010Image.data, nullptr)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+  }
+  mRawP010Image.width = RAW_P010_IMAGE_WIDTH;
+  mRawP010Image.height = RAW_P010_IMAGE_HEIGHT;
+  mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+
+  RecoveryMap recoveryMap;
+
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = RAW_P010_IMAGE_WIDTH * RAW_P010_IMAGE_HEIGHT * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+  ret = recoveryMap.encodeJPEGR(
+      &mRawP010Image, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR, 90, nullptr);
+  if (ret != OK) {
+    FAIL() << "Error code is " << ret;
+  }
+  if (SAVE_ENCODING_RESULT) {
+    // Output image data to file
+    std::string filePath = "/sdcard/Documents/encoded_from_jpeg_input.jpgr";
+    std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
+    if (!imageFile.is_open()) {
+      ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
+    }
+    imageFile.write((const char*)jpegR.data, jpegR.length);
+  }
+
+  jpegr_uncompressed_struct decodedJpegR;
+  int decodedJpegRSize = RAW_P010_IMAGE_WIDTH * RAW_P010_IMAGE_HEIGHT * 4;
+  decodedJpegR.data = malloc(decodedJpegRSize);
+  ret = recoveryMap.decodeJPEGR(&jpegR, &decodedJpegR);
+  if (ret != OK) {
+    FAIL() << "Error code is " << ret;
+  }
+  if (SAVE_DECODING_RESULT) {
+    // Output image data to file
+    std::string filePath = "/sdcard/Documents/decoded_from_jpeg_input.rgb10";
+    std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
+    if (!imageFile.is_open()) {
+      ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
+    }
+    imageFile.write((const char*)decodedJpegR.data, decodedJpegRSize);
+  }
+
+  free(jpegR.data);
+  free(decodedJpegR.data);
+}
+
 TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
   int ret;
 
