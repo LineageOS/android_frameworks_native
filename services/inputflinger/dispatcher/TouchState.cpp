@@ -31,30 +31,10 @@ void TouchState::reset() {
     *this = TouchState();
 }
 
-void TouchState::removeTouchedPointer(int32_t pointerId) {
-    for (TouchedWindow& touchedWindow : windows) {
-        touchedWindow.pointerIds.clearBit(pointerId);
-    }
-}
-
-void TouchState::clearHoveringPointers() {
-    for (TouchedWindow& touchedWindow : windows) {
-        touchedWindow.clearHoveringPointers();
-    }
-}
-
-void TouchState::clearWindowsWithoutPointers() {
-    std::erase_if(windows, [](const TouchedWindow& w) {
-        return w.pointerIds.isEmpty() && !w.hasHoveringPointers();
-    });
-}
-
 void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
                                    ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
                                    std::optional<nsecs_t> eventTime) {
     for (TouchedWindow& touchedWindow : windows) {
-        // We do not compare windows by token here because two windows that share the same token
-        // may have a different transform
         if (touchedWindow.windowHandle == windowHandle) {
             touchedWindow.targetFlags |= targetFlags;
             if (targetFlags.test(InputTarget::Flags::DISPATCH_AS_SLIPPERY_EXIT)) {
@@ -76,21 +56,6 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
     touchedWindow.targetFlags = targetFlags;
     touchedWindow.pointerIds = pointerIds;
     touchedWindow.firstDownTimeInTarget = eventTime;
-    windows.push_back(touchedWindow);
-}
-
-void TouchState::addHoveringPointerToWindow(const sp<WindowInfoHandle>& windowHandle,
-                                            int32_t hoveringDeviceId, int32_t hoveringPointerId) {
-    for (TouchedWindow& touchedWindow : windows) {
-        if (touchedWindow.windowHandle == windowHandle) {
-            touchedWindow.addHoveringPointer(hoveringDeviceId, hoveringPointerId);
-            return;
-        }
-    }
-
-    TouchedWindow touchedWindow;
-    touchedWindow.windowHandle = windowHandle;
-    touchedWindow.addHoveringPointer(hoveringDeviceId, hoveringPointerId);
     windows.push_back(touchedWindow);
 }
 
@@ -178,26 +143,6 @@ sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
 bool TouchState::isDown() const {
     return std::any_of(windows.begin(), windows.end(),
                        [](const TouchedWindow& window) { return !window.pointerIds.isEmpty(); });
-}
-
-std::set<sp<WindowInfoHandle>> TouchState::getWindowsWithHoveringPointer(int32_t hoveringDeviceId,
-                                                                         int32_t pointerId) const {
-    std::set<sp<WindowInfoHandle>> out;
-    for (const TouchedWindow& window : windows) {
-        if (window.hasHoveringPointer(hoveringDeviceId, pointerId)) {
-            out.insert(window.windowHandle);
-        }
-    }
-    return out;
-}
-
-void TouchState::removeHoveringPointer(int32_t hoveringDeviceId, int32_t hoveringPointerId) {
-    for (TouchedWindow& window : windows) {
-        window.removeHoveringPointer(hoveringDeviceId, hoveringPointerId);
-    }
-    std::erase_if(windows, [](const TouchedWindow& w) {
-        return w.pointerIds.isEmpty() && !w.hasHoveringPointers();
-    });
 }
 
 std::string TouchState::dump() const {

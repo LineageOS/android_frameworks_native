@@ -2135,6 +2135,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                          .y(400))
                                         .build()));
     windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
 
     // Move cursor into left window
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -2147,6 +2148,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                         .build()));
     windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
     windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
 
     // Inject a series of mouse events for a mouse click
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -2204,6 +2206,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                         .build()));
     windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
     windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
 
     // No more events
     windowLeft->assertNoEvents();
@@ -2265,6 +2268,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                                          .y(400))
                                         .build()));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+
     // Inject a series of mouse events for a mouse click
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher,
@@ -2322,38 +2326,8 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
 }
 
 /**
- * Hover over a window, and then remove that window. Make sure that HOVER_EXIT for that event
- * is generated.
- */
-TEST_F(InputDispatcherTest, HoverExitIsSentToRemovedWindow) {
-    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window =
-            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
-    window->setFrame(Rect(0, 0, 1200, 800));
-
-    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
-
-    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionEvent(mDispatcher,
-                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
-                                                   AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
-                                        .build()));
-    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
-
-    // Remove the window, but keep the channel.
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {}}});
-    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
-}
-
-/**
  * Inject a mouse hover event followed by a tap from touchscreen.
- * The tap causes a HOVER_EXIT event to be generated because the current event
- * stream's source has been switched.
+ * In the current implementation, the tap does not cause a HOVER_EXIT event.
  */
 TEST_F(InputDispatcherTest, MouseHoverAndTouchTap) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
@@ -2373,15 +2347,14 @@ TEST_F(InputDispatcherTest, MouseHoverAndTouchTap) {
     ASSERT_NO_FATAL_FAILURE(
             window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
                                              WithSource(AINPUT_SOURCE_MOUSE))));
+    ASSERT_NO_FATAL_FAILURE(
+            window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                             WithSource(AINPUT_SOURCE_MOUSE))));
 
     // Tap on the window
     motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
                                     ADISPLAY_ID_DEFAULT, {{10, 10}});
     mDispatcher->notifyMotion(&motionArgs);
-    ASSERT_NO_FATAL_FAILURE(
-            window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT),
-                                             WithSource(AINPUT_SOURCE_MOUSE))));
-
     ASSERT_NO_FATAL_FAILURE(
             window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
                                              WithSource(AINPUT_SOURCE_TOUCHSCREEN))));
@@ -2420,6 +2393,7 @@ TEST_F(InputDispatcherTest, HoverEnterMoveRemoveWindowsInSecondDisplay) {
                                                          .y(600))
                                         .build()));
     windowDefaultDisplay->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    windowDefaultDisplay->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
 
     // Remove all windows in secondary display and check that no event happens on window in
     // primary display.
