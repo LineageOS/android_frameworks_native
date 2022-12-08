@@ -782,13 +782,18 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status getStaticDisplayInfo(const sp<IBinder>& /*display*/,
+    binder::Status getStaticDisplayInfo(int64_t /*displayId*/,
                                         gui::StaticDisplayInfo* /*outInfo*/) override {
         return binder::Status::ok();
     }
 
-    binder::Status getDynamicDisplayInfo(const sp<IBinder>& /*display*/,
-                                         gui::DynamicDisplayInfo* /*outInfo*/) override {
+    binder::Status getDynamicDisplayInfoFromId(int64_t /*displayId*/,
+                                               gui::DynamicDisplayInfo* /*outInfo*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getDynamicDisplayInfoFromToken(const sp<IBinder>& /*display*/,
+                                                  gui::DynamicDisplayInfo* /*outInfo*/) override {
         return binder::Status::ok();
     }
 

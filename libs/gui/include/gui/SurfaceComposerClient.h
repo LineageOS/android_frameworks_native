@@ -149,10 +149,10 @@ public:
     static status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState*);
 
     // Get immutable information about given physical display.
-    static status_t getStaticDisplayInfo(const sp<IBinder>& display, ui::StaticDisplayInfo*);
+    static status_t getStaticDisplayInfo(int64_t, ui::StaticDisplayInfo*);
 
-    // Get dynamic information about given physical display.
-    static status_t getDynamicDisplayInfo(const sp<IBinder>& display, ui::DynamicDisplayInfo*);
+    // Get dynamic information about given physical display from display id
+    static status_t getDynamicDisplayInfoFromId(int64_t, ui::DynamicDisplayInfo*);
 
     // Shorthand for the active display mode from getDynamicDisplayInfo().
     // TODO(b/180391891): Update clients to use getDynamicDisplayInfo and remove this function.
@@ -714,6 +714,12 @@ protected:
     ReleaseCallbackThread mReleaseCallbackThread;
 
 private:
+    // Get dynamic information about given physical display from token
+    static status_t getDynamicDisplayInfoFromToken(const sp<IBinder>& display,
+                                                   ui::DynamicDisplayInfo*);
+
+    static void getDynamicDisplayInfoInternal(gui::DynamicDisplayInfo& ginfo,
+                                              ui::DynamicDisplayInfo*& outInfo);
     virtual void onFirstRef();
 
     mutable     Mutex                       mLock;

@@ -126,12 +126,14 @@ interface ISurfaceComposer {
     /**
      * Gets immutable information about given physical display.
      */
-    StaticDisplayInfo getStaticDisplayInfo(IBinder display);
+    StaticDisplayInfo getStaticDisplayInfo(long displayId);
 
     /**
      * Gets dynamic information about given physical display.
      */
-    DynamicDisplayInfo getDynamicDisplayInfo(IBinder display);
+    DynamicDisplayInfo getDynamicDisplayInfoFromId(long displayId);
+
+    DynamicDisplayInfo getDynamicDisplayInfoFromToken(IBinder display);
 
     DisplayPrimaries getDisplayNativePrimaries(IBinder display);
 

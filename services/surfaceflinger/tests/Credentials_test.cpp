@@ -83,6 +83,15 @@ protected:
         return SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
     }
 
+    static std::optional<uint64_t> getFirstDisplayId() {
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        if (ids.empty()) {
+            return std::nullopt;
+        }
+
+        return ids.front().value;
+    }
+
     void setupBackgroundSurface() {
         mDisplay = getFirstDisplayToken();
         ASSERT_FALSE(mDisplay == nullptr);
@@ -169,29 +178,25 @@ TEST_F(CredentialsTest, ClientInitTest) {
 TEST_F(CredentialsTest, GetBuiltInDisplayAccessTest) {
     std::function<bool()> condition = [] { return getFirstDisplayToken() != nullptr; };
     // Anyone can access display information.
-    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, true));
+    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, false));
 }
 
 TEST_F(CredentialsTest, AllowedGetterMethodsTest) {
     // The following methods are tested with a UID that is not root, graphics,
     // or system, to show that anyone can access them.
     UIDFaker f(AID_BIN);
-    const auto display = getFirstDisplayToken();
-    ASSERT_TRUE(display != nullptr);
-
-    ui::DisplayMode mode;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
-
-    Vector<ui::DisplayMode> modes;
+    const auto id = getFirstDisplayId();
+    ASSERT_TRUE(id);
     ui::DynamicDisplayInfo info;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDynamicDisplayInfo(display, &info));
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDynamicDisplayInfoFromId(*id, &info));
 }
 
 TEST_F(CredentialsTest, GetDynamicDisplayInfoTest) {
-    const auto display = getFirstDisplayToken();
+    const auto id = getFirstDisplayId();
+    ASSERT_TRUE(id);
     std::function<status_t()> condition = [=]() {
         ui::DynamicDisplayInfo info;
-        return SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
+        return SurfaceComposerClient::getDynamicDisplayInfoFromId(*id, &info);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, NO_ERROR));
 }
@@ -335,8 +340,10 @@ TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {
     status_t error = SurfaceComposerClient::isWideColorDisplay(display, &result);
     ASSERT_EQ(NO_ERROR, error);
     bool hasWideColorMode = false;
+    const auto id = getFirstDisplayId();
+    ASSERT_TRUE(id);
     ui::DynamicDisplayInfo info;
-    SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
+    SurfaceComposerClient::getDynamicDisplayInfoFromId(*id, &info);
     const auto& colorModes = info.supportedColorModes;
     for (ColorMode colorMode : colorModes) {
         switch (colorMode) {
@@ -363,10 +370,10 @@ TEST_F(CredentialsTest, IsWideColorDisplayWithPrivileges) {
 }
 
 TEST_F(CredentialsTest, GetActiveColorModeBasicCorrectness) {
-    const auto display = getFirstDisplayToken();
-    ASSERT_FALSE(display == nullptr);
+    const auto id = getFirstDisplayId();
+    ASSERT_TRUE(id);
     ui::DynamicDisplayInfo info;
-    SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
+    SurfaceComposerClient::getDynamicDisplayInfoFromId(*id, &info);
     ColorMode colorMode = info.activeColorMode;
     ASSERT_NE(static_cast<ColorMode>(BAD_VALUE), colorMode);
 }

@@ -61,7 +61,7 @@ protected:
 TEST_F(ExcludeDolbyVisionTest, excludesDolbyVisionOnModesHigherThan4k30) {
     injectDisplayModes({mode4k60});
     ui::DynamicDisplayInfo info;
-    mFlinger.getDynamicDisplayInfo(mDisplay->getDisplayToken().promote(), &info);
+    mFlinger.getDynamicDisplayInfoFromToken(mDisplay->getDisplayToken().promote(), &info);
 
     std::vector<ui::DisplayMode> displayModes = info.supportedDisplayModes;
 
@@ -75,7 +75,7 @@ TEST_F(ExcludeDolbyVisionTest, excludesDolbyVisionOnModesHigherThan4k30) {
 TEST_F(ExcludeDolbyVisionTest, includesDolbyVisionOnModesLowerThanOrEqualTo4k30) {
     injectDisplayModes({mode1080p60, mode4k30, mode4k30NonStandard});
     ui::DynamicDisplayInfo info;
-    mFlinger.getDynamicDisplayInfo(mDisplay->getDisplayToken().promote(), &info);
+    mFlinger.getDynamicDisplayInfoFromToken(mDisplay->getDisplayToken().promote(), &info);
 
     std::vector<ui::DisplayMode> displayModes = info.supportedDisplayModes;
 
@@ -94,7 +94,7 @@ TEST_F(ExcludeDolbyVisionTest, includesDolbyVisionOnModesLowerThanOrEqualTo4k30)
 TEST_F(ExcludeDolbyVisionTest, 4k30IsNotReportedAsAValidHdrType) {
     injectDisplayModes({mode4k60});
     ui::DynamicDisplayInfo info;
-    mFlinger.getDynamicDisplayInfo(mDisplay->getDisplayToken().promote(), &info);
+    mFlinger.getDynamicDisplayInfoFromToken(mDisplay->getDisplayToken().promote(), &info);
 
     std::vector<ui::Hdr> displayHdrTypes = info.hdrCapabilities.getSupportedHdrTypes();
 
