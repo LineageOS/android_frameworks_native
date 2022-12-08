@@ -87,6 +87,10 @@ public:
         Scheduler::unregisterDisplay(displayId);
     }
 
+    std::optional<PhysicalDisplayId> leaderDisplayId() const NO_THREAD_SAFETY_ANALYSIS {
+        return mLeaderDisplayId;
+    }
+
     void setLeaderDisplay(PhysicalDisplayId displayId) {
         ftl::FakeGuard guard(kMainThreadContext);
         Scheduler::setLeaderDisplay(displayId);

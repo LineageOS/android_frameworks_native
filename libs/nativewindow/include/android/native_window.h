@@ -372,8 +372,12 @@ int32_t ANativeWindow_setFrameRateWithChangeStrategy(ANativeWindow* window, floa
  *
  * \return 0 for success, -EINVAL if the window value is invalid.
  */
-int32_t ANativeWindow_clearFrameRate(ANativeWindow* window)
-        __INTRODUCED_IN(__ANDROID_API_U__);
+inline int32_t ANativeWindow_clearFrameRate(ANativeWindow* window)
+        __INTRODUCED_IN(__ANDROID_API_U__) {
+    return ANativeWindow_setFrameRateWithChangeStrategy(window, 0,
+            ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT,
+            ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS);
+}
 
 #ifdef __cplusplus
 }

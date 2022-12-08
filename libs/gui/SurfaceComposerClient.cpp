@@ -2337,6 +2337,7 @@ status_t SurfaceComposerClient::getDynamicDisplayInfo(const sp<IBinder>& display
         }
 
         outInfo->activeDisplayModeId = ginfo.activeDisplayModeId;
+        outInfo->renderFrameRate = ginfo.renderFrameRate;
 
         outInfo->supportedColorModes.clear();
         outInfo->supportedColorModes.reserve(ginfo.supportedColorModes.size());

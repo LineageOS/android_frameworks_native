@@ -1002,7 +1002,10 @@ private:
     VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat) REQUIRES(mStateLock);
     void releaseVirtualDisplay(VirtualDisplayId);
 
-    void onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay)
+    // TODO(b/255635821): Replace pointers with references. `inactiveDisplay` is only ever `nullptr`
+    // in tests, and `activeDisplay` must not be `nullptr` as a precondition.
+    void onActiveDisplayChangedLocked(const sp<DisplayDevice>& inactiveDisplay,
+                                      const sp<DisplayDevice>& activeDisplay)
             REQUIRES(mStateLock, kMainThreadContext);
 
     void onActiveDisplaySizeChanged(const sp<const DisplayDevice>&);

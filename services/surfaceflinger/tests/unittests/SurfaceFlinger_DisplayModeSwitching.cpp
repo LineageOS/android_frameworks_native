@@ -144,7 +144,8 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRe
     // Verify that the next commit will complete the mode change and send
     // a onModeChanged event to the framework.
 
-    EXPECT_CALL(*mAppEventThread, onModeChanged(kMode90));
+    EXPECT_CALL(*mAppEventThread,
+                onModeChanged(scheduler::FrameRateMode{90_Hz, ftl::as_non_null(kMode90)}));
     mFlinger.commit();
     Mock::VerifyAndClearExpectations(mAppEventThread);
 
@@ -175,7 +176,8 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithoutRefres
                                                hal::HWConfigId(kModeId90.value()), _, _))
             .WillOnce(DoAll(SetArgPointee<3>(timeline), Return(Error::NONE)));
 
-    EXPECT_CALL(*mAppEventThread, onModeChanged(kMode90));
+    EXPECT_CALL(*mAppEventThread,
+                onModeChanged(scheduler::FrameRateMode{90_Hz, ftl::as_non_null(kMode90)}));
 
     mFlinger.commit();
 

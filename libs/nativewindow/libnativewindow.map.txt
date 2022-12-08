@@ -51,7 +51,6 @@ LIBNATIVEWINDOW {
     ANativeWindow_setDequeueTimeout; # systemapi # introduced=30
     ANativeWindow_setFrameRate; # introduced=30
     ANativeWindow_setFrameRateWithChangeStrategy; # introduced=31
-    ANativeWindow_clearFrameRate; # introduced=UpsideDownCake
     ANativeWindow_setSharedBufferMode; # llndk
     ANativeWindow_setSwapInterval; # llndk
     ANativeWindow_setUsage; # llndk
