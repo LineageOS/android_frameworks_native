@@ -527,7 +527,7 @@ private:
     void setPowerMode(const sp<IBinder>& displayToken, int mode);
     status_t overrideHdrTypes(const sp<IBinder>& displayToken,
                               const std::vector<ui::Hdr>& hdrTypes);
-    status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success);
+    status_t onPullAtom(const int32_t atomId, std::vector<uint8_t>* pulledData, bool* success);
     status_t getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers);
     status_t getColorManagement(bool* outGetColorManagement) const;
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,

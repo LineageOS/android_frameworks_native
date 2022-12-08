@@ -2542,7 +2542,7 @@ status_t SurfaceComposerClient::onPullAtom(const int32_t atomId, std::string* ou
     gui::PullAtomData pad;
     binder::Status status = ComposerServiceAIDL::getComposerService()->onPullAtom(atomId, &pad);
     if (status.isOk()) {
-        outData->assign((const char*)pad.data.data(), pad.data.size());
+        outData->assign(pad.data.begin(), pad.data.end());
         *success = pad.success;
     }
     return statusTFromBinderStatus(status);

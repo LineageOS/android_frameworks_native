@@ -18,6 +18,6 @@ package android.gui;
 
 /** @hide */
 parcelable PullAtomData {
-    @utf8InCpp String data;
+    byte[] data;
     boolean success;
 }

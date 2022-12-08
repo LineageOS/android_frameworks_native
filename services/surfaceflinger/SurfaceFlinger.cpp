@@ -1558,7 +1558,8 @@ status_t SurfaceFlinger::overrideHdrTypes(const sp<IBinder>& displayToken,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::onPullAtom(const int32_t atomId, std::string* pulledData, bool* success) {
+status_t SurfaceFlinger::onPullAtom(const int32_t atomId, std::vector<uint8_t>* pulledData,
+                                    bool* success) {
     *success = mTimeStats->onPullAtom(atomId, pulledData);
     return NO_ERROR;
 }
