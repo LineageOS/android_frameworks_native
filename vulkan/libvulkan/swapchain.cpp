@@ -291,6 +291,9 @@ struct Swapchain {
               release_fence(-1),
               dequeued(false) {}
         VkImage image;
+        // If the image is bound to memory, an sp to the underlying gralloc buffer.
+        // Otherwise, nullptr; the image will be bound to memory as part of
+        // AcquireNextImage.
         android::sp<ANativeWindowBuffer> buffer;
         // The fence is only valid when the buffer is dequeued, and should be
         // -1 any other time. When valid, we own the fd, and must ensure it is
@@ -652,100 +655,40 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     VkSurfaceCapabilitiesKHR* capabilities) {
     ATRACE_CALL();
 
-    int err;
-    int width, height;
-    int transform_hint;
-    int max_buffer_count;
-    if (surface == VK_NULL_HANDLE) {
-        const InstanceData& instance_data = GetData(pdev);
-        ProcHook::Extension surfaceless = ProcHook::GOOGLE_surfaceless_query;
-        bool surfaceless_enabled =
-            instance_data.hook_extensions.test(surfaceless);
-        if (!surfaceless_enabled) {
-            // It is an error to pass a surface==VK_NULL_HANDLE unless the
-            // VK_GOOGLE_surfaceless_query extension is enabled
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
-        // Support for VK_GOOGLE_surfaceless_query.  The primary purpose of this
-        // extension for this function is for
-        // VkSurfaceProtectedCapabilitiesKHR::supportsProtected.  The following
-        // four values cannot be known without a surface.  Default values will
-        // be supplied anyway, but cannot be relied upon.
-        width = 0xFFFFFFFF;
-        height = 0xFFFFFFFF;
-        transform_hint = VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR;
-        capabilities->minImageCount = 0xFFFFFFFF;
-        capabilities->maxImageCount = 0xFFFFFFFF;
+    // Implement in terms of GetPhysicalDeviceSurfaceCapabilities2KHR
+
+    VkPhysicalDeviceSurfaceInfo2KHR info2 = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
+        nullptr,
+        surface
+    };
+
+    VkSurfaceCapabilities2KHR caps2 = {
+        VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
+        nullptr,
+        {},
+    };
+
+    VkResult result = GetPhysicalDeviceSurfaceCapabilities2KHR(pdev, &info2, &caps2);
+    *capabilities = caps2.surfaceCapabilities;
+    return result;
+}
+
+// Does the call-twice and VK_INCOMPLETE handling for querying lists
+// of things, where we already have the full set built in a vector.
+template <typename T>
+VkResult CopyWithIncomplete(std::vector<T> const& things,
+        T* callerPtr, uint32_t* callerCount) {
+    VkResult result = VK_SUCCESS;
+    if (callerPtr) {
+        if (things.size() > *callerCount)
+            result = VK_INCOMPLETE;
+        *callerCount = std::min(uint32_t(things.size()), *callerCount);
+        std::copy(things.begin(), things.begin() + *callerCount, callerPtr);
     } else {
-        ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
-
-        err = window->query(window, NATIVE_WINDOW_DEFAULT_WIDTH, &width);
-        if (err != android::OK) {
-            ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
-                  strerror(-err), err);
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
-        err = window->query(window, NATIVE_WINDOW_DEFAULT_HEIGHT, &height);
-        if (err != android::OK) {
-            ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
-                  strerror(-err), err);
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
-
-        err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT,
-                            &transform_hint);
-        if (err != android::OK) {
-            ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
-                  strerror(-err), err);
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
-
-        err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT,
-                            &max_buffer_count);
-        if (err != android::OK) {
-            ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d)",
-                  strerror(-err), err);
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
-        capabilities->minImageCount = std::min(max_buffer_count, 3);
-        capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
+        *callerCount = things.size();
     }
-
-    capabilities->currentExtent =
-        VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
-
-    // TODO(http://b/134182502): Figure out what the max extent should be.
-    capabilities->minImageExtent = VkExtent2D{1, 1};
-    capabilities->maxImageExtent = VkExtent2D{4096, 4096};
-
-    if (capabilities->maxImageExtent.height <
-        capabilities->currentExtent.height) {
-        capabilities->maxImageExtent.height =
-            capabilities->currentExtent.height;
-    }
-
-    if (capabilities->maxImageExtent.width <
-        capabilities->currentExtent.width) {
-        capabilities->maxImageExtent.width = capabilities->currentExtent.width;
-    }
-
-    capabilities->maxImageArrayLayers = 1;
-
-    capabilities->supportedTransforms = kSupportedTransforms;
-    capabilities->currentTransform =
-        TranslateNativeToVulkanTransform(transform_hint);
-
-    // On Android, window composition is a WindowManager property, not something
-    // associated with the bufferqueue. It can't be changed from here.
-    capabilities->supportedCompositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
-
-    capabilities->supportedUsageFlags =
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-
-    return VK_SUCCESS;
+    return result;
 }
 
 VKAPI_ATTR
@@ -862,21 +805,7 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
     // Android users.  This includes the ANGLE team (a layered implementation of
     // OpenGL-ES).
 
-    VkResult result = VK_SUCCESS;
-    if (formats) {
-        uint32_t transfer_count = all_formats.size();
-        if (transfer_count > *count) {
-            transfer_count = *count;
-            result = VK_INCOMPLETE;
-        }
-        std::copy(all_formats.begin(), all_formats.begin() + transfer_count,
-                  formats);
-        *count = transfer_count;
-    } else {
-        *count = all_formats.size();
-    }
-
-    return result;
+    return CopyWithIncomplete(all_formats, formats, count);
 }
 
 VKAPI_ATTR
@@ -886,19 +815,134 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
     VkSurfaceCapabilities2KHR* pSurfaceCapabilities) {
     ATRACE_CALL();
 
-    VkResult result = GetPhysicalDeviceSurfaceCapabilitiesKHR(
-        physicalDevice, pSurfaceInfo->surface,
-        &pSurfaceCapabilities->surfaceCapabilities);
+    auto surface = pSurfaceInfo->surface;
+    auto capabilities = &pSurfaceCapabilities->surfaceCapabilities;
 
-    VkSurfaceCapabilities2KHR* caps = pSurfaceCapabilities;
-    while (caps->pNext) {
-        caps = reinterpret_cast<VkSurfaceCapabilities2KHR*>(caps->pNext);
+    VkSurfacePresentModeEXT const *pPresentMode = nullptr;
+    for (auto pNext = reinterpret_cast<VkBaseInStructure const *>(pSurfaceInfo->pNext);
+            pNext; pNext = reinterpret_cast<VkBaseInStructure const *>(pNext->pNext)) {
+        switch (pNext->sType) {
+            case VK_STRUCTURE_TYPE_SURFACE_PRESENT_MODE_EXT:
+                pPresentMode = reinterpret_cast<VkSurfacePresentModeEXT const *>(pNext);
+                break;
 
-        switch (caps->sType) {
+            default:
+                break;
+        }
+    }
+
+    int err;
+    int width, height;
+    int transform_hint;
+    int max_buffer_count;
+    if (surface == VK_NULL_HANDLE) {
+        const InstanceData& instance_data = GetData(physicalDevice);
+        ProcHook::Extension surfaceless = ProcHook::GOOGLE_surfaceless_query;
+        bool surfaceless_enabled =
+            instance_data.hook_extensions.test(surfaceless);
+        if (!surfaceless_enabled) {
+            // It is an error to pass a surface==VK_NULL_HANDLE unless the
+            // VK_GOOGLE_surfaceless_query extension is enabled
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        // Support for VK_GOOGLE_surfaceless_query.  The primary purpose of this
+        // extension for this function is for
+        // VkSurfaceProtectedCapabilitiesKHR::supportsProtected.  The following
+        // four values cannot be known without a surface.  Default values will
+        // be supplied anyway, but cannot be relied upon.
+        width = 0xFFFFFFFF;
+        height = 0xFFFFFFFF;
+        transform_hint = VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR;
+        capabilities->minImageCount = 0xFFFFFFFF;
+        capabilities->maxImageCount = 0xFFFFFFFF;
+    } else {
+        ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
+
+        err = window->query(window, NATIVE_WINDOW_DEFAULT_WIDTH, &width);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        err = window->query(window, NATIVE_WINDOW_DEFAULT_HEIGHT, &height);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+
+        err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT,
+                            &transform_hint);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+
+        err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT,
+                            &max_buffer_count);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+
+        if (pPresentMode && IsSharedPresentMode(pPresentMode->presentMode)) {
+            capabilities->minImageCount = 1;
+            capabilities->maxImageCount = 1;
+        } else if (pPresentMode && pPresentMode->presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            // TODO: use undequeued buffer requirement for more precise bound
+            capabilities->minImageCount = std::min(max_buffer_count, 4);
+            capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
+        } else {
+            // TODO: if we're able to, provide better bounds on the number of buffers
+            // for other modes as well.
+            capabilities->minImageCount = std::min(max_buffer_count, 3);
+            capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
+        }
+    }
+
+    capabilities->currentExtent =
+        VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+
+    // TODO(http://b/134182502): Figure out what the max extent should be.
+    capabilities->minImageExtent = VkExtent2D{1, 1};
+    capabilities->maxImageExtent = VkExtent2D{4096, 4096};
+
+    if (capabilities->maxImageExtent.height <
+        capabilities->currentExtent.height) {
+        capabilities->maxImageExtent.height =
+            capabilities->currentExtent.height;
+    }
+
+    if (capabilities->maxImageExtent.width <
+        capabilities->currentExtent.width) {
+        capabilities->maxImageExtent.width = capabilities->currentExtent.width;
+    }
+
+    capabilities->maxImageArrayLayers = 1;
+
+    capabilities->supportedTransforms = kSupportedTransforms;
+    capabilities->currentTransform =
+        TranslateNativeToVulkanTransform(transform_hint);
+
+    // On Android, window composition is a WindowManager property, not something
+    // associated with the bufferqueue. It can't be changed from here.
+    capabilities->supportedCompositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+
+    capabilities->supportedUsageFlags =
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+
+    for (auto pNext = reinterpret_cast<VkBaseOutStructure*>(pSurfaceCapabilities->pNext);
+            pNext; pNext = reinterpret_cast<VkBaseOutStructure*>(pNext->pNext)) {
+
+        switch (pNext->sType) {
             case VK_STRUCTURE_TYPE_SHARED_PRESENT_SURFACE_CAPABILITIES_KHR: {
                 VkSharedPresentSurfaceCapabilitiesKHR* shared_caps =
-                    reinterpret_cast<VkSharedPresentSurfaceCapabilitiesKHR*>(
-                        caps);
+                    reinterpret_cast<VkSharedPresentSurfaceCapabilitiesKHR*>(pNext);
                 // Claim same set of usage flags are supported for
                 // shared present modes as for other modes.
                 shared_caps->sharedPresentSupportedUsageFlags =
@@ -908,8 +952,55 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
 
             case VK_STRUCTURE_TYPE_SURFACE_PROTECTED_CAPABILITIES_KHR: {
                 VkSurfaceProtectedCapabilitiesKHR* protected_caps =
-                    reinterpret_cast<VkSurfaceProtectedCapabilitiesKHR*>(caps);
+                    reinterpret_cast<VkSurfaceProtectedCapabilitiesKHR*>(pNext);
                 protected_caps->supportsProtected = VK_TRUE;
+            } break;
+
+            case VK_STRUCTURE_TYPE_SURFACE_PRESENT_SCALING_CAPABILITIES_EXT: {
+                VkSurfacePresentScalingCapabilitiesEXT* scaling_caps =
+                    reinterpret_cast<VkSurfacePresentScalingCapabilitiesEXT*>(pNext);
+                // By default, Android stretches the buffer to fit the window,
+                // without preserving aspect ratio. Other modes are technically possible
+                // but consult with CoGS team before exposing them here!
+                scaling_caps->supportedPresentScaling = VK_PRESENT_SCALING_STRETCH_BIT_EXT;
+
+                // Since we always scale, we don't support any gravity.
+                scaling_caps->supportedPresentGravityX = 0;
+                scaling_caps->supportedPresentGravityY = 0;
+
+                // Scaled image limits are just the basic image limits
+                scaling_caps->minScaledImageExtent = capabilities->minImageExtent;
+                scaling_caps->maxScaledImageExtent = capabilities->maxImageExtent;
+            } break;
+
+            case VK_STRUCTURE_TYPE_SURFACE_PRESENT_MODE_COMPATIBILITY_EXT: {
+                VkSurfacePresentModeCompatibilityEXT* mode_caps =
+                    reinterpret_cast<VkSurfacePresentModeCompatibilityEXT*>(pNext);
+
+                ALOG_ASSERT(pPresentMode,
+                        "querying VkSurfacePresentModeCompatibilityEXT "
+                        "requires VkSurfacePresentModeEXT to be provided");
+                std::vector<VkPresentModeKHR> compatibleModes;
+                compatibleModes.push_back(pPresentMode->presentMode);
+
+                switch (pPresentMode->presentMode) {
+                    // Shared modes are both compatible with each other.
+                    case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR:
+                        compatibleModes.push_back(VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR);
+                        break;
+                    case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR:
+                        compatibleModes.push_back(VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR);
+                        break;
+                    default:
+                        // Other modes are only compatible with themselves.
+                        // TODO: consider whether switching between FIFO and MAILBOX is reasonable
+                        break;
+                }
+
+                // Note: this does not generate VK_INCOMPLETE since we're nested inside
+                // a larger query and there would be no way to determine exactly where it came from.
+                CopyWithIncomplete(compatibleModes, mode_caps->pPresentModes,
+                        &mode_caps->presentModeCount);
             } break;
 
             default:
@@ -918,7 +1009,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
         }
     }
 
-    return result;
+    return VK_SUCCESS;
 }
 
 VKAPI_ATTR
@@ -1077,18 +1168,7 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
         present_modes.push_back(VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR);
     }
 
-    uint32_t num_modes = uint32_t(present_modes.size());
-
-    VkResult result = VK_SUCCESS;
-    if (modes) {
-        if (*count < num_modes)
-            result = VK_INCOMPLETE;
-        *count = std::min(*count, num_modes);
-        std::copy_n(present_modes.data(), *count, modes);
-    } else {
-        *count = num_modes;
-    }
-    return result;
+    return CopyWithIncomplete(present_modes, modes, count);
 }
 
 VKAPI_ATTR
@@ -1374,8 +1454,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     }
 
     VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
-    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
-        create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
+    if (IsSharedPresentMode(create_info->presentMode)) {
         swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID;
         err = native_window_set_shared_buffer_mode(window, true);
         if (err != android::OK) {
@@ -1525,8 +1604,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
     Swapchain* swapchain = new (mem)
         Swapchain(surface, num_images, create_info->presentMode,
                   TranslateVulkanToNativeTransform(create_info->preTransform));
-    // -- Dequeue all buffers and create a VkImage for each --
-    // Any failures during or after this must cancel the dequeued buffers.
 
     VkSwapchainImageCreateInfoANDROID swapchain_image_create = {
 #pragma clang diagnostic push
@@ -1543,13 +1620,18 @@ VkResult CreateSwapchainKHR(VkDevice device,
 #pragma clang diagnostic pop
         .pNext = &swapchain_image_create,
     };
+
     VkImageCreateInfo image_create = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = &image_native_buffer,
+        .pNext = nullptr,
         .flags = createProtectedSwapchain ? VK_IMAGE_CREATE_PROTECTED_BIT : 0u,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = create_info->imageFormat,
-        .extent = {0, 0, 1},
+        .extent = {
+            create_info->imageExtent.width,
+            create_info->imageExtent.height,
+            1
+        },
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -1560,60 +1642,87 @@ VkResult CreateSwapchainKHR(VkDevice device,
         .pQueueFamilyIndices = create_info->pQueueFamilyIndices,
     };
 
-    for (uint32_t i = 0; i < num_images; i++) {
-        Swapchain::Image& img = swapchain->images[i];
+    // Note: don't do deferred allocation for shared present modes. There's only one buffer
+    // involved so very little benefit.
+    if ((create_info->flags & VK_SWAPCHAIN_CREATE_DEFERRED_MEMORY_ALLOCATION_BIT_EXT) &&
+            !IsSharedPresentMode(create_info->presentMode)) {
+        // Don't want to touch the underlying gralloc buffers yet;
+        // instead just create unbound VkImages which will later be bound to memory inside
+        // AcquireNextImage.
+        VkImageSwapchainCreateInfoKHR image_swapchain_create = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR,
+            .pNext = nullptr,
+            .swapchain = HandleFromSwapchain(swapchain),
+        };
+        image_create.pNext = &image_swapchain_create;
 
-        ANativeWindowBuffer* buffer;
-        err = window->dequeueBuffer(window, &buffer, &img.dequeue_fence);
-        if (err != android::OK) {
-            ALOGE("dequeueBuffer[%u] failed: %s (%d)", i, strerror(-err), err);
-            switch (-err) {
-                case ENOMEM:
-                    result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
-                    break;
-                default:
-                    result = VK_ERROR_SURFACE_LOST_KHR;
-                    break;
+        for (uint32_t i = 0; i < num_images; i++) {
+            Swapchain::Image& img = swapchain->images[i];
+            img.buffer = nullptr;
+            img.dequeued = false;
+
+            result = dispatch.CreateImage(device, &image_create, nullptr, &img.image);
+            if (result != VK_SUCCESS) {
+                ALOGD("vkCreateImage w/ for deferred swapchain image failed: %u", result);
+                break;
             }
-            break;
         }
-        img.buffer = buffer;
-        img.dequeued = true;
+    } else {
+        // -- Dequeue all buffers and create a VkImage for each --
+        // Any failures during or after this must cancel the dequeued buffers.
 
-        image_create.extent =
-            VkExtent3D{static_cast<uint32_t>(img.buffer->width),
-                       static_cast<uint32_t>(img.buffer->height),
-                       1};
-        image_native_buffer.handle = img.buffer->handle;
-        image_native_buffer.stride = img.buffer->stride;
-        image_native_buffer.format = img.buffer->format;
-        image_native_buffer.usage = int(img.buffer->usage);
-        android_convertGralloc0To1Usage(int(img.buffer->usage),
-            &image_native_buffer.usage2.producer,
-            &image_native_buffer.usage2.consumer);
-        image_native_buffer.usage3 = img.buffer->usage;
+        for (uint32_t i = 0; i < num_images; i++) {
+            Swapchain::Image& img = swapchain->images[i];
 
-        ATRACE_BEGIN("CreateImage");
-        result =
-            dispatch.CreateImage(device, &image_create, nullptr, &img.image);
-        ATRACE_END();
-        if (result != VK_SUCCESS) {
-            ALOGD("vkCreateImage w/ native buffer failed: %u", result);
-            break;
+            ANativeWindowBuffer* buffer;
+            err = window->dequeueBuffer(window, &buffer, &img.dequeue_fence);
+            if (err != android::OK) {
+                ALOGE("dequeueBuffer[%u] failed: %s (%d)", i, strerror(-err), err);
+                switch (-err) {
+                    case ENOMEM:
+                        result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                        break;
+                    default:
+                        result = VK_ERROR_SURFACE_LOST_KHR;
+                        break;
+                }
+                break;
+            }
+            img.buffer = buffer;
+            img.dequeued = true;
+
+            image_native_buffer.handle = img.buffer->handle;
+            image_native_buffer.stride = img.buffer->stride;
+            image_native_buffer.format = img.buffer->format;
+            image_native_buffer.usage = int(img.buffer->usage);
+            android_convertGralloc0To1Usage(int(img.buffer->usage),
+                &image_native_buffer.usage2.producer,
+                &image_native_buffer.usage2.consumer);
+            image_native_buffer.usage3 = img.buffer->usage;
+            image_create.pNext = &image_native_buffer;
+
+            ATRACE_BEGIN("CreateImage");
+            result =
+                dispatch.CreateImage(device, &image_create, nullptr, &img.image);
+            ATRACE_END();
+            if (result != VK_SUCCESS) {
+                ALOGD("vkCreateImage w/ native buffer failed: %u", result);
+                break;
+            }
         }
-    }
 
-    // -- Cancel all buffers, returning them to the queue --
-    // If an error occurred before, also destroy the VkImage and release the
-    // buffer reference. Otherwise, we retain a strong reference to the buffer.
-    for (uint32_t i = 0; i < num_images; i++) {
-        Swapchain::Image& img = swapchain->images[i];
-        if (img.dequeued) {
-            if (!swapchain->shared) {
-                window->cancelBuffer(window, img.buffer.get(),
-                                     img.dequeue_fence);
-                img.dequeue_fence = -1;
-                img.dequeued = false;
+        // -- Cancel all buffers, returning them to the queue --
+        // If an error occurred before, also destroy the VkImage and release the
+        // buffer reference. Otherwise, we retain a strong reference to the buffer.
+        for (uint32_t i = 0; i < num_images; i++) {
+            Swapchain::Image& img = swapchain->images[i];
+            if (img.dequeued) {
+                if (!swapchain->shared) {
+                    window->cancelBuffer(window, img.buffer.get(),
+                                         img.dequeue_fence);
+                    img.dequeue_fence = -1;
+                    img.dequeued = false;
+                }
             }
         }
     }
@@ -1736,6 +1845,64 @@ VkResult AcquireNextImageKHR(VkDevice device,
             break;
         }
     }
+
+    // If this is a deferred alloc swapchain, this may be the first time we've
+    // seen a particular buffer. If so, there should be an empty slot. Find it,
+    // and bind the gralloc buffer to the VkImage for that slot. If there is no
+    // empty slot, then we dequeued an unexpected buffer. Non-deferred swapchains
+    // will also take this path, but will never have an empty slot since we
+    // populated them all upfront.
+    if (idx == swapchain.num_images) {
+        for (idx = 0; idx < swapchain.num_images; idx++) {
+            if (!swapchain.images[idx].buffer) {
+                // Note: this structure is technically required for
+                // Vulkan correctness, even though the driver is probably going
+                // to use everything from the VkNativeBufferANDROID below.
+                // This is kindof silly, but it's how we did the ANB
+                // side of VK_KHR_swapchain v69, so we're stuck with it unless
+                // we want to go tinkering with the ANB spec some more.
+                VkBindImageMemorySwapchainInfoKHR bimsi = {
+                    .sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR,
+                    .pNext = nullptr,
+                    .swapchain = swapchain_handle,
+                    .imageIndex = idx,
+                };
+                VkNativeBufferANDROID nb = {
+                    .sType = VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID,
+                    .pNext = &bimsi,
+                    .handle = buffer->handle,
+                    .stride = buffer->stride,
+                    .format = buffer->format,
+                    .usage = int(buffer->usage),
+                };
+                VkBindImageMemoryInfo bimi = {
+                    .sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO,
+                    .pNext = &nb,
+                    .image = swapchain.images[idx].image,
+                    .memory = VK_NULL_HANDLE,
+                    .memoryOffset = 0,
+                };
+                result = GetData(device).driver.BindImageMemory2(device, 1, &bimi);
+                if (result != VK_SUCCESS) {
+                    // This shouldn't really happen. If it does, something is probably
+                    // unrecoverably wrong with the swapchain and its images. Cancel
+                    // the buffer and declare the swapchain broken.
+                    ALOGE("failed to do deferred gralloc buffer bind");
+                    window->cancelBuffer(window, buffer, fence_fd);
+                    return VK_ERROR_OUT_OF_DATE_KHR;
+                }
+
+                swapchain.images[idx].dequeued = true;
+                swapchain.images[idx].dequeue_fence = fence_fd;
+                swapchain.images[idx].buffer = buffer;
+                break;
+            }
+        }
+    }
+
+    // The buffer doesn't match any slot. This shouldn't normally happen, but is
+    // possible if the bufferqueue is reconfigured behind libvulkan's back. If this
+    // happens, just declare the swapchain to be broken and the app will recreate it.
     if (idx == swapchain.num_images) {
         ALOGE("dequeueBuffer returned unrecognized buffer");
         window->cancelBuffer(window, buffer, fence_fd);
@@ -1861,12 +2028,32 @@ static void SetSwapchainFrameTimestamp(Swapchain &swapchain, const VkPresentTime
     }
 }
 
+// EXT_swapchain_maintenance1 present mode change
+static bool SetSwapchainPresentMode(ANativeWindow *window, VkPresentModeKHR mode) {
+    // There is no dynamic switching between non-shared present modes.
+    // All we support is switching between demand and continuous refresh.
+    if (!IsSharedPresentMode(mode))
+        return true;
+
+    int err = native_window_set_auto_refresh(window,
+            mode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR);
+    if (err != android::OK) {
+        ALOGE("native_window_set_auto_refresh() failed: %s (%d)",
+              strerror(-err), err);
+        return false;
+    }
+
+    return true;
+}
+
 static VkResult PresentOneSwapchain(
         VkQueue queue,
         Swapchain& swapchain,
         uint32_t imageIndex,
         const VkPresentRegionKHR *pRegion,
         const VkPresentTimeGOOGLE *pTime,
+        VkFence presentFence,
+        const VkPresentModeKHR *pPresentMode,
         uint32_t waitSemaphoreCount,
         const VkSemaphore *pWaitSemaphores) {
 
@@ -1897,11 +2084,32 @@ static VkResult PresentOneSwapchain(
         ANativeWindow* window = swapchain.surface.window.get();
         if (swapchain_result == VK_SUCCESS) {
 
+            if (presentFence != VK_NULL_HANDLE) {
+                int fence_copy = fence < 0 ? -1 : dup(fence);
+                VkImportFenceFdInfoKHR iffi = {
+                    VK_STRUCTURE_TYPE_IMPORT_FENCE_FD_INFO_KHR,
+                    nullptr,
+                    presentFence,
+                    VK_FENCE_IMPORT_TEMPORARY_BIT,
+                    VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT,
+                    fence_copy,
+                };
+                if (VK_SUCCESS != dispatch.ImportFenceFdKHR(device, &iffi) && fence_copy >= 0) {
+                    // ImportFenceFdKHR takes ownership only if it succeeds
+                    close(fence_copy);
+                }
+            }
+
             if (pRegion) {
                 SetSwapchainSurfaceDamage(window, pRegion);
             }
             if (pTime) {
                 SetSwapchainFrameTimestamp(swapchain, pTime);
+            }
+            if (pPresentMode) {
+                if (!SetSwapchainPresentMode(window, *pPresentMode))
+                    swapchain_result = WorstPresentResult(swapchain_result,
+                        VK_ERROR_SURFACE_LOST_KHR);
             }
 
             err = window->queueBuffer(window, img.buffer.get(), fence);
@@ -1983,6 +2191,9 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
     // Look at the pNext chain for supported extension structs:
     const VkPresentRegionsKHR* present_regions = nullptr;
     const VkPresentTimesInfoGOOGLE* present_times = nullptr;
+    const VkSwapchainPresentFenceInfoEXT* present_fences = nullptr;
+    const VkSwapchainPresentModeInfoEXT* present_modes = nullptr;
+
     const VkPresentRegionsKHR* next =
         reinterpret_cast<const VkPresentRegionsKHR*>(present_info->pNext);
     while (next) {
@@ -1993,6 +2204,14 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
             case VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE:
                 present_times =
                     reinterpret_cast<const VkPresentTimesInfoGOOGLE*>(next);
+                break;
+            case VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT:
+                present_fences =
+                    reinterpret_cast<const VkSwapchainPresentFenceInfoEXT*>(next);
+                break;
+            case VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_MODE_INFO_EXT:
+                present_modes =
+                    reinterpret_cast<const VkSwapchainPresentModeInfoEXT*>(next);
                 break;
             default:
                 ALOGV("QueuePresentKHR ignoring unrecognized pNext->sType = %x",
@@ -2009,6 +2228,15 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                  present_times->swapchainCount != present_info->swapchainCount,
              "VkPresentTimesInfoGOOGLE::swapchainCount != "
              "VkPresentInfo::swapchainCount");
+    ALOGV_IF(present_fences &&
+             present_fences->swapchainCount != present_info->swapchainCount,
+             "VkSwapchainPresentFenceInfoEXT::swapchainCount != "
+             "VkPresentInfo::swapchainCount");
+    ALOGV_IF(present_modes &&
+             present_modes->swapchainCount != present_info->swapchainCount,
+             "VkSwapchainPresentModeInfoEXT::swapchainCount != "
+             "VkPresentInfo::swapchainCount");
+
     const VkPresentRegionKHR* regions =
         (present_regions) ? present_regions->pRegions : nullptr;
     const VkPresentTimeGOOGLE* times =
@@ -2024,6 +2252,8 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
             present_info->pImageIndices[sc],
             (regions && !swapchain.mailbox_mode) ? &regions[sc] : nullptr,
             times ? &times[sc] : nullptr,
+            present_fences ? present_fences->pFences[sc] : VK_NULL_HANDLE,
+            present_modes ? &present_modes->pPresentModes[sc] : nullptr,
             present_info->waitSemaphoreCount,
             present_info->pWaitSemaphores);
 
@@ -2246,6 +2476,36 @@ VkResult BindImageMemory2KHR(VkDevice device,
     return GetData(device).driver.BindImageMemory2KHR(
         device, bindInfoCount,
         out_bind_infos.empty() ? pBindInfos : out_bind_infos.data());
+}
+
+VKAPI_ATTR
+VkResult ReleaseSwapchainImagesEXT(VkDevice /*device*/,
+                                   const VkReleaseSwapchainImagesInfoEXT* pReleaseInfo) {
+    ATRACE_CALL();
+
+    Swapchain& swapchain = *SwapchainFromHandle(pReleaseInfo->swapchain);
+    ANativeWindow* window = swapchain.surface.window.get();
+
+    // If in shared present mode, don't actually release the image back to the BQ.
+    // Both sides share it forever.
+    if (swapchain.shared)
+        return VK_SUCCESS;
+
+    for (uint32_t i = 0; i < pReleaseInfo->imageIndexCount; i++) {
+        Swapchain::Image& img = swapchain.images[pReleaseInfo->pImageIndices[i]];
+        window->cancelBuffer(window, img.buffer.get(), img.dequeue_fence);
+
+        // cancelBuffer has taken ownership of the dequeue fence
+        img.dequeue_fence = -1;
+        // if we're still holding a release fence, get rid of it now
+        if (img.release_fence >= 0) {
+           close(img.release_fence);
+           img.release_fence = -1;
+        }
+        img.dequeued = false;
+    }
+
+    return VK_SUCCESS;
 }
 
 }  // namespace driver
