@@ -1017,6 +1017,10 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
             if (!reply && !acquireResult) goto finish;
             break;
 
+        case BR_TRANSACTION_PENDING_FROZEN:
+            ALOGW("Sending oneway calls to frozen process.");
+            goto finish;
+
         case BR_DEAD_REPLY:
             err = DEAD_OBJECT;
             goto finish;
