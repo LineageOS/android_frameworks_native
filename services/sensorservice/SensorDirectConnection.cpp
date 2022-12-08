@@ -151,7 +151,7 @@ int32_t SensorService::SensorDirectConnection::configureChannel(int handle, int 
         return PERMISSION_DENIED;
     }
 
-    sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+    std::shared_ptr<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
     if (si == nullptr) {
         return NAME_NOT_FOUND;
     }
@@ -228,7 +228,7 @@ void SensorService::SensorDirectConnection::capRates() {
     for (auto &i : existingConnections) {
         int handle = i.first;
         int rateLevel = i.second;
-        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+        std::shared_ptr<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
         if (si != nullptr) {
             const Sensor& s = si->getSensor();
             if (mService->isSensorInCappedSet(s.getType()) &&
