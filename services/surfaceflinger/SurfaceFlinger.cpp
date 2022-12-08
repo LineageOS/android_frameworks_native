@@ -2681,6 +2681,8 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
         if (const auto display = getCompositionDisplayLocked(id)) {
             refreshArgs.outputs.push_back(display);
         }
+
+        refreshArgs.frameTargets.try_emplace(id, &targeter->target());
     }
 
     std::vector<DisplayId> displayIds;
@@ -2753,9 +2755,6 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
     // TODO(b/255601557) Update frameInterval per display
     refreshArgs.frameInterval = mScheduler->getNextFrameInterval(pacesetterId, expectedPresentTime);
     refreshArgs.scheduledFrameTime = mScheduler->getScheduledFrameTime();
-    refreshArgs.expectedPresentTime = expectedPresentTime.ns();
-    // TODO(b/255601557): Calculate and pass per-display values for each FrameTarget.
-    refreshArgs.earliestPresentTime = pacesetterTarget.earliestPresentTime();
     refreshArgs.hasTrustedPresentationListener = mNumTrustedPresentationListeners > 0;
     {
         auto& notifyExpectedPresentData = mNotifyExpectedPresentMap[pacesetterId];
