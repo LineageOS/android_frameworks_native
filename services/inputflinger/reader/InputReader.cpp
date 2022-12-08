@@ -650,6 +650,15 @@ bool InputReader::markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceM
     return result;
 }
 
+void InputReader::addKeyRemapping(int32_t deviceId, int32_t fromKeyCode, int32_t toKeyCode) const {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device != nullptr) {
+        device->addKeyRemapping(fromKeyCode, toKeyCode);
+    }
+}
+
 int32_t InputReader::getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const {
     std::scoped_lock _l(mLock);
 

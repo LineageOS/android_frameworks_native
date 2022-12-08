@@ -88,6 +88,9 @@ public:
     virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask,
             int32_t sw) = 0;
 
+    virtual void addKeyRemapping(int32_t deviceId, int32_t fromKeyCode,
+                                 int32_t toKeyCode) const = 0;
+
     virtual int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const = 0;
 
     /* Toggle Caps Lock */
