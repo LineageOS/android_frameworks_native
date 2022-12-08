@@ -69,7 +69,7 @@ cc_defaults {
     name: "libinputflinger_defaults",
     srcs: [":libinputflinger_sources"],
     shared_libs: [
-        "android.hardware.input.processor-V2-ndk",
+        "android.hardware.input.processor-V1-ndk",
         "libbase",
         "libbinder",
         "libbinder_ndk",
