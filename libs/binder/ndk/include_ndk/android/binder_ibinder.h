@@ -613,7 +613,8 @@ __attribute__((warn_unused_result)) AIBinder_DeathRecipient* AIBinder_DeathRecip
  *
  *  1. If the binder died, shortly after the call to onBinderDied.
  *  2. If the binder is explicitly unlinked with AIBinder_unlinkToDeath or
- *     AIBinder_DeathRecipient_delete.
+ *     AIBinder_DeathRecipient_delete, after any pending onBinderDied calls
+ *     finish.
  *  3. During or shortly after the AIBinder_linkToDeath call if it returns an error.
  *
  * It is guaranteed that the callback is called exactly once for each call to linkToDeath unless the
