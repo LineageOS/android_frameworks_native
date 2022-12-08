@@ -192,7 +192,8 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
              .vsyncId = vsyncId,
              // TODO(b/255601557): Calculate per display.
              .expectedVsyncTime = expectedVsyncTime,
-             .sfWorkDuration = mVsyncModulator->getVsyncConfig().sfWorkDuration};
+             .sfWorkDuration = mVsyncModulator->getVsyncConfig().sfWorkDuration,
+             .hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration};
 
     ftl::NonNull<const Display*> pacesetterPtr = pacesetterPtrLocked();
     pacesetterPtr->targeterPtr->beginFrame(beginFrameArgs, *pacesetterPtr->schedulePtr);
