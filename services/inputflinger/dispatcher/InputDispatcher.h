@@ -628,8 +628,13 @@ private:
             REQUIRES(mLock);
 
     void synthesizePointerDownEventsForConnectionLocked(const nsecs_t downTime,
-                                                        const sp<Connection>& connection)
+                                                        const sp<Connection>& connection,
+                                                        ftl::Flags<InputTarget::Flags> targetFlags)
             REQUIRES(mLock);
+
+    void synthesizeCancelationEventsForWindowLocked(
+            const sp<android::gui::WindowInfoHandle>& windowHandle,
+            const CancelationOptions& options) REQUIRES(mLock);
 
     // Splitting motion events across windows. When splitting motion event for a target,
     // splitDownTime refers to the time of first 'down' event on that particular target
@@ -691,6 +696,19 @@ private:
     bool recentWindowsAreOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
 
     sp<InputReporterInterface> mReporter;
+
+    void slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFlags,
+                            const sp<android::gui::WindowInfoHandle>& oldWindowHandle,
+                            const sp<android::gui::WindowInfoHandle>& newWindowHandle,
+                            TouchState& state, const BitSet32& pointerIds) REQUIRES(mLock);
+    void transferWallpaperTouch(ftl::Flags<InputTarget::Flags> oldTargetFlags,
+                                ftl::Flags<InputTarget::Flags> newTargetFlags,
+                                const sp<android::gui::WindowInfoHandle> fromWindowHandle,
+                                const sp<android::gui::WindowInfoHandle> toWindowHandle,
+                                TouchState& state, const BitSet32& pointerIds) REQUIRES(mLock);
+
+    sp<android::gui::WindowInfoHandle> findWallpaperWindowBelow(
+            const sp<android::gui::WindowInfoHandle>& windowHandle) const REQUIRES(mLock);
 };
 
 } // namespace android::inputdispatcher
