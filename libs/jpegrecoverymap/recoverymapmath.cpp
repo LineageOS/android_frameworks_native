@@ -70,6 +70,11 @@ void ShepardsIDW::fillShepardsIDW(float *weights, int incR, int incB) {
 ////////////////////////////////////////////////////////////////////////////////
 // sRGB transformations
 
+static const float kMaxPixelFloat = 1.0f;
+static float clampPixelFloat(float value) {
+    return (value < 0.0f) ? 0.0f : (value > kMaxPixelFloat) ? kMaxPixelFloat : value;
+}
+
 // See IEC 61966-2-1, Equation F.7.
 static const float kSrgbR = 0.2126f, kSrgbG = 0.7152f, kSrgbB = 0.0722f;
 
@@ -81,9 +86,9 @@ float srgbLuminance(Color e) {
 static const float kSrgbRCr = 1.402f, kSrgbGCb = 0.34414f, kSrgbGCr = 0.71414f, kSrgbBCb = 1.772f;
 
 Color srgbYuvToRgb(Color e_gamma) {
-  return {{{ e_gamma.y + kSrgbRCr * e_gamma.v,
-             e_gamma.y - kSrgbGCb * e_gamma.u - kSrgbGCr * e_gamma.v,
-             e_gamma.y + kSrgbBCb * e_gamma.u }}};
+  return {{{ clampPixelFloat(e_gamma.y + kSrgbRCr * e_gamma.v),
+             clampPixelFloat(e_gamma.y - kSrgbGCb * e_gamma.u - kSrgbGCr * e_gamma.v),
+             clampPixelFloat(e_gamma.y + kSrgbBCb * e_gamma.u) }}};
 }
 
 // See ECMA TR/98, Section 7.
@@ -169,9 +174,9 @@ static const float kBt2100GCb = kBt2100B * kBt2100Cb / kBt2100G;
 static const float kBt2100GCr = kBt2100R * kBt2100Cr / kBt2100G;
 
 Color bt2100YuvToRgb(Color e_gamma) {
-  return {{{ e_gamma.y + kBt2100Cr * e_gamma.v,
-             e_gamma.y - kBt2100GCb * e_gamma.u - kBt2100GCr * e_gamma.v,
-             e_gamma.y + kBt2100Cb * e_gamma.u }}};
+  return {{{ clampPixelFloat(e_gamma.y + kBt2100Cr * e_gamma.v),
+             clampPixelFloat(e_gamma.y - kBt2100GCb * e_gamma.u - kBt2100GCr * e_gamma.v),
+             clampPixelFloat(e_gamma.y + kBt2100Cb * e_gamma.u) }}};
 }
 
 // See ITU-R BT.2100-2, Table 5, HLG Reference OETF.
