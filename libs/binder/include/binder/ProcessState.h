@@ -97,6 +97,11 @@ public:
      */
     size_t getThreadPoolMaxTotalThreadCount() const;
 
+    /**
+     * Check to see if the thread pool has started.
+     */
+    bool isThreadPoolStarted() const;
+
     enum class DriverFeature {
         ONEWAY_SPAM_DETECTION,
         EXTENDED_ERROR,
