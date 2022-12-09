@@ -444,7 +444,7 @@ bool ServiceManagerShim::isDeclared(const String16& name) {
     bool declared;
     if (Status status = mTheRealServiceManager->isDeclared(String8(name).c_str(), &declared);
         !status.isOk()) {
-        ALOGW("Failed to get isDeclard for %s: %s", String8(name).c_str(),
+        ALOGW("Failed to get isDeclared for %s: %s", String8(name).c_str(),
               status.toString8().c_str());
         return false;
     }
