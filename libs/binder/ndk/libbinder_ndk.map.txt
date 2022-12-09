@@ -154,6 +154,7 @@ LIBBINDER_NDK33 { # introduced=33
 
 LIBBINDER_NDK34 { # introduced=UpsideDownCake
   global:
+    ABinderProcess_isThreadPoolStarted; # systemapi llndk
     AServiceManager_getUpdatableApexName; # systemapi
     AServiceManager_registerForServiceNotifications; # systemapi llndk
     AServiceManager_NotificationRegistration_delete; # systemapi llndk
