@@ -28,7 +28,7 @@ cc_library_static {
     local_include_dirs: ["include"],
 
     shared_libs: [
-        "android.hardware.graphics.common-V3-ndk",
+        "android.hardware.graphics.common-V4-ndk",
         "android.hardware.graphics.composer3-V1-ndk",
         "liblog",
         "libnativewindow",
