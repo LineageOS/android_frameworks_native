@@ -4731,9 +4731,9 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
                                            .value_or(false);
 
     const auto activeDisplay = getDisplayDeviceLocked(mActiveDisplayId);
-    const bool isActiveDisplayPoweredOn = activeDisplay && activeDisplay->isPoweredOn();
 
-    ALOGW_IF(display != activeDisplay && isInternalDisplay && isActiveDisplayPoweredOn,
+    ALOGW_IF(display != activeDisplay && isInternalDisplay && activeDisplay &&
+                     activeDisplay->isPoweredOn(),
              "Trying to change power mode on inactive display without powering off active display");
 
     display->setPowerMode(mode);
@@ -4741,9 +4741,24 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     const auto refreshRate = display->refreshRateSelector().getActiveMode().modePtr->getFps();
     if (!currentModeOpt || *currentModeOpt == hal::PowerMode::OFF) {
         // Turn on the display
-        if (isInternalDisplay && !isActiveDisplayPoweredOn) {
+
+        // Activate the display (which involves a modeset to the active mode):
+        //     1) When the first (a.k.a. primary) display is powered on during boot.
+        //     2) When the inner or outer display of a foldable is powered on. This condition relies
+        //        on the above DisplayDevice::setPowerMode. If `display` and `activeDisplay` are the
+        //        same display, then the `activeDisplay->isPoweredOn()` below is true, such that the
+        //        display is not activated every time it is powered on.
+        //
+        // TODO(b/255635821): Remove the concept of active display.
+        const bool activeDisplayChanged =
+                isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn());
+
+        static bool sPrimaryDisplay = true;
+        if (sPrimaryDisplay || activeDisplayChanged) {
             onActiveDisplayChangedLocked(activeDisplay, display);
+            sPrimaryDisplay = false;
         }
+
         // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
         // We can merge the syscall later.
         if (SurfaceFlinger::setSchedAttr(true) != NO_ERROR) {
