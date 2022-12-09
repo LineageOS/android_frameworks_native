@@ -37,7 +37,9 @@ void fuzzService(const sp<IBinder>& binder, FuzzedDataProvider&& provider) {
     }
 
     while (provider.remaining_bytes() > 0) {
-        uint32_t code = provider.ConsumeIntegral<uint32_t>();
+        // Most of the AIDL services will have small set of transaction codes.
+        uint32_t code = provider.ConsumeBool() ? provider.ConsumeIntegral<uint32_t>()
+                                               : provider.ConsumeIntegralInRange<uint32_t>(0, 100);
         uint32_t flags = provider.ConsumeIntegral<uint32_t>();
         Parcel data;
         // for increased fuzz coverage
