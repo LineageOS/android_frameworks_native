@@ -30,14 +30,14 @@ namespace stats {
 StatsHal::StatsHal() {}
 
 ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
-    std::string reverseDomainName = (std::string) vendorAtom.reverseDomainName;
     if (vendorAtom.atomId < 100000 || vendorAtom.atomId >= 200000) {
         ALOGE("Atom ID %ld is not a valid vendor atom ID", (long) vendorAtom.atomId);
         return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
             -1, "Not a valid vendor atom ID");
     }
-    if (reverseDomainName.length() > 50) {
-        ALOGE("Vendor atom reverse domain name %s is too long.", reverseDomainName.c_str());
+    if (vendorAtom.reverseDomainName.length() > 50) {
+        ALOGE("Vendor atom reverse domain name %s is too long.",
+            vendorAtom.reverseDomainName.c_str());
         return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
             -1, "Vendor atom reverse domain name is too long");
     }
