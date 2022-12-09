@@ -43,6 +43,13 @@ void ABinderProcess_startThreadPool();
  */
 bool ABinderProcess_setThreadPoolMaxThreadCount(uint32_t numThreads);
 /**
+ * Check if the threadpool has already been started.
+ * This tells whether someone in the process has called ABinderProcess_startThreadPool. Usually,
+ * you should use this in a library to abort if the threadpool is not started.
+ * Programs should configure binder threadpools once at the beginning.
+ */
+bool ABinderProcess_isThreadPoolStarted();
+/**
  * This adds the current thread to the threadpool. This may cause the threadpool to exceed the
  * maximum size.
  *

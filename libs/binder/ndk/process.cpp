@@ -31,6 +31,9 @@ void ABinderProcess_startThreadPool() {
 bool ABinderProcess_setThreadPoolMaxThreadCount(uint32_t numThreads) {
     return ProcessState::self()->setThreadPoolMaxThreadCount(numThreads) == 0;
 }
+bool ABinderProcess_isThreadPoolStarted() {
+    return ProcessState::self()->isThreadPoolStarted();
+}
 void ABinderProcess_joinThreadPool() {
     IPCThreadState::self()->joinThreadPool();
 }

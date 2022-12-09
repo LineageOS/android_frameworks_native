@@ -120,6 +120,7 @@ enum BinderLibTestTranscationCode {
     BINDER_LIB_TEST_CAN_GET_SID,
     BINDER_LIB_TEST_GET_MAX_THREAD_COUNT,
     BINDER_LIB_TEST_SET_MAX_THREAD_COUNT,
+    BINDER_LIB_TEST_IS_THREADPOOL_STARTED,
     BINDER_LIB_TEST_LOCK_UNLOCK,
     BINDER_LIB_TEST_PROCESS_LOCK,
     BINDER_LIB_TEST_UNLOCK_AFTER_MS,
@@ -1383,6 +1384,14 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
     EXPECT_EQ(replyi, kKernelThreads + 1);
 }
 
+TEST_F(BinderLibTest, ThreadPoolStarted) {
+    Parcel data, reply;
+    sp<IBinder> server = addServer();
+    ASSERT_TRUE(server != nullptr);
+    EXPECT_THAT(server->transact(BINDER_LIB_TEST_IS_THREADPOOL_STARTED, data, &reply), NO_ERROR);
+    EXPECT_TRUE(reply.readBool());
+}
+
 size_t epochMillis() {
     using std::chrono::duration_cast;
     using std::chrono::milliseconds;
@@ -1847,6 +1856,10 @@ public:
             }
             case BINDER_LIB_TEST_GET_MAX_THREAD_COUNT: {
                 reply->writeInt32(ProcessState::self()->getThreadPoolMaxTotalThreadCount());
+                return NO_ERROR;
+            }
+            case BINDER_LIB_TEST_IS_THREADPOOL_STARTED: {
+                reply->writeBool(ProcessState::self()->isThreadPoolStarted());
                 return NO_ERROR;
             }
             case BINDER_LIB_TEST_PROCESS_LOCK: {
