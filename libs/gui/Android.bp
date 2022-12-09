@@ -321,7 +321,7 @@ cc_defaults {
         "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.1",
         "android.hardware.graphics.common@1.2",
-        "android.hardware.graphics.common-V3-ndk",
+        "android.hardware.graphics.common-V4-ndk",
         "android.hidl.token@1.0-utils",
         "libbase",
         "libcutils",
