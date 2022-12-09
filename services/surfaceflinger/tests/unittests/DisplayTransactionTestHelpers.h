@@ -359,6 +359,7 @@ struct HwcDisplayVariant {
     }
 
     // Called by tests to inject a HWC display setup
+    template <bool kInitPowerMode = true>
     static void injectHwcDisplayWithNoDefaultCapabilities(DisplayTransactionTest* test) {
         const auto displayId = DisplayVariant::DISPLAY_ID::get();
         ASSERT_FALSE(GpuVirtualDisplayId::tryCast(displayId));
@@ -367,18 +368,21 @@ struct HwcDisplayVariant {
                 .setHwcDisplayId(HWC_DISPLAY_ID)
                 .setResolution(DisplayVariant::RESOLUTION)
                 .setActiveConfig(HWC_ACTIVE_CONFIG_ID)
-                .setPowerMode(INIT_POWER_MODE)
+                .setPowerMode(kInitPowerMode ? std::make_optional(INIT_POWER_MODE) : std::nullopt)
                 .inject(&test->mFlinger, test->mComposer);
     }
 
     // Called by tests to inject a HWC display setup
+    template <bool kInitPowerMode = true>
     static void injectHwcDisplay(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY_ID, _))
                 .WillOnce(DoAll(SetArgPointee<1>(std::vector<DisplayCapability>({})),
                                 Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer, setPowerMode(HWC_DISPLAY_ID, INIT_POWER_MODE))
-                .WillOnce(Return(Error::NONE));
-        injectHwcDisplayWithNoDefaultCapabilities(test);
+        if constexpr (kInitPowerMode) {
+            EXPECT_CALL(*test->mComposer, setPowerMode(HWC_DISPLAY_ID, INIT_POWER_MODE))
+                    .WillOnce(Return(Error::NONE));
+        }
+        injectHwcDisplayWithNoDefaultCapabilities<kInitPowerMode>(test);
     }
 
     static std::shared_ptr<compositionengine::Display> injectCompositionDisplay(

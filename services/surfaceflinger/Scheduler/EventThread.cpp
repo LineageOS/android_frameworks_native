@@ -124,12 +124,12 @@ DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t times
     return event;
 }
 
-DisplayEventReceiver::Event makeModeChanged(DisplayModePtr mode) {
+DisplayEventReceiver::Event makeModeChanged(const scheduler::FrameRateMode& mode) {
     DisplayEventReceiver::Event event;
-    event.header = {DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE, mode->getPhysicalDisplayId(),
-                    systemTime()};
-    event.modeChange.modeId = mode->getId().value();
-    event.modeChange.vsyncPeriod = mode->getVsyncPeriod();
+    event.header = {DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE,
+                    mode.modePtr->getPhysicalDisplayId(), systemTime()};
+    event.modeChange.modeId = mode.modePtr->getId().value();
+    event.modeChange.vsyncPeriod = mode.fps.getPeriodNsecs();
     return event;
 }
 
@@ -405,7 +405,7 @@ void EventThread::onHotplugReceived(PhysicalDisplayId displayId, bool connected)
     mCondition.notify_all();
 }
 
-void EventThread::onModeChanged(DisplayModePtr mode) {
+void EventThread::onModeChanged(const scheduler::FrameRateMode& mode) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     mPendingEvents.push_back(makeModeChanged(mode));

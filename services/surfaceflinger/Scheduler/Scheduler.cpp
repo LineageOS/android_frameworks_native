@@ -330,7 +330,7 @@ void Scheduler::onNonPrimaryDisplayModeChanged(ConnectionHandle handle, const Fr
         RETURN_IF_INVALID_HANDLE(handle);
         thread = mConnections[handle].thread.get();
     }
-    thread->onModeChanged(mode.modePtr.get());
+    thread->onModeChanged(mode);
 }
 
 size_t Scheduler::getEventThreadConnectionCount(ConnectionHandle handle) {

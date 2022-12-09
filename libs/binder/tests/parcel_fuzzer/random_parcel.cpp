@@ -73,6 +73,11 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOpti
                                                                                 1));
                         CHECK(OK == p->writeFileDescriptor(fd.get(), false /*takeOwnership*/));
                     } else {
+                        // b/260119717 - Adding more FDs can eventually lead to FD limit exhaustion
+                        if (options->extraFds.size() > 1000) {
+                            return;
+                        }
+
                         std::vector<base::unique_fd> fds = getRandomFds(&provider);
                         CHECK(OK ==
                               p->writeFileDescriptor(fds.begin()->release(),
