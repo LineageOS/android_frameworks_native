@@ -129,6 +129,28 @@ typedef struct jpegr_info_struct* jr_info_ptr;
 class RecoveryMap {
 public:
     /*
+     * Encode API-0
+     * Compress JPEGR image from 10-bit HDR YUV.
+     *
+     * Tonemap the HDR input to a SDR image, generate recovery map from the HDR and SDR images,
+     * compress SDR YUV to 8-bit JPEG and append the recovery map to the end of the compressed
+     * JPEG.
+     * @param uncompressed_p010_image uncompressed HDR image in P010 color format
+     * @param hdr_tf transfer function of the HDR image
+     * @param dest destination of the compressed JPEGR image
+     * @param quality target quality of the JPEG encoding, must be in range of 0-100 where 100 is
+     *                the highest quality
+     * @param exif pointer to the exif metadata.
+     * @return NO_ERROR if encoding succeeds, error code if error occurs.
+     */
+    status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
+                         jpegr_transfer_function hdr_tf,
+                         jr_compressed_ptr dest,
+                         int quality,
+                         jr_exif_ptr exif);
+
+    /*
+     * Encode API-1
      * Compress JPEGR image from 10-bit HDR YUV and 8-bit SDR YUV.
      *
      * Generate recovery map from the HDR and SDR inputs, compress SDR YUV to 8-bit JPEG and append
@@ -151,6 +173,7 @@ public:
                          jr_exif_ptr exif);
 
     /*
+     * Encode API-2
      * Compress JPEGR image from 10-bit HDR YUV, 8-bit SDR YUV and compressed 8-bit JPEG.
      *
      * This method requires HAL Hardware JPEG encoder.
@@ -159,6 +182,8 @@ public:
      * compressed JPEG. HDR and SDR inputs must be the same resolution and color space.
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
+     *                                   Note: the SDR image must be the decoded version of the JPEG
+     *                                         input
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param hdr_tf transfer function of the HDR image
      * @param dest destination of the compressed JPEGR image
@@ -171,6 +196,7 @@ public:
                          jr_compressed_ptr dest);
 
     /*
+     * Encode API-3
      * Compress JPEGR image from 10-bit HDR YUV and 8-bit SDR YUV.
      *
      * This method requires HAL Hardware JPEG encoder.
@@ -190,6 +216,7 @@ public:
                          jr_compressed_ptr dest);
 
     /*
+     * Decode API
      * Decompress JPEGR image.
      *
      * The output JPEGR image is in RGBA_1010102 data format if decoding to HDR.
@@ -356,6 +383,16 @@ private:
      * @return XMP metadata in type of string
      */
     std::string generateXmp(int secondary_image_length, jpegr_metadata& metadata);
+
+    /*
+     * This method will tone map a HDR image to an SDR image.
+     *
+     * @param uncompressed_p010_image (input) uncompressed P010 image
+     * @param dest (output) tone mapping result as a YUV_420 image
+     * @return NO_ERROR if calculation succeeds, error code if error occurs.
+     */
+    status_t toneMap(jr_uncompressed_ptr uncompressed_p010_image,
+                     jr_uncompressed_ptr dest);
 };
 
 } // namespace android::recoverymap

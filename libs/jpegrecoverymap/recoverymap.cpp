@@ -96,6 +96,59 @@ status_t Write(jr_compressed_ptr destination, const void* source, size_t length,
   return NO_ERROR;
 }
 
+/* Encode API-0 */
+status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
+                                  jpegr_transfer_function hdr_tf,
+                                  jr_compressed_ptr dest,
+                                  int quality,
+                                  jr_exif_ptr /* exif */) {
+  if (uncompressed_p010_image == nullptr || dest == nullptr) {
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (quality < 0 || quality > 100) {
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  jpegr_metadata metadata;
+  metadata.version = kJpegrVersion;
+  metadata.transferFunction = hdr_tf;
+  if (hdr_tf == JPEGR_TF_PQ) {
+    metadata.hdr10Metadata.st2086Metadata = kSt2086Metadata;
+  }
+
+  jpegr_uncompressed_struct uncompressed_yuv_420_image;
+  JPEGR_CHECK(toneMap(uncompressed_p010_image, &uncompressed_yuv_420_image));
+
+  jpegr_uncompressed_struct map;
+  JPEGR_CHECK(generateRecoveryMap(
+      &uncompressed_yuv_420_image, uncompressed_p010_image, &metadata, &map));
+  std::unique_ptr<uint8_t[]> map_data;
+  map_data.reset(reinterpret_cast<uint8_t*>(map.data));
+
+  jpegr_compressed_struct compressed_map;
+  compressed_map.maxLength = map.width * map.height;
+  unique_ptr<uint8_t[]> compressed_map_data = make_unique<uint8_t[]>(compressed_map.maxLength);
+  compressed_map.data = compressed_map_data.get();
+  JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
+
+  JpegEncoder jpeg_encoder;
+  // TODO: determine ICC data based on color gamut information
+  if (!jpeg_encoder.compressImage(uncompressed_yuv_420_image.data,
+                                  uncompressed_yuv_420_image.width,
+                                  uncompressed_yuv_420_image.height, quality, nullptr, 0)) {
+    return ERROR_JPEGR_ENCODE_ERROR;
+  }
+  jpegr_compressed_struct jpeg;
+  jpeg.data = jpeg_encoder.getCompressedImagePtr();
+  jpeg.length = jpeg_encoder.getCompressedImageSize();
+
+  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, &metadata, dest));
+
+  return NO_ERROR;
+}
+
+/* Encode API-1 */
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
                                   jpegr_transfer_function hdr_tf,
@@ -152,6 +205,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   return NO_ERROR;
 }
 
+/* Encode API-2 */
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
                                   jr_compressed_ptr compressed_jpeg_image,
@@ -193,6 +247,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   return NO_ERROR;
 }
 
+/* Encode API-3 */
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_compressed_ptr compressed_jpeg_image,
                                   jpegr_transfer_function hdr_tf,
@@ -262,7 +317,7 @@ status_t RecoveryMap::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
   return NO_ERROR;
 }
 
-
+/* Decode API */
 status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                                   jr_uncompressed_ptr dest,
                                   jr_exif_ptr exif,
@@ -674,6 +729,22 @@ string RecoveryMap::generateXmp(int secondary_image_length, jpegr_metadata& meta
   writer.FinishWriting();
 
   return ss.str();
+}
+
+status_t RecoveryMap::toneMap(jr_uncompressed_ptr uncompressed_p010_image,
+                              jr_uncompressed_ptr dest) {
+  if (uncompressed_p010_image == nullptr || dest == nullptr) {
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  dest->width = uncompressed_p010_image->width;
+  dest->height = uncompressed_p010_image->height;
+  unique_ptr<uint8_t[]> dest_data = make_unique<uint8_t[]>(dest->width * dest->height * 3 / 2);
+  dest->data = dest_data.get();
+
+  // TODO: Tone map algorighm here.
+
+  return NO_ERROR;
 }
 
 } // namespace android::recoverymap
