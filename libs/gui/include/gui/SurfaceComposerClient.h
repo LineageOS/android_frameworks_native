@@ -65,14 +65,16 @@ struct SurfaceControlStats {
     SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t latchTime,
                         std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence,
                         const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
-                        uint32_t hint, FrameEventHistoryStats eventStats)
+                        uint32_t hint, FrameEventHistoryStats eventStats,
+                        uint32_t currentMaxAcquiredBufferCount)
           : surfaceControl(sc),
             latchTime(latchTime),
             acquireTimeOrFence(std::move(acquireTimeOrFence)),
             presentFence(presentFence),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
-            frameEventStats(eventStats) {}
+            frameEventStats(eventStats),
+            currentMaxAcquiredBufferCount(currentMaxAcquiredBufferCount) {}
 
     sp<SurfaceControl> surfaceControl;
     nsecs_t latchTime = -1;
@@ -81,6 +83,7 @@ struct SurfaceControlStats {
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
     FrameEventHistoryStats frameEventStats;
+    uint32_t currentMaxAcquiredBufferCount = 0;
 };
 
 using TransactionCompletedCallbackTakesContext =
@@ -460,6 +463,10 @@ public:
 
         // Clears the contents of the transaction without applying it.
         void clear();
+
+        // Returns the current id of the transaction.
+        // The id is updated every time the transaction is applied.
+        uint64_t getId();
 
         status_t apply(bool synchronous = false, bool oneWay = false);
         // Merge another transaction in to this one, clearing other

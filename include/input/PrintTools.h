@@ -17,6 +17,7 @@
 #pragma once
 
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -25,6 +26,15 @@ namespace android {
 template <typename T>
 std::string constToString(const T& v) {
     return std::to_string(v);
+}
+
+/**
+ * Convert an optional type to string.
+ */
+template <typename T>
+std::string toString(const std::optional<T>& optional,
+                     std::string (*toString)(const T&) = constToString) {
+    return optional ? toString(*optional) : "<not set>";
 }
 
 /**

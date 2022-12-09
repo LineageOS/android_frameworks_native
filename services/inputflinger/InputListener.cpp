@@ -196,9 +196,20 @@ std::string NotifyMotionArgs::dump() const {
         }
         coords += StringPrintf("{%" PRIu32 ": ", i);
         coords +=
-                StringPrintf("id=%" PRIu32 " x=%.1f y=%.1f, pressure=%.1f", pointerProperties[i].id,
+                StringPrintf("id=%" PRIu32 " x=%.1f y=%.1f pressure=%.1f", pointerProperties[i].id,
                              pointerCoords[i].getX(), pointerCoords[i].getY(),
                              pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE));
+        const int32_t toolType = pointerProperties[i].toolType;
+        if (toolType != AMOTION_EVENT_TOOL_TYPE_FINGER) {
+            coords += StringPrintf(" toolType=%s", motionToolTypeToString(toolType));
+        }
+        const float major = pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR);
+        const float minor = pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR);
+        const float orientation = pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
+        if (major != 0 || minor != 0) {
+            coords += StringPrintf(" major=%.1f minor=%.1f orientation=%.1f", major, minor,
+                                   orientation);
+        }
         coords += "}";
     }
     return StringPrintf("NotifyMotionArgs(id=%" PRId32 ", eventTime=%" PRId64 ", deviceId=%" PRId32

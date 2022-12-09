@@ -186,7 +186,7 @@ public:
     // Indicates that touch interaction is taking place.
     void onTouchHint();
 
-    void setDisplayPowerState(bool normal);
+    void setDisplayPowerMode(hal::PowerMode powerMode);
 
     VSyncDispatch& getVsyncDispatch() { return mVsyncSchedule->getDispatch(); }
 
@@ -325,7 +325,7 @@ private:
         TimerState idleTimer = TimerState::Reset;
         TouchState touch = TouchState::Inactive;
         TimerState displayPowerTimer = TimerState::Expired;
-        bool isDisplayPowerStateNormal = true;
+        hal::PowerMode displayPowerMode = hal::PowerMode::ON;
 
         // Chosen display mode.
         DisplayModePtr mode;

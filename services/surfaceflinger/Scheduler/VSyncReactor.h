@@ -49,6 +49,8 @@ public:
     bool addHwVsyncTimestamp(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
                              bool* periodFlushed) final;
 
+    void setDisplayPowerMode(hal::PowerMode powerMode) final;
+
     void dump(std::string& result) const final;
 
 private:
@@ -72,6 +74,8 @@ private:
     bool mPeriodConfirmationInProgress GUARDED_BY(mMutex) = false;
     std::optional<nsecs_t> mPeriodTransitioningTo GUARDED_BY(mMutex);
     std::optional<nsecs_t> mLastHwVsync GUARDED_BY(mMutex);
+
+    hal::PowerMode mDisplayPowerMode GUARDED_BY(mMutex) = hal::PowerMode::ON;
 
     const bool mSupportKernelIdleTimer = false;
 };
