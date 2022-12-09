@@ -63,11 +63,13 @@ public:
         if (pfd.revents & POLLERR) {
             return DEAD_OBJECT;
         }
+        if (pfd.revents & POLLIN) {
+            // Copied from FdTrigger.cpp: Even though POLLHUP may also be set,
+            // treat it as a success condition to ensure data is drained.
+            return OK;
+        }
         if (pfd.revents & POLLHUP) {
             return DEAD_OBJECT;
-        }
-        if (pfd.revents & POLLIN) {
-            return OK;
         }
 
         return WOULD_BLOCK;
