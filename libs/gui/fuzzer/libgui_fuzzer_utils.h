@@ -79,9 +79,11 @@ public:
                 (override));
     MOCK_METHOD(binder::Status, getDisplayState, (const sp<IBinder>&, gui::DisplayState*),
                 (override));
-    MOCK_METHOD(binder::Status, getStaticDisplayInfo, (const sp<IBinder>&, gui::StaticDisplayInfo*),
+    MOCK_METHOD(binder::Status, getStaticDisplayInfo, (int64_t, gui::StaticDisplayInfo*),
                 (override));
-    MOCK_METHOD(binder::Status, getDynamicDisplayInfo,
+    MOCK_METHOD(binder::Status, getDynamicDisplayInfoFromId, (int64_t, gui::DynamicDisplayInfo*),
+                (override));
+    MOCK_METHOD(binder::Status, getDynamicDisplayInfoFromToken,
                 (const sp<IBinder>&, gui::DynamicDisplayInfo*), (override));
     MOCK_METHOD(binder::Status, getDisplayNativePrimaries,
                 (const sp<IBinder>&, gui::DisplayPrimaries*), (override));

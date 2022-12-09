@@ -114,6 +114,8 @@ public:
     int32_t getMetaState();
     void updateMetaState(int32_t keyCode);
 
+    void addKeyRemapping(int32_t fromKeyCode, int32_t toKeyCode);
+
     void bumpGeneration();
 
     [[nodiscard]] NotifyDeviceResetArgs notifyReset(nsecs_t when);
@@ -277,6 +279,10 @@ public:
     }
 
     inline bool hasMscEvent(int mscEvent) const { return mEventHub->hasMscEvent(mId, mscEvent); }
+
+    inline void addKeyRemapping(int32_t fromKeyCode, int32_t toKeyCode) const {
+        mEventHub->addKeyRemapping(mId, fromKeyCode, toKeyCode);
+    }
 
     inline status_t mapKey(int32_t scanCode, int32_t usageCode, int32_t metaState,
                            int32_t* outKeycode, int32_t* outMetaState, uint32_t* outFlags) const {

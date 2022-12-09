@@ -512,10 +512,13 @@ private:
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
     status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*)
             EXCLUDES(mStateLock);
-    status_t getStaticDisplayInfo(const sp<IBinder>& displayToken, ui::StaticDisplayInfo*)
+    status_t getStaticDisplayInfo(int64_t displayId, ui::StaticDisplayInfo*) EXCLUDES(mStateLock);
+    status_t getDynamicDisplayInfoFromId(int64_t displayId, ui::DynamicDisplayInfo*)
             EXCLUDES(mStateLock);
-    status_t getDynamicDisplayInfo(const sp<IBinder>& displayToken, ui::DynamicDisplayInfo*)
-            EXCLUDES(mStateLock);
+    status_t getDynamicDisplayInfoFromToken(const sp<IBinder>& displayToken,
+                                            ui::DynamicDisplayInfo*) EXCLUDES(mStateLock);
+    void getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*&, const sp<DisplayDevice>&,
+                                       const display::DisplaySnapshot&);
     status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken, ui::DisplayPrimaries&);
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode);
     status_t getBootDisplayModeSupport(bool* outSupport) const;
@@ -527,7 +530,7 @@ private:
     void setPowerMode(const sp<IBinder>& displayToken, int mode);
     status_t overrideHdrTypes(const sp<IBinder>& displayToken,
                               const std::vector<ui::Hdr>& hdrTypes);
-    status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success);
+    status_t onPullAtom(const int32_t atomId, std::vector<uint8_t>* pulledData, bool* success);
     status_t getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers);
     status_t getColorManagement(bool* outGetColorManagement) const;
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
@@ -702,7 +705,7 @@ private:
      */
     bool applyTransactionState(const FrameTimelineInfo& info,
                                std::vector<ResolvedComposerState>& state,
-                               const Vector<DisplayState>& displays, uint32_t flags,
+                               Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime, bool isAutoTimestamp,
                                const client_cache_t& uncacheBuffer, const int64_t postTime,
@@ -1401,10 +1404,12 @@ public:
                                    gui::DisplayStatInfo* outStatInfo) override;
     binder::Status getDisplayState(const sp<IBinder>& display,
                                    gui::DisplayState* outState) override;
-    binder::Status getStaticDisplayInfo(const sp<IBinder>& display,
+    binder::Status getStaticDisplayInfo(int64_t displayId,
                                         gui::StaticDisplayInfo* outInfo) override;
-    binder::Status getDynamicDisplayInfo(const sp<IBinder>& display,
-                                         gui::DynamicDisplayInfo* outInfo) override;
+    binder::Status getDynamicDisplayInfoFromId(int64_t displayId,
+                                               gui::DynamicDisplayInfo* outInfo) override;
+    binder::Status getDynamicDisplayInfoFromToken(const sp<IBinder>& display,
+                                                  gui::DynamicDisplayInfo* outInfo) override;
     binder::Status getDisplayNativePrimaries(const sp<IBinder>& display,
                                              gui::DisplayPrimaries* outPrimaries) override;
     binder::Status setActiveColorMode(const sp<IBinder>& display, int colorMode) override;
@@ -1489,6 +1494,8 @@ private:
     status_t checkAccessPermission(bool usePermissionCache = kUsePermissionCache);
     status_t checkControlDisplayBrightnessPermission();
     status_t checkReadFrameBufferPermission();
+    static void getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo& info,
+                                              gui::DynamicDisplayInfo*& outInfo);
 
 private:
     sp<SurfaceFlinger> mFlinger;

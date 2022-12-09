@@ -125,14 +125,21 @@ public:
     bool getEvents(int32_t deviceId, const char16_t* chars, size_t numChars,
             Vector<KeyEvent>& outEvents) const;
 
+    /* Maps an Android key code to another Android key code. This mapping is applied after scanCode
+     * and usageCodes are mapped to corresponding Android Keycode */
+    void addKeyRemapping(int32_t fromKeyCode, int32_t toKeyCode);
+
     /* Maps a scan code and usage code to a key code, in case this key map overrides
      * the mapping in some way. */
     status_t mapKey(int32_t scanCode, int32_t usageCode, int32_t* outKeyCode) const;
 
-    /* Tries to find a replacement key code for a given key code and meta state
-     * in character map. */
-    void tryRemapKey(int32_t scanCode, int32_t metaState,
-            int32_t* outKeyCode, int32_t* outMetaState) const;
+    /* Returns keycode after applying Android key code remapping defined in mKeyRemapping */
+    int32_t applyKeyRemapping(int32_t fromKeyCode) const;
+
+    /* Returns the <keyCode, metaState> pair after applying key behavior defined in the kcm file,
+     * that tries to find a replacement key code based on current meta state */
+    std::pair<int32_t /*keyCode*/, int32_t /*metaState*/> applyKeyBehavior(int32_t keyCode,
+                                                                           int32_t metaState) const;
 
 #ifdef __linux__
     /* Reads a key map from a parcel. */
@@ -227,8 +234,9 @@ private:
     std::string mLoadFileName;
     bool mLayoutOverlayApplied;
 
-    KeyedVector<int32_t, int32_t> mKeysByScanCode;
-    KeyedVector<int32_t, int32_t> mKeysByUsageCode;
+    std::map<int32_t /* fromAndroidKeyCode */, int32_t /* toAndroidKeyCode */> mKeyRemapping;
+    std::map<int32_t /* fromScanCode */, int32_t /* toAndroidKeyCode */> mKeysByScanCode;
+    std::map<int32_t /* fromHidUsageCode */, int32_t /* toAndroidKeyCode */> mKeysByUsageCode;
 
     KeyCharacterMap(const std::string& filename);
 

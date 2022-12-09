@@ -93,6 +93,7 @@ cc_test {
         "LayerHistoryTest.cpp",
         "LayerInfoTest.cpp",
         "LayerMetadataTest.cpp",
+        "LayerHierarchyTest.cpp",
         "LayerLifecycleManagerTest.cpp",
         "LayerTest.cpp",
         "LayerTestUtils.cpp",

@@ -487,9 +487,9 @@ public:
 
     void updateLayerMetadataSnapshot() { mFlinger->updateLayerMetadataSnapshot(); }
 
-    void getDynamicDisplayInfo(const sp<IBinder>& displayToken,
-                               ui::DynamicDisplayInfo* dynamicDisplayInfo) {
-        mFlinger->getDynamicDisplayInfo(displayToken, dynamicDisplayInfo);
+    void getDynamicDisplayInfoFromToken(const sp<IBinder>& displayToken,
+                                        ui::DynamicDisplayInfo* dynamicDisplayInfo) {
+        mFlinger->getDynamicDisplayInfoFromToken(displayToken, dynamicDisplayInfo);
     }
 
     /* ------------------------------------------------------------------------

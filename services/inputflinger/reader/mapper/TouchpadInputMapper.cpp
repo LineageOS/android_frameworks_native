@@ -16,8 +16,11 @@
 
 #include "../Macros.h"
 
-#include <log/log_main.h>
 #include <chrono>
+
+#include <android/input.h>
+#include <log/log_main.h>
+#include "TouchCursorInputMapperCommon.h"
 #include "TouchpadInputMapper.h"
 
 namespace android {
@@ -75,9 +78,26 @@ HardwareProperties createHardwareProperties(const InputDeviceContext& context) {
     return props;
 }
 
-void gestureInterpreterCallback(void* clientData, const struct Gesture* gesture) {
-    // TODO(b/251196347): turn the gesture into a NotifyArgs and dispatch it.
-    ALOGD("Gesture ready: %s", gesture->String().c_str());
+void gestureInterpreterCallback(void* clientData, const Gesture* gesture) {
+    TouchpadInputMapper* mapper = static_cast<TouchpadInputMapper*>(clientData);
+    mapper->consumeGesture(gesture);
+}
+
+uint32_t gesturesButtonToMotionEventButton(uint32_t gesturesButton) {
+    switch (gesturesButton) {
+        case GESTURES_BUTTON_LEFT:
+            return AMOTION_EVENT_BUTTON_PRIMARY;
+        case GESTURES_BUTTON_MIDDLE:
+            return AMOTION_EVENT_BUTTON_TERTIARY;
+        case GESTURES_BUTTON_RIGHT:
+            return AMOTION_EVENT_BUTTON_SECONDARY;
+        case GESTURES_BUTTON_BACK:
+            return AMOTION_EVENT_BUTTON_BACK;
+        case GESTURES_BUTTON_FORWARD:
+            return AMOTION_EVENT_BUTTON_FORWARD;
+        default:
+            return 0;
+    }
 }
 
 } // namespace
@@ -85,10 +105,15 @@ void gestureInterpreterCallback(void* clientData, const struct Gesture* gesture)
 TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext)
       : InputMapper(deviceContext),
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
+        mPointerController(getContext()->getPointerController(getDeviceId())),
         mTouchButtonAccumulator(deviceContext) {
     mGestureInterpreter->Initialize(GESTURES_DEVCLASS_TOUCHPAD);
     mGestureInterpreter->SetHardwareProperties(createHardwareProperties(deviceContext));
-    mGestureInterpreter->SetCallback(gestureInterpreterCallback, nullptr);
+    // Even though we don't explicitly delete copy/move semantics, it's safe to
+    // give away a pointer to TouchpadInputMapper here because
+    // 1) mGestureInterpreter's lifecycle is determined by TouchpadInputMapper, and
+    // 2) TouchpadInputMapper is stored as a unique_ptr and not moved.
+    mGestureInterpreter->SetCallback(gestureInterpreterCallback, this);
     // TODO(b/251196347): set a property provider, so we can change gesture properties.
     // TODO(b/251196347): set a timer provider, so the library can use timers.
 
@@ -103,6 +128,12 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext)
     mTouchButtonAccumulator.configure();
 }
 
+TouchpadInputMapper::~TouchpadInputMapper() {
+    if (mPointerController != nullptr) {
+        mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
+    }
+}
+
 uint32_t TouchpadInputMapper::getSources() const {
     return AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD;
 }
@@ -111,12 +142,15 @@ std::list<NotifyArgs> TouchpadInputMapper::reset(nsecs_t when) {
     mCursorButtonAccumulator.reset(getDeviceContext());
     mTouchButtonAccumulator.reset();
     mMscTimestamp = 0;
+
+    mButtonState = 0;
     return InputMapper::reset(when);
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out = {};
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        sync(rawEvent->when);
+        out = sync(rawEvent->when, rawEvent->readTime);
     }
     if (rawEvent->type == EV_MSC && rawEvent->code == MSC_TIMESTAMP) {
         mMscTimestamp = rawEvent->value;
@@ -124,10 +158,10 @@ std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
     mCursorButtonAccumulator.process(rawEvent);
     mMotionAccumulator.process(rawEvent);
     mTouchButtonAccumulator.process(rawEvent);
-    return {};
+    return out;
 }
 
-void TouchpadInputMapper::sync(nsecs_t when) {
+std::list<NotifyArgs> TouchpadInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     HardwareState hwState;
     // The gestures library uses doubles to represent timestamps in seconds.
     hwState.timestamp = std::chrono::duration<stime_t>(std::chrono::nanoseconds(when)).count();
@@ -172,9 +206,160 @@ void TouchpadInputMapper::sync(nsecs_t when) {
     hwState.finger_cnt = fingers.size();
     hwState.touch_cnt = mTouchButtonAccumulator.getTouchCount();
 
+    mProcessing = true;
     mGestureInterpreter->PushHardwareState(&hwState);
+    mProcessing = false;
+
+    std::list<NotifyArgs> out = processGestures(when, readTime);
+
     mMotionAccumulator.finishSync();
     mMscTimestamp = 0;
+    return out;
+}
+
+void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
+    ALOGD("Gesture ready: %s", gesture->String().c_str());
+    if (!mProcessing) {
+        ALOGE("Received gesture outside of the normal processing flow; ignoring it.");
+        return;
+    }
+    mGesturesToProcess.push_back(*gesture);
+}
+
+std::list<NotifyArgs> TouchpadInputMapper::processGestures(nsecs_t when, nsecs_t readTime) {
+    std::list<NotifyArgs> out = {};
+    for (Gesture& gesture : mGesturesToProcess) {
+        switch (gesture.type) {
+            case kGestureTypeMove:
+                out.push_back(handleMove(when, readTime, gesture));
+                break;
+            case kGestureTypeButtonsChange:
+                out += handleButtonsChange(when, readTime, gesture);
+                break;
+            default:
+                // TODO(b/251196347): handle more gesture types.
+                break;
+        }
+    }
+    mGesturesToProcess.clear();
+    return out;
+}
+
+NotifyArgs TouchpadInputMapper::handleMove(nsecs_t when, nsecs_t readTime, const Gesture& gesture) {
+    PointerProperties props;
+    props.clear();
+    props.id = 0;
+    props.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+
+    mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
+    mPointerController->move(gesture.details.move.dx, gesture.details.move.dy);
+    mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
+    float xCursorPosition, yCursorPosition;
+    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+
+    PointerCoords coords;
+    coords.clear();
+    coords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, gesture.details.move.dx);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, gesture.details.move.dy);
+    const bool down = isPointerDown(mButtonState);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, down ? 1.0f : 0.0f);
+
+    const int32_t action = down ? AMOTION_EVENT_ACTION_MOVE : AMOTION_EVENT_ACTION_HOVER_MOVE;
+    return makeMotionArgs(when, readTime, action, /* actionButton= */ 0, mButtonState,
+                          /* pointerCount= */ 1, &props, &coords, xCursorPosition, yCursorPosition);
+}
+
+std::list<NotifyArgs> TouchpadInputMapper::handleButtonsChange(nsecs_t when, nsecs_t readTime,
+                                                               const Gesture& gesture) {
+    std::list<NotifyArgs> out = {};
+
+    mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
+    mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
+
+    PointerProperties props;
+    props.clear();
+    props.id = 0;
+    props.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+
+    float xCursorPosition, yCursorPosition;
+    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+
+    PointerCoords coords;
+    coords.clear();
+    coords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0);
+    const uint32_t buttonsPressed = gesture.details.buttons.down;
+    bool pointerDown = isPointerDown(mButtonState) ||
+            buttonsPressed &
+                    (GESTURES_BUTTON_LEFT | GESTURES_BUTTON_MIDDLE | GESTURES_BUTTON_RIGHT);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, pointerDown ? 1.0f : 0.0f);
+
+    uint32_t newButtonState = mButtonState;
+    std::list<NotifyArgs> pressEvents = {};
+    for (uint32_t button = 1; button <= GESTURES_BUTTON_FORWARD; button <<= 1) {
+        if (buttonsPressed & button) {
+            uint32_t actionButton = gesturesButtonToMotionEventButton(button);
+            newButtonState |= actionButton;
+            pressEvents.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_PRESS,
+                                                 actionButton, newButtonState,
+                                                 /* pointerCount= */ 1, &props, &coords,
+                                                 xCursorPosition, yCursorPosition));
+        }
+    }
+    if (!isPointerDown(mButtonState) && isPointerDown(newButtonState)) {
+        mDownTime = when;
+        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
+                                     /* actionButton= */ 0, newButtonState, /* pointerCount= */ 1,
+                                     &props, &coords, xCursorPosition, yCursorPosition));
+    }
+    out.splice(out.end(), pressEvents);
+
+    // The same button may be in both down and up in the same gesture, in which case we should treat
+    // it as having gone down and then up. So, we treat a single button change gesture as two state
+    // changes: a set of buttons going down, followed by a set of buttons going up.
+    mButtonState = newButtonState;
+
+    const uint32_t buttonsReleased = gesture.details.buttons.up;
+    for (uint32_t button = 1; button <= GESTURES_BUTTON_FORWARD; button <<= 1) {
+        if (buttonsReleased & button) {
+            uint32_t actionButton = gesturesButtonToMotionEventButton(button);
+            newButtonState &= ~actionButton;
+            out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
+                                         actionButton, newButtonState, /* pointerCount= */ 1,
+                                         &props, &coords, xCursorPosition, yCursorPosition));
+        }
+    }
+    if (isPointerDown(mButtonState) && !isPointerDown(newButtonState)) {
+        coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 0.0f);
+        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /* actionButton= */ 0,
+                                     newButtonState, /* pointerCount= */ 1, &props, &coords,
+                                     xCursorPosition, yCursorPosition));
+    }
+    mButtonState = newButtonState;
+    return out;
+}
+
+NotifyMotionArgs TouchpadInputMapper::makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
+                                                     int32_t actionButton, int32_t buttonState,
+                                                     uint32_t pointerCount,
+                                                     const PointerProperties* pointerProperties,
+                                                     const PointerCoords* pointerCoords,
+                                                     float xCursorPosition, float yCursorPosition) {
+    // TODO(b/260226362): consider what the appropriate source for these events is.
+    const uint32_t source = AINPUT_SOURCE_MOUSE;
+
+    return NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(), source,
+                            mPointerController->getDisplayId(), /* policyFlags= */ 0, action,
+                            /* actionButton= */ actionButton, /* flags= */ 0,
+                            getContext()->getGlobalMetaState(), buttonState,
+                            MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount,
+                            pointerProperties, pointerCoords,
+                            /* xPrecision= */ 1.0f, /* yPrecision= */ 1.0f, xCursorPosition,
+                            yCursorPosition, /* downTime= */ mDownTime, /* videoFrames= */ {});
 }
 
 } // namespace android

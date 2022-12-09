@@ -211,6 +211,7 @@ public:
     int32_t getSwitchState(int32_t deviceId, int32_t sw) const override {
         return mFdp->ConsumeIntegral<int32_t>();
     }
+    void addKeyRemapping(int32_t deviceId, int32_t fromKeyCode, int32_t toKeyCode) const override {}
     int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const override {
         return mFdp->ConsumeIntegral<int32_t>();
     }

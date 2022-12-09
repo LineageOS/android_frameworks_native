@@ -2260,12 +2260,12 @@ status_t SurfaceComposerClient::getDisplayState(const sp<IBinder>& display,
     return statusTFromBinderStatus(status);
 }
 
-status_t SurfaceComposerClient::getStaticDisplayInfo(const sp<IBinder>& display,
+status_t SurfaceComposerClient::getStaticDisplayInfo(int64_t displayId,
                                                      ui::StaticDisplayInfo* outInfo) {
     using Tag = android::gui::DeviceProductInfo::ManufactureOrModelDate::Tag;
     gui::StaticDisplayInfo ginfo;
     binder::Status status =
-            ComposerServiceAIDL::getComposerService()->getStaticDisplayInfo(display, &ginfo);
+            ComposerServiceAIDL::getComposerService()->getStaticDisplayInfo(displayId, &ginfo);
     if (status.isOk()) {
         // convert gui::StaticDisplayInfo to ui::StaticDisplayInfo
         outInfo->connectionType = static_cast<ui::DisplayConnectionType>(ginfo.connectionType);
@@ -2309,56 +2309,74 @@ status_t SurfaceComposerClient::getStaticDisplayInfo(const sp<IBinder>& display,
     return statusTFromBinderStatus(status);
 }
 
-status_t SurfaceComposerClient::getDynamicDisplayInfo(const sp<IBinder>& display,
-                                                      ui::DynamicDisplayInfo* outInfo) {
+void SurfaceComposerClient::getDynamicDisplayInfoInternal(gui::DynamicDisplayInfo& ginfo,
+                                                          ui::DynamicDisplayInfo*& outInfo) {
+    // convert gui::DynamicDisplayInfo to ui::DynamicDisplayInfo
+    outInfo->supportedDisplayModes.clear();
+    outInfo->supportedDisplayModes.reserve(ginfo.supportedDisplayModes.size());
+    for (const auto& mode : ginfo.supportedDisplayModes) {
+        ui::DisplayMode outMode;
+        outMode.id = mode.id;
+        outMode.resolution.width = mode.resolution.width;
+        outMode.resolution.height = mode.resolution.height;
+        outMode.xDpi = mode.xDpi;
+        outMode.yDpi = mode.yDpi;
+        outMode.refreshRate = mode.refreshRate;
+        outMode.appVsyncOffset = mode.appVsyncOffset;
+        outMode.sfVsyncOffset = mode.sfVsyncOffset;
+        outMode.presentationDeadline = mode.presentationDeadline;
+        outMode.group = mode.group;
+        std::transform(mode.supportedHdrTypes.begin(), mode.supportedHdrTypes.end(),
+                       std::back_inserter(outMode.supportedHdrTypes),
+                       [](const int32_t& value) { return static_cast<ui::Hdr>(value); });
+        outInfo->supportedDisplayModes.push_back(outMode);
+    }
+
+    outInfo->activeDisplayModeId = ginfo.activeDisplayModeId;
+    outInfo->renderFrameRate = ginfo.renderFrameRate;
+
+    outInfo->supportedColorModes.clear();
+    outInfo->supportedColorModes.reserve(ginfo.supportedColorModes.size());
+    for (const auto& cmode : ginfo.supportedColorModes) {
+        outInfo->supportedColorModes.push_back(static_cast<ui::ColorMode>(cmode));
+    }
+
+    outInfo->activeColorMode = static_cast<ui::ColorMode>(ginfo.activeColorMode);
+
+    std::vector<ui::Hdr> types;
+    types.reserve(ginfo.hdrCapabilities.supportedHdrTypes.size());
+    for (const auto& hdr : ginfo.hdrCapabilities.supportedHdrTypes) {
+        types.push_back(static_cast<ui::Hdr>(hdr));
+    }
+    outInfo->hdrCapabilities = HdrCapabilities(types, ginfo.hdrCapabilities.maxLuminance,
+                                               ginfo.hdrCapabilities.maxAverageLuminance,
+                                               ginfo.hdrCapabilities.minLuminance);
+
+    outInfo->autoLowLatencyModeSupported = ginfo.autoLowLatencyModeSupported;
+    outInfo->gameContentTypeSupported = ginfo.gameContentTypeSupported;
+    outInfo->preferredBootDisplayMode = ginfo.preferredBootDisplayMode;
+}
+
+status_t SurfaceComposerClient::getDynamicDisplayInfoFromId(int64_t displayId,
+                                                            ui::DynamicDisplayInfo* outInfo) {
     gui::DynamicDisplayInfo ginfo;
     binder::Status status =
-            ComposerServiceAIDL::getComposerService()->getDynamicDisplayInfo(display, &ginfo);
+            ComposerServiceAIDL::getComposerService()->getDynamicDisplayInfoFromId(displayId,
+                                                                                   &ginfo);
     if (status.isOk()) {
-        // convert gui::DynamicDisplayInfo to ui::DynamicDisplayInfo
-        outInfo->supportedDisplayModes.clear();
-        outInfo->supportedDisplayModes.reserve(ginfo.supportedDisplayModes.size());
-        for (const auto& mode : ginfo.supportedDisplayModes) {
-            ui::DisplayMode outMode;
-            outMode.id = mode.id;
-            outMode.resolution.width = mode.resolution.width;
-            outMode.resolution.height = mode.resolution.height;
-            outMode.xDpi = mode.xDpi;
-            outMode.yDpi = mode.yDpi;
-            outMode.refreshRate = mode.refreshRate;
-            outMode.appVsyncOffset = mode.appVsyncOffset;
-            outMode.sfVsyncOffset = mode.sfVsyncOffset;
-            outMode.presentationDeadline = mode.presentationDeadline;
-            outMode.group = mode.group;
-            std::transform(mode.supportedHdrTypes.begin(), mode.supportedHdrTypes.end(),
-                           std::back_inserter(outMode.supportedHdrTypes),
-                           [](const int32_t& value) { return static_cast<ui::Hdr>(value); });
-            outInfo->supportedDisplayModes.push_back(outMode);
-        }
+        getDynamicDisplayInfoInternal(ginfo, outInfo);
+    }
+    return statusTFromBinderStatus(status);
+}
 
-        outInfo->activeDisplayModeId = ginfo.activeDisplayModeId;
-        outInfo->renderFrameRate = ginfo.renderFrameRate;
-
-        outInfo->supportedColorModes.clear();
-        outInfo->supportedColorModes.reserve(ginfo.supportedColorModes.size());
-        for (const auto& cmode : ginfo.supportedColorModes) {
-            outInfo->supportedColorModes.push_back(static_cast<ui::ColorMode>(cmode));
-        }
-
-        outInfo->activeColorMode = static_cast<ui::ColorMode>(ginfo.activeColorMode);
-
-        std::vector<ui::Hdr> types;
-        types.reserve(ginfo.hdrCapabilities.supportedHdrTypes.size());
-        for (const auto& hdr : ginfo.hdrCapabilities.supportedHdrTypes) {
-            types.push_back(static_cast<ui::Hdr>(hdr));
-        }
-        outInfo->hdrCapabilities = HdrCapabilities(types, ginfo.hdrCapabilities.maxLuminance,
-                                                   ginfo.hdrCapabilities.maxAverageLuminance,
-                                                   ginfo.hdrCapabilities.minLuminance);
-
-        outInfo->autoLowLatencyModeSupported = ginfo.autoLowLatencyModeSupported;
-        outInfo->gameContentTypeSupported = ginfo.gameContentTypeSupported;
-        outInfo->preferredBootDisplayMode = ginfo.preferredBootDisplayMode;
+status_t SurfaceComposerClient::getDynamicDisplayInfoFromToken(const sp<IBinder>& display,
+                                                               ui::DynamicDisplayInfo* outInfo) {
+    gui::DynamicDisplayInfo ginfo;
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getDynamicDisplayInfoFromToken(display,
+                                                                                      &ginfo);
+    if (status.isOk()) {
+        getDynamicDisplayInfoInternal(ginfo, outInfo);
     }
     return statusTFromBinderStatus(status);
 }
@@ -2366,7 +2384,8 @@ status_t SurfaceComposerClient::getDynamicDisplayInfo(const sp<IBinder>& display
 status_t SurfaceComposerClient::getActiveDisplayMode(const sp<IBinder>& display,
                                                      ui::DisplayMode* mode) {
     ui::DynamicDisplayInfo info;
-    status_t result = getDynamicDisplayInfo(display, &info);
+
+    status_t result = getDynamicDisplayInfoFromToken(display, &info);
     if (result != NO_ERROR) {
         return result;
     }
@@ -2542,7 +2561,7 @@ status_t SurfaceComposerClient::onPullAtom(const int32_t atomId, std::string* ou
     gui::PullAtomData pad;
     binder::Status status = ComposerServiceAIDL::getComposerService()->onPullAtom(atomId, &pad);
     if (status.isOk()) {
-        outData->assign((const char*)pad.data.data(), pad.data.size());
+        outData->assign(pad.data.begin(), pad.data.end());
         *success = pad.success;
     }
     return statusTFromBinderStatus(status);

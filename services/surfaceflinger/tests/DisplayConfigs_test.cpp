@@ -45,6 +45,7 @@ protected:
     void SetUp() override {
         const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
         ASSERT_FALSE(ids.empty());
+        mDisplayId = ids.front().value;
         mDisplayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         status_t res = SurfaceComposerClient::getDesiredDisplayModeSpecs(mDisplayToken, &mSpecs);
         ASSERT_EQ(res, NO_ERROR);
@@ -58,11 +59,14 @@ protected:
     void testSetAllowGroupSwitching(bool allowGroupSwitching);
 
     sp<IBinder> mDisplayToken;
+    uint64_t mDisplayId;
 };
 
 TEST_F(RefreshRateRangeTest, setAllConfigs) {
     ui::DynamicDisplayInfo info;
-    status_t res = SurfaceComposerClient::getDynamicDisplayInfo(mDisplayToken, &info);
+    status_t res =
+            SurfaceComposerClient::getDynamicDisplayInfoFromId(static_cast<int64_t>(mDisplayId),
+                                                               &info);
     const auto& modes = info.supportedDisplayModes;
     ASSERT_EQ(res, NO_ERROR);
     ASSERT_GT(modes.size(), 0);

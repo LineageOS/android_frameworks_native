@@ -2912,6 +2912,27 @@ TEST_F(KeyboardInputMapperTest, Process_SimpleKeyPress) {
     ASSERT_EQ(ARBITRARY_TIME, args.downTime);
 }
 
+TEST_F(KeyboardInputMapperTest, Process_KeyRemapping) {
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_A, 0, AKEYCODE_A, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_B, 0, AKEYCODE_B, 0);
+    mFakeEventHub->addKeyRemapping(EVENTHUB_ID, AKEYCODE_A, AKEYCODE_B);
+
+    KeyboardInputMapper& mapper =
+            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+                                                       AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+
+    // Key down by scan code.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_A, 1);
+    NotifyKeyArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(AKEYCODE_B, args.keyCode);
+
+    // Key up by scan code.
+    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_A, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(AKEYCODE_B, args.keyCode);
+}
+
 /**
  * Ensure that the readTime is set to the time when the EV_KEY is received.
  */
