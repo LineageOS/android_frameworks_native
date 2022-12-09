@@ -25,6 +25,7 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
+#include <ftl/fake_guard.h>
 #include <gui/WindowInfo.h>
 #include <system/window.h>
 #include <ui/DisplayStatInfo.h>
@@ -94,9 +95,13 @@ void Scheduler::startTimers() {
 }
 
 void Scheduler::setRefreshRateConfigs(std::shared_ptr<RefreshRateConfigs> configs) {
+    // The current RefreshRateConfigs instance may outlive this call, so unbind its idle timer.
     {
-        // The current RefreshRateConfigs instance may outlive this call, so unbind its idle timer.
-        std::scoped_lock lock(mRefreshRateConfigsLock);
+        // mRefreshRateConfigsLock is not locked here to avoid the deadlock
+        // as the callback can attempt to acquire the lock before stopIdleTimer can finish
+        // the execution. It's safe to FakeGuard as main thread is the only thread that
+        // writes to the mRefreshRateConfigs.
+        ftl::FakeGuard guard(mRefreshRateConfigsLock);
         if (mRefreshRateConfigs) {
             mRefreshRateConfigs->stopIdleTimer();
             mRefreshRateConfigs->clearIdleTimerCallbacks();
@@ -554,11 +559,12 @@ void Scheduler::onTouchHint() {
     }
 }
 
-void Scheduler::setDisplayPowerState(bool normal) {
+void Scheduler::setDisplayPowerMode(hal::PowerMode powerMode) {
     {
         std::lock_guard<std::mutex> lock(mPolicyLock);
-        mPolicy.isDisplayPowerStateNormal = normal;
+        mPolicy.displayPowerMode = powerMode;
     }
+    mVsyncSchedule->getController().setDisplayPowerMode(powerMode);
 
     if (mDisplayPowerTimer) {
         mDisplayPowerTimer->reset();
@@ -706,7 +712,8 @@ auto Scheduler::chooseDisplayMode() -> std::pair<DisplayModePtr, GlobalSignals> 
     // If Display Power is not in normal operation we want to be in performance mode. When coming
     // back to normal mode, a grace period is given with DisplayPowerTimer.
     if (mDisplayPowerTimer &&
-        (!mPolicy.isDisplayPowerStateNormal || mPolicy.displayPowerTimer == TimerState::Reset)) {
+        (mPolicy.displayPowerMode != hal::PowerMode::ON ||
+         mPolicy.displayPowerTimer == TimerState::Reset)) {
         constexpr GlobalSignals kNoSignals;
         return {configs->getMaxRefreshRateByPolicy(), kNoSignals};
     }

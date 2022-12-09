@@ -90,6 +90,25 @@ const char* motionClassificationToString(MotionClassification classification) {
     }
 }
 
+const char* motionToolTypeToString(int32_t toolType) {
+    switch (toolType) {
+        case AMOTION_EVENT_TOOL_TYPE_UNKNOWN:
+            return "UNKNOWN";
+        case AMOTION_EVENT_TOOL_TYPE_FINGER:
+            return "FINGER";
+        case AMOTION_EVENT_TOOL_TYPE_STYLUS:
+            return "STYLUS";
+        case AMOTION_EVENT_TOOL_TYPE_MOUSE:
+            return "MOUSE";
+        case AMOTION_EVENT_TOOL_TYPE_ERASER:
+            return "ERASER";
+        case AMOTION_EVENT_TOOL_TYPE_PALM:
+            return "PALM";
+        default:
+            return "INVALID";
+    }
+}
+
 // --- IdGenerator ---
 IdGenerator::IdGenerator(Source source) : mSource(source) {}
 

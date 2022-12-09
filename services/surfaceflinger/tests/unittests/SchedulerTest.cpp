@@ -159,8 +159,8 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
 
-    constexpr bool kPowerStateNormal = true;
-    mScheduler->setDisplayPowerState(kPowerStateNormal);
+    constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
+    mScheduler->setDisplayPowerMode(kPowerModeOn);
 
     constexpr uint32_t kDisplayArea = 999'999;
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
@@ -226,8 +226,8 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
 
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
 
-    constexpr bool kPowerStateNormal = true;
-    mScheduler->setDisplayPowerState(kPowerStateNormal);
+    constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
+    mScheduler->setDisplayPowerMode(kPowerModeOn);
 
     constexpr uint32_t kDisplayArea = 999'999;
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);

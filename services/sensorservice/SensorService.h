@@ -377,6 +377,7 @@ private:
             const String16& opPackageName);
     static bool hasPermissionForSensor(const Sensor& sensor);
     static int getTargetSdkVersion(const String16& opPackageName);
+    static void resetTargetSdkVersionCache(const String16& opPackageName);
     // SensorService acquires a partial wakelock for delivering events from wake up sensors. This
     // method checks whether all the events from these wake up sensors have been delivered to the
     // corresponding applications, if yes the wakelock is released.

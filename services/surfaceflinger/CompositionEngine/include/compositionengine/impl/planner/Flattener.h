@@ -106,7 +106,8 @@ public:
 
     // Renders the newest cached sets with the supplied output composition state
     void renderCachedSets(const OutputCompositionState& outputState,
-                          std::optional<std::chrono::steady_clock::time_point> renderDeadline);
+                          std::optional<std::chrono::steady_clock::time_point> renderDeadline,
+                          bool deviceHandlesColorTransform);
 
     void setTexturePoolEnabled(bool enabled) { mTexturePool.setEnabled(enabled); }
 

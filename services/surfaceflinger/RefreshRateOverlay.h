@@ -33,6 +33,20 @@ namespace android {
 
 class GraphicBuffer;
 class SurfaceControl;
+class SurfaceFlinger;
+
+// Helper class to delete the SurfaceControl on a helper thread as
+// SurfaceControl assumes its destruction happens without SurfaceFlinger::mStateLock held.
+class SurfaceControlHolder {
+public:
+    explicit SurfaceControlHolder(sp<SurfaceControl> sc) : mSurfaceControl(std::move(sc)){};
+    ~SurfaceControlHolder();
+
+    const sp<SurfaceControl>& get() const { return mSurfaceControl; }
+
+private:
+    sp<SurfaceControl> mSurfaceControl;
+};
 
 class RefreshRateOverlay {
 public:
@@ -75,7 +89,7 @@ private:
     const FpsRange mFpsRange; // For color interpolation.
     const bool mShowSpinner;
 
-    const sp<SurfaceControl> mSurfaceControl;
+    const std::unique_ptr<SurfaceControlHolder> mSurfaceControl;
 };
 
 } // namespace android

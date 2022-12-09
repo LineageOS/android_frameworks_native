@@ -597,20 +597,20 @@ void ASurfaceTransaction_setEnableBackPressure(ASurfaceTransaction* transaction,
                                                __INTRODUCED_IN(31);
 
 /**
- * Sets the frame timeline to use in Surface Flinger.
+ * Sets the frame timeline to use in SurfaceFlinger.
  *
- * A frame timeline should be chosen based on what frame deadline the application
- * can meet when rendering the frame and the application's desired present time.
- * By setting a frame timeline, Surface Flinger tries to present the frame at the corresponding
- * expected present time.
+ * A frame timeline should be chosen based on the frame deadline the application
+ * can meet when rendering the frame and the application's desired presentation time.
+ * By setting a frame timeline, SurfaceFlinger tries to present the frame at the corresponding
+ * expected presentation time.
  *
  * To receive frame timelines, a callback must be posted to Choreographer using
- * AChoreographer_postExtendedFrameCallback(). The \a vsnycId can then be extracted from the
+ * AChoreographer_postVsyncCallback(). The \c vsyncId can then be extracted from the
  * callback payload using AChoreographerFrameCallbackData_getFrameTimelineVsyncId().
  *
- * \param vsyncId The vsync ID received from AChoreographer, setting the frame's present target to
- * the corresponding expected present time and deadline from the frame to be rendered. A stale or
- * invalid value will be ignored.
+ * \param vsyncId The vsync ID received from AChoreographer, setting the frame's presentation target
+ * to the corresponding expected presentation time and deadline from the frame to be rendered. A
+ * stale or invalid value will be ignored.
  */
 void ASurfaceTransaction_setFrameTimeline(ASurfaceTransaction* transaction,
                                           AVsyncId vsyncId) __INTRODUCED_IN(33);

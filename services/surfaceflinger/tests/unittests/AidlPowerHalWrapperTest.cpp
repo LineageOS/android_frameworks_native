@@ -52,6 +52,8 @@ protected:
     void verifyAndClearExpectations();
     void sendActualWorkDurationGroup(std::vector<WorkDuration> durations,
                                      std::chrono::nanoseconds sleepBeforeLastSend);
+    std::chrono::nanoseconds mAllowedDeviation;
+    std::chrono::nanoseconds mStaleTimeout;
 };
 
 void AidlPowerHalWrapperTest::SetUp() {
@@ -59,6 +61,9 @@ void AidlPowerHalWrapperTest::SetUp() {
     mMockSession = new NiceMock<MockIPowerHintSession>();
     ON_CALL(*mMockHal.get(), getHintSessionPreferredRate(_)).WillByDefault(Return(Status::ok()));
     mWrapper = std::make_unique<AidlPowerHalWrapper>(mMockHal);
+    mWrapper->setAllowedActualDeviation(std::chrono::nanoseconds{10ms}.count());
+    mAllowedDeviation = std::chrono::nanoseconds{mWrapper->mAllowedActualDeviation};
+    mStaleTimeout = AidlPowerHalWrapper::kStaleTimeout;
 }
 
 void AidlPowerHalWrapperTest::verifyAndClearExpectations() {
@@ -76,11 +81,16 @@ void AidlPowerHalWrapperTest::sendActualWorkDurationGroup(
         mWrapper->sendActualWorkDuration(duration.durationNanos, duration.timeStampNanos);
     }
 }
+
 WorkDuration toWorkDuration(std::chrono::nanoseconds durationNanos, int64_t timeStampNanos) {
     WorkDuration duration;
     duration.durationNanos = durationNanos.count();
     duration.timeStampNanos = timeStampNanos;
     return duration;
+}
+
+WorkDuration toWorkDuration(std::pair<std::chrono::nanoseconds, nsecs_t> timePair) {
+    return toWorkDuration(timePair.first, timePair.second);
 }
 
 std::string printWorkDurations(const ::std::vector<WorkDuration>& durations) {
@@ -112,7 +122,7 @@ TEST_F(AidlPowerHalWrapperTest, startPowerHintSession) {
     EXPECT_FALSE(mWrapper->startPowerHintSession());
 }
 
-TEST_F(AidlPowerHalWrapperTest, restartNewPoserHintSessionWithNewThreadIds) {
+TEST_F(AidlPowerHalWrapperTest, restartNewPowerHintSessionWithNewThreadIds) {
     ASSERT_TRUE(mWrapper->supportsPowerHintSession());
 
     std::vector<int32_t> threadIds = {1, 2};
@@ -149,12 +159,8 @@ TEST_F(AidlPowerHalWrapperTest, setTargetWorkDuration) {
 
     std::chrono::nanoseconds base = 100ms;
     // test cases with target work duration and whether it should update hint against baseline 100ms
-    const std::vector<std::pair<std::chrono::nanoseconds, bool>> testCases = {{0ms, false},
-                                                                              {-1ms, false},
-                                                                              {200ms, true},
-                                                                              {2ms, true},
-                                                                              {91ms, false},
-                                                                              {109ms, false}};
+    const std::vector<std::pair<std::chrono::nanoseconds, bool>> testCases =
+            {{0ms, true}, {-1ms, true}, {200ms, true}, {2ms, true}, {100ms, false}, {109ms, true}};
 
     for (const auto& test : testCases) {
         // reset to 100ms baseline
@@ -200,60 +206,26 @@ TEST_F(AidlPowerHalWrapperTest, sendActualWorkDuration) {
     // 100ms
     const std::vector<std::pair<std::vector<std::pair<std::chrono::nanoseconds, nsecs_t>>, bool>>
             testCases = {{{{-1ms, 100}}, false},
-                         {{{91ms, 100}}, false},
-                         {{{109ms, 100}}, false},
+                         {{{100ms - (mAllowedDeviation / 2), 100}}, false},
+                         {{{100ms + (mAllowedDeviation / 2), 100}}, false},
+                         {{{100ms + (mAllowedDeviation + 1ms), 100}}, true},
+                         {{{100ms - (mAllowedDeviation + 1ms), 100}}, true},
                          {{{100ms, 100}, {200ms, 200}}, true},
                          {{{100ms, 500}, {100ms, 600}, {3ms, 600}}, true}};
 
     for (const auto& test : testCases) {
         // reset actual duration
-        sendActualWorkDurationGroup({base}, 80ms);
+        sendActualWorkDurationGroup({base}, mStaleTimeout);
 
         auto raw = test.first;
         std::vector<WorkDuration> durations(raw.size());
         std::transform(raw.begin(), raw.end(), durations.begin(),
-                       [](std::pair<std::chrono::nanoseconds, nsecs_t> d) {
-                           return toWorkDuration(d.first, d.second);
-                       });
+                       [](auto d) { return toWorkDuration(d); });
         EXPECT_CALL(*mMockSession.get(), reportActualWorkDuration(durations))
                 .Times(test.second ? 1 : 0);
         sendActualWorkDurationGroup(durations, 0ms);
         verifyAndClearExpectations();
     }
-}
-
-TEST_F(AidlPowerHalWrapperTest, sendAdjustedActualWorkDuration) {
-    ASSERT_TRUE(mWrapper->supportsPowerHintSession());
-
-    std::vector<int32_t> threadIds = {1, 2};
-    mWrapper->setPowerHintSessionThreadIds(threadIds);
-    EXPECT_CALL(*mMockHal.get(), createHintSession(_, _, threadIds, _, _))
-            .WillOnce(DoAll(SetArgPointee<4>(mMockSession), Return(Status::ok())));
-    ASSERT_TRUE(mWrapper->startPowerHintSession());
-    verifyAndClearExpectations();
-
-    std::chrono::nanoseconds lastTarget = 100ms;
-    EXPECT_CALL(*mMockSession.get(), updateTargetWorkDuration(lastTarget.count())).Times(1);
-    mWrapper->setTargetWorkDuration(lastTarget.count());
-    std::chrono::nanoseconds newTarget = 105ms;
-    mWrapper->setTargetWorkDuration(newTarget.count());
-    EXPECT_CALL(*mMockSession.get(), updateTargetWorkDuration(newTarget.count())).Times(0);
-    std::chrono::nanoseconds actual = 21ms;
-    // 100 / 105 * 21ms = 20ms
-    std::chrono::nanoseconds expectedActualSent = 20ms;
-    std::vector<WorkDuration> expectedDurations = {toWorkDuration(expectedActualSent, 1)};
-
-    EXPECT_CALL(*mMockSession.get(), reportActualWorkDuration(_))
-            .WillOnce(DoAll(
-                    [expectedDurations](const ::std::vector<WorkDuration>& durationsSent) {
-                        EXPECT_EQ(expectedDurations, durationsSent)
-                                << base::StringPrintf("actual sent: %s vs expected: %s",
-                                                      printWorkDurations(durationsSent).c_str(),
-                                                      printWorkDurations(expectedDurations)
-                                                              .c_str());
-                    },
-                    Return(Status::ok())));
-    mWrapper->sendActualWorkDuration(actual.count(), 1);
 }
 
 TEST_F(AidlPowerHalWrapperTest, sendActualWorkDuration_exceedsStaleTime) {
@@ -269,22 +241,23 @@ TEST_F(AidlPowerHalWrapperTest, sendActualWorkDuration_exceedsStaleTime) {
     auto base = toWorkDuration(100ms, 0);
     // test cases with actual work durations and whether it should update hint against baseline
     // 100ms
-    const std::vector<std::pair<std::vector<std::pair<std::chrono::nanoseconds, nsecs_t>>, bool>>
-            testCases = {{{{91ms, 100}}, true}, {{{109ms, 100}}, true}};
+    const std::vector<std::tuple<std::vector<std::pair<std::chrono::nanoseconds, nsecs_t>>,
+                                 std::chrono::nanoseconds, bool>>
+            testCases = {{{{100ms, 100}}, mStaleTimeout, true},
+                         {{{100ms + (mAllowedDeviation / 2), 100}}, mStaleTimeout, true},
+                         {{{100ms, 100}}, mStaleTimeout / 2, false}};
 
     for (const auto& test : testCases) {
         // reset actual duration
-        sendActualWorkDurationGroup({base}, 80ms);
+        sendActualWorkDurationGroup({base}, mStaleTimeout);
 
-        auto raw = test.first;
+        auto raw = std::get<0>(test);
         std::vector<WorkDuration> durations(raw.size());
         std::transform(raw.begin(), raw.end(), durations.begin(),
-                       [](std::pair<std::chrono::nanoseconds, nsecs_t> d) {
-                           return toWorkDuration(d.first, d.second);
-                       });
+                       [](auto d) { return toWorkDuration(d); });
         EXPECT_CALL(*mMockSession.get(), reportActualWorkDuration(durations))
-                .Times(test.second ? 1 : 0);
-        sendActualWorkDurationGroup(durations, 80ms);
+                .Times(std::get<2>(test) ? 1 : 0);
+        sendActualWorkDurationGroup(durations, std::get<1>(test));
         verifyAndClearExpectations();
     }
 }
