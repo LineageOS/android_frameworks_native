@@ -74,6 +74,7 @@ cc_defaults {
         "libcutils",
         "libjsoncpp",
         "liblog",
+        "libPlatformProperties",
         "libstatslog",
         "libutils",
     ],
@@ -90,7 +91,6 @@ cc_defaults {
     target: {
         android: {
             shared_libs: [
-                "libPlatformProperties",
                 "libinput",
             ],
         },

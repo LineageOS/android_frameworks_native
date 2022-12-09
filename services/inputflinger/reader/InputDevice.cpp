@@ -20,9 +20,7 @@
 
 #include <algorithm>
 
-#if defined(__ANDROID__)
 #include <android/sysprop/InputProperties.sysprop.h>
-#endif
 #include <ftl/flags.h>
 
 #include "CursorInputMapper.h"
@@ -213,11 +211,7 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
 
     // Touchscreens and touchpad devices.
     static const bool ENABLE_TOUCHPAD_GESTURES_LIBRARY =
-#if defined(__ANDROID__)
             sysprop::InputProperties::enable_touchpad_gestures_library().value_or(false);
-#else
-            false;
-#endif
     if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
         classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(std::make_unique<TouchpadInputMapper>(*contextPtr));
