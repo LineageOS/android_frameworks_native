@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/OutputLayer.h>
@@ -43,6 +44,8 @@ public:
     ~OutputLayer() override;
 
     void setHwcLayer(std::shared_ptr<HWC2::Layer>) override;
+
+    void uncacheBuffers(const std::vector<uint64_t>& bufferIdsToUncache) override;
 
     void updateCompositionState(bool includeGeometry, bool forceClientComposition,
                                 ui::Transform::RotationFlags) override;

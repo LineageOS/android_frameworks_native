@@ -610,6 +610,19 @@ void OutputLayer::writeSidebandStateToHWC(HWC2::Layer* hwcLayer,
     }
 }
 
+void OutputLayer::uncacheBuffers(std::vector<uint64_t> const& bufferIdsToUncache) {
+    auto& state = editState();
+    // Skip doing this if there is no HWC interface
+    if (!state.hwc) {
+        return;
+    }
+
+    for (auto bufferId : bufferIdsToUncache) {
+        state.hwc->hwcBufferCache.uncache(bufferId);
+        // TODO(b/258196272): send uncache requests to Composer HAL
+    }
+}
+
 void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
                                         const LayerFECompositionState& outputIndependentState,
                                         bool skipLayer) {
@@ -622,27 +635,24 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-    sp<GraphicBuffer> buffer = outputIndependentState.buffer;
-    sp<Fence> acquireFence = outputIndependentState.acquireFence;
-    int slot = outputIndependentState.bufferSlot;
+    HwcSlotAndBuffer hwcSlotAndBuffer;
+    sp<Fence> hwcFence;
+    // Override buffers use a special cache slot so that they don't evict client buffers.
     if (getState().overrideInfo.buffer != nullptr && !skipLayer) {
-        buffer = getState().overrideInfo.buffer->getBuffer();
-        acquireFence = getState().overrideInfo.acquireFence;
-        slot = HwcBufferCache::FLATTENER_CACHING_SLOT;
+        hwcSlotAndBuffer = editState().hwc->hwcBufferCache.getHwcSlotAndBufferForOverride(
+                getState().overrideInfo.buffer->getBuffer());
+        hwcFence = getState().overrideInfo.acquireFence;
+    } else {
+        hwcSlotAndBuffer =
+                editState().hwc->hwcBufferCache.getHwcSlotAndBuffer(outputIndependentState.buffer);
+        hwcFence = outputIndependentState.acquireFence;
     }
 
-    ALOGV("Writing buffer %p", buffer.get());
-
-    uint32_t hwcSlot = 0;
-    sp<GraphicBuffer> hwcBuffer;
-    // We need access to the output-dependent state for the buffer cache there,
-    // though otherwise the buffer is not output-dependent.
-    editState().hwc->hwcBufferCache.getHwcBuffer(slot, buffer, &hwcSlot, &hwcBuffer);
-
-    if (auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
+    if (auto error = hwcLayer->setBuffer(hwcSlotAndBuffer.slot, hwcSlotAndBuffer.buffer, hwcFence);
         error != hal::Error::NONE) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", getLayerFE().getDebugName(), buffer->handle,
-              to_string(error).c_str(), static_cast<int32_t>(error));
+        ALOGE("[%s] Failed to set buffer %p: %s (%d)", getLayerFE().getDebugName(),
+              hwcSlotAndBuffer.buffer->handle, to_string(error).c_str(),
+              static_cast<int32_t>(error));
     }
 }
 

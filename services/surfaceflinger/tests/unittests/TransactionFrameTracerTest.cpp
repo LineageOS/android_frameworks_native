@@ -126,7 +126,7 @@ public:
                                                          HAL_PIXEL_FORMAT_RGBA_8888,
                                                          0ULL /*usage*/);
         layer->setBuffer(externalTexture, bufferData, postTime, /*desiredPresentTime*/ 30, false,
-                         dequeueTime, FrameTimelineInfo{}, 0);
+                         dequeueTime, FrameTimelineInfo{});
 
         commitTransaction(layer.get());
         nsecs_t latchTime = 25;
