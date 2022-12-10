@@ -5219,7 +5219,7 @@ void SurfaceFlinger::dumpOffscreenLayers(std::string& result) {
         std::string result;
         for (Layer* offscreenLayer : mOffscreenLayers) {
             offscreenLayer->traverse(LayerVector::StateSet::Drawing,
-                                     [&](Layer* layer) { layer->dumpCallingUidPid(result); });
+                                     [&](Layer* layer) { layer->dumpOffscreenDebugInfo(result); });
         }
         return result;
     });

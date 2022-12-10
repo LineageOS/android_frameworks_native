@@ -634,7 +634,7 @@ public:
 
     void miniDump(std::string& result, const DisplayDevice&) const;
     void dumpFrameStats(std::string& result) const;
-    void dumpCallingUidPid(std::string& result) const;
+    void dumpOffscreenDebugInfo(std::string& result) const;
     void clearFrameStats();
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;

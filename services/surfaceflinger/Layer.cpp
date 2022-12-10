@@ -1472,8 +1472,9 @@ void Layer::getFrameStats(FrameStats* outStats) const {
     mFrameTracker.getStats(outStats);
 }
 
-void Layer::dumpCallingUidPid(std::string& result) const {
-    StringAppendF(&result, "Layer %s (%s) ownerPid:%d ownerUid:%d\n", getName().c_str(), getType(),
+void Layer::dumpOffscreenDebugInfo(std::string& result) const {
+    std::string hasBuffer = hasBufferOrSidebandStream() ? " (contains buffer)" : "";
+    StringAppendF(&result, "Layer %s%s pid:%d uid:%d\n", getName().c_str(), hasBuffer.c_str(),
                   mOwnerPid, mOwnerUid);
 }
 
