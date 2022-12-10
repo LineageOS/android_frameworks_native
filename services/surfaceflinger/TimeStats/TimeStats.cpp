@@ -90,7 +90,7 @@ SurfaceflingerStatsLayerInfo_SetFrameRateVote frameRateVoteToProto(
 }
 } // namespace
 
-bool TimeStats::populateGlobalAtom(std::string* pulledData) {
+bool TimeStats::populateGlobalAtom(std::vector<uint8_t>* pulledData) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     if (mTimeStats.statsStartLegacy == 0) {
@@ -138,10 +138,11 @@ bool TimeStats::populateGlobalAtom(std::string* pulledData) {
     // Always clear data.
     clearGlobalLocked();
 
-    return atomList.SerializeToString(pulledData);
+    pulledData->resize(atomList.ByteSizeLong());
+    return atomList.SerializeToArray(pulledData->data(), atomList.ByteSizeLong());
 }
 
-bool TimeStats::populateLayerAtom(std::string* pulledData) {
+bool TimeStats::populateLayerAtom(std::vector<uint8_t>* pulledData) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     std::vector<TimeStatsHelper::TimeStatsLayer*> dumpStats;
@@ -229,7 +230,8 @@ bool TimeStats::populateLayerAtom(std::string* pulledData) {
     // Always clear data.
     clearLayersLocked();
 
-    return atomList.SerializeToString(pulledData);
+    pulledData->resize(atomList.ByteSizeLong());
+    return atomList.SerializeToArray(pulledData->data(), atomList.ByteSizeLong());
 }
 
 TimeStats::TimeStats() : TimeStats(std::nullopt, std::nullopt) {}
@@ -245,7 +247,7 @@ TimeStats::TimeStats(std::optional<size_t> maxPulledLayers,
     }
 }
 
-bool TimeStats::onPullAtom(const int atomId, std::string* pulledData) {
+bool TimeStats::onPullAtom(const int atomId, std::vector<uint8_t>* pulledData) {
     bool success = false;
     if (atomId == 10062) { // SURFACEFLINGER_STATS_GLOBAL_INFO
         success = populateGlobalAtom(pulledData);

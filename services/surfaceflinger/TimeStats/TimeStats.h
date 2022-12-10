@@ -47,7 +47,7 @@ public:
     virtual ~TimeStats() = default;
 
     // Process a pull request from statsd.
-    virtual bool onPullAtom(const int atomId, std::string* pulledData) = 0;
+    virtual bool onPullAtom(const int atomId, std::vector<uint8_t>* pulledData) = 0;
 
     virtual void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) = 0;
     virtual bool isEnabled() = 0;
@@ -244,7 +244,7 @@ public:
     TimeStats(std::optional<size_t> maxPulledLayers,
               std::optional<size_t> maxPulledHistogramBuckets);
 
-    bool onPullAtom(const int atomId, std::string* pulledData) override;
+    bool onPullAtom(const int atomId, std::vector<uint8_t>* pulledData) override;
     void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) override;
     bool isEnabled() override;
     std::string miniDump() override;
@@ -292,8 +292,8 @@ public:
     static const size_t MAX_NUM_TIME_RECORDS = 64;
 
 private:
-    bool populateGlobalAtom(std::string* pulledData);
-    bool populateLayerAtom(std::string* pulledData);
+    bool populateGlobalAtom(std::vector<uint8_t>* pulledData);
+    bool populateLayerAtom(std::vector<uint8_t>* pulledData);
     bool recordReadyLocked(int32_t layerId, TimeRecord* timeRecord);
     void flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayRefreshRate,
                                             std::optional<Fps> renderRate, SetFrameRateVote,

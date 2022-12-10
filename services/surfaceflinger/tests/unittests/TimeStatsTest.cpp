@@ -1099,8 +1099,10 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
                                       kGameMode, JankType::None, DISPLAY_DEADLINE_DELTA,
                                       DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
 
+    std::vector<uint8_t> pulledBytes;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10062 /*SURFACEFLINGER_STATS_GLOBAL_INFO*/, &pulledBytes));
     std::string pulledData;
-    EXPECT_TRUE(mTimeStats->onPullAtom(10062 /*SURFACEFLINGER_STATS_GLOBAL_INFO*/, &pulledData));
+    pulledData.assign(pulledBytes.begin(), pulledBytes.end());
 
     android::surfaceflinger::SurfaceflingerStatsGlobalInfoWrapper atomList;
     ASSERT_TRUE(atomList.ParseFromString(pulledData));
@@ -1234,8 +1236,10 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
                                       GameMode::Standard, JankType::None, DISPLAY_DEADLINE_DELTA,
                                       DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_3MS});
 
+    std::vector<uint8_t> pulledBytes;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledBytes));
     std::string pulledData;
-    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
+    pulledData.assign(pulledBytes.begin(), pulledBytes.end());
 
     SurfaceflingerStatsLayerInfoWrapper atomList;
     ASSERT_TRUE(atomList.ParseFromString(pulledData));
@@ -1322,8 +1326,10 @@ TEST_F(TimeStatsTest, layerStatsCallback_multipleGameModes) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 5, 4000000, {}, GameMode::Battery);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 6, 5000000, {}, GameMode::Custom);
 
+    std::vector<uint8_t> pulledBytes;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledBytes));
     std::string pulledData;
-    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
+    pulledData.assign(pulledBytes.begin(), pulledBytes.end());
 
     SurfaceflingerStatsLayerInfoWrapper atomList;
     ASSERT_TRUE(atomList.ParseFromString(pulledData));
@@ -1412,8 +1418,10 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleLayers) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 1, 2000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 2, 3000000);
 
+    std::vector<uint8_t> pulledBytes;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledBytes));
     std::string pulledData;
-    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
+    pulledData.assign(pulledBytes.begin(), pulledBytes.end());
 
     SurfaceflingerStatsLayerInfoWrapper atomList;
     ASSERT_TRUE(atomList.ParseFromString(pulledData));
@@ -1437,8 +1445,10 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleBuckets) {
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
 
+    std::vector<uint8_t> pulledBytes;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledBytes));
     std::string pulledData;
-    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
+    pulledData.assign(pulledBytes.begin(), pulledBytes.end());
 
     SurfaceflingerStatsLayerInfoWrapper atomList;
     ASSERT_TRUE(atomList.ParseFromString(pulledData));
@@ -1456,8 +1466,10 @@ TEST_F(TimeStatsTest, layerStatsCallback_limitsHistogramBuckets) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 4000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 4, 5000000);
 
+    std::vector<uint8_t> pulledBytes;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledBytes));
     std::string pulledData;
-    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
+    pulledData.assign(pulledBytes.begin(), pulledBytes.end());
 
     SurfaceflingerStatsLayerInfoWrapper atomList;
     ASSERT_TRUE(atomList.ParseFromString(pulledData));
@@ -1476,8 +1488,10 @@ TEST_F(TimeStatsTest, layerStatsCallback_limitsLayers) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 2, 3000000);
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_1, 4, 5000000);
 
+    std::vector<uint8_t> pulledBytes;
+    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledBytes));
     std::string pulledData;
-    EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));
+    pulledData.assign(pulledBytes.begin(), pulledBytes.end());
 
     SurfaceflingerStatsLayerInfoWrapper atomList;
     ASSERT_TRUE(atomList.ParseFromString(pulledData));

@@ -42,6 +42,12 @@ public:
     void applyTransactions(const std::vector<TransactionState>&);
     void onHandlesDestroyed(const std::vector<uint32_t>&);
 
+    // Detaches the layer from its relative parent to prevent a loop in the
+    // layer hierarchy. This overrides the RequestedLayerState and leaves
+    // the system in an invalid state. This is always a client error that
+    // needs to be fixed but overriding the state allows us to fail gracefully.
+    void fixRelativeZLoop(uint32_t relativeRootId);
+
     // Destroys RequestedLayerStates that are marked to be destroyed. Invokes all
     // ILifecycleListener callbacks and clears any change flags from previous state
     // updates. This function should be called outside the hot path since it's not
@@ -72,8 +78,8 @@ private:
 
     RequestedLayerState* getLayerFromId(uint32_t);
     std::vector<uint32_t>* getLinkedLayersFromId(uint32_t);
-    void linkLayer(uint32_t layerId, uint32_t layerToLink);
-    void unlinkLayer(uint32_t& inOutLayerId, uint32_t linkedLayer);
+    uint32_t linkLayer(uint32_t layerId, uint32_t layerToLink);
+    uint32_t unlinkLayer(uint32_t layerId, uint32_t linkedLayer);
 
     struct References {
         // Lifetime tied to mLayers

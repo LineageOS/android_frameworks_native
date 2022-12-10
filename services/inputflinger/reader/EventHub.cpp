@@ -952,15 +952,19 @@ int32_t EventHub::getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKey
             device->getKeyCharacterMap()->mapKey(scanCodes[0], 0 /*usageCode*/, &outKeyCode);
     switch (mapKeyRes) {
         case OK:
-            return outKeyCode;
+            break;
         case NAME_NOT_FOUND:
             // key character map doesn't re-map this scanCode, hence the keyCode remains the same
-            return locationKeyCode;
+            outKeyCode = locationKeyCode;
+            break;
         default:
             ALOGW("Failed to get key code for key location: Key character map returned error %s",
                   statusToString(mapKeyRes).c_str());
-            return AKEYCODE_UNKNOWN;
+            outKeyCode = AKEYCODE_UNKNOWN;
+            break;
     }
+    // Remap if there is a Key remapping added to the KCM and return the remapped key
+    return device->getKeyCharacterMap()->applyKeyRemapping(outKeyCode);
 }
 
 int32_t EventHub::getSwitchState(int32_t deviceId, int32_t sw) const {
@@ -1023,6 +1027,18 @@ bool EventHub::markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t
     return false;
 }
 
+void EventHub::addKeyRemapping(int32_t deviceId, int32_t fromKeyCode, int32_t toKeyCode) const {
+    std::scoped_lock _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr) {
+        return;
+    }
+    const std::shared_ptr<KeyCharacterMap> kcm = device->getKeyCharacterMap();
+    if (kcm) {
+        kcm->addKeyRemapping(fromKeyCode, toKeyCode);
+    }
+}
+
 status_t EventHub::mapKey(int32_t deviceId, int32_t scanCode, int32_t usageCode, int32_t metaState,
                           int32_t* outKeycode, int32_t* outMetaState, uint32_t* outFlags) const {
     std::scoped_lock _l(mLock);
@@ -1048,7 +1064,13 @@ status_t EventHub::mapKey(int32_t deviceId, int32_t scanCode, int32_t usageCode,
 
         if (status == NO_ERROR) {
             if (kcm) {
-                kcm->tryRemapKey(*outKeycode, metaState, outKeycode, outMetaState);
+                // Remap keys based on user-defined key remappings and key behavior defined in the
+                // corresponding kcm file
+                *outKeycode = kcm->applyKeyRemapping(*outKeycode);
+
+                // Remap keys based on Key behavior defined in KCM file
+                std::tie(*outKeycode, *outMetaState) =
+                        kcm->applyKeyBehavior(*outKeycode, metaState);
             } else {
                 *outMetaState = metaState;
             }

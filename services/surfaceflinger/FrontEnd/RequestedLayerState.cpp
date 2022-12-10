@@ -40,7 +40,7 @@ uint32_t getLayerIdFromSurfaceControl(sp<SurfaceControl> surfaceControl) {
 }
 
 std::string layerIdToString(uint32_t layerId) {
-    return layerId == UNASSIGNED_LAYER_ID ? std::to_string(layerId) : "none";
+    return layerId == UNASSIGNED_LAYER_ID ? "none" : std::to_string(layerId);
 }
 
 } // namespace
@@ -147,13 +147,17 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         static const mat4 identityMatrix = mat4();
         hasColorTransform = colorTransform != identityMatrix;
     }
-    if (clientState.what & layer_state_t::eLayerChanged) {
+    if (clientState.what & (layer_state_t::eLayerChanged | layer_state_t::eRelativeLayerChanged)) {
         changes |= RequestedLayerState::Changes::Z;
     }
     if (clientState.what & layer_state_t::eReparent) {
         changes |= RequestedLayerState::Changes::Parent;
         parentId = getLayerIdFromSurfaceControl(clientState.parentSurfaceControlForChild);
         parentSurfaceControlForChild = nullptr;
+        // Once a layer has be reparented, it cannot be placed at the root. It sounds odd
+        // but thats the existing logic and until we make this behavior more explicit, we need
+        // to maintain this logic.
+        canBeRoot = false;
     }
     if (clientState.what & layer_state_t::eRelativeLayerChanged) {
         changes |= RequestedLayerState::Changes::RelativeParent;
@@ -254,7 +258,7 @@ std::string RequestedLayerState::getDebugString() const {
             ",relativeParent=" + layerIdToString(relativeParentId) +
             ",isRelativeOf=" + std::to_string(isRelativeOf) +
             ",mirrorId=" + layerIdToString(mirrorId) +
-            ",handleAlive=" + std::to_string(handleAlive);
+            ",handleAlive=" + std::to_string(handleAlive) + ",z=" + std::to_string(z);
 }
 
 std::string RequestedLayerState::getDebugStringShort() const {
@@ -353,6 +357,15 @@ Rect RequestedLayerState::reduce(const Rect& win, const Region& exclude) {
         return win.reduce(exclude.getBounds());
     }
     return Region(win).subtract(exclude).getBounds();
+}
+
+// Returns true if the layer has a relative parent that is not its own parent. This is an input
+// error from the client, and this check allows us to handle it gracefully. If both parentId and
+// relativeParentId is unassigned then the layer does not have a valid relative parent.
+// If the relative parentid is unassigned, the layer will be considered relative but won't be
+// reachable.
+bool RequestedLayerState::hasValidRelativeParent() const {
+    return isRelativeOf && parentId != relativeParentId;
 }
 
 } // namespace android::surfaceflinger::frontend

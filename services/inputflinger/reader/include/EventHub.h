@@ -262,6 +262,9 @@ public:
 
     virtual bool hasMscEvent(int32_t deviceId, int mscEvent) const = 0;
 
+    virtual void addKeyRemapping(int32_t deviceId, int32_t fromKeyCode,
+                                 int32_t toKeyCode) const = 0;
+
     virtual status_t mapKey(int32_t deviceId, int32_t scanCode, int32_t usageCode,
                             int32_t metaState, int32_t* outKeycode, int32_t* outMetaState,
                             uint32_t* outFlags) const = 0;
@@ -459,6 +462,9 @@ public:
     bool hasInputProperty(int32_t deviceId, int property) const override final;
 
     bool hasMscEvent(int32_t deviceId, int mscEvent) const override final;
+
+    void addKeyRemapping(int32_t deviceId, int32_t fromKeyCode,
+                         int32_t toKeyCode) const override final;
 
     status_t mapKey(int32_t deviceId, int32_t scanCode, int32_t usageCode, int32_t metaState,
                     int32_t* outKeycode, int32_t* outMetaState,
