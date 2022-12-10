@@ -243,6 +243,11 @@ enum { MAX_TIMING_INFOS = 10 };
 // syncronous requests to Surface Flinger):
 enum { MIN_NUM_FRAMES_AGO = 5 };
 
+bool IsSharedPresentMode(VkPresentModeKHR mode) {
+    return mode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
+        mode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR;
+}
+
 struct Swapchain {
     Swapchain(Surface& surface_,
               uint32_t num_images_,
@@ -254,9 +259,7 @@ struct Swapchain {
           pre_transform(pre_transform_),
           frame_timestamps_enabled(false),
           acquire_next_image_timeout(-1),
-          shared(present_mode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
-                 present_mode ==
-                     VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
+          shared(IsSharedPresentMode(present_mode)) {
         ANativeWindow* window = surface.window.get();
         native_window_get_refresh_cycle_duration(
             window,
@@ -1796,6 +1799,173 @@ static VkResult WorstPresentResult(VkResult a, VkResult b) {
     return a != VK_SUCCESS ? a : b;
 }
 
+// KHR_incremental_present aspect of QueuePresentKHR
+static void SetSwapchainSurfaceDamage(ANativeWindow *window, const VkPresentRegionKHR *pRegion) {
+    std::vector<android_native_rect_t> rects(pRegion->rectangleCount);
+    for (auto i = 0u; i < pRegion->rectangleCount; i++) {
+        auto const& rect = pRegion->pRectangles[i];
+        if (rect.layer > 0) {
+            ALOGV("vkQueuePresentKHR ignoring invalid layer (%u); using layer 0 instead",
+                rect.layer);
+        }
+
+        rects[i].left = rect.offset.x;
+        rects[i].bottom = rect.offset.y;
+        rects[i].right = rect.offset.x + rect.extent.width;
+        rects[i].top = rect.offset.y + rect.extent.height;
+    }
+    native_window_set_surface_damage(window, rects.data(), rects.size());
+}
+
+// GOOGLE_display_timing aspect of QueuePresentKHR
+static void SetSwapchainFrameTimestamp(Swapchain &swapchain, const VkPresentTimeGOOGLE *pTime) {
+    ANativeWindow *window = swapchain.surface.window.get();
+
+    // We don't know whether the app will actually use GOOGLE_display_timing
+    // with a particular swapchain until QueuePresent; enable it on the BQ
+    // now if needed
+    if (!swapchain.frame_timestamps_enabled) {
+        ALOGV("Calling native_window_enable_frame_timestamps(true)");
+        native_window_enable_frame_timestamps(window, true);
+        swapchain.frame_timestamps_enabled = true;
+    }
+
+    // Record the nativeFrameId so it can be later correlated to
+    // this present.
+    uint64_t nativeFrameId = 0;
+    int err = native_window_get_next_frame_id(
+            window, &nativeFrameId);
+    if (err != android::OK) {
+        ALOGE("Failed to get next native frame ID.");
+    }
+
+    // Add a new timing record with the user's presentID and
+    // the nativeFrameId.
+    swapchain.timing.emplace_back(pTime, nativeFrameId);
+    if (swapchain.timing.size() > MAX_TIMING_INFOS) {
+        swapchain.timing.erase(
+            swapchain.timing.begin(),
+            swapchain.timing.begin() + swapchain.timing.size() - MAX_TIMING_INFOS);
+    }
+    if (pTime->desiredPresentTime) {
+        ALOGV(
+            "Calling native_window_set_buffers_timestamp(%" PRId64 ")",
+            pTime->desiredPresentTime);
+        native_window_set_buffers_timestamp(
+            window,
+            static_cast<int64_t>(pTime->desiredPresentTime));
+    }
+}
+
+static VkResult PresentOneSwapchain(
+        VkQueue queue,
+        Swapchain& swapchain,
+        uint32_t imageIndex,
+        const VkPresentRegionKHR *pRegion,
+        const VkPresentTimeGOOGLE *pTime,
+        uint32_t waitSemaphoreCount,
+        const VkSemaphore *pWaitSemaphores) {
+
+    VkDevice device = GetData(queue).driver_device;
+    const auto& dispatch = GetData(queue).driver;
+
+    Swapchain::Image& img = swapchain.images[imageIndex];
+    VkResult swapchain_result = VK_SUCCESS;
+    VkResult result;
+    int err;
+
+    // XXX: long standing issue: QueueSignalReleaseImageANDROID consumes the
+    // wait semaphores, so this doesn't actually work for the multiple swapchain
+    // case.
+    int fence = -1;
+    result = dispatch.QueueSignalReleaseImageANDROID(
+        queue, waitSemaphoreCount,
+        pWaitSemaphores, img.image, &fence);
+    if (result != VK_SUCCESS) {
+        ALOGE("QueueSignalReleaseImageANDROID failed: %d", result);
+        swapchain_result = result;
+    }
+    if (img.release_fence >= 0)
+        close(img.release_fence);
+    img.release_fence = fence < 0 ? -1 : dup(fence);
+
+    if (swapchain.surface.swapchain_handle == HandleFromSwapchain(&swapchain)) {
+        ANativeWindow* window = swapchain.surface.window.get();
+        if (swapchain_result == VK_SUCCESS) {
+
+            if (pRegion) {
+                SetSwapchainSurfaceDamage(window, pRegion);
+            }
+            if (pTime) {
+                SetSwapchainFrameTimestamp(swapchain, pTime);
+            }
+
+            err = window->queueBuffer(window, img.buffer.get(), fence);
+            // queueBuffer always closes fence, even on error
+            if (err != android::OK) {
+                ALOGE("queueBuffer failed: %s (%d)", strerror(-err), err);
+                swapchain_result = WorstPresentResult(
+                    swapchain_result, VK_ERROR_SURFACE_LOST_KHR);
+            } else {
+                if (img.dequeue_fence >= 0) {
+                    close(img.dequeue_fence);
+                    img.dequeue_fence = -1;
+                }
+                img.dequeued = false;
+            }
+
+            // If the swapchain is in shared mode, immediately dequeue the
+            // buffer so it can be presented again without an intervening
+            // call to AcquireNextImageKHR. We expect to get the same buffer
+            // back from every call to dequeueBuffer in this mode.
+            if (swapchain.shared && swapchain_result == VK_SUCCESS) {
+                ANativeWindowBuffer* buffer;
+                int fence_fd;
+                err = window->dequeueBuffer(window, &buffer, &fence_fd);
+                if (err != android::OK) {
+                    ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), err);
+                    swapchain_result = WorstPresentResult(swapchain_result,
+                        VK_ERROR_SURFACE_LOST_KHR);
+                } else if (img.buffer != buffer) {
+                    ALOGE("got wrong image back for shared swapchain");
+                    swapchain_result = WorstPresentResult(swapchain_result,
+                        VK_ERROR_SURFACE_LOST_KHR);
+                } else {
+                    img.dequeue_fence = fence_fd;
+                    img.dequeued = true;
+                }
+            }
+        }
+        if (swapchain_result != VK_SUCCESS) {
+            OrphanSwapchain(device, &swapchain);
+        }
+        // Android will only return VK_SUBOPTIMAL_KHR for vkQueuePresentKHR,
+        // and only when the window's transform/rotation changes.  Extent
+        // changes will not cause VK_SUBOPTIMAL_KHR because of the
+        // application issues that were caused when the following transform
+        // change was added.
+        int window_transform_hint;
+        err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT,
+                            &window_transform_hint);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
+                  strerror(-err), err);
+            swapchain_result = WorstPresentResult(
+                swapchain_result, VK_ERROR_SURFACE_LOST_KHR);
+        }
+        if (swapchain.pre_transform != window_transform_hint) {
+            swapchain_result =
+                WorstPresentResult(swapchain_result, VK_SUBOPTIMAL_KHR);
+        }
+    } else {
+        ReleaseSwapchainImage(device, swapchain.shared, nullptr, fence,
+                              img, true);
+        swapchain_result = VK_ERROR_OUT_OF_DATE_KHR;
+    }
+
+    return swapchain_result;
+}
+
 VKAPI_ATTR
 VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
     ATRACE_CALL();
@@ -1804,8 +1974,6 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
              "vkQueuePresentKHR: invalid VkPresentInfoKHR structure type %d",
              present_info->sType);
 
-    VkDevice device = GetData(queue).driver_device;
-    const auto& dispatch = GetData(queue).driver;
     VkResult final_result = VK_SUCCESS;
 
     // Look at the pNext chain for supported extension structs:
@@ -1841,184 +2009,25 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
         (present_regions) ? present_regions->pRegions : nullptr;
     const VkPresentTimeGOOGLE* times =
         (present_times) ? present_times->pTimes : nullptr;
-    const VkAllocationCallbacks* allocator = &GetData(device).allocator;
-    android_native_rect_t* rects = nullptr;
-    uint32_t nrects = 0;
 
     for (uint32_t sc = 0; sc < present_info->swapchainCount; sc++) {
         Swapchain& swapchain =
             *SwapchainFromHandle(present_info->pSwapchains[sc]);
-        uint32_t image_idx = present_info->pImageIndices[sc];
-        Swapchain::Image& img = swapchain.images[image_idx];
-        const VkPresentRegionKHR* region =
-            (regions && !swapchain.mailbox_mode) ? &regions[sc] : nullptr;
-        const VkPresentTimeGOOGLE* time = (times) ? &times[sc] : nullptr;
-        VkResult swapchain_result = VK_SUCCESS;
-        VkResult result;
-        int err;
 
-        int fence = -1;
-        result = dispatch.QueueSignalReleaseImageANDROID(
-            queue, present_info->waitSemaphoreCount,
-            present_info->pWaitSemaphores, img.image, &fence);
-        if (result != VK_SUCCESS) {
-            ALOGE("QueueSignalReleaseImageANDROID failed: %d", result);
-            swapchain_result = result;
-        }
-        if (img.release_fence >= 0)
-            close(img.release_fence);
-        img.release_fence = fence < 0 ? -1 : dup(fence);
-
-        if (swapchain.surface.swapchain_handle ==
-            present_info->pSwapchains[sc]) {
-            ANativeWindow* window = swapchain.surface.window.get();
-            if (swapchain_result == VK_SUCCESS) {
-                if (region) {
-                    // Process the incremental-present hint for this swapchain:
-                    uint32_t rcount = region->rectangleCount;
-                    if (rcount > nrects) {
-                        android_native_rect_t* new_rects =
-                            static_cast<android_native_rect_t*>(
-                                allocator->pfnReallocation(
-                                    allocator->pUserData, rects,
-                                    sizeof(android_native_rect_t) * rcount,
-                                    alignof(android_native_rect_t),
-                                    VK_SYSTEM_ALLOCATION_SCOPE_COMMAND));
-                        if (new_rects) {
-                            rects = new_rects;
-                            nrects = rcount;
-                        } else {
-                            rcount = 0;  // Ignore the hint for this swapchain
-                        }
-                    }
-                    for (uint32_t r = 0; r < rcount; ++r) {
-                        if (region->pRectangles[r].layer > 0) {
-                            ALOGV(
-                                "vkQueuePresentKHR ignoring invalid layer "
-                                "(%u); using layer 0 instead",
-                                region->pRectangles[r].layer);
-                        }
-                        int x = region->pRectangles[r].offset.x;
-                        int y = region->pRectangles[r].offset.y;
-                        int width = static_cast<int>(
-                            region->pRectangles[r].extent.width);
-                        int height = static_cast<int>(
-                            region->pRectangles[r].extent.height);
-                        android_native_rect_t* cur_rect = &rects[r];
-                        cur_rect->left = x;
-                        cur_rect->top = y + height;
-                        cur_rect->right = x + width;
-                        cur_rect->bottom = y;
-                    }
-                    native_window_set_surface_damage(window, rects, rcount);
-                }
-                if (time) {
-                    if (!swapchain.frame_timestamps_enabled) {
-                        ALOGV(
-                            "Calling "
-                            "native_window_enable_frame_timestamps(true)");
-                        native_window_enable_frame_timestamps(window, true);
-                        swapchain.frame_timestamps_enabled = true;
-                    }
-
-                    // Record the nativeFrameId so it can be later correlated to
-                    // this present.
-                    uint64_t nativeFrameId = 0;
-                    err = native_window_get_next_frame_id(
-                            window, &nativeFrameId);
-                    if (err != android::OK) {
-                        ALOGE("Failed to get next native frame ID.");
-                    }
-
-                    // Add a new timing record with the user's presentID and
-                    // the nativeFrameId.
-                    swapchain.timing.emplace_back(time, nativeFrameId);
-                    while (swapchain.timing.size() > MAX_TIMING_INFOS) {
-                        swapchain.timing.erase(swapchain.timing.begin());
-                    }
-                    if (time->desiredPresentTime) {
-                        // Set the desiredPresentTime:
-                        ALOGV(
-                            "Calling "
-                            "native_window_set_buffers_timestamp(%" PRId64 ")",
-                            time->desiredPresentTime);
-                        native_window_set_buffers_timestamp(
-                            window,
-                            static_cast<int64_t>(time->desiredPresentTime));
-                    }
-                }
-
-                err = window->queueBuffer(window, img.buffer.get(), fence);
-                // queueBuffer always closes fence, even on error
-                if (err != android::OK) {
-                    ALOGE("queueBuffer failed: %s (%d)", strerror(-err), err);
-                    swapchain_result = WorstPresentResult(
-                        swapchain_result, VK_ERROR_SURFACE_LOST_KHR);
-                } else {
-                    if (img.dequeue_fence >= 0) {
-                        close(img.dequeue_fence);
-                        img.dequeue_fence = -1;
-                    }
-                    img.dequeued = false;
-                }
-
-                // If the swapchain is in shared mode, immediately dequeue the
-                // buffer so it can be presented again without an intervening
-                // call to AcquireNextImageKHR. We expect to get the same buffer
-                // back from every call to dequeueBuffer in this mode.
-                if (swapchain.shared && swapchain_result == VK_SUCCESS) {
-                    ANativeWindowBuffer* buffer;
-                    int fence_fd;
-                    err = window->dequeueBuffer(window, &buffer, &fence_fd);
-                    if (err != android::OK) {
-                        ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), err);
-                        swapchain_result = WorstPresentResult(swapchain_result,
-                            VK_ERROR_SURFACE_LOST_KHR);
-                    } else if (img.buffer != buffer) {
-                        ALOGE("got wrong image back for shared swapchain");
-                        swapchain_result = WorstPresentResult(swapchain_result,
-                            VK_ERROR_SURFACE_LOST_KHR);
-                    } else {
-                        img.dequeue_fence = fence_fd;
-                        img.dequeued = true;
-                    }
-                }
-            }
-            if (swapchain_result != VK_SUCCESS) {
-                OrphanSwapchain(device, &swapchain);
-            }
-            // Android will only return VK_SUBOPTIMAL_KHR for vkQueuePresentKHR,
-            // and only when the window's transform/rotation changes.  Extent
-            // changes will not cause VK_SUBOPTIMAL_KHR because of the
-            // application issues that were caused when the following transform
-            // change was added.
-            int window_transform_hint;
-            err = window->query(window, NATIVE_WINDOW_TRANSFORM_HINT,
-                                &window_transform_hint);
-            if (err != android::OK) {
-                ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
-                      strerror(-err), err);
-                swapchain_result = WorstPresentResult(
-                    swapchain_result, VK_ERROR_SURFACE_LOST_KHR);
-            }
-            if (swapchain.pre_transform != window_transform_hint) {
-                swapchain_result =
-                    WorstPresentResult(swapchain_result, VK_SUBOPTIMAL_KHR);
-            }
-        } else {
-            ReleaseSwapchainImage(device, swapchain.shared, nullptr, fence,
-                                  img, true);
-            swapchain_result = VK_ERROR_OUT_OF_DATE_KHR;
-        }
+        VkResult swapchain_result = PresentOneSwapchain(
+            queue,
+            swapchain,
+            present_info->pImageIndices[sc],
+            (regions && !swapchain.mailbox_mode) ? &regions[sc] : nullptr,
+            times ? &times[sc] : nullptr,
+            present_info->waitSemaphoreCount,
+            present_info->pWaitSemaphores);
 
         if (present_info->pResults)
             present_info->pResults[sc] = swapchain_result;
 
         if (swapchain_result != final_result)
             final_result = WorstPresentResult(final_result, swapchain_result);
-    }
-    if (rects) {
-        allocator->pfnFree(allocator->pUserData, rects);
     }
 
     return final_result;

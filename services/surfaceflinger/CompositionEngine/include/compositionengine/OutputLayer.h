@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <ui/Transform.h>
 #include <utils/StrongPointer.h>
@@ -80,6 +81,10 @@ public:
     // composition process.
     // TODO(lpique): Make this protected once it is only internally called.
     virtual CompositionState& editState() = 0;
+
+    // Clear the cache entries for a set of buffers that SurfaceFlinger no
+    // longer cares about.
+    virtual void uncacheBuffers(const std::vector<uint64_t>& bufferIdsToUncache) = 0;
 
     // Recalculates the state of the output layer from the output-independent
     // layer. If includeGeometry is false, the geometry state can be skipped.

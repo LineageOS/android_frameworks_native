@@ -106,7 +106,6 @@ void LayerFECompositionState::dump(std::string& out) const {
     dumpVal(out, "composition type", toString(compositionType), compositionType);
 
     out.append("\n      buffer: ");
-    dumpVal(out, "slot", bufferSlot);
     dumpVal(out, "buffer", buffer.get());
 
     out.append("\n      ");

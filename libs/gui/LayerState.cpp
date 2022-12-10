@@ -51,6 +51,7 @@
 
 namespace android {
 
+using gui::CallbackId;
 using gui::FocusRequest;
 using gui::WindowInfoHandle;
 

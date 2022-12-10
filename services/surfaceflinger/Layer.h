@@ -51,7 +51,6 @@
 #include "Client.h"
 #include "DisplayHardware/HWComposer.h"
 #include "FrameTracker.h"
-#include "HwcSlotGenerator.h"
 #include "LayerFE.h"
 #include "LayerVector.h"
 #include "Scheduler/LayerInfo.h"
@@ -146,7 +145,6 @@ public:
         bool transformToDisplayInverse;
         Region transparentRegionHint;
         std::shared_ptr<renderengine::ExternalTexture> buffer;
-        int hwcBufferSlot;
         client_cache_t clientCacheId;
         sp<Fence> acquireFence;
         std::shared_ptr<FenceTime> acquireFenceTime;
@@ -298,8 +296,7 @@ public:
     bool setBuffer(std::shared_ptr<renderengine::ExternalTexture>& /* buffer */,
                    const BufferData& /* bufferData */, nsecs_t /* postTime */,
                    nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
-                   std::optional<nsecs_t> /* dequeueTime */, const FrameTimelineInfo& /*info*/,
-                   int /* hwcBufferSlot */);
+                   std::optional<nsecs_t> /* dequeueTime */, const FrameTimelineInfo& /*info*/);
     bool setDataspace(ui::Dataspace /*dataspace*/);
     bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/);
     bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/);
@@ -500,7 +497,6 @@ public:
 
         std::shared_ptr<renderengine::ExternalTexture> mBuffer;
         uint64_t mFrameNumber;
-        int mBufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
 
         bool mFrameLatencyNeeded{false};
     };
@@ -634,7 +630,7 @@ public:
 
     void miniDump(std::string& result, const DisplayDevice&) const;
     void dumpFrameStats(std::string& result) const;
-    void dumpCallingUidPid(std::string& result) const;
+    void dumpOffscreenDebugInfo(std::string& result) const;
     void clearFrameStats();
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;
@@ -813,7 +809,6 @@ public:
     void updateMetadataSnapshot(const LayerMetadata& parentMetadata);
     void updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMetadata,
                                         std::unordered_set<Layer*>& visited);
-    int getHwcCacheSlot(const client_cache_t& clientCacheId);
 
 protected:
     // For unit tests
@@ -1123,8 +1118,6 @@ private:
     // Contains requested position and matrix updates. This will be applied if the client does
     // not specify a destination frame.
     ui::Transform mRequestedTransform;
-
-    sp<HwcSlotGenerator> mHwcSlotGenerator;
 
     sp<LayerFE> mLayerFE;
     std::unique_ptr<LayerSnapshot> mSnapshot = std::make_unique<LayerSnapshot>();

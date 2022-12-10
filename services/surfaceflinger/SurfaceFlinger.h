@@ -26,6 +26,7 @@
 #include <android/gui/DisplayStatInfo.h>
 #include <android/gui/DisplayState.h>
 #include <android/gui/ISurfaceComposerClient.h>
+#include <android/gui/ITransactionCompletedListener.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <ftl/future.h>
@@ -34,8 +35,8 @@
 #include <gui/CompositorTiming.h>
 #include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>
-#include <gui/ITransactionCompletedListener.h>
 #include <gui/LayerDebugInfo.h>
+
 #include <gui/LayerState.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/mat4.h>
@@ -96,6 +97,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include "Client.h"
@@ -125,7 +127,9 @@ using frontend::TransactionHandler;
 using gui::CaptureArgs;
 using gui::DisplayCaptureArgs;
 using gui::IRegionSamplingListener;
+using gui::ITransactionCompletedListener;
 using gui::LayerCaptureArgs;
+
 using gui::ScreenCaptureResults;
 
 namespace frametimeline {
@@ -1096,6 +1100,10 @@ private:
     std::atomic<int32_t> mTransactionFlags = 0;
     std::atomic<uint32_t> mUniqueTransactionId = 1;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
+
+    // Buffers that have been discarded by clients and need to be evicted from per-layer caches so
+    // the graphics memory can be immediately freed.
+    std::vector<uint64_t> mBufferIdsToUncache;
 
     // global color transform states
     Daltonizer mDaltonizer;

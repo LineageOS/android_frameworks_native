@@ -82,6 +82,7 @@ public:
     MOCK_METHOD2(prepare, void(const compositionengine::CompositionRefreshArgs&, LayerFESet&));
     MOCK_METHOD1(present, void(const compositionengine::CompositionRefreshArgs&));
 
+    MOCK_METHOD1(uncacheBuffers, void(const std::vector<uint64_t>&));
     MOCK_METHOD2(rebuildLayerStacks,
                  void(const compositionengine::CompositionRefreshArgs&, LayerFESet&));
     MOCK_METHOD2(collectVisibleLayers,

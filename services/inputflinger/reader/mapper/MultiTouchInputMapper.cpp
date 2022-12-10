@@ -16,10 +16,8 @@
 
 #include "../Macros.h"
 
-#include "MultiTouchInputMapper.h"
-#if defined(__ANDROID__)
 #include <android/sysprop/InputProperties.sysprop.h>
-#endif
+#include "MultiTouchInputMapper.h"
 
 namespace android {
 
@@ -218,12 +216,7 @@ bool MultiTouchInputMapper::hasStylus() const {
 
 bool MultiTouchInputMapper::shouldSimulateStylusWithTouch() const {
     static const bool SIMULATE_STYLUS_WITH_TOUCH =
-#if defined(__ANDROID__)
             sysprop::InputProperties::simulate_stylus_with_touch().value_or(false);
-#else
-            // Disable this developer feature where sysproperties are not available
-            false;
-#endif
     return SIMULATE_STYLUS_WITH_TOUCH &&
             mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN;
 }

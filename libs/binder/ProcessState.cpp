@@ -439,6 +439,10 @@ size_t ProcessState::getThreadPoolMaxTotalThreadCount() const {
     return mCurrentThreads;
 }
 
+bool ProcessState::isThreadPoolStarted() const {
+    return mThreadPoolStarted;
+}
+
 #define DRIVER_FEATURES_PATH "/dev/binderfs/features/"
 bool ProcessState::isDriverFeatureEnabled(const DriverFeature feature) {
     static const char* const names[] = {

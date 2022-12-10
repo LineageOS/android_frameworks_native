@@ -774,7 +774,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static constexpr ui::Dataspace kOverrideDataspace = static_cast<ui::Dataspace>(72);
     static constexpr int kSupportedPerFrameMetadata = 101;
     static constexpr int kExpectedHwcSlot = 0;
-    static constexpr int kOverrideHwcSlot = impl::HwcBufferCache::FLATTENER_CACHING_SLOT;
+    static constexpr int kOverrideHwcSlot = impl::HwcBufferCache::kOverrideBufferSlot;
     static constexpr bool kLayerGenericMetadata1Mandatory = true;
     static constexpr bool kLayerGenericMetadata2Mandatory = true;
     static constexpr float kWhitePointNits = 200.f;
@@ -823,7 +823,6 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         mLayerFEState.hdrMetadata = kHdrMetadata;
         mLayerFEState.sidebandStream = NativeHandle::create(kSidebandStreamHandle, false);
         mLayerFEState.buffer = kBuffer;
-        mLayerFEState.bufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
         mLayerFEState.acquireFence = kFence;
 
         mOutputState.displayBrightnessNits = kDisplayBrightnessNits;

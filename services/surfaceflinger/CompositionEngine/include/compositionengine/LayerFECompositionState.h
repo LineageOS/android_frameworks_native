@@ -163,7 +163,6 @@ struct LayerFECompositionState {
 
     // The buffer and related state
     sp<GraphicBuffer> buffer;
-    int bufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
     sp<Fence> acquireFence = Fence::NO_FENCE;
     Region surfaceDamage;
     uint64_t frameNumber = 0;

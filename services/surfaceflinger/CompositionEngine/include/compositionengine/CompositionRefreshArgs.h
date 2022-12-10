@@ -52,6 +52,9 @@ struct CompositionRefreshArgs {
     // All the layers that have queued updates.
     Layers layersWithQueuedFrames;
 
+    // All graphic buffers that will no longer be used and should be removed from caches.
+    std::vector<uint64_t> bufferIdsToUncache;
+
     // Controls how the color mode is chosen for an output
     OutputColorSetting outputColorSetting{OutputColorSetting::kEnhanced};
 
