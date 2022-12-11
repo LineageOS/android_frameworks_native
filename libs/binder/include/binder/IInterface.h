@@ -230,7 +230,6 @@ constexpr const char* const kManualInterfaces[] = {
         "android.graphicsenv.IGpuService",
         "android.gui.IConsumerListener",
         "android.gui.IGraphicBufferConsumer",
-        "android.gui.ITransactionComposerListener",
         "android.gui.SensorEventConnection",
         "android.gui.SensorServer",
         "android.hardware.ICamera",

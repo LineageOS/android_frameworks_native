@@ -29,6 +29,7 @@
 namespace android {
 
 class TestableSurfaceFlinger;
+using gui::IListenerHash;
 namespace surfaceflinger::frontend {
 
 class TransactionHandler {

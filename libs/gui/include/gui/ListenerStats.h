@@ -24,6 +24,8 @@
 #include <binder/SafeInterface.h>
 
 #include <gui/FrameTimestamps.h>
+#include <gui/ReleaseCallbackId.h>
+
 #include <ui/Fence.h>
 #include <utils/Timers.h>
 
@@ -32,10 +34,7 @@
 #include <unordered_set>
 #include <variant>
 
-namespace android {
-
-class ITransactionCompletedListener;
-class ListenerCallbacks;
+namespace android::gui {
 
 class CallbackId : public Parcelable {
 public:
@@ -52,30 +51,6 @@ public:
 
 struct CallbackIdHash {
     std::size_t operator()(const CallbackId& key) const { return std::hash<int64_t>()(key.id); }
-};
-
-class ReleaseCallbackId : public Parcelable {
-public:
-    static const ReleaseCallbackId INVALID_ID;
-
-    uint64_t bufferId;
-    uint64_t framenumber;
-    ReleaseCallbackId() {}
-    ReleaseCallbackId(uint64_t bufferId, uint64_t framenumber)
-          : bufferId(bufferId), framenumber(framenumber) {}
-    status_t writeToParcel(Parcel* output) const override;
-    status_t readFromParcel(const Parcel* input) override;
-
-    bool operator==(const ReleaseCallbackId& rhs) const {
-        return bufferId == rhs.bufferId && framenumber == rhs.framenumber;
-    }
-    bool operator!=(const ReleaseCallbackId& rhs) const { return !operator==(rhs); }
-    std::string to_string() const {
-        if (*this == INVALID_ID) return "INVALID_ID";
-
-        return "bufferId:" + std::to_string(bufferId) +
-                " framenumber:" + std::to_string(framenumber);
-    }
 };
 
 struct ReleaseBufferCallbackIdHash {
@@ -186,27 +161,6 @@ public:
     std::vector<TransactionStats> transactionStats;
 };
 
-class ITransactionCompletedListener : public IInterface {
-public:
-    DECLARE_META_INTERFACE(TransactionCompletedListener)
-
-    virtual void onTransactionCompleted(ListenerStats stats) = 0;
-
-    virtual void onReleaseBuffer(ReleaseCallbackId callbackId, sp<Fence> releaseFence,
-                                 uint32_t currentMaxAcquiredBufferCount) = 0;
-
-    virtual void onTransactionQueueStalled(const String8& name) = 0;
-};
-
-class BnTransactionCompletedListener : public SafeBnInterface<ITransactionCompletedListener> {
-public:
-    BnTransactionCompletedListener()
-          : SafeBnInterface<ITransactionCompletedListener>("BnTransactionCompletedListener") {}
-
-    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
-                        uint32_t flags = 0) override;
-};
-
 class ListenerCallbacks {
 public:
     ListenerCallbacks(const sp<IBinder>& listener,
@@ -268,4 +222,4 @@ struct ListenerCallbacksHash {
     }
 };
 
-} // namespace android
+} // namespace android::gui

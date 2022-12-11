@@ -82,6 +82,7 @@ public:
     void prepare(const CompositionRefreshArgs&, LayerFESet&) override;
     void present(const CompositionRefreshArgs&) override;
 
+    void uncacheBuffers(const std::vector<uint64_t>& bufferIdsToUncache) override;
     void rebuildLayerStacks(const CompositionRefreshArgs&, LayerFESet&) override;
     void collectVisibleLayers(const CompositionRefreshArgs&,
                               compositionengine::Output::CoverageState&) override;

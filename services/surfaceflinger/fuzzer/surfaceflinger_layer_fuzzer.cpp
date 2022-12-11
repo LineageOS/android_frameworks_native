@@ -160,7 +160,7 @@ void LayerFuzzer::invokeBufferStateLayer() {
     layer->setBuffer(texture, {} /*bufferData*/, mFdp.ConsumeIntegral<nsecs_t>() /*postTime*/,
                      mFdp.ConsumeIntegral<nsecs_t>() /*desiredTime*/,
                      mFdp.ConsumeBool() /*isAutoTimestamp*/,
-                     {mFdp.ConsumeIntegral<nsecs_t>()} /*dequeue*/, {} /*info*/, 0 /* hwcslot */);
+                     {mFdp.ConsumeIntegral<nsecs_t>()} /*dequeue*/, {} /*info*/);
 
     LayerRenderArea layerArea(*(flinger.flinger()), layer, getFuzzedRect(),
                               {mFdp.ConsumeIntegral<int32_t>(),
