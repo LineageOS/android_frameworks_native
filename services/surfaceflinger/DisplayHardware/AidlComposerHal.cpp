@@ -23,6 +23,7 @@
 #include <android-base/file.h>
 #include <android/binder_ibinder_platform.h>
 #include <android/binder_manager.h>
+#include <gui/TraceUtils.h>
 #include <log/log.h>
 #include <utils/Trace.h>
 
@@ -578,13 +579,15 @@ Error AidlComposer::getReleaseFences(Display display, std::vector<Layer>* outLay
 }
 
 Error AidlComposer::presentDisplay(Display display, int* outPresentFence) {
-    ATRACE_NAME("HwcPresentDisplay");
+    const auto displayId = translate<int64_t>(display);
+    ATRACE_FORMAT("HwcPresentDisplay %" PRId64, displayId);
+
     Error error = Error::NONE;
     mMutex.lock_shared();
     auto writer = getWriter(display);
     auto reader = getReader(display);
     if (writer && reader) {
-        writer->get().presentDisplay(translate<int64_t>(display));
+        writer->get().presentDisplay(displayId);
         error = execute(display);
     } else {
         error = Error::BAD_DISPLAY;
@@ -595,7 +598,7 @@ Error AidlComposer::presentDisplay(Display display, int* outPresentFence) {
         return error;
     }
 
-    auto fence = reader->get().takePresentFence(translate<int64_t>(display));
+    auto fence = reader->get().takePresentFence(displayId);
     mMutex.unlock_shared();
     // take ownership
     *outPresentFence = fence.get();
@@ -707,8 +710,9 @@ Error AidlComposer::setClientTargetSlotCount(Display display) {
 
 Error AidlComposer::validateDisplay(Display display, nsecs_t expectedPresentTime,
                                     uint32_t* outNumTypes, uint32_t* outNumRequests) {
-    ATRACE_NAME("HwcValidateDisplay");
     const auto displayId = translate<int64_t>(display);
+    ATRACE_FORMAT("HwcValidateDisplay %" PRId64, displayId);
+
     Error error = Error::NONE;
     mMutex.lock_shared();
     auto writer = getWriter(display);
@@ -734,8 +738,9 @@ Error AidlComposer::validateDisplay(Display display, nsecs_t expectedPresentTime
 Error AidlComposer::presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
                                              uint32_t* outNumTypes, uint32_t* outNumRequests,
                                              int* outPresentFence, uint32_t* state) {
-    ATRACE_NAME("HwcPresentOrValidateDisplay");
     const auto displayId = translate<int64_t>(display);
+    ATRACE_FORMAT("HwcPresentOrValidateDisplay %" PRId64, displayId);
+
     Error error = Error::NONE;
     mMutex.lock_shared();
     auto writer = getWriter(display);
