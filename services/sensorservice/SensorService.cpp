@@ -183,15 +183,14 @@ int SensorService::registerRuntimeSensor(
     sensor_t runtimeSensor = sensor;
     // force the handle to be consistent
     runtimeSensor.handle = handle;
-    SensorInterface *si = new RuntimeSensor(runtimeSensor, std::move(runtimeSensorCallback));
+    auto si = std::make_shared<RuntimeSensor>(runtimeSensor, std::move(runtimeSensorCallback));
 
     Mutex::Autolock _l(mLock);
-    const Sensor& s = registerSensor(si, /* isDebug= */ false, /* isVirtual= */ false, deviceId);
-
-    if (s.getHandle() != handle) {
+    if (!registerSensor(std::move(si), /* isDebug= */ false, /* isVirtual= */ false, deviceId)) {
         // The registration was unsuccessful.
-        return s.getHandle();
+        return mSensors.getNonSensor().getHandle();
     }
+
     return handle;
 }
 
@@ -319,11 +318,13 @@ void SensorService::onFirstRef() {
                 }
                 if (useThisSensor) {
                     if (list[i].type == SENSOR_TYPE_PROXIMITY) {
-                        SensorInterface* s = new ProximitySensor(list[i], *this);
-                        registerSensor(s);
-                        mProxSensorHandles.push_back(s->getSensor().getHandle());
+                        auto s = std::make_shared<ProximitySensor>(list[i], *this);
+                        const int handle = s->getSensor().getHandle();
+                        if (registerSensor(std::move(s))) {
+                            mProxSensorHandles.push_back(handle);
+                        }
                     } else {
-                        registerSensor(new HardwareSensor(list[i]));
+                        registerSensor(std::make_shared<HardwareSensor>(list[i]));
                     }
                 }
             }
@@ -338,56 +339,63 @@ void SensorService::onFirstRef() {
                 // available in the HAL
                 bool needRotationVector =
                         (virtualSensorsNeeds & (1<<SENSOR_TYPE_ROTATION_VECTOR)) != 0;
-
-                registerSensor(new RotationVectorSensor(), !needRotationVector, true);
-                registerSensor(new OrientationSensor(), !needRotationVector, true);
+                registerVirtualSensor(std::make_shared<RotationVectorSensor>(),
+                                      /* isDebug= */ !needRotationVector);
+                registerVirtualSensor(std::make_shared<OrientationSensor>(),
+                                      /* isDebug= */ !needRotationVector);
 
                 // virtual debugging sensors are not for user
-                registerSensor( new CorrectedGyroSensor(list, count), true, true);
-                registerSensor( new GyroDriftSensor(), true, true);
+                registerVirtualSensor(std::make_shared<CorrectedGyroSensor>(list, count),
+                                      /* isDebug= */ true);
+                registerVirtualSensor(std::make_shared<GyroDriftSensor>(), /* isDebug= */ true);
             }
 
             if (hasAccel && (hasGyro || hasGyroUncalibrated)) {
                 bool needGravitySensor = (virtualSensorsNeeds & (1<<SENSOR_TYPE_GRAVITY)) != 0;
-                registerSensor(new GravitySensor(list, count), !needGravitySensor, true);
+                registerVirtualSensor(std::make_shared<GravitySensor>(list, count),
+                                      /* isDebug= */ !needGravitySensor);
 
                 bool needLinearAcceleration =
                         (virtualSensorsNeeds & (1<<SENSOR_TYPE_LINEAR_ACCELERATION)) != 0;
-                registerSensor(new LinearAccelerationSensor(list, count),
-                               !needLinearAcceleration, true);
+                registerVirtualSensor(std::make_shared<LinearAccelerationSensor>(list, count),
+                                      /* isDebug= */ !needLinearAcceleration);
 
                 bool needGameRotationVector =
                         (virtualSensorsNeeds & (1<<SENSOR_TYPE_GAME_ROTATION_VECTOR)) != 0;
-                registerSensor(new GameRotationVectorSensor(), !needGameRotationVector, true);
+                registerVirtualSensor(std::make_shared<GameRotationVectorSensor>(),
+                                      /* isDebug= */ !needGameRotationVector);
             }
 
             if (hasAccel && hasMag) {
                 bool needGeoMagRotationVector =
                         (virtualSensorsNeeds & (1<<SENSOR_TYPE_GEOMAGNETIC_ROTATION_VECTOR)) != 0;
-                registerSensor(new GeoMagRotationVectorSensor(), !needGeoMagRotationVector, true);
+                registerVirtualSensor(std::make_shared<GeoMagRotationVectorSensor>(),
+                                      /* isDebug= */ !needGeoMagRotationVector);
             }
 
             if (isAutomotive()) {
                 if (hasAccel) {
-                   registerSensor(new LimitedAxesImuSensor(list, count, SENSOR_TYPE_ACCELEROMETER),
-                                  /*isDebug=*/false, /*isVirtual=*/true);
+                    registerVirtualSensor(
+                            std::make_shared<LimitedAxesImuSensor>(
+                                    list, count, SENSOR_TYPE_ACCELEROMETER));
                }
 
                if (hasGyro) {
-                   registerSensor(new LimitedAxesImuSensor(list, count, SENSOR_TYPE_GYROSCOPE),
-                                  /*isDebug=*/false, /*isVirtual=*/true);
+                    registerVirtualSensor(
+                            std::make_shared<LimitedAxesImuSensor>(
+                                    list, count, SENSOR_TYPE_GYROSCOPE));
                }
 
                if (hasAccelUncalibrated) {
-                   registerSensor(new LimitedAxesImuSensor(list, count,
-                                                           SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED),
-                                  /*isDebug=*/false, /*isVirtual=*/true);
+                    registerVirtualSensor(
+                            std::make_shared<LimitedAxesImuSensor>(
+                                    list, count, SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED));
                }
 
                if (hasGyroUncalibrated) {
-                   registerSensor(new LimitedAxesImuSensor(list, count,
-                                                           SENSOR_TYPE_GYROSCOPE_UNCALIBRATED),
-                                  /*isDebug=*/false, /*isVirtual=*/true);
+                    registerVirtualSensor(
+                            std::make_shared<LimitedAxesImuSensor>(
+                                    list, count, SENSOR_TYPE_GYROSCOPE_UNCALIBRATED));
                }
             }
 
@@ -488,20 +496,21 @@ bool SensorService::hasSensorAccessLocked(uid_t uid, const String16& opPackageNa
         && isUidActive(uid) && !isOperationRestrictedLocked(opPackageName);
 }
 
-const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bool isVirtual,
-                                            int deviceId) {
-    int handle = s->getSensor().getHandle();
-    int type = s->getSensor().getType();
-    if (mSensors.add(handle, s, isDebug, isVirtual, deviceId)) {
+bool SensorService::registerSensor(std::shared_ptr<SensorInterface> s, bool isDebug, bool isVirtual,
+                                   int deviceId) {
+    const int handle = s->getSensor().getHandle();
+    const int type = s->getSensor().getType();
+    if (mSensors.add(handle, std::move(s), isDebug, isVirtual, deviceId)) {
         mRecentEvent.emplace(handle, new SensorServiceUtil::RecentEventLogger(type));
-        return s->getSensor();
+        return true;
     } else {
-        return mSensors.getNonSensor();
+        LOG_FATAL("Failed to register sensor with handle %d", handle);
+        return false;
     }
 }
 
-const Sensor& SensorService::registerDynamicSensorLocked(SensorInterface* s, bool isDebug) {
-    return registerSensor(s, isDebug);
+bool SensorService::registerDynamicSensorLocked(std::shared_ptr<SensorInterface> s, bool isDebug) {
+    return registerSensor(std::move(s), isDebug);
 }
 
 bool SensorService::unregisterDynamicSensorLocked(int handle) {
@@ -515,8 +524,8 @@ bool SensorService::unregisterDynamicSensorLocked(int handle) {
     return ret;
 }
 
-const Sensor& SensorService::registerVirtualSensor(SensorInterface* s, bool isDebug) {
-    return registerSensor(s, isDebug, true);
+bool SensorService::registerVirtualSensor(std::shared_ptr<SensorInterface> s, bool isDebug) {
+    return registerSensor(std::move(s), isDebug, true);
 }
 
 SensorService::~SensorService() {
@@ -611,8 +620,8 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
 
             result.append("Recent Sensor events:\n");
             for (auto&& i : mRecentEvent) {
-                sp<SensorInterface> s = mSensors.getInterface(i.first);
-                if (!i.second->isEmpty()) {
+                std::shared_ptr<SensorInterface> s = getSensorInterfaceFromHandle(i.first);
+                if (!i.second->isEmpty() && s != nullptr) {
                     if (privileged || s->getSensor().getRequiredPermission().isEmpty()) {
                         i.second->setFormat("normal");
                     } else {
@@ -729,8 +738,8 @@ status_t SensorService::dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock
     // Write SensorEventsProto
     token = proto.start(SENSOR_EVENTS);
     for (auto&& i : mRecentEvent) {
-        sp<SensorInterface> s = mSensors.getInterface(i.first);
-        if (!i.second->isEmpty()) {
+        std::shared_ptr<SensorInterface> s = getSensorInterfaceFromHandle(i.first);
+        if (!i.second->isEmpty() && s != nullptr) {
             i.second->setFormat(privileged || s->getSensor().getRequiredPermission().isEmpty() ?
                     "normal" : "mask_data");
             const uint64_t mToken = proto.start(service::SensorEventsProto::RECENT_EVENTS_LOGS);
@@ -1020,7 +1029,7 @@ void SensorService::cleanupAutoDisabledSensorLocked(const sp<SensorEventConnecti
             handle = buffer[i].meta_data.sensor;
         }
         if (connection->hasSensor(handle)) {
-            sp<SensorInterface> si = getSensorInterfaceFromHandle(handle);
+            std::shared_ptr<SensorInterface> si = getSensorInterfaceFromHandle(handle);
             // If this buffer has an event from a one_shot sensor and this connection is registered
             // for this particular one_shot sensor, try cleaning up the connection.
             if (si != nullptr &&
@@ -1105,7 +1114,7 @@ bool SensorService::threadLoop() {
                             break;
                         }
                         sensors_event_t out;
-                        sp<SensorInterface> si = mSensors.getInterface(handle);
+                        std::shared_ptr<SensorInterface> si = getSensorInterfaceFromHandle(handle);
                         if (si == nullptr) {
                             ALOGE("handle %d is not an valid virtual sensor", handle);
                             continue;
@@ -1200,12 +1209,12 @@ bool SensorService::threadLoop() {
                         // force the handle to be consistent
                         s.handle = handle;
 
-                        SensorInterface *si = new HardwareSensor(s, uuid);
+                        auto si = std::make_shared<HardwareSensor>(s, uuid);
 
                         // This will release hold on dynamic sensor meta, so it should be called
                         // after Sensor object is created.
                         device.handleDynamicSensorConnection(handle, true /*connected*/);
-                        registerDynamicSensorLocked(si);
+                        registerDynamicSensorLocked(std::move(si));
                     } else {
                         ALOGE("Handle %d has been used, cannot use again before reboot.", handle);
                     }
@@ -1332,7 +1341,7 @@ String8 SensorService::getSensorStringType(int handle) const {
 }
 
 bool SensorService::isVirtualSensor(int handle) const {
-    sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
+    std::shared_ptr<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
     return sensor != nullptr && sensor->isVirtual();
 }
 
@@ -1341,7 +1350,7 @@ bool SensorService::isWakeUpSensorEvent(const sensors_event_t& event) const {
     if (event.type == SENSOR_TYPE_META_DATA) {
         handle = event.meta_data.sensor;
     }
-    sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
+    std::shared_ptr<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
     return sensor != nullptr && sensor->getSensor().isWakeUpSensor();
 }
 
@@ -1741,7 +1750,7 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
         int handle = mActiveSensors.keyAt(i);
         if (c->hasSensor(handle)) {
             ALOGD_IF(DEBUG_CONNECTIONS, "%zu: disabling handle=0x%08x", i, handle);
-            sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
+            std::shared_ptr<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
             if (sensor != nullptr) {
                 sensor->activate(c, false);
             } else {
@@ -1855,7 +1864,7 @@ status_t SensorService::removeProximityActiveListener(
     return NAME_NOT_FOUND;
 }
 
-sp<SensorInterface> SensorService::getSensorInterfaceFromHandle(int handle) const {
+std::shared_ptr<SensorInterface> SensorService::getSensorInterfaceFromHandle(int handle) const {
     return mSensors.getInterface(handle);
 }
 
@@ -1865,7 +1874,7 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     if (mInitCheck != NO_ERROR)
         return mInitCheck;
 
-    sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
+    std::shared_ptr<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
     if (sensor == nullptr ||
         !canAccessSensor(sensor->getSensor(), "Tried enabling", opPackageName)) {
         return BAD_VALUE;
@@ -2011,7 +2020,7 @@ status_t SensorService::disable(const sp<SensorEventConnection>& connection, int
     Mutex::Autolock _l(mLock);
     status_t err = cleanupWithoutDisableLocked(connection, handle);
     if (err == NO_ERROR) {
-        sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
+        std::shared_ptr<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
         err = sensor != nullptr ? sensor->activate(connection.get(), false) : status_t(BAD_VALUE);
 
     }
@@ -2057,7 +2066,7 @@ status_t SensorService::setEventRate(const sp<SensorEventConnection>& connection
     if (mInitCheck != NO_ERROR)
         return mInitCheck;
 
-    sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
+    std::shared_ptr<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
     if (sensor == nullptr ||
         !canAccessSensor(sensor->getSensor(), "Tried configuring", opPackageName)) {
         return BAD_VALUE;
@@ -2083,7 +2092,7 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
     Mutex::Autolock _l(mLock);
     // Loop through all sensors for this connection and call flush on each of them.
     for (int handle : connection->getActiveSensorHandles()) {
-        sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
+        std::shared_ptr<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
         if (sensor == nullptr) {
             continue;
         }

@@ -28,13 +28,13 @@ namespace SensorServiceUtil {
 
 const Sensor SensorList::mNonSensor = Sensor("unknown");
 
-bool SensorList::add(
-        int handle, SensorInterface* si, bool isForDebug, bool isVirtual, int deviceId) {
+bool SensorList::add(int handle, std::shared_ptr<SensorInterface> si, bool isForDebug,
+                     bool isVirtual, int deviceId) {
     std::lock_guard<std::mutex> lk(mLock);
     if (handle == si->getSensor().getHandle() &&
         mUsedHandle.insert(handle).second) {
         // will succeed as the mUsedHandle does not have this handle
-        mHandleMap.emplace(handle, Entry(si, isForDebug, isVirtual, deviceId));
+        mHandleMap.emplace(handle, Entry(std::move(si), isForDebug, isVirtual, deviceId));
         return true;
     }
     // handle exist already or handle mismatch
@@ -63,11 +63,11 @@ String8 SensorList::getStringType(int handle) const {
             mNonSensor.getStringType());
 }
 
-sp<SensorInterface> SensorList::getInterface(int handle) const {
-    return getOne<sp<SensorInterface>>(
-            handle, [] (const Entry& e) -> sp<SensorInterface> {return e.si;}, nullptr);
+std::shared_ptr<SensorInterface> SensorList::getInterface(int handle) const {
+    return getOne<std::shared_ptr<SensorInterface>>(
+            handle, [] (const Entry& e) -> std::shared_ptr<SensorInterface> {return e.si;},
+            nullptr);
 }
-
 
 bool SensorList::isNewHandle(int handle) const {
     std::lock_guard<std::mutex> lk(mLock);
