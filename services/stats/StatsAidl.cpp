@@ -66,6 +66,61 @@ ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
                 AStatsEvent_writeBool(event,
                     atomValue.get<VendorAtomValue::boolValue>());
                 break;
+            case VendorAtomValue::repeatedIntValue: {
+                const std::optional<std::vector<int>>& repeatedIntValue =
+                        atomValue.get<VendorAtomValue::repeatedIntValue>();
+                AStatsEvent_writeInt32Array(event, repeatedIntValue->data(),
+                                            repeatedIntValue->size());
+                break;
+            }
+            case VendorAtomValue::repeatedLongValue: {
+                const std::optional<std::vector<int64_t>>& repeatedLongValue =
+                        atomValue.get<VendorAtomValue::repeatedLongValue>();
+                AStatsEvent_writeInt64Array(event, repeatedLongValue->data(),
+                                            repeatedLongValue->size());
+                break;
+            }
+            case VendorAtomValue::repeatedFloatValue: {
+                const std::optional<std::vector<float>>& repeatedFloatValue =
+                        atomValue.get<VendorAtomValue::repeatedFloatValue>();
+                AStatsEvent_writeFloatArray(event, repeatedFloatValue->data(),
+                                            repeatedFloatValue->size());
+                break;
+            }
+            case VendorAtomValue::repeatedStringValue: {
+                const std::optional<std::vector<std::optional<std::string>>>& repeatedStringValue =
+                        atomValue.get<VendorAtomValue::repeatedStringValue>();
+                const std::vector<std::optional<std::string>>& repeatedStringVector =
+                        *repeatedStringValue;
+                const char* cStringArray[repeatedStringVector.size()];
+
+                for (int i = 0; i < repeatedStringVector.size(); ++i) {
+                    cStringArray[i] = repeatedStringVector[i]->c_str();
+                }
+
+                AStatsEvent_writeStringArray(event, cStringArray, repeatedStringVector.size());
+                break;
+            }
+            case VendorAtomValue::repeatedBoolValue: {
+                const std::optional<std::vector<bool>>& repeatedBoolValue =
+                        atomValue.get<VendorAtomValue::repeatedBoolValue>();
+                const std::vector<bool>& repeatedBoolVector = *repeatedBoolValue;
+                bool boolArray[repeatedBoolValue->size()];
+
+                for (int i = 0; i < repeatedBoolVector.size(); ++i) {
+                    boolArray[i] = repeatedBoolVector[i];
+                }
+
+                AStatsEvent_writeBoolArray(event, boolArray, repeatedBoolVector.size());
+                break;
+            }
+            case VendorAtomValue::byteArrayValue: {
+                const std::optional<std::vector<uint8_t>>& byteArrayValue =
+                        atomValue.get<VendorAtomValue::byteArrayValue>();
+
+                AStatsEvent_writeByteArray(event, byteArrayValue->data(), byteArrayValue->size());
+                break;
+            }
         }
     }
     AStatsEvent_build(event);
