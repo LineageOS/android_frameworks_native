@@ -735,6 +735,8 @@ private:
             const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
             EXCLUDES(mStateLock);
 
+    status_t applyRefreshRateConfigsPolicy(const sp<DisplayDevice>&) REQUIRES(mStateLock);
+
     void commitTransactions() EXCLUDES(mStateLock);
     void commitTransactionsLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
     void doCommitTransactions() REQUIRES(mStateLock);
