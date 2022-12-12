@@ -44,11 +44,14 @@ namespace android {
 namespace {
 
 using testing::_;
+using testing::AllOf;
 using testing::AnyNumber;
 using testing::Contains;
+using testing::ElementsAre;
 using testing::HasSubstr;
 using testing::InSequence;
 using testing::Not;
+using testing::Property;
 using testing::SizeIs;
 using testing::StrEq;
 using testing::UnorderedElementsAre;
@@ -645,7 +648,7 @@ TEST_F(TimeStatsTest, canInsertOneLayerTimeStats) {
     ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
 
     ASSERT_EQ(1, globalProto.stats_size());
-    const SFTimeStatsLayerProto& layerProto = globalProto.stats().Get(0);
+    const SFTimeStatsLayerProto& layerProto = globalProto.stats(0);
     ASSERT_TRUE(layerProto.has_layer_name());
     EXPECT_EQ(genLayerName(LAYER_ID_0), layerProto.layer_name());
     ASSERT_TRUE(layerProto.has_total_frames());
@@ -653,7 +656,7 @@ TEST_F(TimeStatsTest, canInsertOneLayerTimeStats) {
     ASSERT_EQ(6, layerProto.deltas_size());
     for (const SFTimeStatsDeltaProto& deltaProto : layerProto.deltas()) {
         ASSERT_EQ(1, deltaProto.histograms_size());
-        const SFTimeStatsHistogramBucketProto& histogramProto = deltaProto.histograms().Get(0);
+        const SFTimeStatsHistogramBucketProto& histogramProto = deltaProto.histograms(0);
         EXPECT_EQ(1, histogramProto.frame_count());
         if ("post2acquire" == deltaProto.delta_name()) {
             EXPECT_EQ(1, histogramProto.time_millis());
@@ -671,6 +674,46 @@ TEST_F(TimeStatsTest, canInsertOneLayerTimeStats) {
             FAIL() << "Unknown delta_name: " << deltaProto.delta_name();
         }
     }
+}
+
+using LayerProto = SFTimeStatsLayerProto;
+using DeltaProto = SFTimeStatsDeltaProto;
+using BucketProto = SFTimeStatsHistogramBucketProto;
+
+TEST_F(TimeStatsTest, canComputeLayerStabilityHistogram) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 3000000); // 0ms delta
+    // Slightly unstable frames
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 4, 5000000); // 1ms delta
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 5, 6000000); // 1ms delta
+
+    SFTimeStatsGlobalProto globalProto;
+    ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+
+    EXPECT_THAT(globalProto.stats(),
+                ElementsAre(AllOf(
+                        Property(&LayerProto::layer_name, genLayerName(LAYER_ID_0)),
+                        Property(&LayerProto::total_frames, 4),
+                        Property(&LayerProto::deltas,
+                                 Contains(AllOf(Property(&DeltaProto::delta_name,
+                                                         "present2presentDelta"),
+                                                Property(&DeltaProto::histograms,
+                                                         UnorderedElementsAre(
+                                                                 AllOf(Property(&BucketProto::
+                                                                                        time_millis,
+                                                                                0),
+                                                                       Property(&BucketProto::
+                                                                                        frame_count,
+                                                                                1)),
+                                                                 AllOf(Property(&BucketProto::
+                                                                                        time_millis,
+                                                                                1),
+                                                                       Property(&BucketProto::
+                                                                                        frame_count,
+                                                                                2))))))))));
 }
 
 TEST_F(TimeStatsTest, canNotInsertInvalidLayerNameTimeStats) {
