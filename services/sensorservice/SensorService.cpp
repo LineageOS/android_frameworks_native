@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <aidl/android/hardware/sensors/ISensors.h>
 #include <android-base/strings.h>
 #include <android/content/pm/IPackageManagerNative.h>
 #include <android/util/ProtoOutputStream.h>
@@ -104,12 +105,10 @@ static const String16 sManageSensorsPermission("android.permission.MANAGE_SENSOR
 
 namespace {
 
-// TODO(b/259227294): Move the sensor ranges to the HAL.
 int32_t nextRuntimeSensorHandle() {
-    static constexpr int32_t kRuntimeHandleBase = 0x5F000000;
-    static constexpr int32_t kRuntimeHandleEnd = 0x5FFFFFFF;
-    static int32_t nextHandle = kRuntimeHandleBase;
-    if (nextHandle == kRuntimeHandleEnd) {
+    using ::aidl::android::hardware::sensors::ISensors;
+    static int32_t nextHandle = ISensors::RUNTIME_SENSORS_HANDLE_BASE;
+    if (nextHandle == ISensors::RUNTIME_SENSORS_HANDLE_END) {
         return -1;
     }
     return nextHandle++;
