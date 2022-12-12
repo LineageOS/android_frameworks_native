@@ -336,9 +336,9 @@ Color getP010Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
                   >> 6;
 
   // Conversions include taking narrow-range into account.
-  return {{{ static_cast<float>(y_uint) / 940.0f,
-             (static_cast<float>(u_uint) - 64.0f) / 940.0f - 0.5f,
-             (static_cast<float>(v_uint) - 64.0f) / 940.0f - 0.5f }}};
+  return {{{ (static_cast<float>(y_uint) - 64.0f) / 876.0f,
+             (static_cast<float>(u_uint) - 64.0f) / 896.0f - 0.5f,
+             (static_cast<float>(v_uint) - 64.0f) / 896.0f - 0.5f }}};
 }
 
 typedef Color (*getPixelFn)(jr_uncompressed_ptr, size_t, size_t);
