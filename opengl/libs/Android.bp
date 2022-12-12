@@ -160,6 +160,7 @@ cc_library_shared {
     srcs: [
         "EGL/egl_tls.cpp",
         "EGL/egl_cache.cpp",
+        "EGL/egl_cache_multifile.cpp",
         "EGL/egl_display.cpp",
         "EGL/egl_object.cpp",
         "EGL/egl_layers.cpp",
