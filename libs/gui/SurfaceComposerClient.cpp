@@ -2155,6 +2155,12 @@ void SurfaceComposerClient::dispose() {
     mStatus = NO_INIT;
 }
 
+status_t SurfaceComposerClient::bootFinished() {
+    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
+    binder::Status status = sf->bootFinished();
+    return statusTFromBinderStatus(status);
+}
+
 sp<SurfaceControl> SurfaceComposerClient::createSurface(const String8& name, uint32_t w, uint32_t h,
                                                         PixelFormat format, int32_t flags,
                                                         const sp<IBinder>& parentHandle,
