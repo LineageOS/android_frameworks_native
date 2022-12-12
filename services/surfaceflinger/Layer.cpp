@@ -216,6 +216,9 @@ void Layer::onFirstRef() {
 }
 
 Layer::~Layer() {
+    LOG_ALWAYS_FATAL_IF(std::this_thread::get_id() != mFlinger->mMainThreadId,
+                        "Layer destructor called off the main thread.");
+
     // The original layer and the clone layer share the same texture and buffer. Therefore, only
     // one of the layers, in this case the original layer, needs to handle the deletion. The
     // original layer and the clone should be removed at the same time so there shouldn't be any
