@@ -36,7 +36,7 @@ class XMPXmlHandler : public XmlHandler {
 public:
 
     XMPXmlHandler() : XmlHandler() {
-        rangeScalingFactorState = NotStrarted;
+        gContainerItemState = NotStrarted;
     }
 
     enum ParseState {
@@ -48,11 +48,11 @@ public:
     virtual DataMatchResult StartElement(const XmlTokenContext& context) {
         string val;
         if (context.BuildTokenValue(&val)) {
-            if (!val.compare(rangeScalingFactorName)) {
-                rangeScalingFactorState = Started;
+            if (!val.compare(gContainerItemName)) {
+                gContainerItemState = Started;
             } else {
-                if (rangeScalingFactorState != Done) {
-                    rangeScalingFactorState = NotStrarted;
+                if (gContainerItemState != Done) {
+                    gContainerItemState = NotStrarted;
                 }
             }
         }
@@ -60,24 +60,45 @@ public:
     }
 
     virtual DataMatchResult FinishElement(const XmlTokenContext& context) {
-        if (rangeScalingFactorState == Started) {
-            rangeScalingFactorState = Done;
+        if (gContainerItemState == Started) {
+            gContainerItemState = Done;
+            lastAttributeName = "";
         }
         return context.GetResult();
     }
 
-    virtual DataMatchResult ElementContent(const XmlTokenContext& context) {
+    virtual DataMatchResult AttributeName(const XmlTokenContext& context) {
         string val;
-        if (rangeScalingFactorState == Started) {
+        if (gContainerItemState == Started) {
             if (context.BuildTokenValue(&val)) {
-                rangeScalingFactorStr.assign(val);
+                if (!val.compare(rangeScalingFactorAttrName)) {
+                    lastAttributeName = rangeScalingFactorAttrName;
+                } else if (!val.compare(transferFunctionAttrName)) {
+                    lastAttributeName = transferFunctionAttrName;
+                } else {
+                    lastAttributeName = "";
+                }
+            }
+        }
+        return context.GetResult();
+    }
+
+    virtual DataMatchResult AttributeValue(const XmlTokenContext& context) {
+        string val;
+        if (gContainerItemState == Started) {
+            if (context.BuildTokenValue(&val, true)) {
+                if (!lastAttributeName.compare(rangeScalingFactorAttrName)) {
+                    rangeScalingFactorStr = val;
+                } else if (!lastAttributeName.compare(transferFunctionAttrName)) {
+                    transferFunctionStr = val;
+                }
             }
         }
         return context.GetResult();
     }
 
     bool getRangeScalingFactor(float* scaling_factor) {
-        if (rangeScalingFactorState == Done) {
+        if (gContainerItemState == Done) {
             stringstream ss(rangeScalingFactorStr);
             float val;
             if (ss >> val) {
@@ -92,17 +113,35 @@ public:
     }
 
     bool getTransferFunction(jpegr_transfer_function* transfer_function) {
-        *transfer_function = JPEGR_TF_HLG;
+        if (gContainerItemState == Done) {
+            stringstream ss(transferFunctionStr);
+            int val;
+            if (ss >> val) {
+                *transfer_function = static_cast<jpegr_transfer_function>(val);
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
         return true;
     }
 
 private:
-    static const string rangeScalingFactorName;
+    static const string gContainerItemName;
+    static const string rangeScalingFactorAttrName;
+    static const string transferFunctionAttrName;
     string              rangeScalingFactorStr;
-    ParseState          rangeScalingFactorState;
+    string              transferFunctionStr;
+    string              lastAttributeName;
+    ParseState          gContainerItemState;
 };
 
-const string XMPXmlHandler::rangeScalingFactorName = "GContainer:rangeScalingFactor";
+const string XMPXmlHandler::gContainerItemName = "GContainer:Item";
+const string XMPXmlHandler::rangeScalingFactorAttrName = "RecoveryMap:RangeScalingFactor";
+const string XMPXmlHandler::transferFunctionAttrName = "RecoveryMap:TransferFunction";
+
 
 
 bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* metadata) {
