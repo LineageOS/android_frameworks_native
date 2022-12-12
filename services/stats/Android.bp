@@ -13,10 +13,13 @@ cc_library_shared {
         "StatsAidl.cpp",
         "StatsHal.cpp",
     ],
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
     shared_libs: [
         "android.frameworks.stats@1.0",
-        "android.frameworks.stats-V1-ndk",
+        "android.frameworks.stats-V2-ndk",
         "libbinder_ndk",
         "libhidlbase",
         "liblog",
@@ -29,10 +32,12 @@ cc_library_shared {
     ],
     export_shared_lib_headers: [
         "android.frameworks.stats@1.0",
-        "android.frameworks.stats-V1-ndk",
+        "android.frameworks.stats-V2-ndk",
     ],
     local_include_dirs: [
         "include/stats",
     ],
-    vintf_fragments: ["android.frameworks.stats@1.0-service.xml"]
+    vintf_fragments: [
+        "android.frameworks.stats-service.xml",
+    ],
 }
