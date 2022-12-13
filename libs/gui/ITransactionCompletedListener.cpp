@@ -39,6 +39,12 @@ enum class Tag : uint32_t {
 
 } // Anonymous namespace
 
+namespace { // Anonymous
+
+constexpr int32_t kSerializedCallbackTypeOnCompelteWithJankData = 2;
+
+} // Anonymous namespace
+
 status_t FrameEventHistoryStats::writeToParcel(Parcel* output) const {
     status_t err = output->writeUint64(frameNumber);
     if (err != NO_ERROR) return err;
@@ -349,7 +355,11 @@ ListenerCallbacks ListenerCallbacks::filter(CallbackId::Type type) const {
 
 status_t CallbackId::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(output->writeInt64, id);
-    SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(type));
+    if (type == Type::ON_COMPLETE && includeJankData) {
+        SAFE_PARCEL(output->writeInt32, kSerializedCallbackTypeOnCompelteWithJankData);
+    } else {
+        SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(type));
+    }
     return NO_ERROR;
 }
 
@@ -357,7 +367,13 @@ status_t CallbackId::readFromParcel(const Parcel* input) {
     SAFE_PARCEL(input->readInt64, &id);
     int32_t typeAsInt;
     SAFE_PARCEL(input->readInt32, &typeAsInt);
-    type = static_cast<CallbackId::Type>(typeAsInt);
+    if (typeAsInt == kSerializedCallbackTypeOnCompelteWithJankData) {
+        type = Type::ON_COMPLETE;
+        includeJankData = true;
+    } else {
+        type = static_cast<CallbackId::Type>(typeAsInt);
+        includeJankData = false;
+    }
     return NO_ERROR;
 }
 

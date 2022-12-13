@@ -40,10 +40,15 @@ class ListenerCallbacks;
 class CallbackId : public Parcelable {
 public:
     int64_t id;
-    enum class Type : int32_t { ON_COMPLETE, ON_COMMIT } type;
+    enum class Type : int32_t {
+        ON_COMPLETE = 0,
+        ON_COMMIT = 1,
+        /*reserved for serialization = 2*/
+    } type;
+    bool includeJankData; // Only respected for ON_COMPLETE callbacks.
 
     CallbackId() {}
-    CallbackId(int64_t id, Type type) : id(id), type(type) {}
+    CallbackId(int64_t id, Type type) : id(id), type(type), includeJankData(false) {}
     status_t writeToParcel(Parcel* output) const override;
     status_t readFromParcel(const Parcel* input) override;
 

@@ -257,6 +257,11 @@ CallbackId TransactionCompletedListener::addCallbackFunction(
 
     for (const auto& surfaceControl : surfaceControls) {
         callbackSurfaceControls[surfaceControl->getHandle()] = surfaceControl;
+
+        if (callbackType == CallbackId::Type::ON_COMPLETE &&
+            mJankListeners.count(surfaceControl->getLayerId()) != 0) {
+            callbackId.includeJankData = true;
+        }
     }
 
     return callbackId;
