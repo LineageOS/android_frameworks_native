@@ -67,7 +67,8 @@ public:
      * a system property, or in the case of services in the VINTF manifest, it can be checked
      * with isDeclared).
      */
-    virtual sp<IBinder>         getService( const String16& name) const = 0;
+    [[deprecated("this polls for 5s, prefer waitForService or checkService")]]
+    virtual sp<IBinder> getService(const String16& name) const = 0;
 
     /**
      * Retrieve an existing service, non-blocking.
