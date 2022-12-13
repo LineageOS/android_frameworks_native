@@ -16,8 +16,8 @@
 
 #include <android-base/thread_annotations.h>
 #include <android/gui/ISurfaceComposer.h>
+#include <gui/Choreographer.h>
 #include <jni.h>
-#include <nativedisplay/Choreographer.h>
 #include <private/android/choreographer.h>
 #include <utils/Looper.h>
 #include <utils/Timers.h>

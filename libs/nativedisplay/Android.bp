@@ -56,7 +56,6 @@ cc_library_shared {
         ":libgui_frame_event_aidl",
         "AChoreographer.cpp",
         "ADisplay.cpp",
-        "Choreographer.cpp",
         "surfacetexture/surface_texture.cpp",
         "surfacetexture/SurfaceTexture.cpp",
         "surfacetexture/ImageConsumer.cpp",
