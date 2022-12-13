@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <unordered_map>
 
 #include "TimeStats.h"
@@ -179,6 +180,12 @@ bool TimeStats::populateLayerAtom(std::vector<uint8_t>* pulledData) {
         if (present2PresentHist != layer->deltas.cend()) {
             *atom->mutable_present_to_present() =
                     histogramToProto(present2PresentHist->second.hist, mMaxPulledHistogramBuckets);
+        }
+        const auto& present2PresentDeltaHist = layer->deltas.find("present2presentDelta");
+        if (present2PresentDeltaHist != layer->deltas.cend()) {
+            *atom->mutable_present_to_present_delta() =
+                    histogramToProto(present2PresentDeltaHist->second.hist,
+                                     mMaxPulledHistogramBuckets);
         }
         const auto& post2presentHist = layer->deltas.find("post2present");
         if (post2presentHist != layer->deltas.cend()) {
@@ -452,6 +459,7 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayR
 
     LayerRecord& layerRecord = mTimeStatsTracker[layerId];
     TimeRecord& prevTimeRecord = layerRecord.prevTimeRecord;
+    std::optional<int32_t>& prevPresentToPresentMs = layerRecord.prevPresentToPresentMs;
     std::deque<TimeRecord>& timeRecords = layerRecord.timeRecords;
     const int32_t refreshRateBucket =
             clampToNearestBucket(displayRefreshRate, REFRESH_RATE_BUCKET_WIDTH);
@@ -529,6 +537,12 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayR
             ALOGV("[%d]-[%" PRIu64 "]-present2present[%d]", layerId,
                   timeRecords[0].frameTime.frameNumber, presentToPresentMs);
             timeStatsLayer.deltas["present2present"].insert(presentToPresentMs);
+            if (prevPresentToPresentMs) {
+                const int32_t presentToPresentDeltaMs =
+                        std::abs(presentToPresentMs - *prevPresentToPresentMs);
+                timeStatsLayer.deltas["present2presentDelta"].insert(presentToPresentDeltaMs);
+            }
+            prevPresentToPresentMs = presentToPresentMs;
         }
         prevTimeRecord = timeRecords[0];
         timeRecords.pop_front();

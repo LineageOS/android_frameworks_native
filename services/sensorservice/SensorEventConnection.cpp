@@ -160,7 +160,7 @@ void SensorService::SensorEventConnection::dump(util::ProtoOutputStream* proto) 
 
 bool SensorService::SensorEventConnection::addSensor(int32_t handle) {
     Mutex::Autolock _l(mConnectionLock);
-    sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+    std::shared_ptr<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
     if (si == nullptr ||
         !mService->canAccessSensor(si->getSensor(), "Add to SensorEventConnection: ",
                                    mOpPackageName) ||
@@ -202,7 +202,7 @@ bool SensorService::SensorEventConnection::hasOneShotSensors() const {
     Mutex::Autolock _l(mConnectionLock);
     for (auto &it : mSensorInfo) {
         const int handle = it.first;
-        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+        std::shared_ptr<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
         if (si != nullptr && si->getSensor().getReportingMode() == AREPORTING_MODE_ONE_SHOT) {
             return true;
         }
@@ -245,7 +245,7 @@ void SensorService::SensorEventConnection::updateLooperRegistrationLocked(
     if (mDataInjectionMode) looper_flags |= ALOOPER_EVENT_INPUT;
     for (auto& it : mSensorInfo) {
         const int handle = it.first;
-        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+        std::shared_ptr<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
         if (si != nullptr && si->getSensor().isWakeUpSensor()) {
             looper_flags |= ALOOPER_EVENT_INPUT;
         }
@@ -555,7 +555,7 @@ void SensorService::SensorEventConnection::sendPendingFlushEventsLocked() {
     // flush complete events to be sent.
     for (auto& it : mSensorInfo) {
         const int handle = it.first;
-        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+        std::shared_ptr<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
         if (si == nullptr) {
             continue;
         }
@@ -689,7 +689,7 @@ status_t SensorService::SensorEventConnection::enableDisable(
     if (enabled) {
         nsecs_t requestedSamplingPeriodNs = samplingPeriodNs;
         bool isSensorCapped = false;
-        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+        std::shared_ptr<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
         if (si != nullptr) {
             const Sensor& s = si->getSensor();
             if (mService->isSensorInCappedSet(s.getType())) {
@@ -729,7 +729,7 @@ status_t SensorService::SensorEventConnection::setEventRate(int handle, nsecs_t 
 
     nsecs_t requestedSamplingPeriodNs = samplingPeriodNs;
     bool isSensorCapped = false;
-    sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+    std::shared_ptr<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
     if (si != nullptr) {
         const Sensor& s = si->getSensor();
         if (mService->isSensorInCappedSet(s.getType())) {
@@ -852,7 +852,7 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
                 }
                 sensors_event_t sensor_event;
                 memcpy(&sensor_event, buf, sizeof(sensors_event_t));
-                sp<SensorInterface> si =
+                std::shared_ptr<SensorInterface> si =
                         mService->getSensorInterfaceFromHandle(sensor_event.sensor);
                 if (si == nullptr) {
                     return 1;
@@ -903,7 +903,7 @@ int SensorService::SensorEventConnection::computeMaxCacheSizeLocked() const {
     size_t fifoWakeUpSensors = 0;
     size_t fifoNonWakeUpSensors = 0;
     for (auto& it : mSensorInfo) {
-        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(it.first);
+        std::shared_ptr<SensorInterface> si = mService->getSensorInterfaceFromHandle(it.first);
         if (si == nullptr) {
             continue;
         }

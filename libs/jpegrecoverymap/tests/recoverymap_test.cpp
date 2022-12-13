@@ -15,6 +15,7 @@
  */
 
 #include <jpegrecoverymap/recoverymap.h>
+#include <jpegrecoverymap/recoverymaputils.h>
 #include <fcntl.h>
 #include <fstream>
 #include <gtest/gtest.h>
@@ -94,6 +95,19 @@ TEST_F(RecoveryMapTest, build) {
   recovery_map.decodeJPEGR(nullptr, nullptr, nullptr, false);
 }
 
+TEST_F(RecoveryMapTest, writeXmpThenRead) {
+  jpegr_metadata metadata_expected;
+  metadata_expected.transferFunction = JPEGR_TF_HLG;
+  metadata_expected.rangeScalingFactor = 1.25;
+  int length_expected = 1000;
+  std::string xmp = generateXmp(1000, metadata_expected);
+
+  jpegr_metadata metadata_read;
+  EXPECT_TRUE(getMetadataFromXMP(reinterpret_cast<uint8_t*>(xmp[0]), xmp.size(), &metadata_read));
+  ASSERT_EQ(metadata_expected.transferFunction, metadata_read.transferFunction);
+  ASSERT_EQ(metadata_expected.rangeScalingFactor, metadata_read.rangeScalingFactor);
+
+}
 TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
   int ret;
 
