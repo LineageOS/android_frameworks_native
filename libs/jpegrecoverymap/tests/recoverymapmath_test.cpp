@@ -36,9 +36,9 @@ public:
   }
 
   Color P010(uint16_t y, uint16_t u, uint16_t v) {
-      return {{{ static_cast<float>(y) / 940.0f,
-                 (static_cast<float>(u) - 64.0f) / 940.0f - 0.5f,
-                 (static_cast<float>(v) - 64.0f) / 940.0f - 0.5f }}};
+      return {{{ (static_cast<float>(y) - 64.0f) / 876.0f,
+                 (static_cast<float>(u) - 64.0f) / 896.0f - 0.5f,
+                 (static_cast<float>(v) - 64.0f) / 896.0f - 0.5f }}};
   }
 
   float Map(uint8_t e) {
@@ -821,7 +821,6 @@ TEST_F(RecoveryMapMathTest, GenerateMapLuminancePq) {
               bt2100Luminance(RgbBlue()) * kPqMaxNits, LuminanceEpsilon());
 }
 
-//Color Recover(Color yuv_gamma, float recovery, float range_scaling_factor) {
 TEST_F(RecoveryMapMathTest, ApplyMap) {
   EXPECT_RGB_EQ(Recover(YuvWhite(), 1.0f, 8.0f),
                 RgbWhite() * 8.0f);
