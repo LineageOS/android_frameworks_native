@@ -234,8 +234,8 @@ protected:
 
         bool wake;
 
-        // Whether the device supports the Universal Stylus Initiative (USI) protocol for styluses.
-        bool supportsUsi;
+        // The Universal Stylus Initiative (USI) protocol version supported by this device.
+        std::optional<InputDeviceUsiVersion> usiVersion;
 
         // Allows touches while the display is off.
         bool enableForInactiveViewport;
