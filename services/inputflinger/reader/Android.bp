@@ -29,6 +29,7 @@ cc_library_headers {
         "include",
         "mapper",
         "mapper/accumulator",
+        "mapper/gestures",
     ],
 }
 
@@ -61,6 +62,7 @@ filegroup {
         "mapper/accumulator/SingleTouchMotionAccumulator.cpp",
         "mapper/accumulator/TouchButtonAccumulator.cpp",
         "mapper/gestures/GesturesLogging.cpp",
+        "mapper/gestures/HardwareStateConverter.cpp",
     ],
 }
 

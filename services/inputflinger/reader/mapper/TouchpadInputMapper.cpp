@@ -16,8 +16,6 @@
 
 #include "../Macros.h"
 
-#include <chrono>
-
 #include <android/input.h>
 #include <log/log_main.h>
 #include "TouchCursorInputMapperCommon.h"
@@ -106,7 +104,7 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext)
       : InputMapper(deviceContext),
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
         mPointerController(getContext()->getPointerController(getDeviceId())),
-        mTouchButtonAccumulator(deviceContext) {
+        mStateConverter(deviceContext) {
     mGestureInterpreter->Initialize(GESTURES_DEVCLASS_TOUCHPAD);
     mGestureInterpreter->SetHardwareProperties(createHardwareProperties(deviceContext));
     // Even though we don't explicitly delete copy/move semantics, it's safe to
@@ -116,16 +114,6 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext)
     mGestureInterpreter->SetCallback(gestureInterpreterCallback, this);
     // TODO(b/251196347): set a property provider, so we can change gesture properties.
     // TODO(b/251196347): set a timer provider, so the library can use timers.
-
-    RawAbsoluteAxisInfo slotAxisInfo;
-    getAbsoluteAxisInfo(ABS_MT_SLOT, &slotAxisInfo);
-    if (!slotAxisInfo.valid || slotAxisInfo.maxValue <= 0) {
-        ALOGW("Touchpad \"%s\" doesn't have a valid ABS_MT_SLOT axis, and probably won't work "
-              "properly.",
-              getDeviceName().c_str());
-    }
-    mMotionAccumulator.configure(getDeviceContext(), slotAxisInfo.maxValue + 1, true);
-    mTouchButtonAccumulator.configure();
 }
 
 TouchpadInputMapper::~TouchpadInputMapper() {
@@ -139,82 +127,28 @@ uint32_t TouchpadInputMapper::getSources() const {
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::reset(nsecs_t when) {
-    mCursorButtonAccumulator.reset(getDeviceContext());
-    mTouchButtonAccumulator.reset();
-    mMscTimestamp = 0;
+    mStateConverter.reset();
 
     mButtonState = 0;
     return InputMapper::reset(when);
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
-    std::list<NotifyArgs> out = {};
-    if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        out = sync(rawEvent->when, rawEvent->readTime);
+    std::optional<SelfContainedHardwareState> state = mStateConverter.processRawEvent(rawEvent);
+    if (state) {
+        return sendHardwareState(rawEvent->when, rawEvent->readTime, *state);
+    } else {
+        return {};
     }
-    if (rawEvent->type == EV_MSC && rawEvent->code == MSC_TIMESTAMP) {
-        mMscTimestamp = rawEvent->value;
-    }
-    mCursorButtonAccumulator.process(rawEvent);
-    mMotionAccumulator.process(rawEvent);
-    mTouchButtonAccumulator.process(rawEvent);
-    return out;
 }
 
-std::list<NotifyArgs> TouchpadInputMapper::sync(nsecs_t when, nsecs_t readTime) {
-    HardwareState hwState;
-    // The gestures library uses doubles to represent timestamps in seconds.
-    hwState.timestamp = std::chrono::duration<stime_t>(std::chrono::nanoseconds(when)).count();
-    hwState.msc_timestamp =
-            std::chrono::duration<stime_t>(std::chrono::microseconds(mMscTimestamp)).count();
-
-    hwState.buttons_down = 0;
-    if (mCursorButtonAccumulator.isLeftPressed()) {
-        hwState.buttons_down |= GESTURES_BUTTON_LEFT;
-    }
-    if (mCursorButtonAccumulator.isMiddlePressed()) {
-        hwState.buttons_down |= GESTURES_BUTTON_MIDDLE;
-    }
-    if (mCursorButtonAccumulator.isRightPressed()) {
-        hwState.buttons_down |= GESTURES_BUTTON_RIGHT;
-    }
-    if (mCursorButtonAccumulator.isBackPressed() || mCursorButtonAccumulator.isSidePressed()) {
-        hwState.buttons_down |= GESTURES_BUTTON_BACK;
-    }
-    if (mCursorButtonAccumulator.isForwardPressed() || mCursorButtonAccumulator.isExtraPressed()) {
-        hwState.buttons_down |= GESTURES_BUTTON_FORWARD;
-    }
-
-    std::vector<FingerState> fingers;
-    for (size_t i = 0; i < mMotionAccumulator.getSlotCount(); i++) {
-        MultiTouchMotionAccumulator::Slot slot = mMotionAccumulator.getSlot(i);
-        if (slot.isInUse()) {
-            FingerState& fingerState = fingers.emplace_back();
-            fingerState = {};
-            fingerState.touch_major = slot.getTouchMajor();
-            fingerState.touch_minor = slot.getTouchMinor();
-            fingerState.width_major = slot.getToolMajor();
-            fingerState.width_minor = slot.getToolMinor();
-            fingerState.pressure = slot.getPressure();
-            fingerState.orientation = slot.getOrientation();
-            fingerState.position_x = slot.getX();
-            fingerState.position_y = slot.getY();
-            fingerState.tracking_id = slot.getTrackingId();
-        }
-    }
-    hwState.fingers = fingers.data();
-    hwState.finger_cnt = fingers.size();
-    hwState.touch_cnt = mTouchButtonAccumulator.getTouchCount();
-
+std::list<NotifyArgs> TouchpadInputMapper::sendHardwareState(nsecs_t when, nsecs_t readTime,
+                                                             SelfContainedHardwareState schs) {
     mProcessing = true;
-    mGestureInterpreter->PushHardwareState(&hwState);
+    mGestureInterpreter->PushHardwareState(&schs.state);
     mProcessing = false;
 
-    std::list<NotifyArgs> out = processGestures(when, readTime);
-
-    mMotionAccumulator.finishSync();
-    mMscTimestamp = 0;
-    return out;
+    return processGestures(when, readTime);
 }
 
 void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {

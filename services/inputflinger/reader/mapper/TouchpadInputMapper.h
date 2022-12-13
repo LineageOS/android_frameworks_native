@@ -17,6 +17,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include <PointerControllerInterface.h>
 
@@ -24,9 +25,7 @@
 #include "InputDevice.h"
 #include "InputMapper.h"
 #include "NotifyArgs.h"
-#include "accumulator/CursorButtonAccumulator.h"
-#include "accumulator/MultiTouchMotionAccumulator.h"
-#include "accumulator/TouchButtonAccumulator.h"
+#include "gestures/HardwareStateConverter.h"
 
 #include "include/gestures.h"
 
@@ -44,7 +43,8 @@ public:
     void consumeGesture(const Gesture* gesture);
 
 private:
-    [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> sendHardwareState(nsecs_t when, nsecs_t readTime,
+                                                          SelfContainedHardwareState schs);
     [[nodiscard]] std::list<NotifyArgs> processGestures(nsecs_t when, nsecs_t readTime);
     NotifyArgs handleMove(nsecs_t when, nsecs_t readTime, const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> handleButtonsChange(nsecs_t when, nsecs_t readTime,
@@ -61,10 +61,7 @@ private:
             mGestureInterpreter;
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
-    CursorButtonAccumulator mCursorButtonAccumulator;
-    MultiTouchMotionAccumulator mMotionAccumulator;
-    TouchButtonAccumulator mTouchButtonAccumulator;
-    int32_t mMscTimestamp = 0;
+    HardwareStateConverter mStateConverter;
 
     bool mProcessing = false;
     std::vector<Gesture> mGesturesToProcess;
