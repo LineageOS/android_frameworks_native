@@ -82,6 +82,12 @@ void GpuService::setTargetStats(const std::string& appPackageName, const uint64_
     mGpuStats->insertTargetStats(appPackageName, driverVersionCode, stats, value);
 }
 
+void GpuService::setTargetStatsArray(const std::string& appPackageName,
+                                const uint64_t driverVersionCode, const GpuStatsInfo::Stats stats,
+                                const uint64_t* values, const uint32_t valueCount) {
+    mGpuStats->insertTargetStatsArray(appPackageName, driverVersionCode, stats, values, valueCount);
+}
+
 void GpuService::setUpdatableDriverPath(const std::string& driverPath) {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();

@@ -259,6 +259,57 @@ void GraphicsEnv::setDriverLoaded(GpuStatsInfo::Api api, bool isDriverLoaded,
     sendGpuStatsLocked(api, isDriverLoaded, driverLoadingTime);
 }
 
+// Hash function to calculate hash for null-terminated Vulkan extension names
+// We store hash values of the extensions, rather than the actual names or
+// indices to be able to support new extensions easily, avoid creating
+// a table of 'known' extensions inside Android and reduce the runtime overhead.
+static uint64_t calculateExtensionHash(const char* word) {
+    if (!word) {
+        return 0;
+    }
+    const size_t wordLen = strlen(word);
+    const uint32_t seed = 167;
+    uint64_t hash = 0;
+    for (size_t i = 0; i < wordLen; i++) {
+        hash = (hash * seed) + word[i];
+    }
+    return hash;
+}
+
+void GraphicsEnv::setVulkanInstanceExtensions(uint32_t enabledExtensionCount,
+                                              const char* const* ppEnabledExtensionNames) {
+    ATRACE_CALL();
+    if (enabledExtensionCount == 0 || ppEnabledExtensionNames == nullptr) {
+        return;
+    }
+
+    const uint32_t maxNumStats = android::GpuStatsAppInfo::MAX_NUM_EXTENSIONS;
+    uint64_t extensionHashes[maxNumStats];
+    const uint32_t numStats = std::min(enabledExtensionCount, maxNumStats);
+    for(uint32_t i = 0; i < numStats; i++) {
+        extensionHashes[i] = calculateExtensionHash(ppEnabledExtensionNames[i]);
+    }
+    setTargetStatsArray(android::GpuStatsInfo::Stats::VULKAN_INSTANCE_EXTENSION,
+                        extensionHashes, numStats);
+}
+
+void GraphicsEnv::setVulkanDeviceExtensions(uint32_t enabledExtensionCount,
+                                            const char* const* ppEnabledExtensionNames) {
+    ATRACE_CALL();
+    if (enabledExtensionCount == 0 || ppEnabledExtensionNames == nullptr) {
+        return;
+    }
+
+    const uint32_t maxNumStats = android::GpuStatsAppInfo::MAX_NUM_EXTENSIONS;
+    uint64_t extensionHashes[maxNumStats];
+    const uint32_t numStats = std::min(enabledExtensionCount, maxNumStats);
+    for(uint32_t i = 0; i < numStats; i++) {
+        extensionHashes[i] = calculateExtensionHash(ppEnabledExtensionNames[i]);
+    }
+    setTargetStatsArray(android::GpuStatsInfo::Stats::VULKAN_DEVICE_EXTENSION,
+                        extensionHashes, numStats);
+}
+
 static sp<IGpuService> getGpuService() {
     static const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
     if (!binder) {
@@ -276,6 +327,11 @@ bool GraphicsEnv::readyToSendGpuStatsLocked() {
 }
 
 void GraphicsEnv::setTargetStats(const GpuStatsInfo::Stats stats, const uint64_t value) {
+    return setTargetStatsArray(stats, &value, 1);
+}
+
+void GraphicsEnv::setTargetStatsArray(const GpuStatsInfo::Stats stats, const uint64_t* values,
+                                      const uint32_t valueCount) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
@@ -283,8 +339,8 @@ void GraphicsEnv::setTargetStats(const GpuStatsInfo::Stats stats, const uint64_t
 
     const sp<IGpuService> gpuService = getGpuService();
     if (gpuService) {
-        gpuService->setTargetStats(mGpuStats.appPackageName, mGpuStats.driverVersionCode, stats,
-                                   value);
+        gpuService->setTargetStatsArray(mGpuStats.appPackageName, mGpuStats.driverVersionCode,
+                                        stats, values, valueCount);
     }
 }
 
