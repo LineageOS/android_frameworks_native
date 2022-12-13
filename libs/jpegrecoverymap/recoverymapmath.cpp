@@ -294,15 +294,9 @@ uint8_t encodeRecovery(float y_sdr, float y_hdr, float hdr_ratio) {
   return static_cast<uint8_t>(log2(gain) / log2(hdr_ratio) * 127.5f  + 127.5f);
 }
 
-static float applyRecovery(float e, float recovery, float hdr_ratio) {
-  if (e <= 0.0f) return 0.0f;
-  return e * pow(hdr_ratio, recovery);
-}
-
 Color applyRecovery(Color e, float recovery, float hdr_ratio) {
-  return {{{ applyRecovery(e.r, recovery, hdr_ratio),
-             applyRecovery(e.g, recovery, hdr_ratio),
-             applyRecovery(e.b, recovery, hdr_ratio) }}};
+  float recoveryFactor = pow(hdr_ratio, recovery);
+  return e * recoveryFactor;
 }
 
 Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
