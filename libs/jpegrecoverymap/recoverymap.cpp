@@ -41,6 +41,12 @@ using namespace photos_editing_formats::image_io;
 
 namespace android::recoverymap {
 
+#define USE_SRGB_INVOETF_LUT 1
+#define USE_HLG_OETF_LUT 1
+#define USE_PQ_OETF_LUT 1
+#define USE_HLG_INVOETF_LUT 1
+#define USE_PQ_INVOETF_LUT 1
+
 #define JPEGR_CHECK(x)          \
   {                             \
     status_t status = (x);      \
@@ -741,11 +747,19 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
       hdrInvOetf = identityConversion;
       break;
     case JPEGR_TF_HLG:
+#if USE_HLG_INVOETF_LUT
+      hdrInvOetf = hlgInvOetfLUT;
+#else
       hdrInvOetf = hlgInvOetf;
+#endif
       hdr_white_nits = kHlgMaxNits;
       break;
     case JPEGR_TF_PQ:
+#if USE_PQ_INVOETF_LUT
+      hdrInvOetf = pqInvOetfLUT;
+#else
       hdrInvOetf = pqInvOetf;
+#endif
       hdr_white_nits = kPqMaxNits;
       break;
     case JPEGR_TF_UNSPECIFIED:
@@ -817,7 +831,11 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
           Color sdr_yuv_gamma =
               sampleYuv420(uncompressed_yuv_420_image, kMapDimensionScaleFactor, x, y);
           Color sdr_rgb_gamma = srgbYuvToRgb(sdr_yuv_gamma);
+#if USE_SRGB_INVOETF_LUT
+          Color sdr_rgb = srgbInvOetfLUT(sdr_rgb_gamma);
+#else
           Color sdr_rgb = srgbInvOetf(sdr_rgb_gamma);
+#endif
           float sdr_y_nits = luminanceFn(sdr_rgb) * kSdrWhiteNits;
 
           Color hdr_yuv_gamma = sampleP010(uncompressed_p010_image, kMapDimensionScaleFactor, x, y);
@@ -905,10 +923,18 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
         hdrOetf = identityConversion;
         break;
       case JPEGR_TF_HLG:
+#if USE_HLG_OETF_LUT
+        hdrOetf = hlgOetfLUT;
+#else
         hdrOetf = hlgOetf;
+#endif
         break;
       case JPEGR_TF_PQ:
+#if USE_PQ_OETF_LUT
+        hdrOetf = pqOetfLUT;
+#else
         hdrOetf = pqOetf;
+#endif
         break;
       case JPEGR_TF_UNSPECIFIED:
         // Should be impossible to hit after input validation.
@@ -921,8 +947,11 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
         for (size_t x = 0; x < width; ++x) {
           Color yuv_gamma_sdr = getYuv420Pixel(uncompressed_yuv_420_image, x, y);
           Color rgb_gamma_sdr = srgbYuvToRgb(yuv_gamma_sdr);
+#if USE_SRGB_INVOETF_LUT
+          Color rgb_sdr = srgbInvOetfLUT(rgb_gamma_sdr);
+#else
           Color rgb_sdr = srgbInvOetf(rgb_gamma_sdr);
-
+#endif
           float recovery;
           // TODO: determine map scaling factor based on actual map dims
           size_t map_scale_factor = kMapDimensionScaleFactor;

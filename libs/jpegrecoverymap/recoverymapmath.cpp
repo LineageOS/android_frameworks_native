@@ -15,11 +15,76 @@
  */
 
 #include <cmath>
-
+#include <vector>
 #include <jpegrecoverymap/recoverymapmath.h>
 
 namespace android::recoverymap {
 
+#define CLIP3(x, min, max) ((x) < (min)) ? (min) : ((x) > (max)) ? (max) : (x)
+
+constexpr size_t kPqOETFPrecision = 10;
+constexpr size_t kPqOETFNumEntries = 1 << kPqOETFPrecision;
+
+static const std::vector<float> kPqOETF = [] {
+    std::vector<float> result;
+    float increment = 1.0 / kPqOETFNumEntries;
+    float value = 0.0f;
+    for (int idx = 0; idx < kPqOETFNumEntries; idx++, value += increment) {
+      result.push_back(pqOetf(value));
+    }
+    return result;
+}();
+
+constexpr size_t kPqInvOETFPrecision = 10;
+constexpr size_t kPqInvOETFNumEntries = 1 << kPqInvOETFPrecision;
+
+static const std::vector<float> kPqInvOETF = [] {
+    std::vector<float> result;
+    float increment = 1.0 / kPqInvOETFNumEntries;
+    float value = 0.0f;
+    for (int idx = 0; idx < kPqInvOETFNumEntries; idx++, value += increment) {
+      result.push_back(pqInvOetf(value));
+    }
+    return result;
+}();
+
+constexpr size_t kHlgOETFPrecision = 10;
+constexpr size_t kHlgOETFNumEntries = 1 << kHlgOETFPrecision;
+
+static const std::vector<float> kHlgOETF = [] {
+    std::vector<float> result;
+    float increment = 1.0 / kHlgOETFNumEntries;
+    float value = 0.0f;
+    for (int idx = 0; idx < kHlgOETFNumEntries; idx++, value += increment) {
+      result.push_back(hlgOetf(value));
+    }
+    return result;
+}();
+
+constexpr size_t kHlgInvOETFPrecision = 10;
+constexpr size_t kHlgInvOETFNumEntries = 1 << kHlgInvOETFPrecision;
+
+static const std::vector<float> kHlgInvOETF = [] {
+    std::vector<float> result;
+    float increment = 1.0 / kHlgInvOETFNumEntries;
+    float value = 0.0f;
+    for (int idx = 0; idx < kHlgInvOETFNumEntries; idx++, value += increment) {
+      result.push_back(hlgInvOetf(value));
+    }
+    return result;
+}();
+
+constexpr size_t kSRGBInvOETFPrecision = 10;
+constexpr size_t kSRGBInvOETFNumEntries = 1 << kSRGBInvOETFPrecision;
+static const std::vector<float> kSRGBInvOETF = [] {
+    std::vector<float> result;
+    float increment = 1.0 / kSRGBInvOETFNumEntries;
+    float value = 0.0f;
+    for (int idx = 0; idx < kSRGBInvOETFNumEntries; idx++, value += increment) {
+      result.push_back(srgbInvOetf(value));
+    }
+    return result;
+}();
 
 // Use Shepard's method for inverse distance weighting. For more information:
 // en.wikipedia.org/wiki/Inverse_distance_weighting#Shepard's_method
@@ -117,6 +182,19 @@ Color srgbInvOetf(Color e_gamma) {
              srgbInvOetf(e_gamma.b) }}};
 }
 
+// See IEC 61966-2-1, Equations F.5 and F.6.
+float srgbInvOetfLUT(float e_gamma) {
+  uint32_t value = static_cast<uint32_t>(e_gamma * kSRGBInvOETFNumEntries);
+  //TODO() : Remove once conversion modules have appropriate clamping in place
+  value = CLIP3(value, 0, kSRGBInvOETFNumEntries - 1);
+  return kSRGBInvOETF[value];
+}
+
+Color srgbInvOetfLUT(Color e_gamma) {
+  return {{{ srgbInvOetfLUT(e_gamma.r),
+             srgbInvOetfLUT(e_gamma.g),
+             srgbInvOetfLUT(e_gamma.b) }}};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Display-P3 transformations
@@ -194,6 +272,18 @@ Color hlgOetf(Color e) {
   return {{{ hlgOetf(e.r), hlgOetf(e.g), hlgOetf(e.b) }}};
 }
 
+float hlgOetfLUT(float e) {
+  uint32_t value = static_cast<uint32_t>(e * kHlgOETFNumEntries);
+  //TODO() : Remove once conversion modules have appropriate clamping in place
+  value = CLIP3(value, 0, kHlgOETFNumEntries - 1);
+
+  return kHlgOETF[value];
+}
+
+Color hlgOetfLUT(Color e) {
+  return {{{ hlgOetfLUT(e.r), hlgOetfLUT(e.g), hlgOetfLUT(e.b) }}};
+}
+
 // See ITU-R BT.2100-2, Table 5, HLG Reference EOTF.
 float hlgInvOetf(float e_gamma) {
   if (e_gamma <= 0.5f) {
@@ -209,6 +299,20 @@ Color hlgInvOetf(Color e_gamma) {
              hlgInvOetf(e_gamma.b) }}};
 }
 
+float hlgInvOetfLUT(float e_gamma) {
+  uint32_t value = static_cast<uint32_t>(e_gamma * kHlgInvOETFNumEntries);
+  //TODO() : Remove once conversion modules have appropriate clamping in place
+  value = CLIP3(value, 0, kHlgInvOETFNumEntries - 1);
+
+  return kHlgInvOETF[value];
+}
+
+Color hlgInvOetfLUT(Color e_gamma) {
+  return {{{ hlgInvOetfLUT(e_gamma.r),
+             hlgInvOetfLUT(e_gamma.g),
+             hlgInvOetfLUT(e_gamma.b) }}};
+}
+
 // See ITU-R BT.2100-2, Table 4, Reference PQ OETF.
 static const float kPqM1 = 2610.0f / 16384.0f, kPqM2 = 2523.0f / 4096.0f * 128.0f;
 static const float kPqC1 = 3424.0f / 4096.0f, kPqC2 = 2413.0f / 4096.0f * 32.0f,
@@ -222,6 +326,18 @@ float pqOetf(float e) {
 
 Color pqOetf(Color e) {
   return {{{ pqOetf(e.r), pqOetf(e.g), pqOetf(e.b) }}};
+}
+
+float pqOetfLUT(float e) {
+  uint32_t value = static_cast<uint32_t>(e * kPqOETFNumEntries);
+  //TODO() : Remove once conversion modules have appropriate clamping in place
+  value = CLIP3(value, 0, kPqOETFNumEntries - 1);
+
+  return kPqOETF[value];
+}
+
+Color pqOetfLUT(Color e) {
+  return {{{ pqOetfLUT(e.r), pqOetfLUT(e.g), pqOetfLUT(e.b) }}};
 }
 
 // Derived from the inverse of the Reference PQ OETF.
@@ -242,6 +358,20 @@ Color pqInvOetf(Color e_gamma) {
   return {{{ pqInvOetf(e_gamma.r),
              pqInvOetf(e_gamma.g),
              pqInvOetf(e_gamma.b) }}};
+}
+
+float pqInvOetfLUT(float e_gamma) {
+  uint32_t value = static_cast<uint32_t>(e_gamma * kPqInvOETFNumEntries);
+  //TODO() : Remove once conversion modules have appropriate clamping in place
+  value = CLIP3(value, 0, kPqInvOETFNumEntries - 1);
+
+  return kPqInvOETF[value];
+}
+
+Color pqInvOetfLUT(Color e_gamma) {
+  return {{{ pqInvOetfLUT(e_gamma.r),
+             pqInvOetfLUT(e_gamma.g),
+             pqInvOetfLUT(e_gamma.b) }}};
 }
 
 
