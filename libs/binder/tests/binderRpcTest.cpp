@@ -1342,7 +1342,7 @@ public:
                 } break;
                 case SocketType::VSOCK: {
                     auto port = allocateVsockPort();
-                    auto status = rpcServer->setupVsockServer(port);
+                    auto status = rpcServer->setupVsockServer(VMADDR_CID_LOCAL, port);
                     if (status != OK) {
                         return AssertionFailure() << "setupVsockServer: " << statusToString(status);
                     }
