@@ -20,6 +20,53 @@
 
 namespace android::recoverymap {
 
+
+// Use Shepard's method for inverse distance weighting. For more information:
+// en.wikipedia.org/wiki/Inverse_distance_weighting#Shepard's_method
+
+float ShepardsIDW::euclideanDistance(float x1, float x2, float y1, float y2) {
+  return sqrt(((y2 - y1) * (y2 - y1)) + (x2 - x1) * (x2 - x1));
+}
+
+void ShepardsIDW::fillShepardsIDW(float *weights, int incR, int incB) {
+  for (int y = 0; y < mMapScaleFactor; y++) {
+    for (int x = 0; x < mMapScaleFactor; x++) {
+      float pos_x = ((float)x) / mMapScaleFactor;
+      float pos_y = ((float)y) / mMapScaleFactor;
+      int curr_x = floor(pos_x);
+      int curr_y = floor(pos_y);
+      int next_x = curr_x + incR;
+      int next_y = curr_y + incB;
+      float e1_distance = euclideanDistance(pos_x, curr_x, pos_y, curr_y);
+      int index = y * mMapScaleFactor * 4 + x * 4;
+      if (e1_distance == 0) {
+        weights[index++] = 1.f;
+        weights[index++] = 0.f;
+        weights[index++] = 0.f;
+        weights[index++] = 0.f;
+      } else {
+        float e1_weight = 1.f / e1_distance;
+
+        float e2_distance = euclideanDistance(pos_x, curr_x, pos_y, next_y);
+        float e2_weight = 1.f / e2_distance;
+
+        float e3_distance = euclideanDistance(pos_x, next_x, pos_y, curr_y);
+        float e3_weight = 1.f / e3_distance;
+
+        float e4_distance = euclideanDistance(pos_x, next_x, pos_y, next_y);
+        float e4_weight = 1.f / e4_distance;
+
+        float total_weight = e1_weight + e2_weight + e3_weight + e4_weight;
+
+        weights[index++] = e1_weight / total_weight;
+        weights[index++] = e2_weight / total_weight;
+        weights[index++] = e3_weight / total_weight;
+        weights[index++] = e4_weight / total_weight;
+      }
+    }
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // sRGB transformations
 
@@ -372,6 +419,7 @@ static float pythDistance(float x_diff, float y_diff) {
   return sqrt(pow(x_diff, 2.0f) + pow(y_diff, 2.0f));
 }
 
+// TODO: If map_scale_factor is guaranteed to be an integer, then remove the following.
 float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y) {
   float x_map = static_cast<float>(x) / static_cast<float>(map_scale_factor);
   float y_map = static_cast<float>(y) / static_cast<float>(map_scale_factor);
@@ -419,6 +467,39 @@ float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size
        + e2 * (e2_weight / total_weight)
        + e3 * (e3_weight / total_weight)
        + e4 * (e4_weight / total_weight);
+}
+
+float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y,
+                ShepardsIDW& weightTables) {
+  // TODO: If map_scale_factor is guaranteed to be an integer power of 2, then optimize the
+  // following by computing log2(map_scale_factor) once and then using >> log2(map_scale_factor)
+  int x_lower = x / map_scale_factor;
+  int x_upper = x_lower + 1;
+  int y_lower = y / map_scale_factor;
+  int y_upper = y_lower + 1;
+
+  x_lower = std::min(x_lower, map->width - 1);
+  x_upper = std::min(x_upper, map->width - 1);
+  y_lower = std::min(y_lower, map->height - 1);
+  y_upper = std::min(y_upper, map->height - 1);
+
+  float e1 = mapUintToFloat(reinterpret_cast<uint8_t*>(map->data)[x_lower + y_lower * map->width]);
+  float e2 = mapUintToFloat(reinterpret_cast<uint8_t*>(map->data)[x_lower + y_upper * map->width]);
+  float e3 = mapUintToFloat(reinterpret_cast<uint8_t*>(map->data)[x_upper + y_lower * map->width]);
+  float e4 = mapUintToFloat(reinterpret_cast<uint8_t*>(map->data)[x_upper + y_upper * map->width]);
+
+  // TODO: If map_scale_factor is guaranteed to be an integer power of 2, then optimize the
+  // following by using & (map_scale_factor - 1)
+  int offset_x = x % map_scale_factor;
+  int offset_y = y % map_scale_factor;
+
+  float* weights = weightTables.mWeights;
+  if (x_lower == x_upper && y_lower == y_upper) weights = weightTables.mWeightsC;
+  else if (x_lower == x_upper) weights = weightTables.mWeightsNR;
+  else if (y_lower == y_upper) weights = weightTables.mWeightsNB;
+  weights += offset_y * map_scale_factor * 4 + offset_x * 4;
+
+  return e1 * weights[0] + e2 * weights[1] + e3 * weights[2] + e4 * weights[3];
 }
 
 uint32_t colorToRgba1010102(Color e_gamma) {

@@ -699,6 +699,7 @@ TEST_F(RecoveryMapMathTest, SampleMap) {
   float (*values)[4] = MapValues();
 
   static const size_t kMapScaleFactor = 2;
+  ShepardsIDW idwTable(kMapScaleFactor);
   for (size_t y = 0; y < 4 * kMapScaleFactor; ++y) {
     for (size_t x = 0; x < 4 * kMapScaleFactor; ++x) {
       size_t x_base = x / kMapScaleFactor;
@@ -725,7 +726,7 @@ TEST_F(RecoveryMapMathTest, SampleMap) {
       // Instead of reimplementing the sampling algorithm, confirm that the
       // sample output is within the range of the min and max of the nearest
       // points.
-      EXPECT_THAT(sampleMap(&image, kMapScaleFactor, x, y),
+      EXPECT_THAT(sampleMap(&image, kMapScaleFactor, x, y, idwTable),
                   testing::AllOf(testing::Ge(min), testing::Le(max)));
     }
   }

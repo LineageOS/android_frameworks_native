@@ -112,6 +112,52 @@ inline Color operator/(const Color& lhs, const float rhs) {
   return temp /= rhs;
 }
 
+struct ShepardsIDW {
+  ShepardsIDW(int mapScaleFactor) : mMapScaleFactor{mapScaleFactor} {
+    const int size = mMapScaleFactor * mMapScaleFactor * 4;
+    mWeights = new float[size];
+    mWeightsNR = new float[size];
+    mWeightsNB = new float[size];
+    mWeightsC = new float[size];
+    fillShepardsIDW(mWeights, 1, 1);
+    fillShepardsIDW(mWeightsNR, 0, 1);
+    fillShepardsIDW(mWeightsNB, 1, 0);
+    fillShepardsIDW(mWeightsC, 0, 0);
+  }
+  ~ShepardsIDW() {
+    delete[] mWeights;
+    delete[] mWeightsNR;
+    delete[] mWeightsNB;
+    delete[] mWeightsC;
+  }
+
+  int mMapScaleFactor;
+  // Image :-
+  // p00 p01 p02 p03 p04 p05 p06 p07
+  // p10 p11 p12 p13 p14 p15 p16 p17
+  // p20 p21 p22 p23 p24 p25 p26 p27
+  // p30 p31 p32 p33 p34 p35 p36 p37
+  // p40 p41 p42 p43 p44 p45 p46 p47
+  // p50 p51 p52 p53 p54 p55 p56 p57
+  // p60 p61 p62 p63 p64 p65 p66 p67
+  // p70 p71 p72 p73 p74 p75 p76 p77
+
+  // Recovery Map (for 4 scale factor) :-
+  // m00 p01
+  // m10 m11
+
+  // Recovery sample of curr 4x4, right 4x4, bottom 4x4, bottom right 4x4 are used during
+  // reconstruction. hence table weight size is 4.
+  float* mWeights;
+  // TODO: check if its ok to mWeights at places
+  float* mWeightsNR;  // no right
+  float* mWeightsNB;  // no bottom
+  float* mWeightsC;  // no right & bottom
+
+  float euclideanDistance(float x1, float x2, float y1, float y2);
+  void fillShepardsIDW(float *weights, int incR, int incB);
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // sRGB transformations
@@ -282,7 +328,9 @@ Color sampleP010(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, siz
  * Sample the recovery value for the map from a given x,y coordinate on a scale
  * that is map scale factor larger than the map size.
  */
-float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
+float sampleMap(jr_uncompressed_ptr map, float map_scale_factor, size_t x, size_t y);
+float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y,
+                ShepardsIDW& weightTables);
 
 /*
  * Convert from Color to RGBA1010102.

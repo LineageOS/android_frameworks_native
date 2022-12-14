@@ -773,14 +773,26 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
       break;
   }
 
+  ShepardsIDW idwTable(kMapDimensionScaleFactor);
+
   for (size_t y = 0; y < height; ++y) {
     for (size_t x = 0; x < width; ++x) {
       Color yuv_gamma_sdr = getYuv420Pixel(uncompressed_yuv_420_image, x, y);
       Color rgb_gamma_sdr = srgbYuvToRgb(yuv_gamma_sdr);
       Color rgb_sdr = srgbInvOetf(rgb_gamma_sdr);
 
+      float recovery;
       // TODO: determine map scaling factor based on actual map dims
-      float recovery = sampleMap(uncompressed_recovery_map, kMapDimensionScaleFactor, x, y);
+      size_t map_scale_factor = kMapDimensionScaleFactor;
+      // TODO: If map_scale_factor is guaranteed to be an integer, then remove the following.
+      // Currently map_scale_factor is of type size_t, but it could be changed to a float
+      // later.
+      if (map_scale_factor != floorf(map_scale_factor)) {
+        recovery = sampleMap(uncompressed_recovery_map, map_scale_factor, x, y);
+      } else {
+        recovery = sampleMap(uncompressed_recovery_map, map_scale_factor, x, y,
+                             idwTable);
+      }
       Color rgb_hdr = applyRecovery(rgb_sdr, recovery, metadata->rangeScalingFactor);
 
       Color rgb_gamma_hdr = hdrOetf(rgb_hdr / metadata->rangeScalingFactor);
