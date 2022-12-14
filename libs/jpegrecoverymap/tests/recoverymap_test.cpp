@@ -22,9 +22,11 @@
 #include <utils/Log.h>
 
 #define RAW_P010_IMAGE "/sdcard/Documents/raw_p010_image.p010"
-#define RAW_P010_IMAGE_WIDTH 1280
-#define RAW_P010_IMAGE_HEIGHT 720
+#define RAW_YUV420_IMAGE "/sdcard/Documents/raw_yuv420_image.yuv420"
 #define JPEG_IMAGE "/sdcard/Documents/jpeg_image.jpg"
+#define TEST_IMAGE_WIDTH 1280
+#define TEST_IMAGE_HEIGHT 720
+#define DEFAULT_JPEG_QUALITY 90
 
 #define SAVE_ENCODING_RESULT true
 #define SAVE_DECODING_RESULT true
@@ -40,6 +42,7 @@ protected:
   virtual void TearDown();
 
   struct jpegr_uncompressed_struct mRawP010Image;
+  struct jpegr_uncompressed_struct mRawYuv420Image;
   struct jpegr_compressed_struct mJpegImage;
 };
 
@@ -49,6 +52,7 @@ RecoveryMapTest::~RecoveryMapTest() {}
 void RecoveryMapTest::SetUp() {}
 void RecoveryMapTest::TearDown() {
   free(mRawP010Image.data);
+  free(mRawYuv420Image.data);
   free(mJpegImage.data);
 }
 
@@ -108,24 +112,88 @@ TEST_F(RecoveryMapTest, writeXmpThenRead) {
   ASSERT_EQ(metadata_expected.rangeScalingFactor, metadata_read.rangeScalingFactor);
 
 }
-TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
+
+/* Test Encode API-0 and decode */
+// TODO: enable when tonemapper is ready.
+//TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
+//  int ret;
+//
+//  // Load input files.
+//  if (!loadFile(RAW_P010_IMAGE, mRawP010Image.data, nullptr)) {
+//    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+//  }
+//  mRawP010Image.width = TEST_IMAGE_WIDTH;
+//  mRawP010Image.height = TEST_IMAGE_HEIGHT;
+//  mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+//
+//  RecoveryMap recoveryMap;
+//
+//  jpegr_compressed_struct jpegR;
+//  jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
+//  jpegR.data = malloc(jpegR.maxLength);
+//  ret = recoveryMap.encodeJPEGR(
+//      &mRawP010Image, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR, 90, nullptr);
+//  if (ret != OK) {
+//    FAIL() << "Error code is " << ret;
+//  }
+//  if (SAVE_ENCODING_RESULT) {
+//    // Output image data to file
+//    std::string filePath = "/sdcard/Documents/encoded_from_jpeg_input.jpgr";
+//    std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
+//    if (!imageFile.is_open()) {
+//      ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
+//    }
+//    imageFile.write((const char*)jpegR.data, jpegR.length);
+//  }
+//
+//  jpegr_uncompressed_struct decodedJpegR;
+//  int decodedJpegRSize = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * 4;
+//  decodedJpegR.data = malloc(decodedJpegRSize);
+//  ret = recoveryMap.decodeJPEGR(&jpegR, &decodedJpegR);
+//  if (ret != OK) {
+//    FAIL() << "Error code is " << ret;
+//  }
+//  if (SAVE_DECODING_RESULT) {
+//    // Output image data to file
+//    std::string filePath = "/sdcard/Documents/decoded_from_jpeg_input.rgb10";
+//    std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
+//    if (!imageFile.is_open()) {
+//      ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
+//    }
+//    imageFile.write((const char*)decodedJpegR.data, decodedJpegRSize);
+//  }
+//
+//  free(jpegR.data);
+//  free(decodedJpegR.data);
+//}
+
+/* Test Encode API-1 and decode */
+TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrThenDecode) {
   int ret;
 
   // Load input files.
   if (!loadFile(RAW_P010_IMAGE, mRawP010Image.data, nullptr)) {
     FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
   }
-  mRawP010Image.width = RAW_P010_IMAGE_WIDTH;
-  mRawP010Image.height = RAW_P010_IMAGE_HEIGHT;
+  mRawP010Image.width = TEST_IMAGE_WIDTH;
+  mRawP010Image.height = TEST_IMAGE_HEIGHT;
   mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+
+  if (!loadFile(RAW_YUV420_IMAGE, mRawYuv420Image.data, nullptr)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+  }
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
 
   RecoveryMap recoveryMap;
 
   jpegr_compressed_struct jpegR;
-  jpegR.maxLength = RAW_P010_IMAGE_WIDTH * RAW_P010_IMAGE_HEIGHT * sizeof(uint8_t);
+  jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
   ret = recoveryMap.encodeJPEGR(
-      &mRawP010Image, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR, 90, nullptr);
+      &mRawP010Image, &mRawYuv420Image, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
   }
@@ -140,7 +208,7 @@ TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
   }
 
   jpegr_uncompressed_struct decodedJpegR;
-  int decodedJpegRSize = RAW_P010_IMAGE_WIDTH * RAW_P010_IMAGE_HEIGHT * 4;
+  int decodedJpegRSize = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * 4;
   decodedJpegR.data = malloc(decodedJpegRSize);
   ret = recoveryMap.decodeJPEGR(&jpegR, &decodedJpegR);
   if (ret != OK) {
@@ -160,6 +228,72 @@ TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
   free(decodedJpegR.data);
 }
 
+/* Test Encode API-2 and decode */
+TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
+  int ret;
+
+  // Load input files.
+  if (!loadFile(RAW_P010_IMAGE, mRawP010Image.data, nullptr)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+  }
+  mRawP010Image.width = TEST_IMAGE_WIDTH;
+  mRawP010Image.height = TEST_IMAGE_HEIGHT;
+  mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+
+  if (!loadFile(RAW_YUV420_IMAGE, mRawYuv420Image.data, nullptr)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+  }
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
+
+  if (!loadFile(JPEG_IMAGE, mJpegImage.data, &mJpegImage.length)) {
+    FAIL() << "Load file " << JPEG_IMAGE << " failed";
+  }
+  mJpegImage.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
+
+  RecoveryMap recoveryMap;
+
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+  ret = recoveryMap.encodeJPEGR(
+      &mRawP010Image, &mRawYuv420Image, &mJpegImage, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR);
+  if (ret != OK) {
+    FAIL() << "Error code is " << ret;
+  }
+  if (SAVE_ENCODING_RESULT) {
+    // Output image data to file
+    std::string filePath = "/sdcard/Documents/encoded_from_jpeg_input.jpgr";
+    std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
+    if (!imageFile.is_open()) {
+      ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
+    }
+    imageFile.write((const char*)jpegR.data, jpegR.length);
+  }
+
+  jpegr_uncompressed_struct decodedJpegR;
+  int decodedJpegRSize = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * 4;
+  decodedJpegR.data = malloc(decodedJpegRSize);
+  ret = recoveryMap.decodeJPEGR(&jpegR, &decodedJpegR);
+  if (ret != OK) {
+    FAIL() << "Error code is " << ret;
+  }
+  if (SAVE_DECODING_RESULT) {
+    // Output image data to file
+    std::string filePath = "/sdcard/Documents/decoded_from_jpeg_input.rgb10";
+    std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
+    if (!imageFile.is_open()) {
+      ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
+    }
+    imageFile.write((const char*)decodedJpegR.data, decodedJpegRSize);
+  }
+
+  free(jpegR.data);
+  free(decodedJpegR.data);
+}
+
+/* Test Encode API-3 and decode */
 TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
   int ret;
 
@@ -167,8 +301,8 @@ TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
   if (!loadFile(RAW_P010_IMAGE, mRawP010Image.data, nullptr)) {
     FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
   }
-  mRawP010Image.width = RAW_P010_IMAGE_WIDTH;
-  mRawP010Image.height = RAW_P010_IMAGE_HEIGHT;
+  mRawP010Image.width = TEST_IMAGE_WIDTH;
+  mRawP010Image.height = TEST_IMAGE_HEIGHT;
   mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
 
   if (!loadFile(JPEG_IMAGE, mJpegImage.data, &mJpegImage.length)) {
@@ -179,7 +313,7 @@ TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
   RecoveryMap recoveryMap;
 
   jpegr_compressed_struct jpegR;
-  jpegR.maxLength = RAW_P010_IMAGE_WIDTH * RAW_P010_IMAGE_HEIGHT * sizeof(uint8_t);
+  jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
   ret = recoveryMap.encodeJPEGR(
       &mRawP010Image, &mJpegImage, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR);
@@ -197,7 +331,7 @@ TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
   }
 
   jpegr_uncompressed_struct decodedJpegR;
-  int decodedJpegRSize = RAW_P010_IMAGE_WIDTH * RAW_P010_IMAGE_HEIGHT * 4;
+  int decodedJpegRSize = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * 4;
   decodedJpegR.data = malloc(decodedJpegRSize);
   ret = recoveryMap.decodeJPEGR(&jpegR, &decodedJpegR);
   if (ret != OK) {
