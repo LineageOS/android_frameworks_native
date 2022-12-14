@@ -815,18 +815,18 @@ GlobalSignals Scheduler::makeGlobalSignals() const {
             .powerOnImminent = powerOnImminent};
 }
 
-ftl::Optional<FrameRateMode> Scheduler::getPreferredDisplayMode() {
+FrameRateMode Scheduler::getPreferredDisplayMode() {
     std::lock_guard<std::mutex> lock(mPolicyLock);
-    // Make sure the stored mode is up to date.
-    if (mPolicy.modeOpt) {
-        const auto ranking =
-                leaderSelectorPtr()
-                        ->getRankedFrameRates(mPolicy.contentRequirements, makeGlobalSignals())
-                        .ranking;
+    const auto frameRateMode =
+            leaderSelectorPtr()
+                    ->getRankedFrameRates(mPolicy.contentRequirements, makeGlobalSignals())
+                    .ranking.front()
+                    .frameRateMode;
 
-        mPolicy.modeOpt = ranking.front().frameRateMode;
-    }
-    return mPolicy.modeOpt;
+    // Make sure the stored mode is up to date.
+    mPolicy.modeOpt = frameRateMode;
+
+    return frameRateMode;
 }
 
 void Scheduler::onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline) {
