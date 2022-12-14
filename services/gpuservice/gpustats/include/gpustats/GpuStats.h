@@ -41,11 +41,14 @@ public:
     // Insert target stats into app stats or potentially global stats as well.
     void insertTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
                            const GpuStatsInfo::Stats stats, const uint64_t value);
+    void insertTargetStatsArray(const std::string& appPackageName,
+                           const uint64_t driverVersionCode, const GpuStatsInfo::Stats stats,
+                           const uint64_t* values, const uint32_t valueCount);
     // dumpsys interface
     void dump(const Vector<String16>& args, std::string* result);
 
     // This limits the worst case number of loading times tracked.
-    static const size_t MAX_NUM_LOADING_TIMES = 50;
+    static const size_t MAX_NUM_LOADING_TIMES = 16;
     // Below limits the memory usage of GpuStats to be less than 10KB. This is
     // the preferred number for statsd while maintaining nice data quality.
     static const size_t MAX_NUM_APP_RECORDS = 100;

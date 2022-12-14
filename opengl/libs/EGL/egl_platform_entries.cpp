@@ -937,6 +937,8 @@ EGLContext eglCreateContextImpl(EGLDisplay dpy, EGLConfig config, EGLContext sha
                 android::GraphicsEnv::getInstance().setTargetStats(
                         android::GpuStatsInfo::Stats::GLES_1_IN_USE);
             }
+            android::GraphicsEnv::getInstance().setTargetStats(
+                    android::GpuStatsInfo::Stats::CREATED_GLES_CONTEXT);
             egl_context_t* c = new egl_context_t(dpy, context, config, cnx, version);
             return c;
         }

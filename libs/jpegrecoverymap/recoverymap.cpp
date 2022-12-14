@@ -554,7 +554,7 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
       float recovery = sampleMap(uncompressed_recovery_map, kMapDimensionScaleFactor, x, y);
       Color rgb_hdr = applyRecovery(rgb_sdr, recovery, metadata->rangeScalingFactor);
 
-      Color rgb_gamma_hdr = hdrOetf(rgb_hdr);
+      Color rgb_gamma_hdr = hdrOetf(rgb_hdr / metadata->rangeScalingFactor);
       uint32_t rgba1010102 = colorToRgba1010102(rgb_gamma_hdr);
 
       size_t pixel_idx =  x + y * width;

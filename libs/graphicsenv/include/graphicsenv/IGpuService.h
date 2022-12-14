@@ -42,6 +42,10 @@ public:
     // set target stats.
     virtual void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
                                 const GpuStatsInfo::Stats stats, const uint64_t value = 0) = 0;
+    virtual void setTargetStatsArray(const std::string& appPackageName,
+                                     const uint64_t driverVersionCode,
+                                     const GpuStatsInfo::Stats stats, const uint64_t* values,
+                                     const uint32_t valueCount) = 0;
 
     // setter and getter for updatable driver path.
     virtual void setUpdatableDriverPath(const std::string& driverPath) = 0;

@@ -28,11 +28,11 @@ namespace android {
 namespace {
 
 short getMaxTouchCount(const InputDeviceContext& context) {
-    if (context.hasKeyCode(BTN_TOOL_QUINTTAP)) return 5;
-    if (context.hasKeyCode(BTN_TOOL_QUADTAP)) return 4;
-    if (context.hasKeyCode(BTN_TOOL_TRIPLETAP)) return 3;
-    if (context.hasKeyCode(BTN_TOOL_DOUBLETAP)) return 2;
-    if (context.hasKeyCode(BTN_TOOL_FINGER)) return 1;
+    if (context.hasScanCode(BTN_TOOL_QUINTTAP)) return 5;
+    if (context.hasScanCode(BTN_TOOL_QUADTAP)) return 4;
+    if (context.hasScanCode(BTN_TOOL_TRIPLETAP)) return 3;
+    if (context.hasScanCode(BTN_TOOL_DOUBLETAP)) return 2;
+    if (context.hasScanCode(BTN_TOOL_FINGER)) return 1;
     return 0;
 }
 

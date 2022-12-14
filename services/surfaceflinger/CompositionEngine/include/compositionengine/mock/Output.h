@@ -100,7 +100,7 @@ public:
     MOCK_METHOD0(beginFrame, void());
 
     MOCK_METHOD0(prepareFrame, void());
-    MOCK_METHOD1(prepareFrameAsync, GpuCompositionResult(const CompositionRefreshArgs&));
+    MOCK_METHOD0(prepareFrameAsync, GpuCompositionResult());
     MOCK_METHOD1(chooseCompositionStrategy,
                  bool(std::optional<android::HWComposer::DeviceRequestedChanges>*));
     MOCK_METHOD1(chooseCompositionStrategyAsync,
@@ -110,14 +110,12 @@ public:
 
     MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
 
-    MOCK_METHOD2(finishFrame,
-                 void(const compositionengine::CompositionRefreshArgs&, GpuCompositionResult&&));
+    MOCK_METHOD1(finishFrame, void(GpuCompositionResult&&));
 
-    MOCK_METHOD4(composeSurfaces,
-                 std::optional<base::unique_fd>(
-                         const Region&,
-                         const compositionengine::CompositionRefreshArgs& refreshArgs,
-                         std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&));
+    MOCK_METHOD3(composeSurfaces,
+                 std::optional<base::unique_fd>(const Region&,
+                                                std::shared_ptr<renderengine::ExternalTexture>,
+                                                base::unique_fd&));
     MOCK_CONST_METHOD0(getSkipColorTransform, bool());
 
     MOCK_METHOD0(postFramebuffer, void());
