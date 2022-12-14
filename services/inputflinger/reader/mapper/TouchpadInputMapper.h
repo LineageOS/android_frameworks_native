@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <list>
 #include <memory>
 #include <vector>
 
@@ -25,6 +26,7 @@
 #include "InputDevice.h"
 #include "InputMapper.h"
 #include "NotifyArgs.h"
+#include "gestures/GestureConverter.h"
 #include "gestures/HardwareStateConverter.h"
 
 #include "include/gestures.h"
@@ -46,30 +48,16 @@ private:
     [[nodiscard]] std::list<NotifyArgs> sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                           SelfContainedHardwareState schs);
     [[nodiscard]] std::list<NotifyArgs> processGestures(nsecs_t when, nsecs_t readTime);
-    NotifyArgs handleMove(nsecs_t when, nsecs_t readTime, const Gesture& gesture);
-    [[nodiscard]] std::list<NotifyArgs> handleButtonsChange(nsecs_t when, nsecs_t readTime,
-                                                            const Gesture& gesture);
-
-    NotifyMotionArgs makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
-                                    int32_t actionButton, int32_t buttonState,
-                                    uint32_t pointerCount,
-                                    const PointerProperties* pointerProperties,
-                                    const PointerCoords* pointerCoords, float xCursorPosition,
-                                    float yCursorPosition);
 
     std::unique_ptr<gestures::GestureInterpreter, void (*)(gestures::GestureInterpreter*)>
             mGestureInterpreter;
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
     HardwareStateConverter mStateConverter;
+    GestureConverter mGestureConverter;
 
     bool mProcessing = false;
     std::vector<Gesture> mGesturesToProcess;
-
-    // The current button state according to the gestures library, but converted into MotionEvent
-    // button values (AMOTION_EVENT_BUTTON_...).
-    uint32_t mButtonState = 0;
-    nsecs_t mDownTime = 0;
 };
 
 } // namespace android
