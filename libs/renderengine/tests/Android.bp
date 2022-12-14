@@ -25,7 +25,7 @@ cc_test {
     name: "librenderengine_test",
     defaults: [
         "android.hardware.graphics.composer3-ndk_shared",
-        "skia_deps",
+        "librenderengine_deps",
         "surfaceflinger_defaults",
     ],
     test_suites: ["device-tests"],
