@@ -251,16 +251,6 @@ public:
                           jr_info_ptr jpegr_info);
 private:
     /*
-     * This method is called in the decoding pipeline. It will decode the recovery map.
-     *
-     * @param compressed_recovery_map compressed recovery map
-     * @param dest decoded recover map
-     * @return NO_ERROR if decoding succeeds, error code if error occurs.
-     */
-    status_t decompressRecoveryMap(jr_compressed_ptr compressed_recovery_map,
-                               jr_uncompressed_ptr dest);
-
-    /*
      * This method is called in the encoding pipeline. It will encode the recovery map.
      *
      * @param uncompressed_recovery_map uncompressed recovery map
