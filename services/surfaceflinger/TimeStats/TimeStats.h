@@ -219,6 +219,7 @@ class TimeStats : public android::TimeStats {
         uint32_t lateAcquireFrames = 0;
         uint32_t badDesiredPresentFrames = 0;
         TimeRecord prevTimeRecord;
+        std::optional<int32_t> prevPresentToPresentMs;
         std::deque<TimeRecord> timeRecords;
     };
 

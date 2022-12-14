@@ -375,15 +375,14 @@ private:
     String8 getSensorName(int handle) const;
     String8 getSensorStringType(int handle) const;
     bool isVirtualSensor(int handle) const;
-    sp<SensorInterface> getSensorInterfaceFromHandle(int handle) const;
+    std::shared_ptr<SensorInterface> getSensorInterfaceFromHandle(int handle) const;
     bool isWakeUpSensor(int type) const;
     void recordLastValueLocked(sensors_event_t const* buffer, size_t count);
     static void sortEventBuffer(sensors_event_t* buffer, size_t count);
-    const Sensor& registerSensor(SensorInterface* sensor, bool isDebug = false,
-                                 bool isVirtual = false,
-                                 int deviceId = RuntimeSensor::DEFAULT_DEVICE_ID);
-    const Sensor& registerVirtualSensor(SensorInterface* sensor, bool isDebug = false);
-    const Sensor& registerDynamicSensorLocked(SensorInterface* sensor, bool isDebug = false);
+    bool registerSensor(std::shared_ptr<SensorInterface> sensor, bool isDebug = false,
+                        bool isVirtual = false, int deviceId = RuntimeSensor::DEFAULT_DEVICE_ID);
+    bool registerVirtualSensor(std::shared_ptr<SensorInterface> sensor, bool isDebug = false);
+    bool registerDynamicSensorLocked(std::shared_ptr<SensorInterface> sensor, bool isDebug = false);
     bool unregisterDynamicSensorLocked(int handle);
     status_t cleanupWithoutDisable(const sp<SensorEventConnection>& connection, int handle);
     status_t cleanupWithoutDisableLocked(const sp<SensorEventConnection>& connection, int handle);
