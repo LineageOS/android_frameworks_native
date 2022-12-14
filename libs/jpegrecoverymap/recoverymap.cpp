@@ -673,6 +673,9 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
       hdrInvOetf = pqInvOetf;
       hdr_white_nits = kPqMaxNits;
       break;
+    case JPEGR_TF_UNSPECIFIED:
+      // Should be impossible to hit after input validation.
+      return ERROR_JPEGR_INVALID_TRANS_FUNC;
   }
 
   ColorTransformFn hdrGamutConversionFn = getHdrConversionFn(
@@ -771,6 +774,9 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
     case JPEGR_TF_PQ:
       hdrOetf = pqOetf;
       break;
+    case JPEGR_TF_UNSPECIFIED:
+      // Should be impossible to hit after input validation.
+      return ERROR_JPEGR_INVALID_TRANS_FUNC;
   }
 
   for (size_t y = 0; y < height; ++y) {

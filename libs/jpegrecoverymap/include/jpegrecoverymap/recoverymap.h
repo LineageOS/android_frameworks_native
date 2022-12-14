@@ -30,6 +30,7 @@ typedef enum {
 
 // Transfer functions as defined for XMP metadata
 typedef enum {
+  JPEGR_TF_UNSPECIFIED = -1,
   JPEGR_TF_LINEAR = 0,
   JPEGR_TF_HLG = 1,
   JPEGR_TF_PQ = 2,

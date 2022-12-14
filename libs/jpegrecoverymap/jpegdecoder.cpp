@@ -16,7 +16,7 @@
 
 #include <jpegrecoverymap/jpegdecoder.h>
 
-#include <cutils/log.h>
+#include <utils/Log.h>
 
 #include <errno.h>
 #include <setjmp.h>
