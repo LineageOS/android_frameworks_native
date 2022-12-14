@@ -121,6 +121,23 @@ ARpcServer* ARpcServer_newInitUnixDomain(AIBinder* service, const char* name) {
     return createObjectHandle<ARpcServer>(server);
 }
 
+ARpcServer* ARpcServer_newUnixDomainBootstrap(AIBinder* service, int bootstrapFd) {
+    auto server = RpcServer::make();
+    auto fd = unique_fd(bootstrapFd);
+    if (!fd.ok()) {
+        LOG(ERROR) << "Invalid bootstrap fd " << bootstrapFd;
+        return nullptr;
+    }
+    if (status_t status = server->setupUnixDomainSocketBootstrapServer(std::move(fd));
+        status != OK) {
+        LOG(ERROR) << "Failed to set up Unix Domain RPC server with bootstrap fd " << bootstrapFd
+                   << " error: " << statusToString(status).c_str();
+        return nullptr;
+    }
+    server->setRootObject(AIBinder_toPlatformBinder(service));
+    return createObjectHandle<ARpcServer>(server);
+}
+
 void ARpcServer_setSupportedFileDescriptorTransportModes(
         ARpcServer* handle, const ARpcSession_FileDescriptorTransportMode modes[],
         size_t modes_len) {
@@ -173,6 +190,22 @@ AIBinder* ARpcSession_setupUnixDomainClient(ARpcSession* handle, const char* nam
     auto session = handleToStrongPointer<RpcSession>(handle);
     if (status_t status = session->setupUnixDomainClient(pathname.c_str()); status != OK) {
         LOG(ERROR) << "Failed to set up Unix Domain RPC client with path: " << pathname
+                   << " error: " << statusToString(status).c_str();
+        return nullptr;
+    }
+    return AIBinder_fromPlatformBinder(session->getRootObject());
+}
+
+AIBinder* ARpcSession_setupUnixDomainBootstrapClient(ARpcSession* handle, int bootstrapFd) {
+    auto session = handleToStrongPointer<RpcSession>(handle);
+    auto fd = unique_fd(dup(bootstrapFd));
+    if (!fd.ok()) {
+        LOG(ERROR) << "Invalid bootstrap fd " << bootstrapFd;
+        return nullptr;
+    }
+    if (status_t status = session->setupUnixDomainSocketBootstrapClient(std::move(fd));
+        status != OK) {
+        LOG(ERROR) << "Failed to set up Unix Domain RPC client with bootstrap fd: " << bootstrapFd
                    << " error: " << statusToString(status).c_str();
         return nullptr;
     }

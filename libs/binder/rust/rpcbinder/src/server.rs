@@ -20,6 +20,7 @@ use binder_rpc_unstable_bindgen::ARpcServer;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use std::ffi::CString;
 use std::io::{Error, ErrorKind};
+use std::os::unix::io::{IntoRawFd, OwnedFd};
 
 foreign_type! {
     type CType = binder_rpc_unstable_bindgen::ARpcServer;
@@ -76,6 +77,27 @@ impl RpcServer {
             Self::checked_from_ptr(binder_rpc_unstable_bindgen::ARpcServer_newInitUnixDomain(
                 service,
                 socket_name.as_ptr(),
+            ))
+        }
+    }
+
+    /// Creates a binder RPC server that bootstraps sessions using an existing Unix domain socket
+    /// pair, with a given root IBinder object. Callers should create a pair of SOCK_STREAM Unix
+    /// domain sockets, pass one to the server and the other to the client. Multiple client session
+    /// can be created from the client end of the pair.
+    pub fn new_unix_domain_bootstrap(
+        mut service: SpIBinder,
+        bootstrap_fd: OwnedFd,
+    ) -> Result<RpcServer, Error> {
+        let service = service.as_native_mut();
+
+        // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
+        // Plus the binder objects are threadsafe.
+        // The server takes ownership of the bootstrap FD.
+        unsafe {
+            Self::checked_from_ptr(binder_rpc_unstable_bindgen::ARpcServer_newUnixDomainBootstrap(
+                service,
+                bootstrap_fd.into_raw_fd(),
             ))
         }
     }

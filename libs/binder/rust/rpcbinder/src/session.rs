@@ -20,7 +20,7 @@ use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use std::ffi::CString;
 use std::os::{
     raw::{c_int, c_void},
-    unix::io::RawFd,
+    unix::io::{AsRawFd, BorrowedFd, RawFd},
 };
 
 pub use binder_rpc_unstable_bindgen::ARpcSession_FileDescriptorTransportMode as FileDescriptorTransportMode;
@@ -121,6 +121,24 @@ impl RpcSessionRef {
             new_spibinder(binder_rpc_unstable_bindgen::ARpcSession_setupUnixDomainClient(
                 self.as_ptr(),
                 socket_name.as_ptr(),
+            ))
+        };
+        Self::get_interface(service)
+    }
+
+    /// Connects to an RPC Binder server over a bootstrap Unix Domain Socket
+    /// for a particular interface.
+    pub fn setup_unix_domain_bootstrap_client<T: FromIBinder + ?Sized>(
+        &self,
+        bootstrap_fd: BorrowedFd,
+    ) -> Result<Strong<T>, StatusCode> {
+        // SAFETY: ARpcSession_setupUnixDomainBootstrapClient does not take
+        // ownership of bootstrap_fd. The returned AIBinder has correct
+        // reference count, and the ownership can safely be taken by new_spibinder.
+        let service = unsafe {
+            new_spibinder(binder_rpc_unstable_bindgen::ARpcSession_setupUnixDomainBootstrapClient(
+                self.as_ptr(),
+                bootstrap_fd.as_raw_fd(),
             ))
         };
         Self::get_interface(service)
