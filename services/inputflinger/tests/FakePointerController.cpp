@@ -16,6 +16,8 @@
 
 #include "FakePointerController.h"
 
+#include <gtest/gtest.h>
+
 namespace android {
 
 void FakePointerController::setBounds(float minX, float minY, float maxX, float maxY) {
@@ -54,6 +56,13 @@ int32_t FakePointerController::getDisplayId() const {
 
 void FakePointerController::setDisplayViewport(const DisplayViewport& viewport) {
     mDisplayId = viewport.displayId;
+}
+
+void FakePointerController::assertPosition(float x, float y) {
+    float actualX, actualY;
+    getPosition(&actualX, &actualY);
+    ASSERT_NEAR(x, actualX, 1);
+    ASSERT_NEAR(y, actualY, 1);
 }
 
 bool FakePointerController::getBounds(float* outMinX, float* outMinY, float* outMaxX,
