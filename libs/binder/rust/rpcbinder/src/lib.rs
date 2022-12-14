@@ -23,4 +23,4 @@ pub use client::{
     get_preconnected_rpc_interface, get_preconnected_rpc_service, get_unix_domain_rpc_interface,
     get_unix_domain_rpc_service, get_vsock_rpc_interface, get_vsock_rpc_service,
 };
-pub use server::{run_vsock_rpc_server_with_factory, RpcServer, RpcServerRef};
+pub use server::{RpcServer, RpcServerRef};

@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-use binder::{
-    unstable_api::{AIBinder, AsNative},
-    SpIBinder,
-};
+use binder::{unstable_api::AsNative, SpIBinder};
 use binder_rpc_unstable_bindgen::ARpcServer;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
+use std::ffi::CString;
 use std::io::{Error, ErrorKind};
-use std::{ffi::CString, os::raw, ptr::null_mut};
 
 foreign_type! {
     type CType = binder_rpc_unstable_bindgen::ARpcServer;
@@ -106,49 +103,5 @@ impl RpcServerRef {
     /// multiple threads. Called automatically during drop().
     pub fn shutdown(&self) {
         unsafe { binder_rpc_unstable_bindgen::ARpcServer_shutdown(self.as_ptr()) };
-    }
-}
-
-type RpcServerFactoryRef<'a> = &'a mut (dyn FnMut(u32) -> Option<SpIBinder> + Send + Sync);
-
-/// Runs a binder RPC server, using the given factory function to construct a binder service
-/// implementation for each connection.
-///
-/// The current thread is joined to the binder thread pool to handle incoming messages.
-///
-/// Returns true if the server has shutdown normally, false if it failed in some way.
-pub fn run_vsock_rpc_server_with_factory(
-    port: u32,
-    mut factory: impl FnMut(u32) -> Option<SpIBinder> + Send + Sync,
-) -> bool {
-    // Double reference the factory because trait objects aren't FFI safe.
-    // NB: The type annotation is necessary to ensure that we have a `dyn` rather than an `impl`.
-    let mut factory_ref: RpcServerFactoryRef = &mut factory;
-    let context = &mut factory_ref as *mut RpcServerFactoryRef as *mut raw::c_void;
-
-    // SAFETY: `factory_wrapper` is only ever called by `RunVsockRpcServerWithFactory`, with context
-    // taking the pointer value above (so a properly aligned non-null pointer to an initialized
-    // `RpcServerFactoryRef`), within the lifetime of `factory_ref` (i.e. no more calls will be made
-    // after `RunVsockRpcServerWithFactory` returns).
-    unsafe {
-        binder_rpc_unstable_bindgen::RunVsockRpcServerWithFactory(
-            Some(factory_wrapper),
-            context,
-            port,
-        )
-    }
-}
-
-unsafe extern "C" fn factory_wrapper(cid: u32, context: *mut raw::c_void) -> *mut AIBinder {
-    // SAFETY: `context` was created from an `&mut RpcServerFactoryRef` by
-    // `run_vsock_rpc_server_with_factory`, and we are still within the lifetime of the value it is
-    // pointing to.
-    let factory_ptr = context as *mut RpcServerFactoryRef;
-    let factory = factory_ptr.as_mut().unwrap();
-
-    if let Some(mut service) = factory(cid) {
-        service.as_native_mut()
-    } else {
-        null_mut()
     }
 }

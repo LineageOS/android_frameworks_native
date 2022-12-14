@@ -57,14 +57,6 @@ void ARpcServer_shutdown(ARpcServer* server);
 // This automatically calls ARpcServer_shutdown().
 void ARpcServer_free(ARpcServer* server);
 
-// Starts an RPC server on a given port and a given root IBinder factory.
-// RunVsockRpcServerWithFactory acts like RunVsockRpcServerCallback, but instead of
-// assigning single root IBinder object to all connections, factory is called
-// whenever a client connects, making it possible to assign unique IBinder
-// object to each client.
-bool RunVsockRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* context),
-                                  void* factoryContext, unsigned int port);
-
 AIBinder* VsockRpcClient(unsigned int cid, unsigned int port);
 
 // Gets the service via the RPC binder with Unix domain socket with the given

@@ -51,34 +51,7 @@ static void freeRpcServerHandle(ARpcServer* handle) {
     ref->decStrong(ref);
 }
 
-static unsigned int cidFromStructAddr(const void* addr, size_t addrlen) {
-    LOG_ALWAYS_FATAL_IF(addrlen < sizeof(sockaddr_vm), "sockaddr is truncated");
-    const sockaddr_vm* vaddr = reinterpret_cast<const sockaddr_vm*>(addr);
-    LOG_ALWAYS_FATAL_IF(vaddr->svm_family != AF_VSOCK, "address is not a vsock");
-    return vaddr->svm_cid;
-}
-
 extern "C" {
-
-bool RunVsockRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* context),
-                                  void* factoryContext, unsigned int port) {
-    auto server = RpcServer::make();
-    if (status_t status = server->setupVsockServer(VMADDR_CID_ANY, port); status != OK) {
-        LOG(ERROR) << "Failed to set up vsock server with port " << port
-                   << " error: " << statusToString(status).c_str();
-        return false;
-    }
-    server->setPerSessionRootObject([=](const void* addr, size_t addrlen) {
-        unsigned int cid = cidFromStructAddr(addr, addrlen);
-        return AIBinder_toPlatformBinder(factory(cid, factoryContext));
-    });
-
-    server->join();
-
-    // Shutdown any open sessions since server failed.
-    (void)server->shutdown();
-    return true;
-}
 
 ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int cid, unsigned int port) {
     auto server = RpcServer::make();
@@ -96,9 +69,11 @@ ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int cid, unsigned in
     }
     if (cid != VMADDR_CID_ANY) {
         server->setConnectionFilter([=](const void* addr, size_t addrlen) {
-            unsigned int remoteCid = cidFromStructAddr(addr, addrlen);
-            if (cid != remoteCid) {
-                LOG(ERROR) << "Rejected vsock connection from CID " << remoteCid;
+            LOG_ALWAYS_FATAL_IF(addrlen < sizeof(sockaddr_vm), "sockaddr is truncated");
+            const sockaddr_vm* vaddr = reinterpret_cast<const sockaddr_vm*>(addr);
+            LOG_ALWAYS_FATAL_IF(vaddr->svm_family != AF_VSOCK, "address is not a vsock");
+            if (cid != vaddr->svm_cid) {
+                LOG(ERROR) << "Rejected vsock connection from CID " << vaddr->svm_cid;
                 return false;
             }
             return true;
