@@ -55,6 +55,8 @@ LIBNATIVEWINDOW {
     ANativeWindow_setUsage; # llndk
     ANativeWindow_tryAllocateBuffers; # introduced=30
     ANativeWindow_unlockAndPost;
+    ANativeWindow_readFromParcel; # introduced=UpsideDownCake
+    ANativeWindow_writeToParcel; # introduced=UpsideDownCake
   local:
     *;
 };
