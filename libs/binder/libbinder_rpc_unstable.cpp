@@ -35,20 +35,42 @@ using android::base::unique_fd;
 // Opaque handle for RpcServer.
 struct ARpcServer {};
 
-static sp<RpcServer> toRpcServer(ARpcServer* handle) {
-    auto ref = reinterpret_cast<RpcServer*>(handle);
-    return sp<RpcServer>::fromExisting(ref);
-}
+// Opaque handle for RpcSession.
+struct ARpcSession {};
 
-static ARpcServer* createRpcServerHandle(sp<RpcServer>& server) {
+template <typename A, typename T>
+static A* createObjectHandle(sp<T>& server) {
     auto ref = server.get();
     ref->incStrong(ref);
-    return reinterpret_cast<ARpcServer*>(ref);
+    return reinterpret_cast<A*>(ref);
 }
 
-static void freeRpcServerHandle(ARpcServer* handle) {
-    auto ref = reinterpret_cast<RpcServer*>(handle);
+template <typename T, typename A>
+static void freeObjectHandle(A* handle) {
+    LOG_ALWAYS_FATAL_IF(handle == nullptr, "Handle cannot be null");
+    auto ref = reinterpret_cast<T*>(handle);
     ref->decStrong(ref);
+}
+
+template <typename T, typename A>
+static sp<T> handleToStrongPointer(A* handle) {
+    LOG_ALWAYS_FATAL_IF(handle == nullptr, "Handle cannot be null");
+    auto ref = reinterpret_cast<T*>(handle);
+    return sp<T>::fromExisting(ref);
+}
+
+RpcSession::FileDescriptorTransportMode toTransportMode(
+        ARpcSession_FileDescriptorTransportMode mode) {
+    switch (mode) {
+        case ARpcSession_FileDescriptorTransportMode::None:
+            return RpcSession::FileDescriptorTransportMode::NONE;
+        case ARpcSession_FileDescriptorTransportMode::Unix:
+            return RpcSession::FileDescriptorTransportMode::UNIX;
+        case ARpcSession_FileDescriptorTransportMode::Trusty:
+            return RpcSession::FileDescriptorTransportMode::TRUSTY;
+        default:
+            return RpcSession::FileDescriptorTransportMode::NONE;
+    }
 }
 
 extern "C" {
@@ -80,7 +102,7 @@ ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int cid, unsigned in
         });
     }
     server->setRootObject(AIBinder_toPlatformBinder(service));
-    return createRpcServerHandle(server);
+    return createObjectHandle<ARpcServer>(server);
 }
 
 ARpcServer* ARpcServer_newInitUnixDomain(AIBinder* service, const char* name) {
@@ -96,27 +118,47 @@ ARpcServer* ARpcServer_newInitUnixDomain(AIBinder* service, const char* name) {
         return nullptr;
     }
     server->setRootObject(AIBinder_toPlatformBinder(service));
-    return createRpcServerHandle(server);
+    return createObjectHandle<ARpcServer>(server);
+}
+
+void ARpcServer_setSupportedFileDescriptorTransportModes(
+        ARpcServer* handle, const ARpcSession_FileDescriptorTransportMode modes[],
+        size_t modes_len) {
+    auto server = handleToStrongPointer<RpcServer>(handle);
+    std::vector<RpcSession::FileDescriptorTransportMode> modevec;
+    for (size_t i = 0; i < modes_len; i++) {
+        modevec.push_back(toTransportMode(modes[i]));
+    }
+    server->setSupportedFileDescriptorTransportModes(modevec);
 }
 
 void ARpcServer_start(ARpcServer* handle) {
-    toRpcServer(handle)->start();
+    handleToStrongPointer<RpcServer>(handle)->start();
 }
 
 void ARpcServer_join(ARpcServer* handle) {
-    toRpcServer(handle)->join();
+    handleToStrongPointer<RpcServer>(handle)->join();
 }
 
 void ARpcServer_shutdown(ARpcServer* handle) {
-    toRpcServer(handle)->shutdown();
+    handleToStrongPointer<RpcServer>(handle)->shutdown();
 }
 
 void ARpcServer_free(ARpcServer* handle) {
-    freeRpcServerHandle(handle);
+    freeObjectHandle<RpcServer>(handle);
 }
 
-AIBinder* VsockRpcClient(unsigned int cid, unsigned int port) {
+ARpcSession* ARpcSession_new() {
     auto session = RpcSession::make();
+    return createObjectHandle<ARpcSession>(session);
+}
+
+void ARpcSession_free(ARpcSession* handle) {
+    freeObjectHandle<RpcSession>(handle);
+}
+
+AIBinder* ARpcSession_setupVsockClient(ARpcSession* handle, unsigned int cid, unsigned int port) {
+    auto session = handleToStrongPointer<RpcSession>(handle);
     if (status_t status = session->setupVsockClient(cid, port); status != OK) {
         LOG(ERROR) << "Failed to set up vsock client with CID " << cid << " and port " << port
                    << " error: " << statusToString(status).c_str();
@@ -125,10 +167,10 @@ AIBinder* VsockRpcClient(unsigned int cid, unsigned int port) {
     return AIBinder_fromPlatformBinder(session->getRootObject());
 }
 
-AIBinder* UnixDomainRpcClient(const char* name) {
+AIBinder* ARpcSession_setupUnixDomainClient(ARpcSession* handle, const char* name) {
     std::string pathname(name);
     pathname = ANDROID_SOCKET_DIR "/" + pathname;
-    auto session = RpcSession::make();
+    auto session = handleToStrongPointer<RpcSession>(handle);
     if (status_t status = session->setupUnixDomainClient(pathname.c_str()); status != OK) {
         LOG(ERROR) << "Failed to set up Unix Domain RPC client with path: " << pathname
                    << " error: " << statusToString(status).c_str();
@@ -137,13 +179,30 @@ AIBinder* UnixDomainRpcClient(const char* name) {
     return AIBinder_fromPlatformBinder(session->getRootObject());
 }
 
-AIBinder* RpcPreconnectedClient(int (*requestFd)(void* param), void* param) {
-    auto session = RpcSession::make();
+AIBinder* ARpcSession_setupPreconnectedClient(ARpcSession* handle, int (*requestFd)(void* param),
+                                              void* param) {
+    auto session = handleToStrongPointer<RpcSession>(handle);
     auto request = [=] { return unique_fd{requestFd(param)}; };
     if (status_t status = session->setupPreconnectedClient(unique_fd{}, request); status != OK) {
         LOG(ERROR) << "Failed to set up vsock client. error: " << statusToString(status).c_str();
         return nullptr;
     }
     return AIBinder_fromPlatformBinder(session->getRootObject());
+}
+
+void ARpcSession_setFileDescriptorTransportMode(ARpcSession* handle,
+                                                ARpcSession_FileDescriptorTransportMode mode) {
+    auto session = handleToStrongPointer<RpcSession>(handle);
+    session->setFileDescriptorTransportMode(toTransportMode(mode));
+}
+
+void ARpcSession_setMaxIncomingThreads(ARpcSession* handle, size_t threads) {
+    auto session = handleToStrongPointer<RpcSession>(handle);
+    session->setMaxIncomingThreads(threads);
+}
+
+void ARpcSession_setMaxOutgoingThreads(ARpcSession* handle, size_t threads) {
+    auto session = handleToStrongPointer<RpcSession>(handle);
+    session->setMaxOutgoingThreads(threads);
 }
 }

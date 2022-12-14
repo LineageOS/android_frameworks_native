@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use crate::session::FileDescriptorTransportMode;
 use binder::{unstable_api::AsNative, SpIBinder};
 use binder_rpc_unstable_bindgen::ARpcServer;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
@@ -88,6 +89,22 @@ impl RpcServer {
 }
 
 impl RpcServerRef {
+    /// Sets the list of file descriptor transport modes supported by this server.
+    pub fn set_supported_file_descriptor_transport_modes(
+        &self,
+        modes: &[FileDescriptorTransportMode],
+    ) {
+        // SAFETY - Does not keep the pointer after returning does, nor does it
+        // read past its boundary. Only passes the 'self' pointer as an opaque handle.
+        unsafe {
+            binder_rpc_unstable_bindgen::ARpcServer_setSupportedFileDescriptorTransportModes(
+                self.as_ptr(),
+                modes.as_ptr(),
+                modes.len(),
+            )
+        }
+    }
+
     /// Starts a new background thread and calls join(). Returns immediately.
     pub fn start(&self) {
         unsafe { binder_rpc_unstable_bindgen::ARpcServer_start(self.as_ptr()) };
