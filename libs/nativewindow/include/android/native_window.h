@@ -333,7 +333,7 @@ int32_t ANativeWindow_setFrameRateWithChangeStrategy(ANativeWindow* window, floa
         __INTRODUCED_IN(31);
 
 #ifdef __cplusplus
-};
+}
 #endif
 
 #endif // ANDROID_NATIVE_WINDOW_H

@@ -102,15 +102,19 @@ cc_library {
         "liblog",
         "libutils",
         "libui",
+        "libbinder",
+        "libbinder_ndk",
         "android.hardware.graphics.common@1.1",
     ],
 
     static_libs: [
         "libarect",
         "libgrallocusage",
+        "libgui_aidl_static",
     ],
 
     header_libs: [
+        "libgui_headers",
         "libarect_headers",
         "libnativebase_headers",
         "libnativewindow_headers",

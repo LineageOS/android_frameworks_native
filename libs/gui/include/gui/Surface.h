@@ -111,6 +111,24 @@ public:
         return surface != nullptr && surface->getIGraphicBufferProducer() != nullptr;
     }
 
+    static sp<IGraphicBufferProducer> getIGraphicBufferProducer(ANativeWindow* window) {
+        int val;
+        if (window->query(window, NATIVE_WINDOW_CONCRETE_TYPE, &val) >= 0 &&
+            val == NATIVE_WINDOW_SURFACE) {
+            return ((Surface*) window)->mGraphicBufferProducer;
+        }
+        return nullptr;
+    }
+
+    static sp<IBinder> getSurfaceControlHandle(ANativeWindow* window) {
+        int val;
+        if (window->query(window, NATIVE_WINDOW_CONCRETE_TYPE, &val) >= 0 &&
+            val == NATIVE_WINDOW_SURFACE) {
+            return ((Surface*) window)->mSurfaceControlHandle;
+        }
+        return nullptr;
+    }
+
     /* Attaches a sideband buffer stream to the Surface's IGraphicBufferProducer.
      *
      * A sideband stream is a device-specific mechanism for passing buffers
