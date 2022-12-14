@@ -426,8 +426,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     bool supportsBlurs = atoi(value);
     mSupportsBlur = supportsBlurs;
     ALOGI_IF(!mSupportsBlur, "Disabling blur effects, they are not supported.");
-    property_get("ro.sf.blurs_are_expensive", value, "0");
-    mBlursAreExpensive = atoi(value);
 
     const size_t defaultListSize = MAX_LAYERS;
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
@@ -2305,7 +2303,6 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
             layers.push_back(layer);
         }
     });
-    refreshArgs.blursAreExpensive = mBlursAreExpensive;
     refreshArgs.internalDisplayRotationFlags = DisplayDevice::getPrimaryDisplayRotationFlags();
 
     if (CC_UNLIKELY(mDrawingState.colorMatrixChanged)) {

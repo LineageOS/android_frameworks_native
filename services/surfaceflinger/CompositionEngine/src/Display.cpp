@@ -428,8 +428,7 @@ void Display::setHintSessionGpuFence(std::unique_ptr<FenceTime>&& gpuFence) {
     mPowerAdvisor->setGpuFenceTime(mId, std::move(gpuFence));
 }
 
-void Display::finishFrame(const compositionengine::CompositionRefreshArgs& refreshArgs,
-                          GpuCompositionResult&& result) {
+void Display::finishFrame(GpuCompositionResult&& result) {
     // We only need to actually compose the display if:
     // 1) It is being handled by hardware composer, which may need this to
     //    keep its virtual display state machine in sync, or
@@ -439,7 +438,7 @@ void Display::finishFrame(const compositionengine::CompositionRefreshArgs& refre
         return;
     }
 
-    impl::Output::finishFrame(refreshArgs, std::move(result));
+    impl::Output::finishFrame(std::move(result));
 }
 
 } // namespace android::compositionengine::impl

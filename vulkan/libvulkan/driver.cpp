@@ -1266,6 +1266,27 @@ VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
         return VK_ERROR_INCOMPATIBLE_DRIVER;
     }
 
+    // TODO(b/259516419) avoid getting stats from hwui
+    // const bool reportStats = (pCreateInfo->pApplicationInfo == nullptr )
+    //         || (strcmp("android framework",
+    //         pCreateInfo->pApplicationInfo->pEngineName) != 0);
+    const bool reportStats = true;
+    if (reportStats) {
+        // Set stats for Vulkan api version requested with application info
+        if (pCreateInfo->pApplicationInfo) {
+            const uint32_t vulkanApiVersion =
+                pCreateInfo->pApplicationInfo->apiVersion;
+            android::GraphicsEnv::getInstance().setTargetStats(
+                android::GpuStatsInfo::Stats::CREATED_VULKAN_API_VERSION,
+                vulkanApiVersion);
+        }
+
+        // Update stats for the extensions requested
+        android::GraphicsEnv::getInstance().setVulkanInstanceExtensions(
+            pCreateInfo->enabledExtensionCount,
+            pCreateInfo->ppEnabledExtensionNames);
+    }
+
     *pInstance = instance;
 
     return VK_SUCCESS;
@@ -1370,6 +1391,65 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
     data->driver_device = dev;
 
     *pDevice = dev;
+
+    // TODO(b/259516419) avoid getting stats from hwui
+    const bool reportStats = true;
+    if (reportStats) {
+        android::GraphicsEnv::getInstance().setTargetStats(
+            android::GpuStatsInfo::Stats::CREATED_VULKAN_DEVICE);
+
+        // Set stats for creating a Vulkan device and report features in use
+        const VkPhysicalDeviceFeatures* pEnabledFeatures =
+            pCreateInfo->pEnabledFeatures;
+        if (!pEnabledFeatures) {
+            // Use features from the chained VkPhysicalDeviceFeatures2
+            // structure, if given
+            const VkPhysicalDeviceFeatures2* features2 =
+                reinterpret_cast<const VkPhysicalDeviceFeatures2*>(
+                    pCreateInfo->pNext);
+            while (features2 &&
+                   features2->sType !=
+                       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2) {
+                features2 = reinterpret_cast<const VkPhysicalDeviceFeatures2*>(
+                    features2->pNext);
+            }
+            if (features2) {
+                pEnabledFeatures = &features2->features;
+            }
+        }
+        const VkBool32* pFeatures =
+            reinterpret_cast<const VkBool32*>(pEnabledFeatures);
+        if (pFeatures) {
+            // VkPhysicalDeviceFeatures consists of VkBool32 values, go over all
+            // of them using pointer arithmetic here and save the features in a
+            // 64-bit bitfield
+            static_assert(
+                (sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32)) <= 64,
+                "VkPhysicalDeviceFeatures has too many elements for bitfield "
+                "packing");
+            static_assert(
+                (sizeof(VkPhysicalDeviceFeatures) % sizeof(VkBool32)) == 0,
+                "VkPhysicalDeviceFeatures has invalid size for bitfield "
+                "packing");
+            const int numFeatures =
+                sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32);
+
+            uint64_t enableFeatureBits = 0;
+            for (int i = 0; i < numFeatures; i++) {
+                if (pFeatures[i] != VK_FALSE) {
+                    enableFeatureBits |= (uint64_t(1) << i);
+                }
+            }
+            android::GraphicsEnv::getInstance().setTargetStats(
+                android::GpuStatsInfo::Stats::VULKAN_DEVICE_FEATURES_ENABLED,
+                enableFeatureBits);
+        }
+
+        // Update stats for the extensions requested
+        android::GraphicsEnv::getInstance().setVulkanDeviceExtensions(
+            pCreateInfo->enabledExtensionCount,
+            pCreateInfo->ppEnabledExtensionNames);
+    }
 
     return VK_SUCCESS;
 }

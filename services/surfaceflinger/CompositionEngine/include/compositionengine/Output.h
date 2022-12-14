@@ -290,12 +290,11 @@ protected:
     using GpuCompositionResult = compositionengine::impl::GpuCompositionResult;
     // Runs prepare frame in another thread while running client composition using
     // the previous frame's composition strategy.
-    virtual GpuCompositionResult prepareFrameAsync(const CompositionRefreshArgs&) = 0;
+    virtual GpuCompositionResult prepareFrameAsync() = 0;
     virtual void devOptRepaintFlash(const CompositionRefreshArgs&) = 0;
-    virtual void finishFrame(const CompositionRefreshArgs&, GpuCompositionResult&&) = 0;
+    virtual void finishFrame(GpuCompositionResult&&) = 0;
     virtual std::optional<base::unique_fd> composeSurfaces(
-            const Region&, const compositionengine::CompositionRefreshArgs&,
-            std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&) = 0;
+            const Region&, std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&) = 0;
     virtual void postFramebuffer() = 0;
     virtual void renderCachedSets(const CompositionRefreshArgs&) = 0;
     virtual bool chooseCompositionStrategy(

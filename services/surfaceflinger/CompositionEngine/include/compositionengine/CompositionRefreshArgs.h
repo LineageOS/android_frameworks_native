@@ -67,9 +67,6 @@ struct CompositionRefreshArgs {
     // Used to correctly apply an inverse-display buffer transform if applicable
     ui::Transform::RotationFlags internalDisplayRotationFlags{ui::Transform::ROT_0};
 
-    // If true, GPU clocks will be increased when rendering blurs
-    bool blursAreExpensive{false};
-
     // If true, the complete output geometry needs to be recomputed this frame
     bool updatingOutputGeometryThisFrame{false};
 
