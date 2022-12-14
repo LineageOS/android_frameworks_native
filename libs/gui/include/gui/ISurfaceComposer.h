@@ -103,7 +103,7 @@ public:
         // (sf vsync offset - debug.sf.early_phase_offset_ns). SurfaceFlinger will continue to be
         // in the early configuration until it receives eEarlyWakeupEnd. These flags are
         // expected to be used by WindowManager only and are guarded by
-        // android.permission.ACCESS_SURFACE_FLINGER
+        // android.permission.WAKEUP_SURFACE_FLINGER
         eEarlyWakeupStart = 0x08,
         eEarlyWakeupEnd = 0x10,
         eOneWay = 0x20

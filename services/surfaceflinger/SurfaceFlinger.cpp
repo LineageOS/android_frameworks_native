@@ -299,6 +299,7 @@ const String16 sControlDisplayBrightness("android.permission.CONTROL_DISPLAY_BRI
 const String16 sDump("android.permission.DUMP");
 const String16 sCaptureBlackoutContent("android.permission.CAPTURE_BLACKOUT_CONTENT");
 const String16 sInternalSystemWindow("android.permission.INTERNAL_SYSTEM_WINDOW");
+const String16 sWakeupSurfaceFlinger("android.permission.WAKEUP_SURFACE_FLINGER");
 
 const char* KERNEL_IDLE_TIMER_PROP = "graphics.display.kernel_idle_timer.enabled";
 
@@ -332,20 +333,12 @@ std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     }
 }
 
-bool callingThreadHasRotateSurfaceFlingerAccess() {
+bool callingThreadHasPermission(const String16& permission) {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
     return uid == AID_GRAPHICS || uid == AID_SYSTEM ||
-            PermissionCache::checkPermission(sRotateSurfaceFlinger, pid, uid);
-}
-
-bool callingThreadHasInternalSystemWindowAccess() {
-    IPCThreadState* ipc = IPCThreadState::self();
-    const int pid = ipc->getCallingPid();
-    const int uid = ipc->getCallingUid();
-    return uid == AID_GRAPHICS || uid == AID_SYSTEM ||
-        PermissionCache::checkPermission(sInternalSystemWindow, pid, uid);
+            PermissionCache::checkPermission(permission, pid, uid);
 }
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
@@ -3989,18 +3982,23 @@ status_t SurfaceFlinger::setTransactionState(
     // Avoid checking for rotation permissions if the caller already has ACCESS_SURFACE_FLINGER
     // permissions.
     if ((permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) ||
-        callingThreadHasRotateSurfaceFlingerAccess()) {
+        callingThreadHasPermission(sRotateSurfaceFlinger)) {
         permissions |= layer_state_t::Permission::ROTATE_SURFACE_FLINGER;
     }
 
-    if (callingThreadHasInternalSystemWindowAccess()) {
+    if (callingThreadHasPermission(sInternalSystemWindow)) {
         permissions |= layer_state_t::Permission::INTERNAL_SYSTEM_WINDOW;
     }
 
-    if (!(permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) &&
-        (flags & (eEarlyWakeupStart | eEarlyWakeupEnd))) {
-        ALOGE("Only WindowManager is allowed to use eEarlyWakeup[Start|End] flags");
-        flags &= ~(eEarlyWakeupStart | eEarlyWakeupEnd);
+    if (flags & (eEarlyWakeupStart | eEarlyWakeupEnd)) {
+        const bool hasPermission =
+                (permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) ||
+                callingThreadHasPermission(sWakeupSurfaceFlinger);
+        if (!hasPermission) {
+            ALOGE("Caller needs permission android.permission.WAKEUP_SURFACE_FLINGER to use "
+                  "eEarlyWakeup[Start|End] flags");
+            flags &= ~(eEarlyWakeupStart | eEarlyWakeupEnd);
+        }
     }
 
     const int64_t postTime = systemTime();
