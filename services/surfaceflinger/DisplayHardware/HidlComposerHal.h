@@ -248,7 +248,9 @@ public:
     /* see setClientTarget for the purpose of slot */
     Error setLayerBuffer(Display display, Layer layer, uint32_t slot,
                          const sp<GraphicBuffer>& buffer, int acquireFence) override;
-    Error clearLayerBufferSlot(Display display, Layer layer, uint32_t slot) override;
+    Error setLayerBufferSlotsToClear(Display display, Layer layer,
+                                     const std::vector<uint32_t>& slotsToClear,
+                                     uint32_t activeBufferSlot) override;
     Error setLayerSurfaceDamage(Display display, Layer layer,
                                 const std::vector<IComposerClient::Rect>& damage) override;
     Error setLayerBlendMode(Display display, Layer layer, IComposerClient::BlendMode mode) override;

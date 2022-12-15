@@ -115,20 +115,20 @@ TEST_F(HwcBufferCacheTest, uncache_whenUncached_returnsInvalidSlotNumber) {
     EXPECT_EQ(cache.uncache(mBuffer2->getId()), UINT32_MAX);
 }
 
-TEST_F(HwcBufferCacheTest, getHwcSlotAndBufferForOverride_whenCached_returnsSameSlotAndNullBuffer) {
+TEST_F(HwcBufferCacheTest, getOverrideHwcSlotAndBuffer_whenCached_returnsSameSlotAndNullBuffer) {
     HwcBufferCache cache;
     sp<GraphicBuffer> outBuffer;
 
-    HwcSlotAndBuffer originalSlotAndBuffer = cache.getHwcSlotAndBufferForOverride(mBuffer1);
+    HwcSlotAndBuffer originalSlotAndBuffer = cache.getOverrideHwcSlotAndBuffer(mBuffer1);
     EXPECT_NE(originalSlotAndBuffer.slot, UINT32_MAX);
     EXPECT_EQ(originalSlotAndBuffer.buffer, mBuffer1);
 
-    HwcSlotAndBuffer finalSlotAndBuffer = cache.getHwcSlotAndBufferForOverride(mBuffer1);
+    HwcSlotAndBuffer finalSlotAndBuffer = cache.getOverrideHwcSlotAndBuffer(mBuffer1);
     EXPECT_EQ(finalSlotAndBuffer.slot, originalSlotAndBuffer.slot);
     EXPECT_EQ(finalSlotAndBuffer.buffer, nullptr);
 }
 
-TEST_F(HwcBufferCacheTest, getHwcSlotAndBufferForOverride_whenSlotsFull_returnsIndependentSlot) {
+TEST_F(HwcBufferCacheTest, getOverrideHwcSlotAndBuffer_whenSlotsFull_returnsIndependentSlot) {
     HwcBufferCache cache;
     sp<GraphicBuffer> outBuffer;
 
@@ -149,7 +149,7 @@ TEST_F(HwcBufferCacheTest, getHwcSlotAndBufferForOverride_whenSlotsFull_returnsI
 
     sp<GraphicBuffer> overrideBuffer =
             sp<GraphicBuffer>::make(1u, 1u, HAL_PIXEL_FORMAT_RGBA_8888, 1u, 0u);
-    HwcSlotAndBuffer overrideSlotAndBuffer = cache.getHwcSlotAndBufferForOverride(overrideBuffer);
+    HwcSlotAndBuffer overrideSlotAndBuffer = cache.getOverrideHwcSlotAndBuffer(overrideBuffer);
     // expect us to have a slot number
     EXPECT_NE(overrideSlotAndBuffer.slot, UINT32_MAX);
     // expect this to be the first time we cached the buffer
@@ -173,7 +173,7 @@ TEST_F(HwcBufferCacheTest, uncache_whenOverrideCached_returnsSlotNumber) {
     HwcBufferCache cache;
     sp<GraphicBuffer> outBuffer;
 
-    HwcSlotAndBuffer hwcSlotAndBuffer = cache.getHwcSlotAndBufferForOverride(mBuffer1);
+    HwcSlotAndBuffer hwcSlotAndBuffer = cache.getOverrideHwcSlotAndBuffer(mBuffer1);
     ASSERT_NE(hwcSlotAndBuffer.slot, UINT32_MAX);
 
     EXPECT_EQ(cache.uncache(mBuffer1->getId()), hwcSlotAndBuffer.slot);
@@ -184,7 +184,7 @@ TEST_F(HwcBufferCacheTest, uncache_whenOverrideUncached_returnsInvalidSlotNumber
     HwcBufferCache cache;
     sp<GraphicBuffer> outBuffer;
 
-    HwcSlotAndBuffer hwcSlotAndBuffer = cache.getHwcSlotAndBufferForOverride(mBuffer1);
+    HwcSlotAndBuffer hwcSlotAndBuffer = cache.getOverrideHwcSlotAndBuffer(mBuffer1);
     ASSERT_NE(hwcSlotAndBuffer.slot, UINT32_MAX);
 
     EXPECT_EQ(cache.uncache(mBuffer2->getId()), UINT32_MAX);

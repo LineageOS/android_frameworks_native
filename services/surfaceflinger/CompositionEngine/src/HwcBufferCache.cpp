@@ -42,7 +42,7 @@ HwcSlotAndBuffer HwcBufferCache::getHwcSlotAndBuffer(const sp<GraphicBuffer>& bu
     return {cache(buffer), buffer};
 }
 
-HwcSlotAndBuffer HwcBufferCache::getHwcSlotAndBufferForOverride(const sp<GraphicBuffer>& buffer) {
+HwcSlotAndBuffer HwcBufferCache::getOverrideHwcSlotAndBuffer(const sp<GraphicBuffer>& buffer) {
     if (buffer == mLastOverrideBuffer) {
         return {kOverrideBufferSlot, nullptr};
     }

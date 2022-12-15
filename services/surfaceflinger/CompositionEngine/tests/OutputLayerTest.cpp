@@ -1361,19 +1361,21 @@ TEST_F(OutputLayerUncacheBufferTest, canUncacheAndReuseSlot) {
     Mock::VerifyAndClearExpectations(&mHwcLayer);
 
     // buffer slots are cleared in HWC
-    EXPECT_CALL(mHwcLayer, clearBufferSlot(/*slot*/ 0));
-    EXPECT_CALL(mHwcLayer, clearBufferSlot(/*slot*/ 1));
+    std::vector<uint32_t> slotsToClear = {0, 1};
+    EXPECT_CALL(mHwcLayer,
+                setBufferSlotsToClear(/*slotsToClear*/ slotsToClear, /*activeBufferSlot*/ 1));
     mOutputLayer.uncacheBuffers({kBuffer1->getId(), kBuffer2->getId()});
     Mock::VerifyAndClearExpectations(&mHwcLayer);
 
-    // slot 1 is reused for Buffer1
+    // rather than allocating a new slot, the active buffer slot (slot 1) is reused first to free
+    // the memory as soon as possible
     mLayerFEState.buffer = kBuffer1;
     EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 1, kBuffer1, kFence));
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
     Mock::VerifyAndClearExpectations(&mHwcLayer);
 
-    // slot 0 is reused for Buffer2
+    // rather than allocating a new slot, slot 0 is reused
     mLayerFEState.buffer = kBuffer2;
     EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 0, kBuffer2, kFence));
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
