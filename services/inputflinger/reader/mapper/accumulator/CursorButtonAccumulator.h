@@ -27,7 +27,7 @@ struct RawEvent;
 class CursorButtonAccumulator {
 public:
     CursorButtonAccumulator();
-    void reset(InputDeviceContext& deviceContext);
+    void reset(const InputDeviceContext& deviceContext);
 
     void process(const RawEvent* rawEvent);
 

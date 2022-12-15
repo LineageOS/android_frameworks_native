@@ -72,7 +72,8 @@ public:
 
     MultiTouchMotionAccumulator();
 
-    void configure(InputDeviceContext& deviceContext, size_t slotCount, bool usingSlotsProtocol);
+    void configure(const InputDeviceContext& deviceContext, size_t slotCount,
+                   bool usingSlotsProtocol);
     void process(const RawEvent* rawEvent);
     void finishSync();
 
