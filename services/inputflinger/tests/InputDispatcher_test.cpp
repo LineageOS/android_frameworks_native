@@ -29,6 +29,7 @@
 #include <sys/epoll.h>
 
 #include <cinttypes>
+#include <compare>
 #include <thread>
 #include <unordered_set>
 #include <vector>
@@ -56,6 +57,7 @@ static constexpr int32_t DEVICE_ID = 1;
 static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
 static constexpr int32_t SECOND_DISPLAY_ID = 1;
 
+static constexpr int32_t ACTION_OUTSIDE = AMOTION_EVENT_ACTION_OUTSIDE;
 static constexpr int32_t POINTER_1_DOWN =
         AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 static constexpr int32_t POINTER_2_DOWN =
@@ -84,6 +86,7 @@ static constexpr std::chrono::duration STALE_EVENT_TIMEOUT = 1000ms;
 struct PointF {
     float x;
     float y;
+    auto operator<=>(const PointF&) const = default;
 };
 
 /**
@@ -135,6 +138,24 @@ MATCHER_P(WithSource, source, "InputEvent with specified source") {
     *result_listener << "expected source " << inputEventSourceToString(source) << ", but got "
                      << inputEventSourceToString(arg.getSource());
     return arg.getSource() == source;
+}
+
+MATCHER_P2(WithCoords, x, y, "MotionEvent with specified coordinates") {
+    if (arg.getPointerCount() != 1) {
+        *result_listener << "Expected 1 pointer, got " << arg.getPointerCount();
+        return false;
+    }
+    return arg.getX(0 /*pointerIndex*/) == x && arg.getY(0 /*pointerIndex*/) == y;
+}
+
+MATCHER_P(WithPointers, pointers, "MotionEvent with specified pointers") {
+    // Build a map for the received pointers, by pointer id
+    std::map<int32_t /*pointerId*/, PointF> actualPointers;
+    for (size_t pointerIndex = 0; pointerIndex < arg.getPointerCount(); pointerIndex++) {
+        const int32_t pointerId = arg.getPointerId(pointerIndex);
+        actualPointers[pointerId] = {arg.getX(pointerIndex), arg.getY(pointerIndex)};
+    }
+    return pointers == actualPointers;
 }
 
 // --- FakeInputDispatcherPolicy ---
@@ -2536,6 +2557,39 @@ TEST_F(InputDispatcherTest, InterceptKeyIfKeyUp) {
 }
 
 /**
+ * Two windows. First is a regular window. Second does not overlap with the first, and has
+ * WATCH_OUTSIDE_TOUCH.
+ * Both windows are owned by the same UID.
+ * Tap first window. Make sure that the second window receives ACTION_OUTSIDE with correct, non-zero
+ * coordinates. The coordinates are not zeroed out because both windows are owned by the same UID.
+ */
+TEST_F(InputDispatcherTest, ActionOutsideForOwnedWindowHasValidCoordinates) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
+                                                             "First Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect{0, 0, 100, 100});
+
+    sp<FakeWindowHandle> outsideWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Second Window",
+                                       ADISPLAY_ID_DEFAULT);
+    outsideWindow->setFrame(Rect{100, 100, 200, 200});
+    outsideWindow->setWatchOutsideTouch(true);
+    // outsideWindow must be above 'window' to receive ACTION_OUTSIDE events when 'window' is tapped
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {outsideWindow, window}}});
+
+    // Tap on first window.
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {PointF{50, 50}});
+    mDispatcher->notifyMotion(&motionArgs);
+    window->consumeMotionDown();
+    // The coordinates of the tap in 'outsideWindow' are relative to its top left corner.
+    // Therefore, we should offset them by (100, 100) relative to the screen's top left corner.
+    outsideWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_OUTSIDE), WithCoords(-50, -50)));
+}
+
+/**
  * This test documents the behavior of WATCH_OUTSIDE_TOUCH. The window will get ACTION_OUTSIDE when
  * a another pointer causes ACTION_DOWN to be sent to another window for the first time. Only one
  * ACTION_OUTSIDE event is sent per gesture.
@@ -2570,7 +2624,9 @@ TEST_F(InputDispatcherTest, ActionOutsideSentOnlyWhenAWindowIsTouched) {
     motionArgs = generateMotionArgs(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                     {PointF{-10, -10}, PointF{105, 105}});
     mDispatcher->notifyMotion(&motionArgs);
-    window->consumeMotionOutside();
+    const std::map<int32_t, PointF> expectedPointers{{0, PointF{-10, -10}}, {1, PointF{105, 105}}};
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_OUTSIDE), WithPointers(expectedPointers)));
     secondWindow->consumeMotionDown();
     thirdWindow->assertNoEvents();
 
