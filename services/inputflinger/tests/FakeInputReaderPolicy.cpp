@@ -126,6 +126,11 @@ void FakeInputReaderPolicy::addInputPortAssociation(const std::string& inputPort
     mConfig.portAssociations.insert({inputPort, displayPort});
 }
 
+void FakeInputReaderPolicy::addDeviceTypeAssociation(const std::string& inputPort,
+                                                     const std::string& type) {
+    mConfig.deviceTypeAssociations.insert({inputPort, type});
+}
+
 void FakeInputReaderPolicy::addInputUniqueIdAssociation(const std::string& inputUniqueId,
                                                         const std::string& displayUniqueId) {
     mConfig.uniqueIdAssociations.insert({inputUniqueId, displayUniqueId});

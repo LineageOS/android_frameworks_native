@@ -484,7 +484,8 @@ TEST_F(SetPowerModeInternalTest, transitionsDisplayFromOnToUnknownExternalDispla
     transitionDisplayCommon<ExternalDisplayPowerCase<TransitionOnToUnknownVariant>>();
 }
 
-TEST_F(SetPowerModeInternalTest, designatesLeaderDisplay) {
+// TODO(b/262417075)
+TEST_F(SetPowerModeInternalTest, DISABLED_designatesLeaderDisplay) {
     using Case = SimplePrimaryDisplayCase;
 
     // --------------------------------------------------------------------

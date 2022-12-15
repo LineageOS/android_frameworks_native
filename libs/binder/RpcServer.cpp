@@ -70,11 +70,8 @@ status_t RpcServer::setupUnixDomainServer(const char* path) {
     return setupSocketServer(UnixSocketAddress(path));
 }
 
-status_t RpcServer::setupVsockServer(unsigned int port) {
-    // realizing value w/ this type at compile time to avoid ubsan abort
-    constexpr unsigned int kAnyCid = VMADDR_CID_ANY;
-
-    return setupSocketServer(VsockSocketAddress(kAnyCid, port));
+status_t RpcServer::setupVsockServer(unsigned int bindCid, unsigned int port) {
+    return setupSocketServer(VsockSocketAddress(bindCid, port));
 }
 
 status_t RpcServer::setupInetServer(const char* address, unsigned int port,
@@ -155,6 +152,12 @@ void RpcServer::setPerSessionRootObject(
     mRootObject.clear();
     mRootObjectWeak.clear();
     mRootObjectFactory = std::move(makeObject);
+}
+
+void RpcServer::setConnectionFilter(std::function<bool(const void*, size_t)>&& filter) {
+    RpcMutexLockGuard _l(mLock);
+    LOG_ALWAYS_FATAL_IF(mShutdownTrigger != nullptr, "Already joined");
+    mConnectionFilter = std::move(filter);
 }
 
 sp<IBinder> RpcServer::getRootObject() {
@@ -242,13 +245,19 @@ void RpcServer::join() {
         if (mAcceptFn(*this, &clientSocket) != OK) {
             continue;
         }
+
+        LOG_RPC_DETAIL("accept on fd %d yields fd %d", mServer.fd.get(), clientSocket.fd.get());
+
         if (getpeername(clientSocket.fd.get(), reinterpret_cast<sockaddr*>(addr.data()),
                         &addrLen)) {
             ALOGE("Could not getpeername socket: %s", strerror(errno));
             continue;
         }
 
-        LOG_RPC_DETAIL("accept on fd %d yields fd %d", mServer.fd.get(), clientSocket.fd.get());
+        if (mConnectionFilter != nullptr && !mConnectionFilter(addr.data(), addrLen)) {
+            ALOGE("Dropped client connection fd %d", clientSocket.fd.get());
+            continue;
+        }
 
         {
             RpcMutexLockGuard _l(mLock);

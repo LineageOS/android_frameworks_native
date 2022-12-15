@@ -65,6 +65,9 @@ public:
     inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
         return mAssociatedDisplayUniqueId;
     }
+    inline std::optional<std::string> getDeviceTypeAssociation() const {
+        return mAssociatedDeviceType;
+    }
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mAssociatedViewport;
     }
@@ -180,6 +183,7 @@ private:
     bool mIsExternal;
     std::optional<uint8_t> mAssociatedDisplayPort;
     std::optional<std::string> mAssociatedDisplayUniqueId;
+    std::optional<std::string> mAssociatedDeviceType;
     std::optional<DisplayViewport> mAssociatedViewport;
     bool mHasMic;
     bool mDropUntilNextSync;
@@ -407,6 +411,9 @@ public:
     }
     inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
         return mDevice.getAssociatedDisplayUniqueId();
+    }
+    inline std::optional<std::string> getDeviceTypeAssociation() const {
+        return mDevice.getDeviceTypeAssociation();
     }
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mDevice.getAssociatedViewport();
