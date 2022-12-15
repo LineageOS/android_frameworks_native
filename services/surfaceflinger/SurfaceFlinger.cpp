@@ -1414,6 +1414,7 @@ status_t SurfaceFlinger::getOverlaySupport(gui::OverlayProperties* outProperties
         outCombination.dataspaces = std::move(dataspaces);
         outProperties->combinations.emplace_back(outCombination);
     }
+    outProperties->supportMixedColorSpaces = aidlProperties.supportMixedColorSpaces;
     return NO_ERROR;
 }
 

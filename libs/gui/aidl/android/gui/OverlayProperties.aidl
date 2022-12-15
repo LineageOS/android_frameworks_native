@@ -23,4 +23,6 @@ parcelable OverlayProperties {
         int[] dataspaces;
     }
     SupportedBufferCombinations[] combinations;
+
+    boolean supportMixedColorSpaces;
 }
