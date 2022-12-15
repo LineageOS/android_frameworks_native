@@ -319,13 +319,23 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   jpegr_metadata metadata;
   JPEGR_CHECK(extractRecoveryMap(compressed_jpegr_image, &compressed_map));
 
-  jpegr_uncompressed_struct map;
-  JPEGR_CHECK(decompressRecoveryMap(&compressed_map, &map));
 
   JpegDecoder jpeg_decoder;
   if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
+
+  JpegDecoder recovery_map_decoder;
+  if (!recovery_map_decoder.decompressImage(compressed_map.data,
+                                    compressed_map.length)) {
+    return ERROR_JPEGR_DECODE_ERROR;
+  }
+
+  jpegr_uncompressed_struct map;
+  map.data = recovery_map_decoder.getDecompressedImagePtr();
+  map.width = recovery_map_decoder.getDecompressedImageWidth();
+  map.height = recovery_map_decoder.getDecompressedImageHeight();
+
 
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
   uncompressed_yuv_420_image.data = jpeg_decoder.getDecompressedImagePtr();
@@ -345,25 +355,6 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   } else {
     JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &metadata, dest));
   }
-
-  return NO_ERROR;
-}
-
-status_t RecoveryMap::decompressRecoveryMap(jr_compressed_ptr compressed_recovery_map,
-                                            jr_uncompressed_ptr dest) {
-  if (compressed_recovery_map == nullptr || dest == nullptr) {
-    return ERROR_JPEGR_INVALID_NULL_PTR;
-  }
-
-  JpegDecoder jpeg_decoder;
-  if (!jpeg_decoder.decompressImage(compressed_recovery_map->data,
-                                    compressed_recovery_map->length)) {
-    return ERROR_JPEGR_DECODE_ERROR;
-  }
-
-  dest->data = jpeg_decoder.getDecompressedImagePtr();
-  dest->width = jpeg_decoder.getDecompressedImageWidth();
-  dest->height = jpeg_decoder.getDecompressedImageHeight();
 
   return NO_ERROR;
 }

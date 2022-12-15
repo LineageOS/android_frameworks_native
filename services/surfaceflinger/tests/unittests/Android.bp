@@ -140,6 +140,7 @@ cc_defaults {
     defaults: [
         "android.hardware.graphics.common-ndk_static",
         "android.hardware.graphics.composer3-ndk_static",
+        "librenderengine_deps",
     ],
     static_libs: [
         "android.hardware.common-V2-ndk",

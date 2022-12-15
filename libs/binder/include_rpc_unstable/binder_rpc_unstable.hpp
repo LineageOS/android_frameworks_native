@@ -25,9 +25,13 @@ struct AIBinder;
 struct ARpcServer;
 
 // Starts an RPC server on a given port and a given root IBinder object.
+// The server will only accept connections from the given CID.
+// Set `cid` to VMADDR_CID_ANY to accept connections from any client.
+// Set `cid` to VMADDR_CID_LOCAL to only bind to the local vsock interface.
 // Returns an opaque handle to the running server instance, or null if the server
 // could not be started.
-[[nodiscard]] ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int port);
+[[nodiscard]] ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int cid,
+                                              unsigned int port);
 
 // Starts a Unix domain RPC server with a given init-managed Unix domain `name`
 // and a given root IBinder object.

@@ -239,6 +239,12 @@ private:
         }
         if (!(uevt.event & IPC_HANDLE_POLL_MSG)) {
             /* No message, terminate here and leave mHaveMessage false */
+            if (uevt.event & IPC_HANDLE_POLL_HUP) {
+                // Peer closed the connection. We need to preserve the order
+                // between MSG and HUP from FdTrigger.cpp, which means that
+                // getting MSG&HUP should return OK instead of DEAD_OBJECT.
+                return DEAD_OBJECT;
+            }
             return OK;
         }
 
