@@ -1070,7 +1070,7 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* st
     return NO_ERROR;
 }
 
-void SurfaceFlinger::setDesiredActiveMode(const ActiveModeInfo& info) {
+void SurfaceFlinger::setDesiredActiveMode(const ActiveModeInfo& info, bool force) {
     ATRACE_CALL();
 
     if (!info.mode) {
@@ -1083,7 +1083,7 @@ void SurfaceFlinger::setDesiredActiveMode(const ActiveModeInfo& info) {
         return;
     }
 
-    if (display->setDesiredActiveMode(info)) {
+    if (display->setDesiredActiveMode(info, force)) {
         scheduleComposite(FrameHint::kNone);
 
         // Start receiving vsync samples now, so that we can detect a period
@@ -3372,8 +3372,14 @@ void SurfaceFlinger::requestDisplayMode(DisplayModePtr mode, DisplayModeEvent ev
     }
     ATRACE_CALL();
 
+    if (display->isInternal() && !isDisplayActiveLocked(display)) {
+        ALOGV("%s(%s): Inactive display", __func__, to_string(display->getId()).c_str());
+        return;
+    }
+
     if (!display->refreshRateConfigs().isModeAllowed(mode->getId())) {
-        ALOGV("Skipping disallowed mode %d", mode->getId().value());
+        ALOGV("%s(%s): Disallowed mode %d", __func__, to_string(display->getId()).c_str(),
+              mode->getId().value());
         return;
     }
 
@@ -6942,10 +6948,17 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         return NO_ERROR;
     }
 
+    if (display->isInternal() && !isDisplayActiveLocked(display)) {
+        // The policy will be be applied when the display becomes active.
+        ALOGV("%s(%s): Inactive display", __func__, to_string(display->getId()).c_str());
+        return NO_ERROR;
+    }
+
     return applyRefreshRateConfigsPolicy(display);
 }
 
-status_t SurfaceFlinger::applyRefreshRateConfigsPolicy(const sp<DisplayDevice>& display) {
+status_t SurfaceFlinger::applyRefreshRateConfigsPolicy(const sp<DisplayDevice>& display,
+                                                       bool force) {
     const scheduler::RefreshRateConfigs::Policy currentPolicy =
             display->refreshRateConfigs().getCurrentPolicy();
     ALOGV("Setting desired display mode specs: %s", currentPolicy.toString().c_str());
@@ -6975,7 +6988,7 @@ status_t SurfaceFlinger::applyRefreshRateConfigsPolicy(const sp<DisplayDevice>& 
     if (display->refreshRateConfigs().isModeAllowed(preferredDisplayMode->getId())) {
         ALOGV("switching to Scheduler preferred display mode %d",
               preferredDisplayMode->getId().value());
-        setDesiredActiveMode({preferredDisplayMode, DisplayModeEvent::Changed});
+        setDesiredActiveMode({preferredDisplayMode, DisplayModeEvent::Changed}, force);
     } else {
         LOG_ALWAYS_FATAL("Desired display mode not allowed: %d",
                          preferredDisplayMode->getId().value());
@@ -7304,14 +7317,23 @@ void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeD
 void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) {
     ATRACE_CALL();
 
+    // During boot, SF powers on the primary display, which is the first display to be active. In
+    // that case, there is no need to force setDesiredActiveMode, because DM is about to send its
+    // policy via setDesiredDisplayModeSpecs.
+    bool forceApplyPolicy = false;
+
     if (const auto display = getDisplayDeviceLocked(mActiveDisplayToken)) {
         display->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
+        forceApplyPolicy = true;
     }
 
     if (!activeDisplay) {
         ALOGE("%s: activeDisplay is null", __func__);
         return;
     }
+
+    ALOGI("Active display is %s", to_string(activeDisplay->getPhysicalId()).c_str());
+
     mActiveDisplayToken = activeDisplay->getDisplayToken();
     activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
     updateInternalDisplayVsyncLocked(activeDisplay);
@@ -7324,7 +7346,7 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& activ
     // case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In either
     // case, the Scheduler's cachedModeChangedParams must be initialized to the newly active mode,
     // and the kernel idle timer of the newly active display must be toggled.
-    applyRefreshRateConfigsPolicy(activeDisplay);
+    applyRefreshRateConfigsPolicy(activeDisplay, forceApplyPolicy);
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(
