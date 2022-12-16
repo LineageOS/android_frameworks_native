@@ -100,6 +100,19 @@ MATCHER_P3(WithGestureOffset, dx, dy, epsilon,
     return xDiff <= epsilon && yDiff <= epsilon;
 }
 
+MATCHER_P3(WithGestureScrollDistance, x, y, epsilon,
+           "InputEvent with specified touchpad gesture scroll distance") {
+    const auto argXDistance =
+            arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE);
+    const auto argYDistance =
+            arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE);
+    const double xDiff = fabs(argXDistance - x);
+    const double yDiff = fabs(argYDistance - y);
+    *result_listener << "expected gesture offset (" << x << ", " << y << ") within " << epsilon
+                     << ", but got (" << argXDistance << ", " << argYDistance << ")";
+    return xDiff <= epsilon && yDiff <= epsilon;
+}
+
 MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {
     const auto argPressure = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE);
     *result_listener << "expected pressure " << pressure << ", but got " << argPressure;
@@ -139,6 +152,11 @@ MATCHER_P(WithActionButton, actionButton, "InputEvent with specified action butt
 MATCHER_P(WithEventTime, eventTime, "InputEvent with specified eventTime") {
     *result_listener << "expected event time " << eventTime << ", but got " << arg.eventTime;
     return arg.eventTime == eventTime;
+}
+
+MATCHER_P(WithDownTime, downTime, "InputEvent with specified downTime") {
+    *result_listener << "expected down time " << downTime << ", but got " << arg.downTime;
+    return arg.downTime == downTime;
 }
 
 } // namespace android

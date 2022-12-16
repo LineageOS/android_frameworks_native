@@ -65,6 +65,10 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
             return {handleMove(when, readTime, gesture)};
         case kGestureTypeButtonsChange:
             return handleButtonsChange(when, readTime, gesture);
+        case kGestureTypeScroll:
+            return handleScroll(when, readTime, gesture);
+        case kGestureTypeFling:
+            return {handleFling(when, readTime, gesture)};
         case kGestureTypeSwipe:
             return handleMultiFingerSwipe(when, readTime, 3, gesture.details.swipe.dx,
                                           gesture.details.swipe.dy);
@@ -173,6 +177,59 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
     }
     mButtonState = newButtonState;
     return out;
+}
+
+std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readTime,
+                                                     const Gesture& gesture) {
+    std::list<NotifyArgs> out;
+    PointerCoords& coords = mFakeFingerCoords[0];
+    float xCursorPosition, yCursorPosition;
+    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    if (mCurrentClassification != MotionClassification::TWO_FINGER_SWIPE) {
+        mCurrentClassification = MotionClassification::TWO_FINGER_SWIPE;
+        coords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
+        coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+        coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
+        mDownTime = when;
+        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
+                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
+                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                     yCursorPosition));
+    }
+    float deltaX = gesture.details.scroll.dx;
+    float deltaY = gesture.details.scroll.dy;
+    rotateDelta(mOrientation, &deltaX, &deltaY);
+
+    coords.setAxisValue(AMOTION_EVENT_AXIS_X, coords.getAxisValue(AMOTION_EVENT_AXIS_X) - deltaX);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, coords.getAxisValue(AMOTION_EVENT_AXIS_Y) - deltaY);
+    // TODO(b/262876643): set AXIS_GESTURE_{X,Y}_OFFSET.
+    coords.setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, gesture.details.scroll.dx);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, gesture.details.scroll.dy);
+    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /* actionButton= */ 0,
+                                 mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
+                                 mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
+    return out;
+}
+
+NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const Gesture& gesture) {
+    // We don't actually want to use the gestures library's fling velocity values (to ensure
+    // consistency between touchscreen and touchpad flings), so we're just using the "start fling"
+    // gestures as a marker for the end of a two-finger scroll gesture.
+    if (gesture.details.fling.fling_state != GESTURES_FLING_START ||
+        mCurrentClassification != MotionClassification::TWO_FINGER_SWIPE) {
+        return {};
+    }
+
+    float xCursorPosition, yCursorPosition;
+    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, 0);
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, 0);
+    NotifyArgs args = makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP,
+                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
+                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                     yCursorPosition);
+    mCurrentClassification = MotionClassification::NONE;
+    return args;
 }
 
 [[nodiscard]] std::list<NotifyArgs> GestureConverter::handleMultiFingerSwipe(nsecs_t when,
