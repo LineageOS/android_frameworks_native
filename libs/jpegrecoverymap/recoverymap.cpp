@@ -46,6 +46,7 @@ namespace android::recoverymap {
 #define USE_PQ_OETF_LUT 1
 #define USE_HLG_INVOETF_LUT 1
 #define USE_PQ_INVOETF_LUT 1
+#define USE_APPLY_RECOVERY_LUT 1
 
 #define JPEGR_CHECK(x)          \
   {                             \
@@ -909,10 +910,12 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
   dest->width = uncompressed_yuv_420_image->width;
   dest->height = uncompressed_yuv_420_image->height;
   ShepardsIDW idwTable(kMapDimensionScaleFactor);
+  RecoveryLUT recoveryLUT(metadata->rangeScalingFactor);
 
   JobQueue jobQueue;
   std::function<void()> applyRecMap = [uncompressed_yuv_420_image, uncompressed_recovery_map,
-                                       metadata, dest, &jobQueue, &idwTable]() -> void {
+                                       metadata, dest, &jobQueue, &idwTable,
+                                       &recoveryLUT]() -> void {
     const float hdr_ratio = metadata->rangeScalingFactor;
     size_t width = uncompressed_yuv_420_image->width;
     size_t height = uncompressed_yuv_420_image->height;
@@ -964,8 +967,11 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
             recovery = sampleMap(uncompressed_recovery_map, map_scale_factor, x, y,
                                 idwTable);
           }
+#if USE_APPLY_RECOVERY_LUT
+          Color rgb_hdr = applyRecoveryLUT(rgb_sdr, recovery, recoveryLUT);
+#else
           Color rgb_hdr = applyRecovery(rgb_sdr, recovery, hdr_ratio);
-
+#endif
           Color rgb_gamma_hdr = hdrOetf(rgb_hdr / metadata->rangeScalingFactor);
           uint32_t rgba1010102 = colorToRgba1010102(rgb_gamma_hdr);
 

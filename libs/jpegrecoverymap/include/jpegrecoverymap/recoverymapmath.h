@@ -17,11 +17,14 @@
 #ifndef ANDROID_JPEGRECOVERYMAP_RECOVERYMAPMATH_H
 #define ANDROID_JPEGRECOVERYMAP_RECOVERYMAPMATH_H
 
+#include <cmath>
 #include <stdint.h>
 
 #include <jpegrecoverymap/recoverymap.h>
 
 namespace android::recoverymap {
+
+#define CLIP3(x, min, max) ((x) < (min)) ? (min) : ((x) > (max)) ? (max) : (x)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Framework
@@ -112,6 +115,31 @@ inline Color operator/(const Color& lhs, const float rhs) {
   return temp /= rhs;
 }
 
+constexpr size_t kRecoveryFactorPrecision = 10;
+constexpr size_t kRecoveryFactorNumEntries = 1 << kRecoveryFactorPrecision;
+struct RecoveryLUT {
+  RecoveryLUT(float hdrRatio) {
+    float increment = 2.0 / kRecoveryFactorNumEntries;
+    float value = -1.0f;
+    for (int idx = 0; idx < kRecoveryFactorNumEntries; idx++, value += increment) {
+      mRecoveryTable[idx] = pow(hdrRatio, value);
+    }
+  }
+
+  ~RecoveryLUT() {
+  }
+
+  float getRecoveryFactor(float recovery) {
+    uint32_t value = static_cast<uint32_t>(((recovery + 1.0f) / 2.0f) * kRecoveryFactorNumEntries);
+    //TODO() : Remove once conversion modules have appropriate clamping in place
+    value = CLIP3(value, 0, kRecoveryFactorNumEntries - 1);
+    return mRecoveryTable[value];
+  }
+
+private:
+  float mRecoveryTable[kRecoveryFactorNumEntries];
+};
+
 struct ShepardsIDW {
   ShepardsIDW(int mapScaleFactor) : mMapScaleFactor{mapScaleFactor} {
     const int size = mMapScaleFactor * mMapScaleFactor * 4;
@@ -157,7 +185,6 @@ struct ShepardsIDW {
   float euclideanDistance(float x1, float x2, float y1, float y2);
   void fillShepardsIDW(float *weights, int incR, int incB);
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // sRGB transformations
@@ -306,6 +333,7 @@ uint8_t encodeRecovery(float y_sdr, float y_hdr, float hdr_ratio);
  * value, with the given hdr ratio, to the given sdr input in the range [0, 1].
  */
 Color applyRecovery(Color e, float recovery, float hdr_ratio);
+Color applyRecoveryLUT(Color e, float recovery, RecoveryLUT& recoveryLUT);
 
 /*
  * Helper for sampling from YUV 420 images.

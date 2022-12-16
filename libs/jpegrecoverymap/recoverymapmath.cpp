@@ -20,8 +20,6 @@
 
 namespace android::recoverymap {
 
-#define CLIP3(x, min, max) ((x) < (min)) ? (min) : ((x) > (max)) ? (max) : (x)
-
 constexpr size_t kPqOETFPrecision = 10;
 constexpr size_t kPqOETFNumEntries = 1 << kPqOETFPrecision;
 
@@ -478,6 +476,11 @@ uint8_t encodeRecovery(float y_sdr, float y_hdr, float hdr_ratio) {
 
 Color applyRecovery(Color e, float recovery, float hdr_ratio) {
   float recoveryFactor = pow(hdr_ratio, recovery);
+  return e * recoveryFactor;
+}
+
+Color applyRecoveryLUT(Color e, float recovery, RecoveryLUT& recoveryLUT) {
+  float recoveryFactor = recoveryLUT.getRecoveryFactor(recovery);
   return e * recoveryFactor;
 }
 

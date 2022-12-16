@@ -557,6 +557,25 @@ TEST_F(RecoveryMapMathTest, srgbInvOetfLUT) {
     }
 }
 
+TEST_F(RecoveryMapMathTest, applyRecoveryLUT) {
+  float increment = 2.0 / kRecoveryFactorNumEntries;
+  for (float hdrRatio = 1.0f; hdrRatio <= 10.0f; hdrRatio += 1.0f)  {
+    RecoveryLUT recoveryLUT(hdrRatio);
+    for (float value = -1.0f; value <= -1.0f; value += increment) {
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), value, hdrRatio),
+                      applyRecoveryLUT(RgbBlack(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), value, hdrRatio),
+                      applyRecoveryLUT(RgbWhite(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbRed(), value, hdrRatio),
+                      applyRecoveryLUT(RgbRed(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbGreen(), value, hdrRatio),
+                      applyRecoveryLUT(RgbGreen(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlue(), value, hdrRatio),
+                      applyRecoveryLUT(RgbBlue(), value, recoveryLUT));
+    }
+  }
+}
+
 TEST_F(RecoveryMapMathTest, PqTransferFunctionRoundtrip) {
   EXPECT_FLOAT_EQ(pqInvOetf(pqOetf(0.0f)), 0.0f);
   EXPECT_NEAR(pqInvOetf(pqOetf(0.01f)), 0.01f, ComparisonEpsilon());
