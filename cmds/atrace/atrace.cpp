@@ -62,7 +62,7 @@ using hardware::atrace::V1_0::toString;
 
 using std::string;
 
-#define MAX_SYS_FILES 12
+#define MAX_SYS_FILES 13
 
 const char* k_traceTagsProperty = "debug.atrace.tags.enableflags";
 const char* k_userInitiatedTraceProperty = "debug.atrace.user_initiated";
@@ -189,6 +189,8 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/f2fs/f2fs_sync_file_exit/enable" },
         { OPT,      "events/f2fs/f2fs_write_begin/enable" },
         { OPT,      "events/f2fs/f2fs_write_end/enable" },
+        { OPT,      "events/f2fs/f2fs_iostat/enable" },
+        { OPT,      "events/f2fs/f2fs_iostat_latency/enable" },
         { OPT,      "events/ext4/ext4_da_write_begin/enable" },
         { OPT,      "events/ext4/ext4_da_write_end/enable" },
         { OPT,      "events/ext4/ext4_sync_file_enter/enable" },
