@@ -89,7 +89,6 @@ protected:
                                     float size, float touchMajor, float touchMinor, float toolMajor,
                                     float toolMinor, float orientation, float distance,
                                     float scaledAxisEpsilon = 1.f);
-    static void assertPosition(const FakePointerController& controller, float x, float y);
 };
 
 } // namespace android

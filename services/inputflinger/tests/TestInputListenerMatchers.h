@@ -74,6 +74,14 @@ MATCHER_P2(WithCoords, x, y, "InputEvent with specified coords") {
     return argX == x && argY == y;
 }
 
+MATCHER_P2(WithRelativeMotion, x, y, "InputEvent with specified relative motion") {
+    const auto argX = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
+    const auto argY = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+    *result_listener << "expected relative motion (" << x << ", " << y << "), but got (" << argX
+                     << ", " << argY << ")";
+    return argX == x && argY == y;
+}
+
 MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {
     const auto argPressure = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE);
     *result_listener << "expected pressure " << pressure << ", but got " << argPressure;
@@ -95,6 +103,12 @@ MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {
 MATCHER_P(WithButtonState, buttons, "InputEvent with specified button state") {
     *result_listener << "expected button state " << buttons << ", but got " << arg.buttonState;
     return arg.buttonState == buttons;
+}
+
+MATCHER_P(WithActionButton, actionButton, "InputEvent with specified action button") {
+    *result_listener << "expected action button " << actionButton << ", but got "
+                     << arg.actionButton;
+    return arg.actionButton == actionButton;
 }
 
 MATCHER_P(WithEventTime, eventTime, "InputEvent with specified eventTime") {
