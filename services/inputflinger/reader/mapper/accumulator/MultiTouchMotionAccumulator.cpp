@@ -26,8 +26,8 @@ namespace android {
 MultiTouchMotionAccumulator::MultiTouchMotionAccumulator()
       : mCurrentSlot(-1), mUsingSlotsProtocol(false) {}
 
-void MultiTouchMotionAccumulator::configure(InputDeviceContext& deviceContext, size_t slotCount,
-                                            bool usingSlotsProtocol) {
+void MultiTouchMotionAccumulator::configure(const InputDeviceContext& deviceContext,
+                                            size_t slotCount, bool usingSlotsProtocol) {
     mUsingSlotsProtocol = usingSlotsProtocol;
     mSlots = std::vector<Slot>(slotCount);
 

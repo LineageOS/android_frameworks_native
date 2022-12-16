@@ -23,7 +23,7 @@
 
 namespace android {
 
-HardwareStateConverter::HardwareStateConverter(InputDeviceContext& deviceContext)
+HardwareStateConverter::HardwareStateConverter(const InputDeviceContext& deviceContext)
       : mDeviceContext(deviceContext), mTouchButtonAccumulator(deviceContext) {
     RawAbsoluteAxisInfo slotAxisInfo;
     deviceContext.getAbsoluteAxisInfo(ABS_MT_SLOT, &slotAxisInfo);
