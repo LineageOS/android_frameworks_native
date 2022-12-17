@@ -120,6 +120,10 @@ void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
 
     info->setKeyboardType(mKeyboardType);
     info->setKeyCharacterMap(getDeviceContext().getKeyCharacterMap());
+
+    if (mKeyboardLayoutInfo) {
+        info->setKeyboardLayoutInfo(*mKeyboardLayoutInfo);
+    }
 }
 
 void KeyboardInputMapper::dump(std::string& dump) {
@@ -129,6 +133,12 @@ void KeyboardInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "Orientation: %d\n", getOrientation());
     dump += StringPrintf(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
     dump += StringPrintf(INDENT3 "MetaState: 0x%0x\n", mMetaState);
+    dump += INDENT3 "KeyboardLayoutInfo: ";
+    if (mKeyboardLayoutInfo) {
+        dump += mKeyboardLayoutInfo->languageTag + ", " + mKeyboardLayoutInfo->layoutType + "\n";
+    } else {
+        dump += "<not set>\n";
+    }
 }
 
 std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
@@ -158,6 +168,12 @@ std::list<NotifyArgs> KeyboardInputMapper::configure(nsecs_t when,
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         mViewport = findViewport(config);
     }
+
+    if (!changes || (changes & InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUT_ASSOCIATION)) {
+        mKeyboardLayoutInfo =
+                getValueByKey(config->keyboardLayoutAssociations, getDeviceContext().getLocation());
+    }
+
     return out;
 }
 

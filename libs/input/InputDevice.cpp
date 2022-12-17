@@ -179,6 +179,7 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mIsExternal(other.mIsExternal),
         mHasMic(other.mHasMic),
         mCountryCode(other.mCountryCode),
+        mKeyboardLayoutInfo(other.mKeyboardLayoutInfo),
         mSources(other.mSources),
         mKeyboardType(other.mKeyboardType),
         mKeyCharacterMap(other.mKeyCharacterMap),
@@ -268,6 +269,10 @@ void InputDeviceInfo::setKeyboardType(int32_t keyboardType) {
     static_assert(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC < AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     // There can be multiple subdevices with different keyboard types, set it to the highest type
     mKeyboardType = std::max(mKeyboardType, keyboardType);
+}
+
+void InputDeviceInfo::setKeyboardLayoutInfo(KeyboardLayoutInfo layoutInfo) {
+    mKeyboardLayoutInfo = std::move(layoutInfo);
 }
 
 std::vector<InputDeviceSensorInfo> InputDeviceInfo::getSensors() {
