@@ -166,11 +166,4 @@ void InputMapperTest::assertPointerCoords(const PointerCoords& coords, float x, 
     ASSERT_NEAR(distance, coords.getAxisValue(AMOTION_EVENT_AXIS_DISTANCE), EPSILON);
 }
 
-void InputMapperTest::assertPosition(const FakePointerController& controller, float x, float y) {
-    float actualX, actualY;
-    controller.getPosition(&actualX, &actualY);
-    ASSERT_NEAR(x, actualX, 1);
-    ASSERT_NEAR(y, actualY, 1);
-}
-
 } // namespace android
