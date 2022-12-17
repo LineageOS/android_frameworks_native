@@ -27,7 +27,7 @@ struct RawEvent;
 /* Keeps track of the state of touch, stylus and tool buttons. */
 class TouchButtonAccumulator {
 public:
-    explicit TouchButtonAccumulator(InputDeviceContext& deviceContext)
+    explicit TouchButtonAccumulator(const InputDeviceContext& deviceContext)
           : mDeviceContext(deviceContext){};
 
     void configure();
@@ -65,7 +65,7 @@ private:
 
     HidUsageAccumulator mHidUsageAccumulator{};
 
-    InputDeviceContext& mDeviceContext;
+    const InputDeviceContext& mDeviceContext;
 
     void processMappedKey(int32_t scanCode, bool down);
 };

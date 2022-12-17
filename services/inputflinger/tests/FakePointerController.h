@@ -38,6 +38,8 @@ public:
     int32_t getDisplayId() const override;
     void setDisplayViewport(const DisplayViewport& viewport) override;
 
+    void assertPosition(float x, float y);
+
 private:
     bool getBounds(float* outMinX, float* outMinY, float* outMaxX, float* outMaxY) const override;
     void move(float deltaX, float deltaY) override;

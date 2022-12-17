@@ -403,7 +403,7 @@ public:
     inline status_t enableDevice() { return mEventHub->enableDevice(mId); }
     inline status_t disableDevice() { return mEventHub->disableDevice(mId); }
 
-    inline const std::string getName() { return mDevice.getName(); }
+    inline const std::string getName() const { return mDevice.getName(); }
     inline const std::string getDescriptor() { return mDevice.getDescriptor(); }
     inline bool isExternal() { return mDevice.isExternal(); }
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
