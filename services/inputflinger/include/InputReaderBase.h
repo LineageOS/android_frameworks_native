@@ -194,6 +194,9 @@ struct InputReaderConfiguration {
         // The device type has been updated.
         CHANGE_DEVICE_TYPE = 1 << 10,
 
+        // The keyboard layout association has changed.
+        CHANGE_KEYBOARD_LAYOUT_ASSOCIATION = 1 << 11,
+
         // All devices must be reopened.
         CHANGE_MUST_REOPEN = 1 << 31,
     };
@@ -211,13 +214,17 @@ struct InputReaderConfiguration {
     // Used to determine which DisplayViewport should be tied to which InputDevice.
     std::unordered_map<std::string, uint8_t> portAssociations;
 
-    // The associations between input device names and display unique ids.
+    // The associations between input device physical port locations and display unique ids.
     // Used to determine which DisplayViewport should be tied to which InputDevice.
     std::unordered_map<std::string, std::string> uniqueIdAssociations;
 
     // The associations between input device ports device types.
     // This is used to determine which device type and source should be tied to which InputDevice.
     std::unordered_map<std::string, std::string> deviceTypeAssociations;
+
+    // The map from the input device physical port location to the input device layout info.
+    // Can be used to determine the layout of the keyboard device.
+    std::unordered_map<std::string, KeyboardLayoutInfo> keyboardLayoutAssociations;
 
     // The suggested display ID to show the cursor.
     int32_t defaultPointerDisplayId;

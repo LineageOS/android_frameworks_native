@@ -56,16 +56,6 @@ InputDevice::InputDevice(InputReaderContext* context, int32_t id, int32_t genera
 
 InputDevice::~InputDevice() {}
 
-template <typename K, typename V>
-std::optional<V> getValueByKey(const std::unordered_map<K, V>& map, K key) {
-    auto it = map.find(key);
-    std::optional<V> value = std::nullopt;
-    if (it != map.end()) {
-        value = it->second;
-    }
-    return value;
-}
-
 bool InputDevice::isEnabled() {
     if (!hasEventHubDevices()) {
         return false;

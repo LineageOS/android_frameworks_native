@@ -22,6 +22,8 @@
 #include <log/log.h>
 #include <log/log_event_list.h>
 
+#include <unordered_map>
+
 namespace android {
 /**
  * Log debug messages for each raw event received from the EventHub.
@@ -111,6 +113,16 @@ static inline const char* toString(bool value) {
 
 static inline bool sourcesMatchMask(uint32_t sources, uint32_t sourceMask) {
     return (sources & sourceMask & ~AINPUT_SOURCE_CLASS_MASK) != 0;
+}
+
+template <typename K, typename V>
+static inline std::optional<V> getValueByKey(const std::unordered_map<K, V>& map, K key) {
+    auto it = map.find(key);
+    std::optional<V> value = std::nullopt;
+    if (it != map.end()) {
+        value = it->second;
+    }
+    return value;
 }
 
 } // namespace android
