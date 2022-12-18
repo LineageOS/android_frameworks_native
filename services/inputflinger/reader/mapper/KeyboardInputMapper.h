@@ -58,6 +58,7 @@ private:
 
     uint32_t mSource{};
     int32_t mKeyboardType{};
+    std::optional<KeyboardLayoutInfo> mKeyboardLayoutInfo;
 
     std::vector<KeyDown> mKeyDowns{}; // keys that are down
     int32_t mMetaState{};

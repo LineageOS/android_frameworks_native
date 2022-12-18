@@ -136,6 +136,11 @@ void FakeInputReaderPolicy::addInputUniqueIdAssociation(const std::string& input
     mConfig.uniqueIdAssociations.insert({inputUniqueId, displayUniqueId});
 }
 
+void FakeInputReaderPolicy::addKeyboardLayoutAssociation(const std::string& inputUniqueId,
+                                                         const KeyboardLayoutInfo& layoutInfo) {
+    mConfig.keyboardLayoutAssociations.insert({inputUniqueId, layoutInfo});
+}
+
 void FakeInputReaderPolicy::addDisabledDevice(int32_t deviceId) {
     mConfig.disabledDevices.insert(deviceId);
 }

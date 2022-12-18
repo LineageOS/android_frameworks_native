@@ -54,6 +54,7 @@ public:
     inline std::optional<std::string> getBluetoothAddress() const {
         return mIdentifier.bluetoothAddress;
     }
+    inline const std::string getLocation() const { return mIdentifier.location; }
     inline ftl::Flags<InputDeviceClass> getClasses() const { return mClasses; }
     inline uint32_t getSources() const { return mSources; }
     inline bool hasEventHubDevices() const { return !mDevices.empty(); }
@@ -405,6 +406,7 @@ public:
 
     inline const std::string getName() const { return mDevice.getName(); }
     inline const std::string getDescriptor() { return mDevice.getDescriptor(); }
+    inline const std::string getLocation() { return mDevice.getLocation(); }
     inline bool isExternal() { return mDevice.isExternal(); }
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mDevice.getAssociatedDisplayPort();

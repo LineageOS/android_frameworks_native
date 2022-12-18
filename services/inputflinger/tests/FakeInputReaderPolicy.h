@@ -58,6 +58,8 @@ public:
     void addDeviceTypeAssociation(const std::string& inputPort, const std::string& type);
     void addInputUniqueIdAssociation(const std::string& inputUniqueId,
                                      const std::string& displayUniqueId);
+    void addKeyboardLayoutAssociation(const std::string& inputUniqueId,
+                                      const KeyboardLayoutInfo& layoutInfo);
     void addDisabledDevice(int32_t deviceId);
     void removeDisabledDevice(int32_t deviceId);
     void setPointerController(std::shared_ptr<FakePointerController> controller);

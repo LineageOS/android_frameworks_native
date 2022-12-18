@@ -205,6 +205,16 @@ struct InputDeviceBatteryInfo {
     int32_t id;
 };
 
+struct KeyboardLayoutInfo {
+    explicit KeyboardLayoutInfo(std::string languageTag, std::string layoutType)
+          : languageTag(languageTag), layoutType(layoutType) {}
+
+    // A BCP 47 conformant language tag such as "en-US".
+    std::string languageTag;
+    // The layout type such as QWERTY or AZERTY.
+    std::string layoutType;
+};
+
 /*
  * Describes the characteristics and capabilities of an input device.
  */
@@ -256,6 +266,11 @@ public:
     void setKeyboardType(int32_t keyboardType);
     inline int32_t getKeyboardType() const { return mKeyboardType; }
 
+    void setKeyboardLayoutInfo(KeyboardLayoutInfo keyboardLayoutInfo);
+    inline const std::optional<KeyboardLayoutInfo>& getKeyboardLayoutInfo() const {
+        return mKeyboardLayoutInfo;
+    }
+
     inline void setKeyCharacterMap(const std::shared_ptr<KeyCharacterMap> value) {
         mKeyCharacterMap = value;
     }
@@ -296,6 +311,7 @@ private:
     bool mIsExternal;
     bool mHasMic;
     hardware::input::InputDeviceCountryCode mCountryCode;
+    std::optional<KeyboardLayoutInfo> mKeyboardLayoutInfo;
     uint32_t mSources;
     int32_t mKeyboardType;
     std::shared_ptr<KeyCharacterMap> mKeyCharacterMap;
