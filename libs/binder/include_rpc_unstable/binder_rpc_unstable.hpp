@@ -73,7 +73,7 @@ void ARpcServer_start(ARpcServer* server);
 void ARpcServer_join(ARpcServer* server);
 
 // Shuts down any running ARpcServer_join().
-void ARpcServer_shutdown(ARpcServer* server);
+[[nodiscard]] bool ARpcServer_shutdown(ARpcServer* server);
 
 // Frees the ARpcServer handle and drops the reference count on the underlying
 // RpcServer instance. The handle must not be reused afterwards.

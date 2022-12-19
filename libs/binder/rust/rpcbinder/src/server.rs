@@ -140,7 +140,11 @@ impl RpcServerRef {
 
     /// Shuts down the running RpcServer. Can be called multiple times and from
     /// multiple threads. Called automatically during drop().
-    pub fn shutdown(&self) {
-        unsafe { binder_rpc_unstable_bindgen::ARpcServer_shutdown(self.as_ptr()) };
+    pub fn shutdown(&self) -> Result<(), Error> {
+        if unsafe { binder_rpc_unstable_bindgen::ARpcServer_shutdown(self.as_ptr()) } {
+            Ok(())
+        } else {
+            Err(Error::from(ErrorKind::UnexpectedEof))
+        }
     }
 }

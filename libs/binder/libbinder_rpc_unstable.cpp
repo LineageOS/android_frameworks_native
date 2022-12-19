@@ -157,8 +157,8 @@ void ARpcServer_join(ARpcServer* handle) {
     handleToStrongPointer<RpcServer>(handle)->join();
 }
 
-void ARpcServer_shutdown(ARpcServer* handle) {
-    handleToStrongPointer<RpcServer>(handle)->shutdown();
+bool ARpcServer_shutdown(ARpcServer* handle) {
+    return handleToStrongPointer<RpcServer>(handle)->shutdown();
 }
 
 void ARpcServer_free(ARpcServer* handle) {
