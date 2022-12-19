@@ -136,6 +136,9 @@ struct OutputLayerCompositionState {
         // cost of sending reused buffers to the HWC.
         HwcBufferCache hwcBufferCache;
 
+        // The previously-active buffer for this layer.
+        uint32_t activeBufferSlot;
+
         // Set to true when overridden info has been sent to HW composer
         bool stateOverridden = false;
 
