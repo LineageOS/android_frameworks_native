@@ -16,8 +16,9 @@
 
 #pragma once
 
+#include <android/choreographer.h>
 #include <gui/DisplayEventDispatcher.h>
-#include <private/android/choreographer.h>
+#include <jni.h>
 #include <utils/Looper.h>
 
 #include <mutex>
