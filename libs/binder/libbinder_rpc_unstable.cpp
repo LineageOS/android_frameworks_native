@@ -162,6 +162,9 @@ bool ARpcServer_shutdown(ARpcServer* handle) {
 }
 
 void ARpcServer_free(ARpcServer* handle) {
+    // Ignore the result of ARpcServer_shutdown - either it had been called
+    // earlier, or the RpcServer destructor will panic.
+    (void)ARpcServer_shutdown(handle);
     freeObjectHandle<RpcServer>(handle);
 }
 
