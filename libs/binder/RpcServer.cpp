@@ -204,10 +204,14 @@ status_t RpcServer::recvmsgSocketConnection(const RpcServer& server, RpcTranspor
     iovec iov{&zero, sizeof(zero)};
     std::vector<std::variant<base::unique_fd, base::borrowed_fd>> fds;
 
-    if (receiveMessageFromSocket(server.mServer, &iov, 1, &fds) < 0) {
+    ssize_t num_bytes = receiveMessageFromSocket(server.mServer, &iov, 1, &fds);
+    if (num_bytes < 0) {
         int savedErrno = errno;
         ALOGE("Failed recvmsg: %s", strerror(savedErrno));
         return -savedErrno;
+    }
+    if (num_bytes == 0) {
+        return DEAD_OBJECT;
     }
     if (fds.size() != 1) {
         ALOGE("Expected exactly one fd from recvmsg, got %zu", fds.size());
@@ -243,8 +247,11 @@ void RpcServer::join() {
         socklen_t addrLen = addr.size();
 
         RpcTransportFd clientSocket;
-        if (mAcceptFn(*this, &clientSocket) != OK) {
-            continue;
+        if ((status = mAcceptFn(*this, &clientSocket)) != OK) {
+            if (status == DEAD_OBJECT)
+                break;
+            else
+                continue;
         }
 
         LOG_RPC_DETAIL("accept on fd %d yields fd %d", mServer.fd.get(), clientSocket.fd.get());
