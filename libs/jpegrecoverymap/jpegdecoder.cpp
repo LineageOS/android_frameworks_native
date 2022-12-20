@@ -26,8 +26,12 @@ using namespace std;
 
 namespace android::recoverymap {
 
-const uint32_t kExifMarker = JPEG_APP0 + 1;
-const uint32_t kICCMarker = JPEG_APP0 + 2;
+const uint32_t kAPP0Marker = JPEG_APP0;      // JFIF
+const uint32_t kAPP1Marker = JPEG_APP0 + 1;  // EXIF, XMP
+const uint32_t kAPP2Marker = JPEG_APP0 + 2;  // ICC
+
+const std::string kXmpNameSpace = "http://ns.adobe.com/xap/1.0/";
+const std::string kExifIdCode = "Exif";
 
 struct jpegr_source_mgr : jpeg_source_mgr {
     jpegr_source_mgr(const uint8_t* ptr, int len);
@@ -83,6 +87,7 @@ static void jpegrerror_exit(j_common_ptr cinfo) {
 }
 
 JpegDecoder::JpegDecoder() {
+  mExifPos = 0;
 }
 
 JpegDecoder::~JpegDecoder() {
@@ -119,6 +124,13 @@ size_t JpegDecoder::getXMPSize() {
     return mXMPBuffer.size();
 }
 
+void* JpegDecoder::getEXIFPtr() {
+    return mEXIFBuffer.data();
+}
+
+size_t JpegDecoder::getEXIFSize() {
+    return mEXIFBuffer.size();
+}
 
 size_t JpegDecoder::getDecompressedImageWidth() {
     return mWidth;
@@ -132,7 +144,6 @@ bool JpegDecoder::decode(const void* image, int length) {
     jpeg_decompress_struct cinfo;
     jpegr_source_mgr mgr(static_cast<const uint8_t*>(image), length);
     jpegrerror_mgr myerr;
-    string nameSpace = "http://ns.adobe.com/xap/1.0/";
 
     cinfo.err = jpeg_std_error(&myerr.pub);
     myerr.pub.error_exit = jpegrerror_exit;
@@ -143,25 +154,58 @@ bool JpegDecoder::decode(const void* image, int length) {
     }
     jpeg_create_decompress(&cinfo);
 
-    jpeg_save_markers(&cinfo, kExifMarker, 0xFFFF);
+    jpeg_save_markers(&cinfo, kAPP0Marker, 0xFFFF);
+    jpeg_save_markers(&cinfo, kAPP1Marker, 0xFFFF);
+    jpeg_save_markers(&cinfo, kAPP2Marker, 0xFFFF);
 
     cinfo.src = &mgr;
     jpeg_read_header(&cinfo, TRUE);
 
-    // Save XMP Data
-    for (jpeg_marker_struct* marker = cinfo.marker_list; marker; marker = marker->next) {
-        if (marker->marker == kExifMarker) {
-            const unsigned int len = marker->data_length;
-            if (len > nameSpace.size() &&
-                !strncmp(reinterpret_cast<const char*>(marker->data),
-                         nameSpace.c_str(), nameSpace.size())) {
-                mXMPBuffer.resize(len+1, 0);
-                memcpy(static_cast<void*>(mXMPBuffer.data()), marker->data, len);
-                break;
-            }
+    // Save XMP data and EXIF data.
+    // Here we only handle the first XMP / EXIF package.
+    // The parameter pos is used for capturing start offset of EXIF, which is hacky, but working...
+    // We assume that all packages are starting with two bytes marker (eg FF E1 for EXIF package),
+    // two bytes of package length which is stored in marker->original_length, and the real data
+    // which is stored in marker->data. The pos is adding up all previous package lengths (
+    // 4 bytes marker and length, marker->original_length) before EXIF appears. Note that here we
+    // we are using marker->original_length instead of marker->data_length because in case the real
+    // package length is larger than the limitation, jpeg-turbo will only copy the data within the
+    // limitation (represented by data_length) and this may vary from original_length / real offset.
+    // A better solution is making jpeg_marker_struct holding the offset, but currently it doesn't.
+    bool exifAppears = false;
+    bool xmpAppears = false;
+    size_t pos = 2;  // position after SOI
+    for (jpeg_marker_struct* marker = cinfo.marker_list;
+         marker && !(exifAppears && xmpAppears);
+         marker = marker->next) {
+
+        pos += 4;
+        pos += marker->original_length;
+
+        if (marker->marker != kAPP1Marker) {
+            continue;
+        }
+
+        const unsigned int len = marker->data_length;
+        if (!xmpAppears &&
+            len > kXmpNameSpace.size() &&
+            !strncmp(reinterpret_cast<const char*>(marker->data),
+                     kXmpNameSpace.c_str(),
+                     kXmpNameSpace.size())) {
+            mXMPBuffer.resize(len+1, 0);
+            memcpy(static_cast<void*>(mXMPBuffer.data()), marker->data, len);
+            xmpAppears = true;
+        } else if (!exifAppears &&
+                   len > kExifIdCode.size() &&
+                   !strncmp(reinterpret_cast<const char*>(marker->data),
+                            kExifIdCode.c_str(),
+                            kExifIdCode.size())) {
+            mEXIFBuffer.resize(len, 0);
+            memcpy(static_cast<void*>(mEXIFBuffer.data()), marker->data, len);
+            exifAppears = true;
+            mExifPos = pos - marker->original_length;
         }
     }
-
 
     mWidth = cinfo.image_width;
     mHeight = cinfo.image_height;
@@ -189,6 +233,60 @@ bool JpegDecoder::decode(const void* image, int length) {
     return true;
 }
 
+// TODO (Fyodor/Dichen): merge this method with getCompressedImageParameters() since they have
+// similar functionality. Yet Dichen is not familiar with who's calling
+// getCompressedImageParameters(), looks like it's used by some pending CLs.
+bool JpegDecoder::extractEXIF(const void* image, int length) {
+    jpeg_decompress_struct cinfo;
+    jpegr_source_mgr mgr(static_cast<const uint8_t*>(image), length);
+    jpegrerror_mgr myerr;
+
+    cinfo.err = jpeg_std_error(&myerr.pub);
+    myerr.pub.error_exit = jpegrerror_exit;
+
+    if (setjmp(myerr.setjmp_buffer)) {
+        jpeg_destroy_decompress(&cinfo);
+        return false;
+    }
+    jpeg_create_decompress(&cinfo);
+
+    jpeg_save_markers(&cinfo, kAPP0Marker, 0xFFFF);
+    jpeg_save_markers(&cinfo, kAPP1Marker, 0xFFFF);
+    jpeg_save_markers(&cinfo, kAPP2Marker, 0xFFFF);
+
+    cinfo.src = &mgr;
+    jpeg_read_header(&cinfo, TRUE);
+
+    bool exifAppears = false;
+    size_t pos = 2;  // position after SOI
+    for (jpeg_marker_struct* marker = cinfo.marker_list;
+         marker && !exifAppears;
+         marker = marker->next) {
+
+        pos += 4;
+        pos += marker->original_length;
+
+        if (marker->marker != kAPP1Marker) {
+            continue;
+        }
+
+        const unsigned int len = marker->data_length;
+        if (!exifAppears &&
+            len > kExifIdCode.size() &&
+            !strncmp(reinterpret_cast<const char*>(marker->data),
+                     kExifIdCode.c_str(),
+                     kExifIdCode.size())) {
+            mEXIFBuffer.resize(len, 0);
+            memcpy(static_cast<void*>(mEXIFBuffer.data()), marker->data, len);
+            exifAppears = true;
+            mExifPos = pos - marker->original_length;
+        }
+    }
+
+    jpeg_destroy_decompress(&cinfo);
+    return true;
+}
+
 bool JpegDecoder::decompress(jpeg_decompress_struct* cinfo, const uint8_t* dest,
         bool isSingleChannel) {
     if (isSingleChannel) {
@@ -212,8 +310,8 @@ bool JpegDecoder::getCompressedImageParameters(const void* image, int length,
     }
     jpeg_create_decompress(&cinfo);
 
-    jpeg_save_markers(&cinfo, kExifMarker, 0xFFFF);
-    jpeg_save_markers(&cinfo, kICCMarker, 0xFFFF);
+    jpeg_save_markers(&cinfo, kAPP1Marker, 0xFFFF);
+    jpeg_save_markers(&cinfo, kAPP2Marker, 0xFFFF);
 
     cinfo.src = &mgr;
     if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
