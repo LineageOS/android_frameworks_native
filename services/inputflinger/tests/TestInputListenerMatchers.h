@@ -81,6 +81,14 @@ MATCHER_P2(WithCoords, x, y, "InputEvent with specified coords") {
     return argX == x && argY == y;
 }
 
+MATCHER_P3(WithPointerCoords, pointer, x, y, "InputEvent with specified coords for pointer") {
+    const auto argX = arg.pointerCoords[pointer].getX();
+    const auto argY = arg.pointerCoords[pointer].getY();
+    *result_listener << "expected pointer " << pointer << " to have coords (" << x << ", " << y
+                     << "), but got (" << argX << ", " << argY << ")";
+    return argX == x && argY == y;
+}
+
 MATCHER_P2(WithRelativeMotion, x, y, "InputEvent with specified relative motion") {
     const auto argX = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
     const auto argY = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
@@ -111,6 +119,15 @@ MATCHER_P3(WithGestureScrollDistance, x, y, epsilon,
     *result_listener << "expected gesture offset (" << x << ", " << y << ") within " << epsilon
                      << ", but got (" << argXDistance << ", " << argYDistance << ")";
     return xDiff <= epsilon && yDiff <= epsilon;
+}
+
+MATCHER_P2(WithGesturePinchScaleFactor, factor, epsilon,
+           "InputEvent with specified touchpad pinch gesture scale factor") {
+    const auto argScaleFactor =
+            arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR);
+    *result_listener << "expected gesture scale factor " << factor << " within " << epsilon
+                     << " but got " << argScaleFactor;
+    return fabs(argScaleFactor - factor) <= epsilon;
 }
 
 MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {

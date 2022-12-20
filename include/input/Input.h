@@ -308,6 +308,11 @@ enum class MotionClassification : uint8_t {
      * have a separate constant from two-finger swipes.
      */
     MULTI_FINGER_SWIPE = AMOTION_EVENT_CLASSIFICATION_MULTI_FINGER_SWIPE,
+    /**
+     * The current gesture represents the user pinching with two fingers on a touchpad. The gesture
+     * is centered around the current cursor position.
+     */
+    PINCH = AMOTION_EVENT_CLASSIFICATION_PINCH,
 };
 
 /**

@@ -40,7 +40,7 @@ protected:
     static constexpr int32_t DEVICE_ID = END_RESERVED_ID + 1000;
     static constexpr int32_t EVENTHUB_ID = 1;
     static constexpr stime_t ARBITRARY_GESTURE_TIME = 1.2;
-    static constexpr float POINTER_X = 100;
+    static constexpr float POINTER_X = 500;
     static constexpr float POINTER_Y = 200;
 
     void SetUp() {
@@ -96,7 +96,7 @@ TEST_F(GestureConverterTest, Move) {
                       WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithButtonState(0),
                       WithPressure(0.0f)));
 
-    ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(95, 210));
+    ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X - 5, POINTER_Y + 10));
 }
 
 TEST_F(GestureConverterTest, Move_Rotated) {
@@ -114,7 +114,7 @@ TEST_F(GestureConverterTest, Move_Rotated) {
                       WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithButtonState(0),
                       WithPressure(0.0f)));
 
-    ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(110, 205));
+    ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X + 10, POINTER_Y + 5));
 }
 
 TEST_F(GestureConverterTest, ButtonsChange) {
@@ -218,7 +218,7 @@ TEST_F(GestureConverterTest, DragWithButton) {
                       WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER),
                       WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f)));
 
-    ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(95, 210));
+    ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X - 5, POINTER_Y + 10));
 
     // Release the button
     Gesture upGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
@@ -572,6 +572,136 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
                       WithPointerCount(1u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+}
+
+TEST_F(GestureConverterTest, Pinch_Inwards) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+
+    Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
+                         GESTURES_ZOOM_START);
+    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    ASSERT_EQ(2u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(1.0f, EPSILON),
+                      WithCoords(POINTER_X - 100, POINTER_Y), WithPointerCount(1u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(1.0f, EPSILON),
+                      WithPointerCoords(1, POINTER_X + 100, POINTER_Y), WithPointerCount(2u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+
+    Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
+                          /* dz= */ 0.8, GESTURES_ZOOM_UPDATE);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(0.8f, EPSILON),
+                      WithPointerCoords(0, POINTER_X - 80, POINTER_Y),
+                      WithPointerCoords(1, POINTER_X + 80, POINTER_Y), WithPointerCount(2u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+
+    Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
+                       GESTURES_ZOOM_END);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    ASSERT_EQ(2u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
+                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+}
+
+TEST_F(GestureConverterTest, Pinch_Outwards) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+
+    Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
+                         GESTURES_ZOOM_START);
+    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    ASSERT_EQ(2u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(1.0f, EPSILON),
+                      WithCoords(POINTER_X - 100, POINTER_Y), WithPointerCount(1u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(1.0f, EPSILON),
+                      WithPointerCoords(1, POINTER_X + 100, POINTER_Y), WithPointerCount(2u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+
+    Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
+                          /* dz= */ 1.2, GESTURES_ZOOM_UPDATE);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(1.2f, EPSILON),
+                      WithPointerCoords(0, POINTER_X - 120, POINTER_Y),
+                      WithPointerCoords(1, POINTER_X + 120, POINTER_Y), WithPointerCount(2u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+
+    Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
+                       GESTURES_ZOOM_END);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    ASSERT_EQ(2u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
+                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                      WithMotionClassification(MotionClassification::PINCH),
+                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+}
+
+TEST_F(GestureConverterTest, Pinch_ClearsClassificationAndScaleFactorAfterGesture) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+
+    Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
+                         GESTURES_ZOOM_START);
+    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+
+    Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
+                          /* dz= */ 1.2, GESTURES_ZOOM_UPDATE);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+
+    Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
+                       GESTURES_ZOOM_END);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+
+    Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionClassification(MotionClassification::NONE),
+                      WithGesturePinchScaleFactor(0, EPSILON)));
 }
 
 } // namespace android
