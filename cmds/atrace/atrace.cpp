@@ -49,6 +49,7 @@
 #include <android-base/file.h>
 #include <android-base/macros.h>
 #include <android-base/properties.h>
+#include <android-base/strings.h>
 #include <android-base/stringprintf.h>
 
 using namespace android;
@@ -73,7 +74,9 @@ const char* k_coreServiceCategory = "core_services";
 const char* k_pdxServiceCategory = "pdx";
 const char* k_coreServicesProp = "ro.atrace.core.services";
 
-typedef enum { OPT, REQ } requiredness  ;
+const char* kVendorCategoriesPath = "/vendor/etc/atrace/atrace_categories.txt";
+
+typedef enum { OPT, REQ } requiredness;
 
 struct TracingCategory {
     // The name identifying the category.
@@ -255,7 +258,20 @@ static const TracingCategory k_categories[] = {
     } },
 };
 
-struct TracingVendorCategory {
+// A category in the vendor categories file.
+struct TracingVendorFileCategory {
+    // The name identifying the category.
+    std::string name;
+
+    // If the category is enabled through command.
+    bool enabled = false;
+
+    // Paths to the ftrace enable files (relative to g_traceFolder).
+    std::vector<std::string> ftrace_enable_paths;
+};
+
+// A category in the vendor HIDL HAL.
+struct TracingVendorHalCategory {
     // The name identifying the category.
     std::string name;
 
@@ -265,11 +281,8 @@ struct TracingVendorCategory {
     // If the category is enabled through command.
     bool enabled;
 
-    TracingVendorCategory(string &&name, string &&description, bool enabled)
-            : name(std::move(name))
-            , description(std::move(description))
-            , enabled(enabled)
-    {}
+    TracingVendorHalCategory(string&& name, string&& description, bool enabled)
+          : name(std::move(name)), description(std::move(description)), enabled(enabled) {}
 };
 
 /* Command line options */
@@ -289,8 +302,9 @@ static bool g_tracePdx = false;
 static bool g_traceAborted = false;
 static bool g_categoryEnables[arraysize(k_categories)] = {};
 static std::string g_traceFolder;
+static std::vector<TracingVendorFileCategory> g_vendorFileCategories;
 static sp<IAtraceDevice> g_atraceHal;
-static std::vector<TracingVendorCategory> g_vendorCategories;
+static std::vector<TracingVendorHalCategory> g_vendorHalCategories;
 
 /* Sys file paths */
 static const char* k_traceClockPath =
@@ -647,6 +661,13 @@ static bool disableKernelTraceEvents() {
             }
         }
     }
+    for (const TracingVendorFileCategory& c : g_vendorFileCategories) {
+        for (const std::string& path : c.ftrace_enable_paths) {
+            if (fileIsWritable(path.c_str())) {
+                ok &= setKernelOptionEnable(path.c_str(), false);
+            }
+        }
+    }
     return ok;
 }
 
@@ -726,7 +747,13 @@ static bool setKernelTraceFuncs(const char* funcs)
 static bool setCategoryEnable(const char* name)
 {
     bool vendor_found = false;
-    for (auto &c : g_vendorCategories) {
+    for (auto& c : g_vendorFileCategories) {
+        if (strcmp(name, c.name.c_str()) == 0) {
+            c.enabled = true;
+            vendor_found = true;
+        }
+    }
+    for (auto& c : g_vendorHalCategories) {
         if (strcmp(name, c.name.c_str()) == 0) {
             c.enabled = true;
             vendor_found = true;
@@ -867,6 +894,16 @@ static bool setUpKernelTracing()
                         fprintf(stderr, "error writing file %s\n", path);
                         ok = false;
                     }
+                }
+            }
+        }
+    }
+
+    for (const TracingVendorFileCategory& c : g_vendorFileCategories) {
+        if (c.enabled) {
+            for (const std::string& path : c.ftrace_enable_paths) {
+                if (fileIsWritable(path.c_str())) {
+                    ok &= setKernelOptionEnable(path.c_str(), true);
                 }
             }
         }
@@ -1057,7 +1094,10 @@ static void listSupportedCategories()
             printf("  %10s - %s\n", c.name, c.longname);
         }
     }
-    for (const auto &c : g_vendorCategories) {
+    for (const auto& c : g_vendorFileCategories) {
+        printf("  %10s - (VENDOR)\n", c.name.c_str());
+    }
+    for (const auto& c : g_vendorHalCategories) {
         printf("  %10s - %s (HAL)\n", c.name.c_str(), c.description.c_str());
     }
 }
@@ -1116,8 +1156,38 @@ bool findTraceFiles()
     return true;
 }
 
-void initVendorCategories()
-{
+void initVendorCategoriesFromFile() {
+    std::ifstream is(kVendorCategoriesPath);
+    for (std::string line; std::getline(is, line);) {
+        if (line.empty()) {
+            continue;
+        }
+        if (android::base::StartsWith(line, ' ') || android::base::StartsWith(line, '\t')) {
+            if (g_vendorFileCategories.empty()) {
+                fprintf(stderr, "Malformed vendor categories file\n");
+                exit(1);
+                return;
+            }
+            std::string_view path = std::string_view(line).substr(1);
+            while (android::base::StartsWith(path, ' ') || android::base::StartsWith(path, '\t')) {
+                path.remove_prefix(1);
+            }
+            if (path.empty()) {
+                continue;
+            }
+            std::string enable_path = "events/";
+            enable_path += path;
+            enable_path += "/enable";
+            g_vendorFileCategories.back().ftrace_enable_paths.push_back(std::move(enable_path));
+        } else {
+            TracingVendorFileCategory cat;
+            cat.name = line;
+            g_vendorFileCategories.push_back(std::move(cat));
+        }
+    }
+}
+
+void initVendorCategoriesFromHal() {
     g_atraceHal = IAtraceDevice::getService();
 
     if (g_atraceHal == nullptr) {
@@ -1125,27 +1195,34 @@ void initVendorCategories()
         return;
     }
 
-    Return<void> ret = g_atraceHal->listCategories(
-        [](const auto& list) {
-            g_vendorCategories.reserve(list.size());
-            for (const auto& category : list) {
-                g_vendorCategories.emplace_back(category.name, category.description, false);
-            }
-        });
+    Return<void> ret = g_atraceHal->listCategories([](const auto& list) {
+        g_vendorHalCategories.reserve(list.size());
+        for (const auto& category : list) {
+            g_vendorHalCategories.emplace_back(category.name, category.description, false);
+        }
+    });
     if (!ret.isOk()) {
         fprintf(stderr, "calling atrace HAL failed: %s\n", ret.description().c_str());
     }
 }
 
-static bool setUpVendorTracing()
-{
+void initVendorCategories() {
+    // If kVendorCategoriesPath exists on the filesystem, do not use the HAL.
+    if (access(kVendorCategoriesPath, F_OK) != -1) {
+        initVendorCategoriesFromFile();
+    } else {
+        initVendorCategoriesFromHal();
+    }
+}
+
+static bool setUpVendorTracingWithHal() {
     if (g_atraceHal == nullptr) {
         // No atrace HAL
         return true;
     }
 
     std::vector<hidl_string> categories;
-    for (const auto &c : g_vendorCategories) {
+    for (const auto& c : g_vendorHalCategories) {
         if (c.enabled) {
             categories.emplace_back(c.name);
         }
@@ -1166,15 +1243,14 @@ static bool setUpVendorTracing()
     return true;
 }
 
-static bool cleanUpVendorTracing()
-{
+static bool cleanUpVendorTracingWithHal() {
     if (g_atraceHal == nullptr) {
         // No atrace HAL
         return true;
     }
 
-    if (!g_vendorCategories.size()) {
-        // No vendor categories
+    if (!g_vendorHalCategories.size()) {
+        // No vendor HAL categories
         return true;
     }
 
@@ -1328,7 +1404,7 @@ int main(int argc, char **argv)
 
     if (ok && traceStart && !onlyUserspace) {
         ok &= setUpKernelTracing();
-        ok &= setUpVendorTracing();
+        ok &= setUpVendorTracingWithHal();
         ok &= startTrace();
     }
 
@@ -1399,7 +1475,7 @@ int main(int argc, char **argv)
     if (traceStop) {
         cleanUpUserspaceTracing();
         if (!onlyUserspace) {
-            cleanUpVendorTracing();
+            cleanUpVendorTracingWithHal();
             cleanUpKernelTracing();
         }
     }
