@@ -36,6 +36,7 @@ private:
     // sp<StrictMock<LayerFE>>::make()
     friend class sp<LayerFE>;
     friend class testing::StrictMock<LayerFE>;
+    friend class testing::NiceMock<LayerFE>;
 
 public:
     virtual ~LayerFE();

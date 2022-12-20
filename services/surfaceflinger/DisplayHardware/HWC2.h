@@ -310,6 +310,8 @@ public:
     [[nodiscard]] virtual hal::Error setBuffer(uint32_t slot,
                                                const android::sp<android::GraphicBuffer>& buffer,
                                                const android::sp<android::Fence>& acquireFence) = 0;
+    [[nodiscard]] virtual hal::Error setBufferSlotsToClear(
+            const std::vector<uint32_t>& slotsToClear, uint32_t activeBufferSlot) = 0;
     [[nodiscard]] virtual hal::Error setSurfaceDamage(const android::Region& damage) = 0;
 
     [[nodiscard]] virtual hal::Error setBlendMode(hal::BlendMode mode) = 0;
@@ -360,6 +362,8 @@ public:
     hal::Error setCursorPosition(int32_t x, int32_t y) override;
     hal::Error setBuffer(uint32_t slot, const android::sp<android::GraphicBuffer>& buffer,
                          const android::sp<android::Fence>& acquireFence) override;
+    hal::Error setBufferSlotsToClear(const std::vector<uint32_t>& slotsToClear,
+                                     uint32_t activeBufferSlot) override;
     hal::Error setSurfaceDamage(const android::Region& damage) override;
 
     hal::Error setBlendMode(hal::BlendMode mode) override;
