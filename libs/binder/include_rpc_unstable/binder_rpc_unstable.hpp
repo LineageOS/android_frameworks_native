@@ -23,6 +23,13 @@ extern "C" {
 
 struct AIBinder;
 struct ARpcServer;
+struct ARpcSession;
+
+enum class ARpcSession_FileDescriptorTransportMode {
+    None,
+    Unix,
+    Trusty,
+};
 
 // Starts an RPC server on a given port and a given root IBinder object.
 // The server will only accept connections from the given CID.
@@ -40,6 +47,22 @@ struct ARpcServer;
 // could not be started.
 [[nodiscard]] ARpcServer* ARpcServer_newInitUnixDomain(AIBinder* service, const char* name);
 
+// Starts an RPC server that bootstraps sessions using an existing Unix domain
+// socket pair, with a given root IBinder object.
+// Callers should create a pair of SOCK_STREAM Unix domain sockets, pass one to
+// this function and the other to UnixDomainBootstrapClient(). Multiple client
+// session can be created from the client end of the pair.
+// Does not take ownership of `service`.
+// Returns an opaque handle to the running server instance, or null if the server
+// could not be started.
+[[nodiscard]] ARpcServer* ARpcServer_newUnixDomainBootstrap(AIBinder* service, int bootstrapFd);
+
+// Sets the list of supported file descriptor transport modes of this RPC server.
+void ARpcServer_setSupportedFileDescriptorTransportModes(
+        ARpcServer* handle,
+        const ARpcSession_FileDescriptorTransportMode modes[],
+        size_t modes_len);
+
 // Runs ARpcServer_join() in a background thread. Immediately returns.
 void ARpcServer_start(ARpcServer* server);
 
@@ -50,34 +73,52 @@ void ARpcServer_start(ARpcServer* server);
 void ARpcServer_join(ARpcServer* server);
 
 // Shuts down any running ARpcServer_join().
-void ARpcServer_shutdown(ARpcServer* server);
+[[nodiscard]] bool ARpcServer_shutdown(ARpcServer* server);
 
 // Frees the ARpcServer handle and drops the reference count on the underlying
 // RpcServer instance. The handle must not be reused afterwards.
 // This automatically calls ARpcServer_shutdown().
 void ARpcServer_free(ARpcServer* server);
 
-// Starts an RPC server on a given port and a given root IBinder factory.
-// RunVsockRpcServerWithFactory acts like RunVsockRpcServerCallback, but instead of
-// assigning single root IBinder object to all connections, factory is called
-// whenever a client connects, making it possible to assign unique IBinder
-// object to each client.
-bool RunVsockRpcServerWithFactory(AIBinder* (*factory)(unsigned int cid, void* context),
-                                  void* factoryContext, unsigned int port);
+// Allocates a new RpcSession object and returns an opaque handle to it.
+[[nodiscard]] ARpcSession* ARpcSession_new();
 
-AIBinder* VsockRpcClient(unsigned int cid, unsigned int port);
+// Connects to an RPC server over vsock at a given CID on a given port.
+// Returns the root Binder object of the server.
+AIBinder* ARpcSession_setupVsockClient(ARpcSession* session, unsigned int cid,
+                                       unsigned int port);
 
-// Gets the service via the RPC binder with Unix domain socket with the given
-// Unix socket `name`.
-// The final Unix domain socket path name is /dev/socket/`name`.
-AIBinder* UnixDomainRpcClient(const char* name);
+// Connects to an RPC server over a Unix Domain Socket of the given name.
+// The final Unix Domain Socket path name is /dev/socket/`name`.
+// Returns the root Binder object of the server.
+AIBinder* ARpcSession_setupUnixDomainClient(ARpcSession* session, const char* name);
 
-// Connect to an RPC server with preconnected file descriptors.
+// Connects to an RPC server over the given bootstrap Unix domain socket.
+// Does NOT take ownership of `bootstrapFd`.
+AIBinder* ARpcSession_setupUnixDomainBootstrapClient(ARpcSession* session,
+                                                     int bootstrapFd);
+
+// Connects to an RPC server with preconnected file descriptors.
 //
 // requestFd should connect to the server and return a valid file descriptor, or
 // -1 if connection fails.
 //
 // param will be passed to requestFd. Callers can use param to pass contexts to
 // the requestFd function.
-AIBinder* RpcPreconnectedClient(int (*requestFd)(void* param), void* param);
+AIBinder* ARpcSession_setupPreconnectedClient(ARpcSession* session,
+                                              int (*requestFd)(void* param),
+                                              void* param);
+
+// Sets the file descriptor transport mode for this session.
+void ARpcSession_setFileDescriptorTransportMode(ARpcSession* session,
+                                                ARpcSession_FileDescriptorTransportMode mode);
+
+// Sets the maximum number of incoming threads.
+void ARpcSession_setMaxIncomingThreads(ARpcSession* session, size_t threads);
+
+// Sets the maximum number of outgoing threads.
+void ARpcSession_setMaxOutgoingThreads(ARpcSession* session, size_t threads);
+
+// Decrements the refcount of the underlying RpcSession object.
+void ARpcSession_free(ARpcSession* session);
 }
