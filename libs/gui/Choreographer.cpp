@@ -16,8 +16,8 @@
 
 // #define LOG_NDEBUG 0
 
+#include <gui/Choreographer.h>
 #include <jni.h>
-#include <nativedisplay/Choreographer.h>
 
 #undef LOG_TAG
 #define LOG_TAG "AChoreographer"

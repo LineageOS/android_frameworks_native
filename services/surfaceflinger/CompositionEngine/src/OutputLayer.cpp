@@ -610,16 +610,26 @@ void OutputLayer::writeSidebandStateToHWC(HWC2::Layer* hwcLayer,
     }
 }
 
-void OutputLayer::uncacheBuffers(std::vector<uint64_t> const& bufferIdsToUncache) {
+void OutputLayer::uncacheBuffers(const std::vector<uint64_t>& bufferIdsToUncache) {
     auto& state = editState();
     // Skip doing this if there is no HWC interface
     if (!state.hwc) {
         return;
     }
 
-    for (auto bufferId : bufferIdsToUncache) {
-        state.hwc->hwcBufferCache.uncache(bufferId);
-        // TODO(b/258196272): send uncache requests to Composer HAL
+    std::vector<uint32_t> slotsToClear;
+    for (uint64_t bufferId : bufferIdsToUncache) {
+        uint32_t slot = state.hwc->hwcBufferCache.uncache(bufferId);
+        if (slot != UINT32_MAX) {
+            slotsToClear.push_back(slot);
+        }
+    }
+
+    hal::Error error =
+            state.hwc->hwcLayer->setBufferSlotsToClear(slotsToClear, state.hwc->activeBufferSlot);
+    if (error != hal::Error::NONE) {
+        ALOGE("[%s] Failed to clear buffer slots: %s (%d)", getLayerFE().getDebugName(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
     }
 }
 
@@ -637,15 +647,25 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
 
     HwcSlotAndBuffer hwcSlotAndBuffer;
     sp<Fence> hwcFence;
-    // Override buffers use a special cache slot so that they don't evict client buffers.
-    if (getState().overrideInfo.buffer != nullptr && !skipLayer) {
-        hwcSlotAndBuffer = editState().hwc->hwcBufferCache.getHwcSlotAndBufferForOverride(
-                getState().overrideInfo.buffer->getBuffer());
-        hwcFence = getState().overrideInfo.acquireFence;
-    } else {
-        hwcSlotAndBuffer =
-                editState().hwc->hwcBufferCache.getHwcSlotAndBuffer(outputIndependentState.buffer);
-        hwcFence = outputIndependentState.acquireFence;
+    {
+        // Editing the state only because we update the HWC buffer cache and active buffer.
+        auto& state = editState();
+        // Override buffers use a special cache slot so that they don't evict client buffers.
+        if (state.overrideInfo.buffer != nullptr && !skipLayer) {
+            hwcSlotAndBuffer = state.hwc->hwcBufferCache.getOverrideHwcSlotAndBuffer(
+                    state.overrideInfo.buffer->getBuffer());
+            hwcFence = state.overrideInfo.acquireFence;
+        } else {
+            hwcSlotAndBuffer =
+                    state.hwc->hwcBufferCache.getHwcSlotAndBuffer(outputIndependentState.buffer);
+            hwcFence = outputIndependentState.acquireFence;
+        }
+
+        // Keep track of the active buffer slot, so we can restore it after clearing other buffer
+        // slots.
+        if (hwcSlotAndBuffer.buffer) {
+            state.hwc->activeBufferSlot = hwcSlotAndBuffer.slot;
+        }
     }
 
     if (auto error = hwcLayer->setBuffer(hwcSlotAndBuffer.slot, hwcSlotAndBuffer.buffer, hwcFence);

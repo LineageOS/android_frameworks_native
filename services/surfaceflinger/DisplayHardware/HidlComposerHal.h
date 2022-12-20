@@ -248,6 +248,9 @@ public:
     /* see setClientTarget for the purpose of slot */
     Error setLayerBuffer(Display display, Layer layer, uint32_t slot,
                          const sp<GraphicBuffer>& buffer, int acquireFence) override;
+    Error setLayerBufferSlotsToClear(Display display, Layer layer,
+                                     const std::vector<uint32_t>& slotsToClear,
+                                     uint32_t activeBufferSlot) override;
     Error setLayerSurfaceDamage(Display display, Layer layer,
                                 const std::vector<IComposerClient::Rect>& damage) override;
     Error setLayerBlendMode(Display display, Layer layer, IComposerClient::BlendMode mode) override;
@@ -361,6 +364,9 @@ private:
     sp<V2_2::IComposerClient> mClient_2_2;
     sp<V2_3::IComposerClient> mClient_2_3;
     sp<IComposerClient> mClient_2_4;
+
+    // Buffer slots for layers are cleared by setting the slot buffer to this buffer.
+    sp<GraphicBuffer> mClearSlotBuffer;
 
     // 64KiB minus a small space for metadata such as read/write pointers
     static constexpr size_t kWriterInitialSize = 64 * 1024 / sizeof(uint32_t) - 16;

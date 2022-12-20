@@ -192,6 +192,7 @@ cc_library_shared {
         "BitTube.cpp",
         "BLASTBufferQueue.cpp",
         "BufferItemConsumer.cpp",
+        "Choreographer.cpp",
         "CompositorTiming.cpp",
         "ConsumerBase.cpp",
         "CpuConsumer.cpp",
@@ -234,6 +235,7 @@ cc_library_shared {
 
     export_header_lib_headers: [
         "libgui_aidl_headers",
+        "jni_headers",
     ],
 
     aidl: {
@@ -241,6 +243,7 @@ cc_library_shared {
     },
 
     header_libs: [
+        "jni_headers",
         "libdvr_headers",
         "libgui_aidl_headers",
         "libpdx_headers",

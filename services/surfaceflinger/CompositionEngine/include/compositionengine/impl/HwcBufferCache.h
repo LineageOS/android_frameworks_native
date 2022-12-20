@@ -83,7 +83,7 @@ public:
     // If the buffer is already in the cache, the buffer is null to optimize away sending HWC the
     // buffer handle.
     //
-    HwcSlotAndBuffer getHwcSlotAndBufferForOverride(const sp<GraphicBuffer>& buffer);
+    HwcSlotAndBuffer getOverrideHwcSlotAndBuffer(const sp<GraphicBuffer>& buffer);
 
     //
     // When a client process discards a buffer, it needs to be purged from the HWC cache.

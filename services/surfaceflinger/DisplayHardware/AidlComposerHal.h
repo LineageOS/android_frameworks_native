@@ -143,6 +143,9 @@ public:
     /* see setClientTarget for the purpose of slot */
     Error setLayerBuffer(Display display, Layer layer, uint32_t slot,
                          const sp<GraphicBuffer>& buffer, int acquireFence) override;
+    Error setLayerBufferSlotsToClear(Display display, Layer layer,
+                                     const std::vector<uint32_t>& slotsToClear,
+                                     uint32_t activeBufferSlot) override;
     Error setLayerSurfaceDamage(Display display, Layer layer,
                                 const std::vector<IComposerClient::Rect>& damage) override;
     Error setLayerBlendMode(Display display, Layer layer, IComposerClient::BlendMode mode) override;
@@ -279,6 +282,9 @@ private:
     // TODO (b/257958323): Use std::shared_mutex and RAII once they support
     // threading annotations.
     ftl::SharedMutex mMutex;
+
+    // Buffer slots for layers are cleared by setting the slot buffer to this buffer.
+    sp<GraphicBuffer> mClearSlotBuffer;
 
     // Aidl interface
     using AidlIComposer = aidl::android::hardware::graphics::composer3::IComposer;

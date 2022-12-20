@@ -179,6 +179,9 @@ public:
     /* see setClientTarget for the purpose of slot */
     virtual Error setLayerBuffer(Display display, Layer layer, uint32_t slot,
                                  const sp<GraphicBuffer>& buffer, int acquireFence) = 0;
+    virtual Error setLayerBufferSlotsToClear(Display display, Layer layer,
+                                             const std::vector<uint32_t>& slotsToClear,
+                                             uint32_t activeBufferSlot) = 0;
     virtual Error setLayerSurfaceDamage(Display display, Layer layer,
                                         const std::vector<IComposerClient::Rect>& damage) = 0;
     virtual Error setLayerBlendMode(Display display, Layer layer,
