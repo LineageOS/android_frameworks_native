@@ -68,10 +68,13 @@ rust_bindgen {
     visibility: [":__subpackages__"],
     source_stem: "bindings",
     bindgen_flags: [
+        "--size_t-is-usize",
         "--blocklist-type",
         "AIBinder",
         "--raw-line",
         "use binder_ndk_sys::AIBinder;",
+        "--rustified-enum",
+        "ARpcSession_FileDescriptorTransportMode",
     ],
     rustlibs: [
         "libbinder_ndk_sys",
