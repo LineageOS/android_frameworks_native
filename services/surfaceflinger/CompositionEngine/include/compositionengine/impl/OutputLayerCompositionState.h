@@ -137,6 +137,7 @@ struct OutputLayerCompositionState {
         HwcBufferCache hwcBufferCache;
 
         // The previously-active buffer for this layer.
+        uint64_t activeBufferId;
         uint32_t activeBufferSlot;
 
         // Set to true when overridden info has been sent to HW composer
