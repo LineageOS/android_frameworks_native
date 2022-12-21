@@ -617,15 +617,27 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
     static_assert(static_cast<int>(aidl::android::hardware::graphics::common::PixelFormat::R_8) ==
                           AHARDWAREBUFFER_FORMAT_R8_UNORM,
             "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(static_cast<int>(aidl::android::hardware::graphics::common::PixelFormat::R_16_UINT) ==
+                          AHARDWAREBUFFER_FORMAT_R16_UINT,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(static_cast<int>(aidl::android::hardware::graphics::common::PixelFormat::RG_1616_UINT) ==
+                          AHARDWAREBUFFER_FORMAT_R16G16_UINT,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(static_cast<int>(aidl::android::hardware::graphics::common::PixelFormat::RGBA_10101010) ==
+                          AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM,
+            "HAL and AHardwareBuffer pixel format don't match");
 
     switch (format) {
         case AHARDWAREBUFFER_FORMAT_R8_UNORM:
+        case AHARDWAREBUFFER_FORMAT_R16_UINT:
+        case AHARDWAREBUFFER_FORMAT_R16G16_UINT:
         case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:
         case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
         case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:
         case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
         case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
         case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
+        case AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM:
         case AHARDWAREBUFFER_FORMAT_BLOB:
         case AHARDWAREBUFFER_FORMAT_D16_UNORM:
         case AHARDWAREBUFFER_FORMAT_D24_UNORM:
@@ -677,6 +689,7 @@ uint32_t AHardwareBuffer_bytesPerPixel(uint32_t format) {
           return 1;
       case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:
       case AHARDWAREBUFFER_FORMAT_D16_UNORM:
+      case AHARDWAREBUFFER_FORMAT_R16_UINT:
           return 2;
       case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
       case AHARDWAREBUFFER_FORMAT_D24_UNORM:
@@ -686,8 +699,10 @@ uint32_t AHardwareBuffer_bytesPerPixel(uint32_t format) {
       case AHARDWAREBUFFER_FORMAT_D32_FLOAT:
       case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
       case AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT:
+      case AHARDWAREBUFFER_FORMAT_R16G16_UINT:
           return 4;
       case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
+      case AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM:
           return 8;
       default:
           return 0;
