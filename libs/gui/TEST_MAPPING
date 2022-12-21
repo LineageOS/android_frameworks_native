@@ -3,5 +3,11 @@
     {
       "path": "frameworks/native/libs/nativewindow"
     }
+  ],
+  "postsubmit": [
+    {
+      // TODO(257123981): move this to presubmit after dealing with existing breakages.
+      "name": "libgui_test"
+    }
   ]
 }

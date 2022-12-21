@@ -20,7 +20,6 @@
 #include <InputMapper.h>
 #include <InputReader.h>
 #include <MapperHelpers.h>
-#include <fuzzer/FuzzedDataProvider.h>
 
 namespace android {
 
@@ -31,10 +30,10 @@ class FuzzContainer {
     std::unique_ptr<FuzzInputReaderContext> mFuzzContext;
     std::unique_ptr<InputDevice> mFuzzDevice;
     InputReaderConfiguration mPolicyConfig;
-    std::shared_ptr<FuzzedDataProvider> mFdp;
+    std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
 
 public:
-    FuzzContainer(std::shared_ptr<FuzzedDataProvider> fdp) : mFdp(fdp) {
+    FuzzContainer(std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) : mFdp(fdp) {
         // Setup parameters.
         std::string deviceName = mFdp->ConsumeRandomLengthString(16);
         std::string deviceLocation = mFdp->ConsumeRandomLengthString(12);
