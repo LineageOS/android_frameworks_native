@@ -40,7 +40,15 @@ typedef enum {
     PLAYER_UPDATE_DEVICE_ID = 5,
     PLAYER_UPDATE_PORT_ID = 6,
     PLAYER_UPDATE_MUTED = 7,
+    PLAYER_UPDATE_FORMAT = 8,
 } player_state_t;
+
+static constexpr char
+    kExtraPlayerEventSpatializedKey[] = "android.media.extra.PLAYER_EVENT_SPATIALIZED";
+static constexpr char
+    kExtraPlayerEventSampleRateKey[] = "android.media.extra.PLAYER_EVENT_SAMPLE_RATE";
+static constexpr char
+    kExtraPlayerEventChannelMaskKey[] = "android.media.extra.PLAYER_EVENT_CHANNEL_MASK";
 
 static constexpr char
     kExtraPlayerEventMuteKey[] = "android.media.extra.PLAYER_EVENT_MUTE";
