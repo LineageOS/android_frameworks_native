@@ -28,11 +28,6 @@ HwcBufferCache::HwcBufferCache() {
 }
 
 HwcSlotAndBuffer HwcBufferCache::getHwcSlotAndBuffer(const sp<GraphicBuffer>& buffer) {
-    // TODO(b/261930578): This is for unit tests which don't mock GraphicBuffers but instead send
-    // in nullptrs.
-    if (buffer == nullptr) {
-        return {0, nullptr};
-    }
     if (auto i = mCacheByBufferId.find(buffer->getId()); i != mCacheByBufferId.end()) {
         Cache& cache = i->second;
         // mark this cache slot as more recently used so it won't get evicted anytime soon

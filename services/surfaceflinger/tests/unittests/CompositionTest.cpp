@@ -182,7 +182,9 @@ public:
     sp<mock::NativeWindow> mNativeWindow = sp<mock::NativeWindow>::make();
     std::vector<sp<Layer>> mAuxiliaryLayers;
 
-    sp<GraphicBuffer> mBuffer = sp<GraphicBuffer>::make();
+    sp<GraphicBuffer> mBuffer =
+            sp<GraphicBuffer>::make(1u, 1u, PIXEL_FORMAT_RGBA_8888,
+                                    GRALLOC_USAGE_SW_WRITE_OFTEN | GRALLOC_USAGE_SW_READ_OFTEN);
     ANativeWindowBuffer* mNativeWindowBuffer = mBuffer->getNativeBuffer();
 
     Hwc2::mock::Composer* mComposer = nullptr;
