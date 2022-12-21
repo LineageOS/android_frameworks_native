@@ -16,11 +16,10 @@
 
 #include <CursorInputMapper.h>
 #include <FuzzContainer.h>
-#include <fuzzer/FuzzedDataProvider.h>
 
 namespace android {
 
-static void addProperty(FuzzContainer& fuzzer, std::shared_ptr<FuzzedDataProvider> fdp) {
+static void addProperty(FuzzContainer& fuzzer, std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) {
     // Pick a random property to set for the mapper to have set.
     fdp->PickValueInArray<std::function<void()>>(
             {[&]() -> void { fuzzer.addProperty("cursor.mode", "pointer"); },
@@ -35,7 +34,8 @@ static void addProperty(FuzzContainer& fuzzer, std::shared_ptr<FuzzedDataProvide
 }
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
-    std::shared_ptr<FuzzedDataProvider> fdp = std::make_shared<FuzzedDataProvider>(data, size);
+    std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp =
+            std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
     FuzzContainer fuzzer(fdp);
 
     CursorInputMapper& mapper = fuzzer.getMapper<CursorInputMapper>();

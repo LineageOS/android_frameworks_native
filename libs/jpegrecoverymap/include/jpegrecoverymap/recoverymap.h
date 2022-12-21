@@ -325,12 +325,14 @@ private:
      *
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param compress_recovery_map compressed recover map
+     * @param exif EXIF package
      * @param metadata JPEG/R metadata to encode in XMP of the jpeg
      * @param dest compressed JPEGR image
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
                                jr_compressed_ptr compressed_recovery_map,
+                               jr_exif_ptr exif,
                                jr_metadata_ptr metadata,
                                jr_compressed_ptr dest);
 

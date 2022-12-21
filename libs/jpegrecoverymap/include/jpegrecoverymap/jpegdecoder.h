@@ -47,7 +47,7 @@ public:
      */
     void* getDecompressedImagePtr();
     /*
-     * Returns the decompressed raw image buffer size. This method must be called only after
+     * Returns the decompressed raw image buffer size. This mgit ethod must be called only after
      * calling decompressImage().
      */
     size_t getDecompressedImageSize();
@@ -67,14 +67,35 @@ public:
     void* getXMPPtr();
     /*
      * Returns the decompressed XMP buffer size. This method must be called only after
-     * calling decompressImage().
+     * calling decompressImage() or getCompressedImageParameters().
      */
     size_t getXMPSize();
-
+    /*
+     * Returns the EXIF data from the image.
+     */
+    void* getEXIFPtr();
+    /*
+     * Returns the decompressed EXIF buffer size. This method must be called only after
+     * calling decompressImage() or getCompressedImageParameters().
+     */
+    size_t getEXIFSize();
+    /*
+     * Returns the position offset of EXIF package
+     * (4 bypes offset to FF sign, the byte after FF E1 XX XX <this byte>),
+     * or -1  if no EXIF exists.
+     */
+    int getEXIFPos() { return mExifPos; }
+    /*
+     * Decompresses metadata of the image.
+     */
     bool getCompressedImageParameters(const void* image, int length,
-                              size_t* pWidth, size_t* pHeight,
-                              std::vector<uint8_t>* &iccData,
-                              std::vector<uint8_t>* &exifData);
+                                      size_t* pWidth, size_t* pHeight,
+                                      std::vector<uint8_t>* &iccData,
+                                      std::vector<uint8_t>* &exifData);
+    /*
+     * Extracts EXIF package and updates the EXIF position / length without decoding the image.
+     */
+    bool extractEXIF(const void* image, int length);
 
 private:
     bool decode(const void* image, int length);
@@ -89,10 +110,14 @@ private:
     std::vector<JOCTET> mResultBuffer;
     // The buffer that holds XMP Data.
     std::vector<JOCTET> mXMPBuffer;
+    // The buffer that holds EXIF Data.
+    std::vector<JOCTET> mEXIFBuffer;
 
     // Resolution of the decompressed image.
     size_t mWidth;
     size_t mHeight;
+    // Position of EXIF package, default value is -1 which means no EXIF package appears.
+    size_t mExifPos;
 };
 } /* namespace android  */
 

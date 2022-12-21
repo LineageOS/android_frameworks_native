@@ -82,12 +82,122 @@ status_t Write(jr_compressed_ptr destination, const void* source, size_t length,
   return NO_ERROR;
 }
 
+status_t Write(jr_exif_ptr destination, const void* source, size_t length, int &position) {
+  memcpy((uint8_t*)destination->data + sizeof(uint8_t) * position, source, length);
+  position += length;
+  return NO_ERROR;
+}
+
+// If the EXIF package doesn't exist in the input JPEG, we'll create one with one entry
+// where the length is represented by this value.
+const size_t PSEUDO_EXIF_PACKAGE_LENGTH = 28;
+// If the EXIF package exists in the input JPEG, we'll add an "JR" entry where the length is
+// represented by this value.
+const size_t EXIF_J_R_ENTRY_LENGTH = 12;
+
+/*
+ * Helper function
+ * Add J R entry to existing exif, or create a new one with J R entry if it's null.
+ * EXIF syntax / change:
+ * ori:
+ * FF E1 - APP1
+ * 01 FC - size of APP1 (to be calculated)
+ * -----------------------------------------------------
+ * 45 78 69 66 00 00 - Exif\0\0 "Exif header"
+ * 49 49 2A 00 - TIFF Header
+ * 08 00 00 00 - offset to the IFD (image file directory)
+ * 06 00 - 6 entries
+ * 00 01 - Width Tag
+ * 03 00 - 'Short' type
+ * 01 00 00 00 - one entry
+ * 00 05 00 00 - image with 0x500
+ *--------------------------------------------------------------------------
+ * new:
+ * FF E1 - APP1
+ * 02 08 - new size, equals to old size + EXIF_J_R_ENTRY_LENGTH (12)
+ *-----------------------------------------------------
+ * 45 78 69 66 00 00 - Exif\0\0 "Exif header"
+ * 49 49 2A 00 - TIFF Header
+ * 08 00 00 00 - offset to the IFD (image file directory)
+ * 07 00 - +1 entry
+ * 4A 52   Custom ('J''R') Tag
+ * 07 00 - Unknown type
+ * 01 00 00 00 - one element
+ * 00 00 00 00 - empty data
+ * 00 01 - Width Tag
+ * 03 00 - 'Short' type
+ * 01 00 00 00 - one entry
+ * 00 05 00 00 - image with 0x500
+ */
+status_t updateExif(jr_exif_ptr exif, jr_exif_ptr dest) {
+  if (exif == nullptr || exif->data == nullptr) {
+    uint8_t data[PSEUDO_EXIF_PACKAGE_LENGTH] = {
+        0x45, 0x78, 0x69, 0x66, 0x00, 0x00,
+        0x49, 0x49, 0x2A, 0x00,
+        0x08, 0x00, 0x00, 0x00,
+        0x01, 0x00,
+        0x4A, 0x52,
+        0x07, 0x00,
+        0x01, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00};
+    int pos = 0;
+    Write(dest, data, PSEUDO_EXIF_PACKAGE_LENGTH, pos);
+    return NO_ERROR;
+  }
+
+  int num_entry = 0;
+  uint8_t num_entry_low = 0;
+  uint8_t num_entry_high = 0;
+  bool use_big_endian = false;
+  if (reinterpret_cast<uint16_t*>(exif->data)[3] == 0x4949) {
+      num_entry_low = reinterpret_cast<uint8_t*>(exif->data)[14];
+      num_entry_high = reinterpret_cast<uint8_t*>(exif->data)[15];
+  } else if (reinterpret_cast<uint16_t*>(exif->data)[3] == 0x4d4d) {
+      use_big_endian = true;
+      num_entry_high = reinterpret_cast<uint8_t*>(exif->data)[14];
+      num_entry_low = reinterpret_cast<uint8_t*>(exif->data)[15];
+  } else {
+      return ERROR_JPEGR_METADATA_ERROR;
+  }
+  num_entry = (num_entry_high << 8) | num_entry_low;
+  num_entry += 1;
+  num_entry_low = num_entry & 0xff;
+  num_entry_high = (num_entry << 8) & 0xff;
+
+  int pos = 0;
+  Write(dest, (uint8_t*)exif->data, 14, pos);
+
+  if (use_big_endian) {
+    Write(dest, &num_entry_high, 1, pos);
+    Write(dest, &num_entry_low, 1, pos);
+    uint8_t data[EXIF_J_R_ENTRY_LENGTH] = {
+          0x4A, 0x52,
+          0x07, 0x00,
+          0x01, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00};
+    Write(dest, data, EXIF_J_R_ENTRY_LENGTH, pos);
+  } else {
+    Write(dest, &num_entry_low, 1, pos);
+    Write(dest, &num_entry_high, 1, pos);
+    uint8_t data[EXIF_J_R_ENTRY_LENGTH] = {
+          0x4A, 0x52,
+          0x00, 0x07,
+          0x00, 0x00, 0x00, 0x01,
+          0x00, 0x00, 0x00, 0x00};
+    Write(dest, data, EXIF_J_R_ENTRY_LENGTH, pos);
+  }
+
+  Write(dest, (uint8_t*)exif->data + 16, exif->length - 16, pos);
+
+  return NO_ERROR;
+}
+
 /* Encode API-0 */
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jpegr_transfer_function hdr_tf,
                                   jr_compressed_ptr dest,
                                   int quality,
-                                  jr_exif_ptr /* exif */) {
+                                  jr_exif_ptr exif) {
   if (uncompressed_p010_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -129,7 +239,18 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   jpeg.data = jpeg_encoder.getCompressedImagePtr();
   jpeg.length = jpeg_encoder.getCompressedImageSize();
 
-  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, &metadata, dest));
+  jpegr_exif_struct new_exif;
+  if (exif->data == nullptr) {
+      new_exif.length = PSEUDO_EXIF_PACKAGE_LENGTH;
+  } else {
+      new_exif.length = exif->length + EXIF_J_R_ENTRY_LENGTH;
+  }
+  new_exif.data = new uint8_t[new_exif.length];
+  std::unique_ptr<uint8_t[]> new_exif_data;
+  new_exif_data.reset(reinterpret_cast<uint8_t*>(new_exif.data));
+  JPEGR_CHECK(updateExif(exif, &new_exif));
+
+  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, &new_exif, &metadata, dest));
 
   return NO_ERROR;
 }
@@ -140,7 +261,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jpegr_transfer_function hdr_tf,
                                   jr_compressed_ptr dest,
                                   int quality,
-                                  jr_exif_ptr /* exif */) {
+                                  jr_exif_ptr exif) {
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
    || dest == nullptr) {
@@ -186,7 +307,19 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   jpeg.data = jpeg_encoder.getCompressedImagePtr();
   jpeg.length = jpeg_encoder.getCompressedImageSize();
 
-  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, &metadata, dest));
+  jpegr_exif_struct new_exif;
+  if (exif == nullptr || exif->data == nullptr) {
+      new_exif.length = PSEUDO_EXIF_PACKAGE_LENGTH;
+  } else {
+      new_exif.length = exif->length + EXIF_J_R_ENTRY_LENGTH;
+  }
+
+  new_exif.data = new uint8_t[new_exif.length];
+  std::unique_ptr<uint8_t[]> new_exif_data;
+  new_exif_data.reset(reinterpret_cast<uint8_t*>(new_exif.data));
+  JPEGR_CHECK(updateExif(exif, &new_exif));
+
+  JPEGR_CHECK(appendRecoveryMap(&jpeg, &compressed_map, &new_exif, &metadata, dest));
 
   return NO_ERROR;
 }
@@ -228,7 +361,41 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
-  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, &metadata, dest));
+  // Extract EXIF from JPEG without decoding.
+  JpegDecoder jpeg_decoder;
+  if (!jpeg_decoder.extractEXIF(compressed_jpeg_image->data, compressed_jpeg_image->length)) {
+    return ERROR_JPEGR_DECODE_ERROR;
+  }
+
+  jpegr_exif_struct exif;
+  exif.data = nullptr;
+  exif.length = 0;
+  // Delete EXIF package if it appears, and update exif.
+  if (jpeg_decoder.getEXIFPos() != 0) {
+    int new_length = compressed_jpeg_image->length - jpeg_decoder.getEXIFSize() - 4;
+    memcpy((uint8_t*)compressed_jpeg_image->data + jpeg_decoder.getEXIFPos() - 4,
+           (uint8_t*)compressed_jpeg_image->data + jpeg_decoder.getEXIFPos()
+                  + jpeg_decoder.getEXIFSize(),
+           compressed_jpeg_image->length - jpeg_decoder.getEXIFPos() - jpeg_decoder.getEXIFSize());
+    compressed_jpeg_image->length = new_length;
+    exif.data = jpeg_decoder.getEXIFPtr();
+    exif.length = jpeg_decoder.getEXIFSize();
+  }
+
+  jpegr_exif_struct new_exif;
+  if (exif.data == nullptr) {
+      new_exif.length = PSEUDO_EXIF_PACKAGE_LENGTH;
+  } else {
+      new_exif.length = exif.length + EXIF_J_R_ENTRY_LENGTH;
+  }
+
+  new_exif.data = new uint8_t[new_exif.length];
+  std::unique_ptr<uint8_t[]> new_exif_data;
+  new_exif_data.reset(reinterpret_cast<uint8_t*>(new_exif.data));
+  JPEGR_CHECK(updateExif(&exif, &new_exif));
+
+  JPEGR_CHECK(appendRecoveryMap(
+          compressed_jpeg_image, &compressed_map, &new_exif, &metadata, dest));
 
   return NO_ERROR;
 }
@@ -254,6 +421,32 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
   uncompressed_yuv_420_image.colorGamut = compressed_jpeg_image->colorGamut;
 
+  jpegr_exif_struct exif;
+  exif.data = nullptr;
+  exif.length = 0;
+  // Delete EXIF package if it appears, and update exif.
+  if (jpeg_decoder.getEXIFPos() != 0) {
+    int new_length = compressed_jpeg_image->length - jpeg_decoder.getEXIFSize() - 4;
+    memcpy((uint8_t*)compressed_jpeg_image->data + jpeg_decoder.getEXIFPos() - 4,
+           (uint8_t*)compressed_jpeg_image->data + jpeg_decoder.getEXIFPos()
+                  + jpeg_decoder.getEXIFSize(),
+           compressed_jpeg_image->length - jpeg_decoder.getEXIFPos() - jpeg_decoder.getEXIFSize());
+    compressed_jpeg_image->length = new_length;
+    exif.data = jpeg_decoder.getEXIFPtr();
+    exif.length = jpeg_decoder.getEXIFSize();
+  }
+
+  jpegr_exif_struct new_exif;
+  if (exif.data == nullptr) {
+      new_exif.length = PSEUDO_EXIF_PACKAGE_LENGTH;
+  } else {
+      new_exif.length = exif.length + EXIF_J_R_ENTRY_LENGTH;
+  }
+  new_exif.data = new uint8_t[new_exif.length];
+  std::unique_ptr<uint8_t[]> new_exif_data;
+  new_exif_data.reset(reinterpret_cast<uint8_t*>(new_exif.data));
+  JPEGR_CHECK(updateExif(&exif, &new_exif));
+
   if (uncompressed_p010_image->width != uncompressed_yuv_420_image.width
    || uncompressed_p010_image->height != uncompressed_yuv_420_image.height) {
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
@@ -278,7 +471,8 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
-  JPEGR_CHECK(appendRecoveryMap(compressed_jpeg_image, &compressed_map, &metadata, dest));
+  JPEGR_CHECK(appendRecoveryMap(
+          compressed_jpeg_image, &compressed_map, &new_exif, &metadata, dest));
 
   return NO_ERROR;
 }
@@ -614,52 +808,84 @@ status_t RecoveryMap::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_imag
   return extractPrimaryImageAndRecoveryMap(compressed_jpegr_image, nullptr, dest);
 }
 
+// JPEG/R structure:
+// SOI (ff d8)
+// APP1 (ff e1)
+// 2 bytes of length (2 + length of exif package)
+// EXIF package (this includes the first two bytes representing the package length)
+// APP1 (ff e1)
+// 2 bytes of length (2 + 29 + length of xmp package)
+// name space ("http://ns.adobe.com/xap/1.0/\0")
+// xmp
+// primary image (without the first two bytes (SOI) and without EXIF, may have other packages)
+// secondary image (the recovery map)
+//
+// Metadata versions we are using:
+// ECMA TR-98 for JFIF marker
+// Exif 2.2 spec for EXIF marker
+// Adobe XMP spec part 3 for XMP marker
+// ICC v4.3 spec for ICC
 status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
                                         jr_compressed_ptr compressed_recovery_map,
+                                        jr_exif_ptr exif,
                                         jr_metadata_ptr metadata,
                                         jr_compressed_ptr dest) {
   if (compressed_jpeg_image == nullptr
    || compressed_recovery_map == nullptr
+   || exif == nullptr
    || metadata == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  const string xmp = generateXmp(compressed_recovery_map->length, *metadata);
-  const string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
-  const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
-
-  // 2 bytes: APP1 sign (ff e1)
-  // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0",
-  // x bytes: length of xmp packet
-
-  const int length = 3 + nameSpaceLength + xmp.size();
-  const uint8_t lengthH = ((length >> 8) & 0xff);
-  const uint8_t lengthL = (length & 0xff);
-
   int pos = 0;
 
-  // JPEG/R structure:
-  // SOI (ff d8)
-  // APP1 (ff e1)
-  // 2 bytes of length (2 + 29 + length of xmp packet)
-  // name space ("http://ns.adobe.com/xap/1.0/\0")
-  // xmp
-  // primary image (without the first two bytes, the SOI sign)
-  // secondary image (the recovery map)
+  // Write SOI
   JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
   JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kSOI, 1, pos));
-  JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
-  JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP1, 1, pos));
-  JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
-  JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
-  JPEGR_CHECK(Write(dest, (void*)nameSpace.c_str(), nameSpaceLength, pos));
-  JPEGR_CHECK(Write(dest, (void*)xmp.c_str(), xmp.size(), pos));
+
+  // Write EXIF
+  {
+    const int length = 2 + exif->length;
+    const uint8_t lengthH = ((length >> 8) & 0xff);
+    const uint8_t lengthL = (length & 0xff);
+    JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
+    JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP1, 1, pos));
+    JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
+    JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
+    JPEGR_CHECK(Write(dest, exif->data, exif->length, pos));
+  }
+
+  // Prepare and write XMP
+  {
+    const string xmp = generateXmp(compressed_recovery_map->length, *metadata);
+    const string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
+    const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
+    // 2 bytes: representing the length of the package
+    // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0",
+    // x bytes: length of xmp packet
+    const int length = 3 + nameSpaceLength + xmp.size();
+    const uint8_t lengthH = ((length >> 8) & 0xff);
+    const uint8_t lengthL = (length & 0xff);
+    JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
+    JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP1, 1, pos));
+    JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
+    JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
+    JPEGR_CHECK(Write(dest, (void*)nameSpace.c_str(), nameSpaceLength, pos));
+    JPEGR_CHECK(Write(dest, (void*)xmp.c_str(), xmp.size(), pos));
+  }
+
+  // Write primary image
   JPEGR_CHECK(Write(dest,
       (uint8_t*)compressed_jpeg_image->data + 2, compressed_jpeg_image->length - 2, pos));
+
+  // Write secondary image
   JPEGR_CHECK(Write(dest, compressed_recovery_map->data, compressed_recovery_map->length, pos));
+
+  // Set back length
   dest->length = pos;
 
+  // Done!
   return NO_ERROR;
 }
 

@@ -731,7 +731,7 @@ inline bool Iterate(Visitor* visitor, VkPhysicalDeviceVulkan12Features* features
     visitor->Visit("vulkanMemoryModelAvailabilityVisibilityChains", &features->vulkanMemoryModelAvailabilityVisibilityChains) &&
     visitor->Visit("shaderOutputViewportIndex", &features->shaderOutputViewportIndex) &&
     visitor->Visit("shaderOutputLayer", &features->shaderOutputLayer) &&
-    visitor->Visit("shaderOutputLayer", &features->shaderOutputLayer);
+    visitor->Visit("subgroupBroadcastDynamicId", &features->subgroupBroadcastDynamicId);
 }
 
 template <typename Visitor>
