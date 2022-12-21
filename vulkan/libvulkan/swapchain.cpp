@@ -508,6 +508,10 @@ android::PixelFormat GetNativePixelFormat(VkFormat format) {
         case VK_FORMAT_R8_UNORM:
             native_format = android::PIXEL_FORMAT_R_8;
             break;
+        // TODO: Do we need to query for VK_EXT_rgba10x6_formats here?
+        case VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16:
+            native_format = android::PIXEL_FORMAT_RGBA_10101010;
+            break;
         default:
             ALOGV("unsupported swapchain format %d", format);
             break;
@@ -754,7 +758,6 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
 
     const InstanceData& instance_data = GetData(pdev);
 
-    bool wide_color_support = false;
     uint64_t consumer_usage = 0;
     bool colorspace_ext =
         instance_data.hook_extensions.test(ProcHook::EXT_swapchain_colorspace);
@@ -765,27 +768,15 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         if (!surfaceless_enabled) {
             return VK_ERROR_SURFACE_LOST_KHR;
         }
-        // Support for VK_GOOGLE_surfaceless_query.  The EGL loader
-        // unconditionally supports wide color formats, even if they will cause
-        // a SurfaceFlinger fallback.  Based on that, wide_color_support will be
-        // set to true in this case.
-        wide_color_support = true;
+        // Support for VK_GOOGLE_surfaceless_query.
 
         // TODO(b/203826952): research proper value; temporarily use the
         // values seen on Pixel
         consumer_usage = AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
     } else {
         Surface& surface = *SurfaceFromHandle(surface_handle);
-        int err = native_window_get_wide_color_support(surface.window.get(),
-                                                       &wide_color_support);
-        if (err) {
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
-        ALOGV("wide_color_support is: %d", wide_color_support);
-
         consumer_usage = surface.consumer_usage;
     }
-    wide_color_support = wide_color_support && colorspace_ext;
 
     AHardwareBuffer_Desc desc = {};
     desc.width = 1;
@@ -807,9 +798,6 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_PASS_THROUGH_EXT});
         all_formats.emplace_back(VkSurfaceFormatKHR{
             VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_BT709_LINEAR_EXT});
-    }
-
-    if (wide_color_support) {
         all_formats.emplace_back(VkSurfaceFormatKHR{
             VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
         all_formats.emplace_back(VkSurfaceFormatKHR{
@@ -839,8 +827,6 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             all_formats.emplace_back(
                 VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
                                    VK_COLOR_SPACE_PASS_THROUGH_EXT});
-        }
-        if (wide_color_support) {
             all_formats.emplace_back(
                 VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
                                    VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT});
@@ -859,8 +845,6 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             all_formats.emplace_back(
                 VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
                                    VK_COLOR_SPACE_PASS_THROUGH_EXT});
-        }
-        if (wide_color_support) {
             all_formats.emplace_back(
                 VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
                                    VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
@@ -872,6 +856,22 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         if (colorspace_ext) {
             all_formats.emplace_back(VkSurfaceFormatKHR{
                 VK_FORMAT_R8_UNORM, VK_COLOR_SPACE_PASS_THROUGH_EXT});
+        }
+    }
+
+    // TODO query VK_EXT_rgba10x6_formats support
+    desc.format = AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM;
+    if (AHardwareBuffer_isSupported(&desc)) {
+        all_formats.emplace_back(
+            VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
+                               VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
+        if (colorspace_ext) {
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
+                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
+                                   VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
         }
     }
 
