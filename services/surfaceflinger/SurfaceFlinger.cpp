@@ -423,6 +423,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.treat_170m_as_sRGB", value, "0");
     mTreat170mAsSrgb = atoi(value);
 
+    mIgnoreHwcPhysicalDisplayOrientation =
+            base::GetBoolProperty("debug.sf.ignore_hwc_physical_display_orientation"s, false);
+
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
     // comes online to attempt to read the property. The property is
@@ -2410,7 +2413,8 @@ ui::Rotation SurfaceFlinger::getPhysicalDisplayOrientation(DisplayId displayId,
     if (!id) {
         return ui::ROTATION_0;
     }
-    if (getHwComposer().getComposer()->isSupported(
+    if (!mIgnoreHwcPhysicalDisplayOrientation &&
+        getHwComposer().getComposer()->isSupported(
                 Hwc2::Composer::OptionalFeature::PhysicalDisplayOrientation)) {
         switch (getHwComposer().getPhysicalDisplayOrientation(*id)) {
             case Hwc2::AidlTransform::ROT_90:
