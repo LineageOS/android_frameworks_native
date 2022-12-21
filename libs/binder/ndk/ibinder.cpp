@@ -101,7 +101,22 @@ bool AIBinder::associateClass(const AIBinder_Class* clazz) {
     std::lock_guard<std::mutex> lock(mClazzMutex);
     if (mClazz == clazz) return true;
 
-    if (mClazz != nullptr) {
+    // If this is an ABpBinder, the first class object becomes the canonical one. The implication
+    // of this is that no API can require a proxy information to get information on how to behave.
+    // from the class itself - which should only store the interface descriptor. The functionality
+    // should be implemented by adding AIBinder_* APIs to set values on binders themselves, by
+    // setting things on AIBinder_Class which get transferred along with the binder, so that they
+    // can be read along with the BpBinder, or by modifying APIs directly (e.g. an option in
+    // onTransact).
+    //
+    // While this check is required to support linkernamespaces, one downside of it is that
+    // you may parcel code to communicate between things in the same process. However, comms
+    // between linkernamespaces like this already happen for cross-language calls like Java<->C++
+    // or Rust<->Java, and there are good stability guarantees here. This interacts with
+    // binder Stability checks exactly like any other in-process call. The stability is known
+    // to the IBinder object, so that it doesn't matter if a class object comes from
+    // a different stability level.
+    if (mClazz != nullptr && !asABpBinder()) {
         const String16& currentDescriptor = mClazz->getInterfaceDescriptor();
         if (newDescriptor == currentDescriptor) {
             LOG(ERROR) << __func__ << ": Class descriptors '" << currentDescriptor
@@ -115,7 +130,6 @@ bool AIBinder::associateClass(const AIBinder_Class* clazz) {
         }
 
         // always a failure because we know mClazz != clazz
-        // TODO(b/262463798): support multiple ABpBinder in different namespaces
         return false;
     }
 
@@ -136,8 +150,13 @@ bool AIBinder::associateClass(const AIBinder_Class* clazz) {
         return false;
     }
 
-    // if this is a local object, it's not one known to libbinder_ndk
-    mClazz = clazz;
+    // A local binder being set for the first time OR
+    // ignoring a proxy binder which is set multiple time, by considering the first
+    // associated class as the canonical one.
+    if (mClazz == nullptr) {
+        mClazz = clazz;
+    }
+
     return true;
 }
 
@@ -322,6 +341,10 @@ bool AIBinder_Weak_lt(const AIBinder_Weak* lhs, const AIBinder_Weak* rhs) {
     return lhs->binder < rhs->binder;
 }
 
+// WARNING: When multiple classes exist with the same interface descriptor in different
+// linkernamespaces, the first one to be associated with mClazz becomes the canonical one
+// and the only requirement on this is that the interface descriptors match. If this
+// is an ABpBinder, no other state can be referenced from mClazz.
 AIBinder_Class::AIBinder_Class(const char* interfaceDescriptor, AIBinder_Class_onCreate onCreate,
                                AIBinder_Class_onDestroy onDestroy,
                                AIBinder_Class_onTransact onTransact)
@@ -629,6 +652,10 @@ binder_status_t AIBinder_prepareTransaction(AIBinder* binder, AParcel** in) {
     (*in)->get()->markForBinder(binder->getBinder());
 
     status_t status = android::OK;
+
+    // note - this is the only read of a value in clazz, and it comes with a warning
+    // on the API itself. Do not copy this design. Instead, attach data in a new
+    // version of the prepareTransaction function.
     if (clazz->writeHeader) {
         status = (*in)->get()->writeInterfaceToken(clazz->getInterfaceDescriptor());
     }

@@ -56,6 +56,11 @@ struct AIBinder : public virtual ::android::RefBase {
     // AIBinder instance is instance of this class for a local object. In order to transact on a
     // remote object, this also must be set for simplicity (although right now, only the
     // interfaceDescriptor from it is used).
+    //
+    // WARNING: When multiple classes exist with the same interface descriptor in different
+    // linkernamespaces, the first one to be associated with mClazz becomes the canonical one
+    // and the only requirement on this is that the interface descriptors match. If this
+    // is an ABpBinder, no other state can be referenced from mClazz.
     const AIBinder_Class* mClazz;
     std::mutex mClazzMutex;
 };
