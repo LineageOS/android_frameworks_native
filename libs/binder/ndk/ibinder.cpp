@@ -75,8 +75,29 @@ void clean(const void* id, void* obj, void* cookie) {
 AIBinder::AIBinder(const AIBinder_Class* clazz) : mClazz(clazz) {}
 AIBinder::~AIBinder() {}
 
-std::optional<bool> AIBinder::associateClassInternal(const AIBinder_Class* clazz,
-                                                     const String16& newDescriptor, bool set) {
+// b/175635923 libcxx causes "implicit-conversion" with a string with invalid char
+static std::string SanitizeString(const String16& str) {
+    std::string sanitized{String8(str)};
+    for (auto& c : sanitized) {
+        if (!isprint(c)) {
+            c = '?';
+        }
+    }
+    return sanitized;
+}
+
+bool AIBinder::associateClass(const AIBinder_Class* clazz) {
+    if (clazz == nullptr) return false;
+
+    // If mClazz is non-null, this must have been called and cached
+    // already. So, we can safely call this first. Due to the implementation
+    // of getInterfaceDescriptor (at time of writing), two simultaneous calls
+    // may lead to extra binder transactions, but this is expected to be
+    // exceedingly rare. Once we have a binder, when we get it again later,
+    // we won't make another binder transaction here.
+    const String16& descriptor = getBinder()->getInterfaceDescriptor();
+    const String16& newDescriptor = clazz->getInterfaceDescriptor();
+
     std::lock_guard<std::mutex> lock(mClazzMutex);
     if (mClazz == clazz) return true;
 
@@ -94,40 +115,14 @@ std::optional<bool> AIBinder::associateClassInternal(const AIBinder_Class* clazz
         }
 
         // always a failure because we know mClazz != clazz
+        // TODO(b/262463798): support multiple ABpBinder in different namespaces
         return false;
     }
 
-    if (set) {
-        // if this is a local object, it's not one known to libbinder_ndk
-        mClazz = clazz;
-        return true;
-    }
-
-    return {};
-}
-
-// b/175635923 libcxx causes "implicit-conversion" with a string with invalid char
-static std::string SanitizeString(const String16& str) {
-    std::string sanitized{String8(str)};
-    for (auto& c : sanitized) {
-        if (!isprint(c)) {
-            c = '?';
-        }
-    }
-    return sanitized;
-}
-
-bool AIBinder::associateClass(const AIBinder_Class* clazz) {
-    if (clazz == nullptr) return false;
-
-    const String16& newDescriptor = clazz->getInterfaceDescriptor();
-
-    auto result = associateClassInternal(clazz, newDescriptor, false);
-    if (result.has_value()) return *result;
-
-    CHECK(asABpBinder() != nullptr);  // ABBinder always has a descriptor
-
-    const String16& descriptor = getBinder()->getInterfaceDescriptor();
+    // This will always be an O(n) comparison, but it's expected to be extremely rare.
+    // since it's an error condition. Do the comparison after we take the lock and
+    // check the pointer equality fast path. By always taking the lock, it's also
+    // more flake-proof. However, the check is not dependent on the lock.
     if (descriptor != newDescriptor) {
         if (getBinder()->isBinderAlive()) {
             LOG(ERROR) << __func__ << ": Expecting binder to have class '" << newDescriptor
@@ -141,7 +136,9 @@ bool AIBinder::associateClass(const AIBinder_Class* clazz) {
         return false;
     }
 
-    return associateClassInternal(clazz, newDescriptor, true).value();
+    // if this is a local object, it's not one known to libbinder_ndk
+    mClazz = clazz;
+    return true;
 }
 
 ABBinder::ABBinder(const AIBinder_Class* clazz, void* userData)
