@@ -2023,6 +2023,56 @@ TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsWithinTouchGesture) {
                   WithDeviceId(touchscreenId))));
 }
 
+TYPED_TEST(StylusButtonIntegrationTest, StylusButtonMotionEventsDisabled) {
+    TestFixture::mFakePolicy->setStylusButtonMotionEventsEnabled(false);
+    TestFixture::mReader->requestRefreshConfiguration(
+            InputReaderConfiguration::CHANGE_STYLUS_BUTTON_REPORTING);
+
+    const Point centerPoint = TestFixture::mTouchscreen->getCenterPoint();
+    const auto touchscreenId = TestFixture::mTouchscreenInfo.getId();
+    const auto stylusId = TestFixture::mStylusInfo.getId();
+
+    // Start a stylus gesture. By the time this event is processed, the configuration change that
+    // was requested is guaranteed to be completed.
+    TestFixture::mTouchscreen->sendSlot(FIRST_SLOT);
+    TestFixture::mTouchscreen->sendTrackingId(FIRST_TRACKING_ID);
+    TestFixture::mTouchscreen->sendToolType(MT_TOOL_PEN);
+    TestFixture::mTouchscreen->sendDown(centerPoint);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
+
+    // Press and release a stylus button. Each change only generates a MOVE motion event.
+    // Key events are unaffected.
+    TestFixture::mStylus->pressKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithSource(AINPUT_SOURCE_KEYBOARD),
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
+
+    TestFixture::mStylus->releaseKey(BTN_STYLUS);
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyKeyWasCalled(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP), WithSource(AINPUT_SOURCE_KEYBOARD),
+                  WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
+
+    // Finish the stylus gesture.
+    TestFixture::mTouchscreen->sendTrackingId(INVALID_TRACKING_ID);
+    TestFixture::mTouchscreen->sendSync();
+    ASSERT_NO_FATAL_FAILURE(TestFixture::mTestListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS), WithButtonState(0),
+                  WithDeviceId(touchscreenId))));
+}
+
 // --- ExternalStylusIntegrationTest ---
 
 // Verify the behavior of an external stylus. An external stylus can report pressure or button
@@ -6575,6 +6625,46 @@ TEST_F(SingleTouchInputMapperTest, ButtonIsReleasedOnTouchUp) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
                   WithCoords(toDisplayX(100), toDisplayY(200)), WithButtonState(0))));
+}
+
+TEST_F(SingleTouchInputMapperTest, StylusButtonMotionEventsDisabled) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(ui::ROTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+
+    mFakePolicy->setStylusButtonMotionEventsEnabled(false);
+
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
+
+    // Press a stylus button.
+    processKey(mapper, BTN_STYLUS, 1);
+    processSync(mapper);
+
+    // Start a touch gesture and ensure that the stylus button is not reported.
+    processDown(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithButtonState(0))));
+
+    // Release and press the stylus button again.
+    processKey(mapper, BTN_STYLUS, 0);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithButtonState(0))));
+    processKey(mapper, BTN_STYLUS, 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithButtonState(0))));
+
+    // Release the touch gesture.
+    processUp(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0))));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
 TEST_F(SingleTouchInputMapperTest, WhenDeviceTypeIsSetToTouchNavigation_setsCorrectType) {

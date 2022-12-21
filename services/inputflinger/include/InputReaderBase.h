@@ -197,6 +197,9 @@ struct InputReaderConfiguration {
         // The keyboard layout association has changed.
         CHANGE_KEYBOARD_LAYOUT_ASSOCIATION = 1 << 11,
 
+        // The stylus button reporting configurations has changed.
+        CHANGE_STYLUS_BUTTON_REPORTING = 1 << 12,
+
         // All devices must be reopened.
         CHANGE_MUST_REOPEN = 1 << 31,
     };
@@ -309,6 +312,10 @@ struct InputReaderConfiguration {
     // The set of currently disabled input devices.
     std::set<int32_t> disabledDevices;
 
+    // True if stylus button reporting through motion events should be enabled, in which case
+    // stylus button state changes are reported through motion events.
+    bool stylusButtonMotionEventsEnabled;
+
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
             pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f,
@@ -329,7 +336,8 @@ struct InputReaderConfiguration {
             pointerGestureMovementSpeedRatio(0.8f),
             pointerGestureZoomSpeedRatio(0.3f),
             showTouches(false),
-            pointerCaptureRequest() {}
+            pointerCaptureRequest(),
+            stylusButtonMotionEventsEnabled(true) {}
 
     static std::string changesToString(uint32_t changes);
 
