@@ -118,7 +118,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
 
 void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerState) {
     bool oldFlags = flags;
-    Rect oldBufferSize = getBufferSize();
+    Rect oldBufferSize = getBufferSize(0);
     const layer_state_t& clientState = resolvedComposerState.state;
 
     uint64_t clientChanges = what | layer_state_t::diff(clientState);
@@ -133,7 +133,7 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
             changes |= RequestedLayerState::Changes::Geometry;
         }
     }
-    if (clientState.what & layer_state_t::eBufferChanged && oldBufferSize != getBufferSize()) {
+    if (clientState.what & layer_state_t::eBufferChanged && oldBufferSize != getBufferSize(0)) {
         changes |= RequestedLayerState::Changes::Geometry;
     }
     if (clientChanges & layer_state_t::HIERARCHY_CHANGES)
@@ -142,6 +142,8 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         changes |= RequestedLayerState::Changes::Content;
     if (clientChanges & layer_state_t::GEOMETRY_CHANGES)
         changes |= RequestedLayerState::Changes::Geometry;
+    if (clientChanges & layer_state_t::AFFECTS_CHILDREN)
+        changes |= RequestedLayerState::Changes::AffectsChildren;
 
     if (clientState.what & layer_state_t::eColorTransformChanged) {
         static const mat4 identityMatrix = mat4();
@@ -206,7 +208,22 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     }
 }
 
-ui::Transform RequestedLayerState::getTransform() const {
+ui::Size RequestedLayerState::getUnrotatedBufferSize(uint32_t displayRotationFlags) const {
+    uint32_t bufferWidth = externalTexture->getWidth();
+    uint32_t bufferHeight = externalTexture->getHeight();
+    // Undo any transformations on the buffer.
+    if (bufferTransform & ui::Transform::ROT_90) {
+        std::swap(bufferWidth, bufferHeight);
+    }
+    if (transformToDisplayInverse) {
+        if (displayRotationFlags & ui::Transform::ROT_90) {
+            std::swap(bufferWidth, bufferHeight);
+        }
+    }
+    return {bufferWidth, bufferHeight};
+}
+
+ui::Transform RequestedLayerState::getTransform(uint32_t displayRotationFlags) const {
     if ((flags & layer_state_t::eIgnoreDestinationFrame) || destinationFrame.isEmpty()) {
         // If destination frame is not set, use the requested transform set via
         // Transaction::setPosition and Transaction::setMatrix.
@@ -231,22 +248,10 @@ ui::Transform RequestedLayerState::getTransform() const {
         return transform;
     }
 
-    uint32_t bufferWidth = externalTexture->getWidth();
-    uint32_t bufferHeight = externalTexture->getHeight();
-    // Undo any transformations on the buffer.
-    if (bufferTransform & ui::Transform::ROT_90) {
-        std::swap(bufferWidth, bufferHeight);
-    }
-    // TODO(b/238781169) remove dep
-    uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
-    if (transformToDisplayInverse) {
-        if (invTransform & ui::Transform::ROT_90) {
-            std::swap(bufferWidth, bufferHeight);
-        }
-    }
+    ui::Size bufferSize = getUnrotatedBufferSize(displayRotationFlags);
 
-    float sx = static_cast<float>(destW) / static_cast<float>(bufferWidth);
-    float sy = static_cast<float>(destH) / static_cast<float>(bufferHeight);
+    float sx = static_cast<float>(destW) / static_cast<float>(bufferSize.width);
+    float sy = static_cast<float>(destH) / static_cast<float>(bufferSize.height);
     ui::Transform transform;
     transform.set(sx, 0, 0, sy);
     transform.set(static_cast<float>(destRect.left), static_cast<float>(destRect.top));
@@ -280,7 +285,7 @@ half4 RequestedLayerState::getColor() const {
     }
     return color;
 }
-Rect RequestedLayerState::getBufferSize() const {
+Rect RequestedLayerState::getBufferSize(uint32_t displayRotationFlags) const {
     // for buffer state layers we use the display frame size as the buffer size.
     if (!externalTexture) {
         return Rect::INVALID_RECT;
@@ -295,8 +300,7 @@ Rect RequestedLayerState::getBufferSize() const {
     }
 
     if (transformToDisplayInverse) {
-        // TODO(b/238781169) pass in display metrics (would be useful for input info as well
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
+        uint32_t invTransform = displayRotationFlags;
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufWidth, bufHeight);
         }
@@ -305,8 +309,8 @@ Rect RequestedLayerState::getBufferSize() const {
     return Rect(0, 0, static_cast<int32_t>(bufWidth), static_cast<int32_t>(bufHeight));
 }
 
-Rect RequestedLayerState::getCroppedBufferSize() const {
-    Rect size = getBufferSize();
+Rect RequestedLayerState::getCroppedBufferSize(const Rect& bufferSize) const {
+    Rect size = bufferSize;
     if (!crop.isEmpty() && size.isValid()) {
         size.intersect(crop, &size);
     } else if (!crop.isEmpty()) {
@@ -366,6 +370,15 @@ Rect RequestedLayerState::reduce(const Rect& win, const Region& exclude) {
 // reachable.
 bool RequestedLayerState::hasValidRelativeParent() const {
     return isRelativeOf && parentId != relativeParentId;
+}
+
+bool RequestedLayerState::hasInputInfo() const {
+    if (!windowInfoHandle) {
+        return false;
+    }
+    const auto windowInfo = windowInfoHandle->getInfo();
+    return windowInfo->token != nullptr ||
+            windowInfo->inputConfig.test(gui::WindowInfo::InputConfig::NO_INPUT_CHANNEL);
 }
 
 } // namespace android::surfaceflinger::frontend

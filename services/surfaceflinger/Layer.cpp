@@ -128,6 +128,8 @@ TimeStats::SetFrameRateVote frameRateToSetFrameRateVotePayload(Layer::FrameRate 
 using namespace ftl::flag_operators;
 
 using base::StringAppendF;
+using frontend::LayerSnapshot;
+using frontend::RoundedCornerState;
 using gui::GameMode;
 using gui::LayerMetadata;
 using gui::WindowInfo;
@@ -209,7 +211,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mSnapshot->name = getDebugName();
     mSnapshot->textureName = mTextureName;
     mSnapshot->premultipliedAlpha = mPremultipliedAlpha;
-    mSnapshot->transform = {};
+    mSnapshot->parentTransform = {};
 }
 
 void Layer::onFirstRef() {
@@ -471,7 +473,7 @@ void Layer::prepareBasicGeometryCompositionState() {
     snapshot->geomLayerTransform = getTransform();
     snapshot->geomInverseLayerTransform = snapshot->geomLayerTransform.inverse();
     snapshot->transparentRegionHint = getActiveTransparentRegion(drawingState);
-    snapshot->blurRegionTransform = getActiveTransform(drawingState).inverse();
+    snapshot->localTransformInverse = getActiveTransform(drawingState).inverse();
     snapshot->blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
     snapshot->alpha = alpha;
     snapshot->backgroundBlurRadius = drawingState.backgroundBlurRadius;
@@ -3532,7 +3534,7 @@ bool Layer::isOpaque(const Layer::State& s) const {
     }
 
     // If the buffer has no alpha channel, then we are opaque
-    if (hasBufferOrSidebandStream() && isOpaqueFormat(getPixelFormat())) {
+    if (hasBufferOrSidebandStream() && LayerSnapshot::isOpaqueFormat(getPixelFormat())) {
         return true;
     }
 
@@ -3704,29 +3706,6 @@ bool Layer::hasReadyFrame() const {
 bool Layer::isProtected() const {
     return (mBufferInfo.mBuffer != nullptr) &&
             (mBufferInfo.mBuffer->getUsage() & GRALLOC_USAGE_PROTECTED);
-}
-
-// As documented in libhardware header, formats in the range
-// 0x100 - 0x1FF are specific to the HAL implementation, and
-// are known to have no alpha channel
-// TODO: move definition for device-specific range into
-// hardware.h, instead of using hard-coded values here.
-#define HARDWARE_IS_DEVICE_FORMAT(f) ((f) >= 0x100 && (f) <= 0x1FF)
-
-bool Layer::isOpaqueFormat(PixelFormat format) {
-    if (HARDWARE_IS_DEVICE_FORMAT(format)) {
-        return true;
-    }
-    switch (format) {
-        case PIXEL_FORMAT_RGBA_8888:
-        case PIXEL_FORMAT_BGRA_8888:
-        case PIXEL_FORMAT_RGBA_FP16:
-        case PIXEL_FORMAT_RGBA_1010102:
-        case PIXEL_FORMAT_R_8:
-            return false;
-    }
-    // in all other case, we have no blending (also for unknown formats)
-    return true;
 }
 
 bool Layer::needsFiltering(const DisplayDevice* display) const {
@@ -3919,13 +3898,15 @@ void Layer::updateSnapshot(bool updateGeometry) {
         snapshot->shadowSettings.length = mEffectiveShadowRadius;
     }
     snapshot->contentOpaque = isOpaque(mDrawingState);
+    snapshot->layerOpaqueFlagSet =
+            (mDrawingState.flags & layer_state_t::eLayerOpaque) == layer_state_t::eLayerOpaque;
     snapshot->isHdrY410 = isHdrY410();
     snapshot->bufferNeedsFiltering = bufferNeedsFiltering();
     sp<Layer> p = mDrawingParent.promote();
     if (p != nullptr) {
-        snapshot->transform = p->getTransform();
+        snapshot->parentTransform = p->getTransform();
     } else {
-        snapshot->transform.reset();
+        snapshot->parentTransform.reset();
     }
     snapshot->bufferSize = getBufferSize(mDrawingState);
     snapshot->externalTexture = mBufferInfo.mBuffer;

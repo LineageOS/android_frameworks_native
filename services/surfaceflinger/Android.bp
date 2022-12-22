@@ -157,6 +157,8 @@ filegroup {
         "EventLog/EventLog.cpp",
         "FrontEnd/LayerCreationArgs.cpp",
         "FrontEnd/LayerHandle.cpp",
+        "FrontEnd/LayerSnapshot.cpp",
+        "FrontEnd/LayerSnapshotBuilder.cpp",
         "FrontEnd/LayerHierarchy.cpp",
         "FrontEnd/LayerLifecycleManager.cpp",
         "FrontEnd/RequestedLayerState.cpp",

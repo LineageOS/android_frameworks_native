@@ -210,26 +210,46 @@ struct layer_state_t {
     uint64_t diff(const layer_state_t& other) const;
     bool hasBufferChanges() const;
 
-    // Changes to the tree structure.
-    static constexpr uint64_t HIERARCHY_CHANGES = layer_state_t::eLayerChanged |
-            layer_state_t::eRelativeLayerChanged | layer_state_t::eReparent |
-            layer_state_t::eBackgroundColorChanged;
+    // Layer hierarchy updates.
+    static constexpr uint64_t HIERARCHY_CHANGES = layer_state_t::eBackgroundColorChanged |
+            layer_state_t::eLayerChanged | layer_state_t::eRelativeLayerChanged |
+            layer_state_t::eReparent;
+
+    // Geometry updates.
+    static constexpr uint64_t GEOMETRY_CHANGES = layer_state_t::eBufferCropChanged |
+            layer_state_t::eBufferTransformChanged | layer_state_t::eCropChanged |
+            layer_state_t::eDestinationFrameChanged | layer_state_t::eMatrixChanged |
+            layer_state_t::ePositionChanged | layer_state_t::eTransformToDisplayInverseChanged |
+            layer_state_t::eTransparentRegionChanged;
+
+    // Buffer and related updates.
+    static constexpr uint64_t BUFFER_CHANGES = layer_state_t::eApiChanged |
+            layer_state_t::eBufferChanged | layer_state_t::eBufferCropChanged |
+            layer_state_t::eBufferTransformChanged | layer_state_t::eDataspaceChanged |
+            layer_state_t::eSidebandStreamChanged | layer_state_t::eSurfaceDamageRegionChanged |
+            layer_state_t::eTransformToDisplayInverseChanged |
+            layer_state_t::eTransparentRegionChanged;
+
     // Content updates.
-    static constexpr uint64_t CONTENT_CHANGES = layer_state_t::eAlphaChanged |
-            layer_state_t::eTransparentRegionChanged | layer_state_t::eShadowRadiusChanged |
-            layer_state_t::eRenderBorderChanged | layer_state_t::eColorChanged |
-            layer_state_t::eBufferChanged | layer_state_t::eDataspaceChanged |
-            layer_state_t::eApiChanged | layer_state_t::eSidebandStreamChanged |
+    static constexpr uint64_t CONTENT_CHANGES = layer_state_t::BUFFER_CHANGES |
+            layer_state_t::eAlphaChanged | layer_state_t::eAutoRefreshChanged |
+            layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBackgroundColorChanged |
+            layer_state_t::eBlurRegionsChanged | layer_state_t::eColorChanged |
+            layer_state_t::eColorSpaceAgnosticChanged | layer_state_t::eColorTransformChanged |
+            layer_state_t::eCornerRadiusChanged | layer_state_t::eHdrMetadataChanged |
+            layer_state_t::eRenderBorderChanged | layer_state_t::eShadowRadiusChanged |
+            layer_state_t::eStretchChanged;
+
+    // Changes which invalidates the layer's visible region in CE.
+    static constexpr uint64_t CONTENT_DIRTY = layer_state_t::CONTENT_CHANGES |
+            layer_state_t::GEOMETRY_CHANGES | layer_state_t::HIERARCHY_CHANGES;
+
+    // Changes affecting child states.
+    static constexpr uint64_t AFFECTS_CHILDREN = layer_state_t::GEOMETRY_CHANGES |
+            layer_state_t::HIERARCHY_CHANGES | layer_state_t::eAlphaChanged |
             layer_state_t::eColorTransformChanged | layer_state_t::eCornerRadiusChanged |
-            layer_state_t::eBackgroundColorChanged | layer_state_t::eColorSpaceAgnosticChanged |
-            layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBlurRegionsChanged |
-            layer_state_t::eAutoRefreshChanged | layer_state_t::eStretchChanged;
-    // Changes to content or children size.
-    static constexpr uint64_t GEOMETRY_CHANGES = layer_state_t::ePositionChanged |
-            layer_state_t::eMatrixChanged | layer_state_t::eTransparentRegionChanged |
-            layer_state_t::eBufferCropChanged | layer_state_t::eBufferTransformChanged |
-            layer_state_t::eTransformToDisplayInverseChanged | layer_state_t::eCropChanged |
-            layer_state_t::eDestinationFrameChanged;
+            layer_state_t::eFlagsChanged | layer_state_t::eLayerStackChanged |
+            layer_state_t::eTrustedOverlayChanged;
 
     bool hasValidBuffer() const;
     void sanitize(int32_t permissions);

@@ -47,22 +47,26 @@ struct RequestedLayerState : layer_state_t {
         RelativeParent = 1u << 9,
         Metadata = 1u << 10,
         Visibility = 1u << 11,
+        AffectsChildren = 1u << 12,
     };
     static Rect reduce(const Rect& win, const Region& exclude);
     RequestedLayerState(const LayerCreationArgs&);
     void merge(const ResolvedComposerState&);
-    ui::Transform getTransform() const;
+    // Currently we only care about the primary display
+    ui::Transform getTransform(uint32_t displayRotationFlags) const;
+    ui::Size getUnrotatedBufferSize(uint32_t displayRotationFlags) const;
     bool canBeDestroyed() const;
     bool isRoot() const;
     bool isHiddenByPolicy() const;
     half4 getColor() const;
-    Rect getBufferSize() const;
-    Rect getCroppedBufferSize() const;
+    Rect getBufferSize(uint32_t displayRotationFlags) const;
+    Rect getCroppedBufferSize(const Rect& bufferSize) const;
     Rect getBufferCrop() const;
     std::string getDebugString() const;
     std::string getDebugStringShort() const;
     aidl::android::hardware::graphics::composer3::Composition getCompositionType() const;
     bool hasValidRelativeParent() const;
+    bool hasInputInfo() const;
 
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are

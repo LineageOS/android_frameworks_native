@@ -131,7 +131,7 @@ const RequestedLayerState* LayerHierarchy::getLayer() const {
 
 std::string LayerHierarchy::getDebugStringShort() const {
     std::string debug = "LayerHierarchy{";
-    debug += ((mLayer) ? mLayer->getDebugStringShort() : "root") + " ";
+    debug += ((mLayer) ? mLayer->getDebugString() : "root") + " ";
     if (mChildren.empty()) {
         debug += "no children";
     } else {
@@ -401,10 +401,13 @@ LayerHierarchy* LayerHierarchyBuilder::getHierarchyFromId(uint32_t layerId, bool
     return it->second;
 }
 
-LayerHierarchy::TraversalPath LayerHierarchy::TraversalPath::ROOT_TRAVERSAL_ID =
+const LayerHierarchy::TraversalPath LayerHierarchy::TraversalPath::ROOT =
         {.id = UNASSIGNED_LAYER_ID, .variant = LayerHierarchy::Attached};
 
 std::string LayerHierarchy::TraversalPath::toString() const {
+    if (id == UNASSIGNED_LAYER_ID) {
+        return "TraversalPath{ROOT}";
+    }
     std::string debugString = "TraversalPath{.id = " + std::to_string(id);
 
     if (!mirrorRootIds.empty()) {
@@ -437,20 +440,22 @@ LayerHierarchy::ScopedAddToTraversalPath::ScopedAddToTraversalPath(TraversalPath
                                                                    LayerHierarchy::Variant variant)
       : mTraversalPath(traversalPath),
         mParentId(traversalPath.id),
-        mParentVariant(traversalPath.variant) {
+        mParentVariant(traversalPath.variant),
+        mParentDetached(traversalPath.detached) {
     // Update the traversal id with the child layer id and variant. Parent id and variant are
     // stored to reset the id upon destruction.
     traversalPath.id = layerId;
     traversalPath.variant = variant;
     if (variant == LayerHierarchy::Variant::Mirror) {
         traversalPath.mirrorRootIds.emplace_back(layerId);
-    }
-    if (variant == LayerHierarchy::Variant::Relative) {
+    } else if (variant == LayerHierarchy::Variant::Relative) {
         if (std::find(traversalPath.relativeRootIds.begin(), traversalPath.relativeRootIds.end(),
                       layerId) != traversalPath.relativeRootIds.end()) {
             traversalPath.invalidRelativeRootId = layerId;
         }
         traversalPath.relativeRootIds.emplace_back(layerId);
+    } else if (variant == LayerHierarchy::Variant::Detached) {
+        traversalPath.detached = true;
     }
 }
 LayerHierarchy::ScopedAddToTraversalPath::~ScopedAddToTraversalPath() {
@@ -458,8 +463,7 @@ LayerHierarchy::ScopedAddToTraversalPath::~ScopedAddToTraversalPath() {
     // the constructor.
     if (mTraversalPath.variant == LayerHierarchy::Variant::Mirror) {
         mTraversalPath.mirrorRootIds.pop_back();
-    }
-    if (mTraversalPath.variant == LayerHierarchy::Variant::Relative) {
+    } else if (mTraversalPath.variant == LayerHierarchy::Variant::Relative) {
         mTraversalPath.relativeRootIds.pop_back();
     }
     if (mTraversalPath.invalidRelativeRootId == mTraversalPath.id) {
@@ -467,6 +471,7 @@ LayerHierarchy::ScopedAddToTraversalPath::~ScopedAddToTraversalPath() {
     }
     mTraversalPath.id = mParentId;
     mTraversalPath.variant = mParentVariant;
+    mTraversalPath.detached = mParentDetached;
 }
 
 } // namespace android::surfaceflinger::frontend
