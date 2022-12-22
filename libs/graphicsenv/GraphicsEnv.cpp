@@ -569,14 +569,6 @@ void GraphicsEnv::setDebugLayersGLES(const std::string layers) {
     mDebugLayersGLES = layers;
 }
 
-int64_t GraphicsEnv::getBlobCacheQuotaBytes() {
-    return mBlobCacheQuotaBytes;
-}
-
-void GraphicsEnv::setBlobCacheQuotaBytes(int64_t cacheBytes) {
-    mBlobCacheQuotaBytes = cacheBytes;
-}
-
 // Return true if all the required libraries from vndk and sphal namespace are
 // linked to the updatable gfx driver namespace correctly.
 bool GraphicsEnv::linkDriverNamespaceLocked(android_namespace_t* vndkNamespace) {
