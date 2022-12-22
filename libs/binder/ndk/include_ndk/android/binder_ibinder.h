@@ -229,6 +229,11 @@ void AIBinder_Class_setOnDump(AIBinder_Class* clazz, AIBinder_onDump onDump) __I
  *
  * Available since API level 33.
  *
+ * WARNING: this API interacts badly with linkernamespaces. For correct behavior, you must
+ * use it on all instances of a class in the same process which share the same interface
+ * descriptor. In general, it is recommended you do not use this API, because it is disabling
+ * type safety.
+ *
  * \param clazz class to disable interface header on.
  */
 void AIBinder_Class_disableInterfaceTokenHeader(AIBinder_Class* clazz) __INTRODUCED_IN(33);

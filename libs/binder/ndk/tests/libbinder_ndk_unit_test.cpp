@@ -55,6 +55,18 @@ constexpr char kActiveServicesNdkUnitTestService[] = "ActiveServicesNdkUnitTestS
 constexpr unsigned int kShutdownWaitTime = 10;
 constexpr uint64_t kContextTestValue = 0xb4e42fb4d9a1d715;
 
+class MyTestFoo : public IFoo {
+    binder_status_t doubleNumber(int32_t in, int32_t* out) override {
+        *out = 2 * in;
+        LOG(INFO) << "doubleNumber (" << in << ") => " << *out;
+        return STATUS_OK;
+    }
+    binder_status_t die() override {
+        ADD_FAILURE() << "die called on local instance";
+        return STATUS_OK;
+    }
+};
+
 class MyBinderNdkUnitTest : public aidl::BnBinderNdkUnitTest {
     ndk::ScopedAStatus repeatInt(int32_t in, int32_t* out) {
         *out = in;
@@ -296,11 +308,10 @@ TEST(NdkBinder, RegisterForServiceNotificationsExisting) {
 }
 
 TEST(NdkBinder, UnimplementedDump) {
-    sp<IFoo> foo = IFoo::getService(IFoo::kSomeInstanceName);
+    ndk::SpAIBinder binder;
+    sp<IFoo> foo = IFoo::getService(IFoo::kSomeInstanceName, binder.getR());
     ASSERT_NE(foo, nullptr);
-    AIBinder* binder = foo->getBinder();
-    EXPECT_EQ(OK, AIBinder_dump(binder, STDOUT_FILENO, nullptr, 0));
-    AIBinder_decStrong(binder);
+    EXPECT_EQ(OK, AIBinder_dump(binder.get(), STDOUT_FILENO, nullptr, 0));
 }
 
 TEST(NdkBinder, UnimplementedShell) {
@@ -322,6 +333,24 @@ TEST(NdkBinder, DoubleNumber) {
     int32_t out;
     EXPECT_EQ(STATUS_OK, foo->doubleNumber(1, &out));
     EXPECT_EQ(2, out);
+}
+
+TEST(NdkBinder, ReassociateBpBinderWithSameDescriptor) {
+    ndk::SpAIBinder binder;
+    sp<IFoo> foo = IFoo::getService(IFoo::kSomeInstanceName, binder.getR());
+
+    EXPECT_TRUE(AIBinder_isRemote(binder.get()));
+
+    EXPECT_TRUE(AIBinder_associateClass(binder.get(), IFoo::kClassDupe));
+}
+
+TEST(NdkBinder, CantHaveTwoLocalBinderClassesWithSameDescriptor) {
+    sp<IFoo> foo = sp<MyTestFoo>::make();
+    ndk::SpAIBinder binder(foo->getBinder());
+
+    EXPECT_FALSE(AIBinder_isRemote(binder.get()));
+
+    EXPECT_FALSE(AIBinder_associateClass(binder.get(), IFoo::kClassDupe));
 }
 
 TEST(NdkBinder, GetTestServiceStressTest) {
@@ -545,18 +574,6 @@ TEST(NdkBinder, LinkToDeath) {
     AIBinder_decStrong(binder);
 }
 
-class MyTestFoo : public IFoo {
-    binder_status_t doubleNumber(int32_t in, int32_t* out) override {
-        *out = 2 * in;
-        LOG(INFO) << "doubleNumber (" << in << ") => " << *out;
-        return STATUS_OK;
-    }
-    binder_status_t die() override {
-        ADD_FAILURE() << "die called on local instance";
-        return STATUS_OK;
-    }
-};
-
 TEST(NdkBinder, SetInheritRt) {
     // functional test in binderLibTest
     sp<IFoo> foo = sp<MyTestFoo>::make();
@@ -597,7 +614,8 @@ TEST(NdkBinder, GetServiceInProcess) {
     sp<IFoo> foo = new MyTestFoo;
     EXPECT_EQ(EX_NONE, foo->addService(kInstanceName));
 
-    sp<IFoo> getFoo = IFoo::getService(kInstanceName);
+    ndk::SpAIBinder binder;
+    sp<IFoo> getFoo = IFoo::getService(kInstanceName, binder.getR());
     EXPECT_EQ(foo.get(), getFoo.get());
 
     int32_t out;
