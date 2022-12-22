@@ -33,9 +33,6 @@ public:
     // disk.
     void writeToFile();
 
-    // Return the total size of the cache
-    size_t getSize();
-
 private:
     // mFilename is the name of the file for storing cache contents.
     std::string mFilename;
