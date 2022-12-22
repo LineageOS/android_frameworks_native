@@ -141,6 +141,12 @@ protected:
     RefreshRateSelectorTest();
     ~RefreshRateSelectorTest();
 
+    // Represents the number of refresh rates possible
+    // from 1_Hz to 90_hz, including fractional rates.
+    static constexpr size_t kTotalRefreshRates120 = 120;
+    // Represents the number of refresh rates possible
+    // from 1_Hz to 120_hz, including fractional rates.
+    static constexpr size_t kTotalRefreshRates216 = 216;
     static constexpr DisplayModeId kModeId60{0};
     static constexpr DisplayModeId kModeId90{1};
     static constexpr DisplayModeId kModeId72{2};
@@ -1129,7 +1135,12 @@ TEST_P(RefreshRateSelectorTest, getMaxRefreshRatesByPolicy) {
                 return {{90_Hz, kMode90}, {60_Hz, kMode60}, {45_Hz, kMode90}, {30_Hz, kMode30}};
         }
     }();
-    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
+    } else {
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    }
 
     for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
         EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
@@ -1155,10 +1166,18 @@ TEST_P(RefreshRateSelectorTest, getMinRefreshRatesByPolicy) {
             case Config::FrameRateOverride::AppOverride:
                 return {{30_Hz, kMode30}, {60_Hz, kMode60}, {90_Hz, kMode90}};
             case Config::FrameRateOverride::Enabled:
-                return {{30_Hz, kMode30}, {45_Hz, kMode90}, {60_Hz, kMode60}, {90_Hz, kMode90}};
+                return {{1_Hz, kMode30},
+                        {1.011_Hz, kMode90},
+                        {1.016_Hz, kMode60},
+                        {1.022_Hz, kMode90}};
         }
     }();
-    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
+    } else {
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    }
 
     for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
         EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
@@ -1250,7 +1269,12 @@ TEST_P(RefreshRateSelectorTest, powerOnImminentConsidered) {
                         {30_Hz, kMode60}, {22.5_Hz, kMode90}, {20_Hz, kMode60}};
         }
     }();
-    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
+    } else {
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    }
 
     for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
         EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
@@ -1264,7 +1288,11 @@ TEST_P(RefreshRateSelectorTest, powerOnImminentConsidered) {
             selector.getRankedRefreshRatesAsPair({}, {.powerOnImminent = true});
     EXPECT_TRUE(signals.powerOnImminent);
 
-    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
+    } else {
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    }
 
     for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
         EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
@@ -1284,7 +1312,11 @@ TEST_P(RefreshRateSelectorTest, powerOnImminentConsidered) {
             selector.getRankedRefreshRatesAsPair(layers, {.powerOnImminent = true});
     EXPECT_TRUE(signals.powerOnImminent);
 
-    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
+    } else {
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    }
 
     for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
         EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
@@ -1309,7 +1341,12 @@ TEST_P(RefreshRateSelectorTest, powerOnImminentConsidered) {
                         {30_Hz, kMode60}, {22.5_Hz, kMode90}, {20_Hz, kMode60}};
         }
     }();
-    ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
+    } else {
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
+    }
 
     for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
         EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
@@ -1562,7 +1599,11 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     }();
 
     auto actualRanking = selector.getRankedFrameRates(layers, {}).ranking;
-    ASSERT_EQ(expectedRanking.size(), actualRanking.size());
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates216, actualRanking.size());
+    } else {
+        ASSERT_EQ(expectedRanking.size(), actualRanking.size());
+    }
 
     for (size_t i = 0; i < expectedRanking.size(); ++i) {
         EXPECT_EQ(expectedRanking[i], actualRanking[i].frameRateMode)
@@ -1604,7 +1645,11 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     }();
     actualRanking = selector.getRankedFrameRates(layers, {}).ranking;
 
-    ASSERT_EQ(expectedRanking.size(), actualRanking.size());
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates216, actualRanking.size());
+    } else {
+        ASSERT_EQ(expectedRanking.size(), actualRanking.size());
+    }
 
     for (size_t i = 0; i < expectedRanking.size(); ++i) {
         EXPECT_EQ(expectedRanking[i], actualRanking[i].frameRateMode)
@@ -1644,7 +1689,11 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     }();
     actualRanking = selector.getRankedFrameRates(layers, {}).ranking;
 
-    ASSERT_EQ(expectedRanking.size(), actualRanking.size());
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates216, actualRanking.size());
+    } else {
+        ASSERT_EQ(expectedRanking.size(), actualRanking.size());
+    }
 
     for (size_t i = 0; i < expectedRanking.size(); ++i) {
         EXPECT_EQ(expectedRanking[i], actualRanking[i].frameRateMode)
@@ -1687,7 +1736,11 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     }();
     actualRanking = selector.getRankedFrameRates(layers, {}).ranking;
 
-    ASSERT_EQ(expectedRanking.size(), actualRanking.size());
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates216, actualRanking.size());
+    } else {
+        ASSERT_EQ(expectedRanking.size(), actualRanking.size());
+    }
 
     for (size_t i = 0; i < expectedRanking.size(); ++i) {
         EXPECT_EQ(expectedRanking[i], actualRanking[i].frameRateMode)
@@ -2317,7 +2370,8 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_FractionalRefreshRates_Exac
 }
 
 // b/190578904
-TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withCloseRefreshRates) {
+TEST_P(RefreshRateSelectorTest,
+       getBestFrameRateMode_withCloseRefreshRates_LayerVoteType_Heuristic) {
     if (g_noSlowTests) {
         GTEST_SKIP();
     }
@@ -2346,8 +2400,101 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withCloseRefreshRates) {
     for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
         const auto refreshRate = Fps::fromValue(static_cast<float>(fps));
         testRefreshRate(refreshRate, LayerVoteType::Heuristic);
+    }
+}
+TEST_P(RefreshRateSelectorTest,
+       getBestFrameRateMode_withCloseRefreshRates_LayerVoteType_ExplicitDefault) {
+    if (g_noSlowTests) {
+        GTEST_SKIP();
+    }
+
+    const int kMinRefreshRate = RefreshRateSelector::kMinSupportedFrameRate.getIntValue();
+    constexpr int kMaxRefreshRate = 240;
+
+    DisplayModes displayModes;
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        const DisplayModeId modeId(fps);
+        displayModes.try_emplace(modeId,
+                                 createDisplayMode(modeId,
+                                                   Fps::fromValue(static_cast<float>(fps))));
+    }
+
+    const auto selector = createSelector(std::move(displayModes), DisplayModeId(kMinRefreshRate));
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    const auto testRefreshRate = [&](Fps fps, LayerVoteType vote) {
+        layers[0].desiredRefreshRate = fps;
+        layers[0].vote = vote;
+        EXPECT_EQ(fps.getIntValue(), selector.getBestFrameRateMode(layers)->getFps().getIntValue())
+                << "Failed for " << ftl::enum_string(vote);
+    };
+
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        const auto refreshRate = Fps::fromValue(static_cast<float>(fps));
         testRefreshRate(refreshRate, LayerVoteType::ExplicitDefault);
+    }
+}
+TEST_P(RefreshRateSelectorTest,
+       getBestFrameRateMode_withCloseRefreshRates_LayerVoteType_ExplicitExactOrMultiple) {
+    if (g_noSlowTests) {
+        GTEST_SKIP();
+    }
+
+    const int kMinRefreshRate = RefreshRateSelector::kMinSupportedFrameRate.getIntValue();
+    constexpr int kMaxRefreshRate = 240;
+
+    DisplayModes displayModes;
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        const DisplayModeId modeId(fps);
+        displayModes.try_emplace(modeId,
+                                 createDisplayMode(modeId,
+                                                   Fps::fromValue(static_cast<float>(fps))));
+    }
+
+    const auto selector = createSelector(std::move(displayModes), DisplayModeId(kMinRefreshRate));
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    const auto testRefreshRate = [&](Fps fps, LayerVoteType vote) {
+        layers[0].desiredRefreshRate = fps;
+        layers[0].vote = vote;
+        EXPECT_EQ(fps.getIntValue(), selector.getBestFrameRateMode(layers)->getFps().getIntValue())
+                << "Failed for " << ftl::enum_string(vote);
+    };
+
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        const auto refreshRate = Fps::fromValue(static_cast<float>(fps));
         testRefreshRate(refreshRate, LayerVoteType::ExplicitExactOrMultiple);
+    }
+}
+TEST_P(RefreshRateSelectorTest,
+       getBestFrameRateMode_withCloseRefreshRates_LayerVoteType_ExplicitExact) {
+    if (g_noSlowTests) {
+        GTEST_SKIP();
+    }
+
+    const int kMinRefreshRate = RefreshRateSelector::kMinSupportedFrameRate.getIntValue();
+    constexpr int kMaxRefreshRate = 240;
+
+    DisplayModes displayModes;
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        const DisplayModeId modeId(fps);
+        displayModes.try_emplace(modeId,
+                                 createDisplayMode(modeId,
+                                                   Fps::fromValue(static_cast<float>(fps))));
+    }
+
+    const auto selector = createSelector(std::move(displayModes), DisplayModeId(kMinRefreshRate));
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    const auto testRefreshRate = [&](Fps fps, LayerVoteType vote) {
+        layers[0].desiredRefreshRate = fps;
+        layers[0].vote = vote;
+        EXPECT_EQ(fps.getIntValue(), selector.getBestFrameRateMode(layers)->getFps().getIntValue())
+                << "Failed for " << ftl::enum_string(vote);
+    };
+
+    for (int fps = kMinRefreshRate; fps < kMaxRefreshRate; fps++) {
+        const auto refreshRate = Fps::fromValue(static_cast<float>(fps));
         testRefreshRate(refreshRate, LayerVoteType::ExplicitExact);
     }
 }
@@ -2807,13 +2954,18 @@ TEST_P(RefreshRateSelectorTest, renderFrameRates) {
                         {90_Hz, 90_Hz},
                         {120_Hz, 120_Hz}};
             case Config::FrameRateOverride::Enabled:
-                return {{30_Hz, 30_Hz}, {36_Hz, 72_Hz}, {40_Hz, 120_Hz}, {45_Hz, 90_Hz},
-                        {60_Hz, 60_Hz}, {72_Hz, 72_Hz}, {90_Hz, 90_Hz},  {120_Hz, 120_Hz}};
+                return {{1_Hz, 30_Hz},       {1.008_Hz, 120_Hz}, {1.011_Hz, 90_Hz},
+                        {1.014_Hz, 72_Hz},   {1.016_Hz, 60_Hz},  {1.022_Hz, 90_Hz},
+                        {1.0256_Hz, 120_Hz}, {1.028_Hz, 72_Hz}};
         }
     }();
 
     const auto& primaryRefreshRates = selector.getPrimaryFrameRates();
-    ASSERT_EQ(expected.size(), primaryRefreshRates.size());
+    if (GetParam() == Config::FrameRateOverride::Enabled) {
+        ASSERT_EQ(kTotalRefreshRates216, primaryRefreshRates.size());
+    } else {
+        ASSERT_EQ(expected.size(), primaryRefreshRates.size());
+    }
 
     for (size_t i = 0; i < expected.size(); i++) {
         const auto [expectedRenderRate, expectedRefreshRate] = expected[i];
