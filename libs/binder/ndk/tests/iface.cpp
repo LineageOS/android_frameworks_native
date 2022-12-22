@@ -72,6 +72,11 @@ binder_status_t IFoo_Class_onTransact(AIBinder* binder, transaction_code_t code,
 AIBinder_Class* IFoo::kClass = AIBinder_Class_define(kIFooDescriptor, IFoo_Class_onCreate,
                                                      IFoo_Class_onDestroy, IFoo_Class_onTransact);
 
+// Defines the same class. Ordinarly, you would never want to do this, but it's done here
+// to simulate what would happen when multiple linker namespaces interact.
+AIBinder_Class* IFoo::kClassDupe = AIBinder_Class_define(
+        kIFooDescriptor, IFoo_Class_onCreate, IFoo_Class_onDestroy, IFoo_Class_onTransact);
+
 class BpFoo : public IFoo {
    public:
     explicit BpFoo(AIBinder* binder) : mBinder(binder) {}
