@@ -636,6 +636,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::EXT_swapchain_colorspace:
             case ProcHook::KHR_get_surface_capabilities2:
             case ProcHook::GOOGLE_surfaceless_query:
+            case ProcHook::EXT_surface_maintenance1:
                 hook_extensions_.set(ext_bit);
                 // return now as these extensions do not require HAL support
                 return;
@@ -657,9 +658,11 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::KHR_shared_presentable_image:
             case ProcHook::KHR_swapchain:
             case ProcHook::EXT_hdr_metadata:
+            case ProcHook::EXT_swapchain_maintenance1:
             case ProcHook::ANDROID_external_memory_android_hardware_buffer:
             case ProcHook::ANDROID_native_buffer:
             case ProcHook::GOOGLE_display_timing:
+            case ProcHook::KHR_external_fence_fd:
             case ProcHook::EXTENSION_CORE_1_0:
             case ProcHook::EXTENSION_CORE_1_1:
             case ProcHook::EXTENSION_CORE_1_2:
@@ -690,16 +693,22 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 ext_bit = ProcHook::ANDROID_native_buffer;
                 break;
             case ProcHook::KHR_incremental_present:
-            case ProcHook::GOOGLE_display_timing:
             case ProcHook::KHR_shared_presentable_image:
+            case ProcHook::GOOGLE_display_timing:
                 hook_extensions_.set(ext_bit);
                 // return now as these extensions do not require HAL support
                 return;
+            case ProcHook::EXT_swapchain_maintenance1:
+                // map VK_KHR_swapchain_maintenance1 to KHR_external_fence_fd
+                name = VK_KHR_EXTERNAL_FENCE_FD_EXTENSION_NAME;
+                ext_bit = ProcHook::KHR_external_fence_fd;
+                break;
             case ProcHook::EXT_hdr_metadata:
             case ProcHook::KHR_bind_memory2:
                 hook_extensions_.set(ext_bit);
                 break;
             case ProcHook::ANDROID_external_memory_android_hardware_buffer:
+            case ProcHook::KHR_external_fence_fd:
             case ProcHook::EXTENSION_UNKNOWN:
                 // Extensions we don't need to do anything about at this level
                 break;
@@ -715,6 +724,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::KHR_surface_protected_capabilities:
             case ProcHook::EXT_debug_report:
             case ProcHook::EXT_swapchain_colorspace:
+            case ProcHook::EXT_surface_maintenance1:
             case ProcHook::GOOGLE_surfaceless_query:
             case ProcHook::ANDROID_native_buffer:
             case ProcHook::EXTENSION_CORE_1_0:
@@ -751,6 +761,8 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
         if (ext_bit != ProcHook::EXTENSION_UNKNOWN) {
             if (ext_bit == ProcHook::ANDROID_native_buffer)
                 hook_extensions_.set(ProcHook::KHR_swapchain);
+            if (ext_bit == ProcHook::KHR_external_fence_fd)
+                hook_extensions_.set(ProcHook::EXT_swapchain_maintenance1);
 
             hal_extensions_.set(ext_bit);
         }
@@ -940,6 +952,9 @@ VkResult EnumerateInstanceExtensionProperties(
          VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION});
     loader_extensions.push_back({VK_GOOGLE_SURFACELESS_QUERY_EXTENSION_NAME,
                                  VK_GOOGLE_SURFACELESS_QUERY_SPEC_VERSION});
+    loader_extensions.push_back({
+        VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME,
+        VK_EXT_SURFACE_MAINTENANCE_1_SPEC_VERSION});
 
     static const VkExtensionProperties loader_debug_report_extension = {
         VK_EXT_DEBUG_REPORT_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_SPEC_VERSION,
@@ -1072,6 +1087,33 @@ VkResult GetAndroidNativeBufferSpecVersion9Support(
     return result;
 }
 
+bool CanSupportSwapchainMaintenance1Extension(VkPhysicalDevice physicalDevice) {
+    const auto& driver = GetData(physicalDevice).driver;
+    if (!driver.GetPhysicalDeviceExternalFenceProperties)
+        return false;
+
+    // Requires support for external fences imported from sync fds.
+    // This is _almost_ universal on Android, but may be missing on
+    // some extremely old drivers, or on strange implementations like
+    // cuttlefish.
+    VkPhysicalDeviceExternalFenceInfo fenceInfo = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_FENCE_INFO,
+        nullptr,
+        VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT
+    };
+    VkExternalFenceProperties fenceProperties = {
+        VK_STRUCTURE_TYPE_EXTERNAL_FENCE_PROPERTIES,
+        nullptr,
+        0, 0, 0
+    };
+
+    GetPhysicalDeviceExternalFenceProperties(physicalDevice, &fenceInfo, &fenceProperties);
+    if (fenceProperties.externalFenceFeatures & VK_EXTERNAL_FENCE_FEATURE_IMPORTABLE_BIT)
+        return true;
+
+    return false;
+}
+
 VkResult EnumerateDeviceExtensionProperties(
     VkPhysicalDevice physicalDevice,
     const char* pLayerName,
@@ -1147,6 +1189,12 @@ VkResult EnumerateDeviceExtensionProperties(
         loader_extensions.push_back(
             {VK_EXT_IMAGE_COMPRESSION_CONTROL_SWAPCHAIN_EXTENSION_NAME,
              VK_EXT_IMAGE_COMPRESSION_CONTROL_SWAPCHAIN_SPEC_VERSION});
+    }
+
+    if (CanSupportSwapchainMaintenance1Extension(physicalDevice)) {
+        loader_extensions.push_back({
+                VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
+                VK_EXT_SWAPCHAIN_MAINTENANCE_1_SPEC_VERSION});
     }
 
     // enumerate our extensions first
@@ -1642,6 +1690,12 @@ void GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
                         pFeats);
                 compressionFeat->imageCompressionControlSwapchain = false;
                 imageCompressionControlSwapchainInChain = true;
+            } break;
+
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT: {
+                auto smf = reinterpret_cast<VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT *>(
+                        pFeats);
+                smf->swapchainMaintenance1 = true;
             } break;
 
             default:
