@@ -47,6 +47,8 @@ std::atomic_bool BpBinder::sCountByUidEnabled(false);
 binder_proxy_limit_callback BpBinder::sLimitCallback;
 bool BpBinder::sBinderProxyThrottleCreate = false;
 
+static StaticString16 kDescriptorUninit(u"<uninit descriptor>");
+
 // Arbitrarily high value that probably distinguishes a bad behaving app
 uint32_t BpBinder::sBinderProxyCountHighWatermark = 2500;
 // Another arbitrary value a binder count needs to drop below before another callback will be called
@@ -211,6 +213,7 @@ BpBinder::BpBinder(Handle&& handle)
         mAlive(true),
         mObitsSent(false),
         mObituaries(nullptr),
+        mDescriptorCache(kDescriptorUninit),
         mTrackedUid(-1) {
     extendObjectLifetime(OBJECT_LIFETIME_WEAK);
 }
@@ -258,12 +261,12 @@ std::optional<int32_t> BpBinder::getDebugBinderHandle() const {
 
 bool BpBinder::isDescriptorCached() const {
     Mutex::Autolock _l(mLock);
-    return mDescriptorCache.size() ? true : false;
+    return mDescriptorCache.string() != kDescriptorUninit.string();
 }
 
 const String16& BpBinder::getInterfaceDescriptor() const
 {
-    if (isDescriptorCached() == false) {
+    if (!isDescriptorCached()) {
         sp<BpBinder> thiz = sp<BpBinder>::fromExisting(const_cast<BpBinder*>(this));
 
         Parcel data;
@@ -276,8 +279,7 @@ const String16& BpBinder::getInterfaceDescriptor() const
             Mutex::Autolock _l(mLock);
             // mDescriptorCache could have been assigned while the lock was
             // released.
-            if (mDescriptorCache.size() == 0)
-                mDescriptorCache = res;
+            if (mDescriptorCache.string() == kDescriptorUninit.string()) mDescriptorCache = res;
         }
     }
 
@@ -369,10 +371,7 @@ status_t BpBinder::transact(
         if (data.dataSize() > LOG_TRANSACTIONS_OVER_SIZE) {
             Mutex::Autolock _l(mLock);
             ALOGW("Large outgoing transaction of %zu bytes, interface descriptor %s, code %d",
-                  data.dataSize(),
-                  mDescriptorCache.size() ? String8(mDescriptorCache).c_str()
-                                          : "<uncached descriptor>",
-                  code);
+                  data.dataSize(), String8(mDescriptorCache).c_str(), code);
         }
 
         if (status == DEAD_OBJECT) mAlive = 0;
@@ -647,7 +646,7 @@ void BpBinder::onLastStrongRef(const void* /*id*/) {
     if(obits != nullptr) {
         if (!obits->isEmpty()) {
             ALOGI("onLastStrongRef automatically unlinking death recipients: %s",
-                  mDescriptorCache.size() ? String8(mDescriptorCache).c_str() : "<uncached descriptor>");
+                  String8(mDescriptorCache).c_str());
         }
 
         if (ipc) ipc->clearDeathNotification(binderHandle(), this);
