@@ -185,4 +185,10 @@ void FileBlobCache::writeToFile() {
     }
 }
 
+size_t FileBlobCache::getSize() {
+    if (mFilename.length() > 0) {
+        return getFlattenedSize() + cacheFileHeaderSize;
+    }
+    return 0;
+}
 }

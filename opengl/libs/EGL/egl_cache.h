@@ -64,6 +64,12 @@ public:
     // cache contents from one program invocation to another.
     void setCacheFilename(const char* filename);
 
+    // Allow the fixed cache limit to be overridden
+    void setCacheLimit(int64_t cacheByteLimit);
+
+    // Return the byte total for cache file(s)
+    size_t getCacheSize();
+
 private:
     // Creation and (the lack of) destruction is handled internally.
     egl_cache_t();
@@ -112,6 +118,16 @@ private:
 
     // sCache is the singleton egl_cache_t object.
     static egl_cache_t sCache;
+
+    // Whether to use multiple files to store cache entries
+    bool mMultifileMode;
+
+    // Cache limit
+    int64_t mCacheByteLimit;
+
+    // Whether we've kicked off a side thread that will check the multifile
+    // cache size and remove entries if needed.
+    bool mMultifileCleanupPending;
 };
 
 }; // namespace android
