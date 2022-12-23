@@ -291,6 +291,14 @@ protected:
         DistanceCalibration distanceCalibration;
         std::optional<float> distanceScale;
 
+        enum class CoverageCalibration {
+            DEFAULT,
+            NONE,
+            BOX,
+        };
+
+        CoverageCalibration coverageCalibration;
+
         inline void applySizeScaleAndBias(float& outSize) const {
             if (sizeScale) {
                 outSize *= *sizeScale;
@@ -402,26 +410,21 @@ private:
     // Always starts at (0, 0).
     ui::Size mDisplayBounds{ui::kInvalidSize};
 
-    // The physical frame is the rectangle in the rotated display's coordinate space that maps to
+    // The physical frame is the rectangle in the natural display's coordinate space that maps to
     // the logical display frame.
-    Rect mPhysicalFrameInRotatedDisplay{Rect::INVALID_RECT};
+    Rect mPhysicalFrameInDisplay{Rect::INVALID_RECT};
 
     // The orientation of the input device relative to that of the display panel. It specifies
     // the rotation of the input device coordinates required to produce the display panel
     // orientation, so it will depend on whether the device is orientation aware.
     ui::Rotation mInputDeviceOrientation;
 
-    // The transform that maps the input device's raw coordinate space to the un-rotated display's
-    // coordinate space. InputReader generates events in the un-rotated display's coordinate space.
-    ui::Transform mRawToDisplay;
+    // Translation and scaling factors, orientation-independent.
+    float mXScale;
+    float mXPrecision;
 
-    // The transform that maps the input device's raw coordinate space to the rotated display's
-    // coordinate space. This used to perform hit-testing of raw events with the physical frame in
-    // the rotated coordinate space. See mPhysicalFrameInRotatedDisplay.
-    ui::Transform mRawToRotatedDisplay;
-
-    // The transform used for non-planar raw axes, such as orientation and tilt.
-    ui::Transform mRawRotation;
+    float mYScale;
+    float mYPrecision;
 
     float mGeometricScale;
 
@@ -810,7 +813,7 @@ private:
 
     static void assignPointerIds(const RawState& last, RawState& current);
 
-    void computeInputTransforms();
+    void rotateAndScale(float& x, float& y) const;
 
     void configureDeviceType();
 };
