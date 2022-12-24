@@ -2060,6 +2060,12 @@ bool InputDispatcher::shouldSplitTouch(const TouchState& touchState,
         if (touchedWindow.windowHandle->getInfo()->supportsSplitTouch()) {
             continue;
         }
+        if (touchedWindow.windowHandle->getInfo()->inputConfig.test(
+                    gui::WindowInfo::InputConfig::IS_WALLPAPER)) {
+            // Wallpaper window should not affect whether or not touch is split
+            continue;
+        }
+
         // Eventually, touchedWindow will contain the deviceId of each pointer that's currently
         // being sent there. For now, use deviceId from touch state.
         if (entry.deviceId == touchState.deviceId && !touchedWindow.pointerIds.isEmpty()) {
@@ -2223,6 +2229,32 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
 
             tempTouchState.addOrUpdateWindow(windowHandle, targetFlags, pointerIds,
                                              entry.eventTime);
+
+            // If this is the pointer going down and the touched window has a wallpaper
+            // then also add the touched wallpaper windows so they are locked in for the duration
+            // of the touch gesture.
+            // We do not collect wallpapers during HOVER_MOVE or SCROLL because the wallpaper
+            // engine only supports touch events.  We would need to add a mechanism similar
+            // to View.onGenericMotionEvent to enable wallpapers to handle these events.
+            if (maskedAction == AMOTION_EVENT_ACTION_DOWN ||
+                maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
+                if (targetFlags.test(InputTarget::Flags::FOREGROUND) &&
+                    windowHandle->getInfo()->inputConfig.test(
+                            gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER)) {
+                    sp<WindowInfoHandle> wallpaper = findWallpaperWindowBelow(windowHandle);
+                    if (wallpaper != nullptr) {
+                        ftl::Flags<InputTarget::Flags> wallpaperFlags =
+                                InputTarget::Flags::WINDOW_IS_OBSCURED |
+                                InputTarget::Flags::WINDOW_IS_PARTIALLY_OBSCURED |
+                                InputTarget::Flags::DISPATCH_AS_IS;
+                        if (isSplit) {
+                            wallpaperFlags |= InputTarget::Flags::SPLIT;
+                        }
+                        tempTouchState.addOrUpdateWindow(wallpaper, wallpaperFlags, pointerIds,
+                                                         entry.eventTime);
+                    }
+                }
+            }
         }
 
         // If any existing window is pilfering pointers from newly added window, remove it
@@ -2307,6 +2339,10 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
                 pointerIds.markBit(entry.pointerProperties[0].id);
                 tempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags, pointerIds,
                                                  entry.eventTime);
+
+                // Check if the wallpaper window should deliver the corresponding event.
+                slipWallpaperTouch(targetFlags, oldTouchedWindowHandle, newTouchedWindowHandle,
+                                   tempTouchState, pointerIds);
             }
         }
 
@@ -2408,38 +2444,6 @@ std::vector<TouchedWindow> InputDispatcher::findTouchedWindowTargetsLocked(
                                                          InputTarget::Flags::ZERO_COORDS,
                                                          BitSet32(0));
                     }
-                }
-            }
-        }
-    }
-
-    // If this is the first pointer going down and the touched window has a wallpaper
-    // then also add the touched wallpaper windows so they are locked in for the duration
-    // of the touch gesture.
-    // We do not collect wallpapers during HOVER_MOVE or SCROLL because the wallpaper
-    // engine only supports touch events.  We would need to add a mechanism similar
-    // to View.onGenericMotionEvent to enable wallpapers to handle these events.
-    if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
-        sp<WindowInfoHandle> foregroundWindowHandle =
-                tempTouchState.getFirstForegroundWindowHandle();
-        if (foregroundWindowHandle &&
-            foregroundWindowHandle->getInfo()->inputConfig.test(
-                    WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER)) {
-            const std::vector<sp<WindowInfoHandle>>& windowHandles =
-                    getWindowHandlesLocked(displayId);
-            for (const sp<WindowInfoHandle>& windowHandle : windowHandles) {
-                const WindowInfo* info = windowHandle->getInfo();
-                if (info->displayId == displayId &&
-                    windowHandle->getInfo()->inputConfig.test(
-                            WindowInfo::InputConfig::IS_WALLPAPER)) {
-                    BitSet32 pointerIds;
-                    pointerIds.markBit(entry.pointerProperties[0].id);
-                    tempTouchState.addOrUpdateWindow(windowHandle,
-                                                     InputTarget::Flags::WINDOW_IS_OBSCURED |
-                                                             InputTarget::Flags::
-                                                                     WINDOW_IS_PARTIALLY_OBSCURED |
-                                                             InputTarget::Flags::DISPATCH_AS_IS,
-                                                     pointerIds, entry.eventTime);
                 }
             }
         }
@@ -3726,7 +3730,8 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 }
 
 void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
-        const nsecs_t downTime, const sp<Connection>& connection) {
+        const nsecs_t downTime, const sp<Connection>& connection,
+        ftl::Flags<InputTarget::Flags> targetFlags) {
     if (connection->status == Connection::Status::BROKEN) {
         return;
     }
@@ -3752,7 +3757,7 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
         target.globalScaleFactor = windowInfo->globalScaleFactor;
     }
     target.inputChannel = connection->inputChannel;
-    target.flags = InputTarget::Flags::DISPATCH_AS_IS;
+    target.flags = targetFlags;
 
     const bool wasEmpty = connection->outboundQueue.empty();
     for (std::unique_ptr<EventEntry>& downEventEntry : downEvents) {
@@ -3784,6 +3789,16 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
     // If the outbound queue was previously empty, start the dispatch cycle going.
     if (wasEmpty && !connection->outboundQueue.empty()) {
         startDispatchCycleLocked(downTime, connection);
+    }
+}
+
+void InputDispatcher::synthesizeCancelationEventsForWindowLocked(
+        const sp<WindowInfoHandle>& windowHandle, const CancelationOptions& options) {
+    if (windowHandle != nullptr) {
+        sp<Connection> wallpaperConnection = getConnectionLocked(windowHandle->getToken());
+        if (wallpaperConnection != nullptr) {
+            synthesizeCancelationEventsForConnectionLocked(wallpaperConnection, options);
+        }
     }
 }
 
@@ -4847,14 +4862,7 @@ void InputDispatcher::setInputWindowsLocked(
                         touchedWindow.windowHandle->getInfo()->inputConfig.test(
                                 gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER)) {
                         sp<WindowInfoHandle> wallpaper = state.getWallpaperWindow();
-                        if (wallpaper != nullptr) {
-                            sp<Connection> wallpaperConnection =
-                                    getConnectionLocked(wallpaper->getToken());
-                            if (wallpaperConnection != nullptr) {
-                                synthesizeCancelationEventsForConnectionLocked(wallpaperConnection,
-                                                                               options);
-                            }
-                        }
+                        synthesizeCancelationEventsForWindowLocked(wallpaper, options);
                     }
                 }
                 state.windows.erase(state.windows.begin() + i);
@@ -5155,6 +5163,7 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         // Erase old window.
         ftl::Flags<InputTarget::Flags> oldTargetFlags = touchedWindow->targetFlags;
         BitSet32 pointerIds = touchedWindow->pointerIds;
+        sp<WindowInfoHandle> fromWindowHandle = touchedWindow->windowHandle;
         state->removeWindowByToken(fromToken);
 
         // Add new window.
@@ -5187,7 +5196,12 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
                     options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
                             "transferring touch focus from this window to another window");
             synthesizeCancelationEventsForConnectionLocked(fromConnection, options);
-            synthesizePointerDownEventsForConnectionLocked(downTimeInTarget, toConnection);
+            synthesizePointerDownEventsForConnectionLocked(downTimeInTarget, toConnection,
+                                                           newTargetFlags);
+
+            // Check if the wallpaper window should deliver the corresponding event.
+            transferWallpaperTouch(oldTargetFlags, newTargetFlags, fromWindowHandle, toWindowHandle,
+                                   *state, pointerIds);
         }
     } // release lock
 
@@ -6463,6 +6477,102 @@ void InputDispatcher::cancelCurrentTouch() {
 void InputDispatcher::setMonitorDispatchingTimeoutForTest(std::chrono::nanoseconds timeout) {
     std::scoped_lock _l(mLock);
     mMonitorDispatchingTimeout = timeout;
+}
+
+void InputDispatcher::slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFlags,
+                                         const sp<WindowInfoHandle>& oldWindowHandle,
+                                         const sp<WindowInfoHandle>& newWindowHandle,
+                                         TouchState& state, const BitSet32& pointerIds) {
+    const bool oldHasWallpaper = oldWindowHandle->getInfo()->inputConfig.test(
+            gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER);
+    const bool newHasWallpaper = targetFlags.test(InputTarget::Flags::FOREGROUND) &&
+            newWindowHandle->getInfo()->inputConfig.test(
+                    gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER);
+    const sp<WindowInfoHandle> oldWallpaper =
+            oldHasWallpaper ? state.getWallpaperWindow() : nullptr;
+    const sp<WindowInfoHandle> newWallpaper =
+            newHasWallpaper ? findWallpaperWindowBelow(newWindowHandle) : nullptr;
+    if (oldWallpaper == newWallpaper) {
+        return;
+    }
+
+    if (oldWallpaper != nullptr) {
+        state.addOrUpdateWindow(oldWallpaper, InputTarget::Flags::DISPATCH_AS_SLIPPERY_EXIT,
+                                BitSet32(0));
+    }
+
+    if (newWallpaper != nullptr) {
+        state.addOrUpdateWindow(newWallpaper,
+                                InputTarget::Flags::DISPATCH_AS_SLIPPERY_ENTER |
+                                        InputTarget::Flags::WINDOW_IS_OBSCURED |
+                                        InputTarget::Flags::WINDOW_IS_PARTIALLY_OBSCURED,
+                                pointerIds);
+    }
+}
+
+void InputDispatcher::transferWallpaperTouch(ftl::Flags<InputTarget::Flags> oldTargetFlags,
+                                             ftl::Flags<InputTarget::Flags> newTargetFlags,
+                                             const sp<WindowInfoHandle> fromWindowHandle,
+                                             const sp<WindowInfoHandle> toWindowHandle,
+                                             TouchState& state, const BitSet32& pointerIds) {
+    const bool oldHasWallpaper = oldTargetFlags.test(InputTarget::Flags::FOREGROUND) &&
+            fromWindowHandle->getInfo()->inputConfig.test(
+                    gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER);
+    const bool newHasWallpaper = newTargetFlags.test(InputTarget::Flags::FOREGROUND) &&
+            toWindowHandle->getInfo()->inputConfig.test(
+                    gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER);
+
+    const sp<WindowInfoHandle> oldWallpaper =
+            oldHasWallpaper ? state.getWallpaperWindow() : nullptr;
+    const sp<WindowInfoHandle> newWallpaper =
+            newHasWallpaper ? findWallpaperWindowBelow(toWindowHandle) : nullptr;
+    if (oldWallpaper == newWallpaper) {
+        return;
+    }
+
+    if (oldWallpaper != nullptr) {
+        CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
+                                   "transferring touch focus to another window");
+        state.removeWindowByToken(oldWallpaper->getToken());
+        synthesizeCancelationEventsForWindowLocked(oldWallpaper, options);
+    }
+
+    if (newWallpaper != nullptr) {
+        nsecs_t downTimeInTarget = now();
+        ftl::Flags<InputTarget::Flags> wallpaperFlags =
+                oldTargetFlags & (InputTarget::Flags::SPLIT | InputTarget::Flags::DISPATCH_AS_IS);
+        wallpaperFlags |= InputTarget::Flags::WINDOW_IS_OBSCURED |
+                InputTarget::Flags::WINDOW_IS_PARTIALLY_OBSCURED;
+        state.addOrUpdateWindow(newWallpaper, wallpaperFlags, pointerIds, downTimeInTarget);
+        sp<Connection> wallpaperConnection = getConnectionLocked(newWallpaper->getToken());
+        if (wallpaperConnection != nullptr) {
+            sp<Connection> toConnection = getConnectionLocked(toWindowHandle->getToken());
+            toConnection->inputState.mergePointerStateTo(wallpaperConnection->inputState);
+            synthesizePointerDownEventsForConnectionLocked(downTimeInTarget, wallpaperConnection,
+                                                           wallpaperFlags);
+        }
+    }
+}
+
+sp<WindowInfoHandle> InputDispatcher::findWallpaperWindowBelow(
+        const sp<WindowInfoHandle>& windowHandle) const {
+    const std::vector<sp<WindowInfoHandle>>& windowHandles =
+            getWindowHandlesLocked(windowHandle->getInfo()->displayId);
+    bool foundWindow = false;
+    for (const sp<WindowInfoHandle>& otherHandle : windowHandles) {
+        if (!foundWindow && otherHandle != windowHandle) {
+            continue;
+        }
+        if (windowHandle == otherHandle) {
+            foundWindow = true;
+            continue;
+        }
+
+        if (otherHandle->getInfo()->inputConfig.test(WindowInfo::InputConfig::IS_WALLPAPER)) {
+            return otherHandle;
+        }
+    }
+    return nullptr;
 }
 
 } // namespace android::inputdispatcher

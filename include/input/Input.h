@@ -203,6 +203,13 @@ class Parcel;
  */
 vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy);
 
+/*
+ * Transform an angle on the x-y plane. An angle of 0 radians corresponds to "north" or
+ * pointing upwards in the negative Y direction, a positive angle points towards the right, and a
+ * negative angle points towards the left.
+ */
+float transformAngle(const ui::Transform& transform, float angleRadians);
+
 const char* inputEventTypeToString(int32_t type);
 
 std::string inputEventSourceToString(int32_t source);

@@ -30,8 +30,13 @@ class IFoo : public virtual ::android::RefBase {
     static const char* kIFooDescriptor;
 
     static AIBinder_Class* kClass;
+    static AIBinder_Class* kClassDupe;
 
     // binder representing this interface with one reference count
+    // NOTE - this will create a new binder if it already exists. If you use
+    // getService for instance, you must pull outBinder. Don't use this without
+    // verifying isRemote or pointer equality. This is not a very good testing API - don't
+    // copy it - consider the AIDL-generated APIs instead.
     AIBinder* getBinder();
 
     // Takes ownership of IFoo

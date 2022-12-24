@@ -50,6 +50,7 @@ cc_library {
         "Keyboard.cpp",
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",
+        "MotionPredictor.cpp",
         "PrintTools.cpp",
         "PropertyMap.cpp",
         "TouchVideoFrame.cpp",
@@ -63,8 +64,9 @@ cc_library {
 
     shared_libs: [
         "libbase",
-        "liblog",
         "libcutils",
+        "liblog",
+        "libPlatformProperties",
         "libvintf",
     ],
 
