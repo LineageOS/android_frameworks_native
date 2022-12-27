@@ -66,10 +66,14 @@ cc_library {
         "service_manager.cpp",
     ],
 
-    shared_libs: [
+    static_libs: [
         "libandroid_runtime_lazy",
         "libbase",
+    ],
+
+    shared_libs: [
         "libbinder",
+        "liblog",
         "libutils",
     ],
 
