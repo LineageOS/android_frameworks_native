@@ -372,12 +372,12 @@ TEST_P(BinderRpc, ThreadPoolGreaterThanEqualRequested) {
         ts.push_back(std::thread([&] { proc.rootIface->lockUnlock(); }));
     }
 
-    usleep(10000); // give chance for calls on other threads
+    usleep(100000); // give chance for calls on other threads
 
     // other calls still work
     EXPECT_EQ(OK, proc.rootBinder->pingBinder());
 
-    constexpr size_t blockTimeMs = 50;
+    constexpr size_t blockTimeMs = 100;
     size_t epochMsBefore = epochMillis();
     // after this, we should never see a response within this time
     EXPECT_OK(proc.rootIface->unlockInMsAsync(blockTimeMs));
