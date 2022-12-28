@@ -68,7 +68,10 @@ static EGLsizeiANDROID getBlob(const void* key, EGLsizeiANDROID keySize, void* v
 // egl_cache_t definition
 //
 egl_cache_t::egl_cache_t()
-      : mInitialized(false), mMultifileMode(true), mCacheByteLimit(maxTotalSize) {}
+      : mInitialized(false),
+        mMultifileMode(true),
+        mCacheByteLimit(maxTotalSize),
+        mMultifileCleanupPending(false) {}
 
 egl_cache_t::~egl_cache_t() {}
 
