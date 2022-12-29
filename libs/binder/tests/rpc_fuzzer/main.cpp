@@ -133,8 +133,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     bool hangupBeforeShutdown = provider.ConsumeBool();
 
+    // b/260736889 - limit arbitrarily, due to thread resource exhaustion, which currently
+    // aborts. Servers should consider RpcServer::setConnectionFilter instead.
+    constexpr size_t kMaxConnections = 1000;
+
     while (provider.remaining_bytes() > 0) {
-        if (connections.empty() || provider.ConsumeBool()) {
+        if (connections.empty() ||
+            (connections.size() < kMaxConnections && provider.ConsumeBool())) {
             base::unique_fd fd(TEMP_FAILURE_RETRY(socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)));
             CHECK_NE(fd.get(), -1);
             CHECK_EQ(0,

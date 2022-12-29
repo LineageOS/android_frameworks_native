@@ -133,6 +133,8 @@ cc_library_static {
         "-fvisibility=hidden",
         "-Werror=format",
         "-Wno-unused-parameter",
+        // TODO: Investigate reducing pinned-memory usage (b/263377839)
+        "-DRE_SKIAVK",
     ],
     srcs: [
         ":librenderengine_sources",
