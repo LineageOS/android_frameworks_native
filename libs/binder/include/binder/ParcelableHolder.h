@@ -111,6 +111,11 @@ public:
 
     Stability getStability() const override { return mStability; }
 
+    inline std::string toString() const {
+        return "ParcelableHolder:" +
+                (mParcelableName ? std::string(String8(mParcelableName.value()).c_str())
+                                 : "<parceled>");
+    }
     inline bool operator!=(const ParcelableHolder& rhs) const {
         return this != &rhs;
     }
