@@ -111,10 +111,12 @@ class IsPointerLike {
             IsInstantiationOf<_U, sp>::value ||  // for IBinder and interface types in the C++
                                                  // backend
 #endif
-                    IsInstantiationOf<_U, std::optional>::value ||  // for @nullable types in the
-                                                                    // C++/NDK backends
-                    IsInstantiationOf<_U, std::shared_ptr>::value,  // for interface types in the
-                                                                    // NDK backends
+                    IsInstantiationOf<_U, std::optional>::value ||    // for @nullable types in the
+                                                                      // C++/NDK backends
+                    IsInstantiationOf<_U, std::unique_ptr>::value ||  // for @nullable(heap=true)
+                                                                      // in C++/NDK backends
+                    IsInstantiationOf<_U, std::shared_ptr>::value,    // for interface types in the
+                                                                      // NDK backends
 
             std::true_type>
     _test(int);
