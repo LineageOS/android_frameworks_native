@@ -284,8 +284,8 @@ private:
      // allow initial power mode as null.
     std::optional<hardware::graphics::composer::hal::PowerMode> mPowerMode;
     DisplayModePtr mActiveMode;
-    std::optional<float> mStagedBrightness = std::nullopt;
-    float mBrightness = -1.f;
+    std::optional<float> mStagedBrightness;
+    std::optional<float> mBrightness;
     const DisplayModes mSupportedModes;
 
     std::atomic<nsecs_t> mLastHwVsync = 0;
