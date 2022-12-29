@@ -87,6 +87,9 @@ public:
     /* Combines this key character map with the provided overlay. */
     void combine(const KeyCharacterMap& overlay);
 
+    /* Clears already applied layout overlay */
+    void clearLayoutOverlay();
+
     /* Gets the keyboard type. */
     KeyboardType getKeyboardType() const;
 

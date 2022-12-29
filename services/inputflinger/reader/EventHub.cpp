@@ -1416,11 +1416,16 @@ const std::shared_ptr<KeyCharacterMap> EventHub::getKeyCharacterMap(int32_t devi
     return nullptr;
 }
 
+// If provided map is null, it will reset key character map to default KCM.
 bool EventHub::setKeyboardLayoutOverlay(int32_t deviceId, std::shared_ptr<KeyCharacterMap> map) {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device == nullptr || map == nullptr || device->keyMap.keyCharacterMap == nullptr) {
+    if (device == nullptr || device->keyMap.keyCharacterMap == nullptr) {
         return false;
+    }
+    if (map == nullptr) {
+        device->keyMap.keyCharacterMap->clearLayoutOverlay();
+        return true;
     }
     device->keyMap.keyCharacterMap->combine(*map);
     return true;
