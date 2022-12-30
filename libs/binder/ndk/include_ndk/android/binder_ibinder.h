@@ -594,6 +594,9 @@ typedef void (*AIBinder_DeathRecipient_onBinderDied)(void* cookie) __INTRODUCED_
  *
  * See also AIBinder_linkToDeath/AIBinder_unlinkToDeath.
  *
+ * WARNING: Make sure the lifetime of this cookie is long enough. If it is dynamically
+ * allocated, it should be deleted with AIBinder_DeathRecipient_setOnUnlinked.
+ *
  * Available since API level 33.
  *
  * \param cookie the cookie passed to AIBinder_linkToDeath.
@@ -604,6 +607,9 @@ typedef void (*AIBinder_DeathRecipient_onBinderUnlinked)(void* cookie) __INTRODU
  * Creates a new binder death recipient. This can be attached to multiple different binder objects.
  *
  * Available since API level 29.
+ *
+ * WARNING: Make sure the lifetime of this cookie is long enough. If it is dynamically
+ * allocated, it should be deleted with AIBinder_DeathRecipient_setOnUnlinked.
  *
  * \param onBinderDied the callback to call when this death recipient is invoked.
  *
