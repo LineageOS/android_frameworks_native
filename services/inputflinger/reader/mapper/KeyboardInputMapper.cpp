@@ -123,6 +123,12 @@ void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
 
     if (mKeyboardLayoutInfo) {
         info->setKeyboardLayoutInfo(*mKeyboardLayoutInfo);
+    } else {
+        std::optional<RawLayoutInfo> layoutInfo = getDeviceContext().getRawLayoutInfo();
+        if (layoutInfo) {
+            info->setKeyboardLayoutInfo(
+                    KeyboardLayoutInfo(layoutInfo->languageTag, layoutInfo->layoutType));
+        }
     }
 }
 

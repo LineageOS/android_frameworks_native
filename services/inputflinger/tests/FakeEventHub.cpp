@@ -120,8 +120,8 @@ void FakeEventHub::setKeyCodeState(int32_t deviceId, int32_t keyCode, int32_t st
     getDevice(deviceId)->keyCodeStates.replaceValueFor(keyCode, state);
 }
 
-void FakeEventHub::setCountryCode(int32_t deviceId, InputDeviceCountryCode countryCode) {
-    getDevice(deviceId)->countryCode = countryCode;
+void FakeEventHub::setRawLayoutInfo(int32_t deviceId, RawLayoutInfo info) {
+    getDevice(deviceId)->layoutInfo = info;
 }
 
 void FakeEventHub::setScanCodeState(int32_t deviceId, int32_t scanCode, int32_t state) {
@@ -389,9 +389,9 @@ int32_t FakeEventHub::getScanCodeState(int32_t deviceId, int32_t scanCode) const
     return AKEY_STATE_UNKNOWN;
 }
 
-InputDeviceCountryCode FakeEventHub::getCountryCode(int32_t deviceId) const {
+std::optional<RawLayoutInfo> FakeEventHub::getRawLayoutInfo(int32_t deviceId) const {
     Device* device = getDevice(deviceId);
-    return device ? device->countryCode : InputDeviceCountryCode::INVALID;
+    return device ? device->layoutInfo : std::nullopt;
 }
 
 int32_t FakeEventHub::getKeyCodeState(int32_t deviceId, int32_t keyCode) const {
