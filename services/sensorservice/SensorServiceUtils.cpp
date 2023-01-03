@@ -16,6 +16,7 @@
 
 #include "SensorServiceUtils.h"
 
+#include <android-base/properties.h>
 #include <hardware/sensors.h>
 
 namespace android {
@@ -74,6 +75,11 @@ size_t eventSizeBySensorType(int type) {
         default:
             return 3;
     }
+}
+
+bool isUserBuild() {
+    std::string buildType = android::base::GetProperty("ro.build.type", "user");
+    return "user" == buildType;
 }
 
 } // namespace SensorServiceUtil

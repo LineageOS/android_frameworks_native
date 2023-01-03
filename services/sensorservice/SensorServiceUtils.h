@@ -38,6 +38,11 @@ public:
 
 size_t eventSizeBySensorType(int type);
 
+/**
+ * Returns true if on a user (production) build.
+ */
+bool isUserBuild();
+
 } // namespace SensorServiceUtil
 } // namespace android;
 
