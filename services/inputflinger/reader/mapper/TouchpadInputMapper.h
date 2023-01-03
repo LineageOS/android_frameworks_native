@@ -29,6 +29,7 @@
 #include "NotifyArgs.h"
 #include "gestures/GestureConverter.h"
 #include "gestures/HardwareStateConverter.h"
+#include "gestures/PropertyProvider.h"
 
 #include "include/gestures.h"
 
@@ -56,6 +57,8 @@ private:
     std::unique_ptr<gestures::GestureInterpreter, void (*)(gestures::GestureInterpreter*)>
             mGestureInterpreter;
     std::shared_ptr<PointerControllerInterface> mPointerController;
+
+    PropertyProvider mPropertyProvider;
 
     HardwareStateConverter mStateConverter;
     GestureConverter mGestureConverter;
