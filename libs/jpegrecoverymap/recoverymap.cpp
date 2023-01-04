@@ -192,6 +192,31 @@ status_t updateExif(jr_exif_ptr exif, jr_exif_ptr dest) {
   return NO_ERROR;
 }
 
+/*
+ * Helper function copies the JPEG image from without EXIF.
+ *
+ * @param dest destination of the data to be written.
+ * @param source source of data being written.
+ * @param exif_pos position of the EXIF package, which is aligned with jpegdecoder.getEXIFPos().
+ *                 (4 bypes offset to FF sign, the byte after FF E1 XX XX <this byte>).
+ * @param exif_size exif size without the initial 4 bytes, aligned with jpegdecoder.getEXIFSize().
+ */
+void copyJpegWithoutExif(jr_compressed_ptr dest,
+                         jr_compressed_ptr source,
+                         size_t exif_pos,
+                         size_t exif_size) {
+  memcpy(dest, source, sizeof(jpegr_compressed_struct));
+
+  const size_t exif_offset = 4; //exif_pos has 4 bypes offset to the FF sign
+  dest->length = source->length - exif_size - exif_offset;
+  dest->data = malloc(dest->length);
+
+  memcpy(dest->data, source->data, exif_pos - exif_offset);
+  memcpy((uint8_t*)dest->data + exif_pos - exif_offset,
+         (uint8_t*)source->data + exif_pos + exif_size,
+         source->length - exif_pos - exif_size);
+}
+
 /* Encode API-0 */
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jpegr_transfer_function hdr_tf,
@@ -367,17 +392,18 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_DECODE_ERROR;
   }
 
+  // Update exif.
   jpegr_exif_struct exif;
   exif.data = nullptr;
   exif.length = 0;
-  // Delete EXIF package if it appears, and update exif.
+  jpegr_compressed_struct new_jpeg_image;
+  new_jpeg_image.data = nullptr;
+  new_jpeg_image.length = 0;
   if (jpeg_decoder.getEXIFPos() != 0) {
-    int new_length = compressed_jpeg_image->length - jpeg_decoder.getEXIFSize() - 4;
-    memcpy((uint8_t*)compressed_jpeg_image->data + jpeg_decoder.getEXIFPos() - 4,
-           (uint8_t*)compressed_jpeg_image->data + jpeg_decoder.getEXIFPos()
-                  + jpeg_decoder.getEXIFSize(),
-           compressed_jpeg_image->length - jpeg_decoder.getEXIFPos() - jpeg_decoder.getEXIFSize());
-    compressed_jpeg_image->length = new_length;
+    copyJpegWithoutExif(&new_jpeg_image,
+                        compressed_jpeg_image,
+                        jpeg_decoder.getEXIFPos(),
+                        jpeg_decoder.getEXIFSize());
     exif.data = jpeg_decoder.getEXIFPtr();
     exif.length = jpeg_decoder.getEXIFSize();
   }
@@ -395,7 +421,12 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   JPEGR_CHECK(updateExif(&exif, &new_exif));
 
   JPEGR_CHECK(appendRecoveryMap(
-          compressed_jpeg_image, &compressed_map, &new_exif, &metadata, dest));
+          new_jpeg_image.data == nullptr ? compressed_jpeg_image : &new_jpeg_image,
+          &compressed_map, &new_exif, &metadata, dest));
+
+  if (new_jpeg_image.data != nullptr) {
+    free(new_jpeg_image.data);
+  }
 
   return NO_ERROR;
 }
@@ -421,17 +452,18 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
   uncompressed_yuv_420_image.colorGamut = compressed_jpeg_image->colorGamut;
 
+  // Update exif.
   jpegr_exif_struct exif;
   exif.data = nullptr;
   exif.length = 0;
-  // Delete EXIF package if it appears, and update exif.
+  jpegr_compressed_struct new_jpeg_image;
+  new_jpeg_image.data = nullptr;
+  new_jpeg_image.length = 0;
   if (jpeg_decoder.getEXIFPos() != 0) {
-    int new_length = compressed_jpeg_image->length - jpeg_decoder.getEXIFSize() - 4;
-    memcpy((uint8_t*)compressed_jpeg_image->data + jpeg_decoder.getEXIFPos() - 4,
-           (uint8_t*)compressed_jpeg_image->data + jpeg_decoder.getEXIFPos()
-                  + jpeg_decoder.getEXIFSize(),
-           compressed_jpeg_image->length - jpeg_decoder.getEXIFPos() - jpeg_decoder.getEXIFSize());
-    compressed_jpeg_image->length = new_length;
+    copyJpegWithoutExif(&new_jpeg_image,
+                        compressed_jpeg_image,
+                        jpeg_decoder.getEXIFPos(),
+                        jpeg_decoder.getEXIFSize());
     exif.data = jpeg_decoder.getEXIFPtr();
     exif.length = jpeg_decoder.getEXIFSize();
   }
@@ -472,7 +504,12 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
   JPEGR_CHECK(appendRecoveryMap(
-          compressed_jpeg_image, &compressed_map, &new_exif, &metadata, dest));
+          new_jpeg_image.data == nullptr ? compressed_jpeg_image : &new_jpeg_image,
+          &compressed_map, &new_exif, &metadata, dest));
+
+  if (new_jpeg_image.data != nullptr) {
+    free(new_jpeg_image.data);
+  }
 
   return NO_ERROR;
 }
