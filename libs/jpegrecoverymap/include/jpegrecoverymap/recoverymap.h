@@ -339,11 +339,11 @@ private:
     /*
      * This method will tone map a HDR image to an SDR image.
      *
-     * @param uncompressed_p010_image (input) uncompressed P010 image
+     * @param src (input) uncompressed P010 image
      * @param dest (output) tone mapping result as a YUV_420 image
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
-    status_t toneMap(jr_uncompressed_ptr uncompressed_p010_image,
+    status_t toneMap(jr_uncompressed_ptr src,
                      jr_uncompressed_ptr dest);
 };
 
