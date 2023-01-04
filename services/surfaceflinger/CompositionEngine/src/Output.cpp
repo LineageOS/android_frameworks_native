@@ -1225,8 +1225,9 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     ALOGV(__FUNCTION__);
 
     const auto& outputState = getState();
-    const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
-                                                      outputState.usesClientComposition};
+    const TracedOrdinal<bool> hasClientComposition = {
+        base::StringPrintf("hasClientComposition %s", mNamePlusId.c_str()),
+        outputState.usesClientComposition};
     if (!hasClientComposition) {
         setExpensiveRenderingExpected(false);
         return base::unique_fd();
