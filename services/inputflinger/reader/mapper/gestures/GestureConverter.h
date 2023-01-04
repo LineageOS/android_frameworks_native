@@ -24,6 +24,7 @@
 
 #include "InputReaderContext.h"
 #include "NotifyArgs.h"
+#include "ui/Rotation.h"
 
 #include "include/gestures.h"
 
@@ -35,6 +36,7 @@ class GestureConverter {
 public:
     GestureConverter(InputReaderContext& readerContext, int32_t deviceId);
 
+    void setOrientation(ui::Rotation orientation) { mOrientation = orientation; }
     void reset();
 
     [[nodiscard]] std::list<NotifyArgs> handleGesture(nsecs_t when, nsecs_t readTime,
@@ -56,6 +58,7 @@ private:
     InputReaderContext& mReaderContext;
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
+    ui::Rotation mOrientation = ui::ROTATION_0;
     // The current button state according to the gestures library, but converted into MotionEvent
     // button values (AMOTION_EVENT_BUTTON_...).
     uint32_t mButtonState = 0;
