@@ -566,9 +566,6 @@ pub struct ReadableSubParcel<'a> {
 impl<'a> ReadableSubParcel<'a> {
     /// Read a type that implements [`Deserialize`] from the sub-parcel.
     pub fn read<D: Deserialize>(&self) -> Result<D> {
-        // The caller should have checked this,
-        // but it can't hurt to double-check
-        assert!(self.has_more_data());
         D::deserialize(&self.parcel)
     }
 
