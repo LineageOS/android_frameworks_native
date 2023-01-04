@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// Allow the SkiaVkRenderEngine class to not be compiled, to save space
-// NOTE: In order to build this class, define `RE_SKIAVK` in a build file.
-#ifdef RE_SKIAVK
-
 // #define LOG_NDEBUG 0
 #undef LOG_TAG
 #define LOG_TAG "RenderEngine"
@@ -677,4 +673,3 @@ void SkiaVkRenderEngine::appendBackendSpecificInfoToDump(std::string& result) {
 } // namespace skia
 } // namespace renderengine
 } // namespace android
-#endif // RE_SKIAVK
