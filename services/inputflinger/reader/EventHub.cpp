@@ -319,10 +319,11 @@ static InputDeviceCountryCode readCountryCodeLocked(const std::filesystem::path&
     std::string str;
     if (base::ReadFileToString(sysfsRootPath / "country", &str)) {
         hidCountryCode = std::stoi(str, nullptr, 16);
-        LOG_ALWAYS_FATAL_IF(hidCountryCode > 35 || hidCountryCode < 0,
-                            "HID country code should be in range [0, 35]. Found country code "
-                            "to be %d",
-                            hidCountryCode);
+        if (hidCountryCode > 35 || hidCountryCode < 0) {
+            ALOGE("HID country code should be in range [0, 35], but for sysfs path %s it was %d",
+                  sysfsRootPath.c_str(), hidCountryCode);
+            return InputDeviceCountryCode::INVALID;
+        }
     }
 
     return static_cast<InputDeviceCountryCode>(hidCountryCode);
