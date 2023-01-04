@@ -230,12 +230,6 @@ protected:
         config.enableFrameRateOverride = GetParam();
         return TestableRefreshRateSelector(modes, activeModeId, config);
     }
-
-    // TODO(b/262783137) Test the complete range of refresh rates
-    struct FpsBeginEnd {
-        std::vector<std::pair<Fps, Fps>> begin;
-        std::vector<std::pair<Fps, Fps>> end;
-    };
 };
 
 RefreshRateSelectorTest::RefreshRateSelectorTest() {
@@ -1131,39 +1125,29 @@ TEST_P(RefreshRateSelectorTest, getMaxRefreshRatesByPolicy) {
     const auto refreshRates = selector.rankRefreshRates(selector.getActiveMode().getGroup(),
                                                         RefreshRateOrder::Descending);
 
-    const auto expectedRefreshRates = []() -> FpsBeginEnd {
+    const auto expectedRefreshRates = []() -> std::vector<FrameRateMode> {
         switch (GetParam()) {
             case Config::FrameRateOverride::Disabled:
             case Config::FrameRateOverride::AppOverrideNativeRefreshRates:
             case Config::FrameRateOverride::AppOverride:
-                return {.begin{{90_Hz, 90_Hz}, {60_Hz, 60_Hz}, {30_Hz, 30_Hz}}};
+                return {{90_Hz, kMode90}, {60_Hz, kMode60}, {30_Hz, kMode30}};
             case Config::FrameRateOverride::Enabled:
-                return {.begin{{90_Hz, 90_Hz}, {60_Hz, 60_Hz}, {45_Hz, 90_Hz}, {30_Hz, 30_Hz}},
-                        .end{{1.022_Hz, 90_Hz},
-                             {1.016_Hz, 60_Hz},
-                             {1.011_Hz, 90_Hz},
-                             {1_Hz, 30_Hz}}};
+                return {{90_Hz, kMode90}, {60_Hz, kMode60}, {45_Hz, kMode90}, {30_Hz, kMode30}};
         }
     }();
 
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
     } else {
-        ASSERT_EQ(expectedRefreshRates.begin.size(), refreshRates.size());
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
     }
 
-    for (size_t i = 0; i < expectedRefreshRates.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.begin[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, refreshRates[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRefreshRates.end.size(); i++) {
-        const size_t refreshRateIndex = refreshRates.size() - expectedRefreshRates.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.end[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  refreshRates[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
+                << "Expected " << expectedRefreshRates[i].fps.getIntValue() << " ("
+                << expectedRefreshRates[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << refreshRates[i].frameRateMode.fps.getIntValue() << " ("
+                << refreshRates[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 }
 
@@ -1175,39 +1159,32 @@ TEST_P(RefreshRateSelectorTest, getMinRefreshRatesByPolicy) {
     const auto refreshRates = selector.rankRefreshRates(selector.getActiveMode().getGroup(),
                                                         RefreshRateOrder::Ascending);
 
-    const auto expectedRefreshRates = []() -> FpsBeginEnd {
+    const auto expectedRefreshRates = []() -> std::vector<FrameRateMode> {
         switch (GetParam()) {
             case Config::FrameRateOverride::Disabled:
             case Config::FrameRateOverride::AppOverrideNativeRefreshRates:
             case Config::FrameRateOverride::AppOverride:
-                return {.begin{{30_Hz, 30_Hz}, {60_Hz, 60_Hz}, {90_Hz, 90_Hz}}};
+                return {{30_Hz, kMode30}, {60_Hz, kMode60}, {90_Hz, kMode90}};
             case Config::FrameRateOverride::Enabled:
-                return {.begin{{1_Hz, 30_Hz},
-                               {1.011_Hz, 90_Hz},
-                               {1.016_Hz, 60_Hz},
-                               {1.022_Hz, 90_Hz}},
-                        .end{{30_Hz, 30_Hz}, {45_Hz, 90_Hz}, {60_Hz, 60_Hz}, {90_Hz, 90_Hz}}};
+                return {{1_Hz, kMode30},
+                        {1.011_Hz, kMode90},
+                        {1.016_Hz, kMode60},
+                        {1.022_Hz, kMode90}};
         }
     }();
 
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
     } else {
-        ASSERT_EQ(expectedRefreshRates.begin.size(), refreshRates.size());
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
     }
 
-    for (size_t i = 0; i < expectedRefreshRates.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.begin[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, refreshRates[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRefreshRates.end.size(); i++) {
-        const size_t refreshRateIndex = refreshRates.size() - expectedRefreshRates.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.end[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  refreshRates[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
+                << "Expected " << expectedRefreshRates[i].fps.getIntValue() << " ("
+                << expectedRefreshRates[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << refreshRates[i].frameRateMode.fps.getIntValue() << " ("
+                << refreshRates[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 }
 
@@ -1281,44 +1258,30 @@ TEST_P(RefreshRateSelectorTest, powerOnImminentConsidered) {
     auto [refreshRates, signals] = selector.getRankedFrameRates({}, {});
     EXPECT_FALSE(signals.powerOnImminent);
 
-    auto expectedRefreshRates = []() -> FpsBeginEnd {
+    auto expectedRefreshRates = []() -> std::vector<FrameRateMode> {
         switch (GetParam()) {
             case Config::FrameRateOverride::Disabled:
             case Config::FrameRateOverride::AppOverrideNativeRefreshRates:
             case Config::FrameRateOverride::AppOverride:
-                return {.begin{{90_Hz, 90_Hz}, {60_Hz, 60_Hz}}};
+                return {{90_Hz, kMode90}, {60_Hz, kMode60}};
             case Config::FrameRateOverride::Enabled:
-                return {.begin{{90_Hz, 90_Hz},
-                               {60_Hz, 60_Hz},
-                               {45_Hz, 90_Hz},
-                               {30_Hz, 60_Hz},
-                               {22.5_Hz, 90_Hz},
-                               {20_Hz, 60_Hz}},
-                        .end{{1.022_Hz, 90_Hz},
-                             {1.016_Hz, 60_Hz},
-                             {1.011_Hz, 90_Hz},
-                             {1_Hz, 60_Hz}}};
+                return {{90_Hz, kMode90}, {60_Hz, kMode60},   {45_Hz, kMode90},
+                        {30_Hz, kMode60}, {22.5_Hz, kMode90}, {20_Hz, kMode60}};
         }
     }();
 
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
     } else {
-        ASSERT_EQ(expectedRefreshRates.begin.size(), refreshRates.size());
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
     }
 
-    for (size_t i = 0; i < expectedRefreshRates.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.begin[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, refreshRates[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRefreshRates.end.size(); i++) {
-        const size_t refreshRateIndex = refreshRates.size() - expectedRefreshRates.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.end[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  refreshRates[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
+                << "Expected " << expectedRefreshRates[i].fps.getIntValue() << " ("
+                << expectedRefreshRates[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << refreshRates[i].frameRateMode.fps.getIntValue() << " ("
+                << refreshRates[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 
     std::tie(refreshRates, signals) =
@@ -1328,21 +1291,15 @@ TEST_P(RefreshRateSelectorTest, powerOnImminentConsidered) {
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
     } else {
-        ASSERT_EQ(expectedRefreshRates.begin.size(), refreshRates.size());
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
     }
 
-    for (size_t i = 0; i < expectedRefreshRates.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.begin[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, refreshRates[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRefreshRates.end.size(); i++) {
-        const size_t refreshRateIndex = refreshRates.size() - expectedRefreshRates.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.end[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  refreshRates[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
+                << "Expected " << expectedRefreshRates[i].fps.getIntValue() << " ("
+                << expectedRefreshRates[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << refreshRates[i].frameRateMode.fps.getIntValue() << " ("
+                << refreshRates[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 
     std::vector<LayerRequirement> layers = {{.weight = 1.f}};
@@ -1358,65 +1315,45 @@ TEST_P(RefreshRateSelectorTest, powerOnImminentConsidered) {
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
     } else {
-        ASSERT_EQ(expectedRefreshRates.begin.size(), refreshRates.size());
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
     }
 
-    for (size_t i = 0; i < expectedRefreshRates.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.begin[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, refreshRates[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRefreshRates.end.size(); i++) {
-        const size_t refreshRateIndex = refreshRates.size() - expectedRefreshRates.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.end[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  refreshRates[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
+                << "Expected " << expectedRefreshRates[i].fps.getIntValue() << " ("
+                << expectedRefreshRates[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << refreshRates[i].frameRateMode.fps.getIntValue() << " ("
+                << refreshRates[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 
     std::tie(refreshRates, signals) =
             selector.getRankedRefreshRatesAsPair(layers, {.powerOnImminent = false});
     EXPECT_FALSE(signals.powerOnImminent);
 
-    expectedRefreshRates = []() -> FpsBeginEnd {
+    expectedRefreshRates = []() -> std::vector<FrameRateMode> {
         switch (GetParam()) {
             case Config::FrameRateOverride::Disabled:
             case Config::FrameRateOverride::AppOverrideNativeRefreshRates:
             case Config::FrameRateOverride::AppOverride:
-                return {.begin{{60_Hz, 60_Hz}, {90_Hz, 90_Hz}}};
+                return {{60_Hz, kMode60}, {90_Hz, kMode90}};
             case Config::FrameRateOverride::Enabled:
-                return {.begin{{60_Hz, 60_Hz},
-                               {90_Hz, 90_Hz},
-                               {45_Hz, 90_Hz},
-                               {30_Hz, 60_Hz},
-                               {22.5_Hz, 90_Hz},
-                               {20_Hz, 60_Hz}},
-                        .end{{1.034_Hz, 60_Hz},
-                             {1.046_Hz, 90_Hz},
-                             {1.052_Hz, 60_Hz},
-                             {1.058_Hz, 90_Hz}}};
+                return {{60_Hz, kMode60}, {90_Hz, kMode90},   {45_Hz, kMode90},
+                        {30_Hz, kMode60}, {22.5_Hz, kMode90}, {20_Hz, kMode60}};
         }
     }();
 
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates120, refreshRates.size());
     } else {
-        ASSERT_EQ(expectedRefreshRates.begin.size(), refreshRates.size());
+        ASSERT_EQ(expectedRefreshRates.size(), refreshRates.size());
     }
 
-    for (size_t i = 0; i < expectedRefreshRates.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.begin[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, refreshRates[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRefreshRates.end.size(); i++) {
-        const size_t refreshRateIndex = refreshRates.size() - expectedRefreshRates.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRefreshRates.end[i];
-        EXPECT_EQ(expectedRenderRate, refreshRates[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  refreshRates[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRefreshRates.size(); ++i) {
+        EXPECT_EQ(expectedRefreshRates[i], refreshRates[i].frameRateMode)
+                << "Expected " << expectedRefreshRates[i].fps.getIntValue() << " ("
+                << expectedRefreshRates[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << refreshRates[i].frameRateMode.fps.getIntValue() << " ("
+                << refreshRates[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 }
 
@@ -1645,33 +1582,19 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     lr5.name = "30Hz";
     lr5.focused = true;
 
-    auto expectedRanking = []() -> FpsBeginEnd {
+    auto expectedRanking = []() -> std::vector<FrameRateMode> {
         switch (GetParam()) {
             case Config::FrameRateOverride::Disabled:
             case Config::FrameRateOverride::AppOverrideNativeRefreshRates:
             case Config::FrameRateOverride::AppOverride:
-                return {.begin{{120_Hz, 120_Hz},
-                               {90_Hz, 90_Hz},
-                               {72_Hz, 72_Hz},
-                               {60_Hz, 60_Hz},
-                               {30_Hz, 30_Hz}}};
+                return {{120_Hz, kMode120},
+                        {90_Hz, kMode90},
+                        {72_Hz, kMode72},
+                        {60_Hz, kMode60},
+                        {30_Hz, kMode30}};
             case Config::FrameRateOverride::Enabled:
-                return {.begin{{120_Hz, 120_Hz},
-                               {90_Hz, 90_Hz},
-                               {72_Hz, 72_Hz},
-                               {60_Hz, 60_Hz},
-                               {45_Hz, 90_Hz},
-                               {40_Hz, 120_Hz},
-                               {36_Hz, 72_Hz},
-                               {30_Hz, 30_Hz}},
-                        .end{{1.028_Hz, 72_Hz},
-                             {1.0256_Hz, 120_Hz},
-                             {1.022_Hz, 90_Hz},
-                             {1.016_Hz, 60_Hz},
-                             {1.014_Hz, 72_Hz},
-                             {1.011_Hz, 90_Hz},
-                             {1.008_Hz, 120_Hz},
-                             {1_Hz, 30_Hz}}};
+                return {{120_Hz, kMode120}, {90_Hz, kMode90},  {72_Hz, kMode72}, {60_Hz, kMode60},
+                        {45_Hz, kMode90},   {40_Hz, kMode120}, {36_Hz, kMode72}, {30_Hz, kMode30}};
         }
     }();
 
@@ -1679,21 +1602,15 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates216, actualRanking.size());
     } else {
-        ASSERT_EQ(expectedRanking.begin.size(), actualRanking.size());
+        ASSERT_EQ(expectedRanking.size(), actualRanking.size());
     }
 
-    for (size_t i = 0; i < expectedRanking.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRanking.begin[i];
-        EXPECT_EQ(expectedRenderRate, actualRanking[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, actualRanking[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRanking.end.size(); i++) {
-        const size_t refreshRateIndex = actualRanking.size() - expectedRanking.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRanking.end[i];
-        EXPECT_EQ(expectedRenderRate, actualRanking[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  actualRanking[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRanking.size(); ++i) {
+        EXPECT_EQ(expectedRanking[i], actualRanking[i].frameRateMode)
+                << "Expected " << expectedRanking[i].fps.getIntValue() << " ("
+                << expectedRanking[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << actualRanking[i].frameRateMode.fps.getIntValue() << " ("
+                << actualRanking[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 
     lr1.vote = LayerVoteType::Max;
@@ -1711,33 +1628,19 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     lr5.desiredRefreshRate = 120_Hz;
     lr5.name = "120Hz";
 
-    expectedRanking = []() -> FpsBeginEnd {
+    expectedRanking = []() -> std::vector<FrameRateMode> {
         switch (GetParam()) {
             case Config::FrameRateOverride::Disabled:
             case Config::FrameRateOverride::AppOverrideNativeRefreshRates:
             case Config::FrameRateOverride::AppOverride:
-                return {.begin{{120_Hz, 120_Hz},
-                               {90_Hz, 90_Hz},
-                               {72_Hz, 72_Hz},
-                               {60_Hz, 60_Hz},
-                               {30_Hz, 30_Hz}}};
+                return {{120_Hz, kMode120},
+                        {90_Hz, kMode90},
+                        {72_Hz, kMode72},
+                        {60_Hz, kMode60},
+                        {30_Hz, kMode30}};
             case Config::FrameRateOverride::Enabled:
-                return {.begin{{120_Hz, 120_Hz},
-                               {90_Hz, 90_Hz},
-                               {72_Hz, 72_Hz},
-                               {60_Hz, 60_Hz},
-                               {45_Hz, 90_Hz},
-                               {40_Hz, 120_Hz},
-                               {36_Hz, 72_Hz},
-                               {30_Hz, 30_Hz}},
-                        .end{{1.028_Hz, 72_Hz},
-                             {1.0256_Hz, 120_Hz},
-                             {1.022_Hz, 90_Hz},
-                             {1.016_Hz, 60_Hz},
-                             {1.014_Hz, 72_Hz},
-                             {1.011_Hz, 90_Hz},
-                             {1.008_Hz, 120_Hz},
-                             {1_Hz, 30_Hz}}};
+                return {{120_Hz, kMode120}, {90_Hz, kMode90},  {72_Hz, kMode72}, {60_Hz, kMode60},
+                        {45_Hz, kMode90},   {40_Hz, kMode120}, {36_Hz, kMode72}, {30_Hz, kMode30}};
         }
     }();
     actualRanking = selector.getRankedFrameRates(layers, {}).ranking;
@@ -1745,21 +1648,15 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates216, actualRanking.size());
     } else {
-        ASSERT_EQ(expectedRanking.begin.size(), actualRanking.size());
+        ASSERT_EQ(expectedRanking.size(), actualRanking.size());
     }
 
-    for (size_t i = 0; i < expectedRanking.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRanking.begin[i];
-        EXPECT_EQ(expectedRenderRate, actualRanking[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, actualRanking[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRanking.end.size(); i++) {
-        const size_t refreshRateIndex = actualRanking.size() - expectedRanking.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRanking.end[i];
-        EXPECT_EQ(expectedRenderRate, actualRanking[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  actualRanking[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRanking.size(); ++i) {
+        EXPECT_EQ(expectedRanking[i], actualRanking[i].frameRateMode)
+                << "Expected " << expectedRanking[i].fps.getIntValue() << " ("
+                << expectedRanking[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << actualRanking[i].frameRateMode.fps.getIntValue() << " ("
+                << actualRanking[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 
     lr1.vote = LayerVoteType::Heuristic;
@@ -1775,33 +1672,19 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     lr5.desiredRefreshRate = 72_Hz;
     lr5.name = "72Hz";
 
-    expectedRanking = []() -> FpsBeginEnd {
+    expectedRanking = []() -> std::vector<FrameRateMode> {
         switch (GetParam()) {
             case Config::FrameRateOverride::Disabled:
             case Config::FrameRateOverride::AppOverrideNativeRefreshRates:
             case Config::FrameRateOverride::AppOverride:
-                return {.begin{{30_Hz, 30_Hz},
-                               {60_Hz, 60_Hz},
-                               {90_Hz, 90_Hz},
-                               {120_Hz, 120_Hz},
-                               {72_Hz, 72_Hz}}};
+                return {{30_Hz, kMode30},
+                        {60_Hz, kMode60},
+                        {90_Hz, kMode90},
+                        {120_Hz, kMode120},
+                        {72_Hz, kMode72}};
             case Config::FrameRateOverride::Enabled:
-                return {.begin{{30_Hz, 30_Hz},
-                               {60_Hz, 60_Hz},
-                               {90_Hz, 90_Hz},
-                               {120_Hz, 120_Hz},
-                               {45_Hz, 90_Hz},
-                               {40_Hz, 120_Hz},
-                               {72_Hz, 72_Hz},
-                               {36_Hz, 72_Hz}},
-                        .end{{1.074_Hz, 72_Hz},
-                             {1.081_Hz, 120_Hz},
-                             {1.084_Hz, 90_Hz},
-                             {1.00_Hz, 30_Hz},
-                             {1.008_Hz, 120_Hz},
-                             {1.011_Hz, 90_Hz},
-                             {1.014_Hz, 72_Hz},
-                             {1.016_Hz, 60_Hz}}};
+                return {{30_Hz, kMode30}, {60_Hz, kMode60},  {90_Hz, kMode90}, {120_Hz, kMode120},
+                        {45_Hz, kMode90}, {40_Hz, kMode120}, {72_Hz, kMode72}, {36_Hz, kMode72}};
         }
     }();
     actualRanking = selector.getRankedFrameRates(layers, {}).ranking;
@@ -1809,21 +1692,15 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates216, actualRanking.size());
     } else {
-        ASSERT_EQ(expectedRanking.begin.size(), actualRanking.size());
+        ASSERT_EQ(expectedRanking.size(), actualRanking.size());
     }
 
-    for (size_t i = 0; i < expectedRanking.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRanking.begin[i];
-        EXPECT_EQ(expectedRenderRate, actualRanking[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, actualRanking[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRanking.end.size(); i++) {
-        const size_t refreshRateIndex = actualRanking.size() - expectedRanking.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRanking.end[i];
-        EXPECT_EQ(expectedRenderRate, actualRanking[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  actualRanking[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRanking.size(); ++i) {
+        EXPECT_EQ(expectedRanking[i], actualRanking[i].frameRateMode)
+                << "Expected " << expectedRanking[i].fps.getIntValue() << " ("
+                << expectedRanking[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << actualRanking[i].frameRateMode.fps.getIntValue() << " ("
+                << actualRanking[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 
     lr1.desiredRefreshRate = 120_Hz;
@@ -1842,26 +1719,19 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     lr5.desiredRefreshRate = 120_Hz;
     lr5.name = "120Hz-2";
 
-    expectedRanking = []() -> FpsBeginEnd {
+    expectedRanking = []() -> std::vector<FrameRateMode> {
         switch (GetParam()) {
             case Config::FrameRateOverride::Disabled:
             case Config::FrameRateOverride::AppOverrideNativeRefreshRates:
             case Config::FrameRateOverride::AppOverride:
-                return {.begin{{90_Hz, 90_Hz},
-                               {60_Hz, 60_Hz},
-                               {120_Hz, 120_Hz},
-                               {72_Hz, 72_Hz},
-                               {30_Hz, 30_Hz}}};
+                return {{90_Hz, kMode90},
+                        {60_Hz, kMode60},
+                        {120_Hz, kMode120},
+                        {72_Hz, kMode72},
+                        {30_Hz, kMode30}};
             case Config::FrameRateOverride::Enabled:
-                return {.begin{{90_Hz, 90_Hz},
-                               {60_Hz, 60_Hz},
-                               {120_Hz, 120_Hz},
-                               {72_Hz, 72_Hz},
-                               {45_Hz, 90_Hz},
-                               {40_Hz, 120_Hz},
-                               {36_Hz, 72_Hz},
-                               {30_Hz, 30_Hz}},
-                        .end{}};
+                return {{90_Hz, kMode90}, {60_Hz, kMode60},  {120_Hz, kMode120}, {72_Hz, kMode72},
+                        {45_Hz, kMode90}, {40_Hz, kMode120}, {36_Hz, kMode72},   {30_Hz, kMode30}};
         }
     }();
     actualRanking = selector.getRankedFrameRates(layers, {}).ranking;
@@ -1869,21 +1739,15 @@ TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates216, actualRanking.size());
     } else {
-        ASSERT_EQ(expectedRanking.begin.size(), actualRanking.size());
+        ASSERT_EQ(expectedRanking.size(), actualRanking.size());
     }
 
-    for (size_t i = 0; i < expectedRanking.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRanking.begin[i];
-        EXPECT_EQ(expectedRenderRate, actualRanking[i].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate, actualRanking[i].frameRateMode.modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expectedRanking.end.size(); i++) {
-        const size_t refreshRateIndex = actualRanking.size() - expectedRanking.end.size() + i;
-        const auto [expectedRenderRate, expectedRefreshRate] = expectedRanking.end[i];
-        EXPECT_EQ(expectedRenderRate, actualRanking[refreshRateIndex].frameRateMode.fps);
-        EXPECT_EQ(expectedRefreshRate,
-                  actualRanking[refreshRateIndex].frameRateMode.modePtr->getFps());
+    for (size_t i = 0; i < expectedRanking.size(); ++i) {
+        EXPECT_EQ(expectedRanking[i], actualRanking[i].frameRateMode)
+                << "Expected " << expectedRanking[i].fps.getIntValue() << " ("
+                << expectedRanking[i].modePtr->getFps().getIntValue() << ")"
+                << " Actual " << actualRanking[i].frameRateMode.fps.getIntValue() << " ("
+                << actualRanking[i].frameRateMode.modePtr->getFps().getIntValue() << ")";
     }
 }
 
@@ -3079,35 +2943,20 @@ TEST_P(RefreshRateSelectorTest, renderFrameRates) {
     auto selector = createSelector(kModes_30_60_72_90_120, kModeId120);
 
     // [renderRate, refreshRate]
-    const auto expected = []() -> FpsBeginEnd {
+    const auto expected = []() -> std::vector<std::pair<Fps, Fps>> {
         switch (GetParam()) {
             case Config::FrameRateOverride::Disabled:
             case Config::FrameRateOverride::AppOverrideNativeRefreshRates:
             case Config::FrameRateOverride::AppOverride:
-                return {.begin{{30_Hz, 30_Hz},
-                               {60_Hz, 60_Hz},
-                               {72_Hz, 72_Hz},
-                               {90_Hz, 90_Hz},
-                               {120_Hz, 120_Hz}}};
+                return {{30_Hz, 30_Hz},
+                        {60_Hz, 60_Hz},
+                        {72_Hz, 72_Hz},
+                        {90_Hz, 90_Hz},
+                        {120_Hz, 120_Hz}};
             case Config::FrameRateOverride::Enabled:
-                return {.begin{{1_Hz, 30_Hz},
-                               {1.008_Hz, 120_Hz},
-                               {1.011_Hz, 90_Hz},
-                               {1.014_Hz, 72_Hz},
-                               {1.016_Hz, 60_Hz},
-                               {1.022_Hz, 90_Hz},
-                               {1.0256_Hz, 120_Hz},
-                               {1.028_Hz, 72_Hz}},
-                        .end{
-                                {30_Hz, 30_Hz},
-                                {36_Hz, 72_Hz},
-                                {40_Hz, 120_Hz},
-                                {45_Hz, 90_Hz},
-                                {60_Hz, 60_Hz},
-                                {72_Hz, 72_Hz},
-                                {90_Hz, 90_Hz},
-                                {120_Hz, 120_Hz},
-                        }};
+                return {{1_Hz, 30_Hz},       {1.008_Hz, 120_Hz}, {1.011_Hz, 90_Hz},
+                        {1.014_Hz, 72_Hz},   {1.016_Hz, 60_Hz},  {1.022_Hz, 90_Hz},
+                        {1.0256_Hz, 120_Hz}, {1.028_Hz, 72_Hz}};
         }
     }();
 
@@ -3115,20 +2964,13 @@ TEST_P(RefreshRateSelectorTest, renderFrameRates) {
     if (GetParam() == Config::FrameRateOverride::Enabled) {
         ASSERT_EQ(kTotalRefreshRates216, primaryRefreshRates.size());
     } else {
-        ASSERT_EQ(expected.begin.size(), primaryRefreshRates.size());
+        ASSERT_EQ(expected.size(), primaryRefreshRates.size());
     }
 
-    for (size_t i = 0; i < expected.begin.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expected.begin[i];
+    for (size_t i = 0; i < expected.size(); i++) {
+        const auto [expectedRenderRate, expectedRefreshRate] = expected[i];
         EXPECT_EQ(expectedRenderRate, primaryRefreshRates[i].fps);
         EXPECT_EQ(expectedRefreshRate, primaryRefreshRates[i].modePtr->getFps());
-    }
-
-    for (size_t i = 0; i < expected.end.size(); i++) {
-        const auto [expectedRenderRate, expectedRefreshRate] = expected.end[i];
-        const size_t refreshRateIndex = primaryRefreshRates.size() - expected.end.size() + i;
-        EXPECT_EQ(expectedRenderRate, primaryRefreshRates[refreshRateIndex].fps);
-        EXPECT_EQ(expectedRefreshRate, primaryRefreshRates[refreshRateIndex].modePtr->getFps());
     }
 }
 
