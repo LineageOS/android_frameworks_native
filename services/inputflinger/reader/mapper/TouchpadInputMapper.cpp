@@ -92,7 +92,7 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext)
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
         mPointerController(getContext()->getPointerController(getDeviceId())),
         mStateConverter(deviceContext),
-        mGestureConverter(*getContext(), getDeviceId()) {
+        mGestureConverter(*getContext(), deviceContext, getDeviceId()) {
     mGestureInterpreter->Initialize(GESTURES_DEVCLASS_TOUCHPAD);
     mGestureInterpreter->SetHardwareProperties(createHardwareProperties(deviceContext));
     // Even though we don't explicitly delete copy/move semantics, it's safe to

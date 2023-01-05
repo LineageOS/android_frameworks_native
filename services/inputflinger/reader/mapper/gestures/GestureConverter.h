@@ -16,12 +16,15 @@
 
 #pragma once
 
+#include <array>
 #include <list>
 #include <memory>
 
 #include <PointerControllerInterface.h>
 #include <utils/Timers.h>
 
+#include "EventHub.h"
+#include "InputDevice.h"
 #include "InputReaderContext.h"
 #include "NotifyArgs.h"
 #include "ui/Rotation.h"
@@ -34,7 +37,8 @@ namespace android {
 // PointerController calls.
 class GestureConverter {
 public:
-    GestureConverter(InputReaderContext& readerContext, int32_t deviceId);
+    GestureConverter(InputReaderContext& readerContext, const InputDeviceContext& deviceContext,
+                     int32_t deviceId);
 
     void setOrientation(ui::Rotation orientation) { mOrientation = orientation; }
     void reset();
@@ -46,6 +50,10 @@ private:
     NotifyArgs handleMove(nsecs_t when, nsecs_t readTime, const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> handleButtonsChange(nsecs_t when, nsecs_t readTime,
                                                             const Gesture& gesture);
+    [[nodiscard]] std::list<NotifyArgs> handleMultiFingerSwipe(nsecs_t when, nsecs_t readTime,
+                                                               uint32_t fingerCount, float dx,
+                                                               float dy);
+    [[nodiscard]] std::list<NotifyArgs> handleMultiFingerSwipeLift(nsecs_t when, nsecs_t readTime);
 
     NotifyMotionArgs makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
                                     int32_t actionButton, int32_t buttonState,
@@ -59,10 +67,26 @@ private:
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
     ui::Rotation mOrientation = ui::ROTATION_0;
+    RawAbsoluteAxisInfo mXAxisInfo;
+    RawAbsoluteAxisInfo mYAxisInfo;
+
     // The current button state according to the gestures library, but converted into MotionEvent
     // button values (AMOTION_EVENT_BUTTON_...).
     uint32_t mButtonState = 0;
     nsecs_t mDownTime = 0;
+
+    MotionClassification mCurrentClassification = MotionClassification::NONE;
+    uint32_t mSwipeFingerCount = 0;
+    static constexpr size_t MAX_FAKE_FINGERS = 4;
+    // We never need any PointerProperties other than the finger tool type, so we can just keep a
+    // const array of them.
+    const std::array<PointerProperties, MAX_FAKE_FINGERS> mFingerProps = {{
+            {.id = 0, .toolType = AMOTION_EVENT_TOOL_TYPE_FINGER},
+            {.id = 1, .toolType = AMOTION_EVENT_TOOL_TYPE_FINGER},
+            {.id = 2, .toolType = AMOTION_EVENT_TOOL_TYPE_FINGER},
+            {.id = 3, .toolType = AMOTION_EVENT_TOOL_TYPE_FINGER},
+    }};
+    std::array<PointerCoords, MAX_FAKE_FINGERS> mFakeFingerCoords = {};
 };
 
 } // namespace android
