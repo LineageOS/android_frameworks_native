@@ -153,6 +153,9 @@ protected:
     static constexpr DisplayModeId kModeId30Frac{9};
     static constexpr DisplayModeId kModeId60Frac{10};
     static constexpr DisplayModeId kModeId35{11};
+    static constexpr DisplayModeId kModeId1{12};
+    static constexpr DisplayModeId kModeId5{13};
+    static constexpr DisplayModeId kModeId10{14};
 
     static inline const ftl::NonNull<DisplayModePtr> kMode60 =
             ftl::as_non_null(createDisplayMode(kModeId60, 60_Hz));
@@ -190,6 +193,12 @@ protected:
             ftl::as_non_null(createDisplayMode(kModeId24, 24_Hz));
     static inline const ftl::NonNull<DisplayModePtr> kMode24Frac =
             ftl::as_non_null(createDisplayMode(kModeId24Frac, 23.976_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode1 =
+            ftl::as_non_null(createDisplayMode(kModeId1, 1_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode5 =
+            ftl::as_non_null(createDisplayMode(kModeId5, 5_Hz));
+    static inline const ftl::NonNull<DisplayModePtr> kMode10 =
+            ftl::as_non_null(createDisplayMode(kModeId10, 10_Hz));
 
     // Test configurations.
     static inline const DisplayModes kModes_60 = makeModes(kMode60);
@@ -212,6 +221,7 @@ protected:
     static inline const DisplayModes kModes_25_30_50_60 =
             makeModes(kMode60, kMode90, kMode72_G1, kMode120_G1, kMode30_G1, kMode25_G1, kMode50);
     static inline const DisplayModes kModes_60_120 = makeModes(kMode60, kMode120);
+    static inline const DisplayModes kModes_1_5_10 = makeModes(kMode1, kMode5, kMode10);
 
     // This is a typical TV configuration.
     static inline const DisplayModes kModes_24_25_30_50_60_Frac =
@@ -2954,6 +2964,13 @@ TEST_P(RefreshRateSelectorTest, policyCanBeInfinity) {
     // With no layers, idle should still be lower priority than touch boost.
     EXPECT_EQ(kMode120, selector.getMaxRefreshRateByPolicy());
     EXPECT_EQ(kMode60, selector.getMinRefreshRateByPolicy());
+}
+
+TEST_P(RefreshRateSelectorTest, SupportsLowPhysicalRefreshRates) {
+    auto selector = createSelector(kModes_1_5_10, kModeId10);
+
+    EXPECT_EQ(kMode10, selector.getMaxRefreshRateByPolicy());
+    EXPECT_EQ(kMode1, selector.getMinRefreshRateByPolicy());
 }
 
 } // namespace

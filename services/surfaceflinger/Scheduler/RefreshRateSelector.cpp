@@ -180,7 +180,7 @@ auto RefreshRateSelector::createFrameRateModes(
         for (auto divisor = start; divisor <= end; divisor++) {
             const auto fps = mode->getFps() / divisor;
             using fps_approx_ops::operator<;
-            if (fps < kMinSupportedFrameRate) {
+            if (divisor > 1 && fps < kMinSupportedFrameRate) {
                 break;
             }
 
