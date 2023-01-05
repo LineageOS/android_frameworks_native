@@ -53,6 +53,13 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
     Rect sourceCrop = args.renderArea.getSourceCrop();
     output->setDisplaySize({sourceCrop.getWidth(), sourceCrop.getHeight()});
 
+    {
+        std::string name = args.regionSampling ? "RegionSampling" : "ScreenCaptureOutput";
+        if (auto displayDevice = args.renderArea.getDisplayDevice()) {
+            base::StringAppendF(&name, " for %" PRIu64, displayDevice->getId().value);
+        }
+        output->setName(name);
+    }
     return output;
 }
 

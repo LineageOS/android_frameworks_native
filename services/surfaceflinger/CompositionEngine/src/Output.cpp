@@ -118,8 +118,9 @@ const std::string& Output::getName() const {
 void Output::setName(const std::string& name) {
     mName = name;
     auto displayIdOpt = getDisplayId();
-    mNamePlusId = base::StringPrintf("%s (%s)", mName.c_str(),
-                                     displayIdOpt ? to_string(*displayIdOpt).c_str() : "NA");
+    mNamePlusId = displayIdOpt ? base::StringPrintf("%s (%s)", mName.c_str(),
+                                     to_string(*displayIdOpt).c_str())
+                               : mName;
 }
 
 void Output::setCompositionEnabled(bool enabled) {
