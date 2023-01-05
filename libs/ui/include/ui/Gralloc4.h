@@ -42,9 +42,9 @@ public:
     std::string dumpBuffer(buffer_handle_t bufferHandle, bool less = true) const override;
     std::string dumpBuffers(bool less = true) const;
 
-    status_t createDescriptor(void* bufferDescriptorInfo, void* outBufferDescriptor) const override;
+    status_t createDescriptor(void* bufferDescriptorInfo, void* outBufferDescriptor) const;
 
-    status_t importBuffer(const hardware::hidl_handle& rawHandle,
+    status_t importBuffer(const native_handle_t* rawHandle,
                           buffer_handle_t* outBufferHandle) const override;
 
     void freeBuffer(buffer_handle_t bufferHandle) const override;

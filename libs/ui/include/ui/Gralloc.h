@@ -39,14 +39,11 @@ public:
         return "";
     }
 
-    virtual status_t createDescriptor(void* bufferDescriptorInfo,
-                                      void* outBufferDescriptor) const = 0;
-
     // Import a buffer that is from another HAL, another process, or is
     // cloned.
     //
     // The returned handle must be freed with freeBuffer.
-    virtual status_t importBuffer(const hardware::hidl_handle& rawHandle,
+    virtual status_t importBuffer(const native_handle_t* rawHandle,
                                   buffer_handle_t* outBufferHandle) const = 0;
 
     virtual void freeBuffer(buffer_handle_t bufferHandle) const = 0;
@@ -268,11 +265,6 @@ public:
             uint32_t /*layerCount*/, uint64_t /*usage*/,
             std::vector<ui::PlaneLayout>* /*outPlaneLayouts*/) const {
         return INVALID_OPERATION;
-    }
-
-    virtual std::vector<android::hardware::graphics::mapper::V4_0::IMapper::MetadataTypeDescription>
-    listSupportedMetadataTypes() const {
-        return {};
     }
 };
 

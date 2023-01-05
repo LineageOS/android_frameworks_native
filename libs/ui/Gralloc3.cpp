@@ -138,7 +138,7 @@ status_t Gralloc3Mapper::createDescriptor(void* bufferDescriptorInfo,
     return static_cast<status_t>((ret.isOk()) ? error : kTransactionError);
 }
 
-status_t Gralloc3Mapper::importBuffer(const hardware::hidl_handle& rawHandle,
+status_t Gralloc3Mapper::importBuffer(const native_handle_t* rawHandle,
                                       buffer_handle_t* outBufferHandle) const {
     Error error;
     auto ret = mMapper->importBuffer(rawHandle, [&](const auto& tmpError, const auto& tmpBuffer) {

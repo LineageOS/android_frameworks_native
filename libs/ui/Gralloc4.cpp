@@ -196,7 +196,7 @@ status_t Gralloc4Mapper::createDescriptor(void* bufferDescriptorInfo,
     return static_cast<status_t>((ret.isOk()) ? error : kTransactionError);
 }
 
-status_t Gralloc4Mapper::importBuffer(const hardware::hidl_handle& rawHandle,
+status_t Gralloc4Mapper::importBuffer(const native_handle_t* rawHandle,
                                       buffer_handle_t* outBufferHandle) const {
     Error error;
     auto ret = mMapper->importBuffer(rawHandle, [&](const auto& tmpError, const auto& tmpBuffer) {
@@ -1233,7 +1233,10 @@ status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, 
 
     if (mAidlAllocator) {
         AllocationResult result;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         auto status = mAidlAllocator->allocate(descriptor, bufferCount, &result);
+#pragma clang diagnostic pop // deprecation
         if (!status.isOk()) {
             error = status.getExceptionCode();
             if (error == EX_SERVICE_SPECIFIC) {

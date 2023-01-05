@@ -37,9 +37,9 @@ public:
 
     bool isLoaded() const override;
 
-    status_t createDescriptor(void* bufferDescriptorInfo, void* outBufferDescriptor) const override;
+    status_t createDescriptor(void* bufferDescriptorInfo, void* outBufferDescriptor) const;
 
-    status_t importBuffer(const hardware::hidl_handle& rawHandle,
+    status_t importBuffer(const native_handle_t* rawHandle,
                           buffer_handle_t* outBufferHandle) const override;
 
     void freeBuffer(buffer_handle_t bufferHandle) const override;
