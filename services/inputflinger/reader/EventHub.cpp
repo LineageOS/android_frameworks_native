@@ -62,7 +62,6 @@
 #define INDENT3 "      "
 
 using android::base::StringPrintf;
-using android::hardware::input::InputDeviceCountryCode;
 
 namespace android {
 
@@ -134,6 +133,46 @@ static const std::unordered_map<InputLightClass, std::string> LIGHT_NODES =
 const std::unordered_map<std::string, LightColor> LIGHT_COLORS = {{"red", LightColor::RED},
                                                                   {"green", LightColor::GREEN},
                                                                   {"blue", LightColor::BLUE}};
+
+// Mapping for country code to Layout info.
+// See bCountryCode in 6.2.1 of https://usb.org/sites/default/files/hid1_11.pdf.
+const std::unordered_map<std::int32_t, RawLayoutInfo> LAYOUT_INFOS =
+        {{0, RawLayoutInfo{.languageTag = "", .layoutType = ""}},             // NOT_SUPPORTED
+         {1, RawLayoutInfo{.languageTag = "ar-Arab", .layoutType = ""}},      // ARABIC
+         {2, RawLayoutInfo{.languageTag = "fr-BE", .layoutType = ""}},        // BELGIAN
+         {3, RawLayoutInfo{.languageTag = "fr-CA", .layoutType = ""}},        // CANADIAN_BILINGUAL
+         {4, RawLayoutInfo{.languageTag = "fr-CA", .layoutType = ""}},        // CANADIAN_FRENCH
+         {5, RawLayoutInfo{.languageTag = "cs", .layoutType = ""}},           // CZECH_REPUBLIC
+         {6, RawLayoutInfo{.languageTag = "da", .layoutType = ""}},           // DANISH
+         {7, RawLayoutInfo{.languageTag = "fi", .layoutType = ""}},           // FINNISH
+         {8, RawLayoutInfo{.languageTag = "fr-FR", .layoutType = ""}},        // FRENCH
+         {9, RawLayoutInfo{.languageTag = "de", .layoutType = ""}},           // GERMAN
+         {10, RawLayoutInfo{.languageTag = "el", .layoutType = ""}},          // GREEK
+         {11, RawLayoutInfo{.languageTag = "iw", .layoutType = ""}},          // HEBREW
+         {12, RawLayoutInfo{.languageTag = "hu", .layoutType = ""}},          // HUNGARY
+         {13, RawLayoutInfo{.languageTag = "en", .layoutType = "extended"}},  // INTERNATIONAL (ISO)
+         {14, RawLayoutInfo{.languageTag = "it", .layoutType = ""}},          // ITALIAN
+         {15, RawLayoutInfo{.languageTag = "ja", .layoutType = ""}},          // JAPAN
+         {16, RawLayoutInfo{.languageTag = "ko", .layoutType = ""}},          // KOREAN
+         {17, RawLayoutInfo{.languageTag = "es-419", .layoutType = ""}},      // LATIN_AMERICA
+         {18, RawLayoutInfo{.languageTag = "nl", .layoutType = ""}},          // DUTCH
+         {19, RawLayoutInfo{.languageTag = "nb", .layoutType = ""}},          // NORWEGIAN
+         {20, RawLayoutInfo{.languageTag = "fa", .layoutType = ""}},          // PERSIAN
+         {21, RawLayoutInfo{.languageTag = "pl", .layoutType = ""}},          // POLAND
+         {22, RawLayoutInfo{.languageTag = "pt", .layoutType = ""}},          // PORTUGUESE
+         {23, RawLayoutInfo{.languageTag = "ru", .layoutType = ""}},          // RUSSIA
+         {24, RawLayoutInfo{.languageTag = "sk", .layoutType = ""}},          // SLOVAKIA
+         {25, RawLayoutInfo{.languageTag = "es-ES", .layoutType = ""}},       // SPANISH
+         {26, RawLayoutInfo{.languageTag = "sv", .layoutType = ""}},          // SWEDISH
+         {27, RawLayoutInfo{.languageTag = "fr-CH", .layoutType = ""}},       // SWISS_FRENCH
+         {28, RawLayoutInfo{.languageTag = "de-CH", .layoutType = ""}},       // SWISS_GERMAN
+         {29, RawLayoutInfo{.languageTag = "de-CH", .layoutType = ""}},       // SWITZERLAND
+         {30, RawLayoutInfo{.languageTag = "zh-TW", .layoutType = ""}},       // TAIWAN
+         {31, RawLayoutInfo{.languageTag = "tr", .layoutType = "turkish_q"}}, // TURKISH_Q
+         {32, RawLayoutInfo{.languageTag = "en-GB", .layoutType = ""}},       // UK
+         {33, RawLayoutInfo{.languageTag = "en-US", .layoutType = ""}},       // US
+         {34, RawLayoutInfo{.languageTag = "", .layoutType = ""}},            // YUGOSLAVIA
+         {35, RawLayoutInfo{.languageTag = "tr", .layoutType = "turkish_f"}}}; // TURKISH_F
 
 static std::string sha1(const std::string& in) {
     SHA_CTX ctx;
@@ -311,22 +350,27 @@ static std::optional<std::array<LightColor, COLOR_NUM>> getColorIndexArray(
 }
 
 /**
- * Read country code information exposed through the sysfs path.
+ * Read country code information exposed through the sysfs path and convert it to Layout info.
  */
-static InputDeviceCountryCode readCountryCodeLocked(const std::filesystem::path& sysfsRootPath) {
+static std::optional<RawLayoutInfo> readLayoutConfiguration(
+        const std::filesystem::path& sysfsRootPath) {
     // Check the sysfs root path
-    int hidCountryCode = static_cast<int>(InputDeviceCountryCode::INVALID);
+    int32_t hidCountryCode = -1;
     std::string str;
     if (base::ReadFileToString(sysfsRootPath / "country", &str)) {
         hidCountryCode = std::stoi(str, nullptr, 16);
+        // Update this condition if new supported country codes are added to HID spec.
         if (hidCountryCode > 35 || hidCountryCode < 0) {
             ALOGE("HID country code should be in range [0, 35], but for sysfs path %s it was %d",
                   sysfsRootPath.c_str(), hidCountryCode);
-            return InputDeviceCountryCode::INVALID;
         }
     }
+    const auto it = LAYOUT_INFOS.find(hidCountryCode);
+    if (it != LAYOUT_INFOS.end()) {
+        return it->second;
+    }
 
-    return static_cast<InputDeviceCountryCode>(hidCountryCode);
+    return std::nullopt;
 }
 
 /**
@@ -1299,13 +1343,13 @@ void EventHub::setLightIntensities(int32_t deviceId, int32_t lightId,
     }
 }
 
-InputDeviceCountryCode EventHub::getCountryCode(int32_t deviceId) const {
+std::optional<RawLayoutInfo> EventHub::getRawLayoutInfo(int32_t deviceId) const {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device == nullptr || !device->associatedDevice) {
-        return InputDeviceCountryCode::INVALID;
+        return std::nullopt;
     }
-    return device->associatedDevice->countryCode;
+    return device->associatedDevice->layoutInfo;
 }
 
 void EventHub::setExcludedDevices(const std::vector<std::string>& devices) {
@@ -1449,9 +1493,9 @@ std::shared_ptr<const EventHub::AssociatedDevice> EventHub::obtainAssociatedDevi
 
     std::shared_ptr<const AssociatedDevice> associatedDevice = std::make_shared<AssociatedDevice>(
             AssociatedDevice{.sysfsRootPath = path,
-                             .countryCode = readCountryCodeLocked(path),
                              .batteryInfos = readBatteryConfiguration(path),
-                             .lightInfos = readLightsConfiguration(path)});
+                             .lightInfos = readLightsConfiguration(path),
+                             .layoutInfo = readLayoutConfiguration(path)});
 
     bool associatedDeviceChanged = false;
     for (const auto& [id, dev] : mDevices) {
@@ -2686,9 +2730,12 @@ void EventHub::dump(std::string& dump) const {
                                  device->keyMap.keyLayoutFile.c_str());
             dump += StringPrintf(INDENT3 "KeyCharacterMapFile: %s\n",
                                  device->keyMap.keyCharacterMapFile.c_str());
-            dump += StringPrintf(INDENT3 "CountryCode: %d\n",
-                                 device->associatedDevice ? device->associatedDevice->countryCode
-                                                          : InputDeviceCountryCode::INVALID);
+            if (device->associatedDevice && device->associatedDevice->layoutInfo) {
+                dump += StringPrintf(INDENT3 "LanguageTag: %s\n",
+                                     device->associatedDevice->layoutInfo->languageTag.c_str());
+                dump += StringPrintf(INDENT3 "LayoutType: %s\n",
+                                     device->associatedDevice->layoutInfo->layoutType.c_str());
+            }
             dump += StringPrintf(INDENT3 "ConfigurationFile: %s\n",
                                  device->configurationFile.c_str());
             dump += StringPrintf(INDENT3 "VideoDevice: %s\n",
