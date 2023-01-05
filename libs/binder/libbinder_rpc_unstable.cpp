@@ -112,6 +112,13 @@ ARpcServer* ARpcServer_newInitUnixDomain(AIBinder* service, const char* name) {
         LOG(ERROR) << "Failed to get fd for the socket:" << name;
         return nullptr;
     }
+    // Control socket fds are inherited from init, so they don't have O_CLOEXEC set.
+    // But we don't want any child processes to inherit the socket we are running
+    // the server on, so attempt to set the flag now.
+    if (fcntl(fd, F_SETFD, FD_CLOEXEC) != 0) {
+        LOG(WARNING) << "Failed to set CLOEXEC on control socket with name " << name
+                     << " error: " << errno;
+    }
     if (status_t status = server->setupRawSocketServer(std::move(fd)); status != OK) {
         LOG(ERROR) << "Failed to set up Unix Domain RPC server with name " << name
                    << " error: " << statusToString(status).c_str();
