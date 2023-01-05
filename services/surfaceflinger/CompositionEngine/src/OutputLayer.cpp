@@ -617,12 +617,23 @@ void OutputLayer::uncacheBuffers(const std::vector<uint64_t>& bufferIdsToUncache
         return;
     }
 
+    // Uncache the active buffer last so that it's the first buffer to be purged from the cache
+    // next time a buffer is sent to this layer.
+    bool uncacheActiveBuffer = false;
+
     std::vector<uint32_t> slotsToClear;
     for (uint64_t bufferId : bufferIdsToUncache) {
-        uint32_t slot = state.hwc->hwcBufferCache.uncache(bufferId);
-        if (slot != UINT32_MAX) {
-            slotsToClear.push_back(slot);
+        if (bufferId == state.hwc->activeBufferId) {
+            uncacheActiveBuffer = true;
+        } else {
+            uint32_t slot = state.hwc->hwcBufferCache.uncache(bufferId);
+            if (slot != UINT32_MAX) {
+                slotsToClear.push_back(slot);
+            }
         }
+    }
+    if (uncacheActiveBuffer) {
+        slotsToClear.push_back(state.hwc->hwcBufferCache.uncache(state.hwc->activeBufferId));
     }
 
     hal::Error error =
@@ -655,17 +666,20 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
             hwcSlotAndBuffer = state.hwc->hwcBufferCache.getOverrideHwcSlotAndBuffer(
                     state.overrideInfo.buffer->getBuffer());
             hwcFence = state.overrideInfo.acquireFence;
+            // Keep track of the active buffer ID so when it's discarded we uncache it last so its
+            // slot will be used first, allowing the memory to be freed as soon as possible.
+            state.hwc->activeBufferId = state.overrideInfo.buffer->getBuffer()->getId();
         } else {
             hwcSlotAndBuffer =
                     state.hwc->hwcBufferCache.getHwcSlotAndBuffer(outputIndependentState.buffer);
             hwcFence = outputIndependentState.acquireFence;
+            // Keep track of the active buffer ID so when it's discarded we uncache it last so its
+            // slot will be used first, allowing the memory to be freed as soon as possible.
+            state.hwc->activeBufferId = outputIndependentState.buffer->getId();
         }
-
         // Keep track of the active buffer slot, so we can restore it after clearing other buffer
         // slots.
-        if (hwcSlotAndBuffer.buffer) {
-            state.hwc->activeBufferSlot = hwcSlotAndBuffer.slot;
-        }
+        state.hwc->activeBufferSlot = hwcSlotAndBuffer.slot;
     }
 
     if (auto error = hwcLayer->setBuffer(hwcSlotAndBuffer.slot, hwcSlotAndBuffer.buffer, hwcFence);

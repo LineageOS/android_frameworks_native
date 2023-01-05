@@ -1318,6 +1318,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, setBlockingRegion) {
 struct OutputLayerUncacheBufferTest : public OutputLayerTest {
     static const sp<GraphicBuffer> kBuffer1;
     static const sp<GraphicBuffer> kBuffer2;
+    static const sp<GraphicBuffer> kBuffer3;
     static const sp<Fence> kFence;
 
     OutputLayerUncacheBufferTest() {
@@ -1343,6 +1344,10 @@ const sp<GraphicBuffer> OutputLayerUncacheBufferTest::kBuffer2 =
         sp<GraphicBuffer>::make(2, 3, PIXEL_FORMAT_RGBA_8888,
                                 AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
                                         AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN);
+const sp<GraphicBuffer> OutputLayerUncacheBufferTest::kBuffer3 =
+        sp<GraphicBuffer>::make(4, 5, PIXEL_FORMAT_RGBA_8888,
+                                AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
+                                        AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN);
 const sp<Fence> OutputLayerUncacheBufferTest::kFence = sp<Fence>::make();
 
 TEST_F(OutputLayerUncacheBufferTest, canUncacheAndReuseSlot) {
@@ -1360,26 +1365,38 @@ TEST_F(OutputLayerUncacheBufferTest, canUncacheAndReuseSlot) {
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
     Mock::VerifyAndClearExpectations(&mHwcLayer);
 
-    // buffer slots are cleared in HWC
-    std::vector<uint32_t> slotsToClear = {0, 1};
-    EXPECT_CALL(mHwcLayer,
-                setBufferSlotsToClear(/*slotsToClear*/ slotsToClear, /*activeBufferSlot*/ 1));
-    mOutputLayer.uncacheBuffers({kBuffer1->getId(), kBuffer2->getId()});
+    // Buffer3 is stored in slot 2
+    mLayerFEState.buffer = kBuffer3;
+    EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 2, kBuffer3, kFence));
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
     Mock::VerifyAndClearExpectations(&mHwcLayer);
 
-    // rather than allocating a new slot, the active buffer slot (slot 1) is reused first to free
-    // the memory as soon as possible
+    // Buffer2 becomes the active buffer again (with a nullptr) and reuses slot 1
+    mLayerFEState.buffer = kBuffer2;
+    sp<GraphicBuffer> nullBuffer = nullptr;
+    EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 1, nullBuffer, kFence));
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
+    Mock::VerifyAndClearExpectations(&mHwcLayer);
+
+    // Buffer slots are cleared
+    std::vector<uint32_t> slotsToClear = {0, 2, 1}; // order doesn't matter
+    EXPECT_CALL(mHwcLayer, setBufferSlotsToClear(slotsToClear, /*activeBufferSlot*/ 1));
+    // Uncache the active buffer in between other buffers to exercise correct algorithmic behavior.
+    mOutputLayer.uncacheBuffers({kBuffer1->getId(), kBuffer2->getId(), kBuffer3->getId()});
+    Mock::VerifyAndClearExpectations(&mHwcLayer);
+
+    // Buffer1 becomes active again, and rather than allocating a new slot, or re-using slot 0,
+    // the active buffer slot (slot 1 for Buffer2) is reused first, which allows HWC to free the
+    // memory for the active buffer. Note: slot 1 is different from the first and last buffer slot
+    // requested to be cleared in slotsToClear (slot 1), above, indicating that the algorithm
+    // correctly identifies the active buffer as the buffer in slot 1, despite ping-ponging.
     mLayerFEState.buffer = kBuffer1;
     EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 1, kBuffer1, kFence));
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
     Mock::VerifyAndClearExpectations(&mHwcLayer);
-
-    // rather than allocating a new slot, slot 0 is reused
-    mLayerFEState.buffer = kBuffer2;
-    EXPECT_CALL(mHwcLayer, setBuffer(/*slot*/ 0, kBuffer2, kFence));
-    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
-                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
 }
 
 /*
