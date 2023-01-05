@@ -72,8 +72,12 @@ NotifyArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime, const Ge
     props.id = 0;
     props.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
 
+    float deltaX = gesture.details.move.dx;
+    float deltaY = gesture.details.move.dy;
+    rotateDelta(mOrientation, &deltaX, &deltaY);
+
     mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
-    mPointerController->move(gesture.details.move.dx, gesture.details.move.dy);
+    mPointerController->move(deltaX, deltaY);
     mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
     float xCursorPosition, yCursorPosition;
     mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
@@ -82,8 +86,8 @@ NotifyArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime, const Ge
     coords.clear();
     coords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
     coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
-    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, gesture.details.move.dx);
-    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, gesture.details.move.dy);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
     const bool down = isPointerDown(mButtonState);
     coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, down ? 1.0f : 0.0f);
 

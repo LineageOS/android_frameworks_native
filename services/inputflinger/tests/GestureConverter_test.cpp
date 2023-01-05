@@ -29,6 +29,7 @@
 #include "TestInputListener.h"
 #include "TestInputListenerMatchers.h"
 #include "include/gestures.h"
+#include "ui/Rotation.h"
 
 namespace android {
 
@@ -75,6 +76,23 @@ TEST_F(GestureConverterTest, Move) {
                       WithPressure(0.0f)));
 
     ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(95, 210));
+}
+
+TEST_F(GestureConverterTest, Move_Rotated) {
+    GestureConverter converter(*mReader->getContext(), DEVICE_ID);
+    converter.setOrientation(ui::ROTATION_90);
+
+    Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
+    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    ASSERT_EQ(1u, args.size());
+
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                      WithCoords(POINTER_X + 10, POINTER_Y + 5), WithRelativeMotion(10, 5),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithButtonState(0),
+                      WithPressure(0.0f)));
+
+    ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(110, 205));
 }
 
 TEST_F(GestureConverterTest, ButtonsChange) {
