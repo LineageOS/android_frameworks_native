@@ -2508,10 +2508,6 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_FractionalRefreshRates_Exac
 // b/190578904
 TEST_P(RefreshRateSelectorTest,
        getBestFrameRateMode_withCloseRefreshRates_LayerVoteType_Heuristic) {
-    if (g_noSlowTests) {
-        GTEST_SKIP();
-    }
-
     const int kMinRefreshRate = RefreshRateSelector::kMinSupportedFrameRate.getIntValue();
     constexpr int kMaxRefreshRate = 240;
 
@@ -2540,10 +2536,6 @@ TEST_P(RefreshRateSelectorTest,
 }
 TEST_P(RefreshRateSelectorTest,
        getBestFrameRateMode_withCloseRefreshRates_LayerVoteType_ExplicitDefault) {
-    if (g_noSlowTests) {
-        GTEST_SKIP();
-    }
-
     const int kMinRefreshRate = RefreshRateSelector::kMinSupportedFrameRate.getIntValue();
     constexpr int kMaxRefreshRate = 240;
 
@@ -2572,10 +2564,6 @@ TEST_P(RefreshRateSelectorTest,
 }
 TEST_P(RefreshRateSelectorTest,
        getBestFrameRateMode_withCloseRefreshRates_LayerVoteType_ExplicitExactOrMultiple) {
-    if (g_noSlowTests) {
-        GTEST_SKIP();
-    }
-
     const int kMinRefreshRate = RefreshRateSelector::kMinSupportedFrameRate.getIntValue();
     constexpr int kMaxRefreshRate = 240;
 
@@ -2604,10 +2592,6 @@ TEST_P(RefreshRateSelectorTest,
 }
 TEST_P(RefreshRateSelectorTest,
        getBestFrameRateMode_withCloseRefreshRates_LayerVoteType_ExplicitExact) {
-    if (g_noSlowTests) {
-        GTEST_SKIP();
-    }
-
     const int kMinRefreshRate = RefreshRateSelector::kMinSupportedFrameRate.getIntValue();
     constexpr int kMaxRefreshRate = 240;
 
