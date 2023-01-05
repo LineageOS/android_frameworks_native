@@ -864,7 +864,7 @@ status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
     // 2 bytes: representing the length of the package
     // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0",
     // x bytes: length of xmp packet
-    const int length = 3 + nameSpaceLength + xmp.size();
+    const int length = 2 + nameSpaceLength + xmp.size();
     const uint8_t lengthH = ((length >> 8) & 0xff);
     const uint8_t lengthL = (length & 0xff);
     JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
