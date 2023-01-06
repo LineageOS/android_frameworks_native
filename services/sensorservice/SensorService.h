@@ -423,7 +423,7 @@ private:
     // If SensorService is operating in RESTRICTED mode, only select whitelisted packages are
     // allowed to register for or call flush on sensors. Typically only cts test packages are
     // allowed.
-    bool isWhiteListedPackage(const String8& packageName);
+    bool isAllowListedPackage(const String8& packageName);
 
     // Returns true if a connection with the specified opPackageName has no access to sensors
     // in the RESTRICTED mode (i.e. the service is in RESTRICTED mode, and the package is not
@@ -522,7 +522,7 @@ private:
     // applications with this packageName are allowed to activate/deactivate or call flush on
     // sensors. To run CTS this is can be set to ".cts." and only CTS tests will get access to
     // sensors.
-    String8 mWhiteListedPackage;
+    String8 mAllowListedPackage;
 
     int mNextSensorRegIndex;
     Vector<SensorRegistrationInfo> mLastNSensorRegistrations;

@@ -82,7 +82,7 @@ void SensorService::SensorEventConnection::resetWakeLockRefCount() {
 void SensorService::SensorEventConnection::dump(String8& result) {
     Mutex::Autolock _l(mConnectionLock);
     result.appendFormat("\tOperating Mode: ");
-    if (!mService->isWhiteListedPackage(getPackageName())) {
+    if (!mService->isAllowListedPackage(getPackageName())) {
         result.append("RESTRICTED\n");
     } else if (mDataInjectionMode) {
         result.append("DATA_INJECTION\n");
@@ -124,7 +124,7 @@ void SensorService::SensorEventConnection::dump(util::ProtoOutputStream* proto) 
     using namespace service::SensorEventConnectionProto;
     Mutex::Autolock _l(mConnectionLock);
 
-    if (!mService->isWhiteListedPackage(getPackageName())) {
+    if (!mService->isAllowListedPackage(getPackageName())) {
         proto->write(OPERATING_MODE, OP_MODE_RESTRICTED);
     } else if (mDataInjectionMode) {
         proto->write(OPERATING_MODE, OP_MODE_DATA_INJECTION);
@@ -850,7 +850,7 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
                     // Unregister call backs.
                     return 0;
                 }
-                if (!mService->isWhiteListedPackage(mPackageName)) {
+                if (!mService->isAllowListedPackage(mPackageName)) {
                     ALOGE("App not allowed to inject data, dropping event"
                           "package=%s uid=%d", mPackageName.string(), mUid);
                     return 0;
