@@ -335,8 +335,8 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
     const uint32_t source = AINPUT_SOURCE_MOUSE;
 
     return NotifyMotionArgs(mReaderContext.getNextId(), when, readTime, mDeviceId, source,
-                            mPointerController->getDisplayId(), /* policyFlags= */ 0, action,
-                            /* actionButton= */ actionButton, /* flags= */ 0,
+                            mPointerController->getDisplayId(), /* policyFlags= */ POLICY_FLAG_WAKE,
+                            action, /* actionButton= */ actionButton, /* flags= */ 0,
                             mReaderContext.getGlobalMetaState(), buttonState,
                             mCurrentClassification, AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount,
                             pointerProperties, pointerCoords, /* xPrecision= */ 1.0f,
