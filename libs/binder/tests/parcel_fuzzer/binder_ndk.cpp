@@ -199,5 +199,23 @@ std::vector<ParcelRead<NdkParcelAdapter>> BINDER_NDK_PARCEL_READ_FUNCTIONS{
             binder_status_t status = genericDataParcelable.readFromParcel(p.aParcel());
             FUZZ_LOG() << "status: " << status;
         },
+        [](const NdkParcelAdapter& p, FuzzedDataProvider& provider) {
+            FUZZ_LOG() << "about to marshal AParcel";
+            size_t start = provider.ConsumeIntegral<size_t>();
+            // limit 1MB to avoid OOM issues
+            size_t len = provider.ConsumeIntegralInRange<size_t>(0, 1000000);
+            uint8_t buffer[len];
+            binder_status_t status = AParcel_marshal(p.aParcel(), buffer, start, len);
+            FUZZ_LOG() << "status: " << status;
+        },
+        [](const NdkParcelAdapter& /*p*/, FuzzedDataProvider& provider) {
+            FUZZ_LOG() << "about to unmarshal AParcel";
+            size_t len = provider.ConsumeIntegralInRange<size_t>(0, provider.remaining_bytes());
+            std::vector<uint8_t> parcelData = provider.ConsumeBytes<uint8_t>(len);
+            const uint8_t* buffer = parcelData.data();
+            binder_status_t status = AParcel_unmarshal(AParcel_create(), buffer, len);
+            FUZZ_LOG() << "status: " << status;
+        },
+
 };
 // clang-format on
