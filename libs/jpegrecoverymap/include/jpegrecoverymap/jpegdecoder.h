@@ -36,11 +36,11 @@ public:
     JpegDecoder();
     ~JpegDecoder();
     /*
-     * Decompresses JPEG image to raw image (YUV420planer or grey-scale) format. After calling
-     * this method, call getDecompressedImage() to get the image.
+     * Decompresses JPEG image to raw image (YUV420planer, grey-scale or RGBA) format. After
+     * calling this method, call getDecompressedImage() to get the image.
      * Returns false if decompressing the image fails.
      */
-    bool decompressImage(const void* image, int length);
+    bool decompressImage(const void* image, int length, bool decodeToRGBA = false);
     /*
      * Returns the decompressed raw image buffer pointer. This method must be called only after
      * calling decompressImage().
@@ -98,10 +98,11 @@ public:
     bool extractEXIF(const void* image, int length);
 
 private:
-    bool decode(const void* image, int length);
+    bool decode(const void* image, int length, bool decodeToRGBA);
     // Returns false if errors occur.
     bool decompress(jpeg_decompress_struct* cinfo, const uint8_t* dest, bool isSingleChannel);
     bool decompressYUV(jpeg_decompress_struct* cinfo, const uint8_t* dest);
+    bool decompressRGBA(jpeg_decompress_struct* cinfo, const uint8_t* dest);
     bool decompressSingleChannel(jpeg_decompress_struct* cinfo, const uint8_t* dest);
     // Process 16 lines of Y and 16 lines of U/V each time.
     // We must pass at least 16 scanlines according to libjpeg documentation.
