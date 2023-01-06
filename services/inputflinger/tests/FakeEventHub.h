@@ -30,10 +30,6 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 
-#include "android/hardware/input/InputDeviceCountryCode.h"
-
-using android::hardware::input::InputDeviceCountryCode;
-
 namespace android {
 
 class FakeEventHub : public EventHubInterface {
@@ -67,7 +63,7 @@ class FakeEventHub : public EventHubInterface {
         BitArray<MSC_MAX> mscBitmask;
         std::vector<VirtualKeyDefinition> virtualKeys;
         bool enabled;
-        InputDeviceCountryCode countryCode;
+        std::optional<RawLayoutInfo> layoutInfo;
 
         status_t enable() {
             enabled = true;
@@ -124,7 +120,7 @@ public:
     void addRelativeAxis(int32_t deviceId, int32_t axis);
     void setAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t value);
 
-    void setCountryCode(int32_t deviceId, InputDeviceCountryCode countryCode);
+    void setRawLayoutInfo(int32_t deviceId, RawLayoutInfo info);
 
     void setKeyCodeState(int32_t deviceId, int32_t keyCode, int32_t state);
     void setScanCodeState(int32_t deviceId, int32_t scanCode, int32_t state);
@@ -180,7 +176,7 @@ private:
     std::vector<RawEvent> getEvents(int) override;
     std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) override;
     int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const override;
-    InputDeviceCountryCode getCountryCode(int32_t deviceId) const override;
+    std::optional<RawLayoutInfo> getRawLayoutInfo(int32_t deviceId) const override;
     int32_t getKeyCodeState(int32_t deviceId, int32_t keyCode) const override;
     int32_t getSwitchState(int32_t deviceId, int32_t sw) const override;
     status_t getAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t* outValue) const override;

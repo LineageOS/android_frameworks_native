@@ -48,11 +48,8 @@
 #include "InputMapperTest.h"
 #include "InstrumentedInputReader.h"
 #include "TestConstants.h"
-#include "android/hardware/input/InputDeviceCountryCode.h"
 #include "input/DisplayViewport.h"
 #include "input/Input.h"
-
-using android::hardware::input::InputDeviceCountryCode;
 
 namespace android {
 
@@ -2240,17 +2237,6 @@ TEST_F(InputDeviceTest, ImmutableProperties) {
     ASSERT_EQ(ftl::Flags<InputDeviceClass>(0), mDevice->getClasses());
 }
 
-TEST_F(InputDeviceTest, CountryCodeCorrectlyMapped) {
-    mFakeEventHub->setCountryCode(EVENTHUB_ID, InputDeviceCountryCode::INTERNATIONAL);
-
-    // Configuration
-    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
-    InputReaderConfiguration config;
-    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, &config, 0);
-
-    ASSERT_EQ(InputDeviceCountryCode::INTERNATIONAL, mDevice->getDeviceInfo().getCountryCode());
-}
-
 TEST_F(InputDeviceTest, WhenDeviceCreated_EnabledIsFalse) {
     ASSERT_EQ(mDevice->isEnabled(), false);
 }
@@ -3598,6 +3584,20 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignKeyboardLayoutInfo) {
               deviceInfo.getKeyboardLayoutInfo()->languageTag);
     ASSERT_EQ(DEVICE_KEYBOARD_LAYOUT_INFO.layoutType,
               deviceInfo.getKeyboardLayoutInfo()->layoutType);
+}
+
+TEST_F(KeyboardInputMapperTest, LayoutInfoCorrectlyMapped) {
+    mFakeEventHub->setRawLayoutInfo(EVENTHUB_ID,
+                                    RawLayoutInfo{.languageTag = "en", .layoutType = "extended"});
+
+    // Configuration
+    addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+                                               AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    InputReaderConfiguration config;
+    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, &config, 0);
+
+    ASSERT_EQ("en", mDevice->getDeviceInfo().getKeyboardLayoutInfo()->languageTag);
+    ASSERT_EQ("extended", mDevice->getDeviceInfo().getKeyboardLayoutInfo()->layoutType);
 }
 
 // --- KeyboardInputMapperTest_ExternalDevice ---

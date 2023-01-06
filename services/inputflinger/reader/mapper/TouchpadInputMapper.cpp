@@ -16,11 +16,14 @@
 
 #include "../Macros.h"
 
+#include <optional>
+
 #include <android/input.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
 #include "TouchCursorInputMapperCommon.h"
 #include "TouchpadInputMapper.h"
+#include "ui/Rotation.h"
 
 namespace android {
 
@@ -89,7 +92,7 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext)
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
         mPointerController(getContext()->getPointerController(getDeviceId())),
         mStateConverter(deviceContext),
-        mGestureConverter(*getContext(), getDeviceId()) {
+        mGestureConverter(*getContext(), deviceContext, getDeviceId()) {
     mGestureInterpreter->Initialize(GESTURES_DEVCLASS_TOUCHPAD);
     mGestureInterpreter->SetHardwareProperties(createHardwareProperties(deviceContext));
     // Even though we don't explicitly delete copy/move semantics, it's safe to
@@ -109,6 +112,22 @@ TouchpadInputMapper::~TouchpadInputMapper() {
 
 uint32_t TouchpadInputMapper::getSources() const {
     return AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD;
+}
+
+std::list<NotifyArgs> TouchpadInputMapper::configure(nsecs_t when,
+                                                     const InputReaderConfiguration* config,
+                                                     uint32_t changes) {
+    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+        std::optional<int32_t> displayId = mPointerController->getDisplayId();
+        ui::Rotation orientation = ui::ROTATION_0;
+        if (displayId.has_value()) {
+            if (auto viewport = config->getDisplayViewportById(*displayId); viewport) {
+                orientation = getInverseRotation(viewport->orientation);
+            }
+        }
+        mGestureConverter.setOrientation(orientation);
+    }
+    return {};
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::reset(nsecs_t when) {

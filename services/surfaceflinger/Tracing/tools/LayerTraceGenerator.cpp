@@ -27,7 +27,6 @@
 #include <log/log.h>
 #include <mock/MockEventThread.h>
 #include <renderengine/ExternalTexture.h>
-#include <renderengine/mock/FakeExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <utils/String16.h>
 #include <string>
@@ -95,6 +94,30 @@ public:
     }
 };
 
+class FakeExternalTexture : public renderengine::ExternalTexture {
+    const sp<GraphicBuffer> mNullBuffer = nullptr;
+    uint32_t mWidth;
+    uint32_t mHeight;
+    uint64_t mId;
+    PixelFormat mPixelFormat;
+    uint64_t mUsage;
+
+public:
+    FakeExternalTexture(uint32_t width, uint32_t height, uint64_t id, PixelFormat pixelFormat,
+                        uint64_t usage)
+          : mWidth(width), mHeight(height), mId(id), mPixelFormat(pixelFormat), mUsage(usage) {}
+    const sp<GraphicBuffer>& getBuffer() const { return mNullBuffer; }
+    bool hasSameBuffer(const renderengine::ExternalTexture& other) const override {
+        return getId() == other.getId();
+    }
+    uint32_t getWidth() const override { return mWidth; }
+    uint32_t getHeight() const override { return mHeight; }
+    uint64_t getId() const override { return mId; }
+    PixelFormat getPixelFormat() const override { return mPixelFormat; }
+    uint64_t getUsage() const override { return mUsage; }
+    ~FakeExternalTexture() = default;
+};
+
 class MockSurfaceFlinger : public SurfaceFlinger {
 public:
     MockSurfaceFlinger(Factory& factory)
@@ -102,12 +125,10 @@ public:
     std::shared_ptr<renderengine::ExternalTexture> getExternalTextureFromBufferData(
             BufferData& bufferData, const char* /* layerName */,
             uint64_t /* transactionId */) override {
-        return std::make_shared<renderengine::mock::FakeExternalTexture>(bufferData.getWidth(),
-                                                                         bufferData.getHeight(),
-                                                                         bufferData.getId(),
-                                                                         bufferData
-                                                                                 .getPixelFormat(),
-                                                                         bufferData.getUsage());
+        return std::make_shared<FakeExternalTexture>(bufferData.getWidth(), bufferData.getHeight(),
+                                                     bufferData.getId(),
+                                                     bufferData.getPixelFormat(),
+                                                     bufferData.getUsage());
     };
 
     // b/220017192 migrate from transact codes to ISurfaceComposer apis
