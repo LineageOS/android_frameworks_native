@@ -102,8 +102,7 @@ public:
        // Step Detector etc. Typically in this mode, there will be a client (a
        // SensorEventConnection) which will be injecting sensor data into the HAL. Normal apps can
        // unregister and register for any sensor that supports injection. Registering to sensors
-       // that do not support injection will give an error.  TODO: Allow exactly one
-       // client to inject sensor data at a time.
+       // that do not support injection will give an error.
        DATA_INJECTION = 1,
        // This mode is used only for testing sensors. Each sensor can be tested in isolation with
        // the required sampling_rate and maxReportLatency parameters without having to think about
@@ -116,10 +115,14 @@ public:
        // corresponding parameters if the application hasn't unregistered for sensors in the mean
        // time.  NOTE: Non allowlisted app whose sensors were previously deactivated may still
        // receive events if a allowlisted app requests data from the same sensor.
-       RESTRICTED = 2
+       RESTRICTED = 2,
+       // Mostly equivalent to DATA_INJECTION with the difference being that the injected data is
+       // delivered to all requesting apps rather than just the package allowed to inject data.
+       // This mode is only allowed to be used on development builds.
+       REPLAY_DATA_INJECTION = 3,
 
       // State Transitions supported.
-      //     RESTRICTED   <---  NORMAL   ---> DATA_INJECTION
+      //     RESTRICTED   <---  NORMAL   ---> DATA_INJECTION/REPLAY_DATA_INJECTION
       //                  --->           <---
 
       // Shell commands to switch modes in SensorService.

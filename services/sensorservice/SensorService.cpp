@@ -52,6 +52,7 @@
 #include "SensorEventConnection.h"
 #include "SensorRecord.h"
 #include "SensorRegistrationInfo.h"
+#include "SensorServiceUtils.h"
 
 #include <inttypes.h>
 #include <math.h>
@@ -571,7 +572,11 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                 // enable sensors and recover all sensor direct report
                 enableAllSensorsLocked(&connLock);
             }
-            if (mCurrentOperatingMode == DATA_INJECTION) {
+            if (mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
+                dev.disableAllSensors();
+            }
+            if (mCurrentOperatingMode == DATA_INJECTION ||
+                    mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
                resetToNormalModeLocked();
             }
             mWhiteListedPackage.clear();
@@ -590,6 +595,27 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                 return NO_ERROR;
             } else if (mCurrentOperatingMode == DATA_INJECTION) {
                 // Already in DATA_INJECTION mode. Treat this as a no_op.
+                return NO_ERROR;
+            } else {
+                // Transition to data injection mode supported only from NORMAL mode.
+                return INVALID_OPERATION;
+            }
+        } else if (args.size() == 2 && args[0] == String16("replay_data_injection")
+                   && !SensorServiceUtil::isUserBuild()) {
+            if (mCurrentOperatingMode == NORMAL) {
+                dev.disableAllSensors();
+                // Use DATA_INJECTION here since this value goes to the HAL and the HAL doesn't
+                // have an understanding of replay vs. normal data injection.
+                status_t err = dev.setMode(DATA_INJECTION);
+                if (err == NO_ERROR) {
+                    mCurrentOperatingMode = REPLAY_DATA_INJECTION;
+                }
+                // Re-enable sensors.
+                dev.enableAllSensors();
+                mWhiteListedPackage.setTo(String8(args[1]));
+                return NO_ERROR;
+            } else if (mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
+                // Already in REPLAY_DATA_INJECTION mode. Treat this as a no_op.
                 return NO_ERROR;
             } else {
                 // Transition to data injection mode supported only from NORMAL mode.
@@ -658,6 +684,14 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                    break;
                case DATA_INJECTION:
                    result.appendFormat(" DATA_INJECTION : %s\n", mWhiteListedPackage.string());
+                   break;
+               case REPLAY_DATA_INJECTION:
+                   result.appendFormat(" REPLAY_DATA_INJECTION : %s\n",
+                            mWhiteListedPackage.string());
+                   break;
+               default:
+                   result.appendFormat(" UNKNOWN\n");
+                   break;
             }
             result.appendFormat("Sensor Privacy: %s\n",
                     mSensorPrivacyPolicy->isSensorPrivacyEnabled() ? "enabled" : "disabled");
@@ -1498,8 +1532,10 @@ Vector<Sensor> SensorService::getRuntimeSensorList(const String16& opPackageName
 
 sp<ISensorEventConnection> SensorService::createSensorEventConnection(const String8& packageName,
         int requestedMode, const String16& opPackageName, const String16& attributionTag) {
-    // Only 2 modes supported for a SensorEventConnection ... NORMAL and DATA_INJECTION.
-    if (requestedMode != NORMAL && requestedMode != DATA_INJECTION) {
+    // Only 3 modes supported for a SensorEventConnection ... NORMAL, DATA_INJECTION and
+    // REPLAY_DATA_INJECTION.
+    if (requestedMode != NORMAL && requestedMode != DATA_INJECTION &&
+            requestedMode != REPLAY_DATA_INJECTION) {
         return nullptr;
     }
     resetTargetSdkVersionCache(opPackageName);
@@ -1520,8 +1556,9 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
     String16 connOpPackageName =
             (opPackageName == String16("")) ? String16(connPackageName) : opPackageName;
     sp<SensorEventConnection> result(new SensorEventConnection(this, uid, connPackageName,
-            requestedMode == DATA_INJECTION, connOpPackageName, attributionTag));
-    if (requestedMode == DATA_INJECTION) {
+            requestedMode == DATA_INJECTION || requestedMode == REPLAY_DATA_INJECTION,
+            connOpPackageName, attributionTag));
+    if (requestedMode == DATA_INJECTION || requestedMode == REPLAY_DATA_INJECTION) {
         mConnectionHolder.addEventConnectionIfNotPresent(result);
         // Add the associated file descriptor to the Looper for polling whenever there is data to
         // be injected.
@@ -1880,8 +1917,8 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     }
 
     ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
-    if (mCurrentOperatingMode != NORMAL
-           && !isWhiteListedPackage(connection->getPackageName())) {
+    if (mCurrentOperatingMode != NORMAL && mCurrentOperatingMode != REPLAY_DATA_INJECTION &&
+           !isWhiteListedPackage(connection->getPackageName())) {
         return INVALID_OPERATION;
     }
 
