@@ -505,14 +505,29 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
-
   // TODO: fill EXIF data
   (void) exif;
+
+  if (request_sdr) {
+    JpegDecoder jpeg_decoder;
+    if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length,
+                                      true)) {
+        return ERROR_JPEGR_DECODE_ERROR;
+    }
+    jpegr_uncompressed_struct uncompressed_rgba_image;
+    uncompressed_rgba_image.data = jpeg_decoder.getDecompressedImagePtr();
+    uncompressed_rgba_image.width = jpeg_decoder.getDecompressedImageWidth();
+    uncompressed_rgba_image.height = jpeg_decoder.getDecompressedImageHeight();
+    memcpy(dest->data, uncompressed_rgba_image.data,
+           uncompressed_rgba_image.width * uncompressed_rgba_image.height * 4);
+    dest->width = uncompressed_rgba_image.width;
+    dest->height = uncompressed_rgba_image.height;
+    return NO_ERROR;
+  }
 
   jpegr_compressed_struct compressed_map;
   jpegr_metadata metadata;
   JPEGR_CHECK(extractRecoveryMap(compressed_jpegr_image, &compressed_map));
-
 
   JpegDecoder jpeg_decoder;
   if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length)) {
@@ -520,8 +535,7 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   }
 
   JpegDecoder recovery_map_decoder;
-  if (!recovery_map_decoder.decompressImage(compressed_map.data,
-                                    compressed_map.length)) {
+  if (!recovery_map_decoder.decompressImage(compressed_map.data, compressed_map.length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
 
@@ -530,26 +544,17 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   map.width = recovery_map_decoder.getDecompressedImageWidth();
   map.height = recovery_map_decoder.getDecompressedImageHeight();
 
-
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
   uncompressed_yuv_420_image.data = jpeg_decoder.getDecompressedImagePtr();
   uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
 
   if (!getMetadataFromXMP(static_cast<uint8_t*>(jpeg_decoder.getXMPPtr()),
-                                       jpeg_decoder.getXMPSize(), &metadata)) {
+                          jpeg_decoder.getXMPSize(), &metadata)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
 
-  if (request_sdr) {
-    memcpy(dest->data, uncompressed_yuv_420_image.data,
-            uncompressed_yuv_420_image.width*uncompressed_yuv_420_image.height *3 / 2);
-    dest->width = uncompressed_yuv_420_image.width;
-    dest->height = uncompressed_yuv_420_image.height;
-  } else {
-    JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &metadata, dest));
-  }
-
+  JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &metadata, dest));
   return NO_ERROR;
 }
 
