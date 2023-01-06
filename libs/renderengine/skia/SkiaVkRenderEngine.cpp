@@ -63,7 +63,7 @@ struct VulkanInterface {
     GrVkExtensions grExtensions;
     VkPhysicalDeviceFeatures2* physicalDeviceFeatures2 = nullptr;
     VkPhysicalDeviceSamplerYcbcrConversionFeatures* samplerYcbcrConversionFeatures = nullptr;
-    VkPhysicalDeviceProtectedMemoryProperties* protectedMemoryFeatures = nullptr;
+    VkPhysicalDeviceProtectedMemoryFeatures* protectedMemoryFeatures = nullptr;
     GrVkGetProc grGetProc;
     bool isProtected;
     bool isRealtimePriority;
@@ -386,7 +386,7 @@ VulkanInterface initVulkanInterface(bool protectedContent = false) {
     void** tailPnext = &interface.samplerYcbcrConversionFeatures->pNext;
 
     if (protectedContent) {
-        interface.protectedMemoryFeatures = new VkPhysicalDeviceProtectedMemoryProperties;
+        interface.protectedMemoryFeatures = new VkPhysicalDeviceProtectedMemoryFeatures;
         interface.protectedMemoryFeatures->sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES;
         interface.protectedMemoryFeatures->pNext = nullptr;
