@@ -19,9 +19,6 @@
 #include <InputMapper.h>
 #include <InputReader.h>
 #include <ThreadSafeFuzzedDataProvider.h>
-#include "android/hardware/input/InputDeviceCountryCode.h"
-
-using android::hardware::input::InputDeviceCountryCode;
 
 constexpr size_t kValidTypes[] = {EV_SW,
                                   EV_SYN,
@@ -63,46 +60,6 @@ constexpr size_t kValidCodes[] = {
         BTN_FORWARD,
         BTN_EXTRA,
         BTN_TASK,
-};
-
-constexpr InputDeviceCountryCode kCountryCodes[] = {
-        InputDeviceCountryCode::INVALID,
-        InputDeviceCountryCode::NOT_SUPPORTED,
-        InputDeviceCountryCode::ARABIC,
-        InputDeviceCountryCode::BELGIAN,
-        InputDeviceCountryCode::CANADIAN_BILINGUAL,
-        InputDeviceCountryCode::CANADIAN_FRENCH,
-        InputDeviceCountryCode::CZECH_REPUBLIC,
-        InputDeviceCountryCode::DANISH,
-        InputDeviceCountryCode::FINNISH,
-        InputDeviceCountryCode::FRENCH,
-        InputDeviceCountryCode::GERMAN,
-        InputDeviceCountryCode::GREEK,
-        InputDeviceCountryCode::HEBREW,
-        InputDeviceCountryCode::HUNGARY,
-        InputDeviceCountryCode::INTERNATIONAL,
-        InputDeviceCountryCode::ITALIAN,
-        InputDeviceCountryCode::JAPAN,
-        InputDeviceCountryCode::KOREAN,
-        InputDeviceCountryCode::LATIN_AMERICAN,
-        InputDeviceCountryCode::DUTCH,
-        InputDeviceCountryCode::NORWEGIAN,
-        InputDeviceCountryCode::PERSIAN,
-        InputDeviceCountryCode::POLAND,
-        InputDeviceCountryCode::PORTUGUESE,
-        InputDeviceCountryCode::RUSSIA,
-        InputDeviceCountryCode::SLOVAKIA,
-        InputDeviceCountryCode::SPANISH,
-        InputDeviceCountryCode::SWEDISH,
-        InputDeviceCountryCode::SWISS_FRENCH,
-        InputDeviceCountryCode::SWISS_GERMAN,
-        InputDeviceCountryCode::SWITZERLAND,
-        InputDeviceCountryCode::TAIWAN,
-        InputDeviceCountryCode::TURKISH_Q,
-        InputDeviceCountryCode::UK,
-        InputDeviceCountryCode::US,
-        InputDeviceCountryCode::YUGOSLAVIA,
-        InputDeviceCountryCode::TURKISH_F,
 };
 
 constexpr size_t kMaxSize = 256;
@@ -197,8 +154,8 @@ public:
     void setLightIntensities(int32_t deviceId, int32_t lightId,
                              std::unordered_map<LightColor, int32_t> intensities) override{};
 
-    InputDeviceCountryCode getCountryCode(int32_t deviceId) const override {
-        return mFdp->PickValueInArray<InputDeviceCountryCode>(kCountryCodes);
+    std::optional<RawLayoutInfo> getRawLayoutInfo(int32_t deviceId) const override {
+        return std::nullopt;
     };
 
     int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const override {

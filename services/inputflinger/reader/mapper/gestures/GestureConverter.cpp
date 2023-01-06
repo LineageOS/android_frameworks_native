@@ -17,6 +17,7 @@
 #include "gestures/GestureConverter.h"
 
 #include <android/input.h>
+#include <linux/input-event-codes.h>
 
 #include "TouchCursorInputMapperCommon.h"
 #include "input/Input.h"
@@ -44,10 +45,14 @@ uint32_t gesturesButtonToMotionEventButton(uint32_t gesturesButton) {
 
 } // namespace
 
-GestureConverter::GestureConverter(InputReaderContext& readerContext, int32_t deviceId)
+GestureConverter::GestureConverter(InputReaderContext& readerContext,
+                                   const InputDeviceContext& deviceContext, int32_t deviceId)
       : mDeviceId(deviceId),
         mReaderContext(readerContext),
-        mPointerController(readerContext.getPointerController(deviceId)) {}
+        mPointerController(readerContext.getPointerController(deviceId)) {
+    deviceContext.getAbsoluteAxisInfo(ABS_MT_POSITION_X, &mXAxisInfo);
+    deviceContext.getAbsoluteAxisInfo(ABS_MT_POSITION_Y, &mYAxisInfo);
+}
 
 void GestureConverter::reset() {
     mButtonState = 0;
@@ -60,6 +65,15 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
             return {handleMove(when, readTime, gesture)};
         case kGestureTypeButtonsChange:
             return handleButtonsChange(when, readTime, gesture);
+        case kGestureTypeSwipe:
+            return handleMultiFingerSwipe(when, readTime, 3, gesture.details.swipe.dx,
+                                          gesture.details.swipe.dy);
+        case kGestureTypeFourFingerSwipe:
+            return handleMultiFingerSwipe(when, readTime, 4, gesture.details.four_finger_swipe.dx,
+                                          gesture.details.four_finger_swipe.dy);
+        case kGestureTypeSwipeLift:
+        case kGestureTypeFourFingerSwipeLift:
+            return handleMultiFingerSwipeLift(when, readTime);
         default:
             // TODO(b/251196347): handle more gesture types.
             return {};
@@ -67,13 +81,12 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
 }
 
 NotifyArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime, const Gesture& gesture) {
-    PointerProperties props;
-    props.clear();
-    props.id = 0;
-    props.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    float deltaX = gesture.details.move.dx;
+    float deltaY = gesture.details.move.dy;
+    rotateDelta(mOrientation, &deltaX, &deltaY);
 
     mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
-    mPointerController->move(gesture.details.move.dx, gesture.details.move.dy);
+    mPointerController->move(deltaX, deltaY);
     mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
     float xCursorPosition, yCursorPosition;
     mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
@@ -82,14 +95,15 @@ NotifyArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime, const Ge
     coords.clear();
     coords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
     coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
-    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, gesture.details.move.dx);
-    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, gesture.details.move.dy);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
     const bool down = isPointerDown(mButtonState);
     coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, down ? 1.0f : 0.0f);
 
     const int32_t action = down ? AMOTION_EVENT_ACTION_MOVE : AMOTION_EVENT_ACTION_HOVER_MOVE;
     return makeMotionArgs(when, readTime, action, /* actionButton= */ 0, mButtonState,
-                          /* pointerCount= */ 1, &props, &coords, xCursorPosition, yCursorPosition);
+                          /* pointerCount= */ 1, mFingerProps.data(), &coords, xCursorPosition,
+                          yCursorPosition);
 }
 
 std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_t readTime,
@@ -98,11 +112,6 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
 
     mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
     mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
-
-    PointerProperties props;
-    props.clear();
-    props.id = 0;
-    props.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
 
     float xCursorPosition, yCursorPosition;
     mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
@@ -127,15 +136,16 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
             newButtonState |= actionButton;
             pressEvents.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_PRESS,
                                                  actionButton, newButtonState,
-                                                 /* pointerCount= */ 1, &props, &coords,
-                                                 xCursorPosition, yCursorPosition));
+                                                 /* pointerCount= */ 1, mFingerProps.data(),
+                                                 &coords, xCursorPosition, yCursorPosition));
         }
     }
     if (!isPointerDown(mButtonState) && isPointerDown(newButtonState)) {
         mDownTime = when;
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
                                      /* actionButton= */ 0, newButtonState, /* pointerCount= */ 1,
-                                     &props, &coords, xCursorPosition, yCursorPosition));
+                                     mFingerProps.data(), &coords, xCursorPosition,
+                                     yCursorPosition));
     }
     out.splice(out.end(), pressEvents);
 
@@ -151,16 +161,106 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
             newButtonState &= ~actionButton;
             out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
                                          actionButton, newButtonState, /* pointerCount= */ 1,
-                                         &props, &coords, xCursorPosition, yCursorPosition));
+                                         mFingerProps.data(), &coords, xCursorPosition,
+                                         yCursorPosition));
         }
     }
     if (isPointerDown(mButtonState) && !isPointerDown(newButtonState)) {
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 0.0f);
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /* actionButton= */ 0,
-                                     newButtonState, /* pointerCount= */ 1, &props, &coords,
-                                     xCursorPosition, yCursorPosition));
+                                     newButtonState, /* pointerCount= */ 1, mFingerProps.data(),
+                                     &coords, xCursorPosition, yCursorPosition));
     }
     mButtonState = newButtonState;
+    return out;
+}
+
+[[nodiscard]] std::list<NotifyArgs> GestureConverter::handleMultiFingerSwipe(nsecs_t when,
+                                                                             nsecs_t readTime,
+                                                                             uint32_t fingerCount,
+                                                                             float dx, float dy) {
+    std::list<NotifyArgs> out = {};
+    float xCursorPosition, yCursorPosition;
+    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    if (mCurrentClassification != MotionClassification::MULTI_FINGER_SWIPE) {
+        // If the user changes the number of fingers mid-way through a swipe (e.g. they start with
+        // three and then put a fourth finger down), the gesture library will treat it as two
+        // separate swipes with an appropriate lift event between them, so we don't have to worry
+        // about the finger count changing mid-swipe.
+        mCurrentClassification = MotionClassification::MULTI_FINGER_SWIPE;
+        mSwipeFingerCount = fingerCount;
+
+        constexpr float FAKE_FINGER_SPACING = 100;
+        float xCoord = xCursorPosition - FAKE_FINGER_SPACING * (mSwipeFingerCount - 1) / 2;
+        for (size_t i = 0; i < mSwipeFingerCount; i++) {
+            PointerCoords& coords = mFakeFingerCoords[i];
+            coords.clear();
+            coords.setAxisValue(AMOTION_EVENT_AXIS_X, xCoord);
+            coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+            coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
+            xCoord += FAKE_FINGER_SPACING;
+        }
+
+        mDownTime = when;
+        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
+                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
+                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                     yCursorPosition));
+        for (size_t i = 1; i < mSwipeFingerCount; i++) {
+            out.push_back(makeMotionArgs(when, readTime,
+                                         AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                                 (i << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                         /* actionButton= */ 0, mButtonState,
+                                         /* pointerCount= */ i + 1, mFingerProps.data(),
+                                         mFakeFingerCoords.data(), xCursorPosition,
+                                         yCursorPosition));
+        }
+    }
+    for (size_t i = 0; i < mSwipeFingerCount; i++) {
+        PointerCoords& coords = mFakeFingerCoords[i];
+        coords.setAxisValue(AMOTION_EVENT_AXIS_X, coords.getAxisValue(AMOTION_EVENT_AXIS_X) + dx);
+        // TODO(b/251196347): Set the gesture properties appropriately to avoid needing to negate
+        // the Y values.
+        coords.setAxisValue(AMOTION_EVENT_AXIS_Y, coords.getAxisValue(AMOTION_EVENT_AXIS_Y) - dy);
+    }
+    float xOffset = dx / (mXAxisInfo.maxValue - mXAxisInfo.minValue);
+    // TODO(b/251196347): Set the gesture properties appropriately to avoid needing to negate the Y
+    // values.
+    float yOffset = -dy / (mYAxisInfo.maxValue - mYAxisInfo.minValue);
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET, xOffset);
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET, yOffset);
+    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /* actionButton= */ 0,
+                                 mButtonState, /* pointerCount= */ mSwipeFingerCount,
+                                 mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                 yCursorPosition));
+    return out;
+}
+
+[[nodiscard]] std::list<NotifyArgs> GestureConverter::handleMultiFingerSwipeLift(nsecs_t when,
+                                                                                 nsecs_t readTime) {
+    std::list<NotifyArgs> out = {};
+    if (mCurrentClassification != MotionClassification::MULTI_FINGER_SWIPE) {
+        return out;
+    }
+    float xCursorPosition, yCursorPosition;
+    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET, 0);
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET, 0);
+
+    for (size_t i = mSwipeFingerCount; i > 1; i--) {
+        out.push_back(makeMotionArgs(when, readTime,
+                                     AMOTION_EVENT_ACTION_POINTER_UP |
+                                             ((i - 1) << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ i,
+                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                     yCursorPosition));
+    }
+    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP,
+                                 /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
+                                 mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                 yCursorPosition));
+    mCurrentClassification = MotionClassification::NONE;
+    mSwipeFingerCount = 0;
     return out;
 }
 
@@ -177,10 +277,10 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
                             mPointerController->getDisplayId(), /* policyFlags= */ 0, action,
                             /* actionButton= */ actionButton, /* flags= */ 0,
                             mReaderContext.getGlobalMetaState(), buttonState,
-                            MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount,
-                            pointerProperties, pointerCoords,
-                            /* xPrecision= */ 1.0f, /* yPrecision= */ 1.0f, xCursorPosition,
-                            yCursorPosition, /* downTime= */ mDownTime, /* videoFrames= */ {});
+                            mCurrentClassification, AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount,
+                            pointerProperties, pointerCoords, /* xPrecision= */ 1.0f,
+                            /* yPrecision= */ 1.0f, xCursorPosition, yCursorPosition,
+                            /* downTime= */ mDownTime, /* videoFrames= */ {});
 }
 
 } // namespace android

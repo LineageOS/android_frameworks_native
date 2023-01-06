@@ -25,6 +25,7 @@
 #include "EventHub.h"
 #include "InputDevice.h"
 #include "InputMapper.h"
+#include "InputReaderBase.h"
 #include "NotifyArgs.h"
 #include "gestures/GestureConverter.h"
 #include "gestures/HardwareStateConverter.h"
@@ -39,6 +40,9 @@ public:
     ~TouchpadInputMapper();
 
     uint32_t getSources() const override;
+    [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
+                                                  const InputReaderConfiguration* config,
+                                                  uint32_t changes) override;
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
     [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 

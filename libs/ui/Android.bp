@@ -48,7 +48,6 @@ cc_defaults {
         integer_overflow: true,
         misc_undefined: ["bounds"],
     },
-
 }
 
 cc_library_static {
@@ -135,6 +134,7 @@ cc_library_shared {
         "Gralloc2.cpp",
         "Gralloc3.cpp",
         "Gralloc4.cpp",
+        "Gralloc5.cpp",
         "GraphicBuffer.cpp",
         "GraphicBufferAllocator.cpp",
         "GraphicBufferMapper.cpp",
@@ -176,6 +176,7 @@ cc_library_shared {
         "libsync",
         "libutils",
         "liblog",
+        "libvndksupport",
     ],
 
     export_shared_lib_headers: [
@@ -214,6 +215,8 @@ cc_library_shared {
         "libnativewindow_headers",
         "libhardware_headers",
         "libui_headers",
+        "libimapper_stablec",
+        "libimapper_providerutils",
     ],
 
     export_static_lib_headers: [

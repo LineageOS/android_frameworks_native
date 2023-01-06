@@ -180,7 +180,11 @@ TEST(BinderAllocation, InterfaceDescriptorTransaction) {
         mallocs++;
         // Happens to be SM package length. We could switch to forking
         // and registering our own service if it became an issue.
+#if defined(__LP64__)
         EXPECT_EQ(bytes, 78);
+#else
+        EXPECT_EQ(bytes, 70);
+#endif
     });
 
     a_binder->getInterfaceDescriptor();

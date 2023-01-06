@@ -870,6 +870,14 @@ enum AMotionClassification : uint32_t {
      * The current event stream represents the user swiping with two fingers on a touchpad.
      */
     AMOTION_EVENT_CLASSIFICATION_TWO_FINGER_SWIPE = 3,
+    /**
+     * Classification constant: multi-finger swipe.
+     *
+     * The current event stream represents the user swiping with three or more fingers on a
+     * touchpad. Unlike two-finger swipes, these are only to be handled by the system UI, which is
+     * why they have a separate constant from two-finger swipes.
+     */
+    AMOTION_EVENT_CLASSIFICATION_MULTI_FINGER_SWIPE = 4,
 };
 
 /**

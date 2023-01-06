@@ -72,6 +72,8 @@ const char* motionClassificationToString(MotionClassification classification) {
             return "DEEP_PRESS";
         case MotionClassification::TWO_FINGER_SWIPE:
             return "TWO_FINGER_SWIPE";
+        case MotionClassification::MULTI_FINGER_SWIPE:
+            return "MULTI_FINGER_SWIPE";
     }
 }
 
