@@ -55,7 +55,7 @@ void MotionPredictor::record(const MotionEvent& event) {
  * The returned event should not contain any of the real, existing data. It should only
  * contain the predicted samples.
  */
-std::vector<std::unique_ptr<MotionEvent>> MotionPredictor::predict() {
+std::vector<std::unique_ptr<MotionEvent>> MotionPredictor::predict(nsecs_t timestamp) {
     if (mEvents.size() < 2) {
         return {};
     }
@@ -67,7 +67,7 @@ std::vector<std::unique_ptr<MotionEvent>> MotionPredictor::predict() {
 
     std::unique_ptr<MotionEvent> prediction = std::make_unique<MotionEvent>();
     std::vector<PointerCoords> futureCoords;
-    const int64_t futureTime = getExpectedPresentationTimeNanos() + mPredictionTimestampOffsetNanos;
+    const nsecs_t futureTime = timestamp + mPredictionTimestampOffsetNanos;
     const nsecs_t currentTime = event.getEventTime();
     const MotionEvent& previous = mEvents.rbegin()[1];
     const nsecs_t oldTime = previous.getEventTime();
@@ -141,16 +141,6 @@ bool MotionPredictor::isPredictionAvailable(int32_t /*deviceId*/, int32_t source
         return false;
     }
     return true;
-}
-
-int64_t MotionPredictor::getExpectedPresentationTimeNanos() {
-    std::scoped_lock lock(mLock);
-    return mExpectedPresentationTimeNanos;
-}
-
-void MotionPredictor::setExpectedPresentationTimeNanos(int64_t expectedPresentationTimeNanos) {
-    std::scoped_lock lock(mLock);
-    mExpectedPresentationTimeNanos = expectedPresentationTimeNanos;
 }
 
 } // namespace android
