@@ -88,6 +88,14 @@ static ui::Size getNaturalDisplaySize(const DisplayViewport& viewport) {
     return rotatedDisplaySize;
 }
 
+static int32_t filterButtonState(InputReaderConfiguration& config, int32_t buttonState) {
+    if (!config.stylusButtonMotionEventsEnabled) {
+        buttonState &=
+                ~(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY | AMOTION_EVENT_BUTTON_STYLUS_SECONDARY);
+    }
+    return buttonState;
+}
+
 // --- RawPointerData ---
 
 void RawPointerData::getCentroidOfTouchingPointers(float* outX, float* outY) const {
@@ -1400,8 +1408,9 @@ std::list<NotifyArgs> TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     next.readTime = readTime;
 
     // Sync button state.
-    next.buttonState =
-            mTouchButtonAccumulator.getButtonState() | mCursorButtonAccumulator.getButtonState();
+    next.buttonState = filterButtonState(mConfig,
+                                         mTouchButtonAccumulator.getButtonState() |
+                                                 mCursorButtonAccumulator.getButtonState());
 
     // Sync scroll
     next.rawVScroll = mCursorScrollAccumulator.getRelativeVWheel();
@@ -1640,7 +1649,9 @@ bool TouchInputMapper::isTouchScreen() {
 void TouchInputMapper::applyExternalStylusButtonState(nsecs_t when) {
     if (mDeviceMode == DeviceMode::DIRECT && hasExternalStylus()) {
         // If any of the external buttons are already pressed by the touch device, ignore them.
-        const int32_t pressedButtons = ~mCurrentRawState.buttonState & mExternalStylusState.buttons;
+        const int32_t pressedButtons =
+                filterButtonState(mConfig,
+                                  ~mCurrentRawState.buttonState & mExternalStylusState.buttons);
         const int32_t releasedButtons =
                 mExternalStylusButtonsApplied & ~mExternalStylusState.buttons;
 

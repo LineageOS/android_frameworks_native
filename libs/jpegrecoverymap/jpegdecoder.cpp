@@ -93,7 +93,7 @@ JpegDecoder::JpegDecoder() {
 JpegDecoder::~JpegDecoder() {
 }
 
-bool JpegDecoder::decompressImage(const void* image, int length) {
+bool JpegDecoder::decompressImage(const void* image, int length, bool decodeToRGBA) {
     if (image == nullptr || length <= 0) {
         ALOGE("Image size can not be handled: %d", length);
         return false;
@@ -101,7 +101,7 @@ bool JpegDecoder::decompressImage(const void* image, int length) {
 
     mResultBuffer.clear();
     mXMPBuffer.clear();
-    if (!decode(image, length)) {
+    if (!decode(image, length, decodeToRGBA)) {
         return false;
     }
 
@@ -140,7 +140,7 @@ size_t JpegDecoder::getDecompressedImageHeight() {
     return mHeight;
 }
 
-bool JpegDecoder::decode(const void* image, int length) {
+bool JpegDecoder::decode(const void* image, int length, bool decodeToRGBA) {
     jpeg_decompress_struct cinfo;
     jpegr_source_mgr mgr(static_cast<const uint8_t*>(image), length);
     jpegrerror_mgr myerr;
@@ -210,15 +210,26 @@ bool JpegDecoder::decode(const void* image, int length) {
     mWidth = cinfo.image_width;
     mHeight = cinfo.image_height;
 
-    if (cinfo.jpeg_color_space == JCS_YCbCr) {
-        mResultBuffer.resize(cinfo.image_width * cinfo.image_height * 3 / 2, 0);
-    } else if (cinfo.jpeg_color_space == JCS_GRAYSCALE) {
-        mResultBuffer.resize(cinfo.image_width * cinfo.image_height, 0);
+    if (decodeToRGBA) {
+        if (cinfo.jpeg_color_space == JCS_GRAYSCALE) {
+            // We don't intend to support decoding grayscale to RGBA
+            return false;
+        }
+        // 4 bytes per pixel
+        mResultBuffer.resize(cinfo.image_width * cinfo.image_height * 4);
+        cinfo.out_color_space = JCS_EXT_RGBA;
+    } else {
+        if (cinfo.jpeg_color_space == JCS_YCbCr) {
+            // 1 byte per pixel for Y, 0.5 byte per pixel for U+V
+            mResultBuffer.resize(cinfo.image_width * cinfo.image_height * 3 / 2, 0);
+        } else if (cinfo.jpeg_color_space == JCS_GRAYSCALE) {
+            mResultBuffer.resize(cinfo.image_width * cinfo.image_height, 0);
+        }
+        cinfo.out_color_space = cinfo.jpeg_color_space;
+        cinfo.raw_data_out = TRUE;
     }
 
-    cinfo.raw_data_out = TRUE;
     cinfo.dct_method = JDCT_IFAST;
-    cinfo.out_color_space = cinfo.jpeg_color_space;
 
     jpeg_start_decompress(&cinfo);
 
@@ -292,7 +303,10 @@ bool JpegDecoder::decompress(jpeg_decompress_struct* cinfo, const uint8_t* dest,
     if (isSingleChannel) {
         return decompressSingleChannel(cinfo, dest);
     }
-    return decompressYUV(cinfo, dest);
+    if (cinfo->out_color_space == JCS_EXT_RGBA)
+        return decompressRGBA(cinfo, dest);
+    else
+        return decompressYUV(cinfo, dest);
 }
 
 bool JpegDecoder::getCompressedImageParameters(const void* image, int length,
@@ -331,6 +345,20 @@ bool JpegDecoder::getCompressedImageParameters(const void* image, int length,
     return true;
 }
 
+bool JpegDecoder::decompressRGBA(jpeg_decompress_struct* cinfo, const uint8_t* dest) {
+    JSAMPLE* decodeDst = (JSAMPLE*) dest;
+    uint32_t lines = 0;
+    // TODO: use batches for more effectiveness
+    while (lines < cinfo->image_height) {
+        uint32_t ret = jpeg_read_scanlines(cinfo, &decodeDst, 1);
+        if (ret == 0) {
+            break;
+        }
+        decodeDst += cinfo->image_width * 4;
+        lines++;
+    }
+    return lines == cinfo->image_height;
+}
 
 bool JpegDecoder::decompressYUV(jpeg_decompress_struct* cinfo, const uint8_t* dest) {
 

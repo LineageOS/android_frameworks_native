@@ -850,6 +850,11 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
                     // Unregister call backs.
                     return 0;
                 }
+                if (!mService->isWhiteListedPackage(mPackageName)) {
+                    ALOGE("App not allowed to inject data, dropping event"
+                          "package=%s uid=%d", mPackageName.string(), mUid);
+                    return 0;
+                }
                 sensors_event_t sensor_event;
                 memcpy(&sensor_event, buf, sizeof(sensors_event_t));
                 std::shared_ptr<SensorInterface> si =

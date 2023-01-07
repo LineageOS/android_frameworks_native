@@ -201,6 +201,10 @@ void FakeInputReaderPolicy::setVelocityControlParams(const VelocityControlParame
     mConfig.wheelVelocityControlParameters = params;
 }
 
+void FakeInputReaderPolicy::setStylusButtonMotionEventsEnabled(bool enabled) {
+    mConfig.stylusButtonMotionEventsEnabled = enabled;
+}
+
 void FakeInputReaderPolicy::getReaderConfiguration(InputReaderConfiguration* outConfig) {
     *outConfig = mConfig;
 }

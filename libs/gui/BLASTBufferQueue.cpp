@@ -483,20 +483,18 @@ void BLASTBufferQueue::releaseBuffer(const ReleaseCallbackId& callbackId,
     mSyncedFrameNumbers.erase(callbackId.framenumber);
 }
 
-void BLASTBufferQueue::acquireNextBufferLocked(
+status_t BLASTBufferQueue::acquireNextBufferLocked(
         const std::optional<SurfaceComposerClient::Transaction*> transaction) {
     // If the next transaction is set, we want to guarantee the our acquire will not fail, so don't
     // include the extra buffer when checking if we can acquire the next buffer.
-    const bool includeExtraAcquire = !transaction;
-    const bool maxAcquired = maxBuffersAcquired(includeExtraAcquire);
-    if (mNumFrameAvailable == 0 || maxAcquired) {
-        BQA_LOGV("Can't process next buffer maxBuffersAcquired=%s", boolToString(maxAcquired));
-        return;
+    if (mNumFrameAvailable == 0) {
+        BQA_LOGV("Can't process next buffer. No available frames");
+        return NOT_ENOUGH_DATA;
     }
 
     if (mSurfaceControl == nullptr) {
         BQA_LOGE("ERROR : surface control is null");
-        return;
+        return NAME_NOT_FOUND;
     }
 
     SurfaceComposerClient::Transaction localTransaction;
@@ -513,10 +511,10 @@ void BLASTBufferQueue::acquireNextBufferLocked(
             mBufferItemConsumer->acquireBuffer(&bufferItem, 0 /* expectedPresent */, false);
     if (status == BufferQueue::NO_BUFFER_AVAILABLE) {
         BQA_LOGV("Failed to acquire a buffer, err=NO_BUFFER_AVAILABLE");
-        return;
+        return status;
     } else if (status != OK) {
         BQA_LOGE("Failed to acquire a buffer, err=%s", statusToString(status).c_str());
-        return;
+        return status;
     }
 
     auto buffer = bufferItem.mGraphicBuffer;
@@ -526,7 +524,7 @@ void BLASTBufferQueue::acquireNextBufferLocked(
     if (buffer == nullptr) {
         mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
         BQA_LOGE("Buffer was empty");
-        return;
+        return BAD_VALUE;
     }
 
     if (rejectBuffer(bufferItem)) {
@@ -535,8 +533,7 @@ void BLASTBufferQueue::acquireNextBufferLocked(
                  mSize.width, mSize.height, mRequestedSize.width, mRequestedSize.height,
                  buffer->getWidth(), buffer->getHeight(), bufferItem.mTransform);
         mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
-        acquireNextBufferLocked(transaction);
-        return;
+        return acquireNextBufferLocked(transaction);
     }
 
     mNumAcquired++;
@@ -624,6 +621,7 @@ void BLASTBufferQueue::acquireNextBufferLocked(
              bufferItem.mTimestamp, bufferItem.mIsAutoTimestamp ? "(auto)" : "",
              static_cast<uint32_t>(mPendingTransactions.size()), bufferItem.mGraphicBuffer->getId(),
              bufferItem.mAutoRefresh ? " mAutoRefresh" : "", bufferItem.mTransform);
+    return OK;
 }
 
 Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
@@ -647,32 +645,6 @@ void BLASTBufferQueue::acquireAndReleaseBuffer() {
     mBufferItemConsumer->releaseBuffer(bufferItem, bufferItem.mFence);
 }
 
-void BLASTBufferQueue::flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& lock) {
-    BBQ_TRACE();
-    if (!mSyncedFrameNumbers.empty() && mNumFrameAvailable > 0) {
-        // We are waiting on a previous sync's transaction callback so allow another sync
-        // transaction to proceed.
-        //
-        // We need to first flush out the transactions that were in between the two syncs.
-        // We do this by merging them into mSyncTransaction so any buffer merging will get
-        // a release callback invoked. The release callback will be async so we need to wait
-        // on max acquired to make sure we have the capacity to acquire another buffer.
-        if (maxBuffersAcquired(false /* includeExtraAcquire */)) {
-            BQA_LOGD("waiting to flush shadow queue...");
-            mCallbackCV.wait(lock);
-        }
-        while (mNumFrameAvailable > 0) {
-            // flush out the shadow queue
-            acquireAndReleaseBuffer();
-        }
-    }
-
-    while (maxBuffersAcquired(false /* includeExtraAcquire */)) {
-        BQA_LOGD("waiting for free buffer.");
-        mCallbackCV.wait(lock);
-    }
-}
-
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     std::function<void(SurfaceComposerClient::Transaction*)> prevCallback = nullptr;
     SurfaceComposerClient::Transaction* prevTransaction = nullptr;
@@ -685,7 +657,6 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
         BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
 
         if (syncTransactionSet) {
-            bool mayNeedToWaitForBuffer = true;
             // If we are going to re-use the same mSyncTransaction, release the buffer that may
             // already be set in the Transaction. This is to allow us a free slot early to continue
             // processing a new buffer.
@@ -696,14 +667,20 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
                              bufferData->frameNumber);
                     releaseBuffer(bufferData->generateReleaseCallbackId(),
                                   bufferData->acquireFence);
-                    // Because we just released a buffer, we know there's no need to wait for a free
-                    // buffer.
-                    mayNeedToWaitForBuffer = false;
                 }
             }
 
-            if (mayNeedToWaitForBuffer) {
-                flushAndWaitForFreeBuffer(_lock);
+            if (waitForTransactionCallback) {
+                // We are waiting on a previous sync's transaction callback so allow another sync
+                // transaction to proceed.
+                //
+                // We need to first flush out the transactions that were in between the two syncs.
+                // We do this by merging them into mSyncTransaction so any buffer merging will get
+                // a release callback invoked.
+                while (mNumFrameAvailable > 0) {
+                    // flush out the shadow queue
+                    acquireAndReleaseBuffer();
+                }
             }
         }
 
@@ -719,7 +696,12 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
                  item.mFrameNumber, boolToString(syncTransactionSet));
 
         if (syncTransactionSet) {
-            acquireNextBufferLocked(mSyncTransaction);
+            // If there's no available buffer and we're in a sync transaction, we need to wait
+            // instead of returning since we guarantee a buffer will be acquired for the sync.
+            while (acquireNextBufferLocked(mSyncTransaction) == BufferQueue::NO_BUFFER_AVAILABLE) {
+                BQA_LOGD("waiting for available buffer");
+                mCallbackCV.wait(_lock);
+            }
 
             // Only need a commit callback when syncing to ensure the buffer that's synced has been
             // sent to SF
@@ -827,15 +809,6 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
 
     // reject buffers if the buffer size doesn't match.
     return mSize != bufferSize;
-}
-
-// Check if we have acquired the maximum number of buffers.
-// Consumer can acquire an additional buffer if that buffer is not droppable. Set
-// includeExtraAcquire is true to include this buffer to the count. Since this depends on the state
-// of the buffer, the next acquire may return with NO_BUFFER_AVAILABLE.
-bool BLASTBufferQueue::maxBuffersAcquired(bool includeExtraAcquire) const {
-    int maxAcquiredBuffers = mMaxAcquiredBuffers + (includeExtraAcquire ? 2 : 1);
-    return mNumAcquired >= maxAcquiredBuffers;
 }
 
 class BBQSurface : public Surface {
