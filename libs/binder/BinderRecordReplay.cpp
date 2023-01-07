@@ -16,10 +16,12 @@
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
+#include <android-base/unique_fd.h>
 #include <binder/BinderRecordReplay.h>
 #include <algorithm>
 
 using android::Parcel;
+using android::base::borrowed_fd;
 using android::base::unique_fd;
 using android::binder::debug::RecordedTransaction;
 
@@ -30,22 +32,78 @@ static_assert(PADDING8(1) == 7);
 static_assert(PADDING8(7) == 1);
 static_assert(PADDING8(8) == 0);
 
-// Transactions are sequentially recorded to the file descriptor in the following format:
+// Transactions are sequentially recorded to a file descriptor.
 //
-// RecordedTransaction.TransactionHeader  (32 bytes)
-// Sent Parcel data                       (getDataSize() bytes)
-// padding                                (enough bytes to align the reply Parcel data to 8 bytes)
-// Reply Parcel data                      (getReplySize() bytes)
-// padding                                (enough bytes to align the next header to 8 bytes)
-// [repeats with next transaction]
+// An individual RecordedTransaction is written with the following format:
 //
-// Warning: This format is non-stable
+// WARNING: Though the following format is designed to be stable and
+// extensible, it is under active development and should be considered
+// unstable until this warning is removed.
+//
+// A RecordedTransaction is written to a file as a sequence of Chunks.
+//
+// A Chunk consists of a ChunkDescriptor, Data, and Padding.
+//
+// Data and Padding may each be zero-length as specified by the
+// ChunkDescriptor.
+//
+// The ChunkDescriptor identifies the type of data in the chunk, the size of
+// the data in bytes, and the number of zero-bytes padding to land on an
+// 8-byte boundary by the end of the Chunk.
+//
+// ┌───────────────────────────┐
+// │Chunk                      │
+// │┌─────────────────────────┐│
+// ││ChunkDescriptor          ││
+// ││┌───────────┬───────────┐││
+// │││chunkType  │paddingSize│││
+// │││uint32_t   │uint32_t   ├┼┼───┐
+// ││├───────────┴───────────┤││   │
+// │││dataSize               │││   │
+// │││uint64_t               ├┼┼─┐ │
+// ││└───────────────────────┘││ │ │
+// │└─────────────────────────┘│ │ │
+// │┌─────────────────────────┐│ │ │
+// ││Data                     ││ │ │
+// ││bytes * dataSize         │◀─┘ │
+// │└─────────────────────────┘│   │
+// │┌─────────────────────────┐│   │
+// ││Padding                  ││   │
+// ││bytes * paddingSize      │◀───┘
+// │└─────────────────────────┘│
+// └───────────────────────────┘
+//
+// A RecordedTransaction is written as a Header Chunk with fields about the
+// transaction, a Data Parcel chunk, a Reply Parcel Chunk, and an End Chunk.
+// ┌──────────────────────┐
+// │     Header Chunk     │
+// ├──────────────────────┤
+// │  Sent Parcel Chunk   │
+// ├──────────────────────┤
+// │  Reply Parcel Chunk  │
+// ├──────────────────────┤
+// ║      End Chunk       ║
+// ╚══════════════════════╝
+//
+// On reading a RecordedTransaction, an unrecognized chunk is skipped using
+// the size information in the ChunkDescriptor. Chunks are read and either
+// assimilated or skipped until an End Chunk is encountered. This has three
+// notable implications:
+//
+// 1. Older and newer implementations should be able to read one another's
+//    Transactions, though there will be loss of information.
+// 2. With the exception of the End Chunk, Chunks can appear in any
+//    order and even repeat, though this is not recommended.
+// 3. If any Chunk is repeated, old values will be overwritten by versions
+//    encountered later in the file.
+//
+// No effort is made to ensure the expected chunks are present. A single
+// End Chunk may therefore produce a empty, meaningless RecordedTransaction.
 
 RecordedTransaction::RecordedTransaction(RecordedTransaction&& t) noexcept {
-    mHeader = {t.getCode(),      t.getFlags(),          t.getDataSize(),
-               t.getReplySize(), t.getReturnedStatus(), t.getVersion()};
-    mSent.setData(t.getDataParcel().data(), t.getDataSize());
-    mReply.setData(t.getReplyParcel().data(), t.getReplySize());
+    mHeader = {t.getCode(), t.getFlags(), t.getReturnedStatus(), t.getVersion()};
+    mSent.setData(t.getDataParcel().data(), t.getDataParcel().dataSize());
+    mReply.setData(t.getReplyParcel().data(), t.getReplyParcel().dataSize());
 }
 
 std::optional<RecordedTransaction> RecordedTransaction::fromDetails(uint32_t code, uint32_t flags,
@@ -53,100 +111,170 @@ std::optional<RecordedTransaction> RecordedTransaction::fromDetails(uint32_t cod
                                                                     const Parcel& replyParcel,
                                                                     status_t err) {
     RecordedTransaction t;
-    t.mHeader = {code,
-                 flags,
-                 static_cast<uint64_t>(dataParcel.dataSize()),
-                 static_cast<uint64_t>(replyParcel.dataSize()),
-                 static_cast<int32_t>(err),
+    t.mHeader = {code, flags, static_cast<int32_t>(err),
                  dataParcel.isForRpc() ? static_cast<uint32_t>(1) : static_cast<uint32_t>(0)};
 
-    if (t.mSent.setData(dataParcel.data(), t.getDataSize()) != android::NO_ERROR) {
+    if (t.mSent.setData(dataParcel.data(), dataParcel.dataSize()) != android::NO_ERROR) {
         LOG(INFO) << "Failed to set sent parcel data.";
         return std::nullopt;
     }
 
-    if (t.mReply.setData(replyParcel.data(), t.getReplySize()) != android::NO_ERROR) {
+    if (t.mReply.setData(replyParcel.data(), replyParcel.dataSize()) != android::NO_ERROR) {
         LOG(INFO) << "Failed to set reply parcel data.";
         return std::nullopt;
     }
 
     return std::optional<RecordedTransaction>(std::move(t));
+}
+
+enum {
+    HEADER_CHUNK = 0x00000001,
+    DATA_PARCEL_CHUNK = 0x00000002,
+    REPLY_PARCEL_CHUNK = 0x00000003,
+    INVALID_CHUNK = 0x00fffffe,
+    END_CHUNK = 0x00ffffff,
+};
+
+struct ChunkDescriptor {
+    uint32_t chunkType = 0;
+    uint32_t padding = 0;
+    uint32_t dataSize = 0;
+    uint32_t reserved = 0; // Future checksum
+};
+
+static android::status_t readChunkDescriptor(borrowed_fd fd, ChunkDescriptor* chunkOut) {
+    if (!android::base::ReadFully(fd, chunkOut, sizeof(ChunkDescriptor))) {
+        LOG(INFO) << "Failed to read Chunk Descriptor from fd " << fd.get();
+        return android::UNKNOWN_ERROR;
+    }
+    if (PADDING8(chunkOut->dataSize) != chunkOut->padding) {
+        chunkOut->chunkType = INVALID_CHUNK;
+        LOG(INFO) << "Chunk data and padding sizes do not align." << fd.get();
+        return android::BAD_VALUE;
+    }
+    return android::NO_ERROR;
 }
 
 std::optional<RecordedTransaction> RecordedTransaction::fromFile(const unique_fd& fd) {
     RecordedTransaction t;
-    if (!android::base::ReadFully(fd, &t.mHeader, sizeof(mHeader))) {
-        LOG(INFO) << "Failed to read transactionHeader from fd " << fd.get();
-        return std::nullopt;
-    }
-    if (t.getVersion() != 0) {
-        LOG(INFO) << "File corrupted: transaction version is not 0.";
-        return std::nullopt;
-    }
+    ChunkDescriptor chunk;
 
-    std::vector<uint8_t> bytes;
-    bytes.resize(t.getDataSize());
-    if (!android::base::ReadFully(fd, bytes.data(), t.getDataSize())) {
-        LOG(INFO) << "Failed to read sent parcel data from fd " << fd.get();
-        return std::nullopt;
-    }
-    if (t.mSent.setData(bytes.data(), t.getDataSize()) != android::NO_ERROR) {
-        LOG(INFO) << "Failed to set sent parcel data.";
-        return std::nullopt;
-    }
-
-    uint8_t padding[7];
-    if (!android::base::ReadFully(fd, padding, PADDING8(t.getDataSize()))) {
-        LOG(INFO) << "Failed to read sent parcel padding from fd " << fd.get();
-        return std::nullopt;
-    }
-    if (std::any_of(padding, padding + 7, [](uint8_t i) { return i != 0; })) {
-        LOG(INFO) << "File corrupted: padding isn't 0.";
-        return std::nullopt;
-    }
-
-    bytes.resize(t.getReplySize());
-    if (!android::base::ReadFully(fd, bytes.data(), t.getReplySize())) {
-        LOG(INFO) << "Failed to read reply parcel data from fd " << fd.get();
-        return std::nullopt;
-    }
-    if (t.mReply.setData(bytes.data(), t.getReplySize()) != android::NO_ERROR) {
-        LOG(INFO) << "Failed to set reply parcel data.";
-        return std::nullopt;
-    }
-
-    if (!android::base::ReadFully(fd, padding, PADDING8(t.getReplySize()))) {
-        LOG(INFO) << "Failed to read parcel padding from fd " << fd.get();
-        return std::nullopt;
-    }
-    if (std::any_of(padding, padding + 7, [](uint8_t i) { return i != 0; })) {
-        LOG(INFO) << "File corrupted: padding isn't 0.";
-        return std::nullopt;
-    }
+    do {
+        if (NO_ERROR != readChunkDescriptor(fd, &chunk)) {
+            LOG(INFO) << "Failed to read chunk descriptor.";
+            return std::nullopt;
+        }
+        switch (chunk.chunkType) {
+            case HEADER_CHUNK: {
+                if (chunk.dataSize != static_cast<uint32_t>(sizeof(TransactionHeader))) {
+                    LOG(INFO) << "Header Chunk indicated size " << chunk.dataSize << "; Expected "
+                              << sizeof(TransactionHeader) << ".";
+                    return std::nullopt;
+                }
+                if (!android::base::ReadFully(fd, &t.mHeader, chunk.dataSize)) {
+                    LOG(INFO) << "Failed to read transactionHeader from fd " << fd.get();
+                    return std::nullopt;
+                }
+                break;
+            }
+            case DATA_PARCEL_CHUNK: {
+                std::vector<uint8_t> bytes;
+                bytes.resize(chunk.dataSize);
+                if (!android::base::ReadFully(fd, bytes.data(), chunk.dataSize)) {
+                    LOG(INFO) << "Failed to read sent parcel data from fd " << fd.get();
+                    return std::nullopt;
+                }
+                if (t.mSent.setData(bytes.data(), chunk.dataSize) != android::NO_ERROR) {
+                    LOG(INFO) << "Failed to set sent parcel data.";
+                    return std::nullopt;
+                }
+                lseek(fd.get(), chunk.padding, SEEK_CUR);
+                break;
+            }
+            case REPLY_PARCEL_CHUNK: {
+                std::vector<uint8_t> bytes;
+                bytes.resize(chunk.dataSize);
+                if (!android::base::ReadFully(fd, bytes.data(), chunk.dataSize)) {
+                    LOG(INFO) << "Failed to read reply parcel data from fd " << fd.get();
+                    return std::nullopt;
+                }
+                if (t.mReply.setData(bytes.data(), chunk.dataSize) != android::NO_ERROR) {
+                    LOG(INFO) << "Failed to set reply parcel data.";
+                    return std::nullopt;
+                }
+                lseek(fd.get(), chunk.padding, SEEK_CUR);
+                break;
+            }
+            case INVALID_CHUNK:
+                LOG(INFO) << "Invalid chunk.";
+                return std::nullopt;
+            case END_CHUNK:
+                LOG(INFO) << "Read end chunk";
+                FALLTHROUGH_INTENDED;
+            default:
+                // Unrecognized or skippable chunk
+                lseek(fd.get(), chunk.dataSize + chunk.padding, SEEK_CUR);
+                break;
+        }
+    } while (chunk.chunkType != END_CHUNK);
 
     return std::optional<RecordedTransaction>(std::move(t));
 }
 
+android::status_t RecordedTransaction::writeChunk(borrowed_fd fd, uint32_t chunkType,
+                                                  size_t byteCount, const uint8_t* data) const {
+    // Write Chunk Descriptor
+    // - Chunk Type
+    if (!android::base::WriteFully(fd, &chunkType, sizeof(uint32_t))) {
+        LOG(INFO) << "Failed to write chunk header to fd " << fd.get();
+        return UNKNOWN_ERROR;
+    }
+    // - Chunk Data Padding Size
+    uint32_t additionalPaddingCount = static_cast<uint32_t>(PADDING8(byteCount));
+    if (!android::base::WriteFully(fd, &additionalPaddingCount, sizeof(uint32_t))) {
+        LOG(INFO) << "Failed to write chunk padding size to fd " << fd.get();
+        return UNKNOWN_ERROR;
+    }
+    // - Chunk Data Size
+    uint64_t byteCountToWrite = (uint64_t)byteCount;
+    if (!android::base::WriteFully(fd, &byteCountToWrite, sizeof(uint64_t))) {
+        LOG(INFO) << "Failed to write chunk size to fd " << fd.get();
+        return UNKNOWN_ERROR;
+    }
+    if (byteCount == 0) {
+        return NO_ERROR;
+    }
+
+    if (!android::base::WriteFully(fd, data, byteCount)) {
+        LOG(INFO) << "Failed to write chunk data to fd " << fd.get();
+        return UNKNOWN_ERROR;
+    }
+
+    const uint8_t zeros[7] = {0};
+    if (!android::base::WriteFully(fd, zeros, additionalPaddingCount)) {
+        LOG(INFO) << "Failed to write chunk padding to fd " << fd.get();
+        return UNKNOWN_ERROR;
+    }
+    return NO_ERROR;
+}
+
 android::status_t RecordedTransaction::dumpToFile(const unique_fd& fd) const {
-    if (!android::base::WriteFully(fd, &mHeader, sizeof(mHeader))) {
+    if (NO_ERROR !=
+        writeChunk(fd, HEADER_CHUNK, sizeof(TransactionHeader),
+                   reinterpret_cast<const uint8_t*>(&mHeader))) {
         LOG(INFO) << "Failed to write transactionHeader to fd " << fd.get();
         return UNKNOWN_ERROR;
     }
-    if (!android::base::WriteFully(fd, mSent.data(), getDataSize())) {
-        LOG(INFO) << "Failed to write sent parcel data to fd " << fd.get();
+    if (NO_ERROR != writeChunk(fd, DATA_PARCEL_CHUNK, mSent.dataSize(), mSent.data())) {
+        LOG(INFO) << "Failed to write sent Parcel to fd " << fd.get();
         return UNKNOWN_ERROR;
     }
-    const uint8_t zeros[7] = {0};
-    if (!android::base::WriteFully(fd, zeros, PADDING8(getDataSize()))) {
-        LOG(INFO) << "Failed to write sent parcel padding to fd " << fd.get();
+    if (NO_ERROR != writeChunk(fd, REPLY_PARCEL_CHUNK, mReply.dataSize(), mReply.data())) {
+        LOG(INFO) << "Failed to write reply Parcel to fd " << fd.get();
         return UNKNOWN_ERROR;
     }
-    if (!android::base::WriteFully(fd, mReply.data(), getReplySize())) {
-        LOG(INFO) << "Failed to write reply parcel data to fd " << fd.get();
-        return UNKNOWN_ERROR;
-    }
-    if (!android::base::WriteFully(fd, zeros, PADDING8(getReplySize()))) {
-        LOG(INFO) << "Failed to write reply parcel padding to fd " << fd.get();
+    if (NO_ERROR != writeChunk(fd, END_CHUNK, 0, NULL)) {
+        LOG(INFO) << "Failed to write end chunk to fd " << fd.get();
         return UNKNOWN_ERROR;
     }
     return NO_ERROR;
@@ -158,14 +286,6 @@ uint32_t RecordedTransaction::getCode() const {
 
 uint32_t RecordedTransaction::getFlags() const {
     return mHeader.flags;
-}
-
-uint64_t RecordedTransaction::getDataSize() const {
-    return mHeader.dataSize;
-}
-
-uint64_t RecordedTransaction::getReplySize() const {
-    return mHeader.replySize;
 }
 
 int32_t RecordedTransaction::getReturnedStatus() const {
