@@ -83,7 +83,7 @@ namespace aidl::android::hardware {
 class HardwareBuffer {
 public:
     HardwareBuffer() noexcept {}
-    explicit HardwareBuffer(HardwareBuffer&& other) noexcept : mBuffer(other.release()) {}
+    HardwareBuffer(HardwareBuffer&& other) noexcept : mBuffer(other.release()) {}
 
     ~HardwareBuffer() {
         reset();

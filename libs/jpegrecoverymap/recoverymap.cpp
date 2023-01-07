@@ -25,7 +25,6 @@
 #include <image_io/jpeg/jpeg_scanner.h>
 #include <image_io/jpeg/jpeg_info_builder.h>
 #include <image_io/base/data_segment_data_source.h>
-#include <utils/Log.h>
 
 #include <memory>
 #include <sstream>
@@ -239,6 +238,9 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   }
 
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
+  unique_ptr<uint8_t[]> uncompressed_yuv_420_image_data = make_unique<uint8_t[]>(
+      uncompressed_p010_image->width * uncompressed_p010_image->height * 3 / 2);
+  uncompressed_yuv_420_image.data = uncompressed_yuv_420_image_data.get();
   JPEGR_CHECK(toneMap(uncompressed_p010_image, &uncompressed_yuv_420_image));
 
   jpegr_uncompressed_struct map;
@@ -265,7 +267,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   jpeg.length = jpeg_encoder.getCompressedImageSize();
 
   jpegr_exif_struct new_exif;
-  if (exif->data == nullptr) {
+  if (exif == nullptr || exif->data == nullptr) {
       new_exif.length = PSEUDO_EXIF_PACKAGE_LENGTH;
   } else {
       new_exif.length = exif->length + EXIF_J_R_ENTRY_LENGTH;
@@ -542,14 +544,29 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
-
   // TODO: fill EXIF data
   (void) exif;
+
+  if (request_sdr) {
+    JpegDecoder jpeg_decoder;
+    if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length,
+                                      true)) {
+        return ERROR_JPEGR_DECODE_ERROR;
+    }
+    jpegr_uncompressed_struct uncompressed_rgba_image;
+    uncompressed_rgba_image.data = jpeg_decoder.getDecompressedImagePtr();
+    uncompressed_rgba_image.width = jpeg_decoder.getDecompressedImageWidth();
+    uncompressed_rgba_image.height = jpeg_decoder.getDecompressedImageHeight();
+    memcpy(dest->data, uncompressed_rgba_image.data,
+           uncompressed_rgba_image.width * uncompressed_rgba_image.height * 4);
+    dest->width = uncompressed_rgba_image.width;
+    dest->height = uncompressed_rgba_image.height;
+    return NO_ERROR;
+  }
 
   jpegr_compressed_struct compressed_map;
   jpegr_metadata metadata;
   JPEGR_CHECK(extractRecoveryMap(compressed_jpegr_image, &compressed_map));
-
 
   JpegDecoder jpeg_decoder;
   if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length)) {
@@ -557,8 +574,7 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   }
 
   JpegDecoder recovery_map_decoder;
-  if (!recovery_map_decoder.decompressImage(compressed_map.data,
-                                    compressed_map.length)) {
+  if (!recovery_map_decoder.decompressImage(compressed_map.data, compressed_map.length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
 
@@ -567,26 +583,17 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   map.width = recovery_map_decoder.getDecompressedImageWidth();
   map.height = recovery_map_decoder.getDecompressedImageHeight();
 
-
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
   uncompressed_yuv_420_image.data = jpeg_decoder.getDecompressedImagePtr();
   uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
 
   if (!getMetadataFromXMP(static_cast<uint8_t*>(jpeg_decoder.getXMPPtr()),
-                                       jpeg_decoder.getXMPSize(), &metadata)) {
+                          jpeg_decoder.getXMPSize(), &metadata)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
 
-  if (request_sdr) {
-    memcpy(dest->data, uncompressed_yuv_420_image.data,
-            uncompressed_yuv_420_image.width*uncompressed_yuv_420_image.height *3 / 2);
-    dest->width = uncompressed_yuv_420_image.width;
-    dest->height = uncompressed_yuv_420_image.height;
-  } else {
-    JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &metadata, dest));
-  }
-
+  JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &metadata, dest));
   return NO_ERROR;
 }
 
@@ -926,18 +933,39 @@ status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
   return NO_ERROR;
 }
 
-status_t RecoveryMap::toneMap(jr_uncompressed_ptr uncompressed_p010_image,
+status_t RecoveryMap::toneMap(jr_uncompressed_ptr src,
                               jr_uncompressed_ptr dest) {
-  if (uncompressed_p010_image == nullptr || dest == nullptr) {
+  if (src == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  dest->width = uncompressed_p010_image->width;
-  dest->height = uncompressed_p010_image->height;
-  unique_ptr<uint8_t[]> dest_data = make_unique<uint8_t[]>(dest->width * dest->height * 3 / 2);
-  dest->data = dest_data.get();
+  dest->width = src->width;
+  dest->height = src->height;
 
-  // TODO: Tone map algorighm here.
+  size_t pixel_count = src->width * src->height;
+  for (size_t y = 0; y < src->height; ++y) {
+    for (size_t x = 0; x < src->width; ++x) {
+      size_t pixel_y_idx = x + y * src->width;
+      size_t pixel_uv_idx = x / 2 + (y / 2) * (src->width / 2);
+
+      uint16_t y_uint = reinterpret_cast<uint16_t*>(src->data)[pixel_y_idx]
+                        >> 6;
+      uint16_t u_uint = reinterpret_cast<uint16_t*>(src->data)[pixel_count + pixel_uv_idx * 2]
+                        >> 6;
+      uint16_t v_uint = reinterpret_cast<uint16_t*>(src->data)[pixel_count + pixel_uv_idx * 2 + 1]
+                        >> 6;
+
+      uint8_t* y = &reinterpret_cast<uint8_t*>(dest->data)[pixel_y_idx];
+      uint8_t* u = &reinterpret_cast<uint8_t*>(dest->data)[pixel_count + pixel_uv_idx];
+      uint8_t* v = &reinterpret_cast<uint8_t*>(dest->data)[pixel_count * 5 / 4 + pixel_uv_idx];
+
+      *y = static_cast<uint8_t>((y_uint >> 2) & 0xff);
+      *u = static_cast<uint8_t>((u_uint >> 2) & 0xff);
+      *v = static_cast<uint8_t>((v_uint >> 2) & 0xff);
+    }
+  }
+
+  dest->colorGamut = src->colorGamut;
 
   return NO_ERROR;
 }
