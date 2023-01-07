@@ -63,8 +63,7 @@ TEST(MotionPredictorTest, LinearPrediction) {
     predictor.record(getMotionEvent(MOVE, 1, 3, 10));
     predictor.record(getMotionEvent(MOVE, 2, 5, 20));
     predictor.record(getMotionEvent(MOVE, 3, 7, 30));
-    predictor.setExpectedPresentationTimeNanos(40);
-    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict();
+    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict(40);
     ASSERT_EQ(1u, predicted.size());
     ASSERT_EQ(predicted[0]->getX(0), 4);
     ASSERT_EQ(predicted[0]->getY(0), 9);
@@ -81,8 +80,7 @@ TEST(MotionPredictorTest, StationaryPrediction) {
     predictor.record(getMotionEvent(MOVE, 0, 1, 10));
     predictor.record(getMotionEvent(MOVE, 0, 1, 20));
     predictor.record(getMotionEvent(MOVE, 0, 1, 30));
-    predictor.setExpectedPresentationTimeNanos(40);
-    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict();
+    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict(40);
     ASSERT_EQ(1u, predicted.size());
     ASSERT_EQ(predicted[0]->getX(0), 0);
     ASSERT_EQ(predicted[0]->getY(0), 1);
@@ -98,21 +96,19 @@ TEST(MotionPredictorTest, IsPredictionAvailable) {
 TEST(MotionPredictorTest, Offset) {
     MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/1,
                               []() { return true /*enable prediction*/; });
-    predictor.setExpectedPresentationTimeNanos(40);
     predictor.record(getMotionEvent(DOWN, 0, 1, 30));
     predictor.record(getMotionEvent(MOVE, 0, 1, 35));
-    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict();
+    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict(40);
     ASSERT_EQ(1u, predicted.size());
     ASSERT_GE(predicted[0]->getEventTime(), 41);
 }
 
-TEST(MotionPredictionTest, FlagDisablesPrediction) {
+TEST(MotionPredictorTest, FlagDisablesPrediction) {
     MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0,
                               []() { return false /*disable prediction*/; });
-    predictor.setExpectedPresentationTimeNanos(40);
     predictor.record(getMotionEvent(DOWN, 0, 1, 30));
     predictor.record(getMotionEvent(MOVE, 0, 1, 35));
-    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict();
+    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict(40);
     ASSERT_EQ(0u, predicted.size());
     ASSERT_FALSE(predictor.isPredictionAvailable(/*deviceId=*/1, AINPUT_SOURCE_STYLUS));
     ASSERT_FALSE(predictor.isPredictionAvailable(/*deviceId=*/1, AINPUT_SOURCE_TOUCHSCREEN));

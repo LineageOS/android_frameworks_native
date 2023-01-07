@@ -63,14 +63,10 @@ public:
     MotionPredictor(nsecs_t predictionTimestampOffsetNanos,
                     std::function<bool()> checkEnableMotionPrediction = isMotionPredictionEnabled);
     void record(const MotionEvent& event);
-    std::vector<std::unique_ptr<MotionEvent>> predict();
+    std::vector<std::unique_ptr<MotionEvent>> predict(nsecs_t timestamp);
     bool isPredictionAvailable(int32_t deviceId, int32_t source);
-    void setExpectedPresentationTimeNanos(int64_t expectedPresentationTimeNanos);
 
 private:
-    std::mutex mLock;
-    int64_t mExpectedPresentationTimeNanos GUARDED_BY(mLock) = 0;
-    int64_t getExpectedPresentationTimeNanos();
     std::vector<MotionEvent> mEvents;
     const nsecs_t mPredictionTimestampOffsetNanos;
     const std::function<bool()> mCheckMotionPredictionEnabled;
