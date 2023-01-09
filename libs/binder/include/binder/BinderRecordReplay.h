@@ -42,8 +42,6 @@ public:
 
     uint32_t getCode() const;
     uint32_t getFlags() const;
-    uint64_t getDataSize() const;
-    uint64_t getReplySize() const;
     int32_t getReturnedStatus() const;
     uint32_t getVersion() const;
     const Parcel& getDataParcel() const;
@@ -52,27 +50,24 @@ public:
 private:
     RecordedTransaction() = default;
 
+    android::status_t writeChunk(const android::base::borrowed_fd, uint32_t chunkType,
+                                 size_t byteCount, const uint8_t* data) const;
+
 #pragma clang diagnostic push
 #pragma clang diagnostic error "-Wpadded"
     struct TransactionHeader {
         uint32_t code = 0;
         uint32_t flags = 0;
-        uint64_t dataSize = 0;
-        uint64_t replySize = 0;
         int32_t statusReturned = 0;
         uint32_t version = 0; // !0 iff Rpc
     };
 #pragma clang diagnostic pop
-    static_assert(sizeof(TransactionHeader) == 32);
+    static_assert(sizeof(TransactionHeader) == 16);
     static_assert(sizeof(TransactionHeader) % 8 == 0);
 
     TransactionHeader mHeader;
     Parcel mSent;
     Parcel mReply;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-private-field"
-    uint8_t mReserved[40];
-#pragma clang diagnostic pop
 };
 
 } // namespace binder::debug
