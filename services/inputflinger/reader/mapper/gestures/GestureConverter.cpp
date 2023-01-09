@@ -216,12 +216,16 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
                                          yCursorPosition));
         }
     }
+    // TODO(b/251196347): Set the gesture properties appropriately to avoid needing to negate the Y
+    // values.
+    float rotatedDeltaX = dx, rotatedDeltaY = -dy;
+    rotateDelta(mOrientation, &rotatedDeltaX, &rotatedDeltaY);
     for (size_t i = 0; i < mSwipeFingerCount; i++) {
         PointerCoords& coords = mFakeFingerCoords[i];
-        coords.setAxisValue(AMOTION_EVENT_AXIS_X, coords.getAxisValue(AMOTION_EVENT_AXIS_X) + dx);
-        // TODO(b/251196347): Set the gesture properties appropriately to avoid needing to negate
-        // the Y values.
-        coords.setAxisValue(AMOTION_EVENT_AXIS_Y, coords.getAxisValue(AMOTION_EVENT_AXIS_Y) - dy);
+        coords.setAxisValue(AMOTION_EVENT_AXIS_X,
+                            coords.getAxisValue(AMOTION_EVENT_AXIS_X) + rotatedDeltaX);
+        coords.setAxisValue(AMOTION_EVENT_AXIS_Y,
+                            coords.getAxisValue(AMOTION_EVENT_AXIS_Y) + rotatedDeltaY);
     }
     float xOffset = dx / (mXAxisInfo.maxValue - mXAxisInfo.minValue);
     // TODO(b/251196347): Set the gesture properties appropriately to avoid needing to negate the Y
