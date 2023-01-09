@@ -563,7 +563,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             mCurrentOperatingMode = RESTRICTED;
             // temporarily stop all sensor direct report and disable sensors
             disableAllSensorsLocked(&connLock);
-            mWhiteListedPackage.setTo(String8(args[1]));
+            mAllowListedPackage.setTo(String8(args[1]));
             return status_t(NO_ERROR);
         } else if (args.size() == 1 && args[0] == String16("enable")) {
             // If currently in restricted mode, reset back to NORMAL mode else ignore.
@@ -579,7 +579,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                     mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
                resetToNormalModeLocked();
             }
-            mWhiteListedPackage.clear();
+            mAllowListedPackage.clear();
             return status_t(NO_ERROR);
         } else if (args.size() == 2 && args[0] == String16("data_injection")) {
             if (mCurrentOperatingMode == NORMAL) {
@@ -591,7 +591,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                     // Re-enable sensors.
                     dev.enableAllSensors();
                 }
-                mWhiteListedPackage.setTo(String8(args[1]));
+                mAllowListedPackage.setTo(String8(args[1]));
                 return NO_ERROR;
             } else if (mCurrentOperatingMode == DATA_INJECTION) {
                 // Already in DATA_INJECTION mode. Treat this as a no_op.
@@ -612,7 +612,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                 }
                 // Re-enable sensors.
                 dev.enableAllSensors();
-                mWhiteListedPackage.setTo(String8(args[1]));
+                mAllowListedPackage.setTo(String8(args[1]));
                 return NO_ERROR;
             } else if (mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
                 // Already in REPLAY_DATA_INJECTION mode. Treat this as a no_op.
@@ -680,14 +680,14 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                    result.appendFormat(" NORMAL\n");
                    break;
                case RESTRICTED:
-                   result.appendFormat(" RESTRICTED : %s\n", mWhiteListedPackage.string());
+                   result.appendFormat(" RESTRICTED : %s\n", mAllowListedPackage.string());
                    break;
                case DATA_INJECTION:
-                   result.appendFormat(" DATA_INJECTION : %s\n", mWhiteListedPackage.string());
+                   result.appendFormat(" DATA_INJECTION : %s\n", mAllowListedPackage.string());
                    break;
                case REPLAY_DATA_INJECTION:
                    result.appendFormat(" REPLAY_DATA_INJECTION : %s\n",
-                            mWhiteListedPackage.string());
+                            mAllowListedPackage.string());
                    break;
                default:
                    result.appendFormat(" UNKNOWN\n");
@@ -809,11 +809,11 @@ status_t SensorService::dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock
             break;
         case RESTRICTED:
             proto.write(OPERATING_MODE, OP_MODE_RESTRICTED);
-            proto.write(WHITELISTED_PACKAGE, std::string(mWhiteListedPackage.string()));
+            proto.write(WHITELISTED_PACKAGE, std::string(mAllowListedPackage.string()));
             break;
         case DATA_INJECTION:
             proto.write(OPERATING_MODE, OP_MODE_DATA_INJECTION);
-            proto.write(WHITELISTED_PACKAGE, std::string(mWhiteListedPackage.string()));
+            proto.write(WHITELISTED_PACKAGE, std::string(mAllowListedPackage.string()));
             break;
         default:
             proto.write(OPERATING_MODE, OP_MODE_UNKNOWN);
@@ -1545,7 +1545,7 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
     // operating in DI mode.
     if (requestedMode == DATA_INJECTION) {
         if (mCurrentOperatingMode != DATA_INJECTION) return nullptr;
-        if (!isWhiteListedPackage(packageName)) return nullptr;
+        if (!isAllowListedPackage(packageName)) return nullptr;
     }
 
     uid_t uid = IPCThreadState::self()->getCallingUid();
@@ -1918,7 +1918,7 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
 
     ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
     if (mCurrentOperatingMode != NORMAL && mCurrentOperatingMode != REPLAY_DATA_INJECTION &&
-           !isWhiteListedPackage(connection->getPackageName())) {
+           !isAllowListedPackage(connection->getPackageName())) {
         return INVALID_OPERATION;
     }
 
@@ -2295,14 +2295,14 @@ void SensorService::sendEventsFromCache(const sp<SensorEventConnection>& connect
     }
 }
 
-bool SensorService::isWhiteListedPackage(const String8& packageName) {
-    return (packageName.contains(mWhiteListedPackage.string()));
+bool SensorService::isAllowListedPackage(const String8& packageName) {
+    return (packageName.contains(mAllowListedPackage.string()));
 }
 
 bool SensorService::isOperationRestrictedLocked(const String16& opPackageName) {
     if (mCurrentOperatingMode == RESTRICTED) {
         String8 package(opPackageName);
-        return !isWhiteListedPackage(package);
+        return !isAllowListedPackage(package);
     }
     return false;
 }
