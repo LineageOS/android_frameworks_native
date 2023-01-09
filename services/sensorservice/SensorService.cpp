@@ -65,6 +65,7 @@
 
 #include <ctime>
 #include <future>
+#include <string>
 
 #include <private/android_filesystem_config.h>
 
@@ -548,80 +549,22 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
         if (args.size() > 2) {
            return INVALID_OPERATION;
         }
-        ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
-        SensorDevice& dev(SensorDevice::getInstance());
-        if (args.size() == 2 && args[0] == String16("restrict")) {
-            // If already in restricted mode. Ignore.
-            if (mCurrentOperatingMode == RESTRICTED) {
-                return status_t(NO_ERROR);
+        if (args.size() > 0) {
+            Mode targetOperatingMode = NORMAL;
+            std::string inputStringMode = String8(args[0]).string();
+            if (getTargetOperatingMode(inputStringMode, &targetOperatingMode)) {
+              status_t error = changeOperatingMode(args, targetOperatingMode);
+              // Dump the latest state only if no error was encountered.
+              if (error != NO_ERROR) {
+                return error;
+              }
             }
-            // If in any mode other than normal, ignore.
-            if (mCurrentOperatingMode != NORMAL) {
-                return INVALID_OPERATION;
-            }
+        }
 
-            mCurrentOperatingMode = RESTRICTED;
-            // temporarily stop all sensor direct report and disable sensors
-            disableAllSensorsLocked(&connLock);
-            mAllowListedPackage.setTo(String8(args[1]));
-            return status_t(NO_ERROR);
-        } else if (args.size() == 1 && args[0] == String16("enable")) {
-            // If currently in restricted mode, reset back to NORMAL mode else ignore.
-            if (mCurrentOperatingMode == RESTRICTED) {
-                mCurrentOperatingMode = NORMAL;
-                // enable sensors and recover all sensor direct report
-                enableAllSensorsLocked(&connLock);
-            }
-            if (mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
-                dev.disableAllSensors();
-            }
-            if (mCurrentOperatingMode == DATA_INJECTION ||
-                    mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
-               resetToNormalModeLocked();
-            }
-            mAllowListedPackage.clear();
-            return status_t(NO_ERROR);
-        } else if (args.size() == 2 && args[0] == String16("data_injection")) {
-            if (mCurrentOperatingMode == NORMAL) {
-                dev.disableAllSensors();
-                status_t err = dev.setMode(DATA_INJECTION);
-                if (err == NO_ERROR) {
-                    mCurrentOperatingMode = DATA_INJECTION;
-                } else {
-                    // Re-enable sensors.
-                    dev.enableAllSensors();
-                }
-                mAllowListedPackage.setTo(String8(args[1]));
-                return NO_ERROR;
-            } else if (mCurrentOperatingMode == DATA_INJECTION) {
-                // Already in DATA_INJECTION mode. Treat this as a no_op.
-                return NO_ERROR;
-            } else {
-                // Transition to data injection mode supported only from NORMAL mode.
-                return INVALID_OPERATION;
-            }
-        } else if (args.size() == 2 && args[0] == String16("replay_data_injection")
-                   && !SensorServiceUtil::isUserBuild()) {
-            if (mCurrentOperatingMode == NORMAL) {
-                dev.disableAllSensors();
-                // Use DATA_INJECTION here since this value goes to the HAL and the HAL doesn't
-                // have an understanding of replay vs. normal data injection.
-                status_t err = dev.setMode(DATA_INJECTION);
-                if (err == NO_ERROR) {
-                    mCurrentOperatingMode = REPLAY_DATA_INJECTION;
-                }
-                // Re-enable sensors.
-                dev.enableAllSensors();
-                mAllowListedPackage.setTo(String8(args[1]));
-                return NO_ERROR;
-            } else if (mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
-                // Already in REPLAY_DATA_INJECTION mode. Treat this as a no_op.
-                return NO_ERROR;
-            } else {
-                // Transition to data injection mode supported only from NORMAL mode.
-                return INVALID_OPERATION;
-            }
-        } else if (args.size() == 1 && args[0] == String16("--proto")) {
+        ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
+        // Run the following logic if a transition isn't requested above based on the input
+        // argument parsing.
+        if (args.size() == 1 && args[0] == String16("--proto")) {
             return dumpProtoLocked(fd, &connLock);
         } else if (!mSensors.hasAnySensor()) {
             result.append("No Sensors on the device\n");
@@ -2264,6 +2207,95 @@ void SensorService::resetTargetSdkVersionCache(const String16& opPackageName) {
     if (iter != sPackageTargetVersion.end()) {
         sPackageTargetVersion.erase(iter);
     }
+}
+
+bool SensorService::getTargetOperatingMode(const std::string &inputString, Mode *targetModeOut) {
+    if (inputString == std::string("restrict")) {
+      *targetModeOut = RESTRICTED;
+      return true;
+    }
+    if (inputString == std::string("enable")) {
+      *targetModeOut = NORMAL;
+      return true;
+    }
+    if (inputString == std::string("data_injection")) {
+      *targetModeOut = DATA_INJECTION;
+      return true;
+    }
+    if (inputString == std::string("replay_data_injection")) {
+      *targetModeOut = REPLAY_DATA_INJECTION;
+      return true;
+    }
+    return false;
+}
+
+status_t SensorService::changeOperatingMode(const Vector<String16>& args,
+                                            Mode targetOperatingMode) {
+    ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
+    SensorDevice& dev(SensorDevice::getInstance());
+    if (mCurrentOperatingMode == targetOperatingMode) {
+        return NO_ERROR;
+    }
+    if (targetOperatingMode != NORMAL && args.size() < 2) {
+        return INVALID_OPERATION;
+    }
+    switch (targetOperatingMode) {
+      case NORMAL:
+        // If currently in restricted mode, reset back to NORMAL mode else ignore.
+        if (mCurrentOperatingMode == RESTRICTED) {
+            mCurrentOperatingMode = NORMAL;
+            // enable sensors and recover all sensor direct report
+            enableAllSensorsLocked(&connLock);
+        }
+        if (mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
+            dev.disableAllSensors();
+        }
+        if (mCurrentOperatingMode == DATA_INJECTION ||
+                mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
+          resetToNormalModeLocked();
+        }
+        mAllowListedPackage.clear();
+        return status_t(NO_ERROR);
+      case RESTRICTED:
+        // If in any mode other than normal, ignore.
+        if (mCurrentOperatingMode != NORMAL) {
+            return INVALID_OPERATION;
+        }
+
+        mCurrentOperatingMode = RESTRICTED;
+        // temporarily stop all sensor direct report and disable sensors
+        disableAllSensorsLocked(&connLock);
+        mAllowListedPackage.setTo(String8(args[1]));
+        return status_t(NO_ERROR);
+      case REPLAY_DATA_INJECTION:
+        if (SensorServiceUtil::isUserBuild()) {
+            return INVALID_OPERATION;
+        }
+        FALLTHROUGH_INTENDED;
+      case DATA_INJECTION:
+        if (mCurrentOperatingMode == NORMAL) {
+            dev.disableAllSensors();
+            // Always use DATA_INJECTION here since this value goes to the HAL and the HAL
+            // doesn't have an understanding of replay vs. normal data injection.
+            status_t err = dev.setMode(DATA_INJECTION);
+            if (err == NO_ERROR) {
+                mCurrentOperatingMode = targetOperatingMode;
+            }
+            if (err != NO_ERROR || targetOperatingMode == REPLAY_DATA_INJECTION) {
+                // Re-enable sensors.
+                dev.enableAllSensors();
+            }
+            mAllowListedPackage.setTo(String8(args[1]));
+            return NO_ERROR;
+        } else {
+            // Transition to data injection mode supported only from NORMAL mode.
+            return INVALID_OPERATION;
+        }
+        break;
+      default:
+        break;
+    }
+    return NO_ERROR;
 }
 
 void SensorService::checkWakeLockState() {
