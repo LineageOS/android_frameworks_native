@@ -42,8 +42,8 @@ TEST(BinderRecordedTransaction, RoundTripEncoding) {
 
     EXPECT_EQ(retrievedTransaction->getCode(), 1);
     EXPECT_EQ(retrievedTransaction->getFlags(), 42);
-    EXPECT_EQ(retrievedTransaction->getDataSize(), 12);
-    EXPECT_EQ(retrievedTransaction->getReplySize(), 4);
+    EXPECT_EQ(retrievedTransaction->getDataParcel().dataSize(), 12);
+    EXPECT_EQ(retrievedTransaction->getReplyParcel().dataSize(), 4);
     EXPECT_EQ(retrievedTransaction->getReturnedStatus(), 0);
     EXPECT_EQ(retrievedTransaction->getVersion(), 0);
 
