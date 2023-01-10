@@ -398,6 +398,9 @@ private:
     static bool hasPermissionForSensor(const Sensor& sensor);
     static int getTargetSdkVersion(const String16& opPackageName);
     static void resetTargetSdkVersionCache(const String16& opPackageName);
+    // Checks if the provided target operating mode is valid and returns the enum if it is.
+    static bool getTargetOperatingMode(const std::string &inputString, Mode *targetModeOut);
+    status_t changeOperatingMode(const Vector<String16>& args, Mode targetOperatingMode);
     // SensorService acquires a partial wakelock for delivering events from wake up sensors. This
     // method checks whether all the events from these wake up sensors have been delivered to the
     // corresponding applications, if yes the wakelock is released.
@@ -423,7 +426,7 @@ private:
     // If SensorService is operating in RESTRICTED mode, only select whitelisted packages are
     // allowed to register for or call flush on sensors. Typically only cts test packages are
     // allowed.
-    bool isWhiteListedPackage(const String8& packageName);
+    bool isAllowListedPackage(const String8& packageName);
 
     // Returns true if a connection with the specified opPackageName has no access to sensors
     // in the RESTRICTED mode (i.e. the service is in RESTRICTED mode, and the package is not
@@ -522,7 +525,7 @@ private:
     // applications with this packageName are allowed to activate/deactivate or call flush on
     // sensors. To run CTS this is can be set to ".cts." and only CTS tests will get access to
     // sensors.
-    String8 mWhiteListedPackage;
+    String8 mAllowListedPackage;
 
     int mNextSensorRegIndex;
     Vector<SensorRegistrationInfo> mLastNSensorRegistrations;
