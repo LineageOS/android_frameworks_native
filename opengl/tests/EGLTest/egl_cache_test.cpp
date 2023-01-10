@@ -134,6 +134,9 @@ std::string EGLCacheTest::getCachefileName() {
 }
 
 TEST_F(EGLCacheTest, ModifiedCacheMisses) {
+    // Turn this back on if multifile becomes the default
+    GTEST_SKIP() << "Skipping test designed for multifile, see b/263574392 and b/246966894";
+
     uint8_t buf[4] = { 0xee, 0xee, 0xee, 0xee };
     mCache->initialize(egl_display_t::get(EGL_DEFAULT_DISPLAY));
 

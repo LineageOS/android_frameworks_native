@@ -69,7 +69,7 @@ static EGLsizeiANDROID getBlob(const void* key, EGLsizeiANDROID keySize, void* v
 //
 egl_cache_t::egl_cache_t()
       : mInitialized(false),
-        mMultifileMode(true),
+        mMultifileMode(false),
         mCacheByteLimit(maxTotalSize),
         mMultifileCleanupPending(false) {}
 
@@ -113,8 +113,6 @@ void egl_cache_t::initialize(egl_display_t* display) {
             }
         }
     }
-
-    mMultifileMode = true;
 
     // Allow forcing monolithic cache for debug purposes
     if (base::GetProperty("debug.egl.blobcache.multifilemode", "") == "false") {
