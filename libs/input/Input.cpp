@@ -413,6 +413,8 @@ status_t PointerCoords::readFromParcel(Parcel* parcel) {
     for (uint32_t i = 0; i < count; i++) {
         values[i] = parcel->readFloat();
     }
+
+    isResampled = parcel->readBool();
     return OK;
 }
 
@@ -423,6 +425,8 @@ status_t PointerCoords::writeToParcel(Parcel* parcel) const {
     for (uint32_t i = 0; i < count; i++) {
         parcel->writeFloat(values[i]);
     }
+
+    parcel->writeBool(isResampled);
     return OK;
 }
 #endif
@@ -441,6 +445,9 @@ bool PointerCoords::operator==(const PointerCoords& other) const {
         if (values[i] != other.values[i]) {
             return false;
         }
+    }
+    if (isResampled != other.isResampled) {
+        return false;
     }
     return true;
 }
