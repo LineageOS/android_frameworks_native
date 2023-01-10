@@ -86,12 +86,12 @@ public:
      */
     int getEXIFPos() { return mExifPos; }
     /*
-     * Decompresses metadata of the image.
+     * Decompresses metadata of the image. All vectors are owned by the caller.
      */
     bool getCompressedImageParameters(const void* image, int length,
                                       size_t* pWidth, size_t* pHeight,
-                                      std::vector<uint8_t>* &iccData,
-                                      std::vector<uint8_t>* &exifData);
+                                      std::vector<uint8_t>* iccData,
+                                      std::vector<uint8_t>* exifData);
     /*
      * Extracts EXIF package and updates the EXIF position / length without decoding the image.
      */
