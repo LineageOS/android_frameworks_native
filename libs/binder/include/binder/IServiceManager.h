@@ -198,7 +198,10 @@ status_t getService(const String16& name, sp<INTERFACE>* outService)
 {
     const sp<IServiceManager> sm = defaultServiceManager();
     if (sm != nullptr) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         *outService = interface_cast<INTERFACE>(sm->getService(name));
+#pragma clang diagnostic pop // getService deprecation
         if ((*outService) != nullptr) return NO_ERROR;
     }
     return NAME_NOT_FOUND;
