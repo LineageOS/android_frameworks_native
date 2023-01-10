@@ -213,8 +213,9 @@ std::vector<ParcelRead<NdkParcelAdapter>> BINDER_NDK_PARCEL_READ_FUNCTIONS{
             size_t len = provider.ConsumeIntegralInRange<size_t>(0, provider.remaining_bytes());
             std::vector<uint8_t> parcelData = provider.ConsumeBytes<uint8_t>(len);
             const uint8_t* buffer = parcelData.data();
+            const size_t bufferLen = parcelData.size();
             NdkParcelAdapter adapter;
-            binder_status_t status = AParcel_unmarshal(adapter.aParcel(), buffer, len);
+            binder_status_t status = AParcel_unmarshal(adapter.aParcel(), buffer, bufferLen);
             FUZZ_LOG() << "status: " << status;
         },
 
