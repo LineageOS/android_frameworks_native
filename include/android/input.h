@@ -786,6 +786,19 @@ enum {
      * The same as {@link AMOTION_EVENT_AXIS_GESTURE_X_OFFSET}, but for the Y axis.
      */
     AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET = 49,
+    /**
+     * Axis constant: X scroll distance axis of a motion event.
+     *
+     * - For a touch pad, reports the distance that should be scrolled in the X axis as a result of
+     *   the user's two-finger scroll gesture, in display pixels.
+     */
+    AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE = 50,
+    /**
+     * Axis constant: Y scroll distance axis of a motion event.
+     *
+     * The same as {@link AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE}, but for the Y axis.
+     */
+    AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE = 51,
 
     /**
      * Note: This is not an "Axis constant". It does not represent any axis, nor should it be used
@@ -793,7 +806,7 @@ enum {
      * to make some computations (like iterating through all possible axes) cleaner.
      * Please update the value accordingly if you add a new axis.
      */
-    AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE = AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET,
+    AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE = AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE,
 
     // NOTE: If you add a new axis here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/MotionEvent.java for the full list.
