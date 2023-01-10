@@ -36,8 +36,9 @@ cc_test {
         "liblog",
         "libui",
         "libutils",
+        "libvintf",
     ],
-    data: ["data/*.kcm"],
+    data: ["data/*"],
     test_suites: ["device-tests"],
 }
 

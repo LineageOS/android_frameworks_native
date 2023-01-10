@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "mock/MockEventThread.h"
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
 #include "DisplayTransactionTestHelpers.h"
+#include "mock/DisplayHardware/MockDisplayMode.h"
 
 #include <scheduler/Fps.h>
 
@@ -42,14 +42,9 @@ public:
 
         mFlinger.onComposerHalHotplug(PrimaryDisplayVariant::HWC_DISPLAY_ID, Connection::CONNECTED);
 
-        {
-            DisplayModes modes = makeModes(kMode60, kMode90, kMode120, kMode90_4K);
-            auto configs = std::make_shared<scheduler::RefreshRateConfigs>(modes, kModeId60);
-
-            mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
-                               .setDisplayModes(std::move(modes), kModeId60, std::move(configs))
-                               .inject();
-        }
+        mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
+                           .setDisplayModes(kModes, kModeId60)
+                           .inject();
 
         setupScheduler(mDisplay->holdRefreshRateConfigs());
 
@@ -77,6 +72,8 @@ protected:
     static constexpr ui::Size kResolution4K{3840, 2160};
     static inline const DisplayModePtr kMode90_4K =
             createDisplayMode(kModeId90_4K, 90_Hz, 3, kResolution4K);
+
+    static inline const DisplayModes kModes = makeModes(kMode60, kMode90, kMode120, kMode90_4K);
 };
 
 void DisplayModeSwitchingTest::setupScheduler(
@@ -263,6 +260,113 @@ TEST_F(DisplayModeSwitchingTest, changeResolution_OnActiveDisplay_WithoutRefresh
 
     ASSERT_FALSE(mDisplay->getDesiredActiveMode().has_value());
     ASSERT_EQ(mDisplay->getActiveMode()->getId(), kModeId90_4K);
+}
+
+TEST_F(DisplayModeSwitchingTest, multiDisplay) {
+    constexpr HWDisplayId kInnerDisplayHwcId = PrimaryDisplayVariant::HWC_DISPLAY_ID;
+    constexpr HWDisplayId kOuterDisplayHwcId = kInnerDisplayHwcId + 1;
+
+    constexpr PhysicalDisplayId kOuterDisplayId = PhysicalDisplayId::fromPort(254u);
+
+    constexpr bool kIsPrimary = false;
+    TestableSurfaceFlinger::FakeHwcDisplayInjector(kOuterDisplayId, hal::DisplayType::PHYSICAL,
+                                                   kIsPrimary)
+            .setHwcDisplayId(kOuterDisplayHwcId)
+            .inject(&mFlinger, mComposer);
+
+    const auto outerDisplay = mFakeDisplayInjector.injectInternalDisplay(
+            [&](FakeDisplayDeviceInjector& injector) {
+                injector.setDisplayModes(mock::cloneForDisplay(kOuterDisplayId, kModes),
+                                         kModeId120);
+            },
+            {.displayId = kOuterDisplayId,
+             .hwcDisplayId = kOuterDisplayHwcId,
+             .isPrimary = kIsPrimary});
+
+    const auto& innerDisplay = mDisplay;
+
+    EXPECT_FALSE(innerDisplay->getDesiredActiveMode());
+    EXPECT_FALSE(outerDisplay->getDesiredActiveMode());
+
+    EXPECT_EQ(innerDisplay->getActiveMode()->getId(), kModeId60);
+    EXPECT_EQ(outerDisplay->getActiveMode()->getId(), kModeId120);
+
+    mFlinger.onActiveDisplayChanged(innerDisplay);
+
+    EXPECT_EQ(NO_ERROR,
+              mFlinger.setDesiredDisplayModeSpecs(innerDisplay->getDisplayToken().promote(),
+                                                  kModeId90.value(), false, 0.f, 120.f, 0.f,
+                                                  120.f));
+
+    EXPECT_EQ(NO_ERROR,
+              mFlinger.setDesiredDisplayModeSpecs(outerDisplay->getDisplayToken().promote(),
+                                                  kModeId60.value(), false, 0.f, 120.f, 0.f,
+                                                  120.f));
+
+    // Transition on the inner display.
+    ASSERT_TRUE(innerDisplay->getDesiredActiveMode());
+    EXPECT_EQ(innerDisplay->getDesiredActiveMode()->mode->getId(), kModeId90);
+
+    // No transition on the outer display.
+    EXPECT_FALSE(outerDisplay->getDesiredActiveMode());
+
+    const VsyncPeriodChangeTimeline timeline{.refreshRequired = true};
+    EXPECT_CALL(*mComposer,
+                setActiveConfigWithConstraints(kInnerDisplayHwcId,
+                                               hal::HWConfigId(kModeId90.value()), _, _))
+            .WillOnce(DoAll(SetArgPointee<3>(timeline), Return(Error::NONE)));
+
+    mFlinger.commit();
+
+    // Transition on the inner display.
+    ASSERT_TRUE(innerDisplay->getDesiredActiveMode());
+    EXPECT_EQ(innerDisplay->getDesiredActiveMode()->mode->getId(), kModeId90);
+
+    // No transition on the outer display.
+    EXPECT_FALSE(outerDisplay->getDesiredActiveMode());
+
+    mFlinger.commit();
+
+    // Transition on the inner display.
+    EXPECT_FALSE(innerDisplay->getDesiredActiveMode());
+    EXPECT_EQ(innerDisplay->getActiveMode()->getId(), kModeId90);
+
+    // No transition on the outer display.
+    EXPECT_FALSE(outerDisplay->getDesiredActiveMode());
+    EXPECT_EQ(outerDisplay->getActiveMode()->getId(), kModeId120);
+
+    mFlinger.onActiveDisplayChanged(outerDisplay);
+
+    // No transition on the inner display.
+    EXPECT_FALSE(innerDisplay->getDesiredActiveMode());
+
+    // Transition on the outer display.
+    ASSERT_TRUE(outerDisplay->getDesiredActiveMode());
+    EXPECT_EQ(outerDisplay->getDesiredActiveMode()->mode->getId(), kModeId60);
+
+    EXPECT_CALL(*mComposer,
+                setActiveConfigWithConstraints(kOuterDisplayHwcId,
+                                               hal::HWConfigId(kModeId60.value()), _, _))
+            .WillOnce(DoAll(SetArgPointee<3>(timeline), Return(Error::NONE)));
+
+    mFlinger.commit();
+
+    // No transition on the inner display.
+    EXPECT_FALSE(innerDisplay->getDesiredActiveMode());
+
+    // Transition on the outer display.
+    ASSERT_TRUE(outerDisplay->getDesiredActiveMode());
+    EXPECT_EQ(outerDisplay->getDesiredActiveMode()->mode->getId(), kModeId60);
+
+    mFlinger.commit();
+
+    // No transition on the inner display.
+    EXPECT_FALSE(innerDisplay->getDesiredActiveMode());
+    EXPECT_EQ(innerDisplay->getActiveMode()->getId(), kModeId90);
+
+    // Transition on the outer display.
+    EXPECT_FALSE(outerDisplay->getDesiredActiveMode());
+    EXPECT_EQ(outerDisplay->getActiveMode()->getId(), kModeId60);
 }
 
 } // namespace

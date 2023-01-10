@@ -115,7 +115,7 @@ public:
 
     // Renders the cached set with the supplied output composition state.
     void render(renderengine::RenderEngine& re, TexturePool& texturePool,
-                const OutputCompositionState& outputState);
+                const OutputCompositionState& outputState, bool deviceHandlesColorTransform);
 
     void dump(std::string& result) const;
 
