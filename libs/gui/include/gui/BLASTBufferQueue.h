@@ -136,12 +136,11 @@ private:
     void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
                            sp<IGraphicBufferConsumer>* outConsumer);
 
-    void acquireNextBufferLocked(
+    status_t acquireNextBufferLocked(
             const std::optional<SurfaceComposerClient::Transaction*> transaction) REQUIRES(mMutex);
     Rect computeCrop(const BufferItem& item) REQUIRES(mMutex);
     // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
     bool rejectBuffer(const BufferItem& item) REQUIRES(mMutex);
-    bool maxBuffersAcquired(bool includeExtraAcquire) const REQUIRES(mMutex);
     static PixelFormat convertBufferFormat(PixelFormat& format);
     void mergePendingTransactions(SurfaceComposerClient::Transaction* t, uint64_t frameNumber)
             REQUIRES(mMutex);
@@ -150,7 +149,6 @@ private:
     void acquireAndReleaseBuffer() REQUIRES(mMutex);
     void releaseBuffer(const ReleaseCallbackId& callbackId, const sp<Fence>& releaseFence)
             REQUIRES(mMutex);
-    void flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& lock);
 
     std::string mName;
     // Represents the queued buffer count from buffer queue,
