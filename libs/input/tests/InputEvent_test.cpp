@@ -46,6 +46,7 @@ TEST_F(PointerCoordsTest, ClearSetsBitsToZero) {
     coords.clear();
 
     ASSERT_EQ(0ULL, coords.bits);
+    ASSERT_FALSE(coords.isResampled);
 }
 
 TEST_F(PointerCoordsTest, AxisValues) {
@@ -158,11 +159,13 @@ TEST_F(PointerCoordsTest, Parcel) {
     outCoords.readFromParcel(&parcel);
 
     ASSERT_EQ(0ULL, outCoords.bits);
+    ASSERT_FALSE(outCoords.isResampled);
 
     // Round trip with some values.
     parcel.freeData();
     inCoords.setAxisValue(2, 5);
     inCoords.setAxisValue(5, 8);
+    inCoords.isResampled = true;
 
     inCoords.writeToParcel(&parcel);
     parcel.setDataPosition(0);
@@ -171,6 +174,7 @@ TEST_F(PointerCoordsTest, Parcel) {
     ASSERT_EQ(outCoords.bits, inCoords.bits);
     ASSERT_EQ(outCoords.values[0], inCoords.values[0]);
     ASSERT_EQ(outCoords.values[1], inCoords.values[1]);
+    ASSERT_TRUE(outCoords.isResampled);
 }
 
 
@@ -263,6 +267,7 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 16);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 17);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 18);
+    pointerCoords[0].isResampled = true;
     pointerCoords[1].clear();
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 20);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 21);
@@ -281,6 +286,7 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
                       mRawTransform, ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME, 2,
                       pointerProperties, pointerCoords);
 
+    pointerCoords[0].clear();
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 110);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 111);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 112);
@@ -290,6 +296,8 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 116);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 117);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 118);
+    pointerCoords[0].isResampled = true;
+    pointerCoords[1].clear();
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 120);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 121);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 122);
@@ -299,8 +307,10 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 126);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 127);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 128);
+    pointerCoords[1].isResampled = true;
     event->addSample(ARBITRARY_EVENT_TIME + 1, pointerCoords);
 
+    pointerCoords[0].clear();
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 210);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 211);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 212);
@@ -310,6 +320,7 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 216);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 217);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 218);
+    pointerCoords[1].clear();
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 220);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 221);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 222);
@@ -457,6 +468,13 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     ASSERT_EQ(toScaledOrientation(128), event->getHistoricalOrientation(1, 1));
     ASSERT_EQ(toScaledOrientation(218), event->getOrientation(0));
     ASSERT_EQ(toScaledOrientation(228), event->getOrientation(1));
+
+    ASSERT_TRUE(event->isResampled(0, 0));
+    ASSERT_FALSE(event->isResampled(1, 0));
+    ASSERT_TRUE(event->isResampled(0, 1));
+    ASSERT_TRUE(event->isResampled(1, 1));
+    ASSERT_FALSE(event->isResampled(0, 2));
+    ASSERT_FALSE(event->isResampled(1, 2));
 }
 
 TEST_F(MotionEventTest, Properties) {

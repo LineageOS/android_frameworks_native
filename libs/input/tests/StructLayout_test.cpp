@@ -117,7 +117,7 @@ void TestHeaderSize() {
 
 void TestBodySize() {
     static_assert(sizeof(InputMessage::Body::Key) == 96);
-    static_assert(sizeof(InputMessage::Body::Motion::Pointer) == 136);
+    static_assert(sizeof(InputMessage::Body::Motion::Pointer) == 144);
     static_assert(sizeof(InputMessage::Body::Motion) ==
                   offsetof(InputMessage::Body::Motion, pointers) +
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
@@ -137,8 +137,8 @@ void TestBodySize() {
     static_assert(sizeof(InputMessage::Body) ==
                   offsetof(InputMessage::Body::Motion, pointers) +
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
-    static_assert(sizeof(InputMessage::Body) == 160 + 136 * 16);
-    static_assert(sizeof(InputMessage::Body) == 2336);
+    static_assert(sizeof(InputMessage::Body) == 160 + 144 * 16);
+    static_assert(sizeof(InputMessage::Body) == 2464);
 }
 
 /**
@@ -148,8 +148,8 @@ void TestBodySize() {
  * still helpful to compute to get an idea of the sizes that are involved.
  */
 void TestWorstCaseInputMessageSize() {
-    static_assert(sizeof(InputMessage) == /*header*/ 8 + /*body*/ 2336);
-    static_assert(sizeof(InputMessage) == 2344);
+    static_assert(sizeof(InputMessage) == /*header*/ 8 + /*body*/ 2464);
+    static_assert(sizeof(InputMessage) == 2472);
 }
 
 /**
@@ -159,8 +159,8 @@ void CalculateSinglePointerInputMessageSize() {
     constexpr size_t pointerCount = 1;
     constexpr size_t bodySize = offsetof(InputMessage::Body::Motion, pointers) +
             sizeof(InputMessage::Body::Motion::Pointer) * pointerCount;
-    static_assert(bodySize == 160 + 136);
-    static_assert(bodySize == 296); // For the total message size, add the small header
+    static_assert(bodySize == 160 + 144);
+    static_assert(bodySize == 304); // For the total message size, add the small header
 }
 
 // --- VerifiedInputEvent ---

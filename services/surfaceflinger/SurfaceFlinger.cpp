@@ -6513,7 +6513,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
             [=, renderAreaFuture = std::move(renderAreaFuture)]() FTL_FAKE_GUARD(
                     kMainThreadContext) mutable -> ftl::SharedFuture<FenceResult> {
                 ScreenCaptureResults captureResults;
-                std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
+                std::shared_ptr<RenderArea> renderArea = renderAreaFuture.get();
                 if (!renderArea) {
                     ALOGW("Skipping screen capture because of invalid render area.");
                     if (captureListener) {
@@ -6525,7 +6525,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
 
                 ftl::SharedFuture<FenceResult> renderFuture;
                 renderArea->render([&]() FTL_FAKE_GUARD(kMainThreadContext) {
-                    renderFuture = renderScreenImpl(std::move(renderArea), traverseLayers, buffer,
+                    renderFuture = renderScreenImpl(renderArea, traverseLayers, buffer,
                                                     canCaptureBlackoutContent, regionSampling,
                                                     grayscale, captureResults);
                 });
@@ -6553,7 +6553,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
 }
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
-        std::unique_ptr<RenderArea> renderArea, TraverseLayersFunction traverseLayers,
+        std::shared_ptr<const RenderArea> renderArea, TraverseLayersFunction traverseLayers,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer,
         bool canCaptureBlackoutContent, bool regionSampling, bool grayscale,
         ScreenCaptureResults& captureResults) {

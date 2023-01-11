@@ -239,6 +239,117 @@ TEST_F(GestureConverterTest, DragWithButton) {
                       WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
 }
 
+TEST_F(GestureConverterTest, Scroll) {
+    const nsecs_t downTime = 12345;
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+
+    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 10);
+    std::list<NotifyArgs> args = converter.handleGesture(downTime, READ_TIME, startGesture);
+    ASSERT_EQ(2u, args.size());
+
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
+                      WithGestureScrollDistance(0, 0, EPSILON),
+                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithDownTime(downTime)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                      WithCoords(POINTER_X, POINTER_Y - 10),
+                      WithGestureScrollDistance(0, 10, EPSILON),
+                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+
+    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 5);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                      WithCoords(POINTER_X, POINTER_Y - 15),
+                      WithGestureScrollDistance(0, 5, EPSILON),
+                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+
+    Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
+                         GESTURES_FLING_START);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                      WithCoords(POINTER_X, POINTER_Y - 15),
+                      WithGestureScrollDistance(0, 0, EPSILON),
+                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+}
+
+TEST_F(GestureConverterTest, Scroll_Rotated) {
+    const nsecs_t downTime = 12345;
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+    converter.setOrientation(ui::ROTATION_90);
+
+    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 10);
+    std::list<NotifyArgs> args = converter.handleGesture(downTime, READ_TIME, startGesture);
+    ASSERT_EQ(2u, args.size());
+
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
+                      WithGestureScrollDistance(0, 0, EPSILON),
+                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithDownTime(downTime)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                      WithCoords(POINTER_X - 10, POINTER_Y),
+                      WithGestureScrollDistance(0, 10, EPSILON),
+                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+
+    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 5);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                      WithCoords(POINTER_X - 15, POINTER_Y),
+                      WithGestureScrollDistance(0, 5, EPSILON),
+                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+
+    Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
+                         GESTURES_FLING_START);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                      WithCoords(POINTER_X - 15, POINTER_Y),
+                      WithGestureScrollDistance(0, 0, EPSILON),
+                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+}
+
+TEST_F(GestureConverterTest, Scroll_ClearsClassificationAndOffsetsAfterGesture) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+
+    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 10);
+    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+
+    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 5);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+
+    Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
+                         GESTURES_FLING_START);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+
+    Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionClassification(MotionClassification::NONE),
+                      WithGestureScrollDistance(0, 0, EPSILON)));
+}
+
 TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsClassificationAndOffsetsAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
