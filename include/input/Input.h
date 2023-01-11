@@ -1127,6 +1127,7 @@ enum class PointerIconStyle : int32_t {
     TYPE_ZOOM_OUT = 1019,
     TYPE_GRAB = 1020,
     TYPE_GRABBING = 1021,
+    TYPE_HANDWRITING = 1022,
 
     TYPE_SPOT_HOVER = 2000,
     TYPE_SPOT_TOUCH = 2001,
