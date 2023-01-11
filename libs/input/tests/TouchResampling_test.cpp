@@ -31,6 +31,7 @@ struct Pointer {
     int32_t id;
     float x;
     float y;
+    bool isResampled = false;
 };
 
 struct InputEventEntry {
@@ -190,6 +191,8 @@ void TouchResamplingTest::consumeInputEventEntries(const std::vector<InputEventE
             ASSERT_EQ(entry.pointers[p].y,
                       motionEvent->getHistoricalRawAxisValue(AMOTION_EVENT_AXIS_Y,
                                                              motionEventPointerIndex, i));
+            ASSERT_EQ(entry.pointers[p].isResampled,
+                      motionEvent->isResampled(motionEventPointerIndex, i));
         }
     }
 
@@ -244,7 +247,7 @@ TEST_F(TouchResamplingTest, EventIsResampled) {
             //      id  x   y
             {10ms, {{0, 20, 30}}, AMOTION_EVENT_ACTION_MOVE},
             {20ms, {{0, 30, 30}}, AMOTION_EVENT_ACTION_MOVE},
-            {25ms, {{0, 35, 30}}, AMOTION_EVENT_ACTION_MOVE}, // resampled value
+            {25ms, {{0, 35, 30, .isResampled = true}}, AMOTION_EVENT_ACTION_MOVE},
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 }
@@ -283,7 +286,7 @@ TEST_F(TouchResamplingTest, EventIsResampledWithDifferentId) {
             //      id  x   y
             {10ms, {{1, 20, 30}}, AMOTION_EVENT_ACTION_MOVE},
             {20ms, {{1, 30, 30}}, AMOTION_EVENT_ACTION_MOVE},
-            {25ms, {{1, 35, 30}}, AMOTION_EVENT_ACTION_MOVE}, // resampled value
+            {25ms, {{1, 35, 30, .isResampled = true}}, AMOTION_EVENT_ACTION_MOVE},
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 }
@@ -361,7 +364,7 @@ TEST_F(TouchResamplingTest, ResampledValueIsUsedForIdenticalCoordinates) {
             //      id  x   y
             {10ms, {{0, 20, 30}}, AMOTION_EVENT_ACTION_MOVE},
             {20ms, {{0, 30, 30}}, AMOTION_EVENT_ACTION_MOVE},
-            {25ms, {{0, 35, 30}}, AMOTION_EVENT_ACTION_MOVE}, // resampled value
+            {25ms, {{0, 35, 30, .isResampled = true}}, AMOTION_EVENT_ACTION_MOVE},
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 
@@ -375,8 +378,12 @@ TEST_F(TouchResamplingTest, ResampledValueIsUsedForIdenticalCoordinates) {
     frameTime = 45ms + 5ms /*RESAMPLE_LATENCY*/;
     expectedEntries = {
             //      id  x   y
-            {40ms, {{0, 35, 30}}, AMOTION_EVENT_ACTION_MOVE}, // original event, rewritten
-            {45ms, {{0, 35, 30}}, AMOTION_EVENT_ACTION_MOVE}, // resampled event, rewritten
+            {40ms,
+             {{0, 35, 30, .isResampled = true}},
+             AMOTION_EVENT_ACTION_MOVE}, // original event, rewritten
+            {45ms,
+             {{0, 35, 30, .isResampled = true}},
+             AMOTION_EVENT_ACTION_MOVE}, // resampled event, rewritten
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 }
@@ -411,7 +418,7 @@ TEST_F(TouchResamplingTest, OldEventReceivedAfterResampleOccurs) {
             //      id  x   y
             {10ms, {{0, 20, 30}}, AMOTION_EVENT_ACTION_MOVE},
             {20ms, {{0, 30, 30}}, AMOTION_EVENT_ACTION_MOVE},
-            {25ms, {{0, 35, 30}}, AMOTION_EVENT_ACTION_MOVE}, // resampled value
+            {25ms, {{0, 35, 30, .isResampled = true}}, AMOTION_EVENT_ACTION_MOVE},
     };
     consumeInputEventEntries(expectedEntries, frameTime);
     // Above, the resampled event is at 25ms rather than at 30 ms = 35ms - RESAMPLE_LATENCY
@@ -428,8 +435,12 @@ TEST_F(TouchResamplingTest, OldEventReceivedAfterResampleOccurs) {
     frameTime = 50ms;
     expectedEntries = {
             //      id  x   y
-            {24ms, {{0, 35, 30}}, AMOTION_EVENT_ACTION_MOVE}, // original event, rewritten
-            {26ms, {{0, 45, 30}}, AMOTION_EVENT_ACTION_MOVE}, // resampled event, rewritten
+            {24ms,
+             {{0, 35, 30, .isResampled = true}},
+             AMOTION_EVENT_ACTION_MOVE}, // original event, rewritten
+            {26ms,
+             {{0, 45, 30, .isResampled = true}},
+             AMOTION_EVENT_ACTION_MOVE}, // resampled event, rewritten
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 }
@@ -499,7 +510,9 @@ TEST_F(TouchResamplingTest, TwoPointersAreResampledIndependently) {
             //      id  x    y
             {30ms, {{0, 100, 100}, {1, 500, 500}}, AMOTION_EVENT_ACTION_MOVE},
             {40ms, {{0, 120, 120}, {1, 600, 600}}, AMOTION_EVENT_ACTION_MOVE},
-            {45ms, {{0, 130, 130}, {1, 650, 650}}, AMOTION_EVENT_ACTION_MOVE}, // resampled value
+            {45ms,
+             {{0, 130, 130, .isResampled = true}, {1, 650, 650, .isResampled = true}},
+             AMOTION_EVENT_ACTION_MOVE},
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 
@@ -518,11 +531,13 @@ TEST_F(TouchResamplingTest, TwoPointersAreResampledIndependently) {
      */
     expectedEntries = {
             {60ms,
-             {{0, 130, 130}, // not 120! because it matches previous real event
-              {1, 650, 650}},
+             {{0, 130, 130, .isResampled = true}, // not 120! because it matches previous real event
+              {1, 650, 650, .isResampled = true}},
              AMOTION_EVENT_ACTION_MOVE},
             {70ms, {{0, 130, 130}, {1, 700, 700}}, AMOTION_EVENT_ACTION_MOVE},
-            {75ms, {{0, 135, 135}, {1, 750, 750}}, AMOTION_EVENT_ACTION_MOVE}, // resampled value
+            {75ms,
+             {{0, 135, 135, .isResampled = true}, {1, 750, 750, .isResampled = true}},
+             AMOTION_EVENT_ACTION_MOVE},
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 
@@ -554,7 +569,7 @@ TEST_F(TouchResamplingTest, TwoPointersAreResampledIndependently) {
              * The latest event with ACTION_MOVE was at t = 70, coord = 700.
              * Use that value for resampling here: (600 - 700) / (90 - 70) * 5 + 600
              */
-            {95ms, {{1, 575, 575}}, AMOTION_EVENT_ACTION_MOVE}, // resampled value
+            {95ms, {{1, 575, 575, .isResampled = true}}, AMOTION_EVENT_ACTION_MOVE},
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 }

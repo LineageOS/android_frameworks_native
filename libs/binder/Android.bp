@@ -511,6 +511,7 @@ cc_library {
     visibility: [
         ":__subpackages__",
         "//packages/modules/Virtualization:__subpackages__",
+        "//device/google/cuttlefish/shared/minidroid:__subpackages__",
     ],
 }
 

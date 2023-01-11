@@ -311,6 +311,11 @@ public:
     // on this behavior to increase contrast for some media sources.
     bool mTreat170mAsSrgb = false;
 
+    // Allows to ignore physical orientation provided through hwc API in favour of
+    // 'ro.surface_flinger.primary_display_orientation'.
+    // TODO(b/246793311): Clean up a temporary property
+    bool mIgnoreHwcPhysicalDisplayOrientation = false;
+
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
@@ -797,7 +802,7 @@ private:
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, const sp<IScreenCaptureListener>&);
     ftl::SharedFuture<FenceResult> renderScreenImpl(
-            std::unique_ptr<RenderArea>, TraverseLayersFunction,
+            std::shared_ptr<const RenderArea>, TraverseLayersFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool canCaptureBlackoutContent,
             bool regionSampling, bool grayscale, ScreenCaptureResults&) EXCLUDES(mStateLock)
             REQUIRES(kMainThreadContext);
