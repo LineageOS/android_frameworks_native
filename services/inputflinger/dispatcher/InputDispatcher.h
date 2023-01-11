@@ -621,8 +621,12 @@ private:
                                                         const CancelationOptions& options)
             REQUIRES(mLock);
 
-    void synthesizePointerDownEventsForConnectionLocked(const sp<Connection>& connection)
-            REQUIRES(mLock);
+    void synthesizePointerDownEventsForConnectionLocked(const sp<Connection>& connection,
+                                                        int32_t targetFlags) REQUIRES(mLock);
+
+    void synthesizeCancelationEventsForWindowLocked(
+            const sp<android::gui::WindowInfoHandle>& windowHandle,
+            const CancelationOptions& options) REQUIRES(mLock);
 
     // Splitting motion events across windows.
     std::unique_ptr<MotionEntry> splitMotionEvent(const MotionEntry& originalMotionEntry,
@@ -684,6 +688,18 @@ private:
     bool recentWindowsAreOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
 
     sp<InputReporterInterface> mReporter;
+
+    void slipWallpaperTouch(int32_t targetFlags,
+                            const sp<android::gui::WindowInfoHandle>& oldWindowHandle,
+                            const sp<android::gui::WindowInfoHandle>& newWindowHandle,
+                            TouchState& state, const BitSet32& pointerIds) REQUIRES(mLock);
+    void transferWallpaperTouch(int32_t oldTargetFlags, int32_t newTargetFlags,
+                                const sp<android::gui::WindowInfoHandle> fromWindowHandle,
+                                const sp<android::gui::WindowInfoHandle> toWindowHandle,
+                                TouchState& state, const BitSet32& pointerIds) REQUIRES(mLock);
+
+    sp<android::gui::WindowInfoHandle> findWallpaperWindowBelow(
+            const sp<android::gui::WindowInfoHandle>& windowHandle) const REQUIRES(mLock);
 };
 
 } // namespace android::inputdispatcher
