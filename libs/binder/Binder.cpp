@@ -407,8 +407,10 @@ status_t BBinder::transact(
         AutoMutex lock(e->mLock);
         if (mRecordingOn) {
             Parcel emptyReply;
+            timespec ts;
+            timespec_get(&ts, TIME_UTC);
             auto transaction =
-                    android::binder::debug::RecordedTransaction::fromDetails(code, flags, data,
+                    android::binder::debug::RecordedTransaction::fromDetails(code, flags, ts, data,
                                                                              reply ? *reply
                                                                                    : emptyReply,
                                                                              err);
