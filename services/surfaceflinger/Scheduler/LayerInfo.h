@@ -53,7 +53,7 @@ class LayerInfo {
     // Layer is considered frequent if the earliest value in the window of most recent present times
     // is within a threshold. If a layer is infrequent, its average refresh rate is disregarded in
     // favor of a low refresh rate.
-    static constexpr size_t kFrequentLayerWindowSize = 3;
+    static constexpr size_t kFrequentLayerWindowSize = 4;
     static constexpr Fps kMinFpsForFrequentLayer = 10_Hz;
     static constexpr auto kMaxPeriodForFrequentLayerNs =
             std::chrono::nanoseconds(kMinFpsForFrequentLayer.getPeriodNsecs()) + 1ms;
@@ -214,7 +214,10 @@ private:
         Fps reported;
         // Whether the last reported rate for LayerInfo::getRefreshRate()
         // was due to animation or infrequent updates
-        bool animatingOrInfrequent = false;
+        bool animating = false;
+        // Whether the last reported rate for LayerInfo::getRefreshRate()
+        // was due to infrequent updates
+        bool infrequent = false;
     };
 
     // Class to store past calculated refresh rate and determine whether
