@@ -49,12 +49,19 @@
 #include <android/binder_interface_utils.h>
 #include <android/binder_parcelable_utils.h>
 #define HAS_NDK_INTERFACE
-#else
+#endif
+
+// TODO: some things include libbinder without having access to libbase. This is
+// due to frameworks/native/include, which symlinks to libbinder headers, so even
+// though we don't use it here, we detect a different header, so that we are more
+// confident libbase will be included
+#if __has_include(<binder/RpcSession.h>)
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
 #include <binder/ParcelFileDescriptor.h>
 #include <binder/ParcelableHolder.h>
-#endif  //_has_include
+#define HAS_CPP_INTERFACE
+#endif
 
 namespace android {
 namespace internal {
@@ -134,19 +141,21 @@ class IsIterable {
 template <typename _T>
 class ToEmptyString {
     template <typename _U>
-    static std::enable_if_t<
+    static std::enable_if_t<false
 #ifdef HAS_NDK_INTERFACE
-            std::is_base_of_v<::ndk::ICInterface, _U>
+                                    || std::is_base_of_v<::ndk::ICInterface, _U>
 #if __ANDROID_API__ >= 31
-                    || std::is_same_v<::ndk::AParcelableHolder, _U>
+                                    || std::is_same_v<::ndk::AParcelableHolder, _U>
 #endif
-#else
-            std::is_base_of_v<IInterface, _U> || std::is_same_v<IBinder, _U> ||
-                    std::is_same_v<os::ParcelFileDescriptor, _U> ||
-                    std::is_same_v<os::ParcelableHolder, _U>
+#endif  // HAS_NDK_INTERFACE
+#ifdef HAS_CPP_INTERFACE
+                                    || std::is_base_of_v<IInterface, _U> ||
+                                    std::is_same_v<IBinder, _U> ||
+                                    std::is_same_v<os::ParcelFileDescriptor, _U> ||
+                                    std::is_same_v<os::ParcelableHolder, _U>
 #endif
-            ,
-            std::true_type>
+                            ,
+                            std::true_type>
     _test(int);
     template <typename _U>
     static std::false_type _test(...);
@@ -220,5 +229,21 @@ std::string ToString(const _T& t) {
 
 }  // namespace internal
 }  // namespace android
+
+#ifdef HAS_STRONG_POINTER
+#undef HAS_STRONG_POINTER
+#endif
+
+#ifdef HAS_STRING16
+#undef HAS_STRING16
+#endif
+
+#ifdef HAS_NDK_INTERFACE
+#undef HAS_NDK_INTERFACE
+#endif
+
+#ifdef HAS_CPP_INTERFACE
+#undef HAS_CPP_INTERFACE
+#endif
 
 /** @} */

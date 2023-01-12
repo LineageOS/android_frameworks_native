@@ -28,7 +28,8 @@ TEST(BinderRecordedTransaction, RoundTripEncoding) {
     d.writeInt64(2);
     Parcel r;
     r.writeInt32(99);
-    auto transaction = RecordedTransaction::fromDetails(1, 42, d, r, 0);
+    timespec ts = {1232456, 567890};
+    auto transaction = RecordedTransaction::fromDetails(1, 42, ts, d, r, 0);
 
     auto file = std::tmpfile();
     auto fd = unique_fd(fcntl(fileno(file), F_DUPFD, 1));
@@ -42,6 +43,8 @@ TEST(BinderRecordedTransaction, RoundTripEncoding) {
 
     EXPECT_EQ(retrievedTransaction->getCode(), 1);
     EXPECT_EQ(retrievedTransaction->getFlags(), 42);
+    EXPECT_EQ(retrievedTransaction->getTimestamp().tv_sec, ts.tv_sec);
+    EXPECT_EQ(retrievedTransaction->getTimestamp().tv_nsec, ts.tv_nsec);
     EXPECT_EQ(retrievedTransaction->getDataParcel().dataSize(), 12);
     EXPECT_EQ(retrievedTransaction->getReplyParcel().dataSize(), 4);
     EXPECT_EQ(retrievedTransaction->getReturnedStatus(), 0);
