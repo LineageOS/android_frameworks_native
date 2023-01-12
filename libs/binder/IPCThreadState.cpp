@@ -1221,6 +1221,10 @@ status_t IPCThreadState::talkWithDriver(bool doReceive)
         return NO_ERROR;
     }
 
+    ALOGE_IF(mProcess->mDriverFD >= 0,
+             "Driver returned error (%s). This is a bug in either libbinder or the driver. This "
+             "thread's connection to %s will no longer work.",
+             statusToString(err).c_str(), mProcess->mDriverName.c_str());
     return err;
 }
 
