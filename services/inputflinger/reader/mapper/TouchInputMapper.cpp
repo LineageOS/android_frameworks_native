@@ -980,7 +980,7 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
     // Create pointer controller if needed, and keep it around if Pointer Capture is enabled to
     // preserve the cursor position.
     if (mDeviceMode == DeviceMode::POINTER ||
-        (mDeviceMode == DeviceMode::DIRECT && mConfig.showTouches) ||
+        (mDeviceMode == DeviceMode::DIRECT && (mConfig.showTouches || hasStylus())) ||
         (mParameters.deviceType == Parameters::DeviceType::POINTER &&
          mConfig.pointerCaptureRequest.enable)) {
         if (mPointerController == nullptr) {
@@ -3650,6 +3650,14 @@ std::list<NotifyArgs> TouchInputMapper::abortPointerSimple(nsecs_t when, nsecs_t
     return out;
 }
 
+static bool isStylusEvent(uint32_t source, int32_t action, const PointerProperties* properties) {
+    if (!isFromSource(source, AINPUT_SOURCE_STYLUS)) {
+        return false;
+    }
+    const auto actionIndex = action >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+    return isStylusToolType(properties[actionIndex].toolType);
+}
+
 NotifyMotionArgs TouchInputMapper::dispatchMotion(
         nsecs_t when, nsecs_t readTime, uint32_t policyFlags, uint32_t source, int32_t action,
         int32_t actionButton, int32_t flags, int32_t metaState, int32_t buttonState,
@@ -3691,6 +3699,25 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
             ALOG_ASSERT(false);
         }
     }
+    const bool isStylus = isStylusEvent(source, action, pointerProperties);
+    if (isStylus) {
+        switch (action & AMOTION_EVENT_ACTION_MASK) {
+            case AMOTION_EVENT_ACTION_HOVER_ENTER:
+            case AMOTION_EVENT_ACTION_HOVER_MOVE:
+                mPointerController->setPresentation(
+                        PointerControllerInterface::Presentation::POINTER);
+                mPointerController
+                        ->setPosition(mCurrentCookedState.cookedPointerData.pointerCoords[0].getX(),
+                                      mCurrentCookedState.cookedPointerData.pointerCoords[0]
+                                              .getY());
+                mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
+                break;
+            case AMOTION_EVENT_ACTION_HOVER_EXIT:
+                mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
+                break;
+        }
+    }
+
     float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     if (mDeviceMode == DeviceMode::POINTER) {
