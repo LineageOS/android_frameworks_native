@@ -712,7 +712,7 @@ private:
     // Called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active mode bit. It obtains the lock, and sets mDesiredActiveMode.
-    void setDesiredActiveMode(const ActiveModeInfo& info) REQUIRES(mStateLock);
+    void setDesiredActiveMode(const ActiveModeInfo& info, bool force = false) REQUIRES(mStateLock);
     status_t setActiveModeFromBackdoor(const sp<IBinder>& displayToken, int id);
     // Sets the active mode and a new refresh rate in SF.
     void updateInternalStateWithChangedMode() REQUIRES(mStateLock);
@@ -734,6 +734,9 @@ private:
             const sp<DisplayDevice>& display,
             const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
             EXCLUDES(mStateLock);
+
+    status_t applyRefreshRateConfigsPolicy(const sp<DisplayDevice>&, bool force = false)
+            REQUIRES(mStateLock);
 
     void commitTransactions() EXCLUDES(mStateLock);
     void commitTransactionsLocked(uint32_t transactionFlags) REQUIRES(mStateLock);

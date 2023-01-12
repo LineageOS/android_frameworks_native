@@ -48,11 +48,8 @@ void MultiTouchMotionAccumulator::configure(InputDeviceContext& deviceContext, s
 
     delete[] mSlots;
     mSlots = new Slot[slotCount];
-}
 
-void MultiTouchMotionAccumulator::reset(InputDeviceContext& deviceContext) {
-    // Unfortunately there is no way to read the initial contents of the slots.
-    // So when we reset the accumulator, we must assume they are all zeroes.
+    mCurrentSlot = -1;
     if (mUsingSlotsProtocol) {
         // Query the driver for the current slot index and use it as the initial slot
         // before we start reading events from the device.  It is possible that the
@@ -64,24 +61,22 @@ void MultiTouchMotionAccumulator::reset(InputDeviceContext& deviceContext) {
         // This can cause the touch point to "jump", but at least there will be
         // no stuck touches.
         int32_t initialSlot;
-        status_t status = deviceContext.getAbsoluteAxisValue(ABS_MT_SLOT, &initialSlot);
-        if (status) {
-            ALOGD("Could not retrieve current multitouch slot index.  status=%d", status);
-            initialSlot = -1;
+        if (const auto status = deviceContext.getAbsoluteAxisValue(ABS_MT_SLOT, &initialSlot);
+            status == OK) {
+            mCurrentSlot = initialSlot;
+        } else {
+            ALOGD("Could not retrieve current multi-touch slot index. status=%d", status);
         }
-        clearSlots(initialSlot);
-    } else {
-        clearSlots(-1);
     }
 }
 
-void MultiTouchMotionAccumulator::clearSlots(int32_t initialSlot) {
+void MultiTouchMotionAccumulator::resetSlots() {
     if (mSlots) {
         for (size_t i = 0; i < mSlotCount; i++) {
             mSlots[i].clear();
         }
     }
-    mCurrentSlot = initialSlot;
+    mCurrentSlot = -1;
 }
 
 void MultiTouchMotionAccumulator::process(const RawEvent* rawEvent) {
@@ -169,7 +164,7 @@ void MultiTouchMotionAccumulator::process(const RawEvent* rawEvent) {
 
 void MultiTouchMotionAccumulator::finishSync() {
     if (!mUsingSlotsProtocol) {
-        clearSlots(-1);
+        resetSlots();
     }
 }
 
@@ -230,10 +225,12 @@ MultiTouchInputMapper::MultiTouchInputMapper(InputDeviceContext& deviceContext)
 MultiTouchInputMapper::~MultiTouchInputMapper() {}
 
 void MultiTouchInputMapper::reset(nsecs_t when) {
-    mMultiTouchMotionAccumulator.reset(getDeviceContext());
-
-    mPointerIdBits.clear();
-
+    // The evdev multi-touch protocol does not allow userspace applications to query the initial or
+    // current state of the pointers at any time. This means if we clear our accumulated state when
+    // resetting the input mapper, there's no way to rebuild the full initial state of the pointers.
+    // We can only wait for updates to all the pointers and axes. Rather than clearing the state and
+    // rebuilding the state from scratch, we work around this kernel API limitation by never
+    // fully clearing any state specific to the multi-touch protocol.
     TouchInputMapper::reset(when);
 }
 

@@ -42,6 +42,7 @@
 #include <renderengine/mock/RenderEngine.h>
 #include <ui/DebugUtils.h>
 
+#include "FakeDisplayInjector.h"
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
@@ -90,7 +91,9 @@ public:
     void injectFakeBufferQueueFactory();
     void injectFakeNativeWindowSurfaceFactory();
     sp<DisplayDevice> injectDefaultInternalDisplay(
-            std::function<void(TestableSurfaceFlinger::FakeDisplayDeviceInjector&)>);
+            std::function<void(TestableSurfaceFlinger::FakeDisplayDeviceInjector&)> injectExtra) {
+        return mFakeDisplayInjector.injectInternalDisplay(injectExtra);
+    }
 
     // --------------------------------------------------------------------
     // Postcondition helpers
@@ -114,6 +117,8 @@ public:
     sp<mock::NativeWindow> mNativeWindow = new mock::NativeWindow();
     sp<GraphicBuffer> mBuffer = new GraphicBuffer();
     Hwc2::mock::PowerAdvisor mPowerAdvisor;
+
+    FakeDisplayInjector mFakeDisplayInjector{mFlinger, mPowerAdvisor, mNativeWindow};
 
     // These mocks are created by the test, but are destroyed by SurfaceFlinger
     // by virtue of being stored into a std::unique_ptr. However we still need
