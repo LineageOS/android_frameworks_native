@@ -51,33 +51,24 @@ public:
         static const size_t MAX_DEGREE = 4;
 
         // Estimator time base.
-        nsecs_t time;
+        nsecs_t time = 0;
 
         // Polynomial coefficients describing motion.
-        float coeff[MAX_DEGREE + 1];
+        std::array<float, MAX_DEGREE + 1> coeff{};
 
         // Polynomial degree (number of coefficients), or zero if no information is
         // available.
-        uint32_t degree;
+        uint32_t degree = 0;
 
         // Confidence (coefficient of determination), between 0 (no fit) and 1 (perfect fit).
-        float confidence;
-
-        inline void clear() {
-            time = 0;
-            degree = 0;
-            confidence = 0;
-            for (size_t i = 0; i <= MAX_DEGREE; i++) {
-                coeff[i] = 0;
-            }
-        }
+        float confidence = 0;
     };
 
     /*
      * Contains all available velocity data from a VelocityTracker.
      */
     struct ComputedVelocity {
-        inline std::optional<float> getVelocity(int32_t axis, uint32_t id) const {
+        inline std::optional<float> getVelocity(int32_t axis, int32_t id) const {
             const auto& axisVelocities = mVelocities.find(axis);
             if (axisVelocities == mVelocities.end()) {
                 return {};
@@ -91,7 +82,7 @@ public:
             return axisIdVelocity->second;
         }
 
-        inline void addVelocity(int32_t axis, uint32_t id, float velocity) {
+        inline void addVelocity(int32_t axis, int32_t id, float velocity) {
             mVelocities[axis][id] = velocity;
         }
 
@@ -132,7 +123,7 @@ public:
     // Returns the velocity of the specified pointer id and axis in position units per second.
     // Returns empty optional if there is insufficient movement information for the pointer, or if
     // the given axis is not supported for velocity tracking.
-    std::optional<float> getVelocity(int32_t axis, uint32_t id) const;
+    std::optional<float> getVelocity(int32_t axis, int32_t pointerId) const;
 
     // Returns a ComputedVelocity instance with all available velocity data, using the given units
     // (reference: units == 1 means "per millisecond"), and clamping each velocity between
@@ -142,15 +133,15 @@ public:
     // Gets an estimator for the recent movements of the specified pointer id for the given axis.
     // Returns false and clears the estimator if there is no information available
     // about the pointer.
-    bool getEstimator(int32_t axis, uint32_t id, Estimator* outEstimator) const;
+    std::optional<Estimator> getEstimator(int32_t axis, int32_t pointerId) const;
 
     // Gets the active pointer id, or -1 if none.
-    inline int32_t getActivePointerId() const { return mActivePointerId; }
+    inline int32_t getActivePointerId() const { return mActivePointerId.value_or(-1); }
 
 private:
     nsecs_t mLastEventTime;
     BitSet32 mCurrentPointerIdBits;
-    int32_t mActivePointerId;
+    std::optional<int32_t> mActivePointerId;
 
     // An override strategy passed in the constructor to be used for all axes.
     // This strategy will apply to all axes, unless the default strategy is specified here.
@@ -185,7 +176,7 @@ public:
     virtual void clearPointers(BitSet32 idBits) = 0;
     virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
                              const std::vector<float>& positions) = 0;
-    virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const = 0;
+    virtual std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const = 0;
 };
 
 
@@ -194,29 +185,29 @@ public:
  */
 class LeastSquaresVelocityTrackerStrategy : public VelocityTrackerStrategy {
 public:
-    enum Weighting {
+    enum class Weighting {
         // No weights applied.  All data points are equally reliable.
-        WEIGHTING_NONE,
+        NONE,
 
         // Weight by time delta.  Data points clustered together are weighted less.
-        WEIGHTING_DELTA,
+        DELTA,
 
         // Weight such that points within a certain horizon are weighed more than those
         // outside of that horizon.
-        WEIGHTING_CENTRAL,
+        CENTRAL,
 
         // Weight such that points older than a certain amount are weighed less.
-        WEIGHTING_RECENT,
+        RECENT,
     };
 
     // Degree must be no greater than Estimator::MAX_DEGREE.
-    LeastSquaresVelocityTrackerStrategy(uint32_t degree, Weighting weighting = WEIGHTING_NONE);
-    virtual ~LeastSquaresVelocityTrackerStrategy();
+    LeastSquaresVelocityTrackerStrategy(uint32_t degree, Weighting weighting = Weighting::NONE);
+    ~LeastSquaresVelocityTrackerStrategy() override;
 
-    virtual void clearPointers(BitSet32 idBits);
+    void clearPointers(BitSet32 idBits) override;
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
                      const std::vector<float>& positions) override;
-    virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
+    std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
 
 private:
     // Sample horizon.
@@ -232,7 +223,7 @@ private:
         BitSet32 idBits;
         float positions[MAX_POINTERS];
 
-        inline float getPosition(uint32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
+        inline float getPosition(int32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
     };
 
     float chooseWeight(uint32_t index) const;
@@ -251,12 +242,12 @@ class IntegratingVelocityTrackerStrategy : public VelocityTrackerStrategy {
 public:
     // Degree must be 1 or 2.
     IntegratingVelocityTrackerStrategy(uint32_t degree);
-    ~IntegratingVelocityTrackerStrategy();
+    ~IntegratingVelocityTrackerStrategy() override;
 
-    virtual void clearPointers(BitSet32 idBits);
+    void clearPointers(BitSet32 idBits) override;
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
                      const std::vector<float>& positions) override;
-    virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
+    std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
 
 private:
     // Current state estimate for a particular pointer.
@@ -283,12 +274,12 @@ private:
 class LegacyVelocityTrackerStrategy : public VelocityTrackerStrategy {
 public:
     LegacyVelocityTrackerStrategy();
-    virtual ~LegacyVelocityTrackerStrategy();
+    ~LegacyVelocityTrackerStrategy() override;
 
-    virtual void clearPointers(BitSet32 idBits);
+    void clearPointers(BitSet32 idBits) override;
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
                      const std::vector<float>& positions) override;
-    virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
+    std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
 
 private:
     // Oldest sample to consider when calculating the velocity.
@@ -305,7 +296,7 @@ private:
         BitSet32 idBits;
         float positions[MAX_POINTERS];
 
-        inline float getPosition(uint32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
+        inline float getPosition(int32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
     };
 
     uint32_t mIndex;
@@ -315,12 +306,12 @@ private:
 class ImpulseVelocityTrackerStrategy : public VelocityTrackerStrategy {
 public:
     ImpulseVelocityTrackerStrategy(bool deltaValues);
-    virtual ~ImpulseVelocityTrackerStrategy();
+    ~ImpulseVelocityTrackerStrategy() override;
 
-    virtual void clearPointers(BitSet32 idBits);
+    void clearPointers(BitSet32 idBits) override;
     void addMovement(nsecs_t eventTime, BitSet32 idBits,
                      const std::vector<float>& positions) override;
-    virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
+    std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
 
 private:
     // Sample horizon.
@@ -336,7 +327,7 @@ private:
         BitSet32 idBits;
         float positions[MAX_POINTERS];
 
-        inline float getPosition(uint32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
+        inline float getPosition(int32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
     };
 
     // Whether or not the input movement values for the strategy come in the form of delta values.
