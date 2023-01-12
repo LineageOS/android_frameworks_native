@@ -34,8 +34,8 @@ public:
     static std::optional<RecordedTransaction> fromFile(const android::base::unique_fd& fd);
     // Filled with the arguments.
     static std::optional<RecordedTransaction> fromDetails(uint32_t code, uint32_t flags,
-                                                          const Parcel& data, const Parcel& reply,
-                                                          status_t err);
+                                                          timespec timestamp, const Parcel& data,
+                                                          const Parcel& reply, status_t err);
     RecordedTransaction(RecordedTransaction&& t) noexcept;
 
     [[nodiscard]] status_t dumpToFile(const android::base::unique_fd& fd) const;
@@ -43,6 +43,7 @@ public:
     uint32_t getCode() const;
     uint32_t getFlags() const;
     int32_t getReturnedStatus() const;
+    timespec getTimestamp() const;
     uint32_t getVersion() const;
     const Parcel& getDataParcel() const;
     const Parcel& getReplyParcel() const;
@@ -60,9 +61,12 @@ private:
         uint32_t flags = 0;
         int32_t statusReturned = 0;
         uint32_t version = 0; // !0 iff Rpc
+        int64_t timestampSeconds = 0;
+        int32_t timestampNanoseconds = 0;
+        int32_t reserved = 0;
     };
 #pragma clang diagnostic pop
-    static_assert(sizeof(TransactionHeader) == 16);
+    static_assert(sizeof(TransactionHeader) == 32);
     static_assert(sizeof(TransactionHeader) % 8 == 0);
 
     TransactionHeader mHeader;
