@@ -24,13 +24,16 @@ using android::base::unique_fd;
 using android::binder::debug::RecordedTransaction;
 
 TEST(BinderRecordedTransaction, RoundTripEncoding) {
+    android::String16 interfaceName("SampleInterface");
     Parcel d;
     d.writeInt32(12);
     d.writeInt64(2);
     Parcel r;
     r.writeInt32(99);
     timespec ts = {1232456, 567890};
-    auto transaction = RecordedTransaction::fromDetails(1, 42, ts, d, r, 0);
+
+    auto transaction = RecordedTransaction::fromDetails(interfaceName, 1, 42, ts, d, r, 0);
+    EXPECT_TRUE(transaction.has_value());
 
     auto file = std::tmpfile();
     auto fd = unique_fd(fcntl(fileno(file), F_DUPFD, 1));
@@ -42,6 +45,7 @@ TEST(BinderRecordedTransaction, RoundTripEncoding) {
 
     auto retrievedTransaction = RecordedTransaction::fromFile(fd);
 
+    EXPECT_EQ(retrievedTransaction->getInterfaceName(), android::String8(interfaceName));
     EXPECT_EQ(retrievedTransaction->getCode(), 1);
     EXPECT_EQ(retrievedTransaction->getFlags(), 42);
     EXPECT_EQ(retrievedTransaction->getTimestamp().tv_sec, ts.tv_sec);
@@ -57,13 +61,14 @@ TEST(BinderRecordedTransaction, RoundTripEncoding) {
 }
 
 TEST(BinderRecordedTransaction, Checksum) {
+    android::String16 interfaceName("SampleInterface");
     Parcel d;
     d.writeInt32(12);
     d.writeInt64(2);
     Parcel r;
     r.writeInt32(99);
     timespec ts = {1232456, 567890};
-    auto transaction = RecordedTransaction::fromDetails(1, 42, ts, d, r, 0);
+    auto transaction = RecordedTransaction::fromDetails(interfaceName, 1, 42, ts, d, r, 0);
 
     auto file = std::tmpfile();
     auto fd = unique_fd(fcntl(fileno(file), F_DUPFD, 1));
@@ -91,6 +96,7 @@ TEST(BinderRecordedTransaction, PayloadsExceedPageBoundaries) {
     std::vector<uint8_t> largePayload;
     uint8_t filler = 0xaa;
     largePayload.insert(largePayload.end(), largeDataSize, filler);
+    android::String16 interfaceName("SampleInterface");
     Parcel d;
     d.writeInt32(12);
     d.writeInt64(2);
@@ -98,7 +104,7 @@ TEST(BinderRecordedTransaction, PayloadsExceedPageBoundaries) {
     Parcel r;
     r.writeInt32(99);
     timespec ts = {1232456, 567890};
-    auto transaction = RecordedTransaction::fromDetails(1, 42, ts, d, r, 0);
+    auto transaction = RecordedTransaction::fromDetails(interfaceName, 1, 42, ts, d, r, 0);
 
     auto file = std::tmpfile();
     auto fd = unique_fd(fcntl(fileno(file), F_DUPFD, 1));
