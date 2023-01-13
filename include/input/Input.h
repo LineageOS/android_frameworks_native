@@ -1113,6 +1113,7 @@ public:
 enum class PointerIconStyle : int32_t {
     TYPE_CUSTOM = -1,
     TYPE_NULL = 0,
+    TYPE_NOT_SPECIFIED = 1,
     TYPE_ARROW = 1000,
     TYPE_CONTEXT_MENU = 1001,
     TYPE_HAND = 1002,

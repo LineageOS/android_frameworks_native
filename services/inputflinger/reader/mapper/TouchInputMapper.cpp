@@ -3699,13 +3699,14 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
             ALOG_ASSERT(false);
         }
     }
-    const bool isStylus = isStylusEvent(source, action, pointerProperties);
-    if (isStylus) {
+    const bool isDirectStylus =
+            mDeviceMode == DeviceMode::DIRECT && isStylusEvent(source, action, pointerProperties);
+    if (isDirectStylus) {
         switch (action & AMOTION_EVENT_ACTION_MASK) {
             case AMOTION_EVENT_ACTION_HOVER_ENTER:
             case AMOTION_EVENT_ACTION_HOVER_MOVE:
                 mPointerController->setPresentation(
-                        PointerControllerInterface::Presentation::POINTER);
+                        PointerControllerInterface::Presentation::STYLUS_HOVER);
                 mPointerController
                         ->setPosition(mCurrentCookedState.cookedPointerData.pointerCoords[0].getX(),
                                       mCurrentCookedState.cookedPointerData.pointerCoords[0]
