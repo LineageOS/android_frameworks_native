@@ -54,6 +54,7 @@ public:
     enum class Features {
         Spinner = 1 << 0,
         RenderRate = 1 << 1,
+        ShowInMiddle = 1 << 2,
     };
 
     RefreshRateOverlay(FpsRange, ftl::Flags<Features>);

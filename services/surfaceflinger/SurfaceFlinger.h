@@ -653,6 +653,8 @@ private:
     bool mRefreshRateOverlaySpinner = false;
     // Show render rate with refresh rate overlay
     bool mRefreshRateOverlayRenderRate = false;
+    // Show render rate overlay offseted to the middle of the screen (e.g. for circular displays)
+    bool mRefreshRateOverlayShowInMiddle = false;
 
     void setDesiredActiveMode(display::DisplayModeRequest&&, bool force = false)
             REQUIRES(mStateLock);

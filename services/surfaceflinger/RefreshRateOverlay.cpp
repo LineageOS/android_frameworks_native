@@ -320,7 +320,12 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
     const auto width = std::min({kMaxWidth, viewport.width, viewport.height});
     const auto height = 2 * width;
     Rect frame((5 * width) >> 4, height >> 5);
-    frame.offsetBy(width >> 5, height >> 4);
+
+    if (!mFeatures.test(Features::ShowInMiddle)) {
+        frame.offsetBy(width >> 5, height >> 4);
+    } else {
+        frame.offsetBy(width >> 1, height >> 4);
+    }
 
     createTransaction(mSurfaceControl->get())
             .setMatrix(mSurfaceControl->get(), frame.getWidth() / static_cast<float>(kBufferWidth),
