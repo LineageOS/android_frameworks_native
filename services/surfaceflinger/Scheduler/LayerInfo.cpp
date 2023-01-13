@@ -77,12 +77,43 @@ bool LayerInfo::isFrameTimeValid(const FrameTimeData& frameTime) const {
 
 bool LayerInfo::isFrequent(nsecs_t now) const {
     using fps_approx_ops::operator>=;
-    // If we know nothing about this layer we consider it as frequent as it might be the start
-    // of an animation.
+    // If we know nothing about this layer (e.g. after touch event),
+    // we consider it as frequent as it might be the start of an animation.
     if (mFrameTimes.size() < kFrequentLayerWindowSize) {
         return true;
     }
-    return getFps(now) >= kMinFpsForFrequentLayer;
+
+    // Non-active layers are also infrequent
+    if (mLastUpdatedTime < getActiveLayerThreshold(now)) {
+        return false;
+    }
+
+    // We check whether we can classify this layer as frequent or infrequent:
+    //  - frequent: a layer posted kFrequentLayerWindowSize within
+    //              kMaxPeriodForFrequentLayerNs of each other.
+    // -  infrequent: a layer posted kFrequentLayerWindowSize with longer
+    //                gaps than kFrequentLayerWindowSize.
+    // If we can't determine the layer classification yet, we return the last
+    // classification.
+    bool isFrequent = true;
+    bool isInfrequent = true;
+    const auto n = mFrameTimes.size() - 1;
+    for (size_t i = 0; i < kFrequentLayerWindowSize - 1; i++) {
+        if (mFrameTimes[n - i].queueTime - mFrameTimes[n - i - 1].queueTime <
+            kMaxPeriodForFrequentLayerNs.count()) {
+            isInfrequent = false;
+        } else {
+            isFrequent = false;
+        }
+    }
+
+    if (isFrequent || isInfrequent) {
+        return isFrequent;
+    }
+
+    // If we can't determine whether the layer is frequent or not, we return
+    // the last known classification.
+    return !mLastRefreshRate.infrequent;
 }
 
 Fps LayerInfo::getFps(nsecs_t now) const {
@@ -235,14 +266,14 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateSelector& se
     if (isAnimating(now)) {
         ATRACE_FORMAT_INSTANT("animating");
         ALOGV("%s is animating", mName.c_str());
-        mLastRefreshRate.animatingOrInfrequent = true;
+        mLastRefreshRate.animating = true;
         return {LayerHistory::LayerVoteType::Max, Fps()};
     }
 
     if (!isFrequent(now)) {
         ATRACE_FORMAT_INSTANT("infrequent");
         ALOGV("%s is infrequent", mName.c_str());
-        mLastRefreshRate.animatingOrInfrequent = true;
+        mLastRefreshRate.infrequent = true;
         // Infrequent layers vote for mininal refresh rate for
         // battery saving purposes and also to prevent b/135718869.
         return {LayerHistory::LayerVoteType::Min, Fps()};
@@ -251,7 +282,7 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateSelector& se
     // If the layer was previously tagged as animating or infrequent, we clear
     // the history as it is likely the layer just changed its behavior
     // and we should not look at stale data
-    if (mLastRefreshRate.animatingOrInfrequent) {
+    if (mLastRefreshRate.animating || mLastRefreshRate.infrequent) {
         clearHistory(now);
     }
 
