@@ -90,7 +90,8 @@ private:
     inline SkRect getSkRect(const FloatRect& layer);
     inline SkRect getSkRect(const Rect& layer);
     inline std::pair<SkRRect, SkRRect> getBoundsAndClip(const FloatRect& bounds,
-                                                        const FloatRect& crop, float cornerRadius);
+                                                        const FloatRect& crop,
+                                                        const vec2& cornerRadius);
     inline bool layerHasBlur(const LayerSettings& layer, bool colorTransformModifiesAlpha);
     inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
