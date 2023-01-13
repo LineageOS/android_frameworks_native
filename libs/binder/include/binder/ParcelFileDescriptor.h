@@ -42,6 +42,7 @@ public:
     android::status_t writeToParcel(android::Parcel* parcel) const override;
     android::status_t readFromParcel(const android::Parcel* parcel) override;
 
+    inline std::string toString() const { return "ParcelFileDescriptor:" + std::to_string(get()); }
     inline bool operator!=(const ParcelFileDescriptor& rhs) const {
         return mFd.get() != rhs.mFd.get();
     }
