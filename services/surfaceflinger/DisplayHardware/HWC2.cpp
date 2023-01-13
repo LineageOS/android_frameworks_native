@@ -826,25 +826,24 @@ Error Layer::setPerFrameMetadata(const int32_t supportedPerFrameMetadata,
                                    mHdrMetadata.cta8613.maxFrameAverageLightLevel}});
     }
 
-    Error error = static_cast<Error>(
-            mComposer.setLayerPerFrameMetadata(mDisplay->getId(), mId, perFrameMetadatas));
+    const Error error = static_cast<Error>(
+        mComposer.setLayerPerFrameMetadata(mDisplay->getId(), mId, perFrameMetadatas));
+    if (error != Error::NONE) {
+        return error;
+    }
 
+    std::vector<Hwc2::PerFrameMetadataBlob> perFrameMetadataBlobs;
     if (validTypes & HdrMetadata::HDR10PLUS) {
         if (CC_UNLIKELY(mHdrMetadata.hdr10plus.size() == 0)) {
             return Error::BAD_PARAMETER;
         }
 
-        std::vector<Hwc2::PerFrameMetadataBlob> perFrameMetadataBlobs;
         perFrameMetadataBlobs.push_back(
                 {Hwc2::PerFrameMetadataKey::HDR10_PLUS_SEI, mHdrMetadata.hdr10plus});
-        Error setMetadataBlobsError =
-                static_cast<Error>(mComposer.setLayerPerFrameMetadataBlobs(mDisplay->getId(), mId,
-                                                                           perFrameMetadataBlobs));
-        if (error == Error::NONE) {
-            return setMetadataBlobsError;
-        }
     }
-    return error;
+
+    return static_cast<Error>(
+            mComposer.setLayerPerFrameMetadataBlobs(mDisplay->getId(), mId, perFrameMetadataBlobs));
 }
 
 Error Layer::setDisplayFrame(const Rect& frame)
