@@ -1482,14 +1482,26 @@ status_t SurfaceFlinger::getOverlaySupport(gui::OverlayProperties* outProperties
         std::transform(combination.pixelFormats.cbegin(), combination.pixelFormats.cend(),
                        std::back_inserter(pixelFormats),
                        [](const auto& val) { return static_cast<int32_t>(val); });
-        std::vector<int32_t> dataspaces;
-        dataspaces.reserve(combination.dataspaces.size());
-        std::transform(combination.dataspaces.cbegin(), combination.dataspaces.cend(),
-                       std::back_inserter(dataspaces),
+        std::vector<int32_t> standards;
+        standards.reserve(combination.standards.size());
+        std::transform(combination.standards.cbegin(), combination.standards.cend(),
+                       std::back_inserter(standards),
+                       [](const auto& val) { return static_cast<int32_t>(val); });
+        std::vector<int32_t> transfers;
+        transfers.reserve(combination.transfers.size());
+        std::transform(combination.transfers.cbegin(), combination.transfers.cend(),
+                       std::back_inserter(transfers),
+                       [](const auto& val) { return static_cast<int32_t>(val); });
+        std::vector<int32_t> ranges;
+        ranges.reserve(combination.ranges.size());
+        std::transform(combination.ranges.cbegin(), combination.ranges.cend(),
+                       std::back_inserter(ranges),
                        [](const auto& val) { return static_cast<int32_t>(val); });
         gui::OverlayProperties::SupportedBufferCombinations outCombination;
         outCombination.pixelFormats = std::move(pixelFormats);
-        outCombination.dataspaces = std::move(dataspaces);
+        outCombination.standards = std::move(standards);
+        outCombination.transfers = std::move(transfers);
+        outCombination.ranges = std::move(ranges);
         outProperties->combinations.emplace_back(outCombination);
     }
     outProperties->supportMixedColorSpaces = aidlProperties.supportMixedColorSpaces;
