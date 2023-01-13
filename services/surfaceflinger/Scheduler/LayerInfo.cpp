@@ -29,6 +29,7 @@
 #include <cutils/compiler.h>
 #include <cutils/trace.h>
 #include <ftl/enum.h>
+#include <gui/TraceUtils.h>
 
 #undef LOG_TAG
 #define LOG_TAG "LayerInfo"
@@ -189,6 +190,7 @@ std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
 
 std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(const RefreshRateSelector& selector,
                                                              nsecs_t now) {
+    ATRACE_CALL();
     static constexpr float MARGIN = 1.0f; // 1Hz
     if (!hasEnoughDataForHeuristic()) {
         ALOGV("Not enough data");
@@ -224,18 +226,21 @@ std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(const RefreshRateSe
 
 LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateSelector& selector,
                                                    nsecs_t now) {
+    ATRACE_CALL();
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
         ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
         return mLayerVote;
     }
 
     if (isAnimating(now)) {
+        ATRACE_FORMAT_INSTANT("animating");
         ALOGV("%s is animating", mName.c_str());
         mLastRefreshRate.animatingOrInfrequent = true;
         return {LayerHistory::LayerVoteType::Max, Fps()};
     }
 
     if (!isFrequent(now)) {
+        ATRACE_FORMAT_INSTANT("infrequent");
         ALOGV("%s is infrequent", mName.c_str());
         mLastRefreshRate.animatingOrInfrequent = true;
         // Infrequent layers vote for mininal refresh rate for
