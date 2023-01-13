@@ -311,7 +311,7 @@ bool JpegDecoder::decompress(jpeg_decompress_struct* cinfo, const uint8_t* dest,
 
 bool JpegDecoder::getCompressedImageParameters(const void* image, int length,
                               size_t *pWidth, size_t *pHeight,
-                              std::vector<uint8_t> *&iccData , std::vector<uint8_t> *&exifData) {
+                              std::vector<uint8_t> *iccData , std::vector<uint8_t> *exifData) {
     jpeg_decompress_struct cinfo;
     jpegr_source_mgr mgr(static_cast<const uint8_t*>(image), length);
     jpegrerror_mgr myerr;
@@ -336,10 +336,27 @@ bool JpegDecoder::getCompressedImageParameters(const void* image, int length,
     *pWidth = cinfo.image_width;
     *pHeight = cinfo.image_height;
 
-    //TODO: Parse iccProfile and exifData
+    //TODO: Parse iccProfile
     (void)iccData;
-    (void)exifData;
 
+    if (exifData != nullptr) {
+        bool exifAppears = false;
+        for (jpeg_marker_struct* marker = cinfo.marker_list; marker && !exifAppears;
+             marker = marker->next) {
+            if (marker->marker != kAPP1Marker) {
+                continue;
+            }
+
+            const unsigned int len = marker->data_length;
+            if (len >= kExifIdCode.size() &&
+                !strncmp(reinterpret_cast<const char*>(marker->data), kExifIdCode.c_str(),
+                         kExifIdCode.size())) {
+                exifData->resize(len, 0);
+                memcpy(static_cast<void*>(exifData->data()), marker->data, len);
+                exifAppears = true;
+            }
+        }
+    }
 
     jpeg_destroy_decompress(&cinfo);
     return true;

@@ -2514,7 +2514,9 @@ void SurfaceFlinger::postComposition() {
     const TimePoint compositeTime =
             TimePoint::fromNs(mCompositionEngine->getLastFrameRefreshTimestamp());
     const Duration presentLatency =
-            mPresentLatencyTracker.trackPendingFrame(compositeTime, presentFenceTime);
+            !getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE)
+            ? mPresentLatencyTracker.trackPendingFrame(compositeTime, presentFenceTime)
+            : Duration::zero();
 
     const auto& schedule = mScheduler->getVsyncSchedule();
     const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(presentTime);

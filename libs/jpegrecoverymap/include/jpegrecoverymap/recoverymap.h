@@ -244,7 +244,8 @@ public:
     *
     * The output is filled jpegr_info structure
     * @param compressed_jpegr_image compressed JPEGR image
-    * @param jpegr_info pointer to output JPEGR info
+    * @param jpegr_info pointer to output JPEGR info. Members of jpegr_info
+    *         are owned by the caller
     * @return NO_ERROR if JPEGR parsing succeeds, error code otherwise
     */
     status_t getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,

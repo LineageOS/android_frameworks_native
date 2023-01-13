@@ -111,10 +111,12 @@ class IsPointerLike {
             IsInstantiationOf<_U, sp>::value ||  // for IBinder and interface types in the C++
                                                  // backend
 #endif
-                    IsInstantiationOf<_U, std::optional>::value ||  // for @nullable types in the
-                                                                    // C++/NDK backends
-                    IsInstantiationOf<_U, std::shared_ptr>::value,  // for interface types in the
-                                                                    // NDK backends
+                    IsInstantiationOf<_U, std::optional>::value ||    // for @nullable types in the
+                                                                      // C++/NDK backends
+                    IsInstantiationOf<_U, std::unique_ptr>::value ||  // for @nullable(heap=true)
+                                                                      // in C++/NDK backends
+                    IsInstantiationOf<_U, std::shared_ptr>::value,    // for interface types in the
+                                                                      // NDK backends
 
             std::true_type>
     _test(int);
@@ -162,6 +164,11 @@ class ToEmptyString {
 
    public:
     enum { value = decltype(_test<_T>(0))::value };
+};
+
+template <typename _T>
+struct TypeDependentFalse {
+    enum { value = false };
 };
 
 }  // namespace details
@@ -223,7 +230,7 @@ std::string ToString(const _T& t) {
         out << "]";
         return out.str();
     } else {
-        return "{no toString() implemented}";
+        static_assert(details::TypeDependentFalse<_T>::value, "no toString implemented, huh?");
     }
 }
 

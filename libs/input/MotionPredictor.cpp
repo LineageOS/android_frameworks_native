@@ -78,16 +78,19 @@ std::vector<std::unique_ptr<MotionEvent>> MotionPredictor::predict(nsecs_t times
 
     for (size_t i = 0; i < event.getPointerCount(); i++) {
         const int32_t pointerId = event.getPointerId(i);
+        const PointerCoords* currentPointerCoords = event.getRawPointerCoords(i);
+        const float currentX = currentPointerCoords->getAxisValue(AMOTION_EVENT_AXIS_X);
+        const float currentY = currentPointerCoords->getAxisValue(AMOTION_EVENT_AXIS_Y);
+
         PointerCoords coords;
         coords.clear();
 
         ssize_t index = previous.findPointerIndex(pointerId);
         if (index >= 0) {
             // We have old data for this pointer. Compute the prediction.
-            const float oldX = previous.getRawX(index);
-            const float oldY = previous.getRawY(index);
-            const float currentX = event.getRawX(i);
-            const float currentY = event.getRawY(i);
+            const PointerCoords* oldPointerCoords = previous.getRawPointerCoords(index);
+            const float oldX = oldPointerCoords->getAxisValue(AMOTION_EVENT_AXIS_X);
+            const float oldY = oldPointerCoords->getAxisValue(AMOTION_EVENT_AXIS_Y);
 
             // Let's do a linear interpolation while waiting for a real model
             const float scale =
@@ -97,13 +100,15 @@ std::vector<std::unique_ptr<MotionEvent>> MotionPredictor::predict(nsecs_t times
 
             coords.setAxisValue(AMOTION_EVENT_AXIS_X, futureX);
             coords.setAxisValue(AMOTION_EVENT_AXIS_Y, futureY);
+            ALOGD_IF(isDebug(),
+                     "Prediction by %.1f ms, (%.1f, %.1f), (%.1f, %.1f) --> (%.1f, %.1f)",
+                     (futureTime - event.getEventTime()) * 1E-6, oldX, oldY, currentX, currentY,
+                     futureX, futureY);
         }
 
         futureCoords.push_back(coords);
     }
 
-    ALOGD_IF(isDebug(), "Prediction is %.1f ms away from the event",
-             (futureTime - event.getEventTime()) * 1E-6);
     /**
      * The process of adding samples is different for the first and subsequent samples:
      * 1. Add the first sample via 'initialize' as below
