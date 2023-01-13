@@ -74,6 +74,7 @@
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <android/os/IIncidentCompanion.h>
 #include <binder/IServiceManager.h>
+#include <cutils/multiuser.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <cutils/sockets.h>
@@ -2619,10 +2620,13 @@ bool Dumpstate::FinishZipFile() {
     return true;
 }
 
-static void SendBroadcast(const std::string& action, const std::vector<std::string>& args) {
+static void SendBroadcast(const std::string& action,
+                          const std::vector<std::string>& args,
+                          int32_t user_id) {
     // clang-format off
-    std::vector<std::string> am = {"/system/bin/cmd", "activity", "broadcast", "--user", "0",
-                    "--receiver-foreground", "--receiver-include-background", "-a", action};
+    std::vector<std::string> am = {"/system/bin/cmd", "activity", "broadcast", "--user",
+                        std::to_string(user_id), "--receiver-foreground",
+                        "--receiver-include-background", "-a", action};
     // clang-format on
 
     am.insert(am.end(), args.begin(), args.end());
@@ -3057,7 +3061,8 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         };
         // clang-format on
         // Send STARTED broadcast for apps that listen to bugreport generation events
-        SendBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED", am_args);
+        SendBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED",
+                      am_args, multiuser_get_user_id(calling_uid));
         if (options_->progress_updates_to_socket) {
             dprintf(control_socket_fd_, "BEGIN:%s\n", path_.c_str());
         }
@@ -3305,7 +3310,7 @@ void Dumpstate::MaybeAddUiTracesToZip() {
 }
 
 void Dumpstate::onUiIntensiveBugreportDumpsFinished(int32_t calling_uid) {
-    if (calling_uid == AID_SHELL || !CalledByApi()) {
+    if (multiuser_get_app_id(calling_uid) == AID_SHELL || !CalledByApi()) {
         return;
     }
     if (listener_ != nullptr) {
@@ -3316,7 +3321,7 @@ void Dumpstate::onUiIntensiveBugreportDumpsFinished(int32_t calling_uid) {
 }
 
 void Dumpstate::MaybeCheckUserConsent(int32_t calling_uid, const std::string& calling_package) {
-    if (calling_uid == AID_SHELL || !CalledByApi()) {
+    if (multiuser_get_app_id(calling_uid) == AID_SHELL || !CalledByApi()) {
         // No need to get consent for shell triggered dumpstates, or not through
         // bugreporting API (i.e. no fd to copy back).
         return;
@@ -3398,7 +3403,7 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented(int32_t calling_uid
     // If the caller has asked to copy the bugreport over to their directory, we need explicit
     // user consent (unless the caller is Shell).
     UserConsentResult consent_result;
-    if (calling_uid == AID_SHELL) {
+    if (multiuser_get_app_id(calling_uid) == AID_SHELL) {
         consent_result = UserConsentResult::APPROVED;
     } else {
         consent_result = consent_callback_->getResult();
