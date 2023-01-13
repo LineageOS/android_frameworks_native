@@ -22,9 +22,9 @@
 
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
+#include <gui/TraceUtils.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
-#include <utils/Trace.h>
 
 #include <algorithm>
 #include <cmath>
@@ -165,6 +165,7 @@ void LayerHistory::setDefaultFrameRateCompatibility(Layer* layer, bool contentDe
 }
 
 auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -> Summary {
+    ATRACE_CALL();
     Summary summary;
 
     std::lock_guard lock(mLock);
@@ -178,6 +179,7 @@ auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -
         ALOGV("%s has priority: %d %s focused", info->getName().c_str(), frameRateSelectionPriority,
               layerFocused ? "" : "not");
 
+        ATRACE_FORMAT("%s", info->getName().c_str());
         const auto vote = info->getRefreshRateVote(selector, now);
         // Skip NoVote layer as those don't have any requirements
         if (vote.type == LayerVoteType::NoVote) {
@@ -192,6 +194,8 @@ auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -
 
         const float layerArea = transformed.getWidth() * transformed.getHeight();
         float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
+        ATRACE_FORMAT_INSTANT("%s %s (%d%)", ftl::enum_string(vote.type).c_str(),
+                              to_string(vote.fps).c_str(), weight * 100);
         summary.push_back({info->getName(), info->getOwnerUid(), vote.type, vote.fps,
                            vote.seamlessness, weight, layerFocused});
 
@@ -204,6 +208,7 @@ auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -
 }
 
 void LayerHistory::partitionLayers(nsecs_t now) {
+    ATRACE_CALL();
     const nsecs_t threshold = getActiveLayerThreshold(now);
 
     // iterate over inactive map

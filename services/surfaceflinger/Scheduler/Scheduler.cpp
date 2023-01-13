@@ -661,6 +661,7 @@ void Scheduler::demoteLeaderDisplay() {
 
 template <typename S, typename T>
 auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals {
+    ATRACE_CALL();
     std::vector<display::DisplayModeRequest> modeRequests;
     GlobalSignals consideredSignals;
 
