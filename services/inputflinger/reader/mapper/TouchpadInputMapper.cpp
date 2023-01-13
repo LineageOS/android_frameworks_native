@@ -146,6 +146,18 @@ std::list<NotifyArgs> TouchpadInputMapper::configure(nsecs_t when,
         }
         mGestureConverter.setOrientation(orientation);
     }
+    if (!changes || (changes & InputReaderConfiguration::CHANGE_TOUCHPAD_SETTINGS)) {
+        // TODO(b/265798483): load an Android-specific acceleration curve instead of mapping to one
+        // of five ChromeOS curves.
+        const int pointerSensitivity = (config->touchpadPointerSpeed + 7) / 3 + 1;
+        mPropertyProvider.getProperty("Pointer Sensitivity").setIntValues({pointerSensitivity});
+        mPropertyProvider.getProperty("Invert Scrolling")
+                .setBoolValues({config->touchpadNaturalScrollingEnabled});
+        mPropertyProvider.getProperty("Tap Enable")
+                .setBoolValues({config->touchpadTapToClickEnabled});
+        mPropertyProvider.getProperty("Button Right Click Zone Enable")
+                .setBoolValues({config->touchpadRightClickZoneEnabled});
+    }
     return {};
 }
 

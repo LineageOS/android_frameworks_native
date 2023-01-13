@@ -244,7 +244,7 @@ TEST_F(GestureConverterTest, Scroll) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
 
-    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 10);
+    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args = converter.handleGesture(downTime, READ_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
 
@@ -261,7 +261,7 @@ TEST_F(GestureConverterTest, Scroll) {
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
                       WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
 
-    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 5);
+    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -289,7 +289,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
     converter.setOrientation(ui::ROTATION_90);
 
-    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 10);
+    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args = converter.handleGesture(downTime, READ_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
 
@@ -306,7 +306,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
                       WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
 
-    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 5);
+    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -332,10 +332,10 @@ TEST_F(GestureConverterTest, Scroll_ClearsClassificationAndOffsetsAfterGesture) 
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
 
-    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 10);
+    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
 
-    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 5);
+    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
