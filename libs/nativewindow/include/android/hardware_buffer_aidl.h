@@ -119,6 +119,13 @@ public:
     inline AHardwareBuffer* _Nullable get() const { return mBuffer; }
     inline explicit operator bool () const { return mBuffer != nullptr; }
 
+    inline bool operator!=(const HardwareBuffer& rhs) const { return get() != rhs.get(); }
+    inline bool operator<(const HardwareBuffer& rhs) const { return get() < rhs.get(); }
+    inline bool operator<=(const HardwareBuffer& rhs) const { return get() <= rhs.get(); }
+    inline bool operator==(const HardwareBuffer& rhs) const { return get() == rhs.get(); }
+    inline bool operator>(const HardwareBuffer& rhs) const { return get() > rhs.get(); }
+    inline bool operator>=(const HardwareBuffer& rhs) const { return get() >= rhs.get(); }
+
     HardwareBuffer& operator=(HardwareBuffer&& other) noexcept {
         reset(other.release());
         return *this;
