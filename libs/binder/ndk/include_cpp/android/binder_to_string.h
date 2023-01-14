@@ -58,8 +58,6 @@
 #if __has_include(<binder/RpcSession.h>)
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
-#include <binder/ParcelFileDescriptor.h>
-#include <binder/ParcelableHolder.h>
 #define HAS_CPP_INTERFACE
 #endif
 
@@ -152,9 +150,7 @@ class ToEmptyString {
 #endif  // HAS_NDK_INTERFACE
 #ifdef HAS_CPP_INTERFACE
                                     || std::is_base_of_v<IInterface, _U> ||
-                                    std::is_same_v<IBinder, _U> ||
-                                    std::is_same_v<os::ParcelFileDescriptor, _U> ||
-                                    std::is_same_v<os::ParcelableHolder, _U>
+                                    std::is_same_v<IBinder, _U>
 #endif
                             ,
                             std::true_type>

@@ -118,8 +118,9 @@ const std::string& Output::getName() const {
 void Output::setName(const std::string& name) {
     mName = name;
     auto displayIdOpt = getDisplayId();
-    mNamePlusId = base::StringPrintf("%s (%s)", mName.c_str(),
-                                     displayIdOpt ? to_string(*displayIdOpt).c_str() : "NA");
+    mNamePlusId = displayIdOpt ? base::StringPrintf("%s (%s)", mName.c_str(),
+                                     to_string(*displayIdOpt).c_str())
+                               : mName;
 }
 
 void Output::setCompositionEnabled(bool enabled) {
@@ -1224,8 +1225,9 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     ALOGV(__FUNCTION__);
 
     const auto& outputState = getState();
-    const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
-                                                      outputState.usesClientComposition};
+    const TracedOrdinal<bool> hasClientComposition = {
+        base::StringPrintf("hasClientComposition %s", mNamePlusId.c_str()),
+        outputState.usesClientComposition};
     if (!hasClientComposition) {
         setExpensiveRenderingExpected(false);
         return base::unique_fd();
