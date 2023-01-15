@@ -18,6 +18,7 @@
 
 #include <android/input.h>
 #include <linux/input-event-codes.h>
+#include <log/log_main.h>
 
 #include "TouchCursorInputMapperCommon.h"
 #include "input/Input.h"
@@ -78,6 +79,8 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
         case kGestureTypeSwipeLift:
         case kGestureTypeFourFingerSwipeLift:
             return handleMultiFingerSwipeLift(when, readTime);
+        case kGestureTypePinch:
+            return handlePinch(when, readTime, gesture);
         default:
             // TODO(b/251196347): handle more gesture types.
             return {};
@@ -322,6 +325,77 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
                                  yCursorPosition));
     mCurrentClassification = MotionClassification::NONE;
     mSwipeFingerCount = 0;
+    return out;
+}
+
+[[nodiscard]] std::list<NotifyArgs> GestureConverter::handlePinch(nsecs_t when, nsecs_t readTime,
+                                                                  const Gesture& gesture) {
+    std::list<NotifyArgs> out;
+    float xCursorPosition, yCursorPosition;
+    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+
+    // Pinch gesture phases are reported a little differently from others, in that the same details
+    // struct is used for all phases of the gesture, just with different zoom_state values. When
+    // zoom_state is START or END, dz will always be 1, so we don't need to move the pointers in
+    // those cases.
+
+    if (mCurrentClassification != MotionClassification::PINCH) {
+        LOG_ALWAYS_FATAL_IF(gesture.details.pinch.zoom_state != GESTURES_ZOOM_START,
+                            "First pinch gesture does not have the START zoom state (%d instead).",
+                            gesture.details.pinch.zoom_state);
+        mCurrentClassification = MotionClassification::PINCH;
+        mPinchFingerSeparation = INITIAL_PINCH_SEPARATION_PX;
+        mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR, 1.0);
+        mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X,
+                                          xCursorPosition - mPinchFingerSeparation / 2);
+        mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+        mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
+        mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X,
+                                          xCursorPosition + mPinchFingerSeparation / 2);
+        mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+        mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
+        mDownTime = when;
+        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
+                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
+                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                     yCursorPosition));
+        out.push_back(makeMotionArgs(when, readTime,
+                                     AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                             1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT,
+                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ 2,
+                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                     yCursorPosition));
+        return out;
+    }
+
+    if (gesture.details.pinch.zoom_state == GESTURES_ZOOM_END) {
+        mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR, 1.0);
+        out.push_back(makeMotionArgs(when, readTime,
+                                     AMOTION_EVENT_ACTION_POINTER_UP |
+                                             1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT,
+                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ 2,
+                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                     yCursorPosition));
+        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /* actionButton= */ 0,
+                                     mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
+                                     mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
+        mCurrentClassification = MotionClassification::NONE;
+        mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR, 0);
+        return out;
+    }
+
+    mPinchFingerSeparation *= gesture.details.pinch.dz;
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR,
+                                      gesture.details.pinch.dz);
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X,
+                                      xCursorPosition - mPinchFingerSeparation / 2);
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+    mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X,
+                                      xCursorPosition + mPinchFingerSeparation / 2);
+    mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /* actionButton= */ 0,
+                                 mButtonState, /* pointerCount= */ 2, mFingerProps.data(),
+                                 mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
     return out;
 }
 

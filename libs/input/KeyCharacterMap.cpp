@@ -255,6 +255,13 @@ void KeyCharacterMap::combine(const KeyCharacterMap& overlay) {
     mLayoutOverlayApplied = true;
 }
 
+void KeyCharacterMap::clearLayoutOverlay() {
+    if (mLayoutOverlayApplied) {
+        reloadBaseFromFile();
+        mLayoutOverlayApplied = false;
+    }
+}
+
 KeyCharacterMap::KeyboardType KeyCharacterMap::getKeyboardType() const {
     return mType;
 }

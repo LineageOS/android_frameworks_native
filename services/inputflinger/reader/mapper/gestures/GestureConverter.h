@@ -57,6 +57,8 @@ private:
                                                                uint32_t fingerCount, float dx,
                                                                float dy);
     [[nodiscard]] std::list<NotifyArgs> handleMultiFingerSwipeLift(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> handlePinch(nsecs_t when, nsecs_t readTime,
+                                                    const Gesture& gesture);
 
     NotifyMotionArgs makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
                                     int32_t actionButton, int32_t buttonState,
@@ -79,7 +81,11 @@ private:
     nsecs_t mDownTime = 0;
 
     MotionClassification mCurrentClassification = MotionClassification::NONE;
+    // Only used when mCurrentClassification is MULTI_FINGER_SWIPE.
     uint32_t mSwipeFingerCount = 0;
+    static constexpr float INITIAL_PINCH_SEPARATION_PX = 200.0;
+    // Only used when mCurrentClassification is PINCH.
+    float mPinchFingerSeparation;
     static constexpr size_t MAX_FAKE_FINGERS = 4;
     // We never need any PointerProperties other than the finger tool type, so we can just keep a
     // const array of them.
