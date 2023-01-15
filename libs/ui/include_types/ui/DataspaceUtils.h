@@ -22,10 +22,8 @@ namespace android {
 
 inline bool isHdrDataspace(ui::Dataspace dataspace) {
     const auto transfer = dataspace & HAL_DATASPACE_TRANSFER_MASK;
-    const auto range = dataspace & HAL_DATASPACE_RANGE_MASK;
 
-    return transfer == HAL_DATASPACE_TRANSFER_ST2084 || transfer == HAL_DATASPACE_TRANSFER_HLG ||
-            range == HAL_DATASPACE_RANGE_EXTENDED;
+    return transfer == HAL_DATASPACE_TRANSFER_ST2084 || transfer == HAL_DATASPACE_TRANSFER_HLG;
 }
 
 } // namespace android

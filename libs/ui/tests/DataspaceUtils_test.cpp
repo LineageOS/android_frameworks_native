@@ -29,13 +29,12 @@ TEST_F(DataspaceUtilsTest, isHdrDataspace) {
     EXPECT_TRUE(isHdrDataspace(ui::Dataspace::BT2020_ITU_PQ));
     EXPECT_TRUE(isHdrDataspace(ui::Dataspace::BT2020_PQ));
     EXPECT_TRUE(isHdrDataspace(ui::Dataspace::BT2020_HLG));
-    // The original formulation of scRGB indicates the same white points as that
-    // of sRGB, however scRGB may be used to implement HDR.
-    EXPECT_TRUE(isHdrDataspace(ui::Dataspace::V0_SCRGB_LINEAR));
-    EXPECT_TRUE(isHdrDataspace(ui::Dataspace::V0_SCRGB));
 
     EXPECT_FALSE(isHdrDataspace(ui::Dataspace::V0_SRGB_LINEAR));
+    // scRGB defines a very wide gamut but not an expanded luminance range
+    EXPECT_FALSE(isHdrDataspace(ui::Dataspace::V0_SCRGB_LINEAR));
     EXPECT_FALSE(isHdrDataspace(ui::Dataspace::V0_SRGB));
+    EXPECT_FALSE(isHdrDataspace(ui::Dataspace::V0_SCRGB));
     EXPECT_FALSE(isHdrDataspace(ui::Dataspace::V0_JFIF));
     EXPECT_FALSE(isHdrDataspace(ui::Dataspace::V0_BT601_625));
     EXPECT_FALSE(isHdrDataspace(ui::Dataspace::V0_BT601_525));
