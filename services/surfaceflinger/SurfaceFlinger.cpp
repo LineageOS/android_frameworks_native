@@ -461,6 +461,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     mRefreshRateOverlaySpinner = property_get_bool("debug.sf.show_refresh_rate_overlay_spinner", 0);
     mRefreshRateOverlayRenderRate =
             property_get_bool("debug.sf.show_refresh_rate_overlay_render_rate", 0);
+    mRefreshRateOverlayShowInMiddle =
+            property_get_bool("debug.sf.show_refresh_rate_overlay_in_middle", 0);
 
     if (!mIsUserBuild && base::GetBoolProperty("debug.sf.enable_transaction_tracing"s, true)) {
         mTransactionTracing.emplace();
@@ -6995,7 +6997,8 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
         if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal) {
             if (const auto device = getDisplayDeviceLocked(id)) {
                 device->enableRefreshRateOverlay(enable, mRefreshRateOverlaySpinner,
-                                                 mRefreshRateOverlayRenderRate);
+                                                 mRefreshRateOverlayRenderRate,
+                                                 mRefreshRateOverlayShowInMiddle);
             }
         }
     }
