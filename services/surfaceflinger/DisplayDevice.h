@@ -272,7 +272,7 @@ private:
     std::optional<hardware::graphics::composer::hal::PowerMode> mPowerMode;
 
     std::optional<float> mStagedBrightness;
-    float mBrightness = -1.f;
+    std::optional<float> mBrightness;
 
     // TODO(b/182939859): Remove special cases for primary display.
     const bool mIsPrimary;
