@@ -103,19 +103,13 @@ public:
     // Resets the velocity tracker state.
     void clear();
 
-    // Resets the velocity tracker state for specific pointers.
+    // Resets the velocity tracker state for a specific pointer.
     // Call this method when some pointers have changed and may be reusing
     // an id that was assigned to a different pointer earlier.
-    void clearPointers(BitSet32 idBits);
+    void clearPointer(int32_t pointerId);
 
-    // Adds movement information for a set of pointers.
-    // The idBits bitfield specifies the pointer ids of the pointers whose data points
-    // are included in the movement.
-    // The positions map contains a mapping of an axis to positions array.
-    // The positions arrays contain information for each pointer in order by increasing id.
-    // Each array's size should be equal to the number of one bits in idBits.
-    void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                     const std::map<int32_t, std::vector<float>>& positions);
+    // Adds movement information for a pointer for a specific axis
+    void addMovement(nsecs_t eventTime, int32_t pointerId, int32_t axis, float position);
 
     // Adds movement information for all pointers in a MotionEvent, including historical samples.
     void addMovement(const MotionEvent* event);
@@ -173,9 +167,8 @@ protected:
 public:
     virtual ~VelocityTrackerStrategy() { }
 
-    virtual void clearPointers(BitSet32 idBits) = 0;
-    virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                             const std::vector<float>& positions) = 0;
+    virtual void clearPointer(int32_t pointerId) = 0;
+    virtual void addMovement(nsecs_t eventTime, int32_t pointerId, float position) = 0;
     virtual std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const = 0;
 };
 
@@ -204,9 +197,8 @@ public:
     LeastSquaresVelocityTrackerStrategy(uint32_t degree, Weighting weighting = Weighting::NONE);
     ~LeastSquaresVelocityTrackerStrategy() override;
 
-    void clearPointers(BitSet32 idBits) override;
-    void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                     const std::vector<float>& positions) override;
+    void clearPointer(int32_t pointerId) override;
+    void addMovement(nsecs_t eventTime, int32_t pointerId, float position) override;
     std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
 
 private:
@@ -220,18 +212,15 @@ private:
 
     struct Movement {
         nsecs_t eventTime;
-        BitSet32 idBits;
-        float positions[MAX_POINTERS];
-
-        inline float getPosition(int32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
+        float position;
     };
 
-    float chooseWeight(uint32_t index) const;
+    float chooseWeight(int32_t pointerId, uint32_t index) const;
 
     const uint32_t mDegree;
     const Weighting mWeighting;
-    uint32_t mIndex;
-    Movement mMovements[HISTORY_SIZE];
+    std::map<int32_t /*pointerId*/, size_t /*positionInArray*/> mIndex;
+    std::map<int32_t /*pointerId*/, std::array<Movement, HISTORY_SIZE>> mMovements;
 };
 
 
@@ -244,9 +233,8 @@ public:
     IntegratingVelocityTrackerStrategy(uint32_t degree);
     ~IntegratingVelocityTrackerStrategy() override;
 
-    void clearPointers(BitSet32 idBits) override;
-    void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                     const std::vector<float>& positions) override;
+    void clearPointer(int32_t pointerId) override;
+    void addMovement(nsecs_t eventTime, int32_t pointerId, float positions) override;
     std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
 
 private:
@@ -276,9 +264,8 @@ public:
     LegacyVelocityTrackerStrategy();
     ~LegacyVelocityTrackerStrategy() override;
 
-    void clearPointers(BitSet32 idBits) override;
-    void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                     const std::vector<float>& positions) override;
+    void clearPointer(int32_t pointerId) override;
+    void addMovement(nsecs_t eventTime, int32_t pointerId, float position) override;
     std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
 
 private:
@@ -293,14 +280,11 @@ private:
 
     struct Movement {
         nsecs_t eventTime;
-        BitSet32 idBits;
-        float positions[MAX_POINTERS];
-
-        inline float getPosition(int32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
+        float position;
     };
 
-    uint32_t mIndex;
-    Movement mMovements[HISTORY_SIZE];
+    std::map<int32_t /*pointerId*/, size_t /*positionInArray*/> mIndex;
+    std::map<int32_t /*pointerId*/, std::array<Movement, HISTORY_SIZE>> mMovements;
 };
 
 class ImpulseVelocityTrackerStrategy : public VelocityTrackerStrategy {
@@ -308,9 +292,8 @@ public:
     ImpulseVelocityTrackerStrategy(bool deltaValues);
     ~ImpulseVelocityTrackerStrategy() override;
 
-    void clearPointers(BitSet32 idBits) override;
-    void addMovement(nsecs_t eventTime, BitSet32 idBits,
-                     const std::vector<float>& positions) override;
+    void clearPointer(int32_t pointerId) override;
+    void addMovement(nsecs_t eventTime, int32_t pointerId, float position) override;
     std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
 
 private:
@@ -324,10 +307,7 @@ private:
 
     struct Movement {
         nsecs_t eventTime;
-        BitSet32 idBits;
-        float positions[MAX_POINTERS];
-
-        inline float getPosition(int32_t id) const { return positions[idBits.getIndexOfBit(id)]; }
+        float position;
     };
 
     // Whether or not the input movement values for the strategy come in the form of delta values.
@@ -335,8 +315,8 @@ private:
     // velocity calculation.
     const bool mDeltaValues;
 
-    size_t mIndex;
-    Movement mMovements[HISTORY_SIZE];
+    std::map<int32_t /*pointerId*/, size_t /*positionInArray*/> mIndex;
+    std::map<int32_t /*pointerId*/, std::array<Movement, HISTORY_SIZE>> mMovements;
 };
 
 } // namespace android

@@ -2703,18 +2703,15 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
     // Update the velocity tracker.
     {
-        std::vector<float> positionsX;
-        std::vector<float> positionsY;
         for (BitSet32 idBits(mCurrentCookedState.fingerIdBits); !idBits.isEmpty();) {
             uint32_t id = idBits.clearFirstMarkedBit();
             const RawPointerData::Pointer& pointer =
                     mCurrentRawState.rawPointerData.pointerForId(id);
-            positionsX.push_back(pointer.x * mPointerXMovementScale);
-            positionsY.push_back(pointer.y * mPointerYMovementScale);
+            const float x = pointer.x * mPointerXMovementScale;
+            const float y = pointer.y * mPointerYMovementScale;
+            mPointerGesture.velocityTracker.addMovement(when, id, AMOTION_EVENT_AXIS_X, x);
+            mPointerGesture.velocityTracker.addMovement(when, id, AMOTION_EVENT_AXIS_Y, y);
         }
-        mPointerGesture.velocityTracker.addMovement(when, mCurrentCookedState.fingerIdBits,
-                                                    {{AMOTION_EVENT_AXIS_X, positionsX},
-                                                     {AMOTION_EVENT_AXIS_Y, positionsY}});
     }
 
     // If the gesture ever enters a mode other than TAP, HOVER or TAP_DRAG, without first returning

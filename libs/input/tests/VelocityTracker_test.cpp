@@ -431,7 +431,7 @@ TEST_F(VelocityTrackerTest, TestApiInteractionsWithNoMotionEvents) {
     EXPECT_EQ(-1, vt.getActivePointerId());
 
     // Make sure that the clearing functions execute without an issue.
-    vt.clearPointers(BitSet32(7U));
+    vt.clearPointer(7U);
     vt.clear();
 }
 
