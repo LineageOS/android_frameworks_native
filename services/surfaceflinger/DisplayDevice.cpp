@@ -410,7 +410,8 @@ HdrCapabilities DisplayDevice::getHdrCapabilities() const {
                            capabilities.getDesiredMinLuminance());
 }
 
-void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinner, bool showRenderRate) {
+void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinner, bool showRenderRate,
+                                             bool showInMiddle) {
     if (!enable) {
         mRefreshRateOverlay.reset();
         return;
@@ -423,6 +424,10 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinner, bool
 
     if (showRenderRate) {
         features |= RefreshRateOverlay::Features::RenderRate;
+    }
+
+    if (showInMiddle) {
+        features |= RefreshRateOverlay::Features::ShowInMiddle;
     }
 
     const auto fpsRange = mRefreshRateSelector->getSupportedRefreshRateRange();
