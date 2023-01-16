@@ -515,6 +515,18 @@ ftl::Flags<InputDeviceClass> getAbsAxisUsage(int32_t axis,
     return deviceClasses & InputDeviceClass::JOYSTICK;
 }
 
+// --- RawAbsoluteAxisInfo ---
+
+std::ostream& operator<<(std::ostream& out, const RawAbsoluteAxisInfo& info) {
+    if (info.valid) {
+        out << "min=" << info.minValue << ", max=" << info.maxValue << ", flat=" << info.flat
+            << ", fuzz=" << info.fuzz << ", resolution=" << info.resolution;
+    } else {
+        out << "unknown range";
+    }
+    return out;
+}
+
 // --- EventHub::Device ---
 
 EventHub::Device::Device(int fd, int32_t id, std::string path, InputDeviceIdentifier identifier,

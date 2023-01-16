@@ -21,7 +21,9 @@
 #include <algorithm>
 #include <utility>
 
+#include <android-base/stringprintf.h>
 #include <ftl/enum.h>
+#include <input/PrintTools.h>
 #include <log/log_main.h>
 
 namespace android {
@@ -74,6 +76,14 @@ GesturesProp& PropertyProvider::getProperty(const std::string name) {
     return mProperties.at(name);
 }
 
+std::string PropertyProvider::dump() const {
+    std::string dump;
+    for (const auto& [name, property] : mProperties) {
+        dump += property.dump() + "\n";
+    }
+    return dump;
+}
+
 GesturesProp* PropertyProvider::createIntArrayProperty(const std::string name, int* loc,
                                                        size_t count, const int* init) {
     const auto [it, inserted] =
@@ -122,6 +132,31 @@ GesturesProp::GesturesProp(std::string name, const char** dataPointer,
                            const char* const initialValue)
       : mName(name), mCount(1), mDataPointer(dataPointer) {
     *(std::get<const char**>(mDataPointer)) = initialValue;
+}
+
+std::string GesturesProp::dump() const {
+    using android::base::StringPrintf;
+    std::string type, values;
+    switch (mDataPointer.index()) {
+        case 0:
+            type = "integer";
+            values = android::dumpVector(getIntValues());
+            break;
+        case 1:
+            type = "boolean";
+            values = android::dumpVector(getBoolValues());
+            break;
+        case 2:
+            type = "string";
+            values = getStringValue();
+            break;
+        case 3:
+            type = "real";
+            values = android::dumpVector(getRealValues());
+            break;
+    }
+    std::string typeAndSize = mCount == 1 ? type : std::to_string(mCount) + " " + type + "s";
+    return StringPrintf("%s (%s): %s", mName.c_str(), typeAndSize.c_str(), values.c_str());
 }
 
 void GesturesProp::registerHandlers(void* handlerData, GesturesPropGetHandler getter,

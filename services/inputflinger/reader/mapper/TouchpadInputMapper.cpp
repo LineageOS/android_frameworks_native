@@ -19,6 +19,7 @@
 #include <optional>
 
 #include <android/input.h>
+#include <input/PrintTools.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
 #include "TouchCursorInputMapperCommon.h"
@@ -122,6 +123,14 @@ TouchpadInputMapper::~TouchpadInputMapper() {
 
 uint32_t TouchpadInputMapper::getSources() const {
     return AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD;
+}
+
+void TouchpadInputMapper::dump(std::string& dump) {
+    dump += INDENT2 "Touchpad Input Mapper:\n";
+    dump += INDENT3 "Gesture converter:\n";
+    dump += addLinePrefix(mGestureConverter.dump(), INDENT4);
+    dump += INDENT3 "Gesture properties:\n";
+    dump += addLinePrefix(mPropertyProvider.dump(), INDENT4);
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::configure(nsecs_t when,

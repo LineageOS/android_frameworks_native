@@ -33,6 +33,7 @@ class PropertyProvider {
 public:
     bool hasProperty(const std::string name) const;
     GesturesProp& getProperty(const std::string name);
+    std::string dump() const;
 
     // Methods to be called by the gestures library:
     GesturesProp* createIntArrayProperty(const std::string name, int* loc, size_t count,
@@ -61,6 +62,8 @@ public:
     template <typename T>
     GesturesProp(std::string name, T* dataPointer, size_t count, const T* initialValues);
     GesturesProp(std::string name, const char** dataPointer, const char* const initialValue);
+
+    std::string dump() const;
 
     std::string getName() const { return mName; }
 

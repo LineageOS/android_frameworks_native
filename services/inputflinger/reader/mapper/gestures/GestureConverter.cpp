@@ -16,7 +16,11 @@
 
 #include "gestures/GestureConverter.h"
 
+#include <sstream>
+
+#include <android-base/stringprintf.h>
 #include <android/input.h>
+#include <ftl/enum.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
 
@@ -53,6 +57,18 @@ GestureConverter::GestureConverter(InputReaderContext& readerContext,
         mPointerController(readerContext.getPointerController(deviceId)) {
     deviceContext.getAbsoluteAxisInfo(ABS_MT_POSITION_X, &mXAxisInfo);
     deviceContext.getAbsoluteAxisInfo(ABS_MT_POSITION_Y, &mYAxisInfo);
+}
+
+std::string GestureConverter::dump() const {
+    std::stringstream out;
+    out << "Orientation: " << ftl::enum_string(mOrientation) << "\n";
+    out << "Axis info:\n";
+    out << "  X: " << mXAxisInfo << "\n";
+    out << "  Y: " << mYAxisInfo << "\n";
+    out << StringPrintf("Button state: 0x%08x\n", mButtonState);
+    out << "Down time: " << mDownTime << "\n";
+    out << "Current classification: " << ftl::enum_string(mCurrentClassification) << "\n";
+    return out.str();
 }
 
 void GestureConverter::reset() {
