@@ -288,13 +288,13 @@ static void computeAndCheckQuadraticEstimate(const std::vector<PlanarMotionEvent
     for (MotionEvent event : events) {
         vt.addMovement(&event);
     }
-    VelocityTracker::Estimator estimatorX;
-    VelocityTracker::Estimator estimatorY;
-    EXPECT_TRUE(vt.getEstimator(AMOTION_EVENT_AXIS_X, 0, &estimatorX));
-    EXPECT_TRUE(vt.getEstimator(AMOTION_EVENT_AXIS_Y, 0, &estimatorY));
+    std::optional<VelocityTracker::Estimator> estimatorX = vt.getEstimator(AMOTION_EVENT_AXIS_X, 0);
+    std::optional<VelocityTracker::Estimator> estimatorY = vt.getEstimator(AMOTION_EVENT_AXIS_Y, 0);
+    EXPECT_TRUE(estimatorX);
+    EXPECT_TRUE(estimatorY);
     for (size_t i = 0; i< coefficients.size(); i++) {
-        checkCoefficient(estimatorX.coeff[i], coefficients[i]);
-        checkCoefficient(estimatorY.coeff[i], coefficients[i]);
+        checkCoefficient((*estimatorX).coeff[i], coefficients[i]);
+        checkCoefficient((*estimatorY).coeff[i], coefficients[i]);
     }
 }
 
@@ -420,8 +420,7 @@ TEST_F(VelocityTrackerTest, TestApiInteractionsWithNoMotionEvents) {
 
     EXPECT_FALSE(vt.getVelocity(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID));
 
-    VelocityTracker::Estimator estimator;
-    EXPECT_FALSE(vt.getEstimator(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID, &estimator));
+    EXPECT_FALSE(vt.getEstimator(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID));
 
     VelocityTracker::ComputedVelocity computedVelocity = vt.getComputedVelocity(1000, 1000);
     for (uint32_t id = 0; id <= MAX_POINTER_ID; id++) {
