@@ -70,9 +70,10 @@ void VelocityControl::move(nsecs_t eventTime, float* deltaX, float* deltaY) {
         if (deltaY) {
             mRawPositionY += *deltaY;
         }
-        mVelocityTracker.addMovement(eventTime, BitSet32(BitSet32::valueForBit(0)),
-                                     {{AMOTION_EVENT_AXIS_X, {mRawPositionX}},
-                                      {AMOTION_EVENT_AXIS_Y, {mRawPositionY}}});
+        mVelocityTracker.addMovement(eventTime, /*pointerId=*/0, AMOTION_EVENT_AXIS_X,
+                                     mRawPositionX);
+        mVelocityTracker.addMovement(eventTime, /*pointerId=*/0, AMOTION_EVENT_AXIS_Y,
+                                     mRawPositionY);
 
         std::optional<float> vx = mVelocityTracker.getVelocity(AMOTION_EVENT_AXIS_X, 0);
         std::optional<float> vy = mVelocityTracker.getVelocity(AMOTION_EVENT_AXIS_Y, 0);
