@@ -21,10 +21,10 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <android/gui/ITransactionCompletedListener.h>
 #include <android/gui/IWindowInfosReportedListener.h>
 #include <android/native_window.h>
 #include <gui/IGraphicBufferProducer.h>
+#include <gui/ITransactionCompletedListener.h>
 #include <math/mat4.h>
 
 #include <android/gui/DropInputMode.h>
@@ -35,7 +35,6 @@
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerCaptureArgs.h>
 #include <gui/LayerMetadata.h>
-#include <gui/ReleaseCallbackId.h>
 #include <gui/SpHash.h>
 #include <gui/SurfaceControl.h>
 #include <gui/WindowInfo.h>
@@ -56,9 +55,6 @@ class Parcel;
 
 using gui::ISurfaceComposerClient;
 using gui::LayerMetadata;
-
-using gui::ITransactionCompletedListener;
-using gui::ReleaseCallbackId;
 
 struct client_cache_t {
     wp<IBinder> token = nullptr;

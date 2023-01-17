@@ -42,7 +42,6 @@ using namespace aidl::android::hardware::graphics;
 
 namespace android {
 
-using gui::CallbackId;
 using gui::DisplayCaptureArgs;
 using gui::IDisplayEventConnection;
 using gui::IRegionSamplingListener;

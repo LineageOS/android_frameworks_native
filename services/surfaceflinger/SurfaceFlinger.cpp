@@ -7113,7 +7113,8 @@ std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextur
                                    layerName, static_cast<uint32_t>(mMaxRenderTargetSize));
         ALOGD("%s", errorMessage.c_str());
         if (bufferData.releaseBufferListener) {
-            bufferData.releaseBufferListener->onTransactionQueueStalled(errorMessage);
+            bufferData.releaseBufferListener->onTransactionQueueStalled(
+                    String8(errorMessage.c_str()));
         }
         return nullptr;
     }
@@ -7131,7 +7132,7 @@ std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextur
 
             if (bufferData.releaseBufferListener) {
                 bufferData.releaseBufferListener->onTransactionQueueStalled(
-                        "Buffer processing hung due to full buffer cache");
+                        String8("Buffer processing hung due to full buffer cache"));
             }
         }
 
