@@ -2607,6 +2607,12 @@ status_t SurfaceComposerClient::setHdrConversionStrategy(
     return statusTFromBinderStatus(status);
 }
 
+status_t SurfaceComposerClient::getHdrOutputConversionSupport(bool* isSupported) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getHdrOutputConversionSupport(isSupported);
+    return statusTFromBinderStatus(status);
+}
+
 status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate) {
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->setOverrideFrameRate(uid, frameRate);
