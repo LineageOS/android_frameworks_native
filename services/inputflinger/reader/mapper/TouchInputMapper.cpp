@@ -977,12 +977,18 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         mOrientedRanges.clear();
     }
 
-    // Create pointer controller if needed, and keep it around if Pointer Capture is enabled to
-    // preserve the cursor position.
-    if (mDeviceMode == DeviceMode::POINTER ||
-        (mDeviceMode == DeviceMode::DIRECT && (mConfig.showTouches || hasStylus())) ||
-        (mParameters.deviceType == Parameters::DeviceType::POINTER &&
-         mConfig.pointerCaptureRequest.enable)) {
+    // Create and preserve the pointer controller in the following cases:
+    const bool isPointerControllerNeeded =
+            // - when the device is in pointer mode, to show the mouse cursor;
+            (mDeviceMode == DeviceMode::POINTER) ||
+            // - when pointer capture is enabled, to preserve the mouse cursor position;
+            (mParameters.deviceType == Parameters::DeviceType::POINTER &&
+             mConfig.pointerCaptureRequest.enable) ||
+            // - when we should be showing touches;
+            (mDeviceMode == DeviceMode::DIRECT && mConfig.showTouches) ||
+            // - when we should be showing a pointer icon for direct styluses.
+            (mDeviceMode == DeviceMode::DIRECT && mConfig.stylusPointerIconEnabled && hasStylus());
+    if (isPointerControllerNeeded) {
         if (mPointerController == nullptr) {
             mPointerController = getContext()->getPointerController(getDeviceId());
         }
@@ -3699,9 +3705,12 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
             ALOG_ASSERT(false);
         }
     }
-    const bool isDirectStylus =
-            mDeviceMode == DeviceMode::DIRECT && isStylusEvent(source, action, pointerProperties);
-    if (isDirectStylus) {
+
+    const int32_t displayId = getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE);
+    const bool showDirectStylusPointer = mConfig.stylusPointerIconEnabled &&
+            mDeviceMode == DeviceMode::DIRECT && isStylusEvent(source, action, pointerProperties) &&
+            displayId != ADISPLAY_ID_NONE && displayId == mPointerController->getDisplayId();
+    if (showDirectStylusPointer) {
         switch (action & AMOTION_EVENT_ACTION_MASK) {
             case AMOTION_EVENT_ACTION_HOVER_ENTER:
             case AMOTION_EVENT_ACTION_HOVER_MOVE:
@@ -3724,7 +3733,6 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
     if (mDeviceMode == DeviceMode::POINTER) {
         mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
     }
-    const int32_t displayId = getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE);
     const int32_t deviceId = getDeviceId();
     std::vector<TouchVideoFrame> frames = getDeviceContext().getVideoFrames();
     std::for_each(frames.begin(), frames.end(),
