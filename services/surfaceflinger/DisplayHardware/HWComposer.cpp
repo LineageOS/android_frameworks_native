@@ -70,6 +70,8 @@
 #define RETURN_IF_HWC_ERROR(error, displayId, ...) \
     RETURN_IF_HWC_ERROR_FOR(__FUNCTION__, error, displayId, __VA_ARGS__)
 
+using aidl::android::hardware::graphics::common::HdrConversionCapability;
+using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 namespace hal = android::hardware::graphics::composer::hal;
@@ -97,6 +99,7 @@ void HWComposer::setCallback(HWC2::ComposerCallback& callback) {
     loadCapabilities();
     loadLayerMetadataSupport();
     loadOverlayProperties();
+    loadHdrConversionCapabilities();
 
     if (mRegisteredCallback) {
         ALOGW("Callback already registered. Ignored extra registration attempt.");
@@ -787,6 +790,18 @@ std::optional<hal::HWConfigId> HWComposer::getPreferredBootDisplayMode(
     return displayModeId;
 }
 
+std::vector<HdrConversionCapability> HWComposer::getHdrConversionCapabilities() const {
+    return mHdrConversionCapabilities;
+}
+
+status_t HWComposer::setHdrConversionStrategy(HdrConversionStrategy hdrConversionStrategy) {
+    const auto error = mComposer->setHdrConversionStrategy(hdrConversionStrategy);
+    if (error != hal::Error::NONE) {
+        ALOGE("Error in setting HDR conversion strategy %s", to_string(error).c_str());
+    }
+    return NO_ERROR;
+}
+
 status_t HWComposer::getDisplayDecorationSupport(
         PhysicalDisplayId displayId,
         std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*
@@ -977,6 +992,14 @@ void HWComposer::loadCapabilities() {
 
 void HWComposer::loadOverlayProperties() {
     mComposer->getOverlaySupport(&mOverlayProperties);
+}
+
+void HWComposer::loadHdrConversionCapabilities() {
+    const auto error = mComposer->getHdrConversionCapabilities(&mHdrConversionCapabilities);
+    if (error != hal::Error::NONE) {
+        ALOGE("Error in fetching HDR conversion capabilities %s", to_string(error).c_str());
+        mHdrConversionCapabilities = {};
+    }
 }
 
 status_t HWComposer::setIdleTimerEnabled(PhysicalDisplayId displayId,

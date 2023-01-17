@@ -2496,6 +2496,20 @@ status_t SurfaceComposerClient::clearBootDisplayMode(const sp<IBinder>& display)
     return statusTFromBinderStatus(status);
 }
 
+status_t SurfaceComposerClient::getHdrConversionCapabilities(
+        std::vector<gui::HdrConversionCapability>* hdrConversionCapabilities) {
+    binder::Status status = ComposerServiceAIDL::getComposerService()->getHdrConversionCapabilities(
+            hdrConversionCapabilities);
+    return statusTFromBinderStatus(status);
+}
+
+status_t SurfaceComposerClient::setHdrConversionStrategy(
+        gui::HdrConversionStrategy hdrConversionStrategy) {
+    binder::Status status = ComposerServiceAIDL::getComposerService()->setHdrConversionStrategy(
+            hdrConversionStrategy);
+    return statusTFromBinderStatus(status);
+}
+
 status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate) {
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->setOverrideFrameRate(uid, frameRate);

@@ -200,6 +200,11 @@ public:
     // Clears the user-preferred display mode
     static status_t clearBootDisplayMode(const sp<IBinder>& display);
 
+    // Gets the HDR conversion capabilities of the device
+    static status_t getHdrConversionCapabilities(std::vector<gui::HdrConversionCapability>*);
+    // Sets the HDR conversion strategy for the device
+    static status_t setHdrConversionStrategy(gui::HdrConversionStrategy hdrConversionStrategy);
+
     // Sets the frame rate of a particular app (uid). This is currently called
     // by GameManager.
     static status_t setOverrideFrameRate(uid_t uid, float frameRate);

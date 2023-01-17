@@ -32,6 +32,8 @@
 #include <utils/StrongPointer.h>
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include <aidl/android/hardware/graphics/common/HdrConversionCapability.h>
+#include <aidl/android/hardware/graphics/common/HdrConversionStrategy.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/ClientTargetPropertyWithBrightness.h>
 #include <aidl/android/hardware/graphics/composer3/Color.h>
@@ -288,6 +290,10 @@ public:
     virtual Error getOverlaySupport(V3_0::OverlayProperties* outProperties) = 0;
     virtual void onHotplugConnect(Display) = 0;
     virtual void onHotplugDisconnect(Display) = 0;
+    virtual Error getHdrConversionCapabilities(
+            std::vector<::aidl::android::hardware::graphics::common::HdrConversionCapability>*) = 0;
+    virtual Error setHdrConversionStrategy(
+            ::aidl::android::hardware::graphics::common::HdrConversionStrategy) = 0;
 };
 
 } // namespace Hwc2

@@ -30,6 +30,8 @@ import android.gui.DisplayStatInfo;
 import android.gui.DynamicDisplayInfo;
 import android.gui.FrameEvent;
 import android.gui.FrameStats;
+import android.gui.HdrConversionCapability;
+import android.gui.HdrConversionStrategy;
 import android.gui.IDisplayEventConnection;
 import android.gui.IFpsListener;
 import android.gui.IHdrLayerInfoListener;
@@ -160,6 +162,26 @@ interface ISurfaceComposer {
      */
     // TODO(b/213909104) : Add unit tests to verify surface flinger boot time APIs
     boolean getBootDisplayModeSupport();
+
+    /**
+     * Gets the HDR conversion capabilities of the device. The conversion capability defines whether
+     * conversion from sourceType to outputType is possible (with or without latency).
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+     List<HdrConversionCapability> getHdrConversionCapabilities();
+
+     /**
+      * Sets the HDR conversion strategy of the device.
+      *
+      * Requires the ACCESS_SURFACE_FLINGER permission.
+      */
+     void setHdrConversionStrategy(in HdrConversionStrategy hdrConversionStrategy);
+
+     /**
+      * Gets whether HDR output conversion operations are supported on the device.
+      */
+     boolean getHdrOutputConversionSupport();
 
     /**
      * Switches Auto Low Latency Mode on/off on the connected display, if it is

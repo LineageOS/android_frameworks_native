@@ -36,6 +36,8 @@
 #include <algorithm>
 #include <cinttypes>
 
+using aidl::android::hardware::graphics::common::HdrConversionCapability;
+using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::ClientTargetPropertyWithBrightness;
 using aidl::android::hardware::graphics::composer3::DimmingStage;
@@ -1345,6 +1347,14 @@ Error HidlComposer::clearBootDisplayConfig(Display /*displayId*/) {
 }
 
 Error HidlComposer::getPreferredBootDisplayConfig(Display /*displayId*/, Config*) {
+    return Error::UNSUPPORTED;
+}
+
+Error HidlComposer::getHdrConversionCapabilities(std::vector<HdrConversionCapability>*) {
+    return Error::UNSUPPORTED;
+}
+
+Error HidlComposer::setHdrConversionStrategy(HdrConversionStrategy) {
     return Error::UNSUPPORTED;
 }
 

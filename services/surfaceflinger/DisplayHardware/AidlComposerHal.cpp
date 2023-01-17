@@ -56,6 +56,9 @@ using AidlDisplayContentSample = aidl::android::hardware::graphics::composer3::D
 using AidlDisplayAttribute = aidl::android::hardware::graphics::composer3::DisplayAttribute;
 using AidlDisplayCapability = aidl::android::hardware::graphics::composer3::DisplayCapability;
 using AidlHdrCapabilities = aidl::android::hardware::graphics::composer3::HdrCapabilities;
+using AidlHdrConversionCapability =
+        aidl::android::hardware::graphics::common::HdrConversionCapability;
+using AidlHdrConversionStrategy = aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using AidlOverlayProperties = aidl::android::hardware::graphics::composer3::OverlayProperties;
 using AidlPerFrameMetadata = aidl::android::hardware::graphics::composer3::PerFrameMetadata;
 using AidlPerFrameMetadataKey = aidl::android::hardware::graphics::composer3::PerFrameMetadataKey;
@@ -1393,6 +1396,27 @@ Error AidlComposer::getPreferredBootDisplayConfig(Display display, Config* confi
         return static_cast<Error>(status.getServiceSpecificError());
     }
     *config = translate<uint32_t>(displayConfig);
+    return Error::NONE;
+}
+
+Error AidlComposer::getHdrConversionCapabilities(
+        std::vector<AidlHdrConversionCapability>* hdrConversionCapabilities) {
+    const auto status =
+            mAidlComposerClient->getHdrConversionCapabilities(hdrConversionCapabilities);
+    if (!status.isOk()) {
+        hdrConversionCapabilities = {};
+        ALOGE("getHdrConversionCapabilities failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
+Error AidlComposer::setHdrConversionStrategy(AidlHdrConversionStrategy hdrConversionStrategy) {
+    const auto status = mAidlComposerClient->setHdrConversionStrategy(hdrConversionStrategy);
+    if (!status.isOk()) {
+        ALOGE("setHdrConversionStrategy failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
     return Error::NONE;
 }
 
