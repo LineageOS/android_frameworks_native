@@ -332,11 +332,13 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
             return;
     }
 
-    size_t historySize = event->getHistorySize();
+    const size_t historySize = event->getHistorySize();
     for (size_t h = 0; h <= historySize; h++) {
-        nsecs_t eventTime = event->getHistoricalEventTime(h);
+        const nsecs_t eventTime = event->getHistoricalEventTime(h);
         for (size_t i = 0; i < event->getPointerCount(); i++) {
-            // TODO(b/167946721): skip resampled samples
+            if (event->isResampled(i, h)) {
+                continue; // skip resampled samples
+            }
             const int32_t pointerId = event->getPointerId(i);
             for (int32_t axis : axesToProcess) {
                 const float position = event->getHistoricalAxisValue(axis, i, h);
