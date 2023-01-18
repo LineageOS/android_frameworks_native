@@ -77,6 +77,7 @@ private:
     void clearTimestamps() REQUIRES(mMutex);
 
     inline void traceInt64If(const char* name, int64_t value) const;
+    inline void traceInt64(const char* name, int64_t value) const;
     bool const mTraceOn;
 
     size_t const kHistorySize;

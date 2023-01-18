@@ -47,7 +47,7 @@ VSyncPredictor::~VSyncPredictor() = default;
 
 VSyncPredictor::VSyncPredictor(nsecs_t idealPeriod, size_t historySize,
                                size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent)
-      : mTraceOn(property_get_bool("debug.sf.vsp_trace", true)),
+      : mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
         kHistorySize(historySize),
         kMinimumSamplesForPrediction(minimumSamplesForPrediction),
         kOutlierTolerancePercent(std::min(outlierTolerancePercent, kMaxPercent)),
@@ -59,6 +59,10 @@ inline void VSyncPredictor::traceInt64If(const char* name, int64_t value) const 
     if (CC_UNLIKELY(mTraceOn)) {
         ATRACE_INT64(name, value);
     }
+}
+
+inline void VSyncPredictor::traceInt64(const char* name, int64_t value) const {
+    ATRACE_INT64(name, value);
 }
 
 inline size_t VSyncPredictor::next(size_t i) const {
@@ -124,6 +128,8 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
         mTimestamps[mLastTimestampIndex] = timestamp;
     }
 
+    traceInt64If("VSP-ts", timestamp);
+
     const size_t numSamples = mTimestamps.size();
     if (numSamples < kMinimumSamplesForPrediction) {
         mRateMap[mIdealPeriod] = {mIdealPeriod, 0};
@@ -161,8 +167,6 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     nsecs_t meanOrdinal = 0;
 
     for (size_t i = 0; i < numSamples; i++) {
-        traceInt64If("VSP-ts", mTimestamps[i]);
-
         const auto timestamp = mTimestamps[i] - oldestTS;
         vsyncTS[i] = timestamp;
         meanTS += timestamp;
@@ -219,7 +223,7 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) co
     auto const [slope, intercept] = getVSyncPredictionModelLocked();
 
     if (mTimestamps.empty()) {
-        traceInt64If("VSP-mode", 1);
+        traceInt64("VSP-mode", 1);
         auto const knownTimestamp = mKnownTimestamp ? *mKnownTimestamp : timePoint;
         auto const numPeriodsOut = ((timePoint - knownTimestamp) / mIdealPeriod) + 1;
         return knownTimestamp + numPeriodsOut * mIdealPeriod;
@@ -232,7 +236,7 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) co
     auto const ordinalRequest = (timePoint - zeroPoint + slope) / slope;
     auto const prediction = (ordinalRequest * slope) + intercept + oldest;
 
-    traceInt64If("VSP-mode", 0);
+    traceInt64("VSP-mode", 0);
     traceInt64If("VSP-timePoint", timePoint);
     traceInt64If("VSP-prediction", prediction);
 
@@ -340,6 +344,7 @@ VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModelLocked() const {
 
 void VSyncPredictor::setPeriod(nsecs_t period) {
     ATRACE_CALL();
+    traceInt64("VSP-setPeriod", period);
 
     std::lock_guard lock(mMutex);
     static constexpr size_t kSizeLimit = 30;
