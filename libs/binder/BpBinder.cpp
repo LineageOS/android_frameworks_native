@@ -388,7 +388,7 @@ status_t BpBinder::linkToDeath(
 {
     if (isRpcBinder()) {
         if (rpcSession()->getMaxIncomingThreads() < 1) {
-            LOG_ALWAYS_FATAL("Cannot register a DeathRecipient without any incoming connections.");
+            ALOGE("Cannot register a DeathRecipient without any incoming connections.");
             return INVALID_OPERATION;
         }
     } else if constexpr (!kEnableKernelIpc) {
