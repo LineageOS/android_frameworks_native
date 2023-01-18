@@ -13,12 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
-#include "binderRpcTestCommon.h"
+__BEGIN_DECLS
 
-namespace android {
+struct tipc_hset;
 
-std::atomic<int32_t> MyBinderRpcSession::gNum;
-sp<IBinder> MyBinderRpcTestBase::mHeldBinder;
+struct tipc_hset* tipc_hset_create(void) {
+    return nullptr;
+}
+int tipc_run_event_loop(struct tipc_hset*) {
+    return 0;
+}
 
-} // namespace android
+__END_DECLS
