@@ -25,6 +25,7 @@
 #include <image_io/jpeg/jpeg_scanner.h>
 #include <image_io/jpeg/jpeg_info_builder.h>
 #include <image_io/base/data_segment_data_source.h>
+#include <utils/Log.h>
 
 #include <memory>
 #include <sstream>
@@ -61,6 +62,10 @@ static const uint32_t kJpegrVersion = 1;
 
 // Map is quarter res / sixteenth size
 static const size_t kMapDimensionScaleFactor = 4;
+// JPEG block size.
+// JPEG encoding / decoding will require 8 x 8 DCT transform.
+// Width must be 8 dividable, and height must be 2 dividable.
+static const size_t kJpegBlock = 8;
 // JPEG compress quality (0 ~ 100) for recovery map
 static const int kMapCompressQuality = 85;
 
@@ -256,6 +261,13 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
+  if (uncompressed_p010_image->width % kJpegBlock != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image size can not be handled: %dx%d",
+            uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
   jpegr_metadata metadata;
   metadata.version = kJpegrVersion;
   metadata.transferFunction = hdr_tf;
@@ -330,6 +342,13 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
   }
 
+  if (uncompressed_p010_image->width % kJpegBlock != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image size can not be handled: %dx%d",
+            uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
   jpegr_metadata metadata;
   metadata.version = kJpegrVersion;
   metadata.transferFunction = hdr_tf;
@@ -393,6 +412,13 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   if (uncompressed_p010_image->width != uncompressed_yuv_420_image->width
    || uncompressed_p010_image->height != uncompressed_yuv_420_image->height) {
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
+  }
+
+  if (uncompressed_p010_image->width % kJpegBlock != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image size can not be handled: %dx%d",
+            uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   jpegr_metadata metadata;
@@ -468,6 +494,13 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
    || compressed_jpeg_image == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (uncompressed_p010_image->width % kJpegBlock != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image size can not be handled: %dx%d",
+            uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   JpegDecoder jpeg_decoder;
@@ -733,11 +766,14 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   size_t image_height = uncompressed_yuv_420_image->height;
   size_t map_width = image_width / kMapDimensionScaleFactor;
   size_t map_height = image_height / kMapDimensionScaleFactor;
+  size_t map_stride = static_cast<size_t>(
+          floor((map_width + kJpegBlock - 1) / kJpegBlock)) * kJpegBlock;
+  size_t map_height_aligned = ((map_height + 1) >> 1) << 1;
 
-  dest->width = map_width;
-  dest->height = map_height;
+  dest->width = map_stride;
+  dest->height = map_height_aligned;
   dest->colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED;
-  dest->data = new uint8_t[map_width * map_height];
+  dest->data = new uint8_t[map_stride * map_height_aligned];
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
 
