@@ -327,7 +327,7 @@ TEST_P(BinderRpc, NestedTransactions) {
                     {RpcSession::FileDescriptorTransportMode::UNIX},
     });
 
-    auto nastyNester = sp<MyBinderRpcTest>::make();
+    auto nastyNester = sp<MyBinderRpcTestDefault>::make();
     EXPECT_OK(proc.rootIface->nestMe(nastyNester, 10));
 
     wp<IBinder> weak = nastyNester;

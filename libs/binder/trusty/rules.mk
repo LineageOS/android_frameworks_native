@@ -79,6 +79,11 @@ MODULE_EXPORT_COMPILEFLAGS += \
 	-DBINDER_RPC_SINGLE_THREADED \
 	-D__ANDROID_VNDK__ \
 
+# libbinder has some deprecated declarations that we want to produce warnings
+# not errors
+MODULE_EXPORT_COMPILEFLAGS += \
+	-Wno-error=deprecated-declarations \
+
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libstdc++-trusty \
 	trusty/user/base/lib/tipc \
