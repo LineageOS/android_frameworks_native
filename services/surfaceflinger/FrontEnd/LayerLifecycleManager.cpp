@@ -210,10 +210,7 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
                 layer->touchCropId = linkLayer(layer->touchCropId, layer->id);
             }
 
-            mGlobalChanges |= layer->changes &
-                    (RequestedLayerState::Changes::Hierarchy |
-                     RequestedLayerState::Changes::Geometry |
-                     RequestedLayerState::Changes::Content);
+            mGlobalChanges |= layer->changes;
         }
     }
 }
