@@ -112,6 +112,11 @@ public:
     MOCK_METHOD1(clearBootDisplayMode, status_t(PhysicalDisplayId));
     MOCK_METHOD1(getPreferredBootDisplayMode, std::optional<hal::HWConfigId>(PhysicalDisplayId));
     MOCK_METHOD0(getBootDisplayModeSupport, bool());
+    MOCK_CONST_METHOD0(
+            getHdrConversionCapabilities,
+            std::vector<aidl::android::hardware::graphics::common::HdrConversionCapability>());
+    MOCK_METHOD1(setHdrConversionStrategy,
+                 status_t(aidl::android::hardware::graphics::common::HdrConversionStrategy));
     MOCK_METHOD2(setAutoLowLatencyMode, status_t(PhysicalDisplayId, bool));
     MOCK_METHOD(status_t, getSupportedContentTypes,
                 (PhysicalDisplayId, std::vector<hal::ContentType>*), (const, override));

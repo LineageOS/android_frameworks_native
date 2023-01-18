@@ -48,6 +48,8 @@
 namespace android::Hwc2 {
 
 using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
+using aidl::android::hardware::graphics::common::HdrConversionCapability;
+using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using aidl::android::hardware::graphics::composer3::ComposerClientReader;
 using aidl::android::hardware::graphics::composer3::ComposerClientWriter;
 using aidl::android::hardware::graphics::composer3::OverlayProperties;
@@ -235,6 +237,8 @@ public:
                                         AidlTransform* outDisplayOrientation) override;
     void onHotplugConnect(Display) override;
     void onHotplugDisconnect(Display) override;
+    Error getHdrConversionCapabilities(std::vector<HdrConversionCapability>*) override;
+    Error setHdrConversionStrategy(HdrConversionStrategy) override;
 
 private:
     // Many public functions above simply write a command into the command

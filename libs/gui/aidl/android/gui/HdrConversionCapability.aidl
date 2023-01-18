@@ -16,4 +16,10 @@
 
 package android.gui;
 
-parcelable ListenerStats cpp_header "gui/ListenerStats.h";
+// TODO(b/265277221): use android.hardware.graphics.common.HdrConversionCapability.aidl
+/** @hide */
+parcelable HdrConversionCapability {
+    int sourceType;
+    int outputType;
+    boolean addsLatency;
+}

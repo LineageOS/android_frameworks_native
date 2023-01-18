@@ -343,6 +343,11 @@ public:
                                         AidlTransform* outDisplayOrientation) override;
     void onHotplugConnect(Display) override;
     void onHotplugDisconnect(Display) override;
+    Error getHdrConversionCapabilities(
+            std::vector<aidl::android::hardware::graphics::common::HdrConversionCapability>*)
+            override;
+    Error setHdrConversionStrategy(
+            aidl::android::hardware::graphics::common::HdrConversionStrategy) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

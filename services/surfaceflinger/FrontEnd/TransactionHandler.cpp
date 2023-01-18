@@ -177,7 +177,7 @@ void TransactionHandler::onTransactionQueueStalled(uint64_t transactionId,
     }
 
     mStalledTransactions.push_back(transactionId);
-    listener->onTransactionQueueStalled(reason);
+    listener->onTransactionQueueStalled(String8(reason.c_str()));
 }
 
 void TransactionHandler::removeFromStalledTransactions(uint64_t id) {
