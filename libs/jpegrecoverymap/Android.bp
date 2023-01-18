@@ -21,7 +21,7 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_library_static {
+cc_library {
     name: "libjpegrecoverymap",
     host_supported: true,
 
@@ -37,15 +37,18 @@ cc_library_static {
     shared_libs: [
         "libimage_io",
         "libjpeg",
-        "libutils",
+        "libjpegencoder",
+        "libjpegdecoder",
     ],
 }
 
-cc_library_static {
+cc_library {
     name: "libjpegencoder",
+    host_supported: true,
 
     shared_libs: [
         "libjpeg",
+        "liblog",
     ],
 
     export_include_dirs: ["include"],
@@ -55,11 +58,13 @@ cc_library_static {
     ],
 }
 
-cc_library_static {
+cc_library {
     name: "libjpegdecoder",
+    host_supported: true,
 
     shared_libs: [
         "libjpeg",
+        "liblog",
     ],
 
     export_include_dirs: ["include"],
