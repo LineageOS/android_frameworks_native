@@ -91,7 +91,9 @@ struct TransactionState {
         if (!displays.empty()) return true;
 
         for (const auto& state : states) {
-            if (state.state.frameRateCompatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE) {
+            const bool frameRateChanged = state.state.what & layer_state_t::eFrameRateChanged;
+            if (!frameRateChanged ||
+                state.state.frameRateCompatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE) {
                 return true;
             }
         }
