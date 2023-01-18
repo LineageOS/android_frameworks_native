@@ -42,7 +42,6 @@
 #include <numeric>
 
 #include "../Layer.h"
-#include "DispSyncSource.h"
 #include "Display/DisplayMap.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
@@ -65,6 +64,11 @@ Scheduler::Scheduler(ICompositor& compositor, ISchedulerCallback& callback, Feat
       : impl::MessageQueue(compositor), mFeatures(features), mSchedulerCallback(callback) {}
 
 Scheduler::~Scheduler() {
+    // MessageQueue depends on VsyncSchedule, so first destroy it.
+    // Otherwise, MessageQueue will get destroyed after Scheduler's dtor,
+    // which will cause a use-after-free issue.
+    Impl::destroyVsync();
+
     // Stop timers and wait for their threads to exit.
     mDisplayPowerTimer.reset();
     mTouchTimer.reset();
@@ -142,14 +146,6 @@ void Scheduler::createVsyncSchedule(FeatureFlags features) {
     mVsyncSchedule.emplace(features);
 }
 
-std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
-        const char* name, std::chrono::nanoseconds workDuration,
-        std::chrono::nanoseconds readyDuration, bool traceVsync) {
-    return std::make_unique<scheduler::DispSyncSource>(mVsyncSchedule->getDispatch(),
-                                                       mVsyncSchedule->getTracker(), workDuration,
-                                                       readyDuration, traceVsync, name);
-}
-
 std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
     const bool supportsFrameRateOverrideByContent =
             leaderSelectorPtr()->supportsAppFrameRateOverrideByContent();
@@ -194,12 +190,12 @@ ConnectionHandle Scheduler::createConnection(const char* connectionName,
                                              frametimeline::TokenManager* tokenManager,
                                              std::chrono::nanoseconds workDuration,
                                              std::chrono::nanoseconds readyDuration) {
-    auto vsyncSource = makePrimaryDispSyncSource(connectionName, workDuration, readyDuration);
     auto throttleVsync = makeThrottleVsyncCallback();
     auto getVsyncPeriod = makeGetVsyncPeriodFunction();
-    auto eventThread = std::make_unique<impl::EventThread>(std::move(vsyncSource), tokenManager,
-                                                           std::move(throttleVsync),
-                                                           std::move(getVsyncPeriod));
+    auto eventThread =
+            std::make_unique<impl::EventThread>(connectionName, *mVsyncSchedule, tokenManager,
+                                                std::move(throttleVsync), std::move(getVsyncPeriod),
+                                                workDuration, readyDuration);
     return createConnection(std::move(eventThread));
 }
 

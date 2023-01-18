@@ -75,6 +75,7 @@ public:
 
     virtual void initVsync(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
                            std::chrono::nanoseconds workDuration) = 0;
+    virtual void destroyVsync() = 0;
     virtual void setDuration(std::chrono::nanoseconds workDuration) = 0;
     virtual void waitMessage() = 0;
     virtual void postMessage(sp<MessageHandler>&&) = 0;
@@ -138,6 +139,7 @@ public:
 
     void initVsync(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
                    std::chrono::nanoseconds workDuration) override;
+    void destroyVsync() override;
     void setDuration(std::chrono::nanoseconds workDuration) override;
 
     void waitMessage() override;

@@ -347,36 +347,52 @@ void VSyncDispatchTimerQueue::unregisterCallback(CallbackToken token) {
 
 ScheduleResult VSyncDispatchTimerQueue::schedule(CallbackToken token,
                                                  ScheduleTiming scheduleTiming) {
-    ScheduleResult result;
-    {
-        std::lock_guard lock(mMutex);
+    std::lock_guard lock(mMutex);
+    return scheduleLocked(token, scheduleTiming);
+}
 
-        auto it = mCallbacks.find(token);
-        if (it == mCallbacks.end()) {
-            return result;
-        }
-        auto& callback = it->second;
-        auto const now = mTimeKeeper->now();
+ScheduleResult VSyncDispatchTimerQueue::scheduleLocked(CallbackToken token,
+                                                       ScheduleTiming scheduleTiming) {
+    auto it = mCallbacks.find(token);
+    if (it == mCallbacks.end()) {
+        return {};
+    }
+    auto& callback = it->second;
+    auto const now = mTimeKeeper->now();
 
-        /* If the timer thread will run soon, we'll apply this work update via the callback
-         * timer recalculation to avoid cancelling a callback that is about to fire. */
-        auto const rearmImminent = now > mIntendedWakeupTime;
-        if (CC_UNLIKELY(rearmImminent)) {
-            callback->addPendingWorkloadUpdate(scheduleTiming);
-            return getExpectedCallbackTime(mTracker, now, scheduleTiming);
-        }
+    /* If the timer thread will run soon, we'll apply this work update via the callback
+     * timer recalculation to avoid cancelling a callback that is about to fire. */
+    auto const rearmImminent = now > mIntendedWakeupTime;
+    if (CC_UNLIKELY(rearmImminent)) {
+        callback->addPendingWorkloadUpdate(scheduleTiming);
+        return getExpectedCallbackTime(mTracker, now, scheduleTiming);
+    }
 
-        result = callback->schedule(scheduleTiming, mTracker, now);
-        if (!result.has_value()) {
-            return result;
-        }
+    const ScheduleResult result = callback->schedule(scheduleTiming, mTracker, now);
+    if (!result.has_value()) {
+        return {};
+    }
 
-        if (callback->wakeupTime() < mIntendedWakeupTime - mTimerSlack) {
-            rearmTimerSkippingUpdateFor(now, it);
-        }
+    if (callback->wakeupTime() < mIntendedWakeupTime - mTimerSlack) {
+        rearmTimerSkippingUpdateFor(now, it);
     }
 
     return result;
+}
+
+ScheduleResult VSyncDispatchTimerQueue::update(CallbackToken token, ScheduleTiming scheduleTiming) {
+    std::lock_guard lock(mMutex);
+    const auto it = mCallbacks.find(token);
+    if (it == mCallbacks.end()) {
+        return {};
+    }
+
+    auto& callback = it->second;
+    if (!callback->targetVsync().has_value()) {
+        return {};
+    }
+
+    return scheduleLocked(token, scheduleTiming);
 }
 
 CancelResult VSyncDispatchTimerQueue::cancel(CallbackToken token) {
@@ -449,6 +465,13 @@ ScheduleResult VSyncCallbackRegistration::schedule(VSyncDispatch::ScheduleTiming
         return std::nullopt;
     }
     return mDispatch.get().schedule(mToken, scheduleTiming);
+}
+
+ScheduleResult VSyncCallbackRegistration::update(VSyncDispatch::ScheduleTiming scheduleTiming) {
+    if (!mValidToken) {
+        return std::nullopt;
+    }
+    return mDispatch.get().update(mToken, scheduleTiming);
 }
 
 CancelResult VSyncCallbackRegistration::cancel() {

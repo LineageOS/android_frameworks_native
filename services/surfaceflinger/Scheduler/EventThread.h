@@ -33,6 +33,9 @@
 #include <vector>
 
 #include "DisplayHardware/DisplayMode.h"
+#include "TracedOrdinal.h"
+#include "VSyncDispatch.h"
+#include "VsyncSchedule.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -62,32 +65,6 @@ enum class VSyncRequest {
     SingleSuppressCallback = 0,
     Periodic = 1,
     // Subsequent values are periods.
-};
-
-class VSyncSource {
-public:
-    class VSyncData {
-    public:
-        nsecs_t expectedPresentationTime;
-        nsecs_t deadlineTimestamp;
-    };
-
-    class Callback {
-    public:
-        virtual ~Callback() {}
-        virtual void onVSyncEvent(nsecs_t when, VSyncData vsyncData) = 0;
-    };
-
-    virtual ~VSyncSource() {}
-
-    virtual const char* getName() const = 0;
-    virtual void setVSyncEnabled(bool enable) = 0;
-    virtual void setCallback(Callback* callback) = 0;
-    virtual void setDuration(std::chrono::nanoseconds workDuration,
-                             std::chrono::nanoseconds readyDuration) = 0;
-    virtual VSyncData getLatestVSyncData() const = 0;
-
-    virtual void dump(std::string& result) const = 0;
 };
 
 class EventThreadConnection : public gui::BnDisplayEventConnection {
@@ -160,13 +137,14 @@ public:
 
 namespace impl {
 
-class EventThread : public android::EventThread, private VSyncSource::Callback {
+class EventThread : public android::EventThread {
 public:
     using ThrottleVsyncCallback = std::function<bool(nsecs_t, uid_t)>;
     using GetVsyncPeriodFunction = std::function<nsecs_t(uid_t)>;
 
-    EventThread(std::unique_ptr<VSyncSource>, frametimeline::TokenManager*, ThrottleVsyncCallback,
-                GetVsyncPeriodFunction);
+    EventThread(const char* name, scheduler::VsyncSchedule&, frametimeline::TokenManager*,
+                ThrottleVsyncCallback, GetVsyncPeriodFunction,
+                std::chrono::nanoseconds workDuration, std::chrono::nanoseconds readyDuration);
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
@@ -213,8 +191,7 @@ private:
     void removeDisplayEventConnectionLocked(const wp<EventThreadConnection>& connection)
             REQUIRES(mMutex);
 
-    // Implements VSyncSource::Callback
-    void onVSyncEvent(nsecs_t timestamp, VSyncSource::VSyncData vsyncData) override;
+    void onVsync(nsecs_t vsyncTime, nsecs_t wakeupTime, nsecs_t readyTime);
 
     int64_t generateToken(nsecs_t timestamp, nsecs_t deadlineTimestamp,
                           nsecs_t expectedPresentationTime) const;
@@ -222,12 +199,17 @@ private:
                                nsecs_t timestamp, nsecs_t preferredExpectedPresentationTime,
                                nsecs_t preferredDeadlineTimestamp) const;
 
-    const std::unique_ptr<VSyncSource> mVSyncSource GUARDED_BY(mMutex);
+    const char* const mThreadName;
+    TracedOrdinal<int> mVsyncTracer;
+    TracedOrdinal<std::chrono::nanoseconds> mWorkDuration GUARDED_BY(mMutex);
+    std::chrono::nanoseconds mReadyDuration GUARDED_BY(mMutex);
+    scheduler::VsyncSchedule& mVsyncSchedule;
+    TimePoint mLastVsyncCallbackTime GUARDED_BY(mMutex) = TimePoint::now();
+    scheduler::VSyncCallbackRegistration mVsyncRegistration GUARDED_BY(mMutex);
     frametimeline::TokenManager* const mTokenManager;
 
     const ThrottleVsyncCallback mThrottleVsyncCallback;
     const GetVsyncPeriodFunction mGetVsyncPeriodFunction;
-    const char* const mThreadName;
 
     std::thread mThread;
     mutable std::mutex mMutex;
