@@ -16,4 +16,10 @@
 
 package android.gui;
 
-parcelable ReleaseCallbackId cpp_header "gui/ReleaseCallbackId.h";
+// TODO(b/265277221): use android.hardware.graphics.common.HdrConversionStrategy.aidl
+/** @hide */
+union HdrConversionStrategy {
+    boolean passthrough = true;
+    int[] autoAllowedHdrTypes;
+    int forceHdrConversion;
+}

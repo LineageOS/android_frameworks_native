@@ -32,6 +32,10 @@ const uint32_t kAPP2Marker = JPEG_APP0 + 2;  // ICC
 
 const std::string kXmpNameSpace = "http://ns.adobe.com/xap/1.0/";
 const std::string kExifIdCode = "Exif";
+constexpr uint32_t kICCMarkerHeaderSize = 14;
+constexpr uint8_t kICCSig[] = {
+        'I', 'C', 'C', '_', 'P', 'R', 'O', 'F', 'I', 'L', 'E', '\0',
+};
 
 struct jpegr_source_mgr : jpeg_source_mgr {
     jpegr_source_mgr(const uint8_t* ptr, int len);
@@ -336,8 +340,22 @@ bool JpegDecoder::getCompressedImageParameters(const void* image, int length,
     *pWidth = cinfo.image_width;
     *pHeight = cinfo.image_height;
 
-    //TODO: Parse iccProfile
-    (void)iccData;
+    if (iccData != nullptr) {
+        for (jpeg_marker_struct* marker = cinfo.marker_list; marker;
+             marker = marker->next) {
+            if (marker->marker != kAPP2Marker) {
+                continue;
+            }
+            if (marker->data_length <= kICCMarkerHeaderSize ||
+                memcmp(marker->data, kICCSig, sizeof(kICCSig)) != 0) {
+                continue;
+            }
+
+            const unsigned int len = marker->data_length - kICCMarkerHeaderSize;
+            const uint8_t *src = marker->data + kICCMarkerHeaderSize;
+            iccData->insert(iccData->end(), src, src+len);
+        }
+    }
 
     if (exifData != nullptr) {
         bool exifAppears = false;

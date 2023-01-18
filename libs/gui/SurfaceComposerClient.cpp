@@ -314,8 +314,7 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
     }
 }
 
-binder::Status TransactionCompletedListener::onTransactionCompleted(
-        const ListenerStats& listenerStats) {
+void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
     std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> callbacksMap;
     std::multimap<int32_t, sp<JankDataListener>> jankListenersMap;
     {
@@ -455,10 +454,9 @@ binder::Status TransactionCompletedListener::onTransactionCompleted(
             }
         }
     }
-    return binder::Status::ok();
 }
 
-binder::Status TransactionCompletedListener::onTransactionQueueStalled(const std::string& reason) {
+void TransactionCompletedListener::onTransactionQueueStalled(const String8& reason) {
     std::unordered_map<void*, std::function<void(const std::string&)>> callbackCopy;
     {
         std::scoped_lock<std::mutex> lock(mMutex);
@@ -467,7 +465,6 @@ binder::Status TransactionCompletedListener::onTransactionQueueStalled(const std
     for (auto const& it : callbackCopy) {
         it.second(reason.c_str());
     }
-    return binder::Status::ok();
 }
 
 void TransactionCompletedListener::addQueueStallListener(
@@ -481,12 +478,9 @@ void TransactionCompletedListener::removeQueueStallListener(void* id) {
     mQueueStallListeners.erase(id);
 }
 
-binder::Status TransactionCompletedListener::onReleaseBuffer(
-        const ReleaseCallbackId& callbackId,
-        const std::optional<os::ParcelFileDescriptor>& releaseFenceFd,
-        int32_t currentMaxAcquiredBufferCount) {
-    sp<Fence> releaseFence(releaseFenceFd ? new Fence(::dup(releaseFenceFd->get()))
-                                          : Fence::NO_FENCE);
+void TransactionCompletedListener::onReleaseBuffer(ReleaseCallbackId callbackId,
+                                                   sp<Fence> releaseFence,
+                                                   uint32_t currentMaxAcquiredBufferCount) {
     ReleaseBufferCallback callback;
     {
         std::scoped_lock<std::mutex> lock(mMutex);
@@ -495,14 +489,13 @@ binder::Status TransactionCompletedListener::onReleaseBuffer(
     if (!callback) {
         ALOGE("Could not call release buffer callback, buffer not found %s",
               callbackId.to_string().c_str());
-        return binder::Status::fromExceptionCode(binder::Status::EX_ILLEGAL_ARGUMENT);
+        return;
     }
     std::optional<uint32_t> optionalMaxAcquiredBufferCount =
-            static_cast<uint32_t>(currentMaxAcquiredBufferCount) == UINT_MAX
+            currentMaxAcquiredBufferCount == UINT_MAX
             ? std::nullopt
             : std::make_optional<uint32_t>(currentMaxAcquiredBufferCount);
     callback(callbackId, releaseFence, optionalMaxAcquiredBufferCount);
-    return binder::Status::ok();
 }
 
 ReleaseBufferCallback TransactionCompletedListener::popReleaseBufferCallbackLocked(
@@ -832,11 +825,7 @@ void SurfaceComposerClient::Transaction::releaseBufferIfOverwriting(const layer_
                 ->mReleaseCallbackThread
                 .addReleaseCallback(state.bufferData->generateReleaseCallbackId(), fence);
     } else {
-        std::optional<os::ParcelFileDescriptor> fenceFd;
-        if (fence != Fence::NO_FENCE) {
-            fenceFd = os::ParcelFileDescriptor(base::unique_fd(::dup(fence->get())));
-        }
-        listener->onReleaseBuffer(state.bufferData->generateReleaseCallbackId(), fenceFd, UINT_MAX);
+        listener->onReleaseBuffer(state.bufferData->generateReleaseCallbackId(), fence, UINT_MAX);
     }
 }
 
@@ -2496,6 +2485,20 @@ status_t SurfaceComposerClient::clearBootDisplayMode(const sp<IBinder>& display)
     return statusTFromBinderStatus(status);
 }
 
+status_t SurfaceComposerClient::getHdrConversionCapabilities(
+        std::vector<gui::HdrConversionCapability>* hdrConversionCapabilities) {
+    binder::Status status = ComposerServiceAIDL::getComposerService()->getHdrConversionCapabilities(
+            hdrConversionCapabilities);
+    return statusTFromBinderStatus(status);
+}
+
+status_t SurfaceComposerClient::setHdrConversionStrategy(
+        gui::HdrConversionStrategy hdrConversionStrategy) {
+    binder::Status status = ComposerServiceAIDL::getComposerService()->setHdrConversionStrategy(
+            hdrConversionStrategy);
+    return statusTFromBinderStatus(status);
+}
+
 status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate) {
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->setOverrideFrameRate(uid, frameRate);
@@ -2866,11 +2869,7 @@ void ReleaseCallbackThread::threadMain() {
 
         while (!callbackInfos.empty()) {
             auto [callbackId, releaseFence] = callbackInfos.front();
-            std::optional<os::ParcelFileDescriptor> fenceFd;
-            if (releaseFence != Fence::NO_FENCE) {
-                fenceFd = os::ParcelFileDescriptor(base::unique_fd(::dup(releaseFence->get())));
-            }
-            listener->onReleaseBuffer(callbackId, fenceFd, UINT_MAX);
+            listener->onReleaseBuffer(callbackId, std::move(releaseFence), UINT_MAX);
             callbackInfos.pop();
         }
 

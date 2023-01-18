@@ -44,6 +44,8 @@
 #include "Hal.h"
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include <aidl/android/hardware/graphics/common/HdrConversionCapability.h>
+#include <aidl/android/hardware/graphics/common/HdrConversionStrategy.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/ClientTargetPropertyWithBrightness.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
@@ -286,6 +288,10 @@ public:
     virtual status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) = 0;
     virtual bool hasDisplayIdleTimerCapability(PhysicalDisplayId) const = 0;
     virtual Hwc2::AidlTransform getPhysicalDisplayOrientation(PhysicalDisplayId) const = 0;
+    virtual std::vector<aidl::android::hardware::graphics::common::HdrConversionCapability>
+    getHdrConversionCapabilities() const = 0;
+    virtual status_t setHdrConversionStrategy(
+            aidl::android::hardware::graphics::common::HdrConversionStrategy) = 0;
 };
 
 static inline bool operator==(const android::HWComposer::DeviceRequestedChanges& lhs,
@@ -437,6 +443,10 @@ public:
     status_t setIdleTimerEnabled(PhysicalDisplayId, std::chrono::milliseconds timeout) override;
     bool hasDisplayIdleTimerCapability(PhysicalDisplayId) const override;
     Hwc2::AidlTransform getPhysicalDisplayOrientation(PhysicalDisplayId) const override;
+    std::vector<aidl::android::hardware::graphics::common::HdrConversionCapability>
+    getHdrConversionCapabilities() const override;
+    status_t setHdrConversionStrategy(
+            aidl::android::hardware::graphics::common::HdrConversionStrategy) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
@@ -490,12 +500,16 @@ private:
     void loadCapabilities();
     void loadLayerMetadataSupport();
     void loadOverlayProperties();
+    void loadHdrConversionCapabilities();
 
     std::unordered_map<HalDisplayId, DisplayData> mDisplayData;
 
     std::unique_ptr<android::Hwc2::Composer> mComposer;
     std::unordered_set<aidl::android::hardware::graphics::composer3::Capability> mCapabilities;
     aidl::android::hardware::graphics::composer3::OverlayProperties mOverlayProperties;
+    std::vector<aidl::android::hardware::graphics::common::HdrConversionCapability>
+            mHdrConversionCapabilities = {};
+
     std::unordered_map<std::string, bool> mSupportedLayerGenericMetadata;
     bool mRegisteredCallback = false;
 
