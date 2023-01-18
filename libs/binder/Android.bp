@@ -195,18 +195,25 @@ cc_defaults {
     ],
 }
 
-cc_library_shared {
-    name: "libbinder_on_trusty_mock",
-    defaults: ["libbinder_common_defaults"],
+cc_library_headers {
+    name: "trusty_mock_headers",
+    host_supported: true,
 
-    srcs: [
-        // Trusty-specific files
-        "trusty/logging.cpp",
-        "trusty/OS.cpp",
-        "trusty/RpcServerTrusty.cpp",
-        "trusty/RpcTransportTipcTrusty.cpp",
-        "trusty/TrustyStatus.cpp",
-        "trusty/socket.cpp",
+    export_include_dirs: [
+        "trusty/include",
+        "trusty/include_mock",
+    ],
+
+    visibility: [
+        ":__subpackages__",
+    ],
+}
+
+cc_defaults {
+    name: "trusty_mock_defaults",
+
+    header_libs: [
+        "trusty_mock_headers",
     ],
 
     cflags: [
@@ -227,13 +234,26 @@ cc_library_shared {
     ],
     rtti: false,
 
-    local_include_dirs: [
-        "trusty/include",
-        "trusty/include_mock",
-    ],
-
     visibility: [
         ":__subpackages__",
+    ],
+}
+
+cc_library_shared {
+    name: "libbinder_on_trusty_mock",
+    defaults: [
+        "libbinder_common_defaults",
+        "trusty_mock_defaults",
+    ],
+
+    srcs: [
+        // Trusty-specific files
+        "trusty/logging.cpp",
+        "trusty/OS.cpp",
+        "trusty/RpcServerTrusty.cpp",
+        "trusty/RpcTransportTipcTrusty.cpp",
+        "trusty/TrustyStatus.cpp",
+        "trusty/socket.cpp",
     ],
 }
 
