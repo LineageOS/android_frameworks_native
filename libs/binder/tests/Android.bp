@@ -336,6 +336,29 @@ cc_test {
     ],
 }
 
+cc_binary {
+    name: "binderRpcTestService_on_trusty_mock",
+    defaults: [
+        "trusty_mock_defaults",
+    ],
+
+    srcs: [
+        "binderRpcTestCommon.cpp",
+        "binderRpcTestServiceTrusty.cpp",
+    ],
+
+    shared_libs: [
+        "libbinder_on_trusty_mock",
+        "libbase",
+        "libutils",
+        "libcutils",
+    ],
+
+    static_libs: [
+        "binderRpcTestIface-cpp",
+    ],
+}
+
 cc_test {
     name: "binderRpcTest",
     defaults: [
@@ -347,6 +370,7 @@ cc_test {
     // Add the Trusty mock library as a fake dependency so it gets built
     required: [
         "libbinder_on_trusty_mock",
+        "binderRpcTestService_on_trusty_mock",
     ],
 }
 

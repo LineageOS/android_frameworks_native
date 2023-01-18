@@ -13,12 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
-#include "binderRpcTestCommon.h"
-
-namespace android {
-
-std::atomic<int32_t> MyBinderRpcSession::gNum;
-sp<IBinder> MyBinderRpcTestBase::mHeldBinder;
-
-} // namespace android
+#define IS_ERR(x) (!(x))
+#define PTR_ERR(x) (!!(x))
