@@ -353,8 +353,16 @@ bool ListCommand::addEntryWithInstance(const TableEntry& entry,
         return false;
     }
 
+    auto vintfFqInstance = vintf::FqInstance::from(fqInstance.string());
+    if (!vintfFqInstance.has_value()) {
+        err() << "Unable to convert " << fqInstance.string() << " to vintf::FqInstance"
+              << std::endl;
+        return false;
+    }
+
     std::string e;
-    if (!manifest->insertInstance(fqInstance, entry.transport, arch, vintf::HalFormat::HIDL, &e)) {
+    if (!manifest->insertInstance(*vintfFqInstance, entry.transport, arch, vintf::HalFormat::HIDL,
+                                  &e)) {
         err() << "Warning: Cannot insert '" << fqInstance.string() << ": " << e << std::endl;
         return false;
     }
