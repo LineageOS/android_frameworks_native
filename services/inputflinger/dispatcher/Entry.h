@@ -254,6 +254,8 @@ private:
     static uint32_t nextSeq();
 };
 
+std::ostream& operator<<(std::ostream& out, const DispatchEntry& entry);
+
 VerifiedKeyEvent verifiedKeyEventFromKeyEntry(const KeyEntry& entry);
 VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry,
                                                        const ui::Transform& rawTransform);
