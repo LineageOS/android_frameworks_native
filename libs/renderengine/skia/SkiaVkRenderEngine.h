@@ -17,10 +17,6 @@
 #ifndef SF_SKIAVKRENDERENGINE_H_
 #define SF_SKIAVKRENDERENGINE_H_
 
-// Allow the SkiaVkRenderEngine class to not be compiled, to save space
-// NOTE: In order to build this class, define `RE_SKIAVK` in a build file.
-#ifdef RE_SKIAVK
-
 #include <vk/GrVkBackendContext.h>
 
 #include "SkiaRenderEngine.h"
@@ -59,5 +55,4 @@ private:
 } // namespace renderengine
 } // namespace android
 
-#endif // RE_SKIAVK
-#endif // SF_SKIAVKRENDERENGINE_H_
+#endif
