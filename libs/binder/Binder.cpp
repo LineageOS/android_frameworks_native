@@ -409,11 +409,9 @@ status_t BBinder::transact(
             Parcel emptyReply;
             timespec ts;
             timespec_get(&ts, TIME_UTC);
-            auto transaction =
-                    android::binder::debug::RecordedTransaction::fromDetails(code, flags, ts, data,
-                                                                             reply ? *reply
-                                                                                   : emptyReply,
-                                                                             err);
+            auto transaction = android::binder::debug::RecordedTransaction::
+                    fromDetails(getInterfaceDescriptor(), code, flags, ts, data,
+                                reply ? *reply : emptyReply, err);
             if (transaction) {
                 if (status_t err = transaction->dumpToFile(e->mRecordingFd); err != NO_ERROR) {
                     LOG(INFO) << "Failed to dump RecordedTransaction to file with error " << err;
