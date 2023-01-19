@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <binder/BinderRecordReplay.h>
+#include <binder/RecordedTransaction.h>
 #include <gtest/gtest.h>
 #include <utils/Errors.h>
 
