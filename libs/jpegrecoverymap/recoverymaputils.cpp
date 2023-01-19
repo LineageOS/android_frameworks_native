@@ -148,41 +148,58 @@ private:
     ParseState          gContainerItemState;
 };
 
-const string XMPXmlHandler::gContainerItemName = "GContainer:Item";
-const string XMPXmlHandler::rangeScalingFactorAttrName = "RecoveryMap:RangeScalingFactor";
-const string XMPXmlHandler::transferFunctionAttrName = "RecoveryMap:TransferFunction";
+// GContainer XMP constants - URI and namespace prefix
+const string kContainerUri        = "http://ns.google.com/photos/1.0/container/";
+const string kContainerPrefix     = "GContainer";
 
+// GContainer XMP constants - element and attribute names
+const string kConDirectory            = Name(kContainerPrefix, "Directory");
+const string kConItem                 = Name(kContainerPrefix, "Item");
+const string kConItemLength           = Name(kContainerPrefix, "ItemLength");
+const string kConItemMime             = Name(kContainerPrefix, "ItemMime");
+const string kConItemSemantic         = Name(kContainerPrefix, "ItemSemantic");
+const string kConVersion              = Name(kContainerPrefix, "Version");
 
-const string kContainerPrefix   = "GContainer";
-const string kContainerUri      = "http://ns.google.com/photos/1.0/container/";
-const string kRecoveryMapUri    = "http://ns.google.com/photos/1.0/recoverymap/";
-const string kItemPrefix        = "Item";
-const string kRecoveryMap       = "RecoveryMap";
-const string kDirectory         = "Directory";
-const string kImageJpeg         = "image/jpeg";
-const string kItem              = "Item";
-const string kLength            = "Length";
-const string kMime              = "Mime";
-const string kPrimary           = "Primary";
-const string kSemantic          = "Semantic";
-const string kVersion           = "Version";
-const string kHdr10Metadata     = "HDR10Metadata";
-const string kSt2086Metadata    = "ST2086Metadata";
-const string kSt2086Coordinate  = "ST2086Coordinate";
-const string kSt2086CoordinateX = "ST2086CoordinateX";
-const string kSt2086CoordinateY = "ST2086CoordinateY";
-const string kSt2086Primary     = "ST2086Primary";
-const int kSt2086PrimaryRed     = 0;
-const int kSt2086PrimaryGreen   = 1;
-const int kSt2086PrimaryBlue    = 2;
-const int kSt2086PrimaryWhite   = 3;
-const int kGContainerVersion    = 1;
+// GContainer XMP constants - element and attribute values
+const string kSemanticPrimary     = "Primary";
+const string kSemanticRecoveryMap = "RecoveryMap";
+const string kMimeImageJpeg       = "image/jpeg";
 
-const string kConDir            = Name(kContainerPrefix, kDirectory);
-const string kContainerItem     = Name(kContainerPrefix, kItem);
-const string kItemLength        = Name(kItemPrefix, kLength);
-const string kItemMime          = Name(kItemPrefix, kMime);
-const string kItemSemantic      = Name(kItemPrefix, kSemantic);
+const int kGContainerVersion      = 1;
+
+// GContainer XMP constants - names for XMP handlers
+const string XMPXmlHandler::gContainerItemName = kConItem;
+
+// RecoveryMap XMP constants - URI and namespace prefix
+const string kRecoveryMapUri      = "http://ns.google.com/photos/1.0/recoverymap/";
+const string kRecoveryMapPrefix   = "RecoveryMap";
+
+// RecoveryMap XMP constants - element and attribute names
+const string kMapRangeScalingFactor = Name(kRecoveryMapPrefix, "RangeScalingFactor");
+const string kMapTransferFunction   = Name(kRecoveryMapPrefix, "TransferFunction");
+const string kMapVersion            = Name(kRecoveryMapPrefix, "Version");
+
+const string kMapHdr10Metadata      = Name(kRecoveryMapPrefix, "HDR10Metadata");
+const string kMapHdr10MaxFall       = Name(kRecoveryMapPrefix, "HDR10MaxFALL");
+const string kMapHdr10MaxCll        = Name(kRecoveryMapPrefix, "HDR10MaxCLL");
+
+const string kMapSt2086Metadata     = Name(kRecoveryMapPrefix, "ST2086Metadata");
+const string kMapSt2086MaxLum       = Name(kRecoveryMapPrefix, "ST2086MaxLuminance");
+const string kMapSt2086MinLum       = Name(kRecoveryMapPrefix, "ST2086MinLuminance");
+const string kMapSt2086Primary      = Name(kRecoveryMapPrefix, "ST2086Primary");
+const string kMapSt2086Coordinate   = Name(kRecoveryMapPrefix, "ST2086Coordinate");
+const string kMapSt2086CoordinateX  = Name(kRecoveryMapPrefix, "ST2086CoordinateX");
+const string kMapSt2086CoordinateY  = Name(kRecoveryMapPrefix, "ST2086CoordinateY");
+
+// RecoveryMap XMP constants - element and attribute values
+const int kSt2086PrimaryRed       = 0;
+const int kSt2086PrimaryGreen     = 1;
+const int kSt2086PrimaryBlue      = 2;
+const int kSt2086PrimaryWhite     = 3;
+
+// RecoveryMap XMP constants - names for XMP handlers
+const string XMPXmlHandler::rangeScalingFactorAttrName = kMapRangeScalingFactor;
+const string XMPXmlHandler::transferFunctionAttrName = kMapTransferFunction;
 
 bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* metadata) {
     string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
@@ -230,8 +247,8 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
 }
 
 string generateXmp(int secondary_image_length, jpegr_metadata& metadata) {
-  const vector<string> kConDirSeq({kConDir, string("rdf:Seq")});
-  const vector<string> kLiItem({string("rdf:li"), kContainerItem});
+  const vector<string> kConDirSeq({kConDirectory, string("rdf:Seq")});
+  const vector<string> kLiItem({string("rdf:li"), kConItem});
 
   std::stringstream ss;
   photos_editing_formats::image_io::XmlWriter writer(ss);
@@ -242,80 +259,66 @@ string generateXmp(int secondary_image_length, jpegr_metadata& metadata) {
   writer.WriteXmlns("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
   writer.StartWritingElement("rdf:Description");
   writer.WriteXmlns(kContainerPrefix, kContainerUri);
-  writer.WriteXmlns(kRecoveryMap, kRecoveryMapUri);
-  writer.WriteElementAndContent(Name(kContainerPrefix, kVersion), kGContainerVersion);
+  writer.WriteXmlns(kRecoveryMapPrefix, kRecoveryMapUri);
+  writer.WriteElementAndContent(kConVersion, kGContainerVersion);
   writer.StartWritingElements(kConDirSeq);
   size_t item_depth = writer.StartWritingElements(kLiItem);
-  writer.WriteAttributeNameAndValue(kItemSemantic, kPrimary);
-  writer.WriteAttributeNameAndValue(kItemMime, kImageJpeg);
-  writer.WriteAttributeNameAndValue(Name(kRecoveryMap, kVersion), metadata.version);
-  writer.WriteAttributeNameAndValue(
-      Name(kRecoveryMap, "RangeScalingFactor"), metadata.rangeScalingFactor);
-  writer.WriteAttributeNameAndValue(
-      Name(kRecoveryMap, "TransferFunction"), metadata.transferFunction);
+  writer.WriteAttributeNameAndValue(kConItemSemantic, kSemanticPrimary);
+  writer.WriteAttributeNameAndValue(kConItemMime, kMimeImageJpeg);
+  writer.WriteAttributeNameAndValue(kMapVersion, metadata.version);
+  writer.WriteAttributeNameAndValue(kMapRangeScalingFactor, metadata.rangeScalingFactor);
+  writer.WriteAttributeNameAndValue(kMapTransferFunction, metadata.transferFunction);
   if (metadata.transferFunction == JPEGR_TF_PQ) {
-    writer.StartWritingElement(Name(kRecoveryMap, kHdr10Metadata));
+    writer.StartWritingElement(kMapHdr10Metadata);
+    writer.WriteAttributeNameAndValue(kMapHdr10MaxFall, metadata.hdr10Metadata.maxFALL);
+    writer.WriteAttributeNameAndValue(kMapHdr10MaxCll, metadata.hdr10Metadata.maxCLL);
+    writer.StartWritingElement(kMapSt2086Metadata);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, "HDR10MaxFALL"), metadata.hdr10Metadata.maxFALL);
+        kMapSt2086MaxLum, metadata.hdr10Metadata.st2086Metadata.maxLuminance);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, "HDR10MaxCLL"), metadata.hdr10Metadata.maxCLL);
-    writer.StartWritingElement(Name(kRecoveryMap, kSt2086Metadata));
-    writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, "ST2086MaxLuminance"),
-        metadata.hdr10Metadata.st2086Metadata.maxLuminance);
-    writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, "ST2086MinLuminance"),
-        metadata.hdr10Metadata.st2086Metadata.minLuminance);
+        kMapSt2086MinLum, metadata.hdr10Metadata.st2086Metadata.minLuminance);
 
     // red
-    writer.StartWritingElement(Name(kRecoveryMap, kSt2086Coordinate));
-    writer.WriteAttributeNameAndValue(Name(kRecoveryMap, kSt2086Primary), kSt2086PrimaryRed);
+    writer.StartWritingElement(kMapSt2086Coordinate);
+    writer.WriteAttributeNameAndValue(kMapSt2086Primary, kSt2086PrimaryRed);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, kSt2086CoordinateX),
-        metadata.hdr10Metadata.st2086Metadata.redPrimary.x);
+        kMapSt2086CoordinateX, metadata.hdr10Metadata.st2086Metadata.redPrimary.x);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, kSt2086CoordinateY),
-        metadata.hdr10Metadata.st2086Metadata.redPrimary.y);
+        kMapSt2086CoordinateY, metadata.hdr10Metadata.st2086Metadata.redPrimary.y);
     writer.FinishWritingElement();
 
     // green
-    writer.StartWritingElement(Name(kRecoveryMap, kSt2086Coordinate));
-    writer.WriteAttributeNameAndValue(Name(kRecoveryMap, kSt2086Primary), kSt2086PrimaryGreen);
+    writer.StartWritingElement(kMapSt2086Coordinate);
+    writer.WriteAttributeNameAndValue(kMapSt2086Primary, kSt2086PrimaryGreen);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, kSt2086CoordinateX),
-        metadata.hdr10Metadata.st2086Metadata.greenPrimary.x);
+        kMapSt2086CoordinateX, metadata.hdr10Metadata.st2086Metadata.greenPrimary.x);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, kSt2086CoordinateY),
-        metadata.hdr10Metadata.st2086Metadata.greenPrimary.y);
+        kMapSt2086CoordinateY, metadata.hdr10Metadata.st2086Metadata.greenPrimary.y);
     writer.FinishWritingElement();
 
     // blue
-    writer.StartWritingElement(Name(kRecoveryMap, kSt2086Coordinate));
-    writer.WriteAttributeNameAndValue(Name(kRecoveryMap, kSt2086Primary), kSt2086PrimaryBlue);
+    writer.StartWritingElement(kMapSt2086Coordinate);
+    writer.WriteAttributeNameAndValue(kMapSt2086Primary, kSt2086PrimaryBlue);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, kSt2086CoordinateX),
-        metadata.hdr10Metadata.st2086Metadata.bluePrimary.x);
+        kMapSt2086CoordinateX, metadata.hdr10Metadata.st2086Metadata.bluePrimary.x);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, kSt2086CoordinateY),
-        metadata.hdr10Metadata.st2086Metadata.bluePrimary.y);
+        kMapSt2086CoordinateY, metadata.hdr10Metadata.st2086Metadata.bluePrimary.y);
     writer.FinishWritingElement();
 
     // white
-    writer.StartWritingElement(Name(kRecoveryMap, kSt2086Coordinate));
-    writer.WriteAttributeNameAndValue(Name(kRecoveryMap, kSt2086Primary), kSt2086PrimaryWhite);
+    writer.StartWritingElement(kMapSt2086Coordinate);
+    writer.WriteAttributeNameAndValue(kMapSt2086Primary, kSt2086PrimaryWhite);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, kSt2086CoordinateX),
-        metadata.hdr10Metadata.st2086Metadata.whitePoint.x);
+        kMapSt2086CoordinateX, metadata.hdr10Metadata.st2086Metadata.whitePoint.x);
     writer.WriteAttributeNameAndValue(
-        Name(kRecoveryMap, kSt2086CoordinateY),
-        metadata.hdr10Metadata.st2086Metadata.whitePoint.y);
+        kMapSt2086CoordinateY, metadata.hdr10Metadata.st2086Metadata.whitePoint.y);
     writer.FinishWritingElement();
   }
   writer.FinishWritingElementsToDepth(item_depth);
   writer.StartWritingElements(kLiItem);
-  writer.WriteAttributeNameAndValue(kItemSemantic, kRecoveryMap);
-  writer.WriteAttributeNameAndValue(kItemMime, kImageJpeg);
-  writer.WriteAttributeNameAndValue(kItemLength, secondary_image_length);
+  writer.WriteAttributeNameAndValue(kConItemSemantic, kSemanticRecoveryMap);
+  writer.WriteAttributeNameAndValue(kConItemMime, kMimeImageJpeg);
+  writer.WriteAttributeNameAndValue(kConItemLength, secondary_image_length);
   writer.FinishWriting();
 
   return ss.str();

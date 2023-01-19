@@ -56,8 +56,8 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  *         <rdf:Seq>
  *           <rdf:li>
  *             <GContainer:Item
- *               Item:Semantic="Primary"
- *               Item:Mime="image/jpeg"
+ *               GContainer:ItemSemantic="Primary"
+ *               GContainer:ItemMime="image/jpeg"
  *               RecoveryMap:Version=”1”
  *               RecoveryMap:RangeScalingFactor=”1.25”
  *               RecoveryMap:TransferFunction=”2”/>
@@ -68,9 +68,9 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  *           </rdf:li>
  *           <rdf:li>
  *             <GContainer:Item
- *               Item:Semantic="RecoveryMap"
- *               Item:Mime="image/jpeg"
- *               Item:Length="1000"/>
+ *               GContainer:ItemSemantic="RecoveryMap"
+ *               GContainer:ItemMime="image/jpeg"
+ *               GContainer:ItemLength="1000"/>
  *           </rdf:li>
  *         </rdf:Seq>
  *       </GContainer:Directory>
