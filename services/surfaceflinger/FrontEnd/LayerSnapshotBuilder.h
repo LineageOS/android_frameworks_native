@@ -44,6 +44,8 @@ public:
         // Set to true if there were display changes since last update.
         bool displayChanges = false;
         const renderengine::ShadowSettings& globalShadowSettings;
+        bool supportsBlur = true;
+        bool forceFullDamage = false;
     };
     LayerSnapshotBuilder();
 
@@ -56,10 +58,22 @@ public:
     // change flags.
     void update(const Args&);
     std::vector<std::unique_ptr<LayerSnapshot>>& getSnapshots();
+    LayerSnapshot* getSnapshot(uint32_t layerId) const;
+
+    typedef std::function<void(const LayerSnapshot& snapshot)> ConstVisitor;
+
+    // Visit each visible snapshot in z-order
+    void forEachVisibleSnapshot(const ConstVisitor& visitor) const;
+
+    typedef std::function<void(std::unique_ptr<LayerSnapshot>& snapshot)> Visitor;
+    // Visit each visible snapshot in z-order and move the snapshot if needed
+    void forEachVisibleSnapshot(const Visitor& visitor);
+
+    // Visit each snapshot interesting to input reverse z-order
+    void forEachInputSnapshot(const ConstVisitor& visitor) const;
 
 private:
     friend class LayerSnapshotTest;
-    LayerSnapshot* getSnapshot(uint32_t layerId) const;
     LayerSnapshot* getSnapshot(const LayerHierarchy::TraversalPath& id) const;
     static LayerSnapshot getRootSnapshot();
 
@@ -69,28 +83,29 @@ private:
 
     void updateSnapshots(const Args& args);
 
-    void updateSnapshotsInHierarchy(const Args&, const LayerHierarchy& hierarchy,
-                                    LayerHierarchy::TraversalPath& traversalPath,
-                                    const LayerSnapshot& parentSnapshot);
-    void updateSnapshot(LayerSnapshot& snapshot, const Args& args, const RequestedLayerState&,
-                        const LayerSnapshot& parentSnapshot,
-                        const LayerHierarchy::TraversalPath& path);
+    const LayerSnapshot& updateSnapshotsInHierarchy(const Args&, const LayerHierarchy& hierarchy,
+                                                    LayerHierarchy::TraversalPath& traversalPath,
+                                                    const LayerSnapshot& parentSnapshot);
+    void updateSnapshot(LayerSnapshot&, const Args&, const RequestedLayerState&,
+                        const LayerSnapshot& parentSnapshot, const LayerHierarchy::TraversalPath&,
+                        bool newSnapshot);
     static void updateRelativeState(LayerSnapshot& snapshot, const LayerSnapshot& parentSnapshot,
                                     bool parentIsRelative, const Args& args);
     static void resetRelativeState(LayerSnapshot& snapshot);
     static void updateRoundedCorner(LayerSnapshot& snapshot, const RequestedLayerState& layerState,
                                     const LayerSnapshot& parentSnapshot);
-    static void updateLayerBounds(LayerSnapshot& snapshot, const RequestedLayerState& layerState,
-                                  const LayerSnapshot& parentSnapshot,
-                                  uint32_t displayRotationFlags);
+    void updateLayerBounds(LayerSnapshot& snapshot, const RequestedLayerState& layerState,
+                           const LayerSnapshot& parentSnapshot, uint32_t displayRotationFlags);
     static void updateShadows(LayerSnapshot& snapshot, const RequestedLayerState& requested,
                               const renderengine::ShadowSettings& globalShadowSettings);
     void updateInput(LayerSnapshot& snapshot, const RequestedLayerState& requested,
-                     const LayerSnapshot& parentSnapshot, const frontend::DisplayInfo& displayInfo,
-                     bool noValidDisplay, const LayerHierarchy::TraversalPath& path);
+                     const LayerSnapshot& parentSnapshot, const LayerHierarchy::TraversalPath& path,
+                     const Args& args);
     void sortSnapshotsByZ(const Args& args);
-    LayerSnapshot* getOrCreateSnapshot(const LayerHierarchy::TraversalPath& id,
-                                       const RequestedLayerState& layer);
+    LayerSnapshot* createSnapshot(const LayerHierarchy::TraversalPath& id,
+                                  const RequestedLayerState& layer);
+    void updateChildState(LayerSnapshot& snapshot, const LayerSnapshot& childSnapshot,
+                          const Args& args);
 
     struct TraversalPathHash {
         std::size_t operator()(const LayerHierarchy::TraversalPath& key) const {
@@ -105,6 +120,8 @@ private:
             mIdToSnapshot;
     std::vector<std::unique_ptr<LayerSnapshot>> mSnapshots;
     LayerSnapshot mRootSnapshot;
+    bool mResortSnapshots = false;
+    int mNumInterestingSnapshots = 0;
 };
 
 } // namespace android::surfaceflinger::frontend

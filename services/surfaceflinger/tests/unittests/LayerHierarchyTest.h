@@ -245,6 +245,18 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setLayerStack(uint32_t id, int32_t layerStack) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eLayerStackChanged;
+        transactions.back().states.front().state.surface = mHandles[id];
+        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().state.layerStack = ui::LayerStack::fromValue(layerStack);
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     LayerLifecycleManager mLifecycleManager;
     std::unordered_map<uint32_t, sp<LayerHandle>> mHandles;
 };

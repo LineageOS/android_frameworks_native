@@ -20,6 +20,7 @@
 #include <ftl/flags.h>
 #include <gui/LayerState.h>
 #include <renderengine/ExternalTexture.h>
+#include "Scheduler/LayerInfo.h"
 
 #include "LayerCreationArgs.h"
 #include "TransactionState.h"
@@ -48,6 +49,9 @@ struct RequestedLayerState : layer_state_t {
         Metadata = 1u << 10,
         Visibility = 1u << 11,
         AffectsChildren = 1u << 12,
+        FrameRate = 1u << 13,
+        VisibleRegion = 1u << 14,
+        Buffer = 1u << 15,
     };
     static Rect reduce(const Rect& win, const Region& exclude);
     RequestedLayerState(const LayerCreationArgs&);
@@ -91,6 +95,8 @@ struct RequestedLayerState : layer_state_t {
     ui::Transform requestedTransform;
     std::shared_ptr<FenceTime> acquireFenceTime;
     std::shared_ptr<renderengine::ExternalTexture> externalTexture;
+    gui::GameMode gameMode;
+    scheduler::LayerInfo::FrameRate requestedFrameRate;
 
     // book keeping states
     bool handleAlive = true;

@@ -232,9 +232,9 @@ struct layer_state_t {
             layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBackgroundColorChanged |
             layer_state_t::eBlurRegionsChanged | layer_state_t::eColorChanged |
             layer_state_t::eColorSpaceAgnosticChanged | layer_state_t::eColorTransformChanged |
-            layer_state_t::eCornerRadiusChanged | layer_state_t::eHdrMetadataChanged |
-            layer_state_t::eRenderBorderChanged | layer_state_t::eShadowRadiusChanged |
-            layer_state_t::eStretchChanged;
+            layer_state_t::eCornerRadiusChanged | layer_state_t::eDimmingEnabledChanged |
+            layer_state_t::eHdrMetadataChanged | layer_state_t::eRenderBorderChanged |
+            layer_state_t::eShadowRadiusChanged | layer_state_t::eStretchChanged;
 
     // Changes which invalidates the layer's visible region in CE.
     static constexpr uint64_t CONTENT_DIRTY = layer_state_t::CONTENT_CHANGES |
@@ -245,7 +245,17 @@ struct layer_state_t {
             layer_state_t::HIERARCHY_CHANGES | layer_state_t::eAlphaChanged |
             layer_state_t::eColorTransformChanged | layer_state_t::eCornerRadiusChanged |
             layer_state_t::eFlagsChanged | layer_state_t::eLayerStackChanged |
-            layer_state_t::eTrustedOverlayChanged;
+            layer_state_t::eTrustedOverlayChanged | layer_state_t::eFrameRateChanged |
+            layer_state_t::eFixedTransformHintChanged;
+
+    // Changes affecting data sent to input.
+    static constexpr uint64_t INPUT_CHANGES = layer_state_t::GEOMETRY_CHANGES |
+            layer_state_t::HIERARCHY_CHANGES | layer_state_t::eInputInfoChanged |
+            layer_state_t::eDropInputModeChanged | layer_state_t::eTrustedOverlayChanged;
+
+    // Changes that affect the visible region on a display.
+    static constexpr uint64_t VISIBLE_REGION_CHANGES =
+            layer_state_t::GEOMETRY_CHANGES | layer_state_t::HIERARCHY_CHANGES;
 
     bool hasValidBuffer() const;
     void sanitize(int32_t permissions);
