@@ -22,6 +22,7 @@
 
 #include <android-base/stringprintf.h>
 #include <ftl/enum.h>
+#include <gui/constants.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
 
@@ -166,7 +167,7 @@ std::string InputDeviceIdentifier::getCanonicalName() const {
 // --- InputDeviceInfo ---
 
 InputDeviceInfo::InputDeviceInfo() {
-    initialize(-1, 0, -1, InputDeviceIdentifier(), "", false, false);
+    initialize(-1, 0, -1, InputDeviceIdentifier(), "", false, false, ADISPLAY_ID_NONE);
 }
 
 InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
@@ -181,7 +182,8 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mSources(other.mSources),
         mKeyboardType(other.mKeyboardType),
         mKeyCharacterMap(other.mKeyCharacterMap),
-        mSupportsUsi(other.mSupportsUsi),
+        mUsiVersion(other.mUsiVersion),
+        mAssociatedDisplayId(other.mAssociatedDisplayId),
         mHasVibrator(other.mHasVibrator),
         mHasBattery(other.mHasBattery),
         mHasButtonUnderPad(other.mHasButtonUnderPad),
@@ -195,7 +197,7 @@ InputDeviceInfo::~InputDeviceInfo() {
 
 void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t controllerNumber,
                                  const InputDeviceIdentifier& identifier, const std::string& alias,
-                                 bool isExternal, bool hasMic) {
+                                 bool isExternal, bool hasMic, int32_t associatedDisplayId) {
     mId = id;
     mGeneration = generation;
     mControllerNumber = controllerNumber;
@@ -205,11 +207,12 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
     mHasMic = hasMic;
     mSources = 0;
     mKeyboardType = AINPUT_KEYBOARD_TYPE_NONE;
+    mAssociatedDisplayId = associatedDisplayId;
     mHasVibrator = false;
     mHasBattery = false;
     mHasButtonUnderPad = false;
     mHasSensor = false;
-    mSupportsUsi = false;
+    mUsiVersion.reset();
     mMotionRanges.clear();
     mSensors.clear();
     mLights.clear();

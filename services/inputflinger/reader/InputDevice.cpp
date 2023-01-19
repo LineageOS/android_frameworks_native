@@ -452,7 +452,8 @@ std::list<NotifyArgs> InputDevice::updateExternalStylusState(const StylusState& 
 InputDeviceInfo InputDevice::getDeviceInfo() {
     InputDeviceInfo outDeviceInfo;
     outDeviceInfo.initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
-                             mHasMic);
+                             mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE));
+
     for_each_mapper(
             [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(&outDeviceInfo); });
 
