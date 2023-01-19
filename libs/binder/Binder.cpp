@@ -21,13 +21,13 @@
 
 #include <android-base/logging.h>
 #include <android-base/unique_fd.h>
-#include <binder/BinderRecordReplay.h>
 #include <binder/BpBinder.h>
 #include <binder/IInterface.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IResultReceiver.h>
 #include <binder/IShellCallback.h>
 #include <binder/Parcel.h>
+#include <binder/RecordedTransaction.h>
 #include <binder/RpcServer.h>
 #include <cutils/compiler.h>
 #include <private/android_filesystem_config.h>

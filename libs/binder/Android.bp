@@ -76,7 +76,6 @@ cc_defaults {
 
     srcs: [
         "Binder.cpp",
-        "BinderRecordReplay.cpp",
         "BpBinder.cpp",
         "Debug.cpp",
         "FdTrigger.cpp",
@@ -84,6 +83,7 @@ cc_defaults {
         "IResultReceiver.cpp",
         "Parcel.cpp",
         "ParcelFileDescriptor.cpp",
+        "RecordedTransaction.cpp",
         "RpcSession.cpp",
         "RpcServer.cpp",
         "RpcState.cpp",

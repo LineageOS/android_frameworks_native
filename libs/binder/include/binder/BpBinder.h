@@ -91,7 +91,7 @@ public:
     std::optional<int32_t> getDebugBinderHandle() const;
 
     // Start recording transactions to the unique_fd.
-    // See BinderRecordReplay.h for more details.
+    // See RecordedTransaction.h for more details.
     status_t startRecordingBinder(const android::base::unique_fd& fd);
     // Stop the current recording.
     status_t stopRecordingBinder();
