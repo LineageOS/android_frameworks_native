@@ -22,6 +22,8 @@
 #include <image_io/xml/xml_handler.h>
 #include <image_io/xml/xml_rule.h>
 
+#include <utils/Log.h>
+
 using namespace photos_editing_formats::image_io;
 using namespace std;
 
@@ -406,7 +408,121 @@ status_t updateExif(jr_exif_ptr exif, jr_exif_ptr dest) {
 
   Write(dest, (uint8_t*)exif->data + 16, exif->length - 16, pos);
 
+  updateExifOffsets(dest,
+                    28, // start from the second tag, skip the "JR" tag
+                    num_entry - 1,
+                    use_big_endian);
+
   return NO_ERROR;
+}
+
+/*
+ * Helper function
+ * Modify offsets in EXIF in place.
+ */
+void updateExifOffsets(jr_exif_ptr exif, int pos, bool use_big_endian) {
+  int num_entry = readValue(reinterpret_cast<uint8_t*>(exif->data), pos, 2, use_big_endian);
+  updateExifOffsets(exif, pos + 2, num_entry, use_big_endian);
+}
+
+void updateExifOffsets(jr_exif_ptr exif, int pos, int num_entry, bool use_big_endian) {
+  for (int i = 0; i < num_entry; pos += EXIF_J_R_ENTRY_LENGTH, i++) {
+    int tag = readValue(reinterpret_cast<uint8_t*>(exif->data), pos, 2, use_big_endian);
+    bool need_to_update_offset = false;
+    if (tag == 0x8769) {
+      need_to_update_offset = true;
+      int sub_ifd_offset =
+              readValue(reinterpret_cast<uint8_t*>(exif->data), pos + 8, 4, use_big_endian)
+              + 6  // "Exif\0\0";
+              + EXIF_J_R_ENTRY_LENGTH;
+      updateExifOffsets(exif, sub_ifd_offset, use_big_endian);
+    } else {
+      int data_format =
+              readValue(reinterpret_cast<uint8_t*>(exif->data), pos + 2, 2, use_big_endian);
+      int num_of_components =
+              readValue(reinterpret_cast<uint8_t*>(exif->data), pos + 4, 4, use_big_endian);
+      int data_length = findFormatLengthInBytes(data_format) * num_of_components;
+      if (data_length > 4) {
+        need_to_update_offset = true;
+      }
+    }
+
+    if (!need_to_update_offset) {
+      continue;
+    }
+
+    int offset = readValue(reinterpret_cast<uint8_t*>(exif->data), pos + 8, 4, use_big_endian);
+
+    offset += EXIF_J_R_ENTRY_LENGTH;
+
+    if (use_big_endian) {
+      reinterpret_cast<uint8_t*>(exif->data)[pos + 11] = offset & 0xff;
+      reinterpret_cast<uint8_t*>(exif->data)[pos + 10] = (offset >> 8) & 0xff;
+      reinterpret_cast<uint8_t*>(exif->data)[pos + 9] = (offset >> 16) & 0xff;
+      reinterpret_cast<uint8_t*>(exif->data)[pos + 8] = (offset >> 24) & 0xff;
+    } else {
+      reinterpret_cast<uint8_t*>(exif->data)[pos + 8] = offset & 0xff;
+      reinterpret_cast<uint8_t*>(exif->data)[pos + 9] = (offset >> 8) & 0xff;
+      reinterpret_cast<uint8_t*>(exif->data)[pos + 10] = (offset >> 16) & 0xff;
+      reinterpret_cast<uint8_t*>(exif->data)[pos + 11] = (offset >> 24) & 0xff;
+    }
+  }
+}
+
+/*
+ * Read data from the target position and target length in bytes;
+ */
+int readValue(uint8_t* data, int pos, int length, bool use_big_endian) {
+  if (length == 2) {
+    if (use_big_endian) {
+      return (data[pos] << 8) | data[pos + 1];
+    } else {
+      return (data[pos + 1] << 8) | data[pos];
+    }
+  } else if (length == 4) {
+    if (use_big_endian) {
+      return (data[pos] << 24) | (data[pos + 1] << 16) | (data[pos + 2] << 8) | data[pos + 3];
+    } else {
+      return (data[pos + 3] << 24) | (data[pos + 2] << 16) | (data[pos + 1] << 8) | data[pos];
+    }
+  } else {
+    // Not support for now.
+    ALOGE("Error in readValue(): pos=%d, length=%d", pos, length);
+    return -1;
+  }
+}
+
+/*
+ * Helper function
+ * Returns the length of data format in bytes
+ */
+int findFormatLengthInBytes(int data_format) {
+  switch (data_format) {
+    case 1:  // unsigned byte
+    case 2:  // ascii strings
+    case 6:  // signed byte
+    case 7:  // undefined
+      return 1;
+
+    case 3:  // unsigned short
+    case 8:  // signed short
+      return 2;
+
+    case 4:  // unsigned long
+    case 9:  // signed long
+    case 11:  // single float
+      return 4;
+
+    case 5:  // unsigned rational
+    case 10:  // signed rational
+    case 12:  // double float
+      return 8;
+
+    default:
+      // should not hit here
+      ALOGE("Error in findFormatLengthInBytes(): data_format=%d", data_format);
+      return -1;
+  }
 }
 
 } // namespace android::recoverymap
