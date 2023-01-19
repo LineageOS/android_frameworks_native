@@ -24,6 +24,7 @@
 #include <android/gui/DisplayState.h>
 #include <android/gui/ISurfaceComposerClient.h>
 #include <android/gui/IWindowInfosListener.h>
+#include <android/gui/TrustedPresentationThresholds.h>
 #include <android/os/IInputConstants.h>
 #include <gui/TraceUtils.h>
 #include <utils/Errors.h>
@@ -63,6 +64,7 @@ namespace android {
 using aidl::android::hardware::graphics::common::DisplayDecorationSupport;
 using gui::FocusRequest;
 using gui::IRegionSamplingListener;
+using gui::TrustedPresentationThresholds;
 using gui::WindowInfo;
 using gui::WindowInfoHandle;
 using gui::WindowInfosListener;
@@ -516,6 +518,45 @@ void TransactionCompletedListener::removeReleaseBufferCallback(
         std::scoped_lock<std::mutex> lock(mMutex);
         popReleaseBufferCallbackLocked(callbackId);
     }
+}
+
+SurfaceComposerClient::PresentationCallbackRAII::PresentationCallbackRAII(
+        TransactionCompletedListener* tcl, int id) {
+    mTcl = tcl;
+    mId = id;
+}
+
+SurfaceComposerClient::PresentationCallbackRAII::~PresentationCallbackRAII() {
+    mTcl->clearTrustedPresentationCallback(mId);
+}
+
+sp<SurfaceComposerClient::PresentationCallbackRAII>
+TransactionCompletedListener::addTrustedPresentationCallback(TrustedPresentationCallback tpc,
+                                                             int id, void* context) {
+    std::scoped_lock<std::mutex> lock(mMutex);
+    mTrustedPresentationCallbacks[id] =
+            std::tuple<TrustedPresentationCallback, void*>(tpc, context);
+    return new SurfaceComposerClient::PresentationCallbackRAII(this, id);
+}
+
+void TransactionCompletedListener::clearTrustedPresentationCallback(int id) {
+    std::scoped_lock<std::mutex> lock(mMutex);
+    mTrustedPresentationCallbacks.erase(id);
+}
+
+void TransactionCompletedListener::onTrustedPresentationChanged(int id,
+                                                                bool presentedWithinThresholds) {
+    TrustedPresentationCallback tpc;
+    void* context;
+    {
+        std::scoped_lock<std::mutex> lock(mMutex);
+        auto it = mTrustedPresentationCallbacks.find(id);
+        if (it == mTrustedPresentationCallbacks.end()) {
+            return;
+        }
+        std::tie(tpc, context) = it->second;
+    }
+    tpc(context, presentedWithinThresholds);
 }
 
 // ---------------------------------------------------------------------------
@@ -2096,6 +2137,45 @@ void SurfaceComposerClient::Transaction::clearFrameTimelineInfo(FrameTimelineInf
     t.vsyncId = FrameTimelineInfo::INVALID_VSYNC_ID;
     t.inputEventId = os::IInputConstants::INVALID_INPUT_EVENT_ID;
     t.startTimeNanos = 0;
+}
+
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::setTrustedPresentationCallback(
+        const sp<SurfaceControl>& sc, TrustedPresentationCallback cb,
+        const TrustedPresentationThresholds& thresholds, void* context,
+        sp<SurfaceComposerClient::PresentationCallbackRAII>& outCallbackRef) {
+    auto listener = TransactionCompletedListener::getInstance();
+    outCallbackRef = listener->addTrustedPresentationCallback(cb, sc->getLayerId(), context);
+
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eTrustedPresentationInfoChanged;
+    s->trustedPresentationThresholds = thresholds;
+    s->trustedPresentationListener.callbackInterface = TransactionCompletedListener::getIInstance();
+    s->trustedPresentationListener.callbackId = sc->getLayerId();
+
+    return *this;
+}
+
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::clearTrustedPresentationCallback(const sp<SurfaceControl>& sc) {
+    auto listener = TransactionCompletedListener::getInstance();
+    listener->clearTrustedPresentationCallback(sc->getLayerId());
+
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eTrustedPresentationInfoChanged;
+    s->trustedPresentationThresholds = TrustedPresentationThresholds();
+    s->trustedPresentationListener.callbackInterface = nullptr;
+    s->trustedPresentationListener.callbackId = -1;
+
+    return *this;
 }
 
 // ---------------------------------------------------------------------------

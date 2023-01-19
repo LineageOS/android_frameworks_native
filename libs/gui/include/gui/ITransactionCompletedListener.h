@@ -196,6 +196,8 @@ public:
                                  uint32_t currentMaxAcquiredBufferCount) = 0;
 
     virtual void onTransactionQueueStalled(const String8& name) = 0;
+
+    virtual void onTrustedPresentationChanged(int id, bool inTrustedPresentationState) = 0;
 };
 
 class BnTransactionCompletedListener : public SafeBnInterface<ITransactionCompletedListener> {

@@ -250,6 +250,10 @@ Layer::~Layer() {
     if (mHadClonedChild) {
         mFlinger->mNumClones--;
     }
+    if (hasTrustedPresentationListener()) {
+        mFlinger->mNumTrustedPresentationListeners--;
+        updateTrustedPresentationState(nullptr, -1 /* time_in_ms */, true /* leaveState*/);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +283,7 @@ void Layer::removeFromCurrentState() {
         mRemovedFromDrawingState = true;
         mFlinger->mScheduler->deregisterLayer(this);
     }
+    updateTrustedPresentationState(nullptr, -1 /* time_in_ms */, true /* leaveState*/);
 
     mFlinger->markLayerPendingRemovalLocked(sp<Layer>::fromExisting(this));
 }
@@ -374,6 +379,92 @@ FloatRect Layer::getBounds() const {
 FloatRect Layer::getBounds(const Region& activeTransparentRegion) const {
     // Subtract the transparent region and snap to the bounds.
     return reduce(mBounds, activeTransparentRegion);
+}
+
+// No early returns.
+void Layer::updateTrustedPresentationState(const DisplayDevice* display, int64_t time_in_ms,
+                                           bool leaveState) {
+    if (!hasTrustedPresentationListener()) {
+        return;
+    }
+    const bool lastState = mLastComputedTrustedPresentationState;
+    mLastComputedTrustedPresentationState = false;
+
+    if (!leaveState) {
+        const auto outputLayer = findOutputLayerForDisplay(display);
+        if (outputLayer != nullptr) {
+            mLastComputedTrustedPresentationState =
+                    computeTrustedPresentationState(mBounds, mSourceBounds,
+                                                    outputLayer->getState().coveredRegion,
+                                                    mScreenBounds, getCompositionState()->alpha,
+                                                    getCompositionState()->geomLayerTransform,
+                                                    mTrustedPresentationThresholds);
+        }
+    }
+    const bool newState = mLastComputedTrustedPresentationState;
+    if (lastState && !newState) {
+        // We were in the trusted presentation state, but now we left it,
+        // emit the callback if needed
+        if (mLastReportedTrustedPresentationState) {
+            mLastReportedTrustedPresentationState = false;
+            mTrustedPresentationListener.invoke(false);
+        }
+        // Reset the timer
+        mEnteredTrustedPresentationStateTime = -1;
+    } else if (!lastState && newState) {
+        // We were not in the trusted presentation state, but we entered it, begin the timer
+        // and make sure this gets called at least once more!
+        mEnteredTrustedPresentationStateTime = time_in_ms;
+        mFlinger->forceFutureUpdate(mTrustedPresentationThresholds.stabilityRequirementMs * 1.5);
+    }
+
+    // Has the timer elapsed, but we are still in the state? Emit a callback if needed
+    if (!mLastReportedTrustedPresentationState && newState &&
+        (time_in_ms - mEnteredTrustedPresentationStateTime >
+         mTrustedPresentationThresholds.stabilityRequirementMs)) {
+        mLastReportedTrustedPresentationState = true;
+        mTrustedPresentationListener.invoke(true);
+    }
+}
+
+/**
+ * See SurfaceComposerClient.h: setTrustedPresentationCallback for discussion
+ * of how the parameters and thresholds are interpreted. The general spirit is
+ * to produce an upper bound on the amount of the buffer which was presented.
+ */
+bool Layer::computeTrustedPresentationState(const FloatRect& bounds, const FloatRect& sourceBounds,
+                                            const Region& coveredRegion,
+                                            const FloatRect& screenBounds, float alpha,
+                                            const ui::Transform& effectiveTransform,
+                                            const TrustedPresentationThresholds& thresholds) {
+    if (alpha < thresholds.minAlpha) {
+        return false;
+    }
+    if (sourceBounds.getWidth() == 0 || sourceBounds.getHeight() == 0) {
+        return false;
+    }
+    if (screenBounds.getWidth() == 0 || screenBounds.getHeight() == 0) {
+        return false;
+    }
+
+    const float sx = effectiveTransform.dsdx();
+    const float sy = effectiveTransform.dsdy();
+    float fractionRendered = std::min(sx * sy, 1.0f);
+
+    float boundsOverSourceW = bounds.getWidth() / (float)sourceBounds.getWidth();
+    float boundsOverSourceH = bounds.getHeight() / (float)sourceBounds.getHeight();
+    fractionRendered *= boundsOverSourceW * boundsOverSourceH;
+
+    Rect coveredBounds = coveredRegion.bounds();
+    fractionRendered *= (1 -
+                         ((coveredBounds.width() / (float)screenBounds.getWidth()) *
+                          coveredBounds.height() / (float)screenBounds.getHeight()));
+
+    if (fractionRendered < thresholds.minFractionRendered) {
+        return false;
+    }
+
+    return true;
 }
 
 void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform,
@@ -3986,6 +4077,19 @@ LayerSnapshotGuard& LayerSnapshotGuard::operator=(LayerSnapshotGuard&& other) {
     mLayer = other.mLayer;
     other.mLayer = nullptr;
     return *this;
+}
+
+void Layer::setTrustedPresentationInfo(TrustedPresentationThresholds const& thresholds,
+                                       TrustedPresentationListener const& listener) {
+    bool hadTrustedPresentationListener = hasTrustedPresentationListener();
+    mTrustedPresentationListener = listener;
+    mTrustedPresentationThresholds = thresholds;
+    bool haveTrustedPresentationListener = hasTrustedPresentationListener();
+    if (!hadTrustedPresentationListener && haveTrustedPresentationListener) {
+        mFlinger->mNumTrustedPresentationListeners++;
+    } else if (hadTrustedPresentationListener && !haveTrustedPresentationListener) {
+        mFlinger->mNumTrustedPresentationListeners--;
+    }
 }
 
 // ---------------------------------------------------------------------------

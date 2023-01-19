@@ -527,6 +527,19 @@ public:
 
     uint32_t getTransactionFlags() const { return mTransactionFlags; }
 
+    static bool computeTrustedPresentationState(const FloatRect& bounds,
+                                                const FloatRect& sourceBounds,
+                                                const Region& coveredRegion,
+                                                const FloatRect& screenBounds, float,
+                                                const ui::Transform&,
+                                                const TrustedPresentationThresholds&);
+    void updateTrustedPresentationState(const DisplayDevice* display, int64_t time_in_ms,
+                                        bool leaveState);
+
+    inline bool hasTrustedPresentationListener() {
+        return mTrustedPresentationListener.callbackInterface != nullptr;
+    }
+
     // Sets the masked bits.
     void setTransactionFlags(uint32_t mask);
 
@@ -728,6 +741,9 @@ public:
     std::shared_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForBuffer(
             const FrameTimelineInfo& info, nsecs_t queueTime, std::string debugName);
 
+    void setTrustedPresentationInfo(TrustedPresentationThresholds const& thresholds,
+                                    TrustedPresentationListener const& listener);
+
     // Creates a new handle each time, so we only expect
     // this to be called once.
     sp<IBinder> getHandle();
@@ -882,6 +898,12 @@ protected:
 
     // These are only accessed by the main thread or the tracing thread.
     State mDrawingState;
+
+    TrustedPresentationThresholds mTrustedPresentationThresholds;
+    TrustedPresentationListener mTrustedPresentationListener;
+    bool mLastComputedTrustedPresentationState = false;
+    bool mLastReportedTrustedPresentationState = false;
+    int64_t mEnteredTrustedPresentationStateTime = -1;
 
     uint32_t mTransactionFlags{0};
     // Updated in doTransaction, used to track the last sequence number we

@@ -58,6 +58,7 @@ class HdrCapabilities;
 class IGraphicBufferProducer;
 class ITunnelModeEnabledListener;
 class Region;
+class TransactionCompletedListener;
 
 using gui::DisplayCaptureArgs;
 using gui::IRegionSamplingListener;
@@ -105,6 +106,8 @@ using SurfaceStatsCallback =
         std::function<void(void* /*context*/, nsecs_t /*latchTime*/,
                            const sp<Fence>& /*presentFence*/,
                            const SurfaceStats& /*stats*/)>;
+
+using TrustedPresentationCallback = std::function<void(void*, bool)>;
 
 // ---------------------------------------------------------------------------
 
@@ -390,6 +393,13 @@ public:
         std::unordered_set<sp<SurfaceControl>, SCHash> surfaceControls;
     };
 
+    struct PresentationCallbackRAII : public RefBase {
+        sp<TransactionCompletedListener> mTcl;
+        int mId;
+        PresentationCallbackRAII(TransactionCompletedListener* tcl, int id);
+        virtual ~PresentationCallbackRAII();
+    };
+
     class Transaction : public Parcelable {
     private:
         static sp<IBinder> sApplyToken;
@@ -568,6 +578,59 @@ public:
 
         Transaction& addTransactionCommittedCallback(
                 TransactionCompletedCallbackTakesContext callback, void* callbackContext);
+
+        /**
+         * Set a callback to receive feedback about the presentation of a layer.
+         * When the layer is presented according to the passed in Thresholds,
+         * it is said to "enter the state", and receives the callback with true.
+         * When the conditions fall out of thresholds, it is then said to leave the
+         * state.
+         *
+         * There are a few simple thresholds:
+         *    minAlpha: Lower bound on computed alpha
+         *    minFractionRendered: Lower bounds on fraction of pixels that
+         *    were rendered.
+         *    stabilityThresholdMs: A time that alpha and fraction rendered
+         *    must remain within bounds before we can "enter the state"
+         *
+         * The fraction of pixels rendered is a computation based on scale, crop
+         * and occlusion. The calculation may be somewhat counterintuitive, so we
+         * can work through an example. Imagine we have a layer with a 100x100 buffer
+         * which is occluded by (10x100) pixels on the left, and cropped by (100x10) pixels
+         * on the top. Furthermore imagine this layer is scaled by 0.9 in both dimensions.
+         * (c=crop,o=occluded,b=both,x=none
+         *      b c c c
+         *      o x x x
+         *      o x x x
+         *      o x x x
+         *
+         * We first start by computing fr=xscale*yscale=0.9*0.9=0.81, indicating
+         * that "81%" of the pixels were rendered. This corresponds to what was 100
+         * pixels being displayed in 81 pixels. This is somewhat of an abuse of
+         * language, as the information of merged pixels isn't totally lost, but
+         * we err on the conservative side.
+         *
+         * We then repeat a similar process for the crop and covered regions and
+         * accumulate the results: fr = fr * (fractionNotCropped) * (fractionNotCovered)
+         * So for this example we would get 0.9*0.9*0.9*0.9=0.65...
+         *
+         * Notice that this is not completely accurate, as we have double counted
+         * the region marked as b. However we only wanted a "lower bound" and so it
+         * is ok to err in this direction. Selection of the threshold will ultimately
+         * be somewhat arbitrary, and so there are some somewhat arbitrary decisions in
+         * this API as well.
+         *
+         * The caller must keep "PresentationCallbackRAII" alive, or the callback
+         * in SurfaceComposerClient will be unregistered.
+         */
+        Transaction& setTrustedPresentationCallback(const sp<SurfaceControl>& sc,
+                                                    TrustedPresentationCallback callback,
+                                                    const TrustedPresentationThresholds& thresholds,
+                                                    void* context,
+                                                    sp<PresentationCallbackRAII>& outCallbackOwner);
+
+        // Clear local memory in SCC
+        Transaction& clearTrustedPresentationCallback(const sp<SurfaceControl>& sc);
 
         // ONLY FOR BLAST ADAPTER
         Transaction& notifyProducerDisconnect(const sp<SurfaceControl>& sc);
@@ -795,6 +858,9 @@ protected:
     std::multimap<int32_t, SurfaceStatsCallbackEntry> mSurfaceStatsListeners;
     std::unordered_map<void*, std::function<void(const std::string&)>> mQueueStallListeners;
 
+    std::unordered_map<int, std::tuple<TrustedPresentationCallback, void*>>
+            mTrustedPresentationCallbacks;
+
 public:
     static sp<TransactionCompletedListener> getInstance();
     static sp<ITransactionCompletedListener> getIInstance();
@@ -813,6 +879,10 @@ public:
 
     void addQueueStallListener(std::function<void(const std::string&)> stallListener, void* id);
     void removeQueueStallListener(void *id);
+
+    sp<SurfaceComposerClient::PresentationCallbackRAII> addTrustedPresentationCallback(
+            TrustedPresentationCallback tpc, int id, void* context);
+    void clearTrustedPresentationCallback(int id);
 
     /*
      * Adds a jank listener to be informed about SurfaceFlinger's jank classification for a specific
@@ -843,6 +913,8 @@ public:
     static void setInstance(const sp<TransactionCompletedListener>&);
 
     void onTransactionQueueStalled(const String8& reason) override;
+
+    void onTrustedPresentationChanged(int id, bool presentedWithinThresholds) override;
 
 private:
     ReleaseBufferCallback popReleaseBufferCallbackLocked(const ReleaseCallbackId&);
