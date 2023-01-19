@@ -23,6 +23,7 @@
 #include "FrameTimeline.h"
 #include "Scheduler/MessageQueue.h"
 #include "SurfaceFlinger.h"
+#include "mock/MockVSyncDispatch.h"
 
 namespace android {
 
@@ -59,14 +60,6 @@ public:
     const sp<MockHandler> mHandler;
 };
 
-struct MockVSyncDispatch : scheduler::VSyncDispatch {
-    MOCK_METHOD(CallbackToken, registerCallback, (Callback, std::string), (override));
-    MOCK_METHOD(void, unregisterCallback, (CallbackToken), (override));
-    MOCK_METHOD(scheduler::ScheduleResult, schedule, (CallbackToken, ScheduleTiming), (override));
-    MOCK_METHOD(scheduler::CancelResult, cancel, (CallbackToken token), (override));
-    MOCK_METHOD(void, dump, (std::string&), (const, override));
-};
-
 struct MockTokenManager : frametimeline::TokenManager {
     MOCK_METHOD1(generateTokenForPredictions, int64_t(frametimeline::TimelineItem&& prediction));
     MOCK_CONST_METHOD1(getPredictionsForToken, std::optional<frametimeline::TimelineItem>(int64_t));
@@ -79,7 +72,7 @@ struct MessageQueueTest : testing::Test {
         EXPECT_CALL(mVSyncDispatch, unregisterCallback(mCallbackToken)).Times(1);
     }
 
-    MockVSyncDispatch mVSyncDispatch;
+    mock::VSyncDispatch mVSyncDispatch;
     MockTokenManager mTokenManager;
     TestableMessageQueue mEventQueue;
 

@@ -63,15 +63,22 @@ public:
         // First duplicate relative root id found. If this is a valid layer id that means we are
         // in a loop.
         uint32_t invalidRelativeRootId = UNASSIGNED_LAYER_ID;
+        // See isAttached()
+        bool detached = false;
         bool hasRelZLoop() const { return invalidRelativeRootId != UNASSIGNED_LAYER_ID; }
-        bool isRelative() { return !relativeRootIds.empty(); }
+        // Returns true if this node is reached via one or more relative parents.
+        bool isRelative() const { return !relativeRootIds.empty(); }
+        // Returns true if the node or its parents are not Detached.
+        bool isAttached() const { return !detached; }
+        // Returns true if the node is a clone.
+        bool isClone() const { return !mirrorRootIds.empty(); }
 
         bool operator==(const TraversalPath& other) const {
             return id == other.id && mirrorRootIds == other.mirrorRootIds;
         }
         std::string toString() const;
 
-        static TraversalPath ROOT_TRAVERSAL_ID;
+        static const TraversalPath ROOT;
     };
 
     // Helper class to add nodes to an existing traversal id and removes the
@@ -86,6 +93,7 @@ public:
         TraversalPath& mTraversalPath;
         uint32_t mParentId;
         LayerHierarchy::Variant mParentVariant;
+        bool mParentDetached;
     };
     LayerHierarchy(RequestedLayerState* layer);
 
@@ -98,12 +106,14 @@ public:
 
     // Traverse the hierarchy and visit all child variants.
     void traverse(const Visitor& visitor) const {
-        traverse(visitor, TraversalPath::ROOT_TRAVERSAL_ID);
+        TraversalPath root = TraversalPath::ROOT;
+        traverse(visitor, root);
     }
 
     // Traverse the hierarchy in z-order, skipping children that have relative parents.
     void traverseInZOrder(const Visitor& visitor) const {
-        traverseInZOrder(visitor, TraversalPath::ROOT_TRAVERSAL_ID);
+        TraversalPath root = TraversalPath::ROOT;
+        traverseInZOrder(visitor, root);
     }
 
     const RequestedLayerState* getLayer() const;

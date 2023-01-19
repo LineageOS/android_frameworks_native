@@ -71,6 +71,11 @@ public:
     }
     sp<IBinder> getRootObject() { return mRpcServer->getRootObject(); }
 
+    /**
+     * For debugging!
+     */
+    std::vector<sp<RpcSession>> listSessions() { return mRpcServer->listSessions(); }
+
 private:
     // Both this class and RpcServer have multiple non-copyable fields,
     // including mPortAcl below which can't be copied because mUuidPtrs

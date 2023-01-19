@@ -231,6 +231,8 @@ public:
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, fps,
                                                               hal::PowerMode::OFF);
 
+        mTokenManager = std::make_unique<frametimeline::impl::TokenManager>();
+
         using Callback = scheduler::ISchedulerCallback;
         Callback& callback = callbackImpl == SchedulerCallbackImpl::kNoOp
                 ? static_cast<Callback&>(mNoOpSchedulerCallback)
@@ -247,6 +249,8 @@ public:
                                                           std::move(vsyncTracker),
                                                           std::move(selectorPtr), callback);
         }
+
+        mScheduler->initVsync(mScheduler->getVsyncSchedule().getDispatch(), *mTokenManager, 0ms);
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
@@ -911,6 +915,7 @@ private:
     sp<SurfaceFlinger> mFlinger;
     scheduler::mock::SchedulerCallback mSchedulerCallback;
     scheduler::mock::NoOpSchedulerCallback mNoOpSchedulerCallback;
+    std::unique_ptr<frametimeline::impl::TokenManager> mTokenManager;
     scheduler::TestableScheduler* mScheduler = nullptr;
 };
 

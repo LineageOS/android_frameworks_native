@@ -17,48 +17,12 @@
 #pragma once
 
 #include <gui/LayerMetadata.h>
-
+#include "FrontEnd/LayerSnapshot.h"
 #include "compositionengine/LayerFE.h"
 #include "compositionengine/LayerFECompositionState.h"
 #include "renderengine/LayerSettings.h"
 
 namespace android {
-struct RoundedCornerState {
-    RoundedCornerState() = default;
-    RoundedCornerState(const FloatRect& cropRect, const vec2& radius)
-          : cropRect(cropRect), radius(radius) {}
-
-    // Rounded rectangle in local layer coordinate space.
-    FloatRect cropRect = FloatRect();
-    // Radius of the rounded rectangle.
-    vec2 radius;
-    bool hasRoundedCorners() const { return radius.x > 0.0f && radius.y > 0.0f; }
-};
-
-// LayerSnapshot stores Layer state used by CompositionEngine and RenderEngine. Composition
-// Engine uses a pointer to LayerSnapshot (as LayerFECompositionState*) and the LayerSettings
-// passed to Render Engine are created using properties stored on this struct.
-struct LayerSnapshot : public compositionengine::LayerFECompositionState {
-    int32_t sequence;
-    std::string name;
-    uint32_t textureName;
-    bool contentOpaque;
-    RoundedCornerState roundedCorner;
-    StretchEffect stretchEffect;
-    FloatRect transformedBounds;
-    renderengine::ShadowSettings shadowSettings;
-    bool premultipliedAlpha;
-    bool isHdrY410;
-    bool bufferNeedsFiltering;
-    ui::Transform transform;
-    Rect bufferSize;
-    std::shared_ptr<renderengine::ExternalTexture> externalTexture;
-    gui::LayerMetadata layerMetadata;
-    gui::LayerMetadata relativeLayerMetadata;
-    bool contentDirty;
-    bool hasReadyFrame;
-    ui::Transform blurRegionTransform;
-};
 
 struct CompositionResult {
     // TODO(b/238781169) update CE to no longer pass refreshStartTime to LayerFE::onPreComposition
@@ -86,7 +50,7 @@ public:
             compositionengine::LayerFE::ClientCompositionTargetSettings&) const;
     CompositionResult&& stealCompositionResult();
 
-    std::unique_ptr<LayerSnapshot> mSnapshot;
+    std::unique_ptr<surfaceflinger::frontend::LayerSnapshot> mSnapshot;
 
 private:
     std::optional<compositionengine::LayerFE::LayerSettings> prepareClientCompositionInternal(

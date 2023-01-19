@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <aidl/IBinderRpcTest.h>
 #include <android-base/stringprintf.h>
 
 #include <chrono>
@@ -1098,15 +1099,6 @@ static std::vector<SocketType> testSocketTypes(bool hasPreconnected = true) {
     }
 
     return ret;
-}
-
-static std::vector<uint32_t> testVersions() {
-    std::vector<uint32_t> versions;
-    for (size_t i = 0; i < RPC_WIRE_PROTOCOL_VERSION_NEXT; i++) {
-        versions.push_back(i);
-    }
-    versions.push_back(RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL);
-    return versions;
 }
 
 INSTANTIATE_TEST_CASE_P(PerSocket, BinderRpc,

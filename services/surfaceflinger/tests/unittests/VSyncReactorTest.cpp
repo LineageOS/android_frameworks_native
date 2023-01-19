@@ -69,14 +69,6 @@ private:
     std::shared_ptr<Clock> const mClock;
 };
 
-struct MockVSyncDispatch : VSyncDispatch {
-    MOCK_METHOD(CallbackToken, registerCallback, (Callback, std::string), (override));
-    MOCK_METHOD(void, unregisterCallback, (CallbackToken), (override));
-    MOCK_METHOD(ScheduleResult, schedule, (CallbackToken, ScheduleTiming), (override));
-    MOCK_METHOD(CancelResult, cancel, (CallbackToken), (override));
-    MOCK_METHOD(void, dump, (std::string&), (const, override));
-};
-
 std::shared_ptr<android::FenceTime> generateInvalidFence() {
     sp<Fence> fence = sp<Fence>::make();
     return std::make_shared<android::FenceTime>(fence);

@@ -21,12 +21,14 @@
 
 #include <scheduler/PresentLatencyTracker.h>
 
-#include "Scheduler/DispSyncSource.h"
 #include "Scheduler/OneShotTimer.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/VSyncDispatchTimerQueue.h"
 #include "Scheduler/VSyncPredictor.h"
 #include "Scheduler/VSyncReactor.h"
+
+#include "mock/MockVSyncDispatch.h"
+#include "mock/MockVSyncTracker.h"
 
 #include "surfaceflinger_fuzzers_utils.h"
 #include "surfaceflinger_scheduler_fuzzer.h"
@@ -53,7 +55,7 @@ void dump(T* component, FuzzedDataProvider* fdp) {
     component->dump(res);
 }
 
-class SchedulerFuzzer : private VSyncSource::Callback {
+class SchedulerFuzzer {
 public:
     SchedulerFuzzer(const uint8_t* data, size_t size) : mFdp(data, size){};
     void process();
@@ -66,7 +68,6 @@ private:
     void fuzzVSyncPredictor();
     void fuzzVSyncReactor();
     void fuzzLayerHistory();
-    void fuzzDispSyncSource();
     void fuzzCallbackToken(scheduler::VSyncDispatchTimerQueue* dispatch);
     void fuzzVSyncDispatchTimerQueue();
     void fuzzOneShotTimer();
@@ -75,8 +76,7 @@ private:
 
     FuzzedDataProvider mFdp;
 
-protected:
-    void onVSyncEvent(nsecs_t /* when */, VSyncSource::VSyncData) {}
+    std::optional<scheduler::VsyncSchedule> mVsyncSchedule;
 };
 
 PhysicalDisplayId SchedulerFuzzer::getPhysicalDisplayId() {
@@ -90,10 +90,14 @@ PhysicalDisplayId SchedulerFuzzer::getPhysicalDisplayId() {
 }
 
 void SchedulerFuzzer::fuzzEventThread() {
+    mVsyncSchedule.emplace(scheduler::VsyncSchedule(std::make_unique<mock::VSyncTracker>(),
+                                                    std::make_unique<mock::VSyncDispatch>(),
+                                                    nullptr));
     const auto getVsyncPeriod = [](uid_t /* uid */) { return kSyncPeriod.count(); };
     std::unique_ptr<android::impl::EventThread> thread = std::make_unique<
-            android::impl::EventThread>(std::move(std::make_unique<FuzzImplVSyncSource>()), nullptr,
-                                        nullptr, getVsyncPeriod);
+            android::impl::EventThread>("fuzzer", *mVsyncSchedule, nullptr, nullptr, getVsyncPeriod,
+                                        (std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>(),
+                                        (std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>());
 
     thread->onHotplugReceived(getPhysicalDisplayId(), mFdp.ConsumeBool());
     sp<EventThreadConnection> connection =
@@ -108,24 +112,6 @@ void SchedulerFuzzer::fuzzEventThread() {
     thread->onScreenAcquired();
     thread->onScreenReleased();
     dump<android::impl::EventThread>(thread.get(), &mFdp);
-}
-
-void SchedulerFuzzer::fuzzDispSyncSource() {
-    std::unique_ptr<FuzzImplVSyncDispatch> vSyncDispatch =
-            std::make_unique<FuzzImplVSyncDispatch>();
-    std::unique_ptr<FuzzImplVSyncTracker> vSyncTracker = std::make_unique<FuzzImplVSyncTracker>();
-    std::unique_ptr<scheduler::DispSyncSource> dispSyncSource = std::make_unique<
-            scheduler::DispSyncSource>(*vSyncDispatch, *vSyncTracker,
-                                       (std::chrono::nanoseconds)
-                                               mFdp.ConsumeIntegral<uint64_t>() /*workDuration*/,
-                                       (std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>()
-                                       /*readyDuration*/,
-                                       mFdp.ConsumeBool(),
-                                       mFdp.ConsumeRandomLengthString(kRandomStringLength).c_str());
-    dispSyncSource->setVSyncEnabled(true);
-    dispSyncSource->setCallback(this);
-    dispSyncSource->setDuration((std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>(), 0ns);
-    dump<scheduler::DispSyncSource>(dispSyncSource.get(), &mFdp);
 }
 
 void SchedulerFuzzer::fuzzCallbackToken(scheduler::VSyncDispatchTimerQueue* dispatch) {
@@ -417,7 +403,6 @@ void SchedulerFuzzer::process() {
     fuzzVSyncPredictor();
     fuzzVSyncReactor();
     fuzzLayerHistory();
-    fuzzDispSyncSource();
     fuzzEventThread();
     fuzzVSyncDispatchTimerQueue();
     fuzzOneShotTimer();

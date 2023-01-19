@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// Allow the SkiaVkRenderEngine class to not be compiled, to save space
-// NOTE: In order to build this class, define `RE_SKIAVK` in a build file.
-#ifdef RE_SKIAVK
-
 // #define LOG_NDEBUG 0
 #undef LOG_TAG
 #define LOG_TAG "RenderEngine"
@@ -67,7 +63,7 @@ struct VulkanInterface {
     GrVkExtensions grExtensions;
     VkPhysicalDeviceFeatures2* physicalDeviceFeatures2 = nullptr;
     VkPhysicalDeviceSamplerYcbcrConversionFeatures* samplerYcbcrConversionFeatures = nullptr;
-    VkPhysicalDeviceProtectedMemoryProperties* protectedMemoryFeatures = nullptr;
+    VkPhysicalDeviceProtectedMemoryFeatures* protectedMemoryFeatures = nullptr;
     GrVkGetProc grGetProc;
     bool isProtected;
     bool isRealtimePriority;
@@ -390,7 +386,7 @@ VulkanInterface initVulkanInterface(bool protectedContent = false) {
     void** tailPnext = &interface.samplerYcbcrConversionFeatures->pNext;
 
     if (protectedContent) {
-        interface.protectedMemoryFeatures = new VkPhysicalDeviceProtectedMemoryProperties;
+        interface.protectedMemoryFeatures = new VkPhysicalDeviceProtectedMemoryFeatures;
         interface.protectedMemoryFeatures->sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES;
         interface.protectedMemoryFeatures->pNext = nullptr;
@@ -677,4 +673,3 @@ void SkiaVkRenderEngine::appendBackendSpecificInfoToDump(std::string& result) {
 } // namespace skia
 } // namespace renderengine
 } // namespace android
-#endif // RE_SKIAVK

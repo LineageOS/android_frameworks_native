@@ -126,6 +126,17 @@ public:
      */
     virtual ScheduleResult schedule(CallbackToken token, ScheduleTiming scheduleTiming) = 0;
 
+    /*
+     * Update the timing information for a scheduled callback.
+     * If the callback is not scheduled, then this function does nothing.
+     *
+     * \param [in] token           The callback to schedule.
+     * \param [in] scheduleTiming  The timing information for this schedule call
+     * \return                     The expected callback time if a callback was scheduled.
+     *                             std::nullopt if the callback is not registered.
+     */
+    virtual ScheduleResult update(CallbackToken token, ScheduleTiming scheduleTiming) = 0;
+
     /* Cancels a scheduled callback, if possible.
      *
      * \param [in] token    The callback to cancel.
@@ -158,6 +169,9 @@ public:
 
     // See documentation for VSyncDispatch::schedule.
     ScheduleResult schedule(VSyncDispatch::ScheduleTiming scheduleTiming);
+
+    // See documentation for VSyncDispatch::update.
+    ScheduleResult update(VSyncDispatch::ScheduleTiming scheduleTiming);
 
     // See documentation for VSyncDispatch::cancel.
     CancelResult cancel();
