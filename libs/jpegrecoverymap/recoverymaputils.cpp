@@ -15,7 +15,6 @@
  */
 
 #include <jpegrecoverymap/recoverymaputils.h>
-#include <jpegrecoverymap/recoverymap.h>
 #include <image_io/xml/xml_reader.h>
 #include <image_io/xml/xml_writer.h>
 #include <image_io/base/message_handler.h>
@@ -39,6 +38,25 @@ string Name(const string &prefix, const string &suffix) {
   std::stringstream ss;
   ss << prefix << ":" << suffix;
   return ss.str();
+}
+
+/*
+ * Helper function used for writing data to destination.
+ */
+status_t Write(jr_compressed_ptr destination, const void* source, size_t length, int &position) {
+  if (position + length > destination->maxLength) {
+    return ERROR_JPEGR_BUFFER_TOO_SMALL;
+  }
+
+  memcpy((uint8_t*)destination->data + sizeof(uint8_t) * position, source, length);
+  position += length;
+  return NO_ERROR;
+}
+
+status_t Write(jr_exif_ptr destination, const void* source, size_t length, int &position) {
+  memcpy((uint8_t*)destination->data + sizeof(uint8_t) * position, source, length);
+  position += length;
+  return NO_ERROR;
 }
 
 // Extremely simple XML Handler - just searches for interesting elements
@@ -322,6 +340,73 @@ string generateXmp(int secondary_image_length, jpegr_metadata& metadata) {
   writer.FinishWriting();
 
   return ss.str();
+}
+
+/*
+ * Helper function
+ * Add J R entry to existing exif, or create a new one with J R entry if it's null.
+ */
+status_t updateExif(jr_exif_ptr exif, jr_exif_ptr dest) {
+  if (exif == nullptr || exif->data == nullptr) {
+    uint8_t data[PSEUDO_EXIF_PACKAGE_LENGTH] = {
+        0x45, 0x78, 0x69, 0x66, 0x00, 0x00,
+        0x49, 0x49, 0x2A, 0x00,
+        0x08, 0x00, 0x00, 0x00,
+        0x01, 0x00,
+        0x4A, 0x52,
+        0x07, 0x00,
+        0x01, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00};
+    int pos = 0;
+    Write(dest, data, PSEUDO_EXIF_PACKAGE_LENGTH, pos);
+    return NO_ERROR;
+  }
+
+  int num_entry = 0;
+  uint8_t num_entry_low = 0;
+  uint8_t num_entry_high = 0;
+  bool use_big_endian = false;
+  if (reinterpret_cast<uint16_t*>(exif->data)[3] == 0x4949) {
+      num_entry_low = reinterpret_cast<uint8_t*>(exif->data)[14];
+      num_entry_high = reinterpret_cast<uint8_t*>(exif->data)[15];
+  } else if (reinterpret_cast<uint16_t*>(exif->data)[3] == 0x4d4d) {
+      use_big_endian = true;
+      num_entry_high = reinterpret_cast<uint8_t*>(exif->data)[14];
+      num_entry_low = reinterpret_cast<uint8_t*>(exif->data)[15];
+  } else {
+      return ERROR_JPEGR_METADATA_ERROR;
+  }
+  num_entry = (num_entry_high << 8) | num_entry_low;
+  num_entry += 1;
+  num_entry_low = num_entry & 0xff;
+  num_entry_high = (num_entry >> 8) & 0xff;
+
+  int pos = 0;
+  Write(dest, (uint8_t*)exif->data, 14, pos);
+
+  if (use_big_endian) {
+    Write(dest, &num_entry_high, 1, pos);
+    Write(dest, &num_entry_low, 1, pos);
+    uint8_t data[EXIF_J_R_ENTRY_LENGTH] = {
+          0x4A, 0x52,
+          0x00, 0x07,
+          0x00, 0x00, 0x00, 0x01,
+          0x00, 0x00, 0x00, 0x00};
+    Write(dest, data, EXIF_J_R_ENTRY_LENGTH, pos);
+  } else {
+    Write(dest, &num_entry_low, 1, pos);
+    Write(dest, &num_entry_high, 1, pos);
+    uint8_t data[EXIF_J_R_ENTRY_LENGTH] = {
+          0x4A, 0x52,
+          0x07, 0x00,
+          0x01, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00};
+    Write(dest, data, EXIF_J_R_ENTRY_LENGTH, pos);
+  }
+
+  Write(dest, (uint8_t*)exif->data + 16, exif->length - 16, pos);
+
+  return NO_ERROR;
 }
 
 } // namespace android::recoverymap
