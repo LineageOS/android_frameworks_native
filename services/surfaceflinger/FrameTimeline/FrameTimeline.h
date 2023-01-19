@@ -314,12 +314,12 @@ public:
     virtual void parseArgs(const Vector<String16>& args, std::string& result) = 0;
 
     // Sets the max number of display frames that can be stored. Called by SF backdoor.
-    virtual void setMaxDisplayFrames(uint32_t size);
+    virtual void setMaxDisplayFrames(uint32_t size) = 0;
 
     // Computes the historical fps for the provided set of layer IDs
     // The fps is compted from the linear timeline of present timestamps for DisplayFrames
     // containing at least one layer ID.
-    virtual float computeFps(const std::unordered_set<int32_t>& layerIds);
+    virtual float computeFps(const std::unordered_set<int32_t>& layerIds) = 0;
 
     // Restores the max number of display frames to default. Called by SF backdoor.
     virtual void reset() = 0;
