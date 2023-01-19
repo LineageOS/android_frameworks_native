@@ -517,6 +517,46 @@ TEST_F(RecoveryMapMathTest, PqInvOetf) {
   EXPECT_RGB_NEAR(pqInvOetf(e_gamma), e);
 }
 
+TEST_F(RecoveryMapMathTest, PqInvOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(pqInvOetf(value), pqInvOetfLUT(value));
+    }
+}
+
+TEST_F(RecoveryMapMathTest, HlgInvOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(hlgInvOetf(value), hlgInvOetfLUT(value));
+    }
+}
+
+TEST_F(RecoveryMapMathTest, pqOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(pqOetf(value), pqOetfLUT(value));
+    }
+}
+
+TEST_F(RecoveryMapMathTest, hlgOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(hlgOetf(value), hlgOetfLUT(value));
+    }
+}
+
+TEST_F(RecoveryMapMathTest, srgbInvOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(srgbInvOetf(value), srgbInvOetfLUT(value));
+    }
+}
+
 TEST_F(RecoveryMapMathTest, PqTransferFunctionRoundtrip) {
   EXPECT_FLOAT_EQ(pqInvOetf(pqOetf(0.0f)), 0.0f);
   EXPECT_NEAR(pqInvOetf(pqOetf(0.01f)), 0.01f, ComparisonEpsilon());

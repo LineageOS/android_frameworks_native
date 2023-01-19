@@ -189,7 +189,8 @@ Color srgbRgbToYuv(Color e_gamma);
  */
 float srgbInvOetf(float e_gamma);
 Color srgbInvOetf(Color e_gamma);
-
+float srgbInvOetfLUT(float e_gamma);
+Color srgbInvOetfLUT(Color e_gamma);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Display-P3 transformations
@@ -229,6 +230,8 @@ Color bt2100YuvToRgb(Color e_gamma);
  */
 float hlgOetf(float e);
 Color hlgOetf(Color e);
+float hlgOetfLUT(float e);
+Color hlgOetfLUT(Color e);
 
 /*
  * Convert from HLG to scene luminance.
@@ -237,6 +240,8 @@ Color hlgOetf(Color e);
  */
 float hlgInvOetf(float e_gamma);
 Color hlgInvOetf(Color e_gamma);
+float hlgInvOetfLUT(float e_gamma);
+Color hlgInvOetfLUT(Color e_gamma);
 
 /*
  * Convert from scene luminance to PQ.
@@ -245,6 +250,8 @@ Color hlgInvOetf(Color e_gamma);
  */
 float pqOetf(float e);
 Color pqOetf(Color e);
+float pqOetfLUT(float e);
+Color pqOetfLUT(Color e);
 
 /*
  * Convert from PQ to scene luminance in nits.
@@ -253,6 +260,8 @@ Color pqOetf(Color e);
  */
 float pqInvOetf(float e_gamma);
 Color pqInvOetf(Color e_gamma);
+float pqInvOetfLUT(float e_gamma);
+Color pqInvOetfLUT(Color e_gamma);
 
 
 ////////////////////////////////////////////////////////////////////////////////
