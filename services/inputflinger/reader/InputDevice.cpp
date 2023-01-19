@@ -210,8 +210,14 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
     // Touchscreens and touchpad devices.
     static const bool ENABLE_TOUCHPAD_GESTURES_LIBRARY =
             sysprop::InputProperties::enable_touchpad_gestures_library().value_or(false);
+    // TODO(b/246587538): Fix the new touchpad stack for Sony DualShock 4 (5c4, 9cc) and DualSense
+    // (ce6) touchpads, or at least load this setting from the IDC file.
+    const InputDeviceIdentifier& identifier = getDeviceInfo().getIdentifier();
+    const bool isSonyGamepadTouchpad = identifier.vendor == 0x054c &&
+            (identifier.product == 0x05c4 || identifier.product == 0x09cc ||
+             identifier.product == 0x0ce6);
     if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
-        classes.test(InputDeviceClass::TOUCH_MT)) {
+        classes.test(InputDeviceClass::TOUCH_MT) && !isSonyGamepadTouchpad) {
         mappers.push_back(std::make_unique<TouchpadInputMapper>(*contextPtr));
     } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(std::make_unique<MultiTouchInputMapper>(*contextPtr));
