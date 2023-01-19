@@ -673,9 +673,6 @@ private:
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock, kMainThreadContext);
 
-    // Returns true if the display has a visible HDR layer in its layer stack.
-    bool hasVisibleHdrLayer(const sp<DisplayDevice>& display) REQUIRES(mStateLock);
-
     // Returns the preferred mode for PhysicalDisplayId if the Scheduler has selected one for that
     // display. Falls back to the display's defaultModeId otherwise.
     ftl::Optional<scheduler::FrameRateMode> getPreferredDisplayMode(
