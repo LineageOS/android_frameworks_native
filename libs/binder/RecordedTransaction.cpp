@@ -17,7 +17,7 @@
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/unique_fd.h>
-#include <binder/BinderRecordReplay.h>
+#include <binder/RecordedTransaction.h>
 #include <sys/mman.h>
 #include <algorithm>
 

@@ -26,7 +26,7 @@ namespace binder::debug {
 
 // Warning: Transactions are sequentially recorded to the file descriptor in a
 // non-stable format. A detailed description of the recording format can be found in
-// BinderRecordReplay.cpp.
+// RecordedTransaction.cpp.
 
 class RecordedTransaction {
 public:
