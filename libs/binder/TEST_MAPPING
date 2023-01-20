@@ -52,6 +52,9 @@
       "name": "memunreachable_binder_test"
     },
     {
+      "name": "resolv_integration_test"
+    },
+    {
       "name": "libbinderthreadstateutils_test"
     },
     {
