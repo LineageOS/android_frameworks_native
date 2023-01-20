@@ -64,6 +64,7 @@ filegroup {
         "mapper/gestures/GestureConverter.cpp",
         "mapper/gestures/GesturesLogging.cpp",
         "mapper/gestures/HardwareStateConverter.cpp",
+        "mapper/gestures/PropertyProvider.cpp",
     ],
 }
 
