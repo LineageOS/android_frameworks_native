@@ -56,6 +56,7 @@
 #include <scheduler/Fps.h>
 #include <scheduler/PresentLatencyTracker.h>
 #include <scheduler/Time.h>
+#include <scheduler/TransactionSchedule.h>
 #include <ui/FenceResult.h>
 
 #include "Display/DisplayMap.h"
@@ -73,7 +74,6 @@
 #include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
-#include "Scheduler/VsyncModulator.h"
 #include "SurfaceFlingerFactory.h"
 #include "ThreadContext.h"
 #include "Tracing/LayerTracing.h"
@@ -352,7 +352,6 @@ private:
     friend class TransactionApplicationTest;
     friend class TunnelModeEnabledReporterTest;
 
-    using VsyncModulator = scheduler::VsyncModulator;
     using TransactionSchedule = scheduler::TransactionSchedule;
     using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
     using RenderAreaFuture = ftl::Future<std::unique_ptr<RenderArea>>;
@@ -468,14 +467,6 @@ private:
     Dumper protoDumper(F dump) {
         using namespace std::placeholders;
         return std::bind(dump, this, _1, _2, _3);
-    }
-
-    template <typename... Args,
-              typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
-    void modulateVsync(Handler handler, Args... args) {
-        if (const auto config = (*mVsyncModulator.*handler)(args...)) {
-            setVsyncConfig(*config, mScheduler->getLeaderVsyncPeriod());
-        }
     }
 
     // Maximum allowed number of display frames that can be set through backdoor
@@ -710,8 +701,7 @@ private:
     void updateCursorAsync();
 
     void initScheduler(const sp<const DisplayDevice>&) REQUIRES(kMainThreadContext, mStateLock);
-    void updatePhaseConfiguration(const Fps&) REQUIRES(mStateLock);
-    void setVsyncConfig(const scheduler::VsyncConfig&, Period vsyncPeriod);
+    void updatePhaseConfiguration(Fps) REQUIRES(mStateLock);
 
     /*
      * Transactions
@@ -1289,9 +1279,6 @@ private:
 
     // Stores phase offsets configured per refresh rate.
     std::unique_ptr<scheduler::VsyncConfiguration> mVsyncConfiguration;
-
-    // Optional to defer construction until PhaseConfiguration is created.
-    sp<VsyncModulator> mVsyncModulator;
 
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
     scheduler::PresentLatencyTracker mPresentLatencyTracker GUARDED_BY(kMainThreadContext);

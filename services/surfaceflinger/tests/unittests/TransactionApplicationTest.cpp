@@ -228,6 +228,11 @@ public:
         EXPECT_EQ(0u, transactionQueue.size());
     }
 
+    void modulateVsync() {
+        static_cast<void>(
+                mFlinger.mutableScheduler().mutableVsyncModulator().onRefreshRateChangeInitiated());
+    }
+
     bool mHasListenerCallbacks = false;
     std::vector<ListenerCallbacks> mCallbacks;
     int mTransactionNumber = 0;
@@ -623,9 +628,7 @@ TEST_F(LatchUnsignaledAutoSingleLayerTest, DontLatchUnsignaledWhenEarlyOffset) {
                                                               layer_state_t::eBufferChanged),
                                   });
 
-    // Get VsyncModulator out of the default config
-    static_cast<void>(mFlinger.mutableVsyncModulator()->onRefreshRateChangeInitiated());
-
+    modulateVsync();
     setTransactionStates({unsignaledTransaction}, kExpectedTransactionsPending);
 }
 
@@ -985,9 +988,7 @@ TEST_F(LatchUnsignaledAlwaysTest, LatchUnsignaledWhenEarlyOffset) {
                                                               layer_state_t::eBufferChanged),
                                   });
 
-    // Get VsyncModulator out of the default config
-    static_cast<void>(mFlinger.mutableVsyncModulator()->onRefreshRateChangeInitiated());
-
+    modulateVsync();
     setTransactionStates({unsignaledTransaction}, kExpectedTransactionsPending);
 }
 

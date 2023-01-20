@@ -25,20 +25,12 @@
 #include <binder/IBinder.h>
 #include <utils/Timers.h>
 
+#include <scheduler/TransactionSchedule.h>
 #include <scheduler/VsyncConfig.h>
 
 #include "../WpHash.h"
 
 namespace android::scheduler {
-
-// State machine controlled by transaction flags. VsyncModulator switches to early phase offsets
-// when a transaction is flagged EarlyStart or Early, lasting until an EarlyEnd transaction or a
-// fixed number of frames, respectively.
-enum class TransactionSchedule {
-    Late,  // Default.
-    EarlyStart,
-    EarlyEnd
-};
 
 // Modulates VSYNC phase depending on transaction schedule and refresh rate changes.
 class VsyncModulator : public IBinder::DeathRecipient {

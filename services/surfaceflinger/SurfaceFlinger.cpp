@@ -142,6 +142,7 @@
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncConfiguration.h"
+#include "Scheduler/VsyncModulator.h"
 #include "ScreenCaptureOutput.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlingerProperties.h"
@@ -189,6 +190,7 @@ using gui::IWindowInfosListener;
 using gui::LayerMetadata;
 using gui::WindowInfo;
 using gui::aidl_utils::binderStatusFromStatusT;
+using scheduler::VsyncModulator;
 using ui::Dataspace;
 using ui::DisplayPrimaries;
 using ui::RenderIntent;
@@ -1163,7 +1165,7 @@ void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request,
             mScheduler->resyncToHardwareVsync(true, mode.modePtr->getFps());
             // As we called to set period, we will call to onRefreshRateChangeCompleted once
             // VsyncController model is locked.
-            modulateVsync(&VsyncModulator::onRefreshRateChangeInitiated);
+            mScheduler->modulateVsync(&VsyncModulator::onRefreshRateChangeInitiated);
 
             updatePhaseConfiguration(mode.fps);
             mScheduler->setModeChangePending(true);
@@ -2039,7 +2041,7 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
     bool periodFlushed = false;
     mScheduler->addResyncSample(timestamp, vsyncPeriod, &periodFlushed);
     if (periodFlushed) {
-        modulateVsync(&VsyncModulator::onRefreshRateChangeCompleted);
+        mScheduler->modulateVsync(&VsyncModulator::onRefreshRateChangeCompleted);
     }
 }
 
@@ -2117,7 +2119,7 @@ TimePoint SurfaceFlinger::calculateExpectedPresentTime(TimePoint frameTime) cons
     const auto& schedule = mScheduler->getVsyncSchedule();
 
     const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(frameTime);
-    if (mVsyncModulator->getVsyncConfig().sfOffset > 0) {
+    if (mScheduler->vsyncModulator().getVsyncConfig().sfOffset > 0) {
         return vsyncDeadline;
     }
 
@@ -2231,17 +2233,19 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
     mPowerHintSessionEnabled = mPowerAdvisor->usePowerHintSession() && activeDisplay &&
             activeDisplay->getPowerMode() == hal::PowerMode::ON;
     if (mPowerHintSessionEnabled) {
-        const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
-        const Period vsyncPeriod = Period::fromNs(display->getActiveMode().fps.getPeriodNsecs());
         mPowerAdvisor->setCommitStart(frameTime);
         mPowerAdvisor->setExpectedPresentTime(mExpectedPresentTime);
 
         // Frame delay is how long we should have minus how long we actually have.
-        const Duration idealSfWorkDuration = mVsyncModulator->getVsyncConfig().sfWorkDuration;
+        const Duration idealSfWorkDuration =
+                mScheduler->vsyncModulator().getVsyncConfig().sfWorkDuration;
         const Duration frameDelay = idealSfWorkDuration - (mExpectedPresentTime - frameTime);
 
         mPowerAdvisor->setFrameDelay(frameDelay);
         mPowerAdvisor->setTotalFrameTargetWorkDuration(idealSfWorkDuration);
+
+        const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
+        const Period vsyncPeriod = display->getActiveMode().fps.getPeriod();
         mPowerAdvisor->setTargetWorkDuration(vsyncPeriod);
 
         // Send early hint here to make sure there's not another frame pending
@@ -2468,7 +2472,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     // TODO: b/160583065 Enable skip validation when SF caches all client composition layers
     const bool usedGpuComposition = mHadClientComposition || mReusedClientComposition;
-    modulateVsync(&VsyncModulator::onDisplayRefresh, usedGpuComposition);
+    mScheduler->modulateVsync(&VsyncModulator::onDisplayRefresh, usedGpuComposition);
 
     mLayersWithQueuedFrames.clear();
     if (mLayerTracingEnabled && mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
@@ -2791,7 +2795,7 @@ void SurfaceFlinger::commitTransactions() {
     // so we can call commitTransactionsLocked unconditionally.
     // We clear the flags with mStateLock held to guarantee that
     // mCurrentState won't change until the transaction is committed.
-    modulateVsync(&VsyncModulator::onTransactionCommit);
+    mScheduler->modulateVsync(&VsyncModulator::onTransactionCommit);
     commitTransactionsLocked(clearTransactionFlags(eTransactionMask));
 
     mDebugInTransaction = 0;
@@ -3592,19 +3596,18 @@ void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
 }
 
 void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
+    using namespace scheduler;
+
     LOG_ALWAYS_FATAL_IF(mScheduler);
 
     const auto activeMode = display->refreshRateSelector().getActiveMode();
     const Fps activeRefreshRate = activeMode.fps;
     mRefreshRateStats =
-            std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, activeRefreshRate,
-                                                          hal::PowerMode::OFF);
+            std::make_unique<RefreshRateStats>(*mTimeStats, activeRefreshRate, hal::PowerMode::OFF);
 
     mVsyncConfiguration = getFactory().createVsyncConfiguration(activeRefreshRate);
-    mVsyncModulator = sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs());
 
-    using Feature = scheduler::Feature;
-    scheduler::FeatureFlags features;
+    FeatureFlags features;
 
     if (sysprop::use_content_detection_for_refresh_rate(false)) {
         features |= Feature::kContentDetection;
@@ -3620,9 +3623,11 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
         features |= Feature::kKernelIdleTimer;
     }
 
-    mScheduler = std::make_unique<scheduler::Scheduler>(static_cast<ICompositor&>(*this),
-                                                        static_cast<ISchedulerCallback&>(*this),
-                                                        features);
+    auto modulatorPtr = sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs());
+
+    mScheduler = std::make_unique<Scheduler>(static_cast<ICompositor&>(*this),
+                                             static_cast<ISchedulerCallback&>(*this), features,
+                                             std::move(modulatorPtr));
     mScheduler->createVsyncSchedule(features);
     mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
 
@@ -3630,15 +3635,17 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     mScheduler->startTimers();
 
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
-    const nsecs_t vsyncPeriod = activeRefreshRate.getPeriodNsecs();
+
     mAppConnectionHandle =
-            mScheduler->createConnection("app", mFrameTimeline->getTokenManager(),
-                                         /*workDuration=*/configs.late.appWorkDuration,
-                                         /*readyDuration=*/configs.late.sfWorkDuration);
+            mScheduler->createEventThread(Scheduler::Cycle::Render,
+                                          mFrameTimeline->getTokenManager(),
+                                          /* workDuration */ configs.late.appWorkDuration,
+                                          /* readyDuration */ configs.late.sfWorkDuration);
     mSfConnectionHandle =
-            mScheduler->createConnection("appSf", mFrameTimeline->getTokenManager(),
-                                         /*workDuration=*/std::chrono::nanoseconds(vsyncPeriod),
-                                         /*readyDuration=*/configs.late.sfWorkDuration);
+            mScheduler->createEventThread(Scheduler::Cycle::LastComposite,
+                                          mFrameTimeline->getTokenManager(),
+                                          /* workDuration */ activeRefreshRate.getPeriod(),
+                                          /* readyDuration */ configs.late.sfWorkDuration);
 
     mScheduler->initVsync(mScheduler->getVsyncSchedule().getDispatch(),
                           *mFrameTimeline->getTokenManager(), configs.late.sfWorkDuration);
@@ -3649,20 +3656,10 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     mFpsReporter = sp<FpsReporter>::make(*mFrameTimeline, *this);
 }
 
-void SurfaceFlinger::updatePhaseConfiguration(const Fps& refreshRate) {
+void SurfaceFlinger::updatePhaseConfiguration(Fps refreshRate) {
     mVsyncConfiguration->setRefreshRateFps(refreshRate);
-    setVsyncConfig(mVsyncModulator->setVsyncConfigSet(mVsyncConfiguration->getCurrentConfigs()),
-                   refreshRate.getPeriod());
-}
-
-void SurfaceFlinger::setVsyncConfig(const scheduler::VsyncConfig& config, Period vsyncPeriod) {
-    mScheduler->setDuration(mAppConnectionHandle,
-                            /* workDuration */ config.appWorkDuration,
-                            /* readyDuration */ config.sfWorkDuration);
-    mScheduler->setDuration(mSfConnectionHandle,
-                            /* workDuration */ vsyncPeriod,
-                            /* readyDuration */ config.sfWorkDuration);
-    mScheduler->setDuration(config.sfWorkDuration);
+    mScheduler->setVsyncConfigSet(mVsyncConfiguration->getCurrentConfigs(),
+                                  refreshRate.getPeriod());
 }
 
 void SurfaceFlinger::doCommitTransactions() {
@@ -3861,7 +3858,7 @@ uint32_t SurfaceFlinger::clearTransactionFlags(uint32_t mask) {
 
 void SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule schedule,
                                          const sp<IBinder>& applyToken, FrameHint frameHint) {
-    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, applyToken);
+    mScheduler->modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, applyToken);
 
     if (const bool scheduled = mTransactionFlags.fetch_or(mask) & mask; !scheduled) {
         scheduleCommit(frameHint);
@@ -4066,7 +4063,7 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
         // We don't want to latch unsignaled if are in early / client composition
         // as it leads to jank due to RenderEngine waiting for unsignaled buffer
         // or window animations being slow.
-        const auto isDefaultVsyncConfig = mVsyncModulator->isVsyncConfigDefault();
+        const auto isDefaultVsyncConfig = mScheduler->vsyncModulator().isVsyncConfigDefault();
         if (!isDefaultVsyncConfig) {
             ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; !isDefaultVsyncConfig)",
                   __func__);
