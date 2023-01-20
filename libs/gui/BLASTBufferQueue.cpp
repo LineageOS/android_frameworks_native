@@ -482,11 +482,19 @@ void BLASTBufferQueue::releaseBuffer(const ReleaseCallbackId& callbackId,
 
 status_t BLASTBufferQueue::acquireNextBufferLocked(
         const std::optional<SurfaceComposerClient::Transaction*> transaction) {
-    // If the next transaction is set, we want to guarantee the our acquire will not fail, so don't
-    // include the extra buffer when checking if we can acquire the next buffer.
+    // Check if we have frames available and we have not acquired the maximum number of buffers.
+    // Even with this check, the consumer can fail to acquire an additional buffer if the consumer
+    // has already acquired (mMaxAcquiredBuffers + 1) and the new buffer is not droppable. In this
+    // case mBufferItemConsumer->acquireBuffer will return with NO_BUFFER_AVAILABLE.
     if (mNumFrameAvailable == 0) {
-        BQA_LOGV("Can't process next buffer. No available frames");
-        return NOT_ENOUGH_DATA;
+        BQA_LOGV("Can't acquire next buffer. No available frames");
+        return BufferQueue::NO_BUFFER_AVAILABLE;
+    }
+
+    if (mNumAcquired >= (mMaxAcquiredBuffers + 2)) {
+        BQA_LOGV("Can't acquire next buffer. Already acquired max frames %d max:%d + 2",
+                 mNumAcquired, mMaxAcquiredBuffers);
+        return BufferQueue::NO_BUFFER_AVAILABLE;
     }
 
     if (mSurfaceControl == nullptr) {
@@ -644,11 +652,12 @@ void BLASTBufferQueue::acquireAndReleaseBuffer() {
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     std::function<void(SurfaceComposerClient::Transaction*)> prevCallback = nullptr;
     SurfaceComposerClient::Transaction* prevTransaction = nullptr;
-    bool waitForTransactionCallback = !mSyncedFrameNumbers.empty();
 
     {
-        BBQ_TRACE();
         std::unique_lock _lock{mMutex};
+        BBQ_TRACE();
+
+        bool waitForTransactionCallback = !mSyncedFrameNumbers.empty();
         const bool syncTransactionSet = mTransactionReadyCallback != nullptr;
         BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
 
@@ -677,6 +686,15 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
                     // flush out the shadow queue
                     acquireAndReleaseBuffer();
                 }
+            } else {
+                // Make sure the frame available count is 0 before proceeding with a sync to ensure
+                // the correct frame is used for the sync. The only way mNumFrameAvailable would be
+                // greater than 0 is if we already ran out of buffers previously. This means we
+                // need to flush the buffers before proceeding with the sync.
+                while (mNumFrameAvailable > 0) {
+                    BQA_LOGD("waiting until no queued buffers");
+                    mCallbackCV.wait(_lock);
+                }
             }
         }
 
@@ -692,6 +710,11 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
                  item.mFrameNumber, boolToString(syncTransactionSet));
 
         if (syncTransactionSet) {
+            // Add to mSyncedFrameNumbers before waiting in case any buffers are released
+            // while waiting for a free buffer. The release and commit callback will try to
+            // acquire buffers if there are any available, but we don't want it to acquire
+            // in the case where a sync transaction wants the buffer.
+            mSyncedFrameNumbers.emplace(item.mFrameNumber);
             // If there's no available buffer and we're in a sync transaction, we need to wait
             // instead of returning since we guarantee a buffer will be acquired for the sync.
             while (acquireNextBufferLocked(mSyncTransaction) == BufferQueue::NO_BUFFER_AVAILABLE) {
@@ -704,7 +727,6 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
             incStrong((void*)transactionCommittedCallbackThunk);
             mSyncTransaction->addTransactionCommittedCallback(transactionCommittedCallbackThunk,
                                                               static_cast<void*>(this));
-            mSyncedFrameNumbers.emplace(item.mFrameNumber);
             if (mAcquireSingleBuffer) {
                 prevCallback = mTransactionReadyCallback;
                 prevTransaction = mSyncTransaction;
