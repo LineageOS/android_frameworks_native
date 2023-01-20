@@ -130,7 +130,7 @@ void BufferQueueFuzzer::invokeBlastBufferQueue() {
     queue->setFrameRate(mFdp.ConsumeFloatingPoint<float>(), mFdp.ConsumeIntegral<int8_t>(),
                         mFdp.ConsumeBool() /*shouldBeSeamless*/);
     FrameTimelineInfo info;
-    queue->setFrameTimelineInfo(info);
+    queue->setFrameTimelineInfo(mFdp.ConsumeIntegral<uint64_t>(), info);
 
     ManageResourceHandle handle(&mFdp);
     queue->setSidebandStream(handle.getStream());
