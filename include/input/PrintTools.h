@@ -16,12 +16,18 @@
 
 #pragma once
 
+#include <bitset>
 #include <map>
 #include <optional>
 #include <set>
 #include <string>
 
 namespace android {
+
+template <size_t N>
+std::string bitsetToString(const std::bitset<N>& bitset) {
+    return bitset.to_string();
+}
 
 template <typename T>
 inline std::string constToString(const T& v) {
