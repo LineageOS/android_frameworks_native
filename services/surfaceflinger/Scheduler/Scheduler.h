@@ -239,8 +239,8 @@ public:
     // Retrieves the overridden refresh rate for a given uid.
     std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);
 
-    nsecs_t getLeaderVsyncPeriod() const EXCLUDES(mDisplayLock) {
-        return leaderSelectorPtr()->getActiveMode().fps.getPeriodNsecs();
+    Period getLeaderVsyncPeriod() const EXCLUDES(mDisplayLock) {
+        return leaderSelectorPtr()->getActiveMode().fps.getPeriod();
     }
 
     // Returns the framerate of the layer with the given sequence ID

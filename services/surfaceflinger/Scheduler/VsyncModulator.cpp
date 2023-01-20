@@ -40,7 +40,7 @@ VsyncModulator::VsyncModulator(const VsyncConfigSet& config, Now now)
         mNow(now),
         mTraceDetailedInfo(base::GetBoolProperty("debug.sf.vsync_trace_detailed_info", false)) {}
 
-VsyncModulator::VsyncConfig VsyncModulator::setVsyncConfigSet(const VsyncConfigSet& config) {
+VsyncConfig VsyncModulator::setVsyncConfigSet(const VsyncConfigSet& config) {
     std::lock_guard<std::mutex> lock(mMutex);
     mVsyncConfigSet = config;
     return updateVsyncConfigLocked();
@@ -129,7 +129,7 @@ VsyncModulator::VsyncConfigOpt VsyncModulator::onDisplayRefresh(bool usedGpuComp
     return updateVsyncConfig();
 }
 
-VsyncModulator::VsyncConfig VsyncModulator::getVsyncConfig() const {
+VsyncConfig VsyncModulator::getVsyncConfig() const {
     std::lock_guard<std::mutex> lock(mMutex);
     return mVsyncConfig;
 }
@@ -147,7 +147,7 @@ auto VsyncModulator::getNextVsyncConfigType() const -> VsyncConfigType {
     }
 }
 
-const VsyncModulator::VsyncConfig& VsyncModulator::getNextVsyncConfig() const {
+const VsyncConfig& VsyncModulator::getNextVsyncConfig() const {
     switch (getNextVsyncConfigType()) {
         case VsyncConfigType::Early:
             return mVsyncConfigSet.early;
@@ -158,12 +158,12 @@ const VsyncModulator::VsyncConfig& VsyncModulator::getNextVsyncConfig() const {
     }
 }
 
-VsyncModulator::VsyncConfig VsyncModulator::updateVsyncConfig() {
+VsyncConfig VsyncModulator::updateVsyncConfig() {
     std::lock_guard<std::mutex> lock(mMutex);
     return updateVsyncConfigLocked();
 }
 
-VsyncModulator::VsyncConfig VsyncModulator::updateVsyncConfigLocked() {
+VsyncConfig VsyncModulator::updateVsyncConfigLocked() {
     const VsyncConfig& offsets = getNextVsyncConfig();
     mVsyncConfig = offsets;
 

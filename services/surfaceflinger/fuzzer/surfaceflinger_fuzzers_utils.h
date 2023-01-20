@@ -157,6 +157,10 @@ inline TimePoint getFuzzedTimePoint(FuzzedDataProvider& fdp) {
     return TimePoint::fromNs(fdp.ConsumeIntegral<nsecs_t>());
 }
 
+inline Duration getFuzzedDuration(FuzzedDataProvider& fdp) {
+    return Duration::fromNs(fdp.ConsumeIntegral<nsecs_t>());
+}
+
 inline FloatRect getFuzzedFloatRect(FuzzedDataProvider* fdp) {
     return FloatRect(fdp->ConsumeFloatingPoint<float>() /*left*/,
                      fdp->ConsumeFloatingPoint<float>() /*right*/,
@@ -196,9 +200,11 @@ struct FakePhaseOffsets : scheduler::VsyncConfiguration {
     static constexpr nsecs_t FAKE_PHASE_OFFSET_NS = 0;
     static constexpr auto FAKE_DURATION_OFFSET_NS = std::chrono::nanoseconds(0);
 
-    VsyncConfigSet getConfigsForRefreshRate(Fps) const override { return getCurrentConfigs(); }
+    scheduler::VsyncConfigSet getConfigsForRefreshRate(Fps) const override {
+        return getCurrentConfigs();
+    }
 
-    VsyncConfigSet getCurrentConfigs() const override {
+    scheduler::VsyncConfigSet getCurrentConfigs() const override {
         return {{FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
                  FAKE_DURATION_OFFSET_NS},
                 {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
@@ -510,11 +516,6 @@ public:
         mFlinger->getDesiredDisplayModeSpecs(display, &_);
     }
 
-    void setVsyncConfig(FuzzedDataProvider *fdp) {
-        const scheduler::VsyncModulator::VsyncConfig vsyncConfig{};
-        mFlinger->setVsyncConfig(vsyncConfig, fdp->ConsumeIntegral<nsecs_t>());
-    }
-
     // TODO(b/248317436): extend to cover all displays for multi-display devices
     static std::optional<PhysicalDisplayId> getFirstDisplayId() {
         std::vector<PhysicalDisplayId> ids = SurfaceComposerClient::getPhysicalDisplayIds();
@@ -592,7 +593,11 @@ public:
         mFlinger->updateInputFlinger();
         mFlinger->updateCursorAsync();
 
-        setVsyncConfig(&mFdp);
+        mFlinger->setVsyncConfig({.sfOffset = mFdp.ConsumeIntegral<nsecs_t>(),
+                                  .appOffset = mFdp.ConsumeIntegral<nsecs_t>(),
+                                  .sfWorkDuration = getFuzzedDuration(mFdp),
+                                  .appWorkDuration = getFuzzedDuration(mFdp)},
+                                 getFuzzedDuration(mFdp));
 
         {
             ftl::FakeGuard guard(kMainThreadContext);

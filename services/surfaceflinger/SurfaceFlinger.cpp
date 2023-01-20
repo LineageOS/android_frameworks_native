@@ -3652,17 +3652,16 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
 void SurfaceFlinger::updatePhaseConfiguration(const Fps& refreshRate) {
     mVsyncConfiguration->setRefreshRateFps(refreshRate);
     setVsyncConfig(mVsyncModulator->setVsyncConfigSet(mVsyncConfiguration->getCurrentConfigs()),
-                   refreshRate.getPeriodNsecs());
+                   refreshRate.getPeriod());
 }
 
-void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config,
-                                    nsecs_t vsyncPeriod) {
+void SurfaceFlinger::setVsyncConfig(const scheduler::VsyncConfig& config, Period vsyncPeriod) {
     mScheduler->setDuration(mAppConnectionHandle,
-                            /*workDuration=*/config.appWorkDuration,
-                            /*readyDuration=*/config.sfWorkDuration);
+                            /* workDuration */ config.appWorkDuration,
+                            /* readyDuration */ config.sfWorkDuration);
     mScheduler->setDuration(mSfConnectionHandle,
-                            /*workDuration=*/std::chrono::nanoseconds(vsyncPeriod),
-                            /*readyDuration=*/config.sfWorkDuration);
+                            /* workDuration */ vsyncPeriod,
+                            /* readyDuration */ config.sfWorkDuration);
     mScheduler->setDuration(config.sfWorkDuration);
 }
 
@@ -4026,7 +4025,7 @@ bool SurfaceFlinger::frameIsEarly(TimePoint expectedPresentTime, VsyncId vsyncId
     const auto predictedPresentTime = TimePoint::fromNs(prediction->presentTime);
 
     // The duration for which SF can delay a frame if it is considered early based on the
-    // VsyncModulator::VsyncConfig::appWorkDuration.
+    // VsyncConfig::appWorkDuration.
     if (constexpr std::chrono::nanoseconds kEarlyLatchMaxThreshold = 100ms;
         std::chrono::abs(predictedPresentTime - expectedPresentTime) >= kEarlyLatchMaxThreshold) {
         return false;

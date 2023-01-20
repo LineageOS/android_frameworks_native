@@ -711,8 +711,7 @@ private:
 
     void initScheduler(const sp<const DisplayDevice>&) REQUIRES(kMainThreadContext, mStateLock);
     void updatePhaseConfiguration(const Fps&) REQUIRES(mStateLock);
-    void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
-
+    void setVsyncConfig(const scheduler::VsyncConfig&, Period vsyncPeriod);
 
     /*
      * Transactions

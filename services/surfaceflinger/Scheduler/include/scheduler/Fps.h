@@ -23,7 +23,7 @@
 #include <type_traits>
 
 #include <android-base/stringprintf.h>
-#include <utils/Timers.h>
+#include <scheduler/Time.h>
 
 namespace android {
 
@@ -52,6 +52,7 @@ public:
     constexpr float getValue() const { return mFrequency; }
     int getIntValue() const { return static_cast<int>(std::round(mFrequency)); }
 
+    constexpr Period getPeriod() const { return Period::fromNs(mPeriod); }
     constexpr nsecs_t getPeriodNsecs() const { return mPeriod; }
 
 private:
