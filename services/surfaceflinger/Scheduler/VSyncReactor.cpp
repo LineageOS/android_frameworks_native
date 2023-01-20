@@ -129,7 +129,7 @@ void VSyncReactor::endPeriodTransition() {
 }
 
 void VSyncReactor::startPeriodTransition(nsecs_t period) {
-    ATRACE_INT64("VSR-setPeriod", period);
+    ATRACE_INT64("VSR-startPeriodTransition", period);
     std::lock_guard lock(mMutex);
     mLastHwVsync.reset();
 

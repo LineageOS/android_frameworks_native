@@ -148,14 +148,14 @@ std::optional<compositionengine::LayerFE::LayerSettings> LayerFE::prepareClientC
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled:
             layerSettings.backgroundBlurRadius = mSnapshot->backgroundBlurRadius;
             layerSettings.blurRegions = mSnapshot->blurRegions;
-            layerSettings.blurRegionTransform = mSnapshot->blurRegionTransform.asMatrix4();
+            layerSettings.blurRegionTransform = mSnapshot->localTransformInverse.asMatrix4();
             break;
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::BackgroundBlurOnly:
             layerSettings.backgroundBlurRadius = mSnapshot->backgroundBlurRadius;
             break;
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::BlurRegionsOnly:
             layerSettings.blurRegions = mSnapshot->blurRegions;
-            layerSettings.blurRegionTransform = mSnapshot->blurRegionTransform.asMatrix4();
+            layerSettings.blurRegionTransform = mSnapshot->localTransformInverse.asMatrix4();
             break;
         case LayerFE::ClientCompositionTargetSettings::BlurSetting::Disabled:
         default:
@@ -275,7 +275,7 @@ void LayerFE::prepareBufferStateClientComposition(
          * of a camera where the buffer remains in native orientation,
          * we want the pixels to always be upright.
          */
-        const auto parentTransform = mSnapshot->transform;
+        const auto parentTransform = mSnapshot->parentTransform;
         tr = tr * inverseOrientation(parentTransform.getOrientation());
 
         // and finally apply it to the original texture matrix

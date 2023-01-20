@@ -26,20 +26,22 @@ namespace binder::debug {
 
 // Warning: Transactions are sequentially recorded to the file descriptor in a
 // non-stable format. A detailed description of the recording format can be found in
-// BinderRecordReplay.cpp.
+// RecordedTransaction.cpp.
 
 class RecordedTransaction {
 public:
     // Filled with the first transaction from fd.
     static std::optional<RecordedTransaction> fromFile(const android::base::unique_fd& fd);
     // Filled with the arguments.
-    static std::optional<RecordedTransaction> fromDetails(uint32_t code, uint32_t flags,
+    static std::optional<RecordedTransaction> fromDetails(const String16& interfaceName,
+                                                          uint32_t code, uint32_t flags,
                                                           timespec timestamp, const Parcel& data,
                                                           const Parcel& reply, status_t err);
     RecordedTransaction(RecordedTransaction&& t) noexcept;
 
     [[nodiscard]] status_t dumpToFile(const android::base::unique_fd& fd) const;
 
+    const String8& getInterfaceName() const;
     uint32_t getCode() const;
     uint32_t getFlags() const;
     int32_t getReturnedStatus() const;
@@ -69,7 +71,11 @@ private:
     static_assert(sizeof(TransactionHeader) == 32);
     static_assert(sizeof(TransactionHeader) % 8 == 0);
 
-    TransactionHeader mHeader;
+    struct MovableData { // movable
+        TransactionHeader mHeader;
+        String8 mInterfaceName;
+    };
+    MovableData mData;
     Parcel mSent;
     Parcel mReply;
 };

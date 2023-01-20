@@ -19,6 +19,6 @@
 namespace android {
 
 std::atomic<int32_t> MyBinderRpcSession::gNum;
-sp<IBinder> MyBinderRpcTest::mHeldBinder;
+sp<IBinder> MyBinderRpcTestBase::mHeldBinder;
 
 } // namespace android

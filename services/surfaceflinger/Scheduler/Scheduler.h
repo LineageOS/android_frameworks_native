@@ -223,11 +223,6 @@ public:
 
     size_t getEventThreadConnectionCount(ConnectionHandle handle);
 
-    std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name,
-                                                           std::chrono::nanoseconds workDuration,
-                                                           std::chrono::nanoseconds readyDuration,
-                                                           bool traceVsync = true);
-
     // Stores the preferred refresh rate that an app should run at.
     // FrameRateOverride.refreshRateHz == 0 means no preference.
     void setPreferredRefreshRateForUid(FrameRateOverride);

@@ -1833,17 +1833,6 @@ status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayT
     return NO_ERROR;
 }
 
-bool SurfaceFlinger::hasVisibleHdrLayer(const sp<DisplayDevice>& display) {
-    bool hasHdrLayers = false;
-    mDrawingState.traverse([&,
-                            compositionDisplay = display->getCompositionDisplay()](Layer* layer) {
-        hasHdrLayers |= (layer->isVisible() &&
-                         compositionDisplay->includesLayer(layer->getCompositionEngineLayerFE()) &&
-                         isHdrDataspace(layer->getDataSpace()));
-    });
-    return hasHdrLayers;
-}
-
 status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                                               const gui::DisplayBrightness& brightness) {
     if (!displayToken) {
@@ -2638,7 +2627,8 @@ void SurfaceFlinger::postComposition() {
             int32_t maxArea = 0;
             mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
                 const auto layerFe = layer->getCompositionEngineLayerFE();
-                if (layer->isVisible() && compositionDisplay->includesLayer(layerFe)) {
+                if (layer->isVisible() &&
+                    compositionDisplay->includesLayer(layer->getOutputFilter())) {
                     if (isHdrLayer(layer)) {
                         const auto* outputLayer =
                             compositionDisplay->getOutputLayerForLayer(layerFe);

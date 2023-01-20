@@ -324,8 +324,8 @@ public:
     virtual sp<LayerFE> getCompositionEngineLayerFE() const;
     virtual sp<LayerFE> copyCompositionEngineLayerFE() const;
 
-    const LayerSnapshot* getLayerSnapshot() const;
-    LayerSnapshot* editLayerSnapshot();
+    const frontend::LayerSnapshot* getLayerSnapshot() const;
+    frontend::LayerSnapshot* editLayerSnapshot();
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
@@ -464,7 +464,7 @@ public:
     // Returns how rounded corners should be drawn for this layer.
     // A layer can override its parent's rounded corner settings if the parent's rounded
     // corner crop does not intersect with its own rounded corner crop.
-    virtual RoundedCornerState getRoundedCornerState() const;
+    virtual frontend::RoundedCornerState getRoundedCornerState() const;
 
     bool hasRoundedCorners() const { return getRoundedCornerState().hasRoundedCorners(); }
 
@@ -746,12 +746,12 @@ public:
      */
     bool hasInputInfo() const;
 
-    // Sets the GameMode for the tree rooted at this layer. A layer in the tree inherits this
-    // GameMode unless it (or an ancestor) has GAME_MODE_METADATA.
-    void setGameModeForTree(GameMode);
+    // Sets the gui::GameMode for the tree rooted at this layer. A layer in the tree inherits this
+    // gui::GameMode unless it (or an ancestor) has GAME_MODE_METADATA.
+    void setGameModeForTree(gui::GameMode);
 
-    void setGameMode(GameMode gameMode) { mGameMode = gameMode; }
-    GameMode getGameMode() const { return mGameMode; }
+    void setGameMode(gui::GameMode gameMode) { mGameMode = gameMode; }
+    gui::GameMode getGameMode() const { return mGameMode; }
 
     virtual uid_t getOwnerUid() const { return mOwnerUid; }
 
@@ -827,7 +827,9 @@ protected:
     void gatherBufferInfo();
     void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&);
 
-    sp<Layer> getClonedFrom() { return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr; }
+    sp<Layer> getClonedFrom() const {
+        return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr;
+    }
     bool isClone() { return mClonedFrom != nullptr; }
     bool isClonedFromAlive() { return getClonedFrom() != nullptr; }
 
@@ -1064,7 +1066,7 @@ private:
     float mEffectiveShadowRadius = 0.f;
 
     // Game mode for the layer. Set by WindowManagerShell and recorded by SurfaceFlingerStats.
-    GameMode mGameMode = GameMode::Unsupported;
+    gui::GameMode mGameMode = gui::GameMode::Unsupported;
 
     // A list of regions on this layer that should have blurs.
     const std::vector<BlurRegion> getBlurRegions() const;
@@ -1120,7 +1122,8 @@ private:
     ui::Transform mRequestedTransform;
 
     sp<LayerFE> mLayerFE;
-    std::unique_ptr<LayerSnapshot> mSnapshot = std::make_unique<LayerSnapshot>();
+    std::unique_ptr<frontend::LayerSnapshot> mSnapshot =
+            std::make_unique<frontend::LayerSnapshot>();
 
     friend class LayerSnapshotGuard;
 };

@@ -112,7 +112,6 @@ public:
     virtual bool useColorManagement() const = 0;
 };
 
-#ifdef RE_SKIAVK
 class SkiaVkRenderEngineFactory : public RenderEngineFactory {
 public:
     std::string name() override { return "SkiaVkRenderEngineFactory"; }
@@ -153,8 +152,6 @@ class SkiaVkCMRenderEngineFactory : public SkiaVkRenderEngineFactory {
 public:
     bool useColorManagement() const override { return true; }
 };
-#endif // RE_SKIAVK
-
 class SkiaGLESRenderEngineFactory : public RenderEngineFactory {
 public:
     std::string name() override { return "SkiaGLRenderEngineFactory"; }
@@ -1560,17 +1557,11 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
     expectBufferColor(Rect(kGreyLevels, 1), generator, 2);
 }
 
-#ifdef RE_SKIAVK
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
                          testing::Values(std::make_shared<SkiaGLESRenderEngineFactory>(),
                                          std::make_shared<SkiaGLESCMRenderEngineFactory>(),
                                          std::make_shared<SkiaVkRenderEngineFactory>(),
                                          std::make_shared<SkiaVkCMRenderEngineFactory>()));
-#else  // RE_SKIAVK
-INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
-                         testing::Values(std::make_shared<SkiaGLESRenderEngineFactory>(),
-                                         std::make_shared<SkiaGLESCMRenderEngineFactory>()));
-#endif // RE_SKIAVK
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
     if (!GetParam()->typeSupported()) {

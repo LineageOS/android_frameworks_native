@@ -214,6 +214,12 @@ struct KeyboardLayoutInfo {
     std::string layoutType;
 };
 
+// The version of the Universal Stylus Initiative (USI) protocol supported by the input device.
+struct InputDeviceUsiVersion {
+    int32_t majorVersion = -1;
+    int32_t minorVersion = -1;
+};
+
 /*
  * Describes the characteristics and capabilities of an input device.
  */
@@ -235,7 +241,7 @@ public:
 
     void initialize(int32_t id, int32_t generation, int32_t controllerNumber,
                     const InputDeviceIdentifier& identifier, const std::string& alias,
-                    bool isExternal, bool hasMic);
+                    bool isExternal, bool hasMic, int32_t associatedDisplayId);
 
     inline int32_t getId() const { return mId; }
     inline int32_t getControllerNumber() const { return mControllerNumber; }
@@ -295,8 +301,12 @@ public:
 
     std::vector<InputDeviceLightInfo> getLights();
 
-    inline void setSupportsUsi(bool supportsUsi) { mSupportsUsi = supportsUsi; }
-    inline bool supportsUsi() const { return mSupportsUsi; }
+    inline void setUsiVersion(std::optional<InputDeviceUsiVersion> usiVersion) {
+        mUsiVersion = std::move(usiVersion);
+    }
+    inline std::optional<InputDeviceUsiVersion> getUsiVersion() const { return mUsiVersion; }
+
+    inline int32_t getAssociatedDisplayId() const { return mAssociatedDisplayId; }
 
 private:
     int32_t mId;
@@ -310,8 +320,8 @@ private:
     uint32_t mSources;
     int32_t mKeyboardType;
     std::shared_ptr<KeyCharacterMap> mKeyCharacterMap;
-    // Whether this device supports the Universal Stylus Initiative (USI) protocol for styluses.
-    bool mSupportsUsi;
+    std::optional<InputDeviceUsiVersion> mUsiVersion;
+    int32_t mAssociatedDisplayId;
 
     bool mHasVibrator;
     bool mHasBattery;

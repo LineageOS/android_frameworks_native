@@ -55,6 +55,10 @@ static bool isPointInRect(const Rect& rect, vec2 p) {
     return p.x >= rect.left && p.x < rect.right && p.y >= rect.top && p.y < rect.bottom;
 }
 
+static std::string toString(const InputDeviceUsiVersion& v) {
+    return base::StringPrintf("%d.%d", v.majorVersion, v.minorVersion);
+}
+
 template <typename T>
 inline static void swap(T& a, T& b) {
     T temp = a;
@@ -188,7 +192,7 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
         info->addMotionRange(AMOTION_EVENT_AXIS_HSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
     }
     info->setButtonUnderPad(mParameters.hasButtonUnderPad);
-    info->setSupportsUsi(mParameters.supportsUsi);
+    info->setUsiVersion(mParameters.usiVersion);
 }
 
 void TouchInputMapper::dump(std::string& dump) {
@@ -421,9 +425,13 @@ void TouchInputMapper::configureParameters() {
     mParameters.wake = getDeviceContext().isExternal();
     getDeviceContext().getConfiguration().tryGetProperty("touch.wake", mParameters.wake);
 
-    mParameters.supportsUsi = false;
-    getDeviceContext().getConfiguration().tryGetProperty("touch.supportsUsi",
-                                                         mParameters.supportsUsi);
+    InputDeviceUsiVersion usiVersion;
+    if (getDeviceContext().getConfiguration().tryGetProperty("touch.usiVersionMajor",
+                                                             usiVersion.majorVersion) &&
+        getDeviceContext().getConfiguration().tryGetProperty("touch.usiVersionMinor",
+                                                             usiVersion.minorVersion)) {
+        mParameters.usiVersion = usiVersion;
+    }
 
     mParameters.enableForInactiveViewport = false;
     getDeviceContext().getConfiguration().tryGetProperty("touch.enableForInactiveViewport",
@@ -472,7 +480,8 @@ void TouchInputMapper::dumpParameters(std::string& dump) {
                          mParameters.uniqueDisplayId.c_str());
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
     dump += INDENT4 "Orientation: " + ftl::enum_string(mParameters.orientation) + "\n";
-    dump += StringPrintf(INDENT4 "SupportsUsi: %s\n", toString(mParameters.supportsUsi));
+    dump += StringPrintf(INDENT4 "UsiVersion: %s\n",
+                         toString(mParameters.usiVersion, toString).c_str());
     dump += StringPrintf(INDENT4 "EnableForInactiveViewport: %s\n",
                          toString(mParameters.enableForInactiveViewport));
 }
