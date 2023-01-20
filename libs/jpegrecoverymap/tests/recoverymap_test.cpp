@@ -104,13 +104,22 @@ TEST_F(RecoveryMapTest, writeXmpThenRead) {
   metadata_expected.transferFunction = JPEGR_TF_HLG;
   metadata_expected.rangeScalingFactor = 1.25;
   int length_expected = 1000;
+  const std::string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
+  const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
+
   std::string xmp = generateXmp(1000, metadata_expected);
 
+  std::vector<uint8_t> xmpData;
+  xmpData.reserve(nameSpaceLength + xmp.size());
+  xmpData.insert(xmpData.end(), reinterpret_cast<const uint8_t*>(nameSpace.c_str()),
+                  reinterpret_cast<const uint8_t*>(nameSpace.c_str()) + nameSpaceLength);
+  xmpData.insert(xmpData.end(), reinterpret_cast<const uint8_t*>(xmp.c_str()),
+                  reinterpret_cast<const uint8_t*>(xmp.c_str()) + xmp.size());
+
   jpegr_metadata metadata_read;
-  EXPECT_TRUE(getMetadataFromXMP(reinterpret_cast<uint8_t*>(xmp[0]), xmp.size(), &metadata_read));
+  EXPECT_TRUE(getMetadataFromXMP(xmpData.data(), xmpData.size(), &metadata_read));
   ASSERT_EQ(metadata_expected.transferFunction, metadata_read.transferFunction);
   ASSERT_EQ(metadata_expected.rangeScalingFactor, metadata_read.rangeScalingFactor);
-
 }
 
 /* Test Encode API-0 and decode */
