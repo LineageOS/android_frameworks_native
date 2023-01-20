@@ -502,7 +502,6 @@ static void* load_angle(const char* kind, android_namespace_t* ns) {
     void* so = do_android_dlopen_ext(name.c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
 
     if (so) {
-        ALOGD("dlopen_ext from APK (%s) success at %p", name.c_str(), so);
         return so;
     } else {
         ALOGE("dlopen_ext(\"%s\") failed: %s", name.c_str(), dlerror());
