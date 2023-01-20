@@ -106,7 +106,7 @@ public:
                                              const sp<IBinder>& keepAliveBinder);
 
     // Start recording transactions to the unique_fd in data.
-    // See BinderRecordReplay.h for more details.
+    // See RecordedTransaction.h for more details.
     [[nodiscard]] status_t startRecordingTransactions(const Parcel& data);
     // Stop the current recording.
     [[nodiscard]] status_t stopRecordingTransactions();

@@ -683,7 +683,7 @@ TEST_P(BinderRpc, SingleDeathRecipientOnShutdown) {
     proc.expectAlreadyShutdown = true;
 }
 
-TEST_P(BinderRpc, DeathRecipientFatalWithoutIncoming) {
+TEST_P(BinderRpc, DeathRecipientFailsWithoutIncoming) {
     class MyDeathRec : public IBinder::DeathRecipient {
     public:
         void binderDied(const wp<IBinder>& /* who */) override {}
@@ -693,8 +693,7 @@ TEST_P(BinderRpc, DeathRecipientFatalWithoutIncoming) {
             {.numThreads = 1, .numSessions = 1, .numIncomingConnections = 0});
 
     auto dr = sp<MyDeathRec>::make();
-    EXPECT_DEATH(proc.rootBinder->linkToDeath(dr, (void*)1, 0),
-                 "Cannot register a DeathRecipient without any incoming connections.");
+    EXPECT_EQ(INVALID_OPERATION, proc.rootBinder->linkToDeath(dr, (void*)1, 0));
 }
 
 TEST_P(BinderRpc, UnlinkDeathRecipient) {

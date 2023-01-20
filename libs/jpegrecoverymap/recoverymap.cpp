@@ -25,16 +25,29 @@
 #include <image_io/jpeg/jpeg_scanner.h>
 #include <image_io/jpeg/jpeg_info_builder.h>
 #include <image_io/base/data_segment_data_source.h>
+#include <utils/Log.h>
 
 #include <memory>
 #include <sstream>
 #include <string>
 #include <cmath>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
+#include <unistd.h>
 
 using namespace std;
 using namespace photos_editing_formats::image_io;
 
 namespace android::recoverymap {
+
+#define USE_SRGB_INVOETF_LUT 1
+#define USE_HLG_OETF_LUT 1
+#define USE_PQ_OETF_LUT 1
+#define USE_HLG_INVOETF_LUT 1
+#define USE_PQ_INVOETF_LUT 1
+#define USE_APPLY_RECOVERY_LUT 1
 
 #define JPEGR_CHECK(x)          \
   {                             \
@@ -49,6 +62,10 @@ static const uint32_t kJpegrVersion = 1;
 
 // Map is quarter res / sixteenth size
 static const size_t kMapDimensionScaleFactor = 4;
+// JPEG block size.
+// JPEG encoding / decoding will require 8 x 8 DCT transform.
+// Width must be 8 dividable, and height must be 2 dividable.
+static const size_t kJpegBlock = 8;
 // JPEG compress quality (0 ~ 100) for recovery map
 static const int kMapCompressQuality = 85;
 
@@ -61,6 +78,20 @@ static const st2086_metadata kSt2086Metadata = {
   0,
   1.0f,
 };
+
+#define CONFIG_MULTITHREAD 1
+int GetCPUCoreCount() {
+  int cpuCoreCount = 1;
+#if CONFIG_MULTITHREAD
+#if defined(_SC_NPROCESSORS_ONLN)
+  cpuCoreCount = sysconf(_SC_NPROCESSORS_ONLN);
+#else
+  // _SC_NPROC_ONLN must be defined...
+  cpuCoreCount = sysconf(_SC_NPROC_ONLN);
+#endif
+#endif
+  return cpuCoreCount;
+}
 
 /*
  * Helper function used for writing data to destination.
@@ -230,6 +261,13 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
+  if (uncompressed_p010_image->width % kJpegBlock != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image size can not be handled: %dx%d",
+            uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
   jpegr_metadata metadata;
   metadata.version = kJpegrVersion;
   metadata.transferFunction = hdr_tf;
@@ -304,6 +342,13 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
   }
 
+  if (uncompressed_p010_image->width % kJpegBlock != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image size can not be handled: %dx%d",
+            uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
   jpegr_metadata metadata;
   metadata.version = kJpegrVersion;
   metadata.transferFunction = hdr_tf;
@@ -367,6 +412,13 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   if (uncompressed_p010_image->width != uncompressed_yuv_420_image->width
    || uncompressed_p010_image->height != uncompressed_yuv_420_image->height) {
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
+  }
+
+  if (uncompressed_p010_image->width % kJpegBlock != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image size can not be handled: %dx%d",
+            uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   jpegr_metadata metadata;
@@ -442,6 +494,13 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
    || compressed_jpeg_image == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (uncompressed_p010_image->width % kJpegBlock != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image size can not be handled: %dx%d",
+            uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   JpegDecoder jpeg_decoder;
@@ -626,6 +685,62 @@ status_t RecoveryMap::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recov
   return NO_ERROR;
 }
 
+const int kJobSzInRows = 16;
+static_assert(kJobSzInRows > 0 && kJobSzInRows % kMapDimensionScaleFactor == 0,
+              "align job size to kMapDimensionScaleFactor");
+
+class JobQueue {
+ public:
+  bool dequeueJob(size_t& rowStart, size_t& rowEnd);
+  void enqueueJob(size_t rowStart, size_t rowEnd);
+  void markQueueForEnd();
+  void reset();
+
+ private:
+  bool mQueuedAllJobs = false;
+  std::deque<std::tuple<size_t, size_t>> mJobs;
+  std::mutex mMutex;
+  std::condition_variable mCv;
+};
+
+bool JobQueue::dequeueJob(size_t& rowStart, size_t& rowEnd) {
+  std::unique_lock<std::mutex> lock{mMutex};
+  while (true) {
+    if (mJobs.empty()) {
+      if (mQueuedAllJobs) {
+        return false;
+      } else {
+        mCv.wait(lock);
+      }
+    } else {
+      auto it = mJobs.begin();
+      rowStart = std::get<0>(*it);
+      rowEnd = std::get<1>(*it);
+      mJobs.erase(it);
+      return true;
+    }
+  }
+  return false;
+}
+
+void JobQueue::enqueueJob(size_t rowStart, size_t rowEnd) {
+  std::unique_lock<std::mutex> lock{mMutex};
+  mJobs.push_back(std::make_tuple(rowStart, rowEnd));
+  lock.unlock();
+  mCv.notify_one();
+}
+
+void JobQueue::markQueueForEnd() {
+  std::unique_lock<std::mutex> lock{mMutex};
+  mQueuedAllJobs = true;
+}
+
+void JobQueue::reset() {
+  std::unique_lock<std::mutex> lock{mMutex};
+  mJobs.clear();
+  mQueuedAllJobs = false;
+}
+
 status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                           jr_uncompressed_ptr uncompressed_p010_image,
                                           jr_metadata_ptr metadata,
@@ -651,11 +766,14 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   size_t image_height = uncompressed_yuv_420_image->height;
   size_t map_width = image_width / kMapDimensionScaleFactor;
   size_t map_height = image_height / kMapDimensionScaleFactor;
+  size_t map_stride = static_cast<size_t>(
+          floor((map_width + kJpegBlock - 1) / kJpegBlock)) * kJpegBlock;
+  size_t map_height_aligned = ((map_height + 1) >> 1) << 1;
 
-  dest->width = map_width;
-  dest->height = map_height;
+  dest->width = map_stride;
+  dest->height = map_height_aligned;
   dest->colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED;
-  dest->data = new uint8_t[map_width * map_height];
+  dest->data = new uint8_t[map_stride * map_height_aligned];
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
 
@@ -666,11 +784,19 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
       hdrInvOetf = identityConversion;
       break;
     case JPEGR_TF_HLG:
+#if USE_HLG_INVOETF_LUT
+      hdrInvOetf = hlgInvOetfLUT;
+#else
       hdrInvOetf = hlgInvOetf;
+#endif
       hdr_white_nits = kHlgMaxNits;
       break;
     case JPEGR_TF_PQ:
+#if USE_PQ_INVOETF_LUT
+      hdrInvOetf = pqInvOetfLUT;
+#else
       hdrInvOetf = pqInvOetf;
+#endif
       hdr_white_nits = kPqMaxNits;
       break;
     case JPEGR_TF_UNSPECIFIED:
@@ -697,22 +823,87 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
       return ERROR_JPEGR_INVALID_COLORGAMUT;
   }
 
+  std::mutex mutex;
   float hdr_y_nits_max = 0.0f;
   double hdr_y_nits_avg = 0.0f;
-  for (size_t y = 0; y < image_height; ++y) {
-    for (size_t x = 0; x < image_width; ++x) {
-      Color hdr_yuv_gamma = getP010Pixel(uncompressed_p010_image, x, y);
-      Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
-      Color hdr_rgb = hdrInvOetf(hdr_rgb_gamma);
-      hdr_rgb = hdrGamutConversionFn(hdr_rgb);
-      float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
+  const int threads = std::clamp(GetCPUCoreCount(), 1, 4);
+  size_t rowStep = threads == 1 ? image_height : kJobSzInRows;
+  JobQueue jobQueue;
 
-      hdr_y_nits_avg += hdr_y_nits;
-      if (hdr_y_nits > hdr_y_nits_max) {
-        hdr_y_nits_max = hdr_y_nits;
+  std::function<void()> computeMetadata = [uncompressed_p010_image, hdrInvOetf,
+                                           hdrGamutConversionFn, luminanceFn, hdr_white_nits,
+                                           threads, &mutex, &hdr_y_nits_avg,
+                                           &hdr_y_nits_max, &jobQueue]() -> void {
+    size_t rowStart, rowEnd;
+    float hdr_y_nits_max_th = 0.0f;
+    double hdr_y_nits_avg_th = 0.0f;
+    while (jobQueue.dequeueJob(rowStart, rowEnd)) {
+      for (size_t y = rowStart; y < rowEnd; ++y) {
+        for (size_t x = 0; x < uncompressed_p010_image->width; ++x) {
+          Color hdr_yuv_gamma = getP010Pixel(uncompressed_p010_image, x, y);
+          Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
+          Color hdr_rgb = hdrInvOetf(hdr_rgb_gamma);
+          hdr_rgb = hdrGamutConversionFn(hdr_rgb);
+          float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
+
+          hdr_y_nits_avg_th += hdr_y_nits;
+          if (hdr_y_nits > hdr_y_nits_max_th) {
+            hdr_y_nits_max_th = hdr_y_nits;
+          }
+        }
       }
     }
+    std::unique_lock<std::mutex> lock{mutex};
+    hdr_y_nits_avg += hdr_y_nits_avg_th;
+    hdr_y_nits_max = std::max(hdr_y_nits_max, hdr_y_nits_max_th);
+  };
+
+  std::function<void()> generateMap = [uncompressed_yuv_420_image, uncompressed_p010_image,
+                                       metadata, dest, hdrInvOetf, hdrGamutConversionFn,
+                                       luminanceFn, hdr_white_nits, &jobQueue]() -> void {
+    size_t rowStart, rowEnd;
+    while (jobQueue.dequeueJob(rowStart, rowEnd)) {
+      for (size_t y = rowStart; y < rowEnd; ++y) {
+        for (size_t x = 0; x < dest->width; ++x) {
+          Color sdr_yuv_gamma =
+              sampleYuv420(uncompressed_yuv_420_image, kMapDimensionScaleFactor, x, y);
+          Color sdr_rgb_gamma = srgbYuvToRgb(sdr_yuv_gamma);
+#if USE_SRGB_INVOETF_LUT
+          Color sdr_rgb = srgbInvOetfLUT(sdr_rgb_gamma);
+#else
+          Color sdr_rgb = srgbInvOetf(sdr_rgb_gamma);
+#endif
+          float sdr_y_nits = luminanceFn(sdr_rgb) * kSdrWhiteNits;
+
+          Color hdr_yuv_gamma = sampleP010(uncompressed_p010_image, kMapDimensionScaleFactor, x, y);
+          Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
+          Color hdr_rgb = hdrInvOetf(hdr_rgb_gamma);
+          hdr_rgb = hdrGamutConversionFn(hdr_rgb);
+          float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
+
+          size_t pixel_idx = x + y * dest->width;
+          reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
+              encodeRecovery(sdr_y_nits, hdr_y_nits, metadata->rangeScalingFactor);
+        }
+      }
+    }
+  };
+
+  std::vector<std::thread> workers;
+  for (int th = 0; th < threads - 1; th++) {
+    workers.push_back(std::thread(computeMetadata));
   }
+
+  // compute metadata
+  for (size_t rowStart = 0; rowStart < image_height;) {
+    size_t rowEnd = std::min(rowStart + rowStep, image_height);
+    jobQueue.enqueueJob(rowStart, rowEnd);
+    rowStart = rowEnd;
+  }
+  jobQueue.markQueueForEnd();
+  computeMetadata();
+  std::for_each(workers.begin(), workers.end(), [](std::thread& t) { t.join(); });
+  workers.clear();
   hdr_y_nits_avg /= image_width * image_height;
 
   metadata->rangeScalingFactor = hdr_y_nits_max / kSdrWhiteNits;
@@ -721,25 +912,21 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
     metadata->hdr10Metadata.maxCLL = hdr_y_nits_max;
   }
 
-  for (size_t y = 0; y < map_height; ++y) {
-    for (size_t x = 0; x < map_width; ++x) {
-      Color sdr_yuv_gamma = sampleYuv420(uncompressed_yuv_420_image,
-                                         kMapDimensionScaleFactor, x, y);
-      Color sdr_rgb_gamma = srgbYuvToRgb(sdr_yuv_gamma);
-      Color sdr_rgb = srgbInvOetf(sdr_rgb_gamma);
-      float sdr_y_nits = luminanceFn(sdr_rgb) * kSdrWhiteNits;
-
-      Color hdr_yuv_gamma = sampleP010(uncompressed_p010_image, kMapDimensionScaleFactor, x, y);
-      Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
-      Color hdr_rgb = hdrInvOetf(hdr_rgb_gamma);
-      hdr_rgb = hdrGamutConversionFn(hdr_rgb);
-      float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
-
-      size_t pixel_idx =  x + y * map_width;
-      reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
-          encodeRecovery(sdr_y_nits, hdr_y_nits, metadata->rangeScalingFactor);
-    }
+  // generate map
+  jobQueue.reset();
+  for (int th = 0; th < threads - 1; th++) {
+    workers.push_back(std::thread(generateMap));
   }
+
+  rowStep = (threads == 1 ? image_height : kJobSzInRows) / kMapDimensionScaleFactor;
+  for (size_t rowStart = 0; rowStart < map_height;) {
+    size_t rowEnd = std::min(rowStart + rowStep, map_height);
+    jobQueue.enqueueJob(rowStart, rowEnd);
+    rowStart = rowEnd;
+  }
+  jobQueue.markQueueForEnd();
+  generateMap();
+  std::for_each(workers.begin(), workers.end(), [](std::thread& t) { t.join(); });
 
   map_data.release();
   return NO_ERROR;
@@ -756,46 +943,95 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  size_t width = uncompressed_yuv_420_image->width;
-  size_t height = uncompressed_yuv_420_image->height;
+  dest->width = uncompressed_yuv_420_image->width;
+  dest->height = uncompressed_yuv_420_image->height;
+  ShepardsIDW idwTable(kMapDimensionScaleFactor);
+  RecoveryLUT recoveryLUT(metadata->rangeScalingFactor);
 
-  dest->width = width;
-  dest->height = height;
-  size_t pixel_count = width * height;
+  JobQueue jobQueue;
+  std::function<void()> applyRecMap = [uncompressed_yuv_420_image, uncompressed_recovery_map,
+                                       metadata, dest, &jobQueue, &idwTable,
+                                       &recoveryLUT]() -> void {
+    const float hdr_ratio = metadata->rangeScalingFactor;
+    size_t width = uncompressed_yuv_420_image->width;
+    size_t height = uncompressed_yuv_420_image->height;
 
-  ColorTransformFn hdrOetf = nullptr;
-  switch (metadata->transferFunction) {
-    case JPEGR_TF_LINEAR:
-      hdrOetf = identityConversion;
-      break;
-    case JPEGR_TF_HLG:
-      hdrOetf = hlgOetf;
-      break;
-    case JPEGR_TF_PQ:
-      hdrOetf = pqOetf;
-      break;
-    case JPEGR_TF_UNSPECIFIED:
-      // Should be impossible to hit after input validation.
-      return ERROR_JPEGR_INVALID_TRANS_FUNC;
-  }
-
-  for (size_t y = 0; y < height; ++y) {
-    for (size_t x = 0; x < width; ++x) {
-      Color yuv_gamma_sdr = getYuv420Pixel(uncompressed_yuv_420_image, x, y);
-      Color rgb_gamma_sdr = srgbYuvToRgb(yuv_gamma_sdr);
-      Color rgb_sdr = srgbInvOetf(rgb_gamma_sdr);
-
-      // TODO: determine map scaling factor based on actual map dims
-      float recovery = sampleMap(uncompressed_recovery_map, kMapDimensionScaleFactor, x, y);
-      Color rgb_hdr = applyRecovery(rgb_sdr, recovery, metadata->rangeScalingFactor);
-
-      Color rgb_gamma_hdr = hdrOetf(rgb_hdr / metadata->rangeScalingFactor);
-      uint32_t rgba1010102 = colorToRgba1010102(rgb_gamma_hdr);
-
-      size_t pixel_idx =  x + y * width;
-      reinterpret_cast<uint32_t*>(dest->data)[pixel_idx] = rgba1010102;
+    ColorTransformFn hdrOetf = nullptr;
+    switch (metadata->transferFunction) {
+      case JPEGR_TF_LINEAR:
+        hdrOetf = identityConversion;
+        break;
+      case JPEGR_TF_HLG:
+#if USE_HLG_OETF_LUT
+        hdrOetf = hlgOetfLUT;
+#else
+        hdrOetf = hlgOetf;
+#endif
+        break;
+      case JPEGR_TF_PQ:
+#if USE_PQ_OETF_LUT
+        hdrOetf = pqOetfLUT;
+#else
+        hdrOetf = pqOetf;
+#endif
+        break;
+      case JPEGR_TF_UNSPECIFIED:
+        // Should be impossible to hit after input validation.
+        hdrOetf = identityConversion;
     }
+
+    size_t rowStart, rowEnd;
+    while (jobQueue.dequeueJob(rowStart, rowEnd)) {
+      for (size_t y = rowStart; y < rowEnd; ++y) {
+        for (size_t x = 0; x < width; ++x) {
+          Color yuv_gamma_sdr = getYuv420Pixel(uncompressed_yuv_420_image, x, y);
+          Color rgb_gamma_sdr = srgbYuvToRgb(yuv_gamma_sdr);
+#if USE_SRGB_INVOETF_LUT
+          Color rgb_sdr = srgbInvOetfLUT(rgb_gamma_sdr);
+#else
+          Color rgb_sdr = srgbInvOetf(rgb_gamma_sdr);
+#endif
+          float recovery;
+          // TODO: determine map scaling factor based on actual map dims
+          size_t map_scale_factor = kMapDimensionScaleFactor;
+          // TODO: If map_scale_factor is guaranteed to be an integer, then remove the following.
+          // Currently map_scale_factor is of type size_t, but it could be changed to a float
+          // later.
+          if (map_scale_factor != floorf(map_scale_factor)) {
+            recovery = sampleMap(uncompressed_recovery_map, map_scale_factor, x, y);
+          } else {
+            recovery = sampleMap(uncompressed_recovery_map, map_scale_factor, x, y,
+                                idwTable);
+          }
+#if USE_APPLY_RECOVERY_LUT
+          Color rgb_hdr = applyRecoveryLUT(rgb_sdr, recovery, recoveryLUT);
+#else
+          Color rgb_hdr = applyRecovery(rgb_sdr, recovery, hdr_ratio);
+#endif
+          Color rgb_gamma_hdr = hdrOetf(rgb_hdr / metadata->rangeScalingFactor);
+          uint32_t rgba1010102 = colorToRgba1010102(rgb_gamma_hdr);
+
+          size_t pixel_idx = x + y * width;
+          reinterpret_cast<uint32_t*>(dest->data)[pixel_idx] = rgba1010102;
+        }
+      }
+    }
+  };
+
+  const int threads = std::clamp(GetCPUCoreCount(), 1, 4);
+  std::vector<std::thread> workers;
+  for (int th = 0; th < threads - 1; th++) {
+    workers.push_back(std::thread(applyRecMap));
   }
+  const int rowStep = threads == 1 ? uncompressed_yuv_420_image->height : kJobSzInRows;
+  for (int rowStart = 0; rowStart < uncompressed_yuv_420_image->height;) {
+    int rowEnd = std::min(rowStart + rowStep, uncompressed_yuv_420_image->height);
+    jobQueue.enqueueJob(rowStart, rowEnd);
+    rowStart = rowEnd;
+  }
+  jobQueue.markQueueForEnd();
+  applyRecMap();
+  std::for_each(workers.begin(), workers.end(), [](std::thread& t) { t.join(); });
   return NO_ERROR;
 }
 

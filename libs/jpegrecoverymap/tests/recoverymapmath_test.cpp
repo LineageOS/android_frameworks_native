@@ -517,6 +517,65 @@ TEST_F(RecoveryMapMathTest, PqInvOetf) {
   EXPECT_RGB_NEAR(pqInvOetf(e_gamma), e);
 }
 
+TEST_F(RecoveryMapMathTest, PqInvOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(pqInvOetf(value), pqInvOetfLUT(value));
+    }
+}
+
+TEST_F(RecoveryMapMathTest, HlgInvOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(hlgInvOetf(value), hlgInvOetfLUT(value));
+    }
+}
+
+TEST_F(RecoveryMapMathTest, pqOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(pqOetf(value), pqOetfLUT(value));
+    }
+}
+
+TEST_F(RecoveryMapMathTest, hlgOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(hlgOetf(value), hlgOetfLUT(value));
+    }
+}
+
+TEST_F(RecoveryMapMathTest, srgbInvOetfLUT) {
+    float increment = 1.0 / 1024.0;
+    float value = 0.0f;
+    for (int idx = 0; idx < 1024; idx++, value += increment) {
+      EXPECT_FLOAT_EQ(srgbInvOetf(value), srgbInvOetfLUT(value));
+    }
+}
+
+TEST_F(RecoveryMapMathTest, applyRecoveryLUT) {
+  float increment = 2.0 / kRecoveryFactorNumEntries;
+  for (float hdrRatio = 1.0f; hdrRatio <= 10.0f; hdrRatio += 1.0f)  {
+    RecoveryLUT recoveryLUT(hdrRatio);
+    for (float value = -1.0f; value <= -1.0f; value += increment) {
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), value, hdrRatio),
+                      applyRecoveryLUT(RgbBlack(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), value, hdrRatio),
+                      applyRecoveryLUT(RgbWhite(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbRed(), value, hdrRatio),
+                      applyRecoveryLUT(RgbRed(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbGreen(), value, hdrRatio),
+                      applyRecoveryLUT(RgbGreen(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlue(), value, hdrRatio),
+                      applyRecoveryLUT(RgbBlue(), value, recoveryLUT));
+    }
+  }
+}
+
 TEST_F(RecoveryMapMathTest, PqTransferFunctionRoundtrip) {
   EXPECT_FLOAT_EQ(pqInvOetf(pqOetf(0.0f)), 0.0f);
   EXPECT_NEAR(pqInvOetf(pqOetf(0.01f)), 0.01f, ComparisonEpsilon());
@@ -699,6 +758,7 @@ TEST_F(RecoveryMapMathTest, SampleMap) {
   float (*values)[4] = MapValues();
 
   static const size_t kMapScaleFactor = 2;
+  ShepardsIDW idwTable(kMapScaleFactor);
   for (size_t y = 0; y < 4 * kMapScaleFactor; ++y) {
     for (size_t x = 0; x < 4 * kMapScaleFactor; ++x) {
       size_t x_base = x / kMapScaleFactor;
@@ -725,7 +785,7 @@ TEST_F(RecoveryMapMathTest, SampleMap) {
       // Instead of reimplementing the sampling algorithm, confirm that the
       // sample output is within the range of the min and max of the nearest
       // points.
-      EXPECT_THAT(sampleMap(&image, kMapScaleFactor, x, y),
+      EXPECT_THAT(sampleMap(&image, kMapScaleFactor, x, y, idwTable),
                   testing::AllOf(testing::Ge(min), testing::Le(max)));
     }
   }
