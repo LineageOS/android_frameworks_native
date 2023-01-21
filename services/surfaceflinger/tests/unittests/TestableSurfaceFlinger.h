@@ -20,6 +20,11 @@
 #include <chrono>
 #include <variant>
 
+#include <ftl/fake_guard.h>
+#include <ftl/match.h>
+#include <gui/ScreenCaptureResults.h>
+#include <ui/DynamicDisplayInfo.h>
+
 #include <compositionengine/Display.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
@@ -27,11 +32,7 @@
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/DisplaySurface.h>
-#include <ftl/fake_guard.h>
-#include <ftl/match.h>
-#include <gui/ScreenCaptureResults.h>
 
-#include <ui/DynamicDisplayInfo.h>
 #include "DisplayDevice.h"
 #include "FakeVsyncConfiguration.h"
 #include "FrameTracer/FrameTracer.h"
@@ -44,7 +45,6 @@
 #include "Scheduler/RefreshRateSelector.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
-#include "SurfaceFlingerDefaultFactory.h"
 #include "TestableScheduler.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
@@ -360,25 +360,42 @@ public:
         commitTransactionsLocked(eDisplayTransactionNeeded);
     }
 
-    TimePoint commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expectedVsyncTime) {
-        mFlinger->commit(frameTime, vsyncId, expectedVsyncTime);
-        return frameTime;
+    void commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expectedVsyncTime,
+                bool composite = false) {
+        constexpr bool kBackpressureGpuComposition = true;
+        scheduler::FrameTargeter frameTargeter(kBackpressureGpuComposition);
+
+        frameTargeter.beginFrame({.frameBeginTime = frameTime,
+                                  .vsyncId = vsyncId,
+                                  .expectedVsyncTime = expectedVsyncTime,
+                                  .sfWorkDuration = 10ms},
+                                 *mScheduler->getVsyncSchedule());
+
+        mFlinger->commit(frameTargeter.target());
+
+        if (composite) {
+            mFlinger->composite(frameTargeter);
+        }
     }
 
-    TimePoint commit(TimePoint frameTime, VsyncId vsyncId) {
-        return commit(frameTime, vsyncId, frameTime + Period(10ms));
+    void commit(TimePoint frameTime, VsyncId vsyncId, bool composite = false) {
+        return commit(frameTime, vsyncId, frameTime + Period(10ms), composite);
     }
 
-    TimePoint commit() {
+    void commit(bool composite = false) {
         const TimePoint frameTime = scheduler::SchedulerClock::now();
-        return commit(frameTime, kVsyncId);
+        commit(frameTime, kVsyncId, composite);
     }
 
     void commitAndComposite(TimePoint frameTime, VsyncId vsyncId, TimePoint expectedVsyncTime) {
-        mFlinger->composite(commit(frameTime, vsyncId, expectedVsyncTime), vsyncId);
+        constexpr bool kComposite = true;
+        commit(frameTime, vsyncId, expectedVsyncTime, kComposite);
     }
 
-    void commitAndComposite() { mFlinger->composite(commit(), kVsyncId); }
+    void commitAndComposite() {
+        constexpr bool kComposite = true;
+        commit(kComposite);
+    }
 
     auto createDisplay(const String8& displayName, bool secure, float requestedRefreshRate = 0.0f) {
         return mFlinger->createDisplay(displayName, secure, requestedRefreshRate);
