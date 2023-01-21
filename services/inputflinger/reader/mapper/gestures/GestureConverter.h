@@ -40,6 +40,8 @@ public:
     GestureConverter(InputReaderContext& readerContext, const InputDeviceContext& deviceContext,
                      int32_t deviceId);
 
+    std::string dump() const;
+
     void setOrientation(ui::Rotation orientation) { mOrientation = orientation; }
     void reset();
 

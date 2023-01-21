@@ -479,14 +479,20 @@ auto DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info, bool force)
     const auto& desiredMode = *info.modeOpt->modePtr;
 
     // Check if we are already at the desired mode
-    if (!force && refreshRateSelector().getActiveMode().modePtr->getId() == desiredMode.getId()) {
-        if (refreshRateSelector().getActiveMode() == info.modeOpt) {
+    const auto currentMode = refreshRateSelector().getActiveMode();
+    if (!force && currentMode.modePtr->getId() == desiredMode.getId()) {
+        if (currentMode == info.modeOpt) {
             return DesiredActiveModeAction::None;
         }
 
         setActiveMode(desiredMode.getId(), desiredMode.getFps(), info.modeOpt->fps);
         return DesiredActiveModeAction::InitiateRenderRateSwitch;
     }
+
+    // Set the render frame rate to the current physical refresh rate to schedule the next
+    // frame as soon as possible.
+    setActiveMode(currentMode.modePtr->getId(), currentMode.modePtr->getFps(),
+                  currentMode.modePtr->getFps());
 
     // Initiate a mode change.
     mDesiredActiveModeChanged = true;

@@ -19,6 +19,7 @@
 #include <optional>
 
 #include <android/input.h>
+#include <input/PrintTools.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
 #include "TouchCursorInputMapperCommon.h"
@@ -96,11 +97,12 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext)
     mGestureInterpreter->Initialize(GESTURES_DEVCLASS_TOUCHPAD);
     mGestureInterpreter->SetHardwareProperties(createHardwareProperties(deviceContext));
     // Even though we don't explicitly delete copy/move semantics, it's safe to
-    // give away a pointer to TouchpadInputMapper here because
+    // give away pointers to TouchpadInputMapper and its members here because
     // 1) mGestureInterpreter's lifecycle is determined by TouchpadInputMapper, and
     // 2) TouchpadInputMapper is stored as a unique_ptr and not moved.
+    mGestureInterpreter->SetPropProvider(const_cast<GesturesPropProvider*>(&gesturePropProvider),
+                                         &mPropertyProvider);
     mGestureInterpreter->SetCallback(gestureInterpreterCallback, this);
-    // TODO(b/251196347): set a property provider, so we can change gesture properties.
     // TODO(b/251196347): set a timer provider, so the library can use timers.
 }
 
@@ -108,10 +110,27 @@ TouchpadInputMapper::~TouchpadInputMapper() {
     if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
     }
+
+    // The gesture interpreter's destructor will call its property provider's free function for all
+    // gesture properties, in this case calling PropertyProvider::freeProperty using a raw pointer
+    // to mPropertyProvider. Depending on the declaration order in TouchpadInputMapper.h, this may
+    // happen after mPropertyProvider has been destructed, causing allocation errors. Depending on
+    // declaration order to avoid crashes seems rather fragile, so explicitly clear the property
+    // provider here to ensure all the freeProperty calls happen before mPropertyProvider is
+    // destructed.
+    mGestureInterpreter->SetPropProvider(nullptr, nullptr);
 }
 
 uint32_t TouchpadInputMapper::getSources() const {
     return AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD;
+}
+
+void TouchpadInputMapper::dump(std::string& dump) {
+    dump += INDENT2 "Touchpad Input Mapper:\n";
+    dump += INDENT3 "Gesture converter:\n";
+    dump += addLinePrefix(mGestureConverter.dump(), INDENT4);
+    dump += INDENT3 "Gesture properties:\n";
+    dump += addLinePrefix(mPropertyProvider.dump(), INDENT4);
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::configure(nsecs_t when,

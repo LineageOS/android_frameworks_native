@@ -17,6 +17,8 @@
 #ifndef ANDROID_JPEGRECOVERYMAP_RECOVERYMAPUTILS_H
 #define ANDROID_JPEGRECOVERYMAP_RECOVERYMAPUTILS_H
 
+#include <jpegrecoverymap/recoverymap.h>
+
 #include <sstream>
 #include <stdint.h>
 #include <string>
@@ -25,6 +27,26 @@
 namespace android::recoverymap {
 
 struct jpegr_metadata;
+
+// If the EXIF package doesn't exist in the input JPEG, we'll create one with one entry
+// where the length is represented by this value.
+const size_t PSEUDO_EXIF_PACKAGE_LENGTH = 28;
+// If the EXIF package exists in the input JPEG, we'll add an "JR" entry where the length is
+// represented by this value.
+const size_t EXIF_J_R_ENTRY_LENGTH = 12;
+
+/*
+ * Helper function used for writing data to destination.
+ *
+ * @param destination destination of the data to be written.
+ * @param source source of data being written.
+ * @param length length of the data to be written.
+ * @param position cursor in desitination where the data is to be written.
+ * @return status of succeed or error code.
+ */
+status_t Write(jr_compressed_ptr destination, const void* source, size_t length, int &position);
+status_t Write(jr_exif_ptr destination, const void* source, size_t length, int &position);
+
 
 /*
  * Parses XMP packet and fills metadata with data from XMP
@@ -56,8 +78,8 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  *         <rdf:Seq>
  *           <rdf:li>
  *             <GContainer:Item
- *               Item:Semantic="Primary"
- *               Item:Mime="image/jpeg"
+ *               GContainer:ItemSemantic="Primary"
+ *               GContainer:ItemMime="image/jpeg"
  *               RecoveryMap:Version=”1”
  *               RecoveryMap:RangeScalingFactor=”1.25”
  *               RecoveryMap:TransferFunction=”2”/>
@@ -68,9 +90,9 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  *           </rdf:li>
  *           <rdf:li>
  *             <GContainer:Item
- *               Item:Semantic="RecoveryMap"
- *               Item:Mime="image/jpeg"
- *               Item:Length="1000"/>
+ *               GContainer:ItemSemantic="RecoveryMap"
+ *               GContainer:ItemMime="image/jpeg"
+ *               GContainer:ItemLength="1000"/>
  *           </rdf:li>
  *         </rdf:Seq>
  *       </GContainer:Directory>
@@ -83,6 +105,83 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  * @return XMP metadata in type of string
  */
 std::string generateXmp(int secondary_image_length, jpegr_metadata& metadata);
+
+/*
+ * Add J R entry to existing exif, or create a new one with J R entry if it's null.
+ * EXIF syntax / change:
+ * ori:
+ * FF E1 - APP1
+ * 01 FC - size of APP1 (to be calculated)
+ * -----------------------------------------------------
+ * 45 78 69 66 00 00 - Exif\0\0 "Exif header"
+ * 49 49 2A 00 - TIFF Header
+ * 08 00 00 00 - offset to the IFD (image file directory)
+ * 06 00 - 6 entries
+ * 00 01 - Width Tag
+ * 03 00 - 'Short' type
+ * 01 00 00 00 - 1 component
+ * 00 05 00 00 - image with 0x500
+ *--------------------------------------------------------------------------
+ * new:
+ * FF E1 - APP1
+ * 02 08 - new size, equals to old size + EXIF_J_R_ENTRY_LENGTH (12)
+ *-----------------------------------------------------
+ * 45 78 69 66 00 00 - Exif\0\0 "Exif header"
+ * 49 49 2A 00 - TIFF Header
+ * 08 00 00 00 - offset to the IFD (image file directory)
+ * 07 00 - +1 entry
+ * 4A 52   Custom ('J''R') Tag
+ * 07 00 - Unknown type
+ * 01 00 00 00 - 1 component
+ * 00 00 00 00 - empty data
+ * 00 01 - Width Tag
+ * 03 00 - 'Short' type
+ * 01 00 00 00 - 1 component
+ * 00 05 00 00 - image with 0x500
+ */
+status_t updateExif(jr_exif_ptr exif, jr_exif_ptr dest);
+
+/*
+ * Modify offsets in EXIF in place.
+ *
+ * Each tag has the following structure:
+ *
+ * 00 01 - Tag
+ * 03 00 - data format
+ * 01 00 00 00 - number of components
+ * 00 05 00 00 - value
+ *
+ * The value means offset if
+ * (1) num_of_components * bytes_per_component > 4 bytes, or
+ * (2) tag == 0x8769 (ExifOffset).
+ * In both cases, the method will add EXIF_J_R_ENTRY_LENGTH (12) to the offsets.
+ */
+void updateExifOffsets(jr_exif_ptr exif, int pos, bool use_big_endian);
+void updateExifOffsets(jr_exif_ptr exif, int pos, int num_entry, bool use_big_endian);
+
+/*
+ * Read data from the target position and target length in bytes;
+ */
+int readValue(uint8_t* data, int pos, int length, bool use_big_endian);
+
+/*
+ * Returns the length of data format in bytes
+ *
+ *  ----------------------------------------------------------------------------------------------
+ *  |       value       |         1       |        2        |        3         |       4         |
+ *  |       format      |  unsigned byte  |  ascii strings  |  unsigned short  |  unsigned long  |
+ *  |  bytes/component  |         1       |        1        |        2         |       4         |
+ *  ----------------------------------------------------------------------------------------------
+ *  |       value       |         5       |        6        |        7         |       8         |
+ *  |       format      |unsigned rational|   signed byte   |    undefined     |  signed short   |
+ *  |  bytes/component  |         8       |        1        |        1         |       2         |
+ *  ----------------------------------------------------------------------------------------------
+ *  |       value       |         9       |        10       |        11        |       12        |
+ *  |       format      |   signed long   | signed rational |   single float   |  double float   |
+ *  |  bytes/component  |         4       |        8        |        4         |       8         |
+ *  ----------------------------------------------------------------------------------------------
+ */
+int findFormatLengthInBytes(int data_format);
 }
 
 #endif //ANDROID_JPEGRECOVERYMAP_RECOVERYMAPUTILS_H

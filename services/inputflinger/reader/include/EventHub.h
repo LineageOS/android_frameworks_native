@@ -19,6 +19,8 @@
 #include <bitset>
 #include <climits>
 #include <filesystem>
+#include <ostream>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -76,6 +78,8 @@ struct RawAbsoluteAxisInfo {
 
     inline void clear() { *this = RawAbsoluteAxisInfo(); }
 };
+
+std::ostream& operator<<(std::ostream& out, const RawAbsoluteAxisInfo& info);
 
 /*
  * Input device classes.

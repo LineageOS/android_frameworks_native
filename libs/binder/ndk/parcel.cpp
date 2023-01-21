@@ -700,6 +700,9 @@ binder_status_t AParcel_marshal(const AParcel* parcel, uint8_t* buffer, size_t s
         return STATUS_BAD_VALUE;
     }
     const uint8_t* internalBuffer = parcel->get()->data();
+    if (internalBuffer == nullptr) {
+        return STATUS_UNEXPECTED_NULL;
+    }
     memcpy(buffer, internalBuffer + start, len);
     return STATUS_OK;
 }
