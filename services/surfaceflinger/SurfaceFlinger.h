@@ -57,6 +57,8 @@
 #include <scheduler/PresentLatencyTracker.h>
 #include <scheduler/Time.h>
 #include <scheduler/TransactionSchedule.h>
+#include <scheduler/interface/CompositionCoverage.h>
+#include <scheduler/interface/ICompositor.h>
 #include <ui/FenceResult.h>
 
 #include "Display/DisplayMap.h"
@@ -606,19 +608,9 @@ private:
     void onComposerHalVsyncIdle(hal::HWDisplayId) override;
 
     // ICompositor overrides:
-
-    // Configures physical displays, processing hotplug and/or mode setting via the Composer HAL.
     void configure() override;
-
-    // Commits transactions for layers and displays. Returns whether any state has been invalidated,
-    // i.e. whether a frame should be composited for each display.
     bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) override;
-
-    // Composites a frame for each display. CompositionEngine performs GPU and/or HAL composition
-    // via RenderEngine and the Composer HAL, respectively.
     void composite(TimePoint frameTime, VsyncId) override;
-
-    // Samples the composited frame via RegionSamplingThread.
     void sample() override;
 
     // ISchedulerCallback overrides:
@@ -1158,17 +1150,6 @@ private:
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
 
-    // True if in the previous frame at least one layer was composed via the GPU.
-    bool mHadClientComposition = false;
-    // True if in the previous frame at least one layer was composed via HW Composer.
-    // Note that it is possible for a frame to be composed via both client and device
-    // composition, for example in the case of overlays.
-    bool mHadDeviceComposition = false;
-    // True if in the previous frame, the client composition was skipped by reusing the buffer
-    // used in a previous composition. This can happed if the client composition requests
-    // did not change.
-    bool mReusedClientComposition = false;
-
     BootStage mBootStage = BootStage::BOOTLOADER;
 
     struct HotplugEvent {
@@ -1204,7 +1185,7 @@ private:
     std::atomic_bool mForceFullDamage = false;
 
     bool mLayerCachingEnabled = false;
-    bool mPropagateBackpressureClientComposition = false;
+    bool mBackpressureGpuComposition = false;
 
     LayerTracing mLayerTracing{*this};
     bool mLayerTracingEnabled = false;
@@ -1268,6 +1249,9 @@ private:
     std::atomic<int> mNumTrustedPresentationListeners = 0;
 
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
+
+    CompositionCoverageFlags mCompositionCoverage;
+
     // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
     // any mutex.
     size_t mMaxRenderTargetSize{1};

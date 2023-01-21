@@ -34,6 +34,8 @@
 #include <utils/Trace.h>
 
 #include <FrameTimeline/FrameTimeline.h>
+#include <scheduler/interface/ICompositor.h>
+
 #include <algorithm>
 #include <cinttypes>
 #include <cstdint>

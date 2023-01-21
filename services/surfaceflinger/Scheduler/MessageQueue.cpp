@@ -17,12 +17,12 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <binder/IPCThreadState.h>
-
+#include <gui/DisplayEventReceiver.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
 #include <utils/threads.h>
 
-#include <gui/DisplayEventReceiver.h>
+#include <scheduler/interface/ICompositor.h>
 
 #include "EventThread.h"
 #include "FrameTimeline.h"

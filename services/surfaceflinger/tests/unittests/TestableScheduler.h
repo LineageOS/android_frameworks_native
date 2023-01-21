@@ -16,10 +16,11 @@
 
 #pragma once
 
-#include <Scheduler/Scheduler.h>
 #include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <gui/ISurfaceComposer.h>
+
+#include <scheduler/interface/ICompositor.h>
 
 #include "Scheduler/EventThread.h"
 #include "Scheduler/LayerHistory.h"
