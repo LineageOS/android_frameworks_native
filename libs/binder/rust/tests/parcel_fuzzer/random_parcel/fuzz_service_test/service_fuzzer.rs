@@ -16,8 +16,8 @@
 
 #![allow(missing_docs)]
 #![no_main]
-#[macro_use]
-extern crate libfuzzer_sys;
+
+use libfuzzer_sys::fuzz_target;
 
 use binder::{self, BinderFeatures, Interface};
 use binder_random_parcel_rs::fuzz_service;
