@@ -530,9 +530,6 @@ private:
     // prevent unneeded wakeups.
     AnrTracker mAnrTracker GUARDED_BY(mLock);
 
-    // Contains the last window which received a hover event.
-    sp<android::gui::WindowInfoHandle> mLastHoverWindowHandle GUARDED_BY(mLock);
-
     void cancelEventsForAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     // If a focused application changes, we should stop counting down the "no focused window" time,
     // because we will have no way of knowing when the previous application actually added a window.

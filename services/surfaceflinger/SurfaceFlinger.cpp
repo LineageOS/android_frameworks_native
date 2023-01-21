@@ -1152,6 +1152,10 @@ void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request,
     switch (display->setDesiredActiveMode(DisplayDevice::ActiveModeInfo(std::move(request)),
                                           force)) {
         case DisplayDevice::DesiredActiveModeAction::InitiateDisplayModeSwitch:
+            // Set the render rate as setDesiredActiveMode updated it.
+            mScheduler->setRenderRate(display->refreshRateSelector().getActiveMode().fps);
+
+            // Schedule a new frame to initiate the display mode switch.
             scheduleComposite(FrameHint::kNone);
 
             // Start receiving vsync samples now, so that we can detect a period

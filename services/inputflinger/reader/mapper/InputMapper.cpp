@@ -18,6 +18,8 @@
 
 #include "InputMapper.h"
 
+#include <sstream>
+
 #include "InputDevice.h"
 #include "input/PrintTools.h"
 
@@ -120,12 +122,9 @@ void InputMapper::bumpGeneration() {
 
 void InputMapper::dumpRawAbsoluteAxisInfo(std::string& dump, const RawAbsoluteAxisInfo& axis,
                                           const char* name) {
-    if (axis.valid) {
-        dump += StringPrintf(INDENT4 "%s: min=%d, max=%d, flat=%d, fuzz=%d, resolution=%d\n", name,
-                             axis.minValue, axis.maxValue, axis.flat, axis.fuzz, axis.resolution);
-    } else {
-        dump += StringPrintf(INDENT4 "%s: unknown range\n", name);
-    }
+    std::stringstream out;
+    out << INDENT4 << name << ": " << axis << "\n";
+    dump += out.str();
 }
 
 void InputMapper::dumpStylusState(std::string& dump, const StylusState& state) {
