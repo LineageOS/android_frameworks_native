@@ -2888,15 +2888,15 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
         const auto enableFrameRateOverride = [&] {
             using Config = scheduler::RefreshRateSelector::Config;
-            if (!sysprop::enable_frame_rate_override(true)) {
+            if (!sysprop::enable_frame_rate_override(false)) {
                 return Config::FrameRateOverride::Disabled;
             }
 
-            if (sysprop::frame_rate_override_for_native_rates(false)) {
+            if (sysprop::frame_rate_override_for_native_rates(true)) {
                 return Config::FrameRateOverride::AppOverrideNativeRefreshRates;
             }
 
-            if (!sysprop::frame_rate_override_global(true)) {
+            if (!sysprop::frame_rate_override_global(false)) {
                 return Config::FrameRateOverride::AppOverride;
             }
 
