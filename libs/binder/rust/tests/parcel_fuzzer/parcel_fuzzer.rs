@@ -17,9 +17,6 @@
 #![allow(missing_docs)]
 #![no_main]
 
-#[macro_use]
-extern crate libfuzzer_sys;
-
 mod read_utils;
 
 use crate::read_utils::READ_FUNCS;
@@ -31,7 +28,7 @@ use binder::{
     StatusCode,
 };
 use binder_random_parcel_rs::create_random_parcel;
-use libfuzzer_sys::arbitrary::Arbitrary;
+use libfuzzer_sys::{arbitrary::Arbitrary, fuzz_target};
 
 #[derive(Arbitrary, Debug)]
 enum ReadOperation {
