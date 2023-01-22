@@ -94,14 +94,12 @@
 //! ```
 
 #[macro_use]
-mod proxy;
-
-#[macro_use]
 mod binder;
 mod binder_async;
 mod error;
 mod native;
 mod parcel;
+mod proxy;
 mod state;
 
 use binder_ndk_sys as sys;
