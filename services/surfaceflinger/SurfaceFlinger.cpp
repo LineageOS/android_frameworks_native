@@ -3843,6 +3843,10 @@ void SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule sche
 
     if (const bool scheduled = mTransactionFlags.fetch_or(mask) & mask; !scheduled) {
         scheduleCommit(frameHint);
+    } else if (frameHint == FrameHint::kActive) {
+        // Even if the next frame is already scheduled, we should reset the idle timer
+        // as a new activity just happened.
+        mScheduler->resetIdleTimer();
     }
 }
 
