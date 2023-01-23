@@ -4167,7 +4167,7 @@ status_t SurfaceFlinger::setTransactionState(
 
 bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                            Vector<ComposerState>& states,
-                                           const Vector<DisplayState>& displays, uint32_t flags,
+                                           Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime, bool isAutoTimestamp,
                                            const client_cache_t& uncacheBuffer,
@@ -4176,7 +4176,8 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                                            const std::vector<ListenerCallbacks>& listenerCallbacks,
                                            int originPid, int originUid, uint64_t transactionId) {
     uint32_t transactionFlags = 0;
-    for (const DisplayState& display : displays) {
+    for (DisplayState& display : displays) {
+        display.sanitize(permissions);
         transactionFlags |= setDisplayStateLocked(display);
     }
 
