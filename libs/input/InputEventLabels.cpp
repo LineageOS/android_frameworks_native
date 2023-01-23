@@ -438,11 +438,11 @@ const std::unordered_map<std::string, int> InputEventLookup::LEDS = {LEDS_SEQUEN
 
 const std::unordered_map<std::string, int> InputEventLookup::FLAGS = {FLAGS_SEQUENCE};
 
-int InputEventLookup::lookupValueByLabel(const std::unordered_map<std::string, int>& map,
-                                         const char* literal) {
+std::optional<int> InputEventLookup::lookupValueByLabel(
+        const std::unordered_map<std::string, int>& map, const char* literal) {
     std::string str(literal);
     auto it = map.find(str);
-    return it != map.end() ? it->second : 0;
+    return it != map.end() ? std::make_optional(it->second) : std::nullopt;
 }
 
 const char* InputEventLookup::lookupLabelByValue(const std::vector<InputEventLabel>& vec,
@@ -453,8 +453,8 @@ const char* InputEventLookup::lookupLabelByValue(const std::vector<InputEventLab
     return nullptr;
 }
 
-int32_t InputEventLookup::getKeyCodeByLabel(const char* label) {
-    return int32_t(lookupValueByLabel(KEYCODES, label));
+std::optional<int> InputEventLookup::getKeyCodeByLabel(const char* label) {
+    return lookupValueByLabel(KEYCODES, label);
 }
 
 const char* InputEventLookup::getLabelByKeyCode(int32_t keyCode) {
@@ -464,20 +464,20 @@ const char* InputEventLookup::getLabelByKeyCode(int32_t keyCode) {
     return nullptr;
 }
 
-uint32_t InputEventLookup::getKeyFlagByLabel(const char* label) {
-    return uint32_t(lookupValueByLabel(FLAGS, label));
+std::optional<int> InputEventLookup::getKeyFlagByLabel(const char* label) {
+    return lookupValueByLabel(FLAGS, label);
 }
 
-int32_t InputEventLookup::getAxisByLabel(const char* label) {
-    return int32_t(lookupValueByLabel(AXES, label));
+std::optional<int> InputEventLookup::getAxisByLabel(const char* label) {
+    return lookupValueByLabel(AXES, label);
 }
 
 const char* InputEventLookup::getAxisLabel(int32_t axisId) {
     return lookupLabelByValue(AXES_NAMES, axisId);
 }
 
-int32_t InputEventLookup::getLedByLabel(const char* label) {
-    return int32_t(lookupValueByLabel(LEDS, label));
+std::optional<int> InputEventLookup::getLedByLabel(const char* label) {
+    return lookupValueByLabel(LEDS, label);
 }
 
 } // namespace android

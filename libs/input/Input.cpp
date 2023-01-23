@@ -299,7 +299,7 @@ const char* KeyEvent::getLabel(int32_t keyCode) {
     return InputEventLookup::getLabelByKeyCode(keyCode);
 }
 
-int32_t KeyEvent::getKeyCodeFromLabel(const char* label) {
+std::optional<int> KeyEvent::getKeyCodeFromLabel(const char* label) {
     return InputEventLookup::getKeyCodeByLabel(label);
 }
 
@@ -891,7 +891,7 @@ const char* MotionEvent::getLabel(int32_t axis) {
     return InputEventLookup::getAxisLabel(axis);
 }
 
-int32_t MotionEvent::getAxisFromLabel(const char* label) {
+std::optional<int> MotionEvent::getAxisFromLabel(const char* label) {
     return InputEventLookup::getAxisByLabel(label);
 }
 
