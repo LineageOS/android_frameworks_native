@@ -331,4 +331,28 @@ uint32_t DispatchEntry::nextSeq() {
     return seq;
 }
 
+std::ostream& operator<<(std::ostream& out, const DispatchEntry& entry) {
+    out << "DispatchEntry{resolvedAction=";
+    switch (entry.eventEntry->type) {
+        case EventEntry::Type::KEY: {
+            out << KeyEvent::actionToString(entry.resolvedAction);
+            break;
+        }
+        case EventEntry::Type::MOTION: {
+            out << MotionEvent::actionToString(entry.resolvedAction);
+            break;
+        }
+        default: {
+            out << "<invalid, not a key or a motion>";
+            break;
+        }
+    }
+    std::string transform;
+    entry.transform.dump(transform, "transform");
+    out << ", resolvedFlags=" << entry.resolvedFlags
+        << ", targetFlags=" << entry.targetFlags.string() << ", transform=" << transform
+        << "} original =" << entry.eventEntry->getDescription();
+    return out;
+}
+
 } // namespace android::inputdispatcher

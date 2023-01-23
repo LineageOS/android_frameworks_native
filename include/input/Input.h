@@ -550,6 +550,8 @@ protected:
     nsecs_t mEventTime;
 };
 
+std::ostream& operator<<(std::ostream& out, const KeyEvent& event);
+
 /*
  * Motion events.
  */
