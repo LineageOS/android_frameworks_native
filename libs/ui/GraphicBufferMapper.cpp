@@ -109,6 +109,11 @@ status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
     return NO_ERROR;
 }
 
+status_t GraphicBufferMapper::importBufferNoValidate(const native_handle_t* rawHandle,
+                                                     buffer_handle_t* outHandle) {
+    return mMapper->importBuffer(rawHandle, outHandle);
+}
+
 void GraphicBufferMapper::getTransportSize(buffer_handle_t handle,
             uint32_t* outTransportNumFds, uint32_t* outTransportNumInts)
 {

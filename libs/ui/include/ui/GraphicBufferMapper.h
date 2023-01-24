@@ -59,6 +59,8 @@ public:
             PixelFormat format, uint64_t usage, uint32_t stride,
             buffer_handle_t* outHandle);
 
+    status_t importBufferNoValidate(const native_handle_t* rawHandle, buffer_handle_t* outHandle);
+
     status_t freeBuffer(buffer_handle_t handle);
 
     void getTransportSize(buffer_handle_t handle,
