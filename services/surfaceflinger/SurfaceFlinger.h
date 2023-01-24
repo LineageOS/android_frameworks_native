@@ -832,7 +832,7 @@ private:
      * Transactions
      */
     void applyTransactionState(const FrameTimelineInfo& info, const Vector<ComposerState>& state,
-                               const Vector<DisplayState>& displays, uint32_t flags,
+                               Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime, bool isAutoTimestamp,
                                const client_cache_t& uncacheBuffer, const int64_t postTime,
