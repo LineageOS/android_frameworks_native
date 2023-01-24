@@ -99,5 +99,19 @@
     {
       "name": "binderLibTest"
     }
+  ],
+  "kernel-presubmit": [
+    {
+      "name": "binderDriverInterfaceTest"
+    },
+    {
+      "name": "binderLibTest"
+    },
+    {
+      "name": "binderSafeInterfaceTest"
+    },
+    {
+      "name": "memunreachable_binder_test"
+    }
   ]
 }
