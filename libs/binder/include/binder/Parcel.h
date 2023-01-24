@@ -75,6 +75,7 @@ public:
     size_t              dataAvail() const;
     size_t              dataPosition() const;
     size_t              dataCapacity() const;
+    size_t dataBufferSize() const;
 
     status_t            setDataSize(size_t size);
 
