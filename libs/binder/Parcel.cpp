@@ -375,6 +375,10 @@ size_t Parcel::dataSize() const
     return (mDataSize > mDataPos ? mDataSize : mDataPos);
 }
 
+size_t Parcel::dataBufferSize() const {
+    return mDataSize;
+}
+
 size_t Parcel::dataAvail() const
 {
     size_t result = dataSize() - dataPosition();
