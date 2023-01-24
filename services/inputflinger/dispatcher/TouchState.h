@@ -43,6 +43,8 @@ struct TouchState {
     void clearWindowsWithoutPointers();
 
     void removeTouchedPointer(int32_t pointerId);
+    void removeTouchedPointerFromWindow(int32_t pointerId,
+                                        const sp<android::gui::WindowInfoHandle>& windowHandle);
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                            ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
                            std::optional<nsecs_t> eventTime = std::nullopt);
@@ -62,6 +64,8 @@ struct TouchState {
     sp<android::gui::WindowInfoHandle> getFirstForegroundWindowHandle() const;
     bool isSlippery() const;
     sp<android::gui::WindowInfoHandle> getWallpaperWindow() const;
+    const TouchedWindow& getTouchedWindow(
+            const sp<android::gui::WindowInfoHandle>& windowHandle) const;
     // Whether any of the windows are currently being touched
     bool isDown() const;
 

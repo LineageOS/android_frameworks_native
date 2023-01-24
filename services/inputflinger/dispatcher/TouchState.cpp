@@ -37,6 +37,16 @@ void TouchState::removeTouchedPointer(int32_t pointerId) {
     }
 }
 
+void TouchState::removeTouchedPointerFromWindow(
+        int32_t pointerId, const sp<android::gui::WindowInfoHandle>& windowHandle) {
+    for (TouchedWindow& touchedWindow : windows) {
+        if (touchedWindow.windowHandle == windowHandle) {
+            touchedWindow.pointerIds.clearBit(pointerId);
+            return;
+        }
+    }
+}
+
 void TouchState::clearHoveringPointers() {
     for (TouchedWindow& touchedWindow : windows) {
         touchedWindow.clearHoveringPointers();
@@ -70,7 +80,6 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
             return;
         }
     }
-
     TouchedWindow touchedWindow;
     touchedWindow.windowHandle = windowHandle;
     touchedWindow.targetFlags = targetFlags;
@@ -173,6 +182,13 @@ sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
         }
     }
     return nullptr;
+}
+
+const TouchedWindow& TouchState::getTouchedWindow(const sp<WindowInfoHandle>& windowHandle) const {
+    auto it = std::find_if(windows.begin(), windows.end(),
+                           [&](const TouchedWindow& w) { return w.windowHandle == windowHandle; });
+    LOG_ALWAYS_FATAL_IF(it == windows.end(), "Could not find %s", windowHandle->getName().c_str());
+    return *it;
 }
 
 bool TouchState::isDown() const {
