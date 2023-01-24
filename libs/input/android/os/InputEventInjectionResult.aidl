@@ -37,4 +37,7 @@ enum InputEventInjectionResult {
 
     /* Injection failed due to a timeout. */
     TIMED_OUT = 3,
+
+    ftl_first=PENDING,
+    ftl_last=TIMED_OUT,
 }

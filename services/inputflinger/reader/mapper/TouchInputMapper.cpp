@@ -884,8 +884,6 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         mDeviceMode = DeviceMode::POINTER;
         if (hasStylus()) {
             mSource |= AINPUT_SOURCE_STYLUS;
-        } else {
-            mSource |= AINPUT_SOURCE_TOUCHPAD;
         }
     } else if (isTouchScreen()) {
         mSource = AINPUT_SOURCE_TOUCHSCREEN;

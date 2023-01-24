@@ -20,6 +20,7 @@
 #define LOG_NDEBUG 1
 
 #include <android-base/chrono_utils.h>
+#include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android/os/IInputConstants.h>
@@ -3382,6 +3383,10 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
             case EventEntry::Type::KEY: {
                 const KeyEntry& keyEntry = static_cast<const KeyEntry&>(eventEntry);
                 std::array<uint8_t, 32> hmac = getSignature(keyEntry, *dispatchEntry);
+                if (DEBUG_OUTBOUND_EVENT_DETAILS) {
+                    LOG(DEBUG) << "Publishing " << *dispatchEntry << " to "
+                               << connection->getInputChannelName();
+                }
 
                 // Publish the key event.
                 status = connection->inputPublisher
@@ -3397,6 +3402,10 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
             }
 
             case EventEntry::Type::MOTION: {
+                if (DEBUG_OUTBOUND_EVENT_DETAILS) {
+                    LOG(DEBUG) << "Publishing " << *dispatchEntry << " to "
+                               << connection->getInputChannelName();
+                }
                 status = publishMotionEvent(*connection, *dispatchEntry);
                 break;
             }
@@ -4448,6 +4457,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
 
     bool needWake = false;
     while (!injectedEntries.empty()) {
+        if (DEBUG_INJECTION) {
+            LOG(DEBUG) << "Injecting " << injectedEntries.front()->getDescription();
+        }
         needWake |= enqueueInboundEventLocked(std::move(injectedEntries.front()));
         injectedEntries.pop();
     }
@@ -4510,7 +4522,8 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
     } // release lock
 
     if (DEBUG_INJECTION) {
-        ALOGD("injectInputEvent - Finished with result %d.", injectionResult);
+        LOG(DEBUG) << "injectInputEvent - Finished with result "
+                   << ftl::enum_string(injectionResult);
     }
 
     return injectionResult;
@@ -4554,7 +4567,8 @@ void InputDispatcher::setInjectionResult(EventEntry& entry,
     InjectionState* injectionState = entry.injectionState;
     if (injectionState) {
         if (DEBUG_INJECTION) {
-            ALOGD("Setting input event injection result to %d.", injectionResult);
+            LOG(DEBUG) << "Setting input event injection result to "
+                       << ftl::enum_string(injectionResult);
         }
 
         if (injectionState->injectionIsAsync && !(entry.policyFlags & POLICY_FLAG_FILTERED)) {
