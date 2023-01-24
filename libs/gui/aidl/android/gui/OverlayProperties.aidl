@@ -20,7 +20,9 @@ package android.gui;
 parcelable OverlayProperties {
     parcelable SupportedBufferCombinations {
         int[] pixelFormats;
-        int[] dataspaces;
+        int[] standards;
+        int[] transfers;
+        int[] ranges;
     }
     SupportedBufferCombinations[] combinations;
 
