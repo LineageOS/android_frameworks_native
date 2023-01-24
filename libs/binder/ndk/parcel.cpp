@@ -695,7 +695,10 @@ binder_status_t AParcel_marshal(const AParcel* parcel, uint8_t* buffer, size_t s
     if (parcel->get()->objectsCount()) {
         return STATUS_INVALID_OPERATION;
     }
-    int32_t dataSize = AParcel_getDataSize(parcel);
+    // b/264739302 - getDataSize will return dataPos if it is greater than dataSize
+    // which will cause crashes in memcpy at later point. Instead compare with
+    // actual length of internal buffer
+    int32_t dataSize = parcel->get()->dataBufferSize();
     if (len > static_cast<size_t>(dataSize) || start > static_cast<size_t>(dataSize) - len) {
         return STATUS_BAD_VALUE;
     }
