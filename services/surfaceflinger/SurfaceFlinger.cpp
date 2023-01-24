@@ -2444,7 +2444,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         scheduleComposite(FrameHint::kNone);
     }
 
-    postComposition();
+    postComposition(presentTime);
 
     const bool prevFrameHadClientComposition = mHadClientComposition;
 
@@ -2558,7 +2558,7 @@ ui::Rotation SurfaceFlinger::getPhysicalDisplayOrientation(DisplayId displayId,
     return ui::ROTATION_0;
 }
 
-void SurfaceFlinger::postComposition() {
+void SurfaceFlinger::postComposition(nsecs_t callTime) {
     ATRACE_CALL();
     ALOGV(__func__);
 
@@ -2722,6 +2722,17 @@ void SurfaceFlinger::postComposition() {
             mTexturePool.resize(mTexturePoolSize);
             ATRACE_INT("TexturePoolSize", mTexturePool.size());
         }
+    }
+
+    if (mNumTrustedPresentationListeners > 0) {
+        // We avoid any reverse traversal upwards so this shouldn't be too expensive
+        mDrawingState.traverse([&](Layer* layer) {
+            if (!layer->hasTrustedPresentationListener()) {
+                return;
+            }
+            layer->updateTrustedPresentationState(display, nanoseconds_to_milliseconds(callTime),
+                                                  false);
+        });
     }
 
     // Even though ATRACE_INT64 already checks if tracing is enabled, it doesn't prevent the
@@ -4616,6 +4627,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         }
     } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
         layer->setFrameTimelineVsyncForBufferlessTransaction(frameTimelineInfo, postTime);
+    }
+
+    if (what & layer_state_t::eTrustedPresentationInfoChanged) {
+        layer->setTrustedPresentationInfo(s.trustedPresentationThresholds,
+                                          s.trustedPresentationListener);
     }
 
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
@@ -8141,6 +8157,10 @@ status_t SurfaceComposerAIDL::checkReadFrameBufferPermission() {
         return PERMISSION_DENIED;
     }
     return OK;
+}
+
+void SurfaceFlinger::forceFutureUpdate(int delayInMs) {
+    static_cast<void>(mScheduler->scheduleDelayed([&]() { scheduleRepaint(); }, ms2ns(delayInMs)));
 }
 
 } // namespace android

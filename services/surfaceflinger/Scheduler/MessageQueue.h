@@ -79,6 +79,7 @@ public:
     virtual void setDuration(std::chrono::nanoseconds workDuration) = 0;
     virtual void waitMessage() = 0;
     virtual void postMessage(sp<MessageHandler>&&) = 0;
+    virtual void postMessageDelayed(sp<MessageHandler>&&, nsecs_t uptimeDelay) = 0;
     virtual void scheduleConfigure() = 0;
     virtual void scheduleFrame() = 0;
 
@@ -144,6 +145,7 @@ public:
 
     void waitMessage() override;
     void postMessage(sp<MessageHandler>&&) override;
+    void postMessageDelayed(sp<MessageHandler>&&, nsecs_t uptimeDelay) override;
 
     void scheduleConfigure() override;
     void scheduleFrame() override;

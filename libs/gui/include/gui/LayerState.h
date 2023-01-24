@@ -22,6 +22,7 @@
 #include <sys/types.h>
 
 #include <android/gui/IWindowInfosReportedListener.h>
+#include <android/gui/TrustedPresentationThresholds.h>
 #include <android/native_window.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ITransactionCompletedListener.h>
@@ -56,6 +57,8 @@ class Parcel;
 using gui::ISurfaceComposerClient;
 using gui::LayerMetadata;
 
+using gui::TrustedPresentationThresholds;
+
 struct client_cache_t {
     wp<IBinder> token = nullptr;
     uint64_t id;
@@ -63,6 +66,19 @@ struct client_cache_t {
     bool operator==(const client_cache_t& other) const { return id == other.id; }
 
     bool isValid() const { return token != nullptr; }
+};
+
+class TrustedPresentationListener : public Parcelable {
+public:
+    sp<ITransactionCompletedListener> callbackInterface;
+    int callbackId = -1;
+
+    void invoke(bool presentedWithinThresholds) {
+        callbackInterface->onTrustedPresentationChanged(callbackId, presentedWithinThresholds);
+    }
+
+    status_t writeToParcel(Parcel* parcel) const;
+    status_t readFromParcel(const Parcel* parcel);
 };
 
 class BufferData : public Parcelable {
@@ -148,7 +164,7 @@ struct layer_state_t {
     enum {
         ePositionChanged = 0x00000001,
         eLayerChanged = 0x00000002,
-        /* unused = 0x00000004, */
+        eTrustedPresentationInfoChanged = 0x00000004,
         eAlphaChanged = 0x00000008,
         eMatrixChanged = 0x00000010,
         eTransparentRegionChanged = 0x00000020,
@@ -359,6 +375,9 @@ struct layer_state_t {
     gui::DropInputMode dropInputMode;
 
     bool dimmingEnabled;
+
+    TrustedPresentationThresholds trustedPresentationThresholds;
+    TrustedPresentationListener trustedPresentationListener;
 };
 
 class ComposerState {
