@@ -35,22 +35,22 @@ struct InputEventLabel {
 
 class InputEventLookup {
 public:
-    static int lookupValueByLabel(const std::unordered_map<std::string, int>& map,
-                                  const char* literal);
+    static std::optional<int> lookupValueByLabel(const std::unordered_map<std::string, int>& map,
+                                                 const char* literal);
 
     static const char* lookupLabelByValue(const std::vector<InputEventLabel>& vec, int value);
 
-    static int32_t getKeyCodeByLabel(const char* label);
+    static std::optional<int> getKeyCodeByLabel(const char* label);
 
     static const char* getLabelByKeyCode(int32_t keyCode);
 
-    static uint32_t getKeyFlagByLabel(const char* label);
+    static std::optional<int> getKeyFlagByLabel(const char* label);
 
-    static int32_t getAxisByLabel(const char* label);
+    static std::optional<int> getAxisByLabel(const char* label);
 
     static const char* getAxisLabel(int32_t axisId);
 
-    static int32_t getLedByLabel(const char* label);
+    static std::optional<int> getLedByLabel(const char* label);
 
 private:
     static const std::unordered_map<std::string, int> KEYCODES;

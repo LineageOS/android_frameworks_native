@@ -529,7 +529,7 @@ public:
     inline nsecs_t getEventTime() const { return mEventTime; }
 
     static const char* getLabel(int32_t keyCode);
-    static int32_t getKeyCodeFromLabel(const char* label);
+    static std::optional<int> getKeyCodeFromLabel(const char* label);
 
     void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac, int32_t action, int32_t flags, int32_t keyCode,
@@ -842,7 +842,7 @@ public:
     }
 
     static const char* getLabel(int32_t axis);
-    static int32_t getAxisFromLabel(const char* label);
+    static std::optional<int> getAxisFromLabel(const char* label);
 
     static std::string actionToString(int32_t action);
 
