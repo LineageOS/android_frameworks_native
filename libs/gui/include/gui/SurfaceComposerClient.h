@@ -402,6 +402,7 @@ public:
         SortedVector<DisplayState> mDisplayStates;
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
                 mListenerCallbacks;
+        std::vector<client_cache_t> mUncacheBuffers;
 
         uint64_t mId;
 

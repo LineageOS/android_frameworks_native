@@ -2662,18 +2662,18 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
 
 void Layer::onSurfaceFrameCreated(
         const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
-    if (!hasBufferOrSidebandStreamInDrawing()) {
-        return;
-    }
-
     while (mPendingJankClassifications.size() >= kPendingClassificationMaxSurfaceFrames) {
         // Too many SurfaceFrames pending classification. The front of the deque is probably not
         // tracked by FrameTimeline and will never be presented. This will only result in a memory
         // leak.
-        ALOGW("Removing the front of pending jank deque from layer - %s to prevent memory leak",
-              mName.c_str());
-        std::string miniDump = mPendingJankClassifications.front()->miniDump();
-        ALOGD("Head SurfaceFrame mini dump\n%s", miniDump.c_str());
+        if (hasBufferOrSidebandStreamInDrawing()) {
+            // Only log for layers with a buffer, since we expect the jank data to be drained for
+            // these, while there may be no jank listeners for bufferless layers.
+            ALOGW("Removing the front of pending jank deque from layer - %s to prevent memory leak",
+                  mName.c_str());
+            std::string miniDump = mPendingJankClassifications.front()->miniDump();
+            ALOGD("Head SurfaceFrame mini dump\n%s", miniDump.c_str());
+        }
         mPendingJankClassifications.pop_front();
     }
     mPendingJankClassifications.emplace_back(surfaceFrame);

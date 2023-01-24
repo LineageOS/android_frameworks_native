@@ -730,17 +730,18 @@ public:
         return mFlinger->mTransactionHandler.mPendingTransactionQueues;
     }
 
-    auto setTransactionState(const FrameTimelineInfo &frameTimelineInfo,
-                             Vector<ComposerState> &states, const Vector<DisplayState> &displays,
-                             uint32_t flags, const sp<IBinder> &applyToken,
-                             const InputWindowCommands &inputWindowCommands,
+    auto setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
+                             Vector<ComposerState>& states, const Vector<DisplayState>& displays,
+                             uint32_t flags, const sp<IBinder>& applyToken,
+                             const InputWindowCommands& inputWindowCommands,
                              int64_t desiredPresentTime, bool isAutoTimestamp,
-                             const client_cache_t &uncacheBuffer, bool hasListenerCallbacks,
-                             std::vector<ListenerCallbacks> &listenerCallbacks,
+                             const std::vector<client_cache_t>& uncacheBuffers,
+                             bool hasListenerCallbacks,
+                             std::vector<ListenerCallbacks>& listenerCallbacks,
                              uint64_t transactionId) {
         return mFlinger->setTransactionState(frameTimelineInfo, states, displays, flags, applyToken,
                                              inputWindowCommands, desiredPresentTime,
-                                             isAutoTimestamp, uncacheBuffer, hasListenerCallbacks,
+                                             isAutoTimestamp, uncacheBuffers, hasListenerCallbacks,
                                              listenerCallbacks, transactionId);
     }
 
