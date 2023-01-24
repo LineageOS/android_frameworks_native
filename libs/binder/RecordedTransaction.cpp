@@ -123,8 +123,8 @@ std::optional<RecordedTransaction> RecordedTransaction::fromDetails(
                        static_cast<int32_t>(timestamp.tv_nsec),
                        0};
 
-    t.mData.mInterfaceName = String8(interfaceName);
-    if (interfaceName.size() != t.mData.mInterfaceName.bytes()) {
+    t.mData.mInterfaceName = std::string(String8(interfaceName).string());
+    if (interfaceName.size() != t.mData.mInterfaceName.size()) {
         LOG(ERROR) << "Interface Name is not valid. Contains characters that aren't single byte "
                       "utf-8: "
                    << interfaceName;
@@ -231,7 +231,8 @@ std::optional<RecordedTransaction> RecordedTransaction::fromFile(const unique_fd
                 break;
             }
             case INTERFACE_NAME_CHUNK: {
-                t.mData.mInterfaceName.setTo(reinterpret_cast<char*>(payloadMap), chunk.dataSize);
+                t.mData.mInterfaceName =
+                        std::string(reinterpret_cast<char*>(payloadMap), chunk.dataSize);
                 break;
             }
             case DATA_PARCEL_CHUNK: {
@@ -308,7 +309,7 @@ android::status_t RecordedTransaction::dumpToFile(const unique_fd& fd) const {
     }
     if (NO_ERROR !=
         writeChunk(fd, INTERFACE_NAME_CHUNK, mData.mInterfaceName.size() * sizeof(uint8_t),
-                   reinterpret_cast<const uint8_t*>(mData.mInterfaceName.string()))) {
+                   reinterpret_cast<const uint8_t*>(mData.mInterfaceName.c_str()))) {
         LOG(INFO) << "Failed to write Interface Name Chunk to fd " << fd.get();
         return UNKNOWN_ERROR;
     }
@@ -328,7 +329,7 @@ android::status_t RecordedTransaction::dumpToFile(const unique_fd& fd) const {
     return NO_ERROR;
 }
 
-const android::String8& RecordedTransaction::getInterfaceName() const {
+const std::string& RecordedTransaction::getInterfaceName() const {
     return mData.mInterfaceName;
 }
 
