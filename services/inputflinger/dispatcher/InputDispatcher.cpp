@@ -1761,10 +1761,8 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<
         inputTargets =
                 findTouchedWindowTargetsLocked(currentTime, *entry, &conflictingPointerActions,
                                                /*byref*/ injectionResult);
-        if (injectionResult != InputEventInjectionResult::SUCCEEDED) {
-            // No events should be dispatched if the injection didn't succeed
-            inputTargets = {};
-        }
+        LOG_ALWAYS_FATAL_IF(injectionResult != InputEventInjectionResult::SUCCEEDED &&
+                            !inputTargets.empty());
     } else {
         // Non touch event.  (eg. trackball)
         sp<WindowInfoHandle> focusedWindow =
@@ -2184,7 +2182,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                   displayId);
             // TODO: test multiple simultaneous input streams.
             outInjectionResult = InputEventInjectionResult::FAILED;
-            return targets; // wrong device
+            return {}; // wrong device
         }
         tempTouchState.clearWindowsWithoutPointers();
         tempTouchState.deviceId = entry.deviceId;
@@ -2196,7 +2194,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
               displayId);
         // TODO: test multiple simultaneous input streams.
         outInjectionResult = InputEventInjectionResult::FAILED;
-        return targets; // wrong device
+        return {}; // wrong device
     }
 
     if (isHoverAction) {
@@ -2231,7 +2229,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             ALOGW("Dropping injected touch event: %s", (*err).c_str());
             outInjectionResult = os::InputEventInjectionResult::TARGET_MISMATCH;
             newTouchedWindowHandle = nullptr;
-            goto Failed;
+            return {};
         }
 
         // Figure out whether splitting will be allowed for this window.
@@ -2262,7 +2260,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             ALOGI("Dropping event because there is no touchable window at (%d, %d) on display %d.",
                   x, y, displayId);
             outInjectionResult = InputEventInjectionResult::FAILED;
-            goto Failed;
+            return {};
         }
 
         for (const sp<WindowInfoHandle>& windowHandle : newTouchedWindows) {
@@ -2353,7 +2351,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                      "dropped the pointer down event in display %" PRId32 ": %s",
                      displayId, entry.getDescription().c_str());
             outInjectionResult = InputEventInjectionResult::FAILED;
-            goto Failed;
+            return {};
         }
 
         addDragEventLocked(entry);
@@ -2371,7 +2369,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             if (const auto err = verifyTargetedInjection(newTouchedWindowHandle, entry); err) {
                 ALOGW("Dropping injected event: %s", (*err).c_str());
                 outInjectionResult = os::InputEventInjectionResult::TARGET_MISMATCH;
-                goto Failed;
+                return {};
             }
 
             // Drop touch events if requested by input feature
@@ -2465,7 +2463,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         ALOGI("Dropping event because there is no touched window on display %d to receive it: %s",
               displayId, entry.getDescription().c_str());
         outInjectionResult = InputEventInjectionResult::FAILED;
-        goto Failed;
+        return {};
     }
 
     // Ensure that all touched windows are valid for injection.
@@ -2485,7 +2483,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                   "%d:%s",
                   *entry.injectionState->targetUid, errs.c_str());
             outInjectionResult = InputEventInjectionResult::TARGET_MISMATCH;
-            goto Failed;
+            return {};
         }
     }
 
@@ -2521,7 +2519,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     // in the next iteration.
     tempTouchState.filterNonAsIsTouchWindows();
 
-Failed:
     // Update final pieces of touch state if the injector had permission.
     if (switchedDevice) {
         if (DEBUG_FOCUS) {
