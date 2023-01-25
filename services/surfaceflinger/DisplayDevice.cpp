@@ -166,7 +166,8 @@ auto DisplayDevice::getFrontEndInfo() const -> frontend::DisplayInfo {
             .receivesInput = receivesInput(),
             .isSecure = isSecure(),
             .isPrimary = isPrimary(),
-            .rotationFlags = ui::Transform::toRotationFlags(mOrientation)};
+            .rotationFlags = ui::Transform::toRotationFlags(mOrientation),
+            .transformHint = getTransformHint()};
 }
 
 void DisplayDevice::setPowerMode(hal::PowerMode mode) {

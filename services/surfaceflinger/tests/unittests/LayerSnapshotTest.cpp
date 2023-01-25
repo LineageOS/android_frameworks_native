@@ -38,6 +38,9 @@
 
 namespace android::surfaceflinger::frontend {
 
+using ftl::Flags;
+using namespace ftl::flag_operators;
+
 // To run test:
 /**
  mp :libsurfaceflinger_unittest && adb sync; adb shell \
@@ -88,14 +91,11 @@ protected:
         ASSERT_TRUE(expectedBuilder.getSnapshots().size() > 0);
         ASSERT_TRUE(actualBuilder.getSnapshots().size() > 0);
 
-        std::vector<std::unique_ptr<LayerSnapshot>>& snapshots = actualBuilder.getSnapshots();
         std::vector<uint32_t> actualVisibleLayerIdsInZOrder;
-        for (auto& snapshot : snapshots) {
-            if (!snapshot->isVisible) {
-                break;
-            }
-            actualVisibleLayerIdsInZOrder.push_back(snapshot->path.id);
-        }
+        actualBuilder.forEachVisibleSnapshot(
+                [&actualVisibleLayerIdsInZOrder](const LayerSnapshot& snapshot) {
+                    actualVisibleLayerIdsInZOrder.push_back(snapshot.path.id);
+                });
         EXPECT_EQ(expectedVisibleLayerIdsInZOrder, actualVisibleLayerIdsInZOrder);
     }
 
@@ -103,7 +103,6 @@ protected:
 
     LayerHierarchyBuilder mHierarchyBuilder{{}};
     LayerSnapshotBuilder mSnapshotBuilder;
-    std::unordered_map<uint32_t, sp<LayerHandle>> mHandles;
     display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
     renderengine::ShadowSettings globalShadowSettings;
     static const std::vector<uint32_t> STARTING_ZORDER;
@@ -255,6 +254,56 @@ TEST_F(LayerSnapshotTest, FastPathSetsChangeFlagToContent) {
     setColor(1, {1._hf, 0._hf, 0._hf});
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     EXPECT_EQ(getSnapshot(1)->changes, RequestedLayerState::Changes::Content);
+}
+
+TEST_F(LayerSnapshotTest, GameMode) {
+    std::vector<TransactionState> transactions;
+    transactions.emplace_back();
+    transactions.back().states.push_back({});
+    transactions.back().states.front().state.what = layer_state_t::eMetadataChanged;
+    transactions.back().states.front().state.metadata = LayerMetadata();
+    transactions.back().states.front().state.metadata.setInt32(METADATA_GAME_MODE, 42);
+    transactions.back().states.front().state.surface = mHandles[1];
+    transactions.back().states.front().state.layerId = static_cast<int32_t>(1);
+    mLifecycleManager.applyTransactions(transactions);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(static_cast<int32_t>(getSnapshot(1)->gameMode), 42);
+    EXPECT_EQ(static_cast<int32_t>(getSnapshot(11)->gameMode), 42);
+}
+
+TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
+    // ROOT
+    // ├── 1
+    // │   ├── 11 (frame rate set)
+    // │   │   └── 111
+    // │   ├── 12
+    // │   │   ├── 121
+    // │   │   └── 122
+    // │   │       └── 1221
+    // │   └── 13
+    // └── 2
+
+    std::vector<TransactionState> transactions;
+    transactions.emplace_back();
+    transactions.back().states.push_back({});
+    transactions.back().states.front().state.what = layer_state_t::eFrameRateChanged;
+    transactions.back().states.front().state.frameRate = 90.0;
+    transactions.back().states.front().state.frameRateCompatibility =
+            ANATIVEWINDOW_FRAME_RATE_EXACT;
+    transactions.back().states.front().state.changeFrameRateStrategy =
+            ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS;
+    transactions.back().states.front().state.surface = mHandles[11];
+    transactions.back().states.front().state.layerId = static_cast<int32_t>(11);
+    mLifecycleManager.applyTransactions(transactions);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    EXPECT_EQ(getSnapshot(11)->frameRate.rate.getIntValue(), 90);
+    EXPECT_EQ(getSnapshot(11)->frameRate.type, scheduler::LayerInfo::FrameRateCompatibility::Exact);
+    EXPECT_EQ(getSnapshot(111)->frameRate.rate.getIntValue(), 90);
+    EXPECT_EQ(getSnapshot(111)->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Exact);
+    EXPECT_EQ(getSnapshot(1)->frameRate.rate.getIntValue(), 0);
+    EXPECT_EQ(getSnapshot(1)->frameRate.type, scheduler::LayerInfo::FrameRateCompatibility::NoVote);
 }
 
 } // namespace android::surfaceflinger::frontend

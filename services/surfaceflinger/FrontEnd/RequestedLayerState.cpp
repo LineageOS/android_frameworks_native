@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-#include "FrontEnd/LayerCreationArgs.h"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #undef LOG_TAG
 #define LOG_TAG "RequestedLayerState"
 
+#include <log/log.h>
 #include <private/android_filesystem_config.h>
 #include <sys/types.h>
 
 #include "Layer.h"
+#include "LayerCreationArgs.h"
 #include "LayerHandle.h"
+#include "LayerLog.h"
 #include "RequestedLayerState.h"
 
 namespace android::surfaceflinger::frontend {
@@ -47,7 +49,7 @@ std::string layerIdToString(uint32_t layerId) {
 
 RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
       : id(args.sequence),
-        name(args.name),
+        name(args.name + "#" + std::to_string(args.sequence)),
         canBeRoot(args.addToRoot),
         layerCreationFlags(args.flags),
         textureName(args.textureName),
@@ -59,6 +61,9 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     changes |= RequestedLayerState::Changes::Metadata;
     handleAlive = true;
     parentId = LayerHandle::getLayerId(args.parentHandle.promote());
+    if (args.parentHandle != nullptr) {
+        canBeRoot = false;
+    }
     mirrorId = LayerHandle::getLayerId(args.mirrorLayerHandle.promote());
     if (mirrorId != UNASSIGNED_LAYER_ID) {
         changes |= RequestedLayerState::Changes::Mirror;
@@ -83,6 +88,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     } else {
         color.rgb = {0.0_hf, 0.0_hf, 0.0_hf};
     }
+    LLOGV(layerId, "Created %s flags=%d", getDebugString().c_str(), flags);
     color.a = 1.0f;
 
     crop.makeInvalid();
@@ -114,11 +120,14 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     defaultFrameRateCompatibility =
             static_cast<int8_t>(scheduler::LayerInfo::FrameRateCompatibility::Default);
     dataspace = ui::Dataspace::V0_SRGB;
+    gameMode = gui::GameMode::Unsupported;
+    requestedFrameRate = {};
 }
 
 void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerState) {
-    bool oldFlags = flags;
-    Rect oldBufferSize = getBufferSize(0);
+    const uint32_t oldFlags = flags;
+    const half oldAlpha = color.a;
+    const bool hadBufferOrSideStream = hasValidBuffer() || sidebandStream != nullptr;
     const layer_state_t& clientState = resolvedComposerState.state;
 
     uint64_t clientChanges = what | layer_state_t::diff(clientState);
@@ -127,14 +136,28 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
 
     if (clientState.what & layer_state_t::eFlagsChanged) {
         if ((oldFlags ^ flags) & layer_state_t::eLayerHidden) {
-            changes |= RequestedLayerState::Changes::Visibility;
+            changes |= RequestedLayerState::Changes::Visibility |
+                    RequestedLayerState::Changes::VisibleRegion;
         }
         if ((oldFlags ^ flags) & layer_state_t::eIgnoreDestinationFrame) {
             changes |= RequestedLayerState::Changes::Geometry;
         }
     }
-    if (clientState.what & layer_state_t::eBufferChanged && oldBufferSize != getBufferSize(0)) {
-        changes |= RequestedLayerState::Changes::Geometry;
+    if (clientState.what &
+        (layer_state_t::eBufferChanged | layer_state_t::eSidebandStreamChanged)) {
+        const bool hasBufferOrSideStream = hasValidBuffer() || sidebandStream != nullptr;
+        if (hadBufferOrSideStream != hasBufferOrSideStream) {
+            changes |= RequestedLayerState::Changes::Geometry |
+                    RequestedLayerState::Changes::VisibleRegion |
+                    RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Input |
+                    RequestedLayerState::Changes::Buffer;
+        }
+    }
+    if (what & (layer_state_t::eAlphaChanged)) {
+        if (oldAlpha == 0 || color.a == 0) {
+            changes |= RequestedLayerState::Changes::Visibility |
+                    RequestedLayerState::Changes::VisibleRegion;
+        }
     }
     if (clientChanges & layer_state_t::HIERARCHY_CHANGES)
         changes |= RequestedLayerState::Changes::Hierarchy;
@@ -144,7 +167,10 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         changes |= RequestedLayerState::Changes::Geometry;
     if (clientChanges & layer_state_t::AFFECTS_CHILDREN)
         changes |= RequestedLayerState::Changes::AffectsChildren;
-
+    if (clientChanges & layer_state_t::INPUT_CHANGES)
+        changes |= RequestedLayerState::Changes::Input;
+    if (clientChanges & layer_state_t::VISIBLE_REGION_CHANGES)
+        changes |= RequestedLayerState::Changes::VisibleRegion;
     if (clientState.what & layer_state_t::eColorTransformChanged) {
         static const mat4 identityMatrix = mat4();
         hasColorTransform = colorTransform != identityMatrix;
@@ -183,7 +209,6 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         wp<IBinder>& touchableRegionCropHandle =
                 windowInfoHandle->editInfo()->touchableRegionCropHandle;
         touchCropId = LayerHandle::getLayerId(touchableRegionCropHandle.promote());
-        changes |= RequestedLayerState::Changes::Input;
         touchableRegionCropHandle.clear();
     }
     if (clientState.what & layer_state_t::eStretchChanged) {
@@ -204,6 +229,27 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
 
     if (clientState.what & layer_state_t::eMatrixChanged) {
         requestedTransform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
+    }
+    if (clientState.what & layer_state_t::eMetadataChanged) {
+        const int32_t requestedGameMode =
+                clientState.metadata.getInt32(gui::METADATA_GAME_MODE, -1);
+        if (requestedGameMode != -1) {
+            // The transaction will be received on the Task layer and needs to be applied to all
+            // child layers.
+            if (static_cast<int32_t>(gameMode) != requestedGameMode) {
+                gameMode = static_cast<gui::GameMode>(requestedGameMode);
+                changes |= RequestedLayerState::Changes::AffectsChildren;
+            }
+        }
+    }
+    if (clientState.what & layer_state_t::eFrameRateChanged) {
+        const auto compatibility =
+                Layer::FrameRate::convertCompatibility(clientState.frameRateCompatibility);
+        const auto strategy = Layer::FrameRate::convertChangeFrameRateStrategy(
+                clientState.changeFrameRateStrategy);
+        requestedFrameRate =
+                Layer::FrameRate(Fps::fromValue(clientState.frameRate), compatibility, strategy);
+        changes |= RequestedLayerState::Changes::FrameRate;
     }
 }
 
@@ -368,7 +414,8 @@ Rect RequestedLayerState::reduce(const Rect& win, const Region& exclude) {
 // If the relative parentid is unassigned, the layer will be considered relative but won't be
 // reachable.
 bool RequestedLayerState::hasValidRelativeParent() const {
-    return isRelativeOf && parentId != relativeParentId;
+    return isRelativeOf &&
+            (parentId != relativeParentId || relativeParentId == UNASSIGNED_LAYER_ID);
 }
 
 bool RequestedLayerState::hasInputInfo() const {

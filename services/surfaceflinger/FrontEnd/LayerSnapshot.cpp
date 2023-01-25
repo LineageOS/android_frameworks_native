@@ -61,7 +61,7 @@ bool LayerSnapshot::isOpaqueFormat(PixelFormat format) {
 }
 
 bool LayerSnapshot::hasBufferOrSidebandStream() const {
-    return ((sidebandStream != nullptr) || (buffer != nullptr));
+    return ((sidebandStream != nullptr) || (externalTexture != nullptr));
 }
 
 bool LayerSnapshot::drawShadows() const {
@@ -99,7 +99,7 @@ bool LayerSnapshot::isContentOpaque() const {
 
     // If the buffer has no alpha channel, then we are opaque
     if (hasBufferOrSidebandStream() &&
-        isOpaqueFormat(buffer ? buffer->getPixelFormat() : PIXEL_FORMAT_NONE)) {
+        isOpaqueFormat(externalTexture ? externalTexture->getPixelFormat() : PIXEL_FORMAT_NONE)) {
         return true;
     }
 
@@ -108,11 +108,7 @@ bool LayerSnapshot::isContentOpaque() const {
 }
 
 bool LayerSnapshot::isHiddenByPolicy() const {
-    if (CC_UNLIKELY(invalidTransform)) {
-        ALOGW("Hide layer %s because it has invalid transformation.", name.c_str());
-        return true;
-    }
-    return isHiddenByPolicyFromParent || isHiddenByPolicyFromRelativeParent;
+    return invalidTransform || isHiddenByPolicyFromParent || isHiddenByPolicyFromRelativeParent;
 }
 
 bool LayerSnapshot::getIsVisible() const {
@@ -128,19 +124,22 @@ bool LayerSnapshot::getIsVisible() const {
 }
 
 std::string LayerSnapshot::getIsVisibleReason() const {
-    if (!hasSomethingToDraw()) {
-        return "!hasSomethingToDraw";
-    }
+    // not visible
+    if (!hasSomethingToDraw()) return "!hasSomethingToDraw";
+    if (invalidTransform) return "invalidTransform";
+    if (isHiddenByPolicyFromParent) return "hidden by parent or layer flag";
+    if (isHiddenByPolicyFromRelativeParent) return "hidden by relative parent";
+    if (color.a == 0.0f && !hasBlur()) return "alpha = 0 and no blur";
 
-    if (isHiddenByPolicy()) {
-        return "isHiddenByPolicy";
-    }
-
-    if (color.a > 0.0f || hasBlur()) {
-        return "";
-    }
-
-    return "alpha = 0 and !hasBlur";
+    // visible
+    std::stringstream reason;
+    if (sidebandStream != nullptr) reason << " sidebandStream";
+    if (externalTexture != nullptr) reason << " buffer";
+    if (fillsColor() || color.a > 0.0f) reason << " color{" << color << "}";
+    if (drawShadows()) reason << " shadowSettings.length=" << shadowSettings.length;
+    if (backgroundBlurRadius > 0) reason << " backgroundBlurRadius=" << backgroundBlurRadius;
+    if (blurRegions.size() > 0) reason << " blurRegions.size()=" << blurRegions.size();
+    return reason.str();
 }
 
 bool LayerSnapshot::canReceiveInput() const {
@@ -152,11 +151,16 @@ bool LayerSnapshot::isTransformValid(const ui::Transform& t) {
     return transformDet != 0 && !isinf(transformDet) && !isnan(transformDet);
 }
 
+bool LayerSnapshot::hasInputInfo() const {
+    return inputInfo.token != nullptr ||
+            inputInfo.inputConfig.test(gui::WindowInfo::InputConfig::NO_INPUT_CHANNEL);
+}
+
 std::string LayerSnapshot::getDebugString() const {
-    return "Snapshot(" + base::StringPrintf("%p", this) + "){" + path.toString() + name +
-            " isHidden=" + std::to_string(isHiddenByPolicyFromParent) +
-            " isHiddenRelative=" + std::to_string(isHiddenByPolicyFromRelativeParent) +
-            " isVisible=" + std::to_string(isVisible) + " " + getIsVisibleReason() + "}";
+    std::stringstream debug;
+    debug << "Snapshot{" << path.toString() << name << " isVisible=" << isVisible << " {"
+          << getIsVisibleReason() << "} changes=" << changes.string() << "}";
+    return debug.str();
 }
 
 } // namespace android::surfaceflinger::frontend
