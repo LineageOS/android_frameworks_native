@@ -715,7 +715,11 @@ private:
             const std::vector<ListenerCallbacks>& listenerCallbacks, int originPid, int originUid,
             uint64_t transactionId) REQUIRES(mStateLock);
     // Flush pending transactions that were presented after desiredPresentTime.
+    // For test only
     bool flushTransactionQueues(VsyncId) REQUIRES(kMainThreadContext);
+
+    bool applyTransactions(std::vector<TransactionState>&, VsyncId) REQUIRES(kMainThreadContext);
+
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
     void addTransactionReadyFilters();
@@ -746,7 +750,7 @@ private:
     static LatchUnsignaledConfig getLatchUnsignaledConfig();
     bool shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t&, size_t numStates,
                                bool firstTransaction) const;
-    bool applyTransactions(std::vector<TransactionState>& transactions, VsyncId)
+    bool applyTransactionsLocked(std::vector<TransactionState>& transactions, VsyncId)
             REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
