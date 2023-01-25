@@ -61,6 +61,7 @@
       "name": "FrameworksCoreTests",
       "options": [
         {
+          "include-filter": "android.hardware.input",
           "include-filter": "android.view.VerifiedKeyEventTest",
           "include-filter": "android.view.VerifiedMotionEventTest"
         }

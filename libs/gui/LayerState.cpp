@@ -185,6 +185,8 @@ status_t layer_state_t::write(Parcel& output) const
     if (hasBufferData) {
         SAFE_PARCEL(output.writeParcelable, *bufferData);
     }
+    SAFE_PARCEL(output.writeParcelable, trustedPresentationThresholds);
+    SAFE_PARCEL(output.writeParcelable, trustedPresentationListener);
     return NO_ERROR;
 }
 
@@ -315,6 +317,10 @@ status_t layer_state_t::read(const Parcel& input)
     } else {
         bufferData = nullptr;
     }
+
+    SAFE_PARCEL(input.readParcelable, &trustedPresentationThresholds);
+    SAFE_PARCEL(input.readParcelable, &trustedPresentationListener);
+
     return NO_ERROR;
 }
 
@@ -552,6 +558,11 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eBufferChanged) {
         what |= eBufferChanged;
         bufferData = other.bufferData;
+    }
+    if (other.what & eTrustedPresentationInfoChanged) {
+        what |= eTrustedPresentationInfoChanged;
+        trustedPresentationListener = other.trustedPresentationListener;
+        trustedPresentationThresholds = other.trustedPresentationThresholds;
     }
     if (other.what & eDataspaceChanged) {
         what |= eDataspaceChanged;
@@ -995,6 +1006,22 @@ status_t BufferData::readFromParcel(const Parcel* input) {
     SAFE_PARCEL(input->readBool, &hasBarrier);
     SAFE_PARCEL(input->readUint64, &barrierFrameNumber);
 
+    return NO_ERROR;
+}
+
+status_t TrustedPresentationListener::writeToParcel(Parcel* parcel) const {
+    SAFE_PARCEL(parcel->writeStrongBinder, callbackInterface);
+    SAFE_PARCEL(parcel->writeInt32, callbackId);
+    return NO_ERROR;
+}
+
+status_t TrustedPresentationListener::readFromParcel(const Parcel* parcel) {
+    sp<IBinder> tmpBinder = nullptr;
+    SAFE_PARCEL(parcel->readNullableStrongBinder, &tmpBinder);
+    if (tmpBinder) {
+        callbackInterface = checked_interface_cast<ITransactionCompletedListener>(tmpBinder);
+    }
+    SAFE_PARCEL(parcel->readInt32, &callbackId);
     return NO_ERROR;
 }
 

@@ -33,7 +33,8 @@ enum class Tag : uint32_t {
     ON_TRANSACTION_COMPLETED = IBinder::FIRST_CALL_TRANSACTION,
     ON_RELEASE_BUFFER,
     ON_TRANSACTION_QUEUE_STALLED,
-    LAST = ON_TRANSACTION_QUEUE_STALLED,
+    ON_TRUSTED_PRESENTATION_CHANGED,
+    LAST = ON_TRUSTED_PRESENTATION_CHANGED,
 };
 
 } // Anonymous namespace
@@ -302,6 +303,11 @@ public:
                                  onTransactionQueueStalled)>(Tag::ON_TRANSACTION_QUEUE_STALLED,
                                                              reason);
     }
+
+    void onTrustedPresentationChanged(int id, bool inTrustedPresentationState) override {
+        callRemoteAsync<decltype(&ITransactionCompletedListener::onTrustedPresentationChanged)>(
+                Tag::ON_TRUSTED_PRESENTATION_CHANGED, id, inTrustedPresentationState);
+    }
 };
 
 // Out-of-line virtual method definitions to trigger vtable emission in this translation unit (see
@@ -325,6 +331,9 @@ status_t BnTransactionCompletedListener::onTransact(uint32_t code, const Parcel&
         case Tag::ON_TRANSACTION_QUEUE_STALLED:
             return callLocalAsync(data, reply,
                                   &ITransactionCompletedListener::onTransactionQueueStalled);
+        case Tag::ON_TRUSTED_PRESENTATION_CHANGED:
+            return callLocalAsync(data, reply,
+                                  &ITransactionCompletedListener::onTrustedPresentationChanged);
     }
 }
 

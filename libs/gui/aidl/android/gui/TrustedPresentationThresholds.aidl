@@ -16,15 +16,9 @@
 
 package android.gui;
 
-/** @hide */
-parcelable OverlayProperties {
-    parcelable SupportedBufferCombinations {
-        int[] pixelFormats;
-        int[] standards;
-        int[] transfers;
-        int[] ranges;
-    }
-    SupportedBufferCombinations[] combinations;
+parcelable TrustedPresentationThresholds {
+    float minAlpha = -1.0f;
+    float minFractionRendered = -1.0f;
 
-    boolean supportMixedColorSpaces;
+    int stabilityRequirementMs = 0;
 }

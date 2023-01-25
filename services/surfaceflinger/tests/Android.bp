@@ -43,6 +43,7 @@ cc_test {
         "LayerRenderTypeTransaction_test.cpp",
         "LayerState_test.cpp",
         "LayerTransaction_test.cpp",
+        "LayerTrustedPresentationListener_test.cpp",
         "LayerTypeAndRenderTypeTransaction_test.cpp",
         "LayerTypeTransaction_test.cpp",
         "LayerUpdate_test.cpp",
