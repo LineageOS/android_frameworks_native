@@ -559,6 +559,8 @@ public:
         Transaction& setBufferHasBarrier(const sp<SurfaceControl>& sc,
                                          uint64_t barrierFrameNumber);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
+        Transaction& setExtendedRangeBrightness(const sp<SurfaceControl>& sc,
+                                                float currentBufferRatio, float desiredRatio);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
         Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
                                             const Region& surfaceDamageRegion);

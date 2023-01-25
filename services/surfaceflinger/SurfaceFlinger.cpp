@@ -2476,7 +2476,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         mLayerTracing.notify(mVisibleRegionsDirty, frameTime.ns(), vsyncId.value);
     }
 
-    mVisibleRegionsWereDirtyThisFrame = mVisibleRegionsDirty; // Cache value for use in post-comp
+    if (mVisibleRegionsDirty) mHdrLayerInfoChanged = true;
     mVisibleRegionsDirty = false;
 
     if (mCompositionEngine->needsAnotherUpdate()) {
@@ -2504,21 +2504,32 @@ void SurfaceFlinger::updateLayerGeometry() {
 }
 
 bool SurfaceFlinger::isHdrLayer(Layer* layer) const {
-    // Treat all layers as non-HDR if:
-    // 1. They do not have a valid HDR dataspace. Currently we treat those as PQ or HLG. and
-    // 2. The layer is allowed to be dimmed. WindowManager may disable dimming in order to
-    // keep animations invoking SDR screenshots of HDR layers seamless. Treat such tagged
-    // layers as HDR so that DisplayManagerService does not try to change the screen brightness
-    if (!isHdrDataspace(layer->getDataSpace()) && layer->isDimmingEnabled()) {
-        return false;
-    }
+    // Even though the camera layer may be using an HDR transfer function or otherwise be "HDR"
+    // the device may need to avoid boosting the brightness as a result of these layers to
+    // reduce power consumption during camera recording
     if (mIgnoreHdrCameraLayers) {
         auto buffer = layer->getBuffer();
         if (buffer && (buffer->getUsage() & GRALLOC_USAGE_HW_CAMERA_WRITE) != 0) {
             return false;
         }
     }
-    return true;
+    if (isHdrDataspace(layer->getDataSpace())) {
+        return true;
+    }
+    // If the layer is not allowed to be dimmed, treat it as HDR. WindowManager may disable
+    // dimming in order to keep animations invoking SDR screenshots of HDR layers seamless.
+    // Treat such tagged layers as HDR so that DisplayManagerService does not try to change
+    // the screen brightness
+    if (!layer->isDimmingEnabled()) {
+        return true;
+    }
+    // RANGE_EXTENDED layers may identify themselves as being "HDR" via a desired sdr/hdr ratio
+    if ((layer->getDataSpace() & (int32_t)Dataspace::RANGE_MASK) ==
+                (int32_t)Dataspace::RANGE_EXTENDED &&
+        layer->getDesiredSdrHdrRatio() > 1.01f) {
+        return true;
+    }
+    return false;
 }
 
 ui::Rotation SurfaceFlinger::getPhysicalDisplayOrientation(DisplayId displayId,
@@ -2637,7 +2648,7 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
         mAddingHDRLayerInfoListener = false;
     }
 
-    if (haveNewListeners || mSomeDataspaceChanged || mVisibleRegionsWereDirtyThisFrame) {
+    if (haveNewListeners || mHdrLayerInfoChanged) {
         for (auto& [compositionDisplay, listener] : hdrInfoListeners) {
             HdrLayerInfoReporter::HdrLayerInfo info;
             int32_t maxArea = 0;
@@ -2649,6 +2660,7 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
                         const auto* outputLayer =
                             compositionDisplay->getOutputLayerForLayer(layerFe);
                         if (outputLayer) {
+                            info.mergeDesiredRatio(layer->getDesiredSdrHdrRatio());
                             info.numberOfHdrLayers++;
                             const auto displayFrame = outputLayer->getState().displayFrame;
                             const int32_t area = displayFrame.width() * displayFrame.height();
@@ -2665,8 +2677,7 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
         }
     }
 
-    mSomeDataspaceChanged = false;
-    mVisibleRegionsWereDirtyThisFrame = false;
+    mHdrLayerInfoChanged = false;
 
     mTransactionCallbackInvoker.addPresentFence(std::move(presentFence));
     mTransactionCallbackInvoker.sendCallbacks(false /* onCommitOnly */);
@@ -4492,9 +4503,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     if (what & layer_state_t::eDataspaceChanged) {
         if (layer->setDataspace(s.dataspace)) flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eHdrMetadataChanged) {
-        if (layer->setHdrMetadata(s.hdrMetadata)) flags |= eTraversalNeeded;
-    }
     if (what & layer_state_t::eSurfaceDamageRegionChanged) {
         if (layer->setSurfaceDamageRegion(s.surfaceDamageRegion)) flags |= eTraversalNeeded;
     }
@@ -4567,6 +4575,14 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (what & layer_state_t::eDimmingEnabledChanged) {
         if (layer->setDimmingEnabled(s.dimmingEnabled)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eExtendedRangeBrightnessChanged) {
+        if (layer->setExtendedRangeBrightness(s.currentSdrHdrRatio, s.desiredSdrHdrRatio)) {
+            flags |= eTraversalNeeded;
+        }
+    }
+    if (what & layer_state_t::eHdrMetadataChanged) {
+        if (layer->setHdrMetadata(s.hdrMetadata)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eTrustedOverlayChanged) {
         if (layer->setTrustedOverlay(s.isTrustedOverlay)) {
