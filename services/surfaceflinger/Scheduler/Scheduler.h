@@ -139,6 +139,13 @@ public:
         return std::move(future);
     }
 
+    template <typename F, typename T = std::invoke_result_t<F>>
+    [[nodiscard]] std::future<T> scheduleDelayed(F&& f, nsecs_t uptimeDelay) {
+        auto [task, future] = makeTask(std::move(f));
+        postMessageDelayed(std::move(task), uptimeDelay);
+        return std::move(future);
+    }
+
     ConnectionHandle createConnection(const char* connectionName, frametimeline::TokenManager*,
                                       std::chrono::nanoseconds workDuration,
                                       std::chrono::nanoseconds readyDuration);

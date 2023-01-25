@@ -313,6 +313,8 @@ public:
     // TODO(b/246793311): Clean up a temporary property
     bool mIgnoreHwcPhysicalDisplayOrientation = false;
 
+    void forceFutureUpdate(int delayInMs);
+
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
@@ -922,7 +924,7 @@ private:
     /*
      * Compositing
      */
-    void postComposition() REQUIRES(kMainThreadContext);
+    void postComposition(nsecs_t callTime) REQUIRES(kMainThreadContext);
 
     /*
      * Display management
@@ -1270,6 +1272,8 @@ private:
     float mDimmingRatio = -1.f;
 
     std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
+    std::atomic<int> mNumTrustedPresentationListeners = 0;
+
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
     // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
     // any mutex.

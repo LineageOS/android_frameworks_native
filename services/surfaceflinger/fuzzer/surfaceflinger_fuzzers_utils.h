@@ -599,7 +599,7 @@ public:
 
             mFlinger->commitTransactions();
             mFlinger->flushTransactionQueues(getFuzzedVsyncId(mFdp));
-            mFlinger->postComposition();
+            mFlinger->postComposition(systemTime());
         }
 
         mFlinger->setTransactionFlags(mFdp.ConsumeIntegral<uint32_t>());
