@@ -1863,6 +1863,7 @@ int Surface::dispatchGetLastQueuedBuffer2(va_list args) {
 
 int Surface::dispatchSetFrameTimelineInfo(va_list args) {
     ATRACE_CALL();
+    auto frameNumber = static_cast<uint64_t>(va_arg(args, uint64_t));
     auto frameTimelineVsyncId = static_cast<int64_t>(va_arg(args, int64_t));
     auto inputEventId = static_cast<int32_t>(va_arg(args, int32_t));
     auto startTimeNanos = static_cast<int64_t>(va_arg(args, int64_t));
@@ -1872,7 +1873,7 @@ int Surface::dispatchSetFrameTimelineInfo(va_list args) {
     ftlInfo.vsyncId = frameTimelineVsyncId;
     ftlInfo.inputEventId = inputEventId;
     ftlInfo.startTimeNanos = startTimeNanos;
-    return setFrameTimelineInfo(ftlInfo);
+    return setFrameTimelineInfo(frameNumber, ftlInfo);
 }
 
 bool Surface::transformToDisplayInverse() const {
@@ -2641,7 +2642,8 @@ void Surface::ProducerListenerProxy::onBuffersDiscarded(const std::vector<int32_
     return NO_ERROR;
 }
 
-status_t Surface::setFrameTimelineInfo(const FrameTimelineInfo& /*frameTimelineInfo*/) {
+status_t Surface::setFrameTimelineInfo(uint64_t /*frameNumber*/,
+                                       const FrameTimelineInfo& /*frameTimelineInfo*/) {
     // ISurfaceComposer no longer supports setFrameTimelineInfo
     return BAD_VALUE;
 }
