@@ -224,8 +224,6 @@ public:
 
         const auto fps = selectorPtr->getActiveMode().fps;
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
-        mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
-                mFlinger->mVsyncConfiguration->getCurrentConfigs());
 
         mFlinger->mRefreshRateStats =
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, fps,
@@ -238,16 +236,21 @@ public:
                 ? static_cast<Callback&>(mNoOpSchedulerCallback)
                 : static_cast<Callback&>(mSchedulerCallback);
 
+        auto modulatorPtr = sp<scheduler::VsyncModulator>::make(
+                mFlinger->mVsyncConfiguration->getCurrentConfigs());
+
         if (useNiceMock) {
             mScheduler =
                     new testing::NiceMock<scheduler::TestableScheduler>(std::move(vsyncController),
                                                                         std::move(vsyncTracker),
                                                                         std::move(selectorPtr),
+                                                                        std::move(modulatorPtr),
                                                                         callback);
         } else {
             mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
                                                           std::move(vsyncTracker),
-                                                          std::move(selectorPtr), callback);
+                                                          std::move(selectorPtr),
+                                                          std::move(modulatorPtr), callback);
         }
 
         mScheduler->initVsync(mScheduler->getVsyncSchedule().getDispatch(), *mTokenManager, 0ms);
@@ -261,8 +264,6 @@ public:
 
     scheduler::TestableScheduler& mutableScheduler() { return *mScheduler; }
     scheduler::mock::SchedulerCallback& mockSchedulerCallback() { return mSchedulerCallback; }
-
-    auto& mutableVsyncModulator() { return mFlinger->mVsyncModulator; }
 
     using CreateBufferQueueFunction = surfaceflinger::test::Factory::CreateBufferQueueFunction;
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {

@@ -37,7 +37,6 @@
 namespace android {
 
 class Layer;
-class Scheduler;
 class SurfaceFlinger;
 struct SamplingOffsetCallback;
 

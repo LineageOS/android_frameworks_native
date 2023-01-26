@@ -587,9 +587,23 @@ status_t BLASTBufferQueue::acquireNextBufferLocked(
         t->setDesiredPresentTime(bufferItem.mTimestamp);
     }
 
-    if (!mNextFrameTimelineInfoQueue.empty()) {
-        t->setFrameTimelineInfo(mNextFrameTimelineInfoQueue.front());
-        mNextFrameTimelineInfoQueue.pop();
+    // Drop stale frame timeline infos
+    while (!mPendingFrameTimelines.empty() &&
+           mPendingFrameTimelines.front().first < bufferItem.mFrameNumber) {
+        ATRACE_FORMAT_INSTANT("dropping stale frameNumber: %" PRIu64 " vsyncId: %" PRId64,
+                              mPendingFrameTimelines.front().first,
+                              mPendingFrameTimelines.front().second.vsyncId);
+        mPendingFrameTimelines.pop();
+    }
+
+    if (!mPendingFrameTimelines.empty() &&
+        mPendingFrameTimelines.front().first == bufferItem.mFrameNumber) {
+        ATRACE_FORMAT_INSTANT("Transaction::setFrameTimelineInfo frameNumber: %" PRIu64
+                              " vsyncId: %" PRId64,
+                              bufferItem.mFrameNumber,
+                              mPendingFrameTimelines.front().second.vsyncId);
+        t->setFrameTimelineInfo(mPendingFrameTimelines.front().second);
+        mPendingFrameTimelines.pop();
     }
 
     {
@@ -653,6 +667,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     {
         std::unique_lock _lock{mMutex};
         BBQ_TRACE();
+
         const bool syncTransactionSet = mTransactionReadyCallback != nullptr;
         BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
 
@@ -847,12 +862,13 @@ public:
         return mBbq->setFrameRate(frameRate, compatibility, changeFrameRateStrategy);
     }
 
-    status_t setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo) override {
+    status_t setFrameTimelineInfo(uint64_t frameNumber,
+                                  const FrameTimelineInfo& frameTimelineInfo) override {
         std::unique_lock _lock{mMutex};
         if (mDestroyed) {
             return DEAD_OBJECT;
         }
-        return mBbq->setFrameTimelineInfo(frameTimelineInfo);
+        return mBbq->setFrameTimelineInfo(frameNumber, frameTimelineInfo);
     }
 
     void destroy() override {
@@ -874,9 +890,12 @@ status_t BLASTBufferQueue::setFrameRate(float frameRate, int8_t compatibility,
     return t.setFrameRate(mSurfaceControl, frameRate, compatibility, shouldBeSeamless).apply();
 }
 
-status_t BLASTBufferQueue::setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo) {
+status_t BLASTBufferQueue::setFrameTimelineInfo(uint64_t frameNumber,
+                                                const FrameTimelineInfo& frameTimelineInfo) {
+    ATRACE_FORMAT("%s(%s) frameNumber: %" PRIu64 " vsyncId: %" PRId64, __func__, mName.c_str(),
+                  frameNumber, frameTimelineInfo.vsyncId);
     std::unique_lock _lock{mMutex};
-    mNextFrameTimelineInfoQueue.push(frameTimelineInfo);
+    mPendingFrameTimelines.push({frameNumber, frameTimelineInfo});
     return OK;
 }
 
