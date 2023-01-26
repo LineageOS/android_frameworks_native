@@ -36,6 +36,7 @@
 #include <ftl/optional.h>
 #include <scheduler/Features.h>
 #include <scheduler/Time.h>
+#include <scheduler/VsyncConfig.h>
 #include <ui/DisplayId.h>
 
 #include "Display/DisplayMap.h"
@@ -47,6 +48,7 @@
 #include "OneShotTimer.h"
 #include "RefreshRateSelector.h"
 #include "Utils/Dumper.h"
+#include "VsyncModulator.h"
 #include "VsyncSchedule.h"
 
 namespace android::scheduler {
@@ -104,7 +106,7 @@ class Scheduler : android::impl::MessageQueue {
     using Impl = android::impl::MessageQueue;
 
 public:
-    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags);
+    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags, sp<VsyncModulator>);
     virtual ~Scheduler();
 
     void startTimers();
@@ -146,9 +148,14 @@ public:
         return std::move(future);
     }
 
-    ConnectionHandle createConnection(const char* connectionName, frametimeline::TokenManager*,
-                                      std::chrono::nanoseconds workDuration,
-                                      std::chrono::nanoseconds readyDuration);
+    enum class Cycle {
+        Render,       // Surface rendering.
+        LastComposite // Ahead of display compositing by one refresh period.
+    };
+
+    ConnectionHandle createEventThread(Cycle, frametimeline::TokenManager*,
+                                       std::chrono::nanoseconds workDuration,
+                                       std::chrono::nanoseconds readyDuration);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ConnectionHandle, EventRegistrationFlags eventRegistration = {});
@@ -167,6 +174,18 @@ public:
     // Modifies work duration in the event thread.
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
+
+    const VsyncModulator& vsyncModulator() const { return *mVsyncModulator; }
+
+    template <typename... Args,
+              typename Handler = std::optional<VsyncConfig> (VsyncModulator::*)(Args...)>
+    void modulateVsync(Handler handler, Args... args) {
+        if (const auto config = (*mVsyncModulator.*handler)(args...)) {
+            setVsyncConfig(*config, getLeaderVsyncPeriod());
+        }
+    }
+
+    void setVsyncConfigSet(const VsyncConfigSet&, Period vsyncPeriod);
 
     // Sets the render rate for the scheduler to run at.
     void setRenderRate(Fps);
@@ -239,8 +258,8 @@ public:
     // Retrieves the overridden refresh rate for a given uid.
     std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);
 
-    nsecs_t getLeaderVsyncPeriod() const EXCLUDES(mDisplayLock) {
-        return leaderSelectorPtr()->getActiveMode().fps.getPeriodNsecs();
+    Period getLeaderVsyncPeriod() const EXCLUDES(mDisplayLock) {
+        return leaderSelectorPtr()->getActiveMode().fps.getPeriod();
     }
 
     // Returns the framerate of the layer with the given sequence ID
@@ -270,6 +289,7 @@ private:
     void displayPowerTimerCallback(TimerState);
 
     void setVsyncPeriod(nsecs_t period);
+    void setVsyncConfig(const VsyncConfig&, Period vsyncPeriod);
 
     // Chooses a leader among the registered displays, unless `leaderIdOpt` is specified. The new
     // `mLeaderDisplayId` is never `std::nullopt`.
@@ -330,6 +350,9 @@ private:
     mutable std::mutex mConnectionsLock;
     std::unordered_map<ConnectionHandle, Connection> mConnections GUARDED_BY(mConnectionsLock);
 
+    ConnectionHandle mAppConnectionHandle;
+    ConnectionHandle mSfConnectionHandle;
+
     mutable std::mutex mHWVsyncLock;
     bool mPrimaryHWVsyncEnabled GUARDED_BY(mHWVsyncLock) = false;
     bool mHWVsyncAvailable GUARDED_BY(mHWVsyncLock) = false;
@@ -338,6 +361,9 @@ private:
 
     const FeatureFlags mFeatures;
     std::optional<VsyncSchedule> mVsyncSchedule;
+
+    // Shifts the VSYNC phase during certain transactions and refresh rate changes.
+    const sp<VsyncModulator> mVsyncModulator;
 
     // Used to choose refresh rate if content detection is enabled.
     LayerHistory mLayerHistory;

@@ -45,7 +45,7 @@ TEST(BinderRecordedTransaction, RoundTripEncoding) {
 
     auto retrievedTransaction = RecordedTransaction::fromFile(fd);
 
-    EXPECT_EQ(retrievedTransaction->getInterfaceName(), android::String8(interfaceName));
+    EXPECT_EQ(retrievedTransaction->getInterfaceName(), android::String8(interfaceName).c_str());
     EXPECT_EQ(retrievedTransaction->getCode(), 1);
     EXPECT_EQ(retrievedTransaction->getFlags(), 42);
     EXPECT_EQ(retrievedTransaction->getTimestamp().tv_sec, ts.tv_sec);

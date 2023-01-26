@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <sstream>
+
 #include <gui/DisplayInfo.h>
 
 namespace android::surfaceflinger::frontend {
@@ -29,6 +31,16 @@ struct DisplayInfo {
     // TODO(b/238781169) can eliminate once sPrimaryDisplayRotationFlags is removed.
     bool isPrimary;
     ui::Transform::RotationFlags rotationFlags;
+    ui::Transform::RotationFlags transformHint;
+    std::string getDebugString() const {
+        std::stringstream debug;
+        debug << "DisplayInfo {displayId=" << info.displayId << " lw=" << info.logicalWidth
+              << " lh=" << info.logicalHeight << " transform={" << transform.dsdx() << " ,"
+              << transform.dsdy() << " ," << transform.dtdx() << " ," << transform.dtdy()
+              << "} isSecure=" << isSecure << " isPrimary=" << isPrimary
+              << " rotationFlags=" << rotationFlags << " transformHint=" << transformHint << "}";
+        return debug.str();
+    }
 };
 
 } // namespace android::surfaceflinger::frontend

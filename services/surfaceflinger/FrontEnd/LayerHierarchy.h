@@ -41,11 +41,13 @@ class LayerHierarchyBuilder;
 // states.
 class LayerHierarchy {
 public:
-    enum Variant {
+    enum Variant : uint32_t {
         Attached,
         Detached,
         Relative,
         Mirror,
+        ftl_first = Attached,
+        ftl_last = Mirror,
     };
     // Represents a unique path to a node.
     struct TraversalPath {

@@ -28,8 +28,8 @@ auto layerZCompare = [](const std::pair<LayerHierarchy*, LayerHierarchy::Variant
                         const std::pair<LayerHierarchy*, LayerHierarchy::Variant>& rhs) {
     auto lhsLayer = lhs.first->getLayer();
     auto rhsLayer = rhs.first->getLayer();
-    if (lhsLayer->layerStack != rhsLayer->layerStack) {
-        return lhsLayer->layerStack.id < rhsLayer->layerStack.id;
+    if (lhsLayer->layerStack.id != rhsLayer->layerStack.id) {
+        return lhsLayer->layerStack.id > rhsLayer->layerStack.id;
     }
     if (lhsLayer->z != rhsLayer->z) {
         return lhsLayer->z < rhsLayer->z;
@@ -75,11 +75,11 @@ void LayerHierarchy::traverseInZOrder(const Visitor& visitor,
     for (auto it = mChildren.begin(); it < mChildren.end(); it++) {
         auto& [child, childVariant] = *it;
         if (traverseThisLayer && child->getLayer()->z >= 0) {
+            traverseThisLayer = false;
             bool breakTraversal = !visitor(*this, traversalPath);
             if (breakTraversal) {
                 return;
             }
-            traverseThisLayer = false;
         }
         if (childVariant == LayerHierarchy::Variant::Detached) {
             continue;

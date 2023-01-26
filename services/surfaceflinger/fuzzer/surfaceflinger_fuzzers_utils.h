@@ -157,6 +157,10 @@ inline TimePoint getFuzzedTimePoint(FuzzedDataProvider& fdp) {
     return TimePoint::fromNs(fdp.ConsumeIntegral<nsecs_t>());
 }
 
+inline Duration getFuzzedDuration(FuzzedDataProvider& fdp) {
+    return Duration::fromNs(fdp.ConsumeIntegral<nsecs_t>());
+}
+
 inline FloatRect getFuzzedFloatRect(FuzzedDataProvider* fdp) {
     return FloatRect(fdp->ConsumeFloatingPoint<float>() /*left*/,
                      fdp->ConsumeFloatingPoint<float>() /*right*/,
@@ -196,9 +200,11 @@ struct FakePhaseOffsets : scheduler::VsyncConfiguration {
     static constexpr nsecs_t FAKE_PHASE_OFFSET_NS = 0;
     static constexpr auto FAKE_DURATION_OFFSET_NS = std::chrono::nanoseconds(0);
 
-    VsyncConfigSet getConfigsForRefreshRate(Fps) const override { return getCurrentConfigs(); }
+    scheduler::VsyncConfigSet getConfigsForRefreshRate(Fps) const override {
+        return getCurrentConfigs();
+    }
 
-    VsyncConfigSet getCurrentConfigs() const override {
+    scheduler::VsyncConfigSet getCurrentConfigs() const override {
         return {{FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
                  FAKE_DURATION_OFFSET_NS},
                 {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
@@ -218,16 +224,16 @@ namespace scheduler {
 class TestableScheduler : public Scheduler, private ICompositor {
 public:
     TestableScheduler(const std::shared_ptr<scheduler::RefreshRateSelector>& selectorPtr,
-                      ISchedulerCallback& callback)
+                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<android::mock::VsyncController>(),
                               std::make_unique<android::mock::VSyncTracker>(), selectorPtr,
-                              callback) {}
+                              std::move(modulatorPtr), callback) {}
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       std::unique_ptr<VSyncTracker> tracker,
                       std::shared_ptr<RefreshRateSelector> selectorPtr,
-                      ISchedulerCallback& callback)
-          : Scheduler(*this, callback, Feature::kContentDetection) {
+                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
+          : Scheduler(*this, callback, Feature::kContentDetection, std::move(modulatorPtr)) {
         mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
 
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
@@ -274,6 +280,8 @@ public:
     void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, const FrameRateMode &mode) {
         return Scheduler::onNonPrimaryDisplayModeChanged(handle, mode);
     }
+
+    using Scheduler::setVsyncConfig;
 
 private:
     // ICompositor overrides:
@@ -510,11 +518,6 @@ public:
         mFlinger->getDesiredDisplayModeSpecs(display, &_);
     }
 
-    void setVsyncConfig(FuzzedDataProvider *fdp) {
-        const scheduler::VsyncModulator::VsyncConfig vsyncConfig{};
-        mFlinger->setVsyncConfig(vsyncConfig, fdp->ConsumeIntegral<nsecs_t>());
-    }
-
     // TODO(b/248317436): extend to cover all displays for multi-display devices
     static std::optional<PhysicalDisplayId> getFirstDisplayId() {
         std::vector<PhysicalDisplayId> ids = SurfaceComposerClient::getPhysicalDisplayIds();
@@ -592,7 +595,11 @@ public:
         mFlinger->updateInputFlinger();
         mFlinger->updateCursorAsync();
 
-        setVsyncConfig(&mFdp);
+        mutableScheduler().setVsyncConfig({.sfOffset = mFdp.ConsumeIntegral<nsecs_t>(),
+                                           .appOffset = mFdp.ConsumeIntegral<nsecs_t>(),
+                                           .sfWorkDuration = getFuzzedDuration(mFdp),
+                                           .appWorkDuration = getFuzzedDuration(mFdp)},
+                                          getFuzzedDuration(mFdp));
 
         {
             ftl::FakeGuard guard(kMainThreadContext);
@@ -658,15 +665,17 @@ public:
         mRefreshRateSelector = std::make_shared<scheduler::RefreshRateSelector>(modes, kModeId60);
         const auto fps = mRefreshRateSelector->getActiveMode().modePtr->getFps();
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
-        mFlinger->mVsyncModulator = sp<scheduler::VsyncModulator>::make(
-                mFlinger->mVsyncConfiguration->getCurrentConfigs());
+
         mFlinger->mRefreshRateStats =
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, fps,
                                                               hal::PowerMode::OFF);
 
+        auto modulatorPtr = sp<scheduler::VsyncModulator>::make(
+                mFlinger->mVsyncConfiguration->getCurrentConfigs());
+
         mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
                                                       std::move(vsyncTracker), mRefreshRateSelector,
-                                                      *(callback ?: this));
+                                                      std::move(modulatorPtr), *(callback ?: this));
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
