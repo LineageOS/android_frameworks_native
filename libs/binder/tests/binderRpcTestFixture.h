@@ -106,6 +106,10 @@ public:
 
     // Whether the test params support sending FDs in parcels.
     bool supportsFdTransport() const {
+        if (socketType() == SocketType::TIPC) {
+            // Trusty does not support file descriptors yet
+            return false;
+        }
         return clientVersion() >= 1 && serverVersion() >= 1 && rpcSecurity() != RpcSecurity::TLS &&
                 (socketType() == SocketType::PRECONNECTED || socketType() == SocketType::UNIX ||
                  socketType() == SocketType::UNIX_BOOTSTRAP ||

@@ -90,6 +90,7 @@ enum class SocketType {
     UNIX_RAW,
     VSOCK,
     INET,
+    TIPC,
 };
 
 static inline std::string PrintToString(SocketType socketType) {
@@ -106,6 +107,8 @@ static inline std::string PrintToString(SocketType socketType) {
             return "vm_socket";
         case SocketType::INET:
             return "inet_socket";
+        case SocketType::TIPC:
+            return "trusty_ipc";
         default:
             LOG_ALWAYS_FATAL("Unknown socket type");
             return "";
