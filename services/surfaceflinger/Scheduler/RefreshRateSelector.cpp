@@ -932,14 +932,22 @@ auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
     const char* const whence = __func__;
     std::deque<ScoredFrameRate> ranking;
     const auto rankFrameRate = [&](const FrameRateMode& frameRateMode) REQUIRES(mLock) {
+        using fps_approx_ops::operator<;
         const auto& modePtr = frameRateMode.modePtr;
         if (anchorGroupOpt && modePtr->getGroup() != anchorGroupOpt) {
             return;
         }
 
+        const bool ascending = (refreshRateOrder == RefreshRateOrder::Ascending);
+        if (ascending && frameRateMode.fps < getMinRefreshRateByPolicyLocked()->getFps()) {
+            // TODO(b/266481656): Once this bug is fixed, we can remove this workaround and actually
+            //  use a lower frame rate when we want Ascending frame rates.
+            return;
+        }
+
         float score = calculateDistanceScoreFromMax(frameRateMode.fps);
-        const bool inverseScore = (refreshRateOrder == RefreshRateOrder::Ascending);
-        if (inverseScore) {
+
+        if (ascending) {
             score = 1.0f / score;
         }
         if (preferredDisplayModeOpt) {
@@ -951,6 +959,7 @@ auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
             constexpr float kNonPreferredModePenalty = 0.95f;
             score *= kNonPreferredModePenalty;
         }
+
         ALOGV("%s(%s) %s (%s) scored %.2f", whence, ftl::enum_string(refreshRateOrder).c_str(),
               to_string(frameRateMode.fps).c_str(), to_string(modePtr->getFps()).c_str(), score);
         ranking.emplace_back(ScoredFrameRate{frameRateMode, score});

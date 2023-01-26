@@ -2973,5 +2973,15 @@ TEST_P(RefreshRateSelectorTest, SupportsLowPhysicalRefreshRates) {
     EXPECT_EQ(kMode1, selector.getMinRefreshRateByPolicy());
 }
 
+// TODO(b/266481656): Once this bug is fixed, we can remove this test
+TEST_P(RefreshRateSelectorTest, noLowerFrameRateOnMinVote) {
+    auto selector = createSelector(kModes_60_90, kModeId60);
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    layers[0].name = "Test layer";
+    layers[0].vote = LayerVoteType::Min;
+    EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
+}
+
 } // namespace
 } // namespace android::scheduler
