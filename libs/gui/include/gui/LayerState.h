@@ -209,7 +209,8 @@ struct layer_state_t {
         eAutoRefreshChanged = 0x1000'00000000,
         eStretchChanged = 0x2000'00000000,
         eTrustedOverlayChanged = 0x4000'00000000,
-        eDropInputModeChanged = 0x8000'00000000
+        eDropInputModeChanged = 0x8000'00000000,
+        eExtendedRangeBrightnessChanged = 0x10000'00000000
     };
 
     layer_state_t();
@@ -240,7 +241,8 @@ struct layer_state_t {
             layer_state_t::eBufferTransformChanged | layer_state_t::eDataspaceChanged |
             layer_state_t::eSidebandStreamChanged | layer_state_t::eSurfaceDamageRegionChanged |
             layer_state_t::eTransformToDisplayInverseChanged |
-            layer_state_t::eTransparentRegionChanged;
+            layer_state_t::eTransparentRegionChanged |
+            layer_state_t::eExtendedRangeBrightnessChanged;
 
     // Content updates.
     static constexpr uint64_t CONTENT_CHANGES = layer_state_t::BUFFER_CHANGES |
@@ -385,6 +387,8 @@ struct layer_state_t {
     gui::DropInputMode dropInputMode;
 
     bool dimmingEnabled;
+    float currentSdrHdrRatio = 1.f;
+    float desiredSdrHdrRatio = 1.f;
 
     TrustedPresentationThresholds trustedPresentationThresholds;
     TrustedPresentationListener trustedPresentationListener;

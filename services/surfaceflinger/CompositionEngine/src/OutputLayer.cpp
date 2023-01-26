@@ -340,10 +340,17 @@ void OutputLayer::updateCompositionState(
         state.dimmingRatio = 1.f;
         state.whitePointNits = getOutput().getState().displayBrightnessNits;
     } else {
-        state.dimmingRatio = std::clamp(getOutput().getState().sdrWhitePointNits /
-                                                getOutput().getState().displayBrightnessNits,
-                                        0.f, 1.f);
-        state.whitePointNits = getOutput().getState().sdrWhitePointNits;
+        float layerBrightnessNits = getOutput().getState().sdrWhitePointNits;
+        // RANGE_EXTENDED can "self-promote" to HDR, but is still rendered for a particular
+        // range that we may need to re-adjust to the current display conditions
+        if ((state.dataspace & HAL_DATASPACE_RANGE_MASK) == HAL_DATASPACE_RANGE_EXTENDED &&
+            layerFEState->currentSdrHdrRatio > 1.01f) {
+            layerBrightnessNits *= layerFEState->currentSdrHdrRatio;
+        }
+        state.dimmingRatio =
+                std::clamp(layerBrightnessNits / getOutput().getState().displayBrightnessNits, 0.f,
+                           1.f);
+        state.whitePointNits = layerBrightnessNits;
     }
 
     // These are evaluated every frame as they can potentially change at any

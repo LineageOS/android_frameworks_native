@@ -223,6 +223,8 @@ public:
         gui::DropInputMode dropInputMode;
         bool autoRefresh = false;
         bool dimmingEnabled = true;
+        float currentSdrHdrRatio = 1.f;
+        float desiredSdrHdrRatio = 1.f;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -289,7 +291,9 @@ public:
     virtual mat4 getColorTransform() const;
     virtual bool hasColorTransform() const;
     virtual bool isColorSpaceAgnostic() const { return mDrawingState.colorSpaceAgnostic; }
-    virtual bool isDimmingEnabled() const { return getDrawingState().dimmingEnabled; };
+    virtual bool isDimmingEnabled() const { return getDrawingState().dimmingEnabled; }
+    float getDesiredSdrHdrRatio() const { return getDrawingState().desiredSdrHdrRatio; }
+    float getCurrentSdrHdrRatio() const { return getDrawingState().currentSdrHdrRatio; }
 
     bool setTransform(uint32_t /*transform*/);
     bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/);
@@ -298,6 +302,7 @@ public:
                    nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
                    std::optional<nsecs_t> /* dequeueTime */, const FrameTimelineInfo& /*info*/);
     bool setDataspace(ui::Dataspace /*dataspace*/);
+    bool setExtendedRangeBrightness(float currentBufferRatio, float desiredRatio);
     bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/);
     bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/);
     bool setApi(int32_t /*api*/);
@@ -499,6 +504,7 @@ public:
         uint64_t mFrameNumber;
 
         bool mFrameLatencyNeeded{false};
+        float mDesiredSdrHdrRatio = 1.f;
     };
 
     BufferInfo mBufferInfo;

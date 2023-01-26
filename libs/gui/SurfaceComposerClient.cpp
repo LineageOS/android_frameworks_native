@@ -1673,6 +1673,21 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDatas
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setExtendedRangeBrightness(
+        const sp<SurfaceControl>& sc, float currentBufferRatio, float desiredRatio) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eExtendedRangeBrightnessChanged;
+    s->currentSdrHdrRatio = currentBufferRatio;
+    s->desiredSdrHdrRatio = desiredRatio;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setHdrMetadata(
         const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata) {
     layer_state_t* s = getLayerState(sc);
