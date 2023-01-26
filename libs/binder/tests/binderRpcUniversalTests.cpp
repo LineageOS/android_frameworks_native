@@ -113,6 +113,10 @@ TEST_P(BinderRpc, TransactionsMustBeMarkedRpc) {
 }
 
 TEST_P(BinderRpc, AppendSeparateFormats) {
+    if (socketType() == SocketType::TIPC) {
+        GTEST_SKIP() << "Trusty does not support multiple server processes";
+    }
+
     auto proc1 = createRpcTestSocketServerProcess({});
     auto proc2 = createRpcTestSocketServerProcess({});
 
@@ -155,7 +159,9 @@ TEST_P(BinderRpc, SendAndGetResultBack) {
 
 TEST_P(BinderRpc, SendAndGetResultBackBig) {
     auto proc = createRpcTestSocketServerProcess({});
-    std::string single = std::string(1024, 'a');
+    // Trusty has a limit of 4096 bytes for the entire RPC Binder message
+    size_t singleLen = socketType() == SocketType::TIPC ? 512 : 4096;
+    std::string single = std::string(singleLen, 'a');
     std::string doubled;
     EXPECT_OK(proc.rootIface->doubleString(single, &doubled));
     EXPECT_EQ(single + single, doubled);
@@ -259,6 +265,10 @@ TEST_P(BinderRpc, HoldBinder) {
 // aren't supported.
 
 TEST_P(BinderRpc, CannotMixBindersBetweenUnrelatedSocketSessions) {
+    if (socketType() == SocketType::TIPC) {
+        GTEST_SKIP() << "Trusty does not support multiple server processes";
+    }
+
     auto proc1 = createRpcTestSocketServerProcess({});
     auto proc2 = createRpcTestSocketServerProcess({});
 
@@ -319,12 +329,16 @@ TEST_P(BinderRpc, RepeatRootObject) {
 }
 
 TEST_P(BinderRpc, NestedTransactions) {
+    auto fileDescriptorTransportMode = RpcSession::FileDescriptorTransportMode::UNIX;
+    if (socketType() == SocketType::TIPC) {
+        // TIPC does not support file descriptors yet
+        fileDescriptorTransportMode = RpcSession::FileDescriptorTransportMode::NONE;
+    }
     auto proc = createRpcTestSocketServerProcess({
             // Enable FD support because it uses more stack space and so represents
             // something closer to a worst case scenario.
-            .clientFileDescriptorTransportMode = RpcSession::FileDescriptorTransportMode::UNIX,
-            .serverSupportedFileDescriptorTransportModes =
-                    {RpcSession::FileDescriptorTransportMode::UNIX},
+            .clientFileDescriptorTransportMode = fileDescriptorTransportMode,
+            .serverSupportedFileDescriptorTransportModes = {fileDescriptorTransportMode},
     });
 
     auto nastyNester = sp<MyBinderRpcTestDefault>::make();
