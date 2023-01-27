@@ -96,6 +96,8 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     layerStack = ui::DEFAULT_LAYER_STACK;
     transformToDisplayInverse = false;
     dataspace = ui::Dataspace::UNKNOWN;
+    desiredSdrHdrRatio = 1.f;
+    currentSdrHdrRatio = 1.f;
     dataspaceRequested = false;
     hdrMetadata.validTypes = 0;
     surfaceDamageRegion = Region::INVALID_REGION;

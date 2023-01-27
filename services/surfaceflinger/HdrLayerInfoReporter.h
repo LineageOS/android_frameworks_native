@@ -33,6 +33,17 @@ public:
         int32_t maxW = 0;
         int32_t maxH = 0;
         int32_t flags = 0;
+        // Counter-intuitively a value of "1" means "as much as you can give me" due to "1" being
+        // the default value for all layers, so any HDR layer with a value of 1.f means no
+        // reduced maximum has been requested
+        // TODO: Should the max desired ratio have a better meaning for HLG/PQ so this can be
+        // eliminated? If we assume an SDR white point of even just 100 nits for those content
+        // then HLG could have a meaningful max ratio of 10.f and PQ of 100.f instead of needing
+        // to treat 1.f as "uncapped"
+        // With peak display brightnesses exceeding 1,000 nits currently, HLG's request could
+        // actually be satisfied in some ambient conditions such that limiting that max for that
+        // content in theory makes sense
+        float maxDesiredSdrHdrRatio = 0.f;
 
         bool operator==(const HdrLayerInfo& other) const {
             return numberOfHdrLayers == other.numberOfHdrLayers && maxW == other.maxW &&
@@ -40,6 +51,20 @@ public:
         }
 
         bool operator!=(const HdrLayerInfo& other) const { return !(*this == other); }
+
+        void mergeDesiredRatio(float update) {
+            if (maxDesiredSdrHdrRatio == 0.f) {
+                // If nothing is set, take the incoming value
+                maxDesiredSdrHdrRatio = update;
+            } else if (update == 1.f) {
+                // If the request is to "go to max", then take it regardless
+                maxDesiredSdrHdrRatio = 1.f;
+            } else if (maxDesiredSdrHdrRatio != 1.f) {
+                // If we're not currently asked to "go to max", then take the max
+                // of the incoming requests
+                maxDesiredSdrHdrRatio = std::max(maxDesiredSdrHdrRatio, update);
+            }
+        }
     };
 
     HdrLayerInfoReporter() = default;

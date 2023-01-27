@@ -37,6 +37,7 @@
 
 #include <android/api-level.h>
 #include <stdint.h>
+#include <unistd.h>
 
 __BEGIN_DECLS
 
@@ -173,7 +174,7 @@ void APerformanceHint_closeSession(
  */
 int APerformanceHint_setThreads(
         APerformanceHintSession* session,
-        const int32_t* threadIds,
+        const pid_t* threadIds,
         size_t size) __INTRODUCED_IN(__ANDROID_API_U__);
 
 __END_DECLS
