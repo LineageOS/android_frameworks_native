@@ -187,6 +187,8 @@ status_t layer_state_t::write(Parcel& output) const
     }
     SAFE_PARCEL(output.writeParcelable, trustedPresentationThresholds);
     SAFE_PARCEL(output.writeParcelable, trustedPresentationListener);
+    SAFE_PARCEL(output.writeFloat, currentSdrHdrRatio);
+    SAFE_PARCEL(output.writeFloat, desiredSdrHdrRatio);
     return NO_ERROR;
 }
 
@@ -320,6 +322,11 @@ status_t layer_state_t::read(const Parcel& input)
 
     SAFE_PARCEL(input.readParcelable, &trustedPresentationThresholds);
     SAFE_PARCEL(input.readParcelable, &trustedPresentationListener);
+
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    currentSdrHdrRatio = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    desiredSdrHdrRatio = tmpFloat;
 
     return NO_ERROR;
 }
@@ -568,6 +575,11 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eDataspaceChanged;
         dataspace = other.dataspace;
     }
+    if (other.what & eExtendedRangeBrightnessChanged) {
+        what |= eExtendedRangeBrightnessChanged;
+        desiredSdrHdrRatio = other.desiredSdrHdrRatio;
+        currentSdrHdrRatio = other.currentSdrHdrRatio;
+    }
     if (other.what & eHdrMetadataChanged) {
         what |= eHdrMetadataChanged;
         hdrMetadata = other.hdrMetadata;
@@ -714,6 +726,8 @@ uint64_t layer_state_t::diff(const layer_state_t& other) const {
     CHECK_DIFF(diff, eCropChanged, other, crop);
     if (other.what & eBufferChanged) diff |= eBufferChanged;
     CHECK_DIFF(diff, eDataspaceChanged, other, dataspace);
+    CHECK_DIFF2(diff, eExtendedRangeBrightnessChanged, other, currentSdrHdrRatio,
+                desiredSdrHdrRatio);
     CHECK_DIFF(diff, eHdrMetadataChanged, other, hdrMetadata);
     if (other.what & eSurfaceDamageRegionChanged &&
         (!surfaceDamageRegion.hasSameRects(other.surfaceDamageRegion))) {

@@ -1133,9 +1133,8 @@ private:
     State mDrawingState{LayerVector::StateSet::Drawing};
     bool mVisibleRegionsDirty = false;
 
-    // VisibleRegions dirty is already cleared by postComp, but we need to track it to prevent
-    // extra work in the HDR layer info listener.
-    bool mVisibleRegionsWereDirtyThisFrame = false;
+    bool mHdrLayerInfoChanged = false;
+
     // Used to ensure we omit a callback when HDR layer info listener is newly added but the
     // scene hasn't changed
     bool mAddingHDRLayerInfoListener = false;
@@ -1146,7 +1145,6 @@ private:
     // TODO: Also move visibleRegions over to a boolean system.
     bool mUpdateInputInfo = false;
     bool mSomeChildrenChanged;
-    bool mSomeDataspaceChanged = false;
     bool mForceTransactionDisplayChange = false;
 
     // Set if LayerMetadata has changed since the last LayerMetadata snapshot.
@@ -1332,6 +1330,7 @@ private:
 
     std::unordered_map<DisplayId, sp<HdrLayerInfoReporter>> mHdrLayerInfoListeners
             GUARDED_BY(mStateLock);
+
     mutable std::mutex mCreatedLayersLock;
     struct LayerCreatedState {
         LayerCreatedState(const wp<Layer>& layer, const wp<Layer> parent, bool addToRoot)
@@ -1487,6 +1486,7 @@ public:
     binder::Status removeHdrLayerInfoListener(
             const sp<IBinder>& displayToken,
             const sp<gui::IHdrLayerInfoListener>& listener) override;
+
     binder::Status notifyPowerBoost(int boostId) override;
     binder::Status setGlobalShadowSettings(const gui::Color& ambientColor,
                                            const gui::Color& spotColor, float lightPosY,
