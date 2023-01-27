@@ -347,10 +347,6 @@ const Region& DisplayDevice::getUndefinedRegion() const {
     return mCompositionDisplay->getState().undefinedRegion;
 }
 
-bool DisplayDevice::needsFiltering() const {
-    return mCompositionDisplay->getState().needsFiltering;
-}
-
 ui::LayerStack DisplayDevice::getLayerStack() const {
     return mCompositionDisplay->getState().layerFilter.layerStack;
 }
