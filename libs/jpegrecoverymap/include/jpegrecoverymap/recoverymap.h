@@ -321,13 +321,17 @@ private:
                                 jr_compressed_ptr dest);
 
     /*
-     * This method is called in the encoding pipeline. It will take the standard 8-bit JPEG image
-     * and the compressed recovery map as input, and update the XMP metadata with the end of JPEG
-     * marker, and append the compressed gian map after the JPEG.
+     * This method is called in the encoding pipeline. It will take the standard 8-bit JPEG image,
+     * the compressed recovery map and optionally the exif package as inputs, and generate the XMP
+     * metadata, and finally append everything in the order of:
+     *     SOI, APP2(EXIF) (if EXIF is from outside), APP2(XMP), primary image, recovery map
+     * Note that EXIF package is only available for encoding API-0 and API-1. For encoding API-2 and
+     * API-3 this parameter is null, but the primary image in JPEG/R may still have EXIF as long as
+     * the input JPEG has EXIF.
      *
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param compress_recovery_map compressed recover map
-     * @param exif EXIF package
+     * @param (nullable) exif EXIF package
      * @param metadata JPEG/R metadata to encode in XMP of the jpeg
      * @param dest compressed JPEGR image
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
