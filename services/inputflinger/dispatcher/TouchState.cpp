@@ -112,20 +112,6 @@ void TouchState::removeWindowByToken(const sp<IBinder>& token) {
     }
 }
 
-void TouchState::filterNonAsIsTouchWindows() {
-    for (size_t i = 0; i < windows.size();) {
-        TouchedWindow& window = windows[i];
-        if (window.targetFlags.any(InputTarget::Flags::DISPATCH_AS_IS |
-                                   InputTarget::Flags::DISPATCH_AS_SLIPPERY_ENTER)) {
-            window.targetFlags.clear(InputTarget::DISPATCH_MASK);
-            window.targetFlags |= InputTarget::Flags::DISPATCH_AS_IS;
-            i += 1;
-        } else {
-            windows.erase(windows.begin() + i);
-        }
-    }
-}
-
 void TouchState::cancelPointersForWindowsExcept(const BitSet32 pointerIds,
                                                 const sp<IBinder>& token) {
     if (pointerIds.isEmpty()) return;
