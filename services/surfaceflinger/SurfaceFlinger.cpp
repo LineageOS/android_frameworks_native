@@ -4843,6 +4843,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
                                           s.trustedPresentationListener);
     }
 
+    if (what & layer_state_t::eFlushJankData) {
+        // Do nothing. Processing the transaction completed listeners currently cause the flush.
+    }
+
     if (layer->setTransactionCompletedListeners(callbackHandles,
                                                 layer->willPresentCurrentTransaction())) {
         flags |= eTraversalNeeded;

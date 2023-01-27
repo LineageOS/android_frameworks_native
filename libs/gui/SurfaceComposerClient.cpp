@@ -1180,6 +1180,19 @@ sp<IBinder> SurfaceComposerClient::Transaction::getDefaultApplyToken() {
 void SurfaceComposerClient::Transaction::setDefaultApplyToken(sp<IBinder> applyToken) {
     sApplyToken = applyToken;
 }
+
+status_t SurfaceComposerClient::Transaction::sendSurfaceFlushJankDataTransaction(
+        const sp<SurfaceControl>& sc) {
+    Transaction t;
+    layer_state_t* s = t.getLayerState(sc);
+    if (!s) {
+        return BAD_INDEX;
+    }
+
+    s->what |= layer_state_t::eFlushJankData;
+    t.registerSurfaceControlForCallback(sc);
+    return t.apply(/*sync=*/false, /* oneWay=*/true);
+}
 // ---------------------------------------------------------------------------
 
 sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool secure,
