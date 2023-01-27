@@ -714,6 +714,10 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         snapshot.fixedTransformHint = requested.fixedTransformHint != ui::Transform::ROT_INVALID
                 ? requested.fixedTransformHint
                 : parentSnapshot.fixedTransformHint;
+        // Display mirrors are always placed in a VirtualDisplay so we never want to capture layers
+        // marked as skip capture
+        snapshot.handleSkipScreenshotFlag = parentSnapshot.handleSkipScreenshotFlag ||
+                (requested.layerStackToMirror != ui::INVALID_LAYER_STACK);
     }
 
     if (forceUpdate || requested.changes.get() != 0) {

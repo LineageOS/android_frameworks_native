@@ -80,6 +80,9 @@ private:
     std::vector<uint32_t>* getLinkedLayersFromId(uint32_t);
     uint32_t linkLayer(uint32_t layerId, uint32_t layerToLink);
     uint32_t unlinkLayer(uint32_t layerId, uint32_t linkedLayer);
+    std::vector<uint32_t> unlinkLayers(const std::vector<uint32_t>& layerIds, uint32_t linkedLayer);
+
+    void updateDisplayMirrorLayers(RequestedLayerState& rootLayer);
 
     struct References {
         // Lifetime tied to mLayers
@@ -90,6 +93,8 @@ private:
     std::unordered_map<uint32_t, References> mIdToLayer;
     // Listeners are invoked once changes are committed.
     std::vector<std::shared_ptr<ILifecycleListener>> mListeners;
+    // Layers that mirror a display stack (see updateDisplayMirrorLayers)
+    std::vector<uint32_t> mDisplayMirroringLayers;
 
     // Aggregation of changes since last commit.
     ftl::Flags<RequestedLayerState::Changes> mGlobalChanges;
