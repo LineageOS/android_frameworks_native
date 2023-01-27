@@ -52,6 +52,7 @@ static constexpr nsecs_t ARBITRARY_TIME = 1234;
 
 // An arbitrary device id.
 static constexpr int32_t DEVICE_ID = 1;
+static constexpr int32_t SECOND_DEVICE_ID = 2;
 
 // An arbitrary display id.
 static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
@@ -1471,6 +1472,11 @@ public:
         mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
     }
 
+    MotionEventBuilder& deviceId(int32_t deviceId) {
+        mDeviceId = deviceId;
+        return *this;
+    }
+
     MotionEventBuilder& eventTime(nsecs_t eventTime) {
         mEventTime = eventTime;
         return *this;
@@ -1529,7 +1535,7 @@ public:
 
         MotionEvent event;
         ui::Transform identityTransform;
-        event.initialize(InputEvent::nextId(), DEVICE_ID, mSource, mDisplayId, INVALID_HMAC,
+        event.initialize(InputEvent::nextId(), mDeviceId, mSource, mDisplayId, INVALID_HMAC,
                          mAction, mActionButton, mFlags, /* edgeFlags */ 0, AMETA_NONE,
                          mButtonState, MotionClassification::NONE, identityTransform,
                          /* xPrecision */ 0, /* yPrecision */ 0, mRawXCursorPosition,
@@ -1541,6 +1547,7 @@ public:
 
 private:
     int32_t mAction;
+    int32_t mDeviceId = DEVICE_ID;
     int32_t mSource;
     nsecs_t mEventTime;
     int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
@@ -2303,6 +2310,124 @@ TEST_F(InputDispatcherTest, HoverWithSpyWindows) {
                                      WithSource(AINPUT_SOURCE_MOUSE)));
     spyWindow->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
                                         WithSource(AINPUT_SOURCE_MOUSE)));
+
+    window->assertNoEvents();
+    spyWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, MouseAndTouchWithSpyWindows) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> spyWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy", ADISPLAY_ID_DEFAULT);
+    spyWindow->setFrame(Rect(0, 0, 600, 800));
+    spyWindow->setTrustedOverlay(true);
+    spyWindow->setSpy(true);
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 600, 800));
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spyWindow, window}}});
+
+    // Send mouse cursor to the window
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(100)
+                                                         .y(100))
+                                        .build()));
+
+    // Move mouse cursor
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(110)
+                                                         .y(110))
+                                        .build()));
+
+    window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                                     WithSource(AINPUT_SOURCE_MOUSE)));
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                                        WithSource(AINPUT_SOURCE_MOUSE)));
+    window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                     WithSource(AINPUT_SOURCE_MOUSE)));
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                        WithSource(AINPUT_SOURCE_MOUSE)));
+    // Touch down on the window
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(SECOND_DEVICE_ID)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(200)
+                                                         .y(200))
+                                        .build()));
+    window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT),
+                                     WithSource(AINPUT_SOURCE_MOUSE)));
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT),
+                                        WithSource(AINPUT_SOURCE_MOUSE)));
+    window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                     WithSource(AINPUT_SOURCE_TOUCHSCREEN)));
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                        WithSource(AINPUT_SOURCE_TOUCHSCREEN)));
+
+    // pilfer the motion, retaining the gesture on the spy window.
+    EXPECT_EQ(OK, mDispatcher->pilferPointers(spyWindow->getToken()));
+    window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
+                                     WithSource(AINPUT_SOURCE_TOUCHSCREEN)));
+
+    // Touch UP on the window
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(SECOND_DEVICE_ID)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(200)
+                                                         .y(200))
+                                        .build()));
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                        WithSource(AINPUT_SOURCE_TOUCHSCREEN)));
+
+    // Previously, a touch was pilfered. However, that gesture was just finished. Now, we are going
+    // to send a new gesture. It should again go to both windows (spy and the window below), just
+    // like the first gesture did, before pilfering. The window configuration has not changed.
+
+    // One more tap - DOWN
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(SECOND_DEVICE_ID)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(250)
+                                                         .y(250))
+                                        .build()));
+    window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                     WithSource(AINPUT_SOURCE_TOUCHSCREEN)));
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                        WithSource(AINPUT_SOURCE_TOUCHSCREEN)));
+
+    // Touch UP on the window
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(SECOND_DEVICE_ID)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(250)
+                                                         .y(250))
+                                        .build()));
+    window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                     WithSource(AINPUT_SOURCE_TOUCHSCREEN)));
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                        WithSource(AINPUT_SOURCE_TOUCHSCREEN)));
 
     window->assertNoEvents();
     spyWindow->assertNoEvents();

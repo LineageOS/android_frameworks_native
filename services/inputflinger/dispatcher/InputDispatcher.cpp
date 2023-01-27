@@ -2333,14 +2333,22 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             }
         }
 
-        // If any existing window is pilfering pointers from newly added window, remove it
-        BitSet32 canceledPointers = BitSet32(0);
-        for (const TouchedWindow& window : tempTouchState.windows) {
-            if (window.isPilferingPointers) {
-                canceledPointers |= window.pointerIds;
+        // If a window is already pilfering some pointers, give it this new pointer as well and
+        // make it pilfering. This will prevent other non-spy windows from getting this pointer,
+        // which is a specific behaviour that we want.
+        const int32_t pointerId = entry.pointerProperties[pointerIndex].id;
+        for (TouchedWindow& touchedWindow : tempTouchState.windows) {
+            if (touchedWindow.pointerIds.hasBit(pointerId) &&
+                touchedWindow.pilferedPointerIds.count() > 0) {
+                // This window is already pilfering some pointers, and this new pointer is also
+                // going to it. Therefore, take over this pointer and don't give it to anyone
+                // else.
+                touchedWindow.pilferedPointerIds.set(pointerId);
             }
         }
-        tempTouchState.cancelPointersForNonPilferingWindows(canceledPointers);
+
+        // Restrict all pilfered pointers to the pilfering windows.
+        tempTouchState.cancelPointersForNonPilferingWindows();
     } else {
         /* Case 2: Pointer move, up, cancel or non-splittable pointer down. */
 
@@ -3942,8 +3950,8 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
     if (action == AMOTION_EVENT_ACTION_DOWN) {
         LOG_ALWAYS_FATAL_IF(splitDownTime != originalMotionEntry.eventTime,
                             "Split motion event has mismatching downTime and eventTime for "
-                            "ACTION_DOWN, motionEntry=%s, splitDownTime=%" PRId64 "ms",
-                            originalMotionEntry.getDescription().c_str(), ns2ms(splitDownTime));
+                            "ACTION_DOWN, motionEntry=%s, splitDownTime=%" PRId64,
+                            originalMotionEntry.getDescription().c_str(), splitDownTime);
     }
 
     int32_t newId = mIdGenerator.nextId();
@@ -5778,7 +5786,10 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
 
     // Prevent the gesture from being sent to any other windows.
     // This only blocks relevant pointers to be sent to other windows
-    window.isPilferingPointers = true;
+    for (BitSet32 idBits(window.pointerIds); !idBits.isEmpty();) {
+        uint32_t id = idBits.clearFirstMarkedBit();
+        window.pilferedPointerIds.set(id);
+    }
 
     state.cancelPointersForWindowsExcept(window.pointerIds, token);
     return OK;
