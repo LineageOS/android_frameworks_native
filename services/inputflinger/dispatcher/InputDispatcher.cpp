@@ -2441,14 +2441,15 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     }
 
     // Update dispatching for hover enter and exit.
-    std::vector<TouchedWindow> hoveringWindows =
-            getHoveringWindowsLocked(oldState, tempTouchState, entry);
-    for (const TouchedWindow& touchedWindow : hoveringWindows) {
-        addWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
-                              touchedWindow.pointerIds, touchedWindow.firstDownTimeInTarget,
-                              targets);
+    {
+        std::vector<TouchedWindow> hoveringWindows =
+                getHoveringWindowsLocked(oldState, tempTouchState, entry);
+        for (const TouchedWindow& touchedWindow : hoveringWindows) {
+            addWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
+                                  touchedWindow.pointerIds, touchedWindow.firstDownTimeInTarget,
+                                  targets);
+        }
     }
-
     // Ensure that we have at least one foreground window or at least one window that cannot be a
     // foreground target. If we only have windows that are not receiving foreground touches (e.g. we
     // only have windows getting ACTION_OUTSIDE), then drop the event, because there is no window
@@ -2514,6 +2515,9 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     }
 
     outInjectionResult = InputEventInjectionResult::SUCCEEDED;
+    // Drop the outside or hover touch windows since we will not care about them
+    // in the next iteration.
+    tempTouchState.filterNonAsIsTouchWindows();
 
     // Update final pieces of touch state if the injector had permission.
     if (switchedDevice) {
