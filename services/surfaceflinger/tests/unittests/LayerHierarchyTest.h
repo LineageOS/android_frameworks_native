@@ -60,6 +60,14 @@ protected:
         return args;
     }
 
+    LayerCreationArgs createDisplayMirrorArgs(uint32_t id, ui::LayerStack layerStack) {
+        LayerCreationArgs args(nullptr, nullptr, "testlayer", 0, {}, std::make_optional(id));
+        args.addToRoot = true;
+        args.parentHandle.clear();
+        args.layerStackToMirror = layerStack;
+        return args;
+    }
+
     std::vector<uint32_t> getTraversalPath(const LayerHierarchy& hierarchy) const {
         std::vector<uint32_t> layerIds;
         hierarchy.traverse([&layerIds = layerIds](const LayerHierarchy& hierarchy,
@@ -87,6 +95,15 @@ protected:
         std::vector<std::unique_ptr<RequestedLayerState>> layers;
         layers.emplace_back(std::make_unique<RequestedLayerState>(
                 createArgs(/*id=*/id, /*canBeRoot=*/true, /*parent=*/nullptr, /*mirror=*/nullptr)));
+        mLifecycleManager.addLayers(std::move(layers));
+    }
+
+    void createDisplayMirrorLayer(uint32_t id, ui::LayerStack layerStack) {
+        sp<LayerHandle> handle = sp<LayerHandle>::make(id);
+        mHandles[id] = handle;
+        std::vector<std::unique_ptr<RequestedLayerState>> layers;
+        layers.emplace_back(std::make_unique<RequestedLayerState>(
+                createDisplayMirrorArgs(/*id=*/id, layerStack)));
         mLifecycleManager.addLayers(std::move(layers));
     }
 

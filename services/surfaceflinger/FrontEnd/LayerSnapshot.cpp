@@ -112,6 +112,10 @@ bool LayerSnapshot::isHiddenByPolicy() const {
 }
 
 bool LayerSnapshot::getIsVisible() const {
+    if (handleSkipScreenshotFlag & outputFilter.toInternalDisplay) {
+        return false;
+    }
+
     if (!hasSomethingToDraw()) {
         return false;
     }
@@ -125,6 +129,7 @@ bool LayerSnapshot::getIsVisible() const {
 
 std::string LayerSnapshot::getIsVisibleReason() const {
     // not visible
+    if (handleSkipScreenshotFlag & outputFilter.toInternalDisplay) return "eLayerSkipScreenshot";
     if (!hasSomethingToDraw()) return "!hasSomethingToDraw";
     if (invalidTransform) return "invalidTransform";
     if (isHiddenByPolicyFromParent) return "hidden by parent or layer flag";
