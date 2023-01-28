@@ -26,6 +26,7 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/Log.h>
+#include <utils/Looper.h>
 #include <utils/threads.h>
 
 #include <binder/IPCThreadState.h>
@@ -34,8 +35,9 @@
 #include <ui/Rect.h>
 #include <ui/StaticDisplayInfo.h>
 
-#include <gui/BufferQueueCore.h>
 #include <gui/BLASTBufferQueue.h>
+#include <gui/BufferQueueCore.h>
+#include <gui/Choreographer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -189,6 +191,24 @@ int32_t SurfaceControl::getLayerId() const {
 
 const std::string& SurfaceControl::getName() const {
     return mName;
+}
+
+std::shared_ptr<Choreographer> SurfaceControl::getChoreographer() {
+    if (mChoreographer) {
+        return mChoreographer;
+    }
+    sp<Looper> looper = Looper::getForThread();
+    if (!looper.get()) {
+        ALOGE("%s: No looper prepared for thread", __func__);
+        return nullptr;
+    }
+    mChoreographer = std::make_shared<Choreographer>(looper, getHandle());
+    status_t result = mChoreographer->initialize();
+    if (result != OK) {
+        ALOGE("Failed to initialize choreographer");
+        mChoreographer = nullptr;
+    }
+    return mChoreographer;
 }
 
 sp<IGraphicBufferProducer> SurfaceControl::getIGraphicBufferProducer()

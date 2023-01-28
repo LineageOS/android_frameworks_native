@@ -1988,13 +1988,14 @@ status_t SurfaceFlinger::getDisplayDecorationSupport(
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
-        gui::ISurfaceComposer::VsyncSource vsyncSource, EventRegistrationFlags eventRegistration) {
+        gui::ISurfaceComposer::VsyncSource vsyncSource, EventRegistrationFlags eventRegistration,
+        const sp<IBinder>& layerHandle) {
     const auto& handle =
             vsyncSource == gui::ISurfaceComposer::VsyncSource::eVsyncSourceSurfaceFlinger
             ? mSfConnectionHandle
             : mAppConnectionHandle;
 
-    return mScheduler->createDisplayEventConnection(handle, eventRegistration);
+    return mScheduler->createDisplayEventConnection(handle, eventRegistration, layerHandle);
 }
 
 void SurfaceFlinger::scheduleCommit(FrameHint hint) {
@@ -7455,9 +7456,9 @@ binder::Status SurfaceComposerAIDL::bootFinished() {
 
 binder::Status SurfaceComposerAIDL::createDisplayEventConnection(
         VsyncSource vsyncSource, EventRegistration eventRegistration,
-        sp<IDisplayEventConnection>* outConnection) {
+        const sp<IBinder>& layerHandle, sp<IDisplayEventConnection>* outConnection) {
     sp<IDisplayEventConnection> conn =
-            mFlinger->createDisplayEventConnection(vsyncSource, eventRegistration);
+            mFlinger->createDisplayEventConnection(vsyncSource, eventRegistration, layerHandle);
     if (conn == nullptr) {
         *outConnection = nullptr;
         return binderStatusFromStatusT(BAD_VALUE);
