@@ -10,6 +10,7 @@ package {
 
 cc_test {
     name: "libinput_tests",
+    cpp_std: "c++20",
     host_supported: true,
     srcs: [
         "IdGenerator_test.cpp",
@@ -18,12 +19,18 @@ cc_test {
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
         "MotionPredictor_test.cpp",
+        "TfLiteMotionPredictor_test.cpp",
         "TouchResampling_test.cpp",
         "TouchVideoFrame_test.cpp",
         "VelocityTracker_test.cpp",
         "VerifiedInputEvent_test.cpp",
     ],
+    header_libs: [
+        "flatbuffer_headers",
+        "tensorflow_headers",
+    ],
     static_libs: [
+        "libgmock",
         "libgui_window_info_static",
         "libinput",
         "libui-types",
@@ -32,6 +39,7 @@ cc_test {
         "-Wall",
         "-Wextra",
         "-Werror",
+        "-Wno-unused-parameter",
     ],
     shared_libs: [
         "libbase",
@@ -39,10 +47,14 @@ cc_test {
         "libcutils",
         "liblog",
         "libPlatformProperties",
+        "libtflite",
         "libutils",
         "libvintf",
     ],
-    data: ["data/*"],
+    data: [
+        "data/*",
+        ":motion_predictor_model.fb",
+    ],
     test_options: {
         unit_test: true,
     },
