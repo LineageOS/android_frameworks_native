@@ -21,6 +21,12 @@
 
 namespace android::scheduler {
 
+FrameTarget::FrameTarget(const std::string& displayLabel)
+      : mFramePending("PrevFramePending " + displayLabel, false),
+        mFrameMissed("PrevFrameMissed " + displayLabel, false),
+        mHwcFrameMissed("PrevHwcFrameMissed " + displayLabel, false),
+        mGpuFrameMissed("PrevGpuFrameMissed " + displayLabel, false) {}
+
 TimePoint FrameTarget::pastVsyncTime(Period vsyncPeriod) const {
     // TODO(b/267315508): Generalize to N VSYNCs.
     const int shift = static_cast<int>(targetsVsyncsAhead<2>(vsyncPeriod));
@@ -130,10 +136,6 @@ FenceTimePtr FrameTargeter::setPresentFence(sp<Fence> presentFence, FenceTimePtr
 }
 
 void FrameTargeter::dump(utils::Dumper& dumper) const {
-    using namespace std::string_view_literals;
-
-    utils::Dumper::Section section(dumper, "Frame Targeting"sv);
-
     // There are scripts and tests that expect this (rather than "name=value") format.
     dumper.dump({}, "Total missed frame count: " + std::to_string(mFrameMissedCount));
     dumper.dump({}, "HWC missed frame count: " + std::to_string(mHwcFrameMissedCount));

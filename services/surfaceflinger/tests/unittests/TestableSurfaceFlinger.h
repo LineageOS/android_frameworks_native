@@ -353,7 +353,10 @@ public:
      * Forwarding for functions being tested
      */
 
-    void configure() { mFlinger->configure(); }
+    void configure() {
+        ftl::FakeGuard guard(kMainThreadContext);
+        mFlinger->configure();
+    }
 
     void configureAndCommit() {
         configure();
@@ -362,8 +365,14 @@ public:
 
     void commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expectedVsyncTime,
                 bool composite = false) {
+        ftl::FakeGuard guard(kMainThreadContext);
+
+        const auto displayIdOpt = mScheduler->pacesetterDisplayId();
+        LOG_ALWAYS_FATAL_IF(!displayIdOpt);
+        const auto displayId = *displayIdOpt;
+
         constexpr bool kBackpressureGpuComposition = true;
-        scheduler::FrameTargeter frameTargeter(kBackpressureGpuComposition);
+        scheduler::FrameTargeter frameTargeter(displayId, kBackpressureGpuComposition);
 
         frameTargeter.beginFrame({.frameBeginTime = frameTime,
                                   .vsyncId = vsyncId,
@@ -374,7 +383,7 @@ public:
         mFlinger->commit(frameTargeter.target());
 
         if (composite) {
-            mFlinger->composite(frameTargeter);
+            mFlinger->composite(displayId, ftl::init::map(displayId, &frameTargeter));
         }
     }
 
