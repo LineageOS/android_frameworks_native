@@ -371,6 +371,30 @@ cc_binary {
 }
 
 cc_test {
+    name: "binderRpcTest_on_trusty_mock",
+    defaults: [
+        "trusty_mock_defaults",
+    ],
+
+    srcs: [
+        "binderRpcUniversalTests.cpp",
+        "binderRpcTestCommon.cpp",
+        "binderRpcTestTrusty.cpp",
+    ],
+
+    shared_libs: [
+        "libbinder_on_trusty_mock",
+        "libbase",
+        "libutils",
+        "libcutils",
+    ],
+
+    static_libs: [
+        "binderRpcTestIface-cpp",
+    ],
+}
+
+cc_test {
     name: "binderRpcTest",
     defaults: [
         "binderRpcTest_defaults",
@@ -382,6 +406,7 @@ cc_test {
     required: [
         "libbinder_on_trusty_mock",
         "binderRpcTestService_on_trusty_mock",
+        "binderRpcTest_on_trusty_mock",
     ],
 }
 
