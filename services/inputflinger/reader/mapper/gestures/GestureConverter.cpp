@@ -219,11 +219,11 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
     float deltaY = gesture.details.scroll.dy;
     rotateDelta(mOrientation, &deltaX, &deltaY);
 
-    coords.setAxisValue(AMOTION_EVENT_AXIS_X, coords.getAxisValue(AMOTION_EVENT_AXIS_X) - deltaX);
-    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, coords.getAxisValue(AMOTION_EVENT_AXIS_Y) - deltaY);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_X, coords.getAxisValue(AMOTION_EVENT_AXIS_X) + deltaX);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, coords.getAxisValue(AMOTION_EVENT_AXIS_Y) + deltaY);
     // TODO(b/262876643): set AXIS_GESTURE_{X,Y}_OFFSET.
-    coords.setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, gesture.details.scroll.dx);
-    coords.setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, gesture.details.scroll.dy);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, -gesture.details.scroll.dx);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, -gesture.details.scroll.dy);
     out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /* actionButton= */ 0,
                                  mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
                                  mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));

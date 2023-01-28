@@ -161,7 +161,7 @@ public:
 struct InputReaderConfiguration {
     // Describes changes that have occurred.
     enum {
-        // The pointer speed changed.
+        // The mouse pointer speed changed.
         CHANGE_POINTER_SPEED = 1 << 0,
 
         // The pointer gesture control changed.
@@ -199,6 +199,9 @@ struct InputReaderConfiguration {
 
         // The stylus button reporting configurations has changed.
         CHANGE_STYLUS_BUTTON_REPORTING = 1 << 12,
+
+        // The touchpad settings changed.
+        CHANGE_TOUCHPAD_SETTINGS = 1 << 13,
 
         // All devices must be reopened.
         CHANGE_MUST_REOPEN = 1 << 31,
@@ -309,6 +312,20 @@ struct InputReaderConfiguration {
     // The latest request to enable or disable Pointer Capture.
     PointerCaptureRequest pointerCaptureRequest;
 
+    // The touchpad pointer speed, as a number from -7 (slowest) to 7 (fastest).
+    int32_t touchpadPointerSpeed;
+
+    // True to invert the touchpad scrolling direction, so that moving two fingers downwards on the
+    // touchpad scrolls the content upwards.
+    bool touchpadNaturalScrollingEnabled;
+
+    // True to enable tap-to-click on touchpads.
+    bool touchpadTapToClickEnabled;
+
+    // True to enable a zone on the right-hand side of touchpads where clicks will be turned into
+    // context (a.k.a. "right") clicks.
+    bool touchpadRightClickZoneEnabled;
+
     // The set of currently disabled input devices.
     std::set<int32_t> disabledDevices;
 
@@ -337,6 +354,10 @@ struct InputReaderConfiguration {
             pointerGestureZoomSpeedRatio(0.3f),
             showTouches(false),
             pointerCaptureRequest(),
+            touchpadPointerSpeed(0),
+            touchpadNaturalScrollingEnabled(true),
+            touchpadTapToClickEnabled(true),
+            touchpadRightClickZoneEnabled(false),
             stylusButtonMotionEventsEnabled(true) {}
 
     static std::string changesToString(uint32_t changes);
