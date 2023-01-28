@@ -92,8 +92,9 @@ private:
                         ServiceCallbackMap::iterator* it,
                         bool* found);
     ssize_t handleServiceClientCallback(const std::string& serviceName, bool isCalledOnInterval);
-     // Also updates mHasClients (of what the last callback was)
-    void sendClientCallbackNotifications(const std::string& serviceName, bool hasClients);
+    // Also updates mHasClients (of what the last callback was)
+    void sendClientCallbackNotifications(const std::string& serviceName, bool hasClients,
+                                         const char* context);
     // removes a callback from mNameToClientCallback, deleting the entry if the vector is empty
     // this updates the iterator to the next location
     void removeClientCallback(const wp<IBinder>& who, ClientCallbackMap::iterator* it);
