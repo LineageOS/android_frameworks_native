@@ -3139,23 +3139,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const auto [kernelIdleTimerController, idleTimerTimeoutMs] =
                 getKernelIdleTimerProperties(compositionDisplay->getId());
 
-        const auto enableFrameRateOverride = [&] {
-            using Config = scheduler::RefreshRateSelector::Config;
-            if (!sysprop::enable_frame_rate_override(true)) {
-                return Config::FrameRateOverride::Disabled;
-            }
-
-            if (sysprop::frame_rate_override_for_native_rates(false)) {
-                return Config::FrameRateOverride::AppOverrideNativeRefreshRates;
-            }
-
-            if (!sysprop::frame_rate_override_global(true)) {
-                return Config::FrameRateOverride::AppOverride;
-            }
-
-            return Config::FrameRateOverride::Enabled;
-        }();
-
+        using Config = scheduler::RefreshRateSelector::Config;
+        const auto enableFrameRateOverride = sysprop::enable_frame_rate_override(true)
+                ? Config::FrameRateOverride::Enabled
+                : Config::FrameRateOverride::Disabled;
         scheduler::RefreshRateSelector::Config config =
                 {.enableFrameRateOverride = enableFrameRateOverride,
                  .frameRateMultipleThreshold =
