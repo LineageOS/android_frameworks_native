@@ -248,60 +248,6 @@ bool JpegDecoder::decode(const void* image, int length, bool decodeToRGBA) {
     return true;
 }
 
-// TODO (Fyodor/Dichen): merge this method with getCompressedImageParameters() since they have
-// similar functionality. Yet Dichen is not familiar with who's calling
-// getCompressedImageParameters(), looks like it's used by some pending CLs.
-bool JpegDecoder::extractEXIF(const void* image, int length) {
-    jpeg_decompress_struct cinfo;
-    jpegr_source_mgr mgr(static_cast<const uint8_t*>(image), length);
-    jpegrerror_mgr myerr;
-
-    cinfo.err = jpeg_std_error(&myerr.pub);
-    myerr.pub.error_exit = jpegrerror_exit;
-
-    if (setjmp(myerr.setjmp_buffer)) {
-        jpeg_destroy_decompress(&cinfo);
-        return false;
-    }
-    jpeg_create_decompress(&cinfo);
-
-    jpeg_save_markers(&cinfo, kAPP0Marker, 0xFFFF);
-    jpeg_save_markers(&cinfo, kAPP1Marker, 0xFFFF);
-    jpeg_save_markers(&cinfo, kAPP2Marker, 0xFFFF);
-
-    cinfo.src = &mgr;
-    jpeg_read_header(&cinfo, TRUE);
-
-    bool exifAppears = false;
-    size_t pos = 2;  // position after SOI
-    for (jpeg_marker_struct* marker = cinfo.marker_list;
-         marker && !exifAppears;
-         marker = marker->next) {
-
-        pos += 4;
-        pos += marker->original_length;
-
-        if (marker->marker != kAPP1Marker) {
-            continue;
-        }
-
-        const unsigned int len = marker->data_length;
-        if (!exifAppears &&
-            len > kExifIdCode.size() &&
-            !strncmp(reinterpret_cast<const char*>(marker->data),
-                     kExifIdCode.c_str(),
-                     kExifIdCode.size())) {
-            mEXIFBuffer.resize(len, 0);
-            memcpy(static_cast<void*>(mEXIFBuffer.data()), marker->data, len);
-            exifAppears = true;
-            mExifPos = pos - marker->original_length;
-        }
-    }
-
-    jpeg_destroy_decompress(&cinfo);
-    return true;
-}
-
 bool JpegDecoder::decompress(jpeg_decompress_struct* cinfo, const uint8_t* dest,
         bool isSingleChannel) {
     if (isSingleChannel) {

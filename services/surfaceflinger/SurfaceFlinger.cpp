@@ -130,6 +130,7 @@
 #include "FrameTracer/FrameTracer.h"
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/LayerHandle.h"
+#include "FrontEnd/LayerSnapshot.h"
 #include "HdrLayerInfoReporter.h"
 #include "Layer.h"
 #include "LayerProtoHelper.h"
@@ -2515,30 +2516,30 @@ void SurfaceFlinger::updateLayerGeometry() {
     mLayersPendingRefresh.clear();
 }
 
-bool SurfaceFlinger::isHdrLayer(Layer* layer) const {
+bool SurfaceFlinger::isHdrLayer(const frontend::LayerSnapshot& snapshot) const {
     // Even though the camera layer may be using an HDR transfer function or otherwise be "HDR"
     // the device may need to avoid boosting the brightness as a result of these layers to
     // reduce power consumption during camera recording
     if (mIgnoreHdrCameraLayers) {
-        auto buffer = layer->getBuffer();
-        if (buffer && (buffer->getUsage() & GRALLOC_USAGE_HW_CAMERA_WRITE) != 0) {
+        if (snapshot.externalTexture &&
+            (snapshot.externalTexture->getUsage() & GRALLOC_USAGE_HW_CAMERA_WRITE) != 0) {
             return false;
         }
     }
-    if (isHdrDataspace(layer->getDataSpace())) {
+    if (isHdrDataspace(snapshot.dataspace)) {
         return true;
     }
     // If the layer is not allowed to be dimmed, treat it as HDR. WindowManager may disable
     // dimming in order to keep animations invoking SDR screenshots of HDR layers seamless.
     // Treat such tagged layers as HDR so that DisplayManagerService does not try to change
     // the screen brightness
-    if (!layer->isDimmingEnabled()) {
+    if (!snapshot.dimmingEnabled) {
         return true;
     }
     // RANGE_EXTENDED layers may identify themselves as being "HDR" via a desired sdr/hdr ratio
-    if ((layer->getDataSpace() & (int32_t)Dataspace::RANGE_MASK) ==
+    if ((snapshot.dataspace & (int32_t)Dataspace::RANGE_MASK) ==
                 (int32_t)Dataspace::RANGE_EXTENDED &&
-        layer->getDesiredSdrHdrRatio() > 1.01f) {
+        snapshot.desiredSdrHdrRatio > 1.01f) {
         return true;
     }
     return false;
@@ -2666,13 +2667,14 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
             int32_t maxArea = 0;
             mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
                 const auto layerFe = layer->getCompositionEngineLayerFE();
-                if (layer->isVisible() &&
-                    compositionDisplay->includesLayer(layer->getOutputFilter())) {
-                    if (isHdrLayer(layer)) {
+                const frontend::LayerSnapshot& snapshot = *layer->getLayerSnapshot();
+                if (snapshot.isVisible &&
+                    compositionDisplay->includesLayer(snapshot.outputFilter)) {
+                    if (isHdrLayer(snapshot)) {
                         const auto* outputLayer =
                             compositionDisplay->getOutputLayerForLayer(layerFe);
                         if (outputLayer) {
-                            info.mergeDesiredRatio(layer->getDesiredSdrHdrRatio());
+                            info.mergeDesiredRatio(snapshot.desiredSdrHdrRatio);
                             info.numberOfHdrLayers++;
                             const auto displayFrame = outputLayer->getState().displayFrame;
                             const int32_t area = displayFrame.width() * displayFrame.height();
@@ -3007,15 +3009,15 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
         const auto enableFrameRateOverride = [&] {
             using Config = scheduler::RefreshRateSelector::Config;
-            if (!sysprop::enable_frame_rate_override(false)) {
+            if (!sysprop::enable_frame_rate_override(true)) {
                 return Config::FrameRateOverride::Disabled;
             }
 
-            if (sysprop::frame_rate_override_for_native_rates(true)) {
+            if (sysprop::frame_rate_override_for_native_rates(false)) {
                 return Config::FrameRateOverride::AppOverrideNativeRefreshRates;
             }
 
-            if (!sysprop::frame_rate_override_global(false)) {
+            if (!sysprop::frame_rate_override_global(true)) {
                 return Config::FrameRateOverride::AppOverride;
             }
 
@@ -6418,8 +6420,9 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     auto traverseLayers = [this, args, layerStack](const LayerVector::Visitor& visitor) {
         traverseLayersInLayerStack(layerStack, args.uid, visitor);
     };
+    auto getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
 
-    auto future = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+    auto future = captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, reqSize,
                                       args.pixelFormat, args.allowProtected, args.grayscale,
                                       captureListener);
     return fenceStatus(future.get());
@@ -6454,6 +6457,7 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
     auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
         traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, visitor);
     };
+    auto getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
 
     if (captureListener == nullptr) {
         ALOGE("capture screen must provide a capture listener callback");
@@ -6463,7 +6467,7 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
     constexpr bool kAllowProtected = false;
     constexpr bool kGrayscale = false;
 
-    auto future = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
+    auto future = captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, size,
                                       ui::PixelFormat::RGBA_8888, kAllowProtected, kGrayscale,
                                       captureListener);
     return fenceStatus(future.get());
@@ -6481,7 +6485,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     ui::Size reqSize;
     sp<Layer> parent;
     Rect crop(args.sourceCrop);
-    std::unordered_set<sp<Layer>, SpHash<Layer>> excludeLayers;
+    std::unordered_set<uint32_t> excludeLayerIds;
     ui::Dataspace dataspace;
 
     // Call this before holding mStateLock to avoid any deadlocking.
@@ -6521,9 +6525,9 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         reqSize = ui::Size(crop.width() * args.frameScaleX, crop.height() * args.frameScaleY);
 
         for (const auto& handle : args.excludeHandles) {
-            sp<Layer> excludeLayer = LayerHandle::getLayer(handle);
-            if (excludeLayer != nullptr) {
-                excludeLayers.emplace(excludeLayer);
+            uint32_t excludeLayer = LayerHandle::getLayerId(handle);
+            if (excludeLayer != UNASSIGNED_LAYER_ID) {
+                excludeLayerIds.emplace(excludeLayer);
             } else {
                 ALOGW("Invalid layer handle passed as excludeLayer to captureLayers");
                 return NAME_NOT_FOUND;
@@ -6552,7 +6556,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                                                  args.captureSecureLayers);
     });
 
-    auto traverseLayers = [parent, args, excludeLayers](const LayerVector::Visitor& visitor) {
+    auto traverseLayers = [parent, args, excludeLayerIds](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
             if (!layer->isVisible()) {
                 return;
@@ -6564,7 +6568,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
             auto p = sp<Layer>::fromExisting(layer);
             while (p != nullptr) {
-                if (excludeLayers.count(p) != 0) {
+                if (excludeLayerIds.count(p->sequence) != 0) {
                     return;
                 }
                 p = p->getParent();
@@ -6573,20 +6577,21 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
             visitor(layer);
         });
     };
+    auto getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
 
     if (captureListener == nullptr) {
         ALOGE("capture screen must provide a capture listener callback");
         return BAD_VALUE;
     }
 
-    auto future = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+    auto future = captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, reqSize,
                                       args.pixelFormat, args.allowProtected, args.grayscale,
                                       captureListener);
     return fenceStatus(future.get());
 }
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
-        RenderAreaFuture renderAreaFuture, TraverseLayersFunction traverseLayers,
+        RenderAreaFuture renderAreaFuture, GetLayerSnapshotsFunction getLayerSnapshots,
         ui::Size bufferSize, ui::PixelFormat reqPixelFormat, bool allowProtected, bool grayscale,
         const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
@@ -6605,15 +6610,18 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
     const bool supportsProtected = getRenderEngine().supportsProtectedContent();
     bool hasProtectedLayer = false;
     if (allowProtected && supportsProtected) {
-        auto future = mScheduler->schedule([=]() {
-            bool protectedLayerFound = false;
-            traverseLayers([&](Layer* layer) {
-                protectedLayerFound =
-                        protectedLayerFound || (layer->isVisible() && layer->isProtected());
-            });
-            return protectedLayerFound;
-        });
-        hasProtectedLayer = future.get();
+        hasProtectedLayer = mScheduler
+                                    ->schedule([=]() {
+                                        bool protectedLayerFound = false;
+                                        auto layers = getLayerSnapshots();
+                                        for (auto& [layer, layerFe] : layers) {
+                                            protectedLayerFound |=
+                                                    (layerFe->mSnapshot->isVisible &&
+                                                     layerFe->mSnapshot->hasProtectedContent);
+                                        }
+                                        return protectedLayerFound;
+                                    })
+                                    .get();
     }
 
     const uint32_t usage = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER |
@@ -6638,12 +6646,12 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
             renderengine::impl::ExternalTexture>(buffer, getRenderEngine(),
                                                  renderengine::impl::ExternalTexture::Usage::
                                                          WRITEABLE);
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, texture,
+    return captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, texture,
                                false /* regionSampling */, grayscale, captureListener);
 }
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
-        RenderAreaFuture renderAreaFuture, TraverseLayersFunction traverseLayers,
+        RenderAreaFuture renderAreaFuture, GetLayerSnapshotsFunction getLayerSnapshots,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
         bool grayscale, const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
@@ -6666,7 +6674,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
 
                 ftl::SharedFuture<FenceResult> renderFuture;
                 renderArea->render([&]() FTL_FAKE_GUARD(kMainThreadContext) {
-                    renderFuture = renderScreenImpl(renderArea, traverseLayers, buffer,
+                    renderFuture = renderScreenImpl(renderArea, getLayerSnapshots, buffer,
                                                     canCaptureBlackoutContent, regionSampling,
                                                     grayscale, captureResults);
                 });
@@ -6694,18 +6702,26 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
 }
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
-        std::shared_ptr<const RenderArea> renderArea, TraverseLayersFunction traverseLayers,
+        std::shared_ptr<const RenderArea> renderArea, GetLayerSnapshotsFunction getLayerSnapshots,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer,
         bool canCaptureBlackoutContent, bool regionSampling, bool grayscale,
         ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
-    size_t layerCount = 0;
-    traverseLayers([&](Layer* layer) {
-        layerCount++;
-        captureResults.capturedSecureLayers =
-                captureResults.capturedSecureLayers || (layer->isVisible() && layer->isSecure());
-    });
+    const auto& display = renderArea->getDisplayDevice();
+    const auto& transform = renderArea->getTransform();
+    std::unordered_set<compositionengine::LayerFE*> filterForScreenshot;
+    auto layers = getLayerSnapshots();
+    for (auto& [layer, layerFE] : layers) {
+        frontend::LayerSnapshot* snapshot = layerFE->mSnapshot.get();
+        captureResults.capturedSecureLayers |= (snapshot->isVisible && snapshot->isSecure);
+        captureResults.capturedHdrLayers |= isHdrLayer(*snapshot);
+        layerFE->mSnapshot->geomLayerTransform =
+                renderArea->getTransform() * layerFE->mSnapshot->geomLayerTransform;
+        if (layer->needsFilteringForScreenshots(display.get(), transform)) {
+            filterForScreenshot.insert(layerFE.get());
+        }
+    }
 
     // We allow the system server to take screenshots of secure layers for
     // use in situations like the Screen-rotation animation and place
@@ -6738,31 +6754,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         displayBrightnessNits = display->getCompositionDisplay()->getState().displayBrightnessNits;
     }
     captureResults.capturedDataspace = dataspace;
-
-    const auto transform = renderArea->getTransform();
-    const auto display = renderArea->getDisplayDevice();
-
-    std::vector<std::pair<Layer*, sp<LayerFE>>> layers;
-    layers.reserve(layerCount);
-    std::unordered_set<compositionengine::LayerFE*> filterForScreenshot;
-    traverseLayers([&](Layer* layer) {
-        captureResults.capturedHdrLayers |= isHdrLayer(layer);
-        // Layer::prepareClientComposition uses the layer's snapshot to populate the resulting
-        // LayerSettings. Calling Layer::updateSnapshot ensures that LayerSettings are
-        // generated with the layer's current buffer and geometry.
-        layer->updateSnapshot(true /* updateGeometry */);
-
-        layers.emplace_back(layer, layer->copyCompositionEngineLayerFE());
-
-        sp<LayerFE>& layerFE = layers.back().second;
-
-        layerFE->mSnapshot->geomLayerTransform =
-                renderArea->getTransform() * layerFE->mSnapshot->geomLayerTransform;
-
-        if (layer->needsFilteringForScreenshots(display.get(), transform)) {
-            filterForScreenshot.insert(layerFE.get());
-        }
-    });
 
     ui::LayerStack layerStack{ui::DEFAULT_LAYER_STACK};
     if (!layers.empty()) {

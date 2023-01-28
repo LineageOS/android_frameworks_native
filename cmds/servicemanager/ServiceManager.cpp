@@ -718,7 +718,8 @@ ssize_t ServiceManager::handleServiceClientCallback(const std::string& serviceNa
     if (service.guaranteeClient) {
         // we have no record of this client
         if (!service.hasClients && !hasClients) {
-            sendClientCallbackNotifications(serviceName, true);
+            sendClientCallbackNotifications(serviceName, true,
+                                            "service is guaranteed to be in use");
         }
 
         // guarantee is temporary
@@ -729,34 +730,41 @@ ssize_t ServiceManager::handleServiceClientCallback(const std::string& serviceNa
     if (isCalledOnInterval) {
         if (hasClients && !service.hasClients) {
             // client was retrieved in some other way
-            sendClientCallbackNotifications(serviceName, true);
+            sendClientCallbackNotifications(serviceName, true, "we now have a record of a client");
         }
 
         // there are no more clients, but the callback has not been called yet
         if (!hasClients && service.hasClients) {
-            sendClientCallbackNotifications(serviceName, false);
+            sendClientCallbackNotifications(serviceName, false,
+                                            "we now have no record of a client");
         }
     }
 
     return count;
 }
 
-void ServiceManager::sendClientCallbackNotifications(const std::string& serviceName, bool hasClients) {
+void ServiceManager::sendClientCallbackNotifications(const std::string& serviceName,
+                                                     bool hasClients, const char* context) {
     auto serviceIt = mNameToService.find(serviceName);
     if (serviceIt == mNameToService.end()) {
-        ALOGW("sendClientCallbackNotifications could not find service %s", serviceName.c_str());
+        ALOGW("sendClientCallbackNotifications could not find service %s when %s",
+              serviceName.c_str(), context);
         return;
     }
     Service& service = serviceIt->second;
 
-    CHECK(hasClients != service.hasClients) << "Record shows: " << service.hasClients
-        << " so we can't tell clients again that we have client: " << hasClients;
+    CHECK(hasClients != service.hasClients)
+            << "Record shows: " << service.hasClients
+            << " so we can't tell clients again that we have client: " << hasClients
+            << " when: " << context;
 
-    ALOGI("Notifying %s they have clients: %d", serviceName.c_str(), hasClients);
+    ALOGI("Notifying %s they %s have clients when %s", serviceName.c_str(),
+          hasClients ? "do" : "don't", context);
 
     auto ccIt = mNameToClientCallback.find(serviceName);
     CHECK(ccIt != mNameToClientCallback.end())
-        << "sendClientCallbackNotifications could not find callbacks for service ";
+            << "sendClientCallbackNotifications could not find callbacks for service when "
+            << context;
 
     for (const auto& callback : ccIt->second) {
         callback->onClients(service.binder, hasClients);

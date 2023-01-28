@@ -34,6 +34,21 @@ public:
             mRotationFlags(rotation),
             mLayerStackSpaceRect(layerStackRect) {}
 
+    static std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> fromTraverseLayersLambda(
+            std::function<void(const LayerVector::Visitor&)> traverseLayers) {
+        return [traverseLayers = std::move(traverseLayers)]() {
+            std::vector<std::pair<Layer*, sp<LayerFE>>> layers;
+            traverseLayers([&](Layer* layer) {
+                // Layer::prepareClientComposition uses the layer's snapshot to populate the
+                // resulting LayerSettings. Calling Layer::updateSnapshot ensures that LayerSettings
+                // are generated with the layer's current buffer and geometry.
+                layer->updateSnapshot(true /* updateGeometry */);
+                layers.emplace_back(layer, layer->copyCompositionEngineLayerFE());
+            });
+            return layers;
+        };
+    }
+
     virtual ~RenderArea() = default;
 
     // Invoke drawLayers to render layers into the render area.

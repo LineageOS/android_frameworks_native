@@ -69,6 +69,7 @@
 #include "FlagManager.h"
 #include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerCreationArgs.h"
+#include "FrontEnd/LayerSnapshot.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
 #include "Scheduler/RefreshRateSelector.h"
@@ -346,6 +347,7 @@ private:
     friend class LayerRenderArea;
     friend class LayerTracing;
     friend class SurfaceComposerAIDL;
+    friend class DisplayRenderArea;
 
     // For unit tests
     friend class TestableSurfaceFlinger;
@@ -353,7 +355,7 @@ private:
     friend class TunnelModeEnabledReporterTest;
 
     using TransactionSchedule = scheduler::TransactionSchedule;
-    using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
+    using GetLayerSnapshotsFunction = std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()>;
     using RenderAreaFuture = ftl::Future<std::unique_ptr<RenderArea>>;
     using DumpArgs = Vector<String16>;
     using Dumper = std::function<void(const DumpArgs&, bool asProto, std::string&)>;
@@ -787,16 +789,16 @@ private:
     // Boot animation, on/off animations and screen capture
     void startBootAnim();
 
-    ftl::SharedFuture<FenceResult> captureScreenCommon(RenderAreaFuture, TraverseLayersFunction,
+    ftl::SharedFuture<FenceResult> captureScreenCommon(RenderAreaFuture, GetLayerSnapshotsFunction,
                                                        ui::Size bufferSize, ui::PixelFormat,
                                                        bool allowProtected, bool grayscale,
                                                        const sp<IScreenCaptureListener>&);
     ftl::SharedFuture<FenceResult> captureScreenCommon(
-            RenderAreaFuture, TraverseLayersFunction,
+            RenderAreaFuture, GetLayerSnapshotsFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, const sp<IScreenCaptureListener>&);
     ftl::SharedFuture<FenceResult> renderScreenImpl(
-            std::shared_ptr<const RenderArea>, TraverseLayersFunction,
+            std::shared_ptr<const RenderArea>, GetLayerSnapshotsFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool canCaptureBlackoutContent,
             bool regionSampling, bool grayscale, ScreenCaptureResults&) EXCLUDES(mStateLock)
             REQUIRES(kMainThreadContext);
@@ -1085,7 +1087,7 @@ private:
     void updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay)
             REQUIRES(mStateLock, kMainThreadContext);
 
-    bool isHdrLayer(Layer* layer) const;
+    bool isHdrLayer(const frontend::LayerSnapshot& snapshot) const;
 
     ui::Rotation getPhysicalDisplayOrientation(DisplayId, bool isPrimary) const
             REQUIRES(mStateLock);
