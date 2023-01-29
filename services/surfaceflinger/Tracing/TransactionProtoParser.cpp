@@ -594,7 +594,7 @@ frontend::DisplayInfo TransactionProtoParser::fromProto(const proto::DisplayInfo
 
 void TransactionProtoParser::fromProto(
         const google::protobuf::RepeatedPtrField<proto::DisplayInfo>& proto,
-        display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& outDisplayInfos) {
+        frontend::DisplayInfos& outDisplayInfos) {
     outDisplayInfos.clear();
     for (const proto::DisplayInfo& displayInfo : proto) {
         outDisplayInfos.emplace_or_replace(ui::LayerStack::fromValue(displayInfo.layer_stack()),

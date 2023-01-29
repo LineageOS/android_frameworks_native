@@ -26,6 +26,8 @@
 #include <ui/Region.h>
 #include <ui/Transform.h>
 #include <cstdint>
+
+#include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerHierarchy.h"
 #include "FrontEnd/LayerSnapshot.h"
 
@@ -65,15 +67,15 @@ public:
                                      const frontend::RequestedLayerState& requestedState,
                                      const frontend::LayerSnapshot& snapshot, uint32_t traceFlags);
     static google::protobuf::RepeatedPtrField<DisplayProto> writeDisplayInfoToProto(
-            const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos);
+            const frontend::DisplayInfos&);
 };
 
 class LayerProtoFromSnapshotGenerator {
 public:
-    LayerProtoFromSnapshotGenerator(
-            const frontend::LayerSnapshotBuilder& snapshotBuilder,
-            const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos,
-            const std::unordered_map<uint32_t, sp<Layer>>& legacyLayers, uint32_t traceFlags)
+    LayerProtoFromSnapshotGenerator(const frontend::LayerSnapshotBuilder& snapshotBuilder,
+                                    const frontend::DisplayInfos& displayInfos,
+                                    const std::unordered_map<uint32_t, sp<Layer>>& legacyLayers,
+                                    uint32_t traceFlags)
           : mSnapshotBuilder(snapshotBuilder),
             mLegacyLayers(legacyLayers),
             mDisplayInfos(displayInfos),
@@ -88,7 +90,7 @@ private:
 
     const frontend::LayerSnapshotBuilder& mSnapshotBuilder;
     const std::unordered_map<uint32_t, sp<Layer>>& mLegacyLayers;
-    const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& mDisplayInfos;
+    const frontend::DisplayInfos& mDisplayInfos;
     uint32_t mTraceFlags;
     LayersProto mLayersProto;
     // winscope expects all the layers, so provide a snapshot even if it not currently drawing

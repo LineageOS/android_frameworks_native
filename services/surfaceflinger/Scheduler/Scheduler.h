@@ -39,8 +39,8 @@
 #include <scheduler/Time.h>
 #include <scheduler/VsyncConfig.h>
 #include <ui/DisplayId.h>
+#include <ui/DisplayMap.h>
 
-#include "Display/DisplayMap.h"
 #include "Display/DisplayModeRequest.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
@@ -374,7 +374,7 @@ private:
         }
     };
 
-    using DisplayModeChoiceMap = display::PhysicalDisplayMap<PhysicalDisplayId, DisplayModeChoice>;
+    using DisplayModeChoiceMap = ui::PhysicalDisplayMap<PhysicalDisplayId, DisplayModeChoice>;
 
     // See mDisplayLock for thread safety.
     DisplayModeChoiceMap chooseDisplayModes() const
@@ -438,7 +438,7 @@ private:
     using DisplayRef = std::reference_wrapper<Display>;
     using ConstDisplayRef = std::reference_wrapper<const Display>;
 
-    display::PhysicalDisplayMap<PhysicalDisplayId, Display> mDisplays GUARDED_BY(mDisplayLock)
+    ui::PhysicalDisplayMap<PhysicalDisplayId, Display> mDisplays GUARDED_BY(mDisplayLock)
             GUARDED_BY(kMainThreadContext);
 
     ftl::Optional<PhysicalDisplayId> mPacesetterDisplayId GUARDED_BY(mDisplayLock)

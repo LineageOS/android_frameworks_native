@@ -116,7 +116,6 @@
 #include "Client.h"
 #include "ClientCache.h"
 #include "Colorizer.h"
-#include "Display/DisplayMap.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/FramebufferSurface.h"
@@ -2786,7 +2785,7 @@ void SurfaceFlinger::postComposition(scheduler::FrameTargeter& pacesetterFrameTa
     const CompositorTiming compositorTiming(vsyncDeadline.ns(), vsyncPeriod.ns(), vsyncPhase,
                                             presentLatency.ns());
 
-    display::DisplayMap<ui::LayerStack, const DisplayDevice*> layerStackToDisplay;
+    ui::DisplayMap<ui::LayerStack, const DisplayDevice*> layerStackToDisplay;
     {
         if (!mLayersWithBuffersRemoved.empty() || mNumTrustedPresentationListeners > 0) {
             Mutex::Autolock lock(mStateLock);

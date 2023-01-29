@@ -43,6 +43,7 @@
 #include <renderengine/LayerSettings.h>
 #include <serviceutils/PriorityDumper.h>
 #include <system/graphics.h>
+#include <ui/DisplayMap.h>
 #include <ui/FenceTime.h>
 #include <ui/PixelFormat.h>
 #include <ui/Size.h>
@@ -62,7 +63,6 @@
 #include <scheduler/interface/ICompositor.h>
 #include <ui/FenceResult.h>
 
-#include "Display/DisplayMap.h"
 #include "Display/PhysicalDisplay.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
@@ -1199,7 +1199,7 @@ private:
     // never removed, so take precedence over external and virtual displays.
     //
     // May be read from any thread, but must only be written from the main thread.
-    display::DisplayMap<wp<IBinder>, const sp<DisplayDevice>> mDisplays GUARDED_BY(mStateLock);
+    ui::DisplayMap<wp<IBinder>, const sp<DisplayDevice>> mDisplays GUARDED_BY(mStateLock);
 
     display::PhysicalDisplays mPhysicalDisplays GUARDED_BY(mStateLock);
 
@@ -1404,7 +1404,7 @@ private:
     std::unordered_map<uint32_t, sp<Layer>> mLegacyLayers;
 
     TransactionHandler mTransactionHandler;
-    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
+    ui::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
     bool mFrontEndDisplayInfosChanged = false;
 
     // WindowInfo ids visible during the last commit.

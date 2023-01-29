@@ -105,7 +105,7 @@ protected:
 
     LayerHierarchyBuilder mHierarchyBuilder{{}};
     LayerSnapshotBuilder mSnapshotBuilder;
-    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
+    DisplayInfos mFrontEndDisplayInfos;
     renderengine::ShadowSettings globalShadowSettings;
     static const std::vector<uint32_t> STARTING_ZORDER;
 };

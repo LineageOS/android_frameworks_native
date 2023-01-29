@@ -31,6 +31,7 @@
 #include <gui/TraceUtils.h>
 #include <gui/WindowInfo.h>
 #include <system/window.h>
+#include <ui/DisplayMap.h>
 #include <utils/Timers.h>
 
 #include <FrameTimeline/FrameTimeline.h>
@@ -44,7 +45,6 @@
 #include <numeric>
 
 #include "../Layer.h"
-#include "Display/DisplayMap.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
 #include "FrontEnd/LayerHandle.h"
@@ -855,7 +855,7 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
     ATRACE_CALL();
 
     using RankedRefreshRates = RefreshRateSelector::RankedFrameRates;
-    display::PhysicalDisplayVector<RankedRefreshRates> perDisplayRanking;
+    ui::PhysicalDisplayVector<RankedRefreshRates> perDisplayRanking;
     const auto globalSignals = makeGlobalSignals();
     Fps pacesetterFps;
 
