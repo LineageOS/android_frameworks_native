@@ -58,6 +58,7 @@ static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
 static constexpr int32_t SECOND_DISPLAY_ID = 1;
 
 static constexpr int32_t ACTION_OUTSIDE = AMOTION_EVENT_ACTION_OUTSIDE;
+static constexpr int32_t ACTION_CANCEL = AMOTION_EVENT_ACTION_CANCEL;
 static constexpr int32_t POINTER_1_DOWN =
         AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 static constexpr int32_t POINTER_2_DOWN =
@@ -139,10 +140,18 @@ MATCHER_P(WithDownTime, downTime, "InputEvent with specified downTime") {
     return arg.getDownTime() == downTime;
 }
 
+MATCHER_P(WithDisplayId, displayId, "InputEvent with specified displayId") {
+    return arg.getDisplayId() == displayId;
+}
+
 MATCHER_P(WithSource, source, "InputEvent with specified source") {
     *result_listener << "expected source " << inputEventSourceToString(source) << ", but got "
                      << inputEventSourceToString(arg.getSource());
     return arg.getSource() == source;
+}
+
+MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {
+    return arg.getFlags() == flags;
 }
 
 MATCHER_P2(WithCoords, x, y, "MotionEvent with specified coordinates") {
@@ -944,6 +953,28 @@ public:
         }
     }
 
+    MotionEvent* consumeMotion() {
+        InputEvent* event = consume();
+
+        if (event == nullptr) {
+            ADD_FAILURE() << mName << ": expected a MotionEvent, but didn't get one.";
+            return nullptr;
+        }
+
+        if (event->getType() != AINPUT_EVENT_TYPE_MOTION) {
+            ADD_FAILURE() << mName << " expected a MotionEvent, got "
+                          << inputEventTypeToString(event->getType()) << " event";
+            return nullptr;
+        }
+        return static_cast<MotionEvent*>(event);
+    }
+
+    void consumeMotionEvent(const ::testing::Matcher<MotionEvent>& matcher) {
+        MotionEvent* motionEvent = consumeMotion();
+        ASSERT_NE(nullptr, motionEvent) << "Did not get a motion event, but expected " << matcher;
+        ASSERT_THAT(*motionEvent, matcher);
+    }
+
     void consumeFocusEvent(bool hasFocus, bool inTouchMode) {
         InputEvent* event = consume();
         ASSERT_NE(nullptr, event) << mName.c_str()
@@ -1196,14 +1227,14 @@ public:
 
     void consumeMotionCancel(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                              int32_t expectedFlags = 0) {
-        consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL, expectedDisplayId,
-                     expectedFlags);
+        consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithDisplayId(expectedDisplayId),
+                                 WithFlags(expectedFlags | AMOTION_EVENT_FLAG_CANCELED)));
     }
 
     void consumeMotionMove(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                            int32_t expectedFlags = 0) {
-        consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_MOVE, expectedDisplayId,
-                     expectedFlags);
+        consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                                 WithDisplayId(expectedDisplayId), WithFlags(expectedFlags)));
     }
 
     void consumeMotionDown(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
@@ -2546,8 +2577,8 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
     // on the app side.
     NotifyDeviceResetArgs args(10 /*id*/, 20 /*eventTime*/, DEVICE_ID);
     mDispatcher->notifyDeviceReset(&args);
-    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL, ADISPLAY_ID_DEFAULT,
-                         0 /*expectedFlags*/);
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDisplayId(ADISPLAY_ID_DEFAULT)));
 }
 
 TEST_F(InputDispatcherTest, InterceptKeyByPolicy) {
@@ -3544,8 +3575,10 @@ public:
     }
 
     void consumeMotionCancel(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL,
-                                     expectedDisplayId, expectedFlags);
+        mInputReceiver->consumeMotionEvent(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
+                      WithDisplayId(expectedDisplayId),
+                      WithFlags(expectedFlags | AMOTION_EVENT_FLAG_CANCELED)));
     }
 
     void consumeMotionPointerDown(int32_t pointerIdx) {
@@ -5109,8 +5142,8 @@ TEST_F(InputDispatcherSingleWindowAnr, OnPointerDown_BasicAnr) {
     mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow);
 
     mWindow->finishEvent(*sequenceNum);
-    mWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL,
-                          ADISPLAY_ID_DEFAULT, 0 /*flags*/);
+    mWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDisplayId(ADISPLAY_ID_DEFAULT)));
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken(), mWindow->getPid());
 }
@@ -5277,8 +5310,8 @@ TEST_F(InputDispatcherSingleWindowAnr, SpyWindowAnr) {
     mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, spy);
 
     spy->finishEvent(*sequenceNum);
-    spy->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL, ADISPLAY_ID_DEFAULT,
-                      0 /*flags*/);
+    spy->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDisplayId(ADISPLAY_ID_DEFAULT)));
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertNotifyWindowResponsiveWasCalled(spy->getToken(), mWindow->getPid());
 }
@@ -5400,8 +5433,8 @@ TEST_F(InputDispatcherSingleWindowAnr, Policy_DoesNotGetDuplicateAnr) {
     mFakePolicy->assertNotifyAnrWasNotCalled();
     // When the ANR happened, dispatcher should abort the current event stream via ACTION_CANCEL
     mWindow->consumeMotionDown();
-    mWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL,
-                          ADISPLAY_ID_DEFAULT, 0 /*flags*/);
+    mWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDisplayId(ADISPLAY_ID_DEFAULT)));
     mWindow->assertNoEvents();
     mDispatcher->waitForIdle();
     mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken(), mWindow->getPid());
@@ -7768,7 +7801,7 @@ TEST_F(InputDispatcherPilferPointersTest, ContinuesToReceiveGestureAfterPilfer) 
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               injectMotionEvent(mDispatcher, thirdFingerDownEvent, INJECT_EVENT_TIMEOUT,
                                 InputEventInjectionSync::WAIT_FOR_RESULT))
-            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+            << "Inject motion event should return InputEventInjectionResult::FAILED";
 
     spy->assertNoEvents();
     window->assertNoEvents();

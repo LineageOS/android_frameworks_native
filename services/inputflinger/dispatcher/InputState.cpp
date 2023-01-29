@@ -289,13 +289,16 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents
             if (options.pointerIds == std::nullopt) {
                 const int32_t action = memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT
                                                         : AMOTION_EVENT_ACTION_CANCEL;
+                int32_t flags = memento.flags;
+                if (action == AMOTION_EVENT_ACTION_CANCEL) {
+                    flags |= AMOTION_EVENT_FLAG_CANCELED;
+                }
                 events.push_back(
                         std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
                                                       memento.deviceId, memento.source,
                                                       memento.displayId, memento.policyFlags,
-                                                      action, 0 /*actionButton*/, memento.flags,
-                                                      AMETA_NONE, 0 /*buttonState*/,
-                                                      MotionClassification::NONE,
+                                                      action, 0 /*actionButton*/, flags, AMETA_NONE,
+                                                      0 /*buttonState*/, MotionClassification::NONE,
                                                       AMOTION_EVENT_EDGE_FLAG_NONE,
                                                       memento.xPrecision, memento.yPrecision,
                                                       memento.xCursorPosition,
@@ -388,11 +391,15 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
     if (canceledPointerIndices.size() == memento.pointerCount) {
         const int32_t action =
                 memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT : AMOTION_EVENT_ACTION_CANCEL;
+        int32_t flags = memento.flags;
+        if (action == AMOTION_EVENT_ACTION_CANCEL) {
+            flags |= AMOTION_EVENT_FLAG_CANCELED;
+        }
         events.push_back(
                 std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime, memento.deviceId,
                                               memento.source, memento.displayId,
                                               memento.policyFlags, action, 0 /*actionButton*/,
-                                              memento.flags, AMETA_NONE, 0 /*buttonState*/,
+                                              flags, AMETA_NONE, 0 /*buttonState*/,
                                               MotionClassification::NONE,
                                               AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                               memento.yPrecision, memento.xCursorPosition,
@@ -400,7 +407,7 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
                                               memento.pointerCount, memento.pointerProperties,
                                               memento.pointerCoords));
     } else {
-        // If we aren't canceling all pointers, we need to generated ACTION_POINTER_UP with
+        // If we aren't canceling all pointers, we need to generate ACTION_POINTER_UP with
         // FLAG_CANCELED for each of the canceled pointers. For each event, we must remove the
         // previously canceled pointers from PointerProperties and PointerCoords, and update
         // pointerCount appropriately. For convenience, sort the canceled pointer indices so that we
