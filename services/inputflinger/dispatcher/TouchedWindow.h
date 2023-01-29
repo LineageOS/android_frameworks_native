@@ -38,6 +38,7 @@ struct TouchedWindow {
     std::optional<nsecs_t> firstDownTimeInTarget;
 
     bool hasHoveringPointers() const;
+    bool hasHoveringPointers(int32_t deviceId) const;
 
     bool hasHoveringPointer(int32_t deviceId, int32_t pointerId) const;
     void addHoveringPointer(int32_t deviceId, int32_t pointerId);

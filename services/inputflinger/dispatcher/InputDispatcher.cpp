@@ -2303,8 +2303,13 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                 pointerIds.markBit(entry.pointerProperties[pointerIndex].id);
             }
 
+            const bool isDownOrPointerDown = maskedAction == AMOTION_EVENT_ACTION_DOWN ||
+                    maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN;
+
             tempTouchState.addOrUpdateWindow(windowHandle, targetFlags, pointerIds,
-                                             entry.eventTime);
+                                             isDownOrPointerDown
+                                                     ? std::make_optional(entry.eventTime)
+                                                     : std::nullopt);
 
             // If this is the pointer going down and the touched window has a wallpaper
             // then also add the touched wallpaper windows so they are locked in for the duration
@@ -2312,8 +2317,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             // We do not collect wallpapers during HOVER_MOVE or SCROLL because the wallpaper
             // engine only supports touch events.  We would need to add a mechanism similar
             // to View.onGenericMotionEvent to enable wallpapers to handle these events.
-            if (maskedAction == AMOTION_EVENT_ACTION_DOWN ||
-                maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
+            if (isDownOrPointerDown) {
                 if (targetFlags.test(InputTarget::Flags::FOREGROUND) &&
                     windowHandle->getInfo()->inputConfig.test(
                             gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER)) {
@@ -2517,6 +2521,12 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     // Success!  Output targets from the touch state.
     tempTouchState.clearWindowsWithoutPointers();
     for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
+        if (touchedWindow.pointerIds.isEmpty() &&
+            !touchedWindow.hasHoveringPointers(entry.deviceId)) {
+            // Windows with hovering pointers are getting persisted inside TouchState.
+            // Do not send this event to those windows.
+            continue;
+        }
         addWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
                               touchedWindow.pointerIds, touchedWindow.firstDownTimeInTarget,
                               targets);
