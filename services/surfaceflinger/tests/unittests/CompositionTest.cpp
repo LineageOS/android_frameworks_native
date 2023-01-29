@@ -238,6 +238,8 @@ void CompositionTest::captureScreenComposition() {
                                                    CaptureArgs::UNSET_UID, visitor);
     };
 
+    auto getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
+
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
     mCaptureScreenBuffer =
@@ -246,7 +248,7 @@ void CompositionTest::captureScreenComposition() {
                                                                       HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                                                       usage);
 
-    auto future = mFlinger.renderScreenImpl(std::move(renderArea), traverseLayers,
+    auto future = mFlinger.renderScreenImpl(std::move(renderArea), getLayerSnapshots,
                                             mCaptureScreenBuffer, forSystem, regionSampling);
     ASSERT_TRUE(future.valid());
     const auto fenceResult = future.get();

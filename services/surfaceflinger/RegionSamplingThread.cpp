@@ -344,12 +344,13 @@ void RegionSamplingThread::captureSample() {
                                                      renderengine::impl::ExternalTexture::Usage::
                                                              WRITEABLE);
     }
+    auto getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
 
     constexpr bool kRegionSampling = true;
     constexpr bool kGrayscale = false;
 
     if (const auto fenceResult =
-                mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
+                mFlinger.captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, buffer,
                                              kRegionSampling, kGrayscale, nullptr)
                         .get();
         fenceResult.ok()) {

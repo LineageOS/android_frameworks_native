@@ -407,7 +407,7 @@ public:
     }
 
     auto renderScreenImpl(std::shared_ptr<const RenderArea> renderArea,
-                          SurfaceFlinger::TraverseLayersFunction traverseLayers,
+                          SurfaceFlinger::GetLayerSnapshotsFunction traverseLayers,
                           const std::shared_ptr<renderengine::ExternalTexture>& buffer,
                           bool forSystem, bool regionSampling) {
         ScreenCaptureResults captureResults;

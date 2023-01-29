@@ -47,7 +47,7 @@ public:
      */
     void* getDecompressedImagePtr();
     /*
-     * Returns the decompressed raw image buffer size. This mgit ethod must be called only after
+     * Returns the decompressed raw image buffer size. This method must be called only after
      * calling decompressImage().
      */
     size_t getDecompressedImageSize();
@@ -92,10 +92,6 @@ public:
                                       size_t* pWidth, size_t* pHeight,
                                       std::vector<uint8_t>* iccData,
                                       std::vector<uint8_t>* exifData);
-    /*
-     * Extracts EXIF package and updates the EXIF position / length without decoding the image.
-     */
-    bool extractEXIF(const void* image, int length);
 
 private:
     bool decode(const void* image, int length, bool decodeToRGBA);
