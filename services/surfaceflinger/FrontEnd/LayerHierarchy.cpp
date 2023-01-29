@@ -252,8 +252,8 @@ void LayerHierarchyBuilder::onLayerAdded(RequestedLayerState* layer) {
     attachToParent(hierarchy);
     attachToRelativeParent(hierarchy);
 
-    if (layer->mirrorId != UNASSIGNED_LAYER_ID) {
-        LayerHierarchy* mirror = getHierarchyFromId(layer->mirrorId);
+    for (uint32_t mirrorId : layer->mirrorIds) {
+        LayerHierarchy* mirror = getHierarchyFromId(mirrorId);
         hierarchy->addChild(mirror, LayerHierarchy::Variant::Mirror);
     }
 }
@@ -292,14 +292,14 @@ void LayerHierarchyBuilder::updateMirrorLayer(RequestedLayerState* layer) {
     auto it = hierarchy->mChildren.begin();
     while (it != hierarchy->mChildren.end()) {
         if (it->second == LayerHierarchy::Variant::Mirror) {
-            hierarchy->mChildren.erase(it);
-            break;
+            it = hierarchy->mChildren.erase(it);
+        } else {
+            it++;
         }
-        it++;
     }
 
-    if (layer->mirrorId != UNASSIGNED_LAYER_ID) {
-        hierarchy->addChild(getHierarchyFromId(layer->mirrorId), LayerHierarchy::Variant::Mirror);
+    for (uint32_t mirrorId : layer->mirrorIds) {
+        hierarchy->addChild(getHierarchyFromId(mirrorId), LayerHierarchy::Variant::Mirror);
     }
 }
 

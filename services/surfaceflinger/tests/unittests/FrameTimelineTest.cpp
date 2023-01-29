@@ -44,6 +44,17 @@ using ProtoPredictionType = perfetto::protos::FrameTimelineEvent_PredictionType;
 
 namespace android::frametimeline {
 
+static const std::string sLayerNameOne = "layer1";
+static const std::string sLayerNameTwo = "layer2";
+
+constexpr const uid_t sUidOne = 0;
+constexpr pid_t sPidOne = 10;
+constexpr pid_t sPidTwo = 20;
+constexpr int32_t sInputEventId = 5;
+constexpr int32_t sLayerIdOne = 1;
+constexpr int32_t sLayerIdTwo = 2;
+constexpr GameMode sGameMode = GameMode::Unsupported;
+
 class FrameTimelineTest : public testing::Test {
 public:
     FrameTimelineTest() {
@@ -104,6 +115,14 @@ public:
             packets.emplace_back(packet);
         }
         return packets;
+    }
+
+    void addEmptySurfaceFrame() {
+        auto surfaceFrame =
+                mFrameTimeline->createSurfaceFrameForToken({}, sPidOne, sUidOne, sLayerIdOne,
+                                                           sLayerNameOne, sLayerNameOne,
+                                                           /*isBuffer*/ false, sGameMode);
+        mFrameTimeline->addSurfaceFrame(std::move(surfaceFrame));
     }
 
     void addEmptyDisplayFrame() {
@@ -167,17 +186,6 @@ public:
                                                                   kDeadlineThreshold,
                                                                   kStartThreshold};
 };
-
-static const std::string sLayerNameOne = "layer1";
-static const std::string sLayerNameTwo = "layer2";
-
-constexpr const uid_t sUidOne = 0;
-constexpr pid_t sPidOne = 10;
-constexpr pid_t sPidTwo = 20;
-constexpr int32_t sInputEventId = 5;
-constexpr int32_t sLayerIdOne = 1;
-constexpr int32_t sLayerIdTwo = 2;
-constexpr GameMode sGameMode = GameMode::Unsupported;
 
 TEST_F(FrameTimelineTest, tokenManagerRemovesStalePredictions) {
     int64_t token1 = mTokenManager->generateTokenForPredictions({0, 0, 0});
@@ -1054,6 +1062,9 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
     tracingSession->StartBlocking();
+
+    // Add an empty surface frame so that display frame would get traced.
+    addEmptySurfaceFrame();
     int64_t displayFrameToken1 = mTokenManager->generateTokenForPredictions({10, 30, 30});
 
     // Set up the display frame
@@ -1134,6 +1145,9 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_predictionExpiredDoesNotTraceExpecte
     int64_t displayFrameToken1 = mTokenManager->generateTokenForPredictions({10, 25, 30});
     // Flush the token so that it would expire
     flushTokens();
+
+    // Add an empty surface frame so that display frame would get traced.
+    addEmptySurfaceFrame();
 
     // Set up the display frame
     mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));

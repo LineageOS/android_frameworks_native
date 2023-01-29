@@ -73,6 +73,9 @@ std::string InputReaderConfiguration::changesToString(uint32_t changes) {
     if (changes & CHANGE_ENABLED_STATE) {
         result += "ENABLED_STATE | ";
     }
+    if (changes & CHANGE_TOUCHPAD_SETTINGS) {
+        result += "TOUCHPAD_SETTINGS | ";
+    }
     if (changes & CHANGE_MUST_REOPEN) {
         result += "MUST_REOPEN | ";
     }

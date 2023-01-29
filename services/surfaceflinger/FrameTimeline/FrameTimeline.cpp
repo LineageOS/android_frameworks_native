@@ -1095,6 +1095,12 @@ void FrameTimeline::DisplayFrame::traceActuals(pid_t surfaceFlingerPid,
 }
 
 void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset) const {
+    if (mSurfaceFrames.empty()) {
+        // We don't want to trace display frames without any surface frames updates as this cannot
+        // be janky
+        return;
+    }
+
     if (mToken == FrameTimelineInfo::INVALID_VSYNC_ID) {
         // DisplayFrame should not have an invalid token.
         ALOGE("Cannot trace DisplayFrame with invalid token");

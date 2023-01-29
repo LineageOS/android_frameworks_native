@@ -84,6 +84,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     gui::GameMode gameMode;
     scheduler::LayerInfo::FrameRate frameRate;
     ui::Transform::RotationFlags fixedTransformHint;
+    bool handleSkipScreenshotFlag = false;
     ChildState childState;
 
     static bool isOpaqueFormat(PixelFormat format);

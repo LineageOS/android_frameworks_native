@@ -24,6 +24,7 @@
 #include <binder/Parcelable.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
+#include <ui/Rect.h>
 
 namespace android::gui {
 

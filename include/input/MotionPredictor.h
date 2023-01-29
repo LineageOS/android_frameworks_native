@@ -16,9 +16,15 @@
 
 #pragma once
 
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <unordered_map>
+
 #include <android-base/thread_annotations.h>
 #include <android/sysprop/InputProperties.sysprop.h>
 #include <input/Input.h>
+#include <input/TfLiteMotionPredictor.h>
 
 namespace android {
 
@@ -28,48 +34,51 @@ static inline bool isMotionPredictionEnabled() {
 
 /**
  * Given a set of MotionEvents for the current gesture, predict the motion. The returned MotionEvent
- * contains a set of samples in the future, up to "presentation time + offset".
+ * contains a set of samples in the future.
  *
  * The typical usage is like this:
  *
  * MotionPredictor predictor(offset = MY_OFFSET);
- * predictor.setExpectedPresentationTimeNanos(NEXT_PRESENT_TIME);
  * predictor.record(DOWN_MOTION_EVENT);
  * predictor.record(MOVE_MOTION_EVENT);
- * prediction = predictor.predict();
+ * prediction = predictor.predict(futureTime);
  *
- * The presentation time should be set some time before calling .predict(). It could be set before
- * or after the recorded motion events. Must be done on every frame.
- *
- * The resulting motion event will have eventTime <= (NEXT_PRESENT_TIME + MY_OFFSET). It might
- * contain historical data, which are additional samples from the latest recorded MotionEvent's
- * eventTime to the NEXT_PRESENT_TIME + MY_OFFSET.
+ * The resulting motion event will have eventTime <= (futureTime + MY_OFFSET). It might contain
+ * historical data, which are additional samples from the latest recorded MotionEvent's eventTime
+ * to the futureTime + MY_OFFSET.
  *
  * The offset is used to provide additional flexibility to the caller, in case the default present
  * time (typically provided by the choreographer) does not account for some delays, or to simply
- * reduce the aggressiveness of the prediction. Offset can be both positive and negative.
+ * reduce the aggressiveness of the prediction. Offset can be positive or negative.
  */
 class MotionPredictor {
 public:
     /**
      * Parameters:
      * predictionTimestampOffsetNanos: additional, constant shift to apply to the target
-     * presentation time. The prediction will target the time t=(presentationTime +
+     * prediction time. The prediction will target the time t=(prediction time +
      * predictionTimestampOffsetNanos).
+     *
+     * modelPath: filesystem path to a TfLiteMotionPredictorModel flatbuffer, or nullptr to use the
+     * default model path.
      *
      * checkEnableMotionPredition: the function to check whether the prediction should run. Used to
      * provide an additional way of turning prediction on and off. Can be toggled at runtime.
      */
-    MotionPredictor(nsecs_t predictionTimestampOffsetNanos,
+    MotionPredictor(nsecs_t predictionTimestampOffsetNanos, const char* modelPath = nullptr,
                     std::function<bool()> checkEnableMotionPrediction = isMotionPredictionEnabled);
     void record(const MotionEvent& event);
     std::vector<std::unique_ptr<MotionEvent>> predict(nsecs_t timestamp);
     bool isPredictionAvailable(int32_t deviceId, int32_t source);
 
 private:
-    std::vector<MotionEvent> mEvents;
     const nsecs_t mPredictionTimestampOffsetNanos;
     const std::function<bool()> mCheckMotionPredictionEnabled;
+
+    std::unique_ptr<TfLiteMotionPredictorModel> mModel;
+    // Buffers/events for each device seen by record().
+    std::unordered_map</*deviceId*/ int32_t, TfLiteMotionPredictorBuffers> mDeviceBuffers;
+    std::unordered_map</*deviceId*/ int32_t, MotionEvent> mLastEvents;
 };
 
 } // namespace android

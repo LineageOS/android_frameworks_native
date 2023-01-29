@@ -57,6 +57,7 @@ cc_test {
         "SetFrameRateOverride_test.cpp",
         "SetGeometry_test.cpp",
         "Stress_test.cpp",
+        "TextureFiltering_test.cpp",
         "VirtualDisplay_test.cpp",
         "WindowInfosListener_test.cpp",
     ],
