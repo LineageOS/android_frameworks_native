@@ -41,6 +41,8 @@ cc_library {
         "libjpegdecoder",
         "liblog",
     ],
+
+    static_libs: ["libskia"],
 }
 
 cc_library {

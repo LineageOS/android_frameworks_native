@@ -28,13 +28,6 @@ namespace android::recoverymap {
 
 struct jpegr_metadata;
 
-// If the EXIF package doesn't exist in the input JPEG, we'll create one with one entry
-// where the length is represented by this value.
-const size_t PSEUDO_EXIF_PACKAGE_LENGTH = 28;
-// If the EXIF package exists in the input JPEG, we'll add an "JR" entry where the length is
-// represented by this value.
-const size_t EXIF_J_R_ENTRY_LENGTH = 12;
-
 /*
  * Helper function used for writing data to destination.
  *

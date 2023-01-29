@@ -30,15 +30,13 @@ cc_test {
     ],
     shared_libs: [
         "libjpeg",
+        "libjpegrecoverymap",
         "libimage_io",
         "liblog",
     ],
     static_libs: [
         "libgmock",
         "libgtest",
-        "libjpegdecoder",
-        "libjpegencoder",
-        "libjpegrecoverymap",
     ],
 }
 
@@ -50,10 +48,10 @@ cc_test {
     ],
     shared_libs: [
         "libjpeg",
+        "libjpegencoder",
         "liblog",
     ],
     static_libs: [
-        "libjpegencoder",
         "libgtest",
     ],
 }
@@ -66,10 +64,10 @@ cc_test {
     ],
     shared_libs: [
         "libjpeg",
+        "libjpegdecoder",
         "liblog",
     ],
     static_libs: [
-        "libjpegdecoder",
         "libgtest",
     ],
 }
