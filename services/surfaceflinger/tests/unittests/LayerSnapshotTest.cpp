@@ -306,4 +306,27 @@ TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
     EXPECT_EQ(getSnapshot(1)->frameRate.type, scheduler::LayerInfo::FrameRateCompatibility::NoVote);
 }
 
+// Display Mirroring Tests
+// tree with 3 levels of children
+// ROOT (DISPLAY 0)
+// ├── 1
+// │   ├── 11
+// │   │   └── 111
+// │   ├── 12 (has skip screenshot flag)
+// │   │   ├── 121
+// │   │   └── 122
+// │   │       └── 1221
+// │   └── 13
+// └── 2
+// ROOT (DISPLAY 1)
+// └── 3 (mirrors display 0)
+TEST_F(LayerSnapshotTest, displayMirrorRespects) {
+    setFlags(12, layer_state_t::eLayerSkipScreenshot, layer_state_t::eLayerSkipScreenshot);
+    createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
+    setLayerStack(3, 1);
+
+    std::vector<uint32_t> expected = {3, 1, 11, 111, 13, 2, 1, 11, 111, 12, 121, 122, 1221, 13, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+}
+
 } // namespace android::surfaceflinger::frontend

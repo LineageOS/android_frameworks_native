@@ -18,10 +18,12 @@
 
 #include <binder/Binder.h>
 #include <gui/LayerMetadata.h>
+#include <ui/LayerStack.h>
 #include <utils/StrongPointer.h>
 #include <cstdint>
 #include <limits>
 #include <optional>
+
 constexpr uint32_t UNASSIGNED_LAYER_ID = std::numeric_limits<uint32_t>::max();
 
 namespace android {
@@ -51,6 +53,7 @@ struct LayerCreationArgs {
     bool addToRoot = true;
     wp<IBinder> parentHandle = nullptr;
     wp<IBinder> mirrorLayerHandle = nullptr;
+    ui::LayerStack layerStackToMirror = ui::INVALID_LAYER_STACK;
 };
 
 } // namespace android::surfaceflinger

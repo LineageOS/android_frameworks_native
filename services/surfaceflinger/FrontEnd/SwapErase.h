@@ -23,12 +23,15 @@ namespace android::surfaceflinger::frontend {
 // remove an element from a vector that avoids relocating all the elements after the one
 // that is erased.
 template <typename T>
-void swapErase(std::vector<T>& vec, const T& value) {
+bool swapErase(std::vector<T>& vec, const T& value) {
+    bool found = false;
     auto it = std::find(vec.begin(), vec.end(), value);
     if (it != vec.end()) {
         std::iter_swap(it, vec.end() - 1);
         vec.erase(vec.end() - 1);
+        found = true;
     }
+    return found;
 }
 
 // Similar to swapErase(std::vector<T>& vec, const T& value) but erases the first element

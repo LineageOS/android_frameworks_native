@@ -45,6 +45,16 @@ std::string layerIdToString(uint32_t layerId) {
     return layerId == UNASSIGNED_LAYER_ID ? "none" : std::to_string(layerId);
 }
 
+std::string layerIdsToString(const std::vector<uint32_t>& layerIds) {
+    std::stringstream stream;
+    stream << "{";
+    for (auto layerId : layerIds) {
+        stream << layerId << ",";
+    }
+    stream << "}";
+    return stream.str();
+}
+
 } // namespace
 
 RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
@@ -64,8 +74,11 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     if (args.parentHandle != nullptr) {
         canBeRoot = false;
     }
-    mirrorId = LayerHandle::getLayerId(args.mirrorLayerHandle.promote());
-    if (mirrorId != UNASSIGNED_LAYER_ID) {
+    layerIdToMirror = LayerHandle::getLayerId(args.mirrorLayerHandle.promote());
+    if (layerIdToMirror != UNASSIGNED_LAYER_ID) {
+        changes |= RequestedLayerState::Changes::Mirror;
+    } else if (args.layerStackToMirror != ui::INVALID_LAYER_STACK) {
+        layerStackToMirror = args.layerStackToMirror;
         changes |= RequestedLayerState::Changes::Mirror;
     }
 
@@ -309,7 +322,7 @@ std::string RequestedLayerState::getDebugString() const {
     return "[" + std::to_string(id) + "]" + name + ",parent=" + layerIdToString(parentId) +
             ",relativeParent=" + layerIdToString(relativeParentId) +
             ",isRelativeOf=" + std::to_string(isRelativeOf) +
-            ",mirrorId=" + layerIdToString(mirrorId) +
+            ",mirrorIds=" + layerIdsToString(mirrorIds) +
             ",handleAlive=" + std::to_string(handleAlive) + ",z=" + std::to_string(z);
 }
 
