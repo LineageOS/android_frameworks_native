@@ -64,6 +64,11 @@ public:
     // For main functions - dangerous for libraries to use
     status_t setThreadPoolMaxThreadCount(size_t maxThreads);
     status_t enableOnewaySpamDetection(bool enable);
+
+    // Set the name of the current thread to look like a threadpool
+    // thread. Typically this is called before joinThreadPool.
+    //
+    // TODO: remove this API, and automatically set it intelligently.
     void giveThreadPoolName();
 
     String8 getDriverName();
