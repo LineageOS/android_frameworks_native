@@ -3165,6 +3165,9 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
             }
 
             dispatchEntry->resolvedFlags = motionEntry.flags;
+            if (dispatchEntry->resolvedAction == AMOTION_EVENT_ACTION_CANCEL) {
+                dispatchEntry->resolvedFlags |= AMOTION_EVENT_FLAG_CANCELED;
+            }
             if (dispatchEntry->targetFlags.test(InputTarget::Flags::WINDOW_IS_OBSCURED)) {
                 dispatchEntry->resolvedFlags |= AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
             }
