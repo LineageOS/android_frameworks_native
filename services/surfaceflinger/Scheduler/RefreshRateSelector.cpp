@@ -929,17 +929,38 @@ auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
                                          RefreshRateOrder refreshRateOrder,
                                          std::optional<DisplayModeId> preferredDisplayModeOpt) const
         -> FrameRateRanking {
+    using fps_approx_ops::operator<;
     const char* const whence = __func__;
+
+    // find the highest frame rate for each display mode
+    ftl::SmallMap<DisplayModeId, Fps, 8> maxRenderRateForMode;
+    const bool ascending = (refreshRateOrder == RefreshRateOrder::Ascending);
+    if (ascending) {
+        // TODO(b/266481656): Once this bug is fixed, we can remove this workaround and actually
+        //  use a lower frame rate when we want Ascending frame rates.
+        for (const auto& frameRateMode : mPrimaryFrameRates) {
+            if (anchorGroupOpt && frameRateMode.modePtr->getGroup() != anchorGroupOpt) {
+                continue;
+            }
+
+            const auto [iter, _] = maxRenderRateForMode.try_emplace(frameRateMode.modePtr->getId(),
+                                                                    frameRateMode.fps);
+            if (iter->second < frameRateMode.fps) {
+                iter->second = frameRateMode.fps;
+            }
+        }
+    }
+
     std::deque<ScoredFrameRate> ranking;
     const auto rankFrameRate = [&](const FrameRateMode& frameRateMode) REQUIRES(mLock) {
-        using fps_approx_ops::operator<;
         const auto& modePtr = frameRateMode.modePtr;
         if (anchorGroupOpt && modePtr->getGroup() != anchorGroupOpt) {
             return;
         }
 
         const bool ascending = (refreshRateOrder == RefreshRateOrder::Ascending);
-        if (ascending && frameRateMode.fps < getMinRefreshRateByPolicyLocked()->getFps()) {
+        const auto id = frameRateMode.modePtr->getId();
+        if (ascending && frameRateMode.fps < *maxRenderRateForMode.get(id)) {
             // TODO(b/266481656): Once this bug is fixed, we can remove this workaround and actually
             //  use a lower frame rate when we want Ascending frame rates.
             return;
