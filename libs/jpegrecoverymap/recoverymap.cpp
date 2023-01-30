@@ -110,31 +110,6 @@ static const map<
     {JPEGR_TF_PQ,          SkNamedTransferFn::kPQ},
 };
 
-/*
- * Helper function copies the JPEG image from without EXIF.
- *
- * @param dest destination of the data to be written.
- * @param source source of data being written.
- * @param exif_pos position of the EXIF package, which is aligned with jpegdecoder.getEXIFPos().
- *                 (4 bypes offset to FF sign, the byte after FF E1 XX XX <this byte>).
- * @param exif_size exif size without the initial 4 bytes, aligned with jpegdecoder.getEXIFSize().
- */
-void copyJpegWithoutExif(jr_compressed_ptr dest,
-                         jr_compressed_ptr source,
-                         size_t exif_pos,
-                         size_t exif_size) {
-  memcpy(dest, source, sizeof(jpegr_compressed_struct));
-
-  const size_t exif_offset = 4; //exif_pos has 4 bypes offset to the FF sign
-  dest->length = source->length - exif_size - exif_offset;
-  dest->data = malloc(dest->length);
-
-  memcpy(dest->data, source->data, exif_pos - exif_offset);
-  memcpy((uint8_t*)dest->data + exif_pos - exif_offset,
-         (uint8_t*)source->data + exif_pos + exif_size,
-         source->length - exif_pos - exif_size);
-}
-
 /* Encode API-0 */
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jpegr_transfer_function hdr_tf,
