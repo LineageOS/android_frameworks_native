@@ -670,8 +670,7 @@ InputDispatcher::~InputDispatcher() {
 
     while (!mConnectionsByToken.empty()) {
         sp<Connection> connection = mConnectionsByToken.begin()->second;
-        removeInputChannelLocked(connection->inputChannel->getConnectionToken(),
-                                 false /* notify */);
+        removeInputChannelLocked(connection->inputChannel->getConnectionToken(), /*notify=*/false);
     }
 }
 
@@ -1023,7 +1022,7 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
     if (isPointerDownEvent && mAwaitedFocusedApplication != nullptr) {
         const int32_t displayId = motionEntry.displayId;
         const auto [x, y] = resolveTouchedPosition(motionEntry);
-        const bool isStylus = isPointerFromStylus(motionEntry, 0 /*pointerIndex*/);
+        const bool isStylus = isPointerFromStylus(motionEntry, /*pointerIndex=*/0);
 
         auto [touchedWindowHandle, _] = findTouchedWindowAtLocked(displayId, x, y, isStylus);
         if (touchedWindowHandle != nullptr &&
@@ -2372,7 +2371,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         if (maskedAction == AMOTION_EVENT_ACTION_MOVE && entry.pointerCount == 1 &&
             tempTouchState.isSlippery()) {
             const auto [x, y] = resolveTouchedPosition(entry);
-            const bool isStylus = isPointerFromStylus(entry, 0 /*pointerIndex*/);
+            const bool isStylus = isPointerFromStylus(entry, /*pointerIndex=*/0);
             sp<WindowInfoHandle> oldTouchedWindowHandle =
                     tempTouchState.getFirstForegroundWindowHandle();
             auto [newTouchedWindowHandle, _] = findTouchedWindowAtLocked(displayId, x, y, isStylus);
@@ -2609,7 +2608,7 @@ void InputDispatcher::finishDragAndDrop(int32_t displayId, float x, float y) {
     constexpr bool isStylus = false;
 
     auto [dropWindow, _] =
-            findTouchedWindowAtLocked(displayId, x, y, isStylus, true /*ignoreDragWindow*/);
+            findTouchedWindowAtLocked(displayId, x, y, isStylus, /*ignoreDragWindow=*/true);
     if (dropWindow) {
         vec2 local = dropWindow->getInfo()->transform.transform(x, y);
         sendDropWindowCommandLocked(dropWindow->getToken(), local.x, local.y);
@@ -2666,19 +2665,19 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
             constexpr bool isStylus = false;
 
             auto [hoverWindowHandle, _] = findTouchedWindowAtLocked(entry.displayId, x, y, isStylus,
-                                                                    true /*ignoreDragWindow*/);
+                                                                    /*ignoreDragWindow=*/true);
             // enqueue drag exit if needed.
             if (hoverWindowHandle != mDragState->dragHoverWindowHandle &&
                 !haveSameToken(hoverWindowHandle, mDragState->dragHoverWindowHandle)) {
                 if (mDragState->dragHoverWindowHandle != nullptr) {
-                    enqueueDragEventLocked(mDragState->dragHoverWindowHandle, true /*isExiting*/, x,
+                    enqueueDragEventLocked(mDragState->dragHoverWindowHandle, /*isExiting=*/true, x,
                                            y);
                 }
                 mDragState->dragHoverWindowHandle = hoverWindowHandle;
             }
             // enqueue drag location if needed.
             if (hoverWindowHandle != nullptr) {
-                enqueueDragEventLocked(hoverWindowHandle, false /*isExiting*/, x, y);
+                enqueueDragEventLocked(hoverWindowHandle, /*isExiting=*/false, x, y);
             }
             break;
         }
@@ -3356,8 +3355,7 @@ status_t InputDispatcher::publishMotionEvent(Connection& connection,
                 // Don't apply window scale here since we don't want scale to affect raw
                 // coordinates. The scale will be sent back to the client and applied
                 // later when requesting relative coordinates.
-                scaledCoords[i].scale(globalScaleFactor, 1 /* windowXScale */,
-                                      1 /* windowYScale */);
+                scaledCoords[i].scale(globalScaleFactor, /*windowXScale=*/1, /*windowYScale=*/1);
             }
             usingCoords = scaledCoords;
         }
@@ -3493,7 +3491,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                           "event to it, status=%s(%d)",
                           connection->getInputChannelName().c_str(), statusToString(status).c_str(),
                           status);
-                    abortBrokenDispatchCycleLocked(currentTime, connection, true /*notify*/);
+                    abortBrokenDispatchCycleLocked(currentTime, connection, /*notify=*/true);
                 } else {
                     // Pipe is full and we are waiting for the app to finish process some events
                     // before sending more events to it.
@@ -3508,7 +3506,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                       "status=%s(%d)",
                       connection->getInputChannelName().c_str(), statusToString(status).c_str(),
                       status);
-                abortBrokenDispatchCycleLocked(currentTime, connection, true /*notify*/);
+                abortBrokenDispatchCycleLocked(currentTime, connection, /*notify=*/true);
             }
             return;
         }
@@ -4245,7 +4243,7 @@ void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
         // Just enqueue a new sensor event.
         std::unique_ptr<SensorEntry> newEntry =
                 std::make_unique<SensorEntry>(args->id, args->eventTime, args->deviceId,
-                                              args->source, 0 /* policyFlags*/, args->hwTimestamp,
+                                              args->source, /* policyFlags=*/0, args->hwTimestamp,
                                               args->sensorType, args->accuracy,
                                               args->accuracyChanged, args->values);
 
@@ -5639,7 +5637,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
         const sp<IBinder>& token = serverChannel->getConnectionToken();
         int fd = serverChannel->getFd();
         sp<Connection> connection =
-                sp<Connection>::make(std::move(serverChannel), false /*monitor*/, mIdGenerator);
+                sp<Connection>::make(std::move(serverChannel), /*monitor=*/false, mIdGenerator);
 
         if (mConnectionsByToken.find(token) != mConnectionsByToken.end()) {
             ALOGE("Created a new connection, but the token %p is already known", token.get());
@@ -5677,7 +5675,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
         }
 
         sp<Connection> connection =
-                sp<Connection>::make(serverChannel, true /*monitor*/, mIdGenerator);
+                sp<Connection>::make(serverChannel, /*monitor=*/true, mIdGenerator);
         const sp<IBinder>& token = serverChannel->getConnectionToken();
         const int fd = serverChannel->getFd();
 
@@ -5703,7 +5701,7 @@ status_t InputDispatcher::removeInputChannel(const sp<IBinder>& connectionToken)
     { // acquire lock
         std::scoped_lock _l(mLock);
 
-        status_t status = removeInputChannelLocked(connectionToken, false /*notify*/);
+        status_t status = removeInputChannelLocked(connectionToken, /*notify=*/false);
         if (status) {
             return status;
         }
@@ -6411,11 +6409,11 @@ void InputDispatcher::onFocusChangedLocked(const FocusResolver::FocusChanges& ch
             CancelationOptions options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
                                        "focus left window");
             synthesizeCancelationEventsForInputChannelLocked(focusedInputChannel, options);
-            enqueueFocusEventLocked(changes.oldFocus, false /*hasFocus*/, changes.reason);
+            enqueueFocusEventLocked(changes.oldFocus, /*hasFocus=*/false, changes.reason);
         }
     }
     if (changes.newFocus) {
-        enqueueFocusEventLocked(changes.newFocus, true /*hasFocus*/, changes.reason);
+        enqueueFocusEventLocked(changes.newFocus, /*hasFocus=*/true, changes.reason);
     }
 
     // If a window has pointer capture, then it must have focus. We need to ensure that this

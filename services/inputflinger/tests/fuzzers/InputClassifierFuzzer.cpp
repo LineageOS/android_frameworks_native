@@ -37,22 +37,22 @@ NotifyMotionArgs generateFuzzedMotionArgs(FuzzedDataProvider &fdp) {
 
     const nsecs_t downTime = 2;
     const nsecs_t readTime = downTime + fdp.ConsumeIntegralInRange<nsecs_t>(0, 1E8);
-    NotifyMotionArgs motionArgs(fdp.ConsumeIntegral<uint32_t>() /*sequenceNum*/,
-                                downTime /*eventTime*/, readTime,
-                                fdp.ConsumeIntegral<int32_t>() /*deviceId*/, AINPUT_SOURCE_ANY,
+    NotifyMotionArgs motionArgs(/*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
+                                /*eventTime=*/downTime, readTime,
+                                /*deviceId=*/fdp.ConsumeIntegral<int32_t>(), AINPUT_SOURCE_ANY,
                                 ADISPLAY_ID_DEFAULT,
-                                fdp.ConsumeIntegral<uint32_t>() /*policyFlags*/,
+                                /*policyFlags=*/fdp.ConsumeIntegral<uint32_t>(),
                                 AMOTION_EVENT_ACTION_DOWN,
-                                fdp.ConsumeIntegral<int32_t>() /*actionButton*/,
-                                fdp.ConsumeIntegral<int32_t>() /*flags*/, AMETA_NONE,
-                                fdp.ConsumeIntegral<int32_t>() /*buttonState*/,
+                                /*actionButton=*/fdp.ConsumeIntegral<int32_t>(),
+                                /*flags=*/fdp.ConsumeIntegral<int32_t>(), AMETA_NONE,
+                                /*buttonState=*/fdp.ConsumeIntegral<int32_t>(),
                                 MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
-                                1 /*pointerCount*/, &properties, &coords,
-                                fdp.ConsumeFloatingPoint<float>() /*xPrecision*/,
-                                fdp.ConsumeFloatingPoint<float>() /*yPrecision*/,
+                                /*pointerCount=*/1, &properties, &coords,
+                                /*xPrecision=*/fdp.ConsumeFloatingPoint<float>(),
+                                /*yPrecision=*/fdp.ConsumeFloatingPoint<float>(),
                                 AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                 AMOTION_EVENT_INVALID_CURSOR_POSITION, downTime,
-                                {} /*videoFrames*/);
+                                /*videoFrames=*/{});
     return motionArgs;
 }
 
@@ -68,8 +68,8 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                 [&]() -> void {
                     // SendToNextStage_NotifyConfigurationChangedArgs
                     NotifyConfigurationChangedArgs
-                            args(fdp.ConsumeIntegral<uint32_t>() /*sequenceNum*/,
-                                 fdp.ConsumeIntegral<nsecs_t>() /*eventTime*/);
+                            args(/*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
+                                 /*eventTime=*/fdp.ConsumeIntegral<nsecs_t>());
                     mClassifier->notifyConfigurationChanged(&args);
                 },
                 [&]() -> void {
@@ -77,15 +77,15 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                     const nsecs_t eventTime = fdp.ConsumeIntegral<nsecs_t>();
                     const nsecs_t readTime =
                             eventTime + fdp.ConsumeIntegralInRange<nsecs_t>(0, 1E8);
-                    NotifyKeyArgs keyArgs(fdp.ConsumeIntegral<uint32_t>() /*sequenceNum*/,
+                    NotifyKeyArgs keyArgs(/*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
                                           eventTime, readTime,
-                                          fdp.ConsumeIntegral<int32_t>() /*deviceId*/,
+                                          /*deviceId=*/fdp.ConsumeIntegral<int32_t>(),
                                           AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT,
-                                          fdp.ConsumeIntegral<uint32_t>() /*policyFlags*/,
+                                          /*policyFlags=*/fdp.ConsumeIntegral<uint32_t>(),
                                           AKEY_EVENT_ACTION_DOWN,
-                                          fdp.ConsumeIntegral<int32_t>() /*flags*/, AKEYCODE_HOME,
-                                          fdp.ConsumeIntegral<int32_t>() /*scanCode*/, AMETA_NONE,
-                                          fdp.ConsumeIntegral<nsecs_t>() /*downTime*/);
+                                          /*flags=*/fdp.ConsumeIntegral<int32_t>(), AKEYCODE_HOME,
+                                          /*scanCode=*/fdp.ConsumeIntegral<int32_t>(), AMETA_NONE,
+                                          /*downTime=*/fdp.ConsumeIntegral<nsecs_t>());
 
                     mClassifier->notifyKey(&keyArgs);
                 },
@@ -96,19 +96,20 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifySwitchArgs
-                    NotifySwitchArgs switchArgs(fdp.ConsumeIntegral<uint32_t>() /*sequenceNum*/,
-                                                fdp.ConsumeIntegral<nsecs_t>() /*eventTime*/,
-                                                fdp.ConsumeIntegral<uint32_t>() /*policyFlags*/,
-                                                fdp.ConsumeIntegral<uint32_t>() /*switchValues*/,
-                                                fdp.ConsumeIntegral<uint32_t>() /*switchMask*/);
+                    NotifySwitchArgs switchArgs(/*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
+                                                /*eventTime=*/fdp.ConsumeIntegral<nsecs_t>(),
+                                                /*policyFlags=*/fdp.ConsumeIntegral<uint32_t>(),
+                                                /*switchValues=*/fdp.ConsumeIntegral<uint32_t>(),
+                                                /*switchMask=*/fdp.ConsumeIntegral<uint32_t>());
 
                     mClassifier->notifySwitch(&switchArgs);
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifyDeviceResetArgs
-                    NotifyDeviceResetArgs resetArgs(fdp.ConsumeIntegral<uint32_t>() /*sequenceNum*/,
-                                                    fdp.ConsumeIntegral<nsecs_t>() /*eventTime*/,
-                                                    fdp.ConsumeIntegral<int32_t>() /*deviceId*/);
+                    NotifyDeviceResetArgs resetArgs(
+                            /*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
+                            /*eventTime=*/fdp.ConsumeIntegral<nsecs_t>(),
+                            /*deviceId=*/fdp.ConsumeIntegral<int32_t>());
 
                     mClassifier->notifyDeviceReset(&resetArgs);
                 },

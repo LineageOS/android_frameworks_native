@@ -301,7 +301,7 @@ std::list<NotifyArgs> JoystickInputMapper::process(const RawEvent* rawEvent) {
         case EV_SYN:
             switch (rawEvent->code) {
                 case SYN_REPORT:
-                    out += sync(rawEvent->when, rawEvent->readTime, false /*force*/);
+                    out += sync(rawEvent->when, rawEvent->readTime, /*force=*/false);
                     break;
             }
             break;

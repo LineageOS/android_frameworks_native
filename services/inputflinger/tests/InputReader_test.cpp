@@ -367,7 +367,7 @@ TEST_F(InputReaderPolicyTest, Viewports_GetCleared) {
 
     // Add an internal viewport, then clear it
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                    true /*isActive*/, uniqueId, NO_PORT, ViewportType::INTERNAL);
+                                    /*isActive=*/true, uniqueId, NO_PORT, ViewportType::INTERNAL);
 
     // Check matching by uniqueId
     internalViewport = mFakePolicy->getDisplayViewportByUniqueId(uniqueId);
@@ -397,19 +397,19 @@ TEST_F(InputReaderPolicyTest, Viewports_GetByType) {
 
     // Add an internal viewport
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                    true /*isActive*/, internalUniqueId, NO_PORT,
+                                    /*isActive=*/true, internalUniqueId, NO_PORT,
                                     ViewportType::INTERNAL);
     // Add an external viewport
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                    true /*isActive*/, externalUniqueId, NO_PORT,
+                                    /*isActive=*/true, externalUniqueId, NO_PORT,
                                     ViewportType::EXTERNAL);
     // Add an virtual viewport
     mFakePolicy->addDisplayViewport(virtualDisplayId1, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                    ui::ROTATION_0, true /*isActive*/, virtualUniqueId1, NO_PORT,
+                                    ui::ROTATION_0, /*isActive=*/true, virtualUniqueId1, NO_PORT,
                                     ViewportType::VIRTUAL);
     // Add another virtual viewport
     mFakePolicy->addDisplayViewport(virtualDisplayId2, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                    ui::ROTATION_0, true /*isActive*/, virtualUniqueId2, NO_PORT,
+                                    ui::ROTATION_0, /*isActive=*/true, virtualUniqueId2, NO_PORT,
                                     ViewportType::VIRTUAL);
 
     // Check matching by type for internal
@@ -459,10 +459,10 @@ TEST_F(InputReaderPolicyTest, Viewports_TwoOfSameType) {
         mFakePolicy->clearViewports();
         // Add a viewport
         mFakePolicy->addDisplayViewport(displayId1, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                        true /*isActive*/, uniqueId1, NO_PORT, type);
+                                        /*isActive=*/true, uniqueId1, NO_PORT, type);
         // Add another viewport
         mFakePolicy->addDisplayViewport(displayId2, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                        true /*isActive*/, uniqueId2, NO_PORT, type);
+                                        /*isActive=*/true, uniqueId2, NO_PORT, type);
 
         // Check that correct display viewport was returned by comparing the display IDs.
         std::optional<DisplayViewport> viewport1 =
@@ -502,10 +502,10 @@ TEST_F(InputReaderPolicyTest, Viewports_ByTypeReturnsDefaultForInternal) {
     // Add the default display first and ensure it gets returned.
     mFakePolicy->clearViewports();
     mFakePolicy->addDisplayViewport(ADISPLAY_ID_DEFAULT, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                    ui::ROTATION_0, true /*isActive*/, uniqueId1, NO_PORT,
+                                    ui::ROTATION_0, /*isActive=*/true, uniqueId1, NO_PORT,
                                     ViewportType::INTERNAL);
     mFakePolicy->addDisplayViewport(nonDefaultDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                    ui::ROTATION_0, true /*isActive*/, uniqueId2, NO_PORT,
+                                    ui::ROTATION_0, /*isActive=*/true, uniqueId2, NO_PORT,
                                     ViewportType::INTERNAL);
 
     std::optional<DisplayViewport> viewport =
@@ -517,10 +517,10 @@ TEST_F(InputReaderPolicyTest, Viewports_ByTypeReturnsDefaultForInternal) {
     // Add the default display second to make sure order doesn't matter.
     mFakePolicy->clearViewports();
     mFakePolicy->addDisplayViewport(nonDefaultDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                    ui::ROTATION_0, true /*isActive*/, uniqueId2, NO_PORT,
+                                    ui::ROTATION_0, /*isActive=*/true, uniqueId2, NO_PORT,
                                     ViewportType::INTERNAL);
     mFakePolicy->addDisplayViewport(ADISPLAY_ID_DEFAULT, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                    ui::ROTATION_0, true /*isActive*/, uniqueId1, NO_PORT,
+                                    ui::ROTATION_0, /*isActive=*/true, uniqueId1, NO_PORT,
                                     ViewportType::INTERNAL);
 
     viewport = mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
@@ -545,10 +545,10 @@ TEST_F(InputReaderPolicyTest, Viewports_GetByPort) {
     mFakePolicy->clearViewports();
     // Add a viewport that's associated with some display port that's not of interest.
     mFakePolicy->addDisplayViewport(displayId1, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                    true /*isActive*/, uniqueId1, hdmi3, type);
+                                    /*isActive=*/true, uniqueId1, hdmi3, type);
     // Add another viewport, connected to HDMI1 port
     mFakePolicy->addDisplayViewport(displayId2, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                    true /*isActive*/, uniqueId2, hdmi1, type);
+                                    /*isActive=*/true, uniqueId2, hdmi1, type);
 
     // Check that correct display viewport was returned by comparing the display ports.
     std::optional<DisplayViewport> hdmi1Viewport = mFakePolicy->getDisplayViewportByPort(hdmi1);
@@ -1002,9 +1002,9 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     // Add default and second display.
     mFakePolicy->clearViewports();
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                    true /*isActive*/, "local:0", NO_PORT, ViewportType::INTERNAL);
+                                    /*isActive=*/true, "local:0", NO_PORT, ViewportType::INTERNAL);
     mFakePolicy->addDisplayViewport(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                    ui::ROTATION_0, true /*isActive*/, "local:1", hdmi1,
+                                    ui::ROTATION_0, /*isActive=*/true, "local:1", hdmi1,
                                     ViewportType::EXTERNAL);
     mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     mReader->loopOnce();
@@ -1255,15 +1255,15 @@ TEST_F(InputReaderTest, LightGetColor) {
                          .maxBrightness = 255,
                          .flags = InputLightClass::BRIGHTNESS,
                          .path = ""};
-    mFakeEventHub->addRawLightInfo(1 /* rawId */, std::move(info));
-    mFakeEventHub->fakeLightBrightness(1 /* rawId */, 0x55);
+    mFakeEventHub->addRawLightInfo(/*rawId=*/1, std::move(info));
+    mFakeEventHub->fakeLightBrightness(/*rawId=*/1, 0x55);
 
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
 
-    ASSERT_TRUE(controller.setLightColor(1 /* lightId */, LIGHT_BRIGHTNESS));
-    ASSERT_EQ(controller.getLightColor(1 /* lightId */), LIGHT_BRIGHTNESS);
-    ASSERT_TRUE(mReader->setLightColor(deviceId, 1 /* lightId */, LIGHT_BRIGHTNESS));
-    ASSERT_EQ(mReader->getLightColor(deviceId, 1 /* lightId */), LIGHT_BRIGHTNESS);
+    ASSERT_TRUE(controller.setLightColor(/*lightId=*/1, LIGHT_BRIGHTNESS));
+    ASSERT_EQ(controller.getLightColor(/*lightId=*/1), LIGHT_BRIGHTNESS);
+    ASSERT_TRUE(mReader->setLightColor(deviceId, /*lightId=*/1, LIGHT_BRIGHTNESS));
+    ASSERT_EQ(mReader->getLightColor(deviceId, /*lightId=*/1), LIGHT_BRIGHTNESS);
 }
 
 // --- InputReaderIntegrationTest ---
@@ -1288,8 +1288,8 @@ protected:
         mFakePolicy = sp<FakeInputReaderPolicy>::make();
         mFakePointerController = std::make_shared<FakePointerController>();
         mFakePolicy->setPointerController(mFakePointerController);
-        mTestListener = std::make_unique<TestInputListener>(2000ms /*eventHappenedTimeout*/,
-                                                            30ms /*eventDidNotHappenTimeout*/);
+        mTestListener = std::make_unique<TestInputListener>(/*eventHappenedTimeout=*/2000ms,
+                                                            /*eventDidNotHappenTimeout=*/30ms);
 
         mReader = std::make_unique<InputReader>(std::make_shared<EventHub>(), mFakePolicy,
                                                 *mTestListener);
@@ -1326,7 +1326,7 @@ TEST_F(InputReaderIntegrationTest, TestInvalidDevice) {
     // An invalid input device that is only used for this test.
     class InvalidUinputDevice : public UinputDevice {
     public:
-        InvalidUinputDevice() : UinputDevice("Invalid Device", 99 /*productId*/) {}
+        InvalidUinputDevice() : UinputDevice("Invalid Device", /*productId=*/99) {}
 
     private:
         void configureDevice(int fd, uinput_user_dev* device) override {}
@@ -1478,7 +1478,7 @@ protected:
                                       ui::Rotation orientation, const std::string& uniqueId,
                                       std::optional<uint8_t> physicalPort,
                                       ViewportType viewportType) {
-        mFakePolicy->addDisplayViewport(displayId, width, height, orientation, true /*isActive*/,
+        mFakePolicy->addDisplayViewport(displayId, width, height, orientation, /*isActive=*/true,
                                         uniqueId, physicalPort, viewportType);
         mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     }
@@ -2452,7 +2452,7 @@ TEST_F(InputDeviceTest, Configure_AssignsDisplayPort) {
 
     // Prepare displays.
     mFakePolicy->addDisplayViewport(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                    ui::ROTATION_0, true /*isActive*/, UNIQUE_ID, hdmi,
+                                    ui::ROTATION_0, /*isActive=*/true, UNIQUE_ID, hdmi,
                                     ViewportType::INTERNAL);
     unused += mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                                  InputReaderConfiguration::CHANGE_DISPLAY_INFO);
@@ -2528,8 +2528,8 @@ TEST_F(InputDeviceTest, DumpDoesNotCrash) {
     constexpr int32_t TEST_EVENTHUB_ID = 10;
     mFakeEventHub->addDevice(TEST_EVENTHUB_ID, "Test EventHub device", InputDeviceClass::BATTERY);
 
-    InputDevice device(mReader->getContext(), 1 /*id*/, 2 /*generation*/, {} /*identifier*/);
-    device.addEventHubDevice(TEST_EVENTHUB_ID, true /*populateMappers*/);
+    InputDevice device(mReader->getContext(), /*id=*/1, /*generation=*/2, /*identifier=*/{});
+    device.addEventHubDevice(TEST_EVENTHUB_ID, /*populateMappers=*/true);
     device.removeEventHubDevice(TEST_EVENTHUB_ID);
     std::string dumpStr, eventHubDevStr;
     device.dump(dumpStr, eventHubDevStr);
@@ -2609,12 +2609,12 @@ TEST_F(VibratorInputMapperTest, Vibrate) {
     VibrationElement pattern(2);
     VibrationSequence sequence(2);
     pattern.duration = std::chrono::milliseconds(200);
-    pattern.channels = {{0 /* vibratorId */, DEFAULT_AMPLITUDE / 2},
-                        {1 /* vibratorId */, DEFAULT_AMPLITUDE}};
+    pattern.channels = {{/*vibratorId=*/0, DEFAULT_AMPLITUDE / 2},
+                        {/*vibratorId=*/1, DEFAULT_AMPLITUDE}};
     sequence.addElement(pattern);
     pattern.duration = std::chrono::milliseconds(500);
-    pattern.channels = {{0 /* vibratorId */, DEFAULT_AMPLITUDE / 4},
-                        {1 /* vibratorId */, DEFAULT_AMPLITUDE}};
+    pattern.channels = {{/*vibratorId=*/0, DEFAULT_AMPLITUDE / 4},
+                        {/*vibratorId=*/1, DEFAULT_AMPLITUDE}};
     sequence.addElement(pattern);
 
     std::vector<int64_t> timings = {0, 1};
@@ -2622,7 +2622,7 @@ TEST_F(VibratorInputMapperTest, Vibrate) {
 
     ASSERT_FALSE(mapper.isVibrating());
     // Start vibrating
-    std::list<NotifyArgs> out = mapper.vibrate(sequence, -1 /* repeat */, VIBRATION_TOKEN);
+    std::list<NotifyArgs> out = mapper.vibrate(sequence, /*repeat=*/-1, VIBRATION_TOKEN);
     ASSERT_TRUE(mapper.isVibrating());
     // Verify vibrator state listener was notified.
     mReader->loopOnce();
@@ -2981,12 +2981,12 @@ TEST_F(KeyboardInputMapperTest, Process_SendsReadTime) {
     NotifyKeyArgs args;
 
     // Key down
-    process(mapper, ARBITRARY_TIME, 12 /*readTime*/, EV_KEY, KEY_HOME, 1);
+    process(mapper, ARBITRARY_TIME, /*readTime=*/12, EV_KEY, KEY_HOME, 1);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     ASSERT_EQ(12, args.readTime);
 
     // Key up
-    process(mapper, ARBITRARY_TIME, 15 /*readTime*/, EV_KEY, KEY_HOME, 1);
+    process(mapper, ARBITRARY_TIME, /*readTime=*/15, EV_KEY, KEY_HOME, 1);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     ASSERT_EQ(15, args.readTime);
 }
@@ -3369,7 +3369,7 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
                                                     AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                               0 /*changes*/);
+                               /*changes=*/0);
     unused += device2->reset(ARBITRARY_TIME);
 
     // Prepared displays and associated info.
@@ -3479,7 +3479,7 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleAfterReattach) {
                                                     AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                               0 /*changes*/);
+                               /*changes=*/0);
     unused += device2->reset(ARBITRARY_TIME);
 
     ASSERT_TRUE(mFakeEventHub->getLedState(SECOND_EVENTHUB_ID, LED_CAPSL));
@@ -3540,7 +3540,7 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleInMultiDevices) {
                                                     AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                               0 /*changes*/);
+                               /*changes=*/0);
     unused += device2->reset(ARBITRARY_TIME);
 
     // Initial metastate is AMETA_NONE.
@@ -4508,8 +4508,8 @@ TEST_F(CursorInputMapperTest, Process_PointerCapture) {
  */
 TEST_F(CursorInputMapperTest, PointerCaptureDisablesVelocityProcessing) {
     addConfigurationProperty("cursor.mode", "pointer");
-    const VelocityControlParameters testParams(5.f /*scale*/, 0.f /*low threshold*/,
-                                               100.f /*high threshold*/, 10.f /*acceleration*/);
+    const VelocityControlParameters testParams(/*scale=*/5.f, /*low threshold=*/0.f,
+                                               /*high threshold=*/100.f, /*acceleration=*/10.f);
     mFakePolicy->setVelocityControlParams(testParams);
     CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
 
@@ -8886,18 +8886,18 @@ TEST_F(MultiTouchInputMapperTest, Process_SendsReadTime) {
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
     prepareDisplay(ui::ROTATION_0);
-    process(mapper, 10, 11 /*readTime*/, EV_ABS, ABS_MT_TRACKING_ID, 1);
-    process(mapper, 15, 16 /*readTime*/, EV_ABS, ABS_MT_POSITION_X, 100);
-    process(mapper, 20, 21 /*readTime*/, EV_ABS, ABS_MT_POSITION_Y, 100);
-    process(mapper, 25, 26 /*readTime*/, EV_SYN, SYN_REPORT, 0);
+    process(mapper, 10, /*readTime=*/11, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    process(mapper, 15, /*readTime=*/16, EV_ABS, ABS_MT_POSITION_X, 100);
+    process(mapper, 20, /*readTime=*/21, EV_ABS, ABS_MT_POSITION_Y, 100);
+    process(mapper, 25, /*readTime=*/26, EV_SYN, SYN_REPORT, 0);
 
     NotifyMotionArgs args;
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(26, args.readTime);
 
-    process(mapper, 30, 31 /*readTime*/, EV_ABS, ABS_MT_POSITION_X, 110);
-    process(mapper, 30, 32 /*readTime*/, EV_ABS, ABS_MT_POSITION_Y, 220);
-    process(mapper, 30, 33 /*readTime*/, EV_SYN, SYN_REPORT, 0);
+    process(mapper, 30, /*readTime=*/31, EV_ABS, ABS_MT_POSITION_X, 110);
+    process(mapper, 30, /*readTime=*/32, EV_ABS, ABS_MT_POSITION_Y, 220);
+    process(mapper, 30, /*readTime=*/33, EV_SYN, SYN_REPORT, 0);
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(33, args.readTime);
@@ -8911,7 +8911,7 @@ TEST_F(MultiTouchInputMapperTest, WhenViewportIsNotActive_TouchesAreDropped) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     // Don't set touch.enableForInactiveViewport to verify the default behavior.
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                    false /*isActive*/, UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
+                                    /*isActive=*/false, UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
     configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     prepareAxes(POSITION);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
@@ -8931,7 +8931,7 @@ TEST_F(MultiTouchInputMapperTest, WhenViewportIsNotActive_TouchesAreProcessed) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     addConfigurationProperty("touch.enableForInactiveViewport", "1");
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                    false /*isActive*/, UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
+                                    /*isActive=*/false, UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
     configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     prepareAxes(POSITION);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
@@ -8948,7 +8948,7 @@ TEST_F(MultiTouchInputMapperTest, Process_DeactivateViewport_AbortTouches) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     addConfigurationProperty("touch.enableForInactiveViewport", "0");
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                    true /*isActive*/, UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
+                                    /*isActive=*/true, UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
     std::optional<DisplayViewport> optionalDisplayViewport =
             mFakePolicy->getDisplayViewportByUniqueId(UNIQUE_ID);
     ASSERT_TRUE(optionalDisplayViewport.has_value());
@@ -9011,14 +9011,14 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
                       ftl::Flags<InputDeviceClass>(0));
 
     mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_POSITION_X, RAW_X_MIN, RAW_X_MAX,
-                                   0 /*flat*/, 0 /*fuzz*/);
+                                   /*flat=*/0, /*fuzz=*/0);
     mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_POSITION_Y, RAW_Y_MIN, RAW_Y_MAX,
-                                   0 /*flat*/, 0 /*fuzz*/);
+                                   /*flat=*/0, /*fuzz=*/0);
     mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_TRACKING_ID, RAW_ID_MIN, RAW_ID_MAX,
-                                   0 /*flat*/, 0 /*fuzz*/);
+                                   /*flat=*/0, /*fuzz=*/0);
     mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_SLOT, RAW_SLOT_MIN, RAW_SLOT_MAX,
-                                   0 /*flat*/, 0 /*fuzz*/);
-    mFakeEventHub->setAbsoluteAxisValue(SECOND_EVENTHUB_ID, ABS_MT_SLOT, 0 /*value*/);
+                                   /*flat=*/0, /*fuzz=*/0);
+    mFakeEventHub->setAbsoluteAxisValue(SECOND_EVENTHUB_ID, ABS_MT_SLOT, /*value=*/0);
     mFakeEventHub->addConfigurationProperty(SECOND_EVENTHUB_ID, String8("touch.deviceType"),
                                             String8("touchScreen"));
 
@@ -9026,7 +9026,7 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
     MultiTouchInputMapper& mapper2 = device2->addMapper<MultiTouchInputMapper>(SECOND_EVENTHUB_ID);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                               0 /*changes*/);
+                               /*changes=*/0);
     unused += device2->reset(ARBITRARY_TIME);
 
     // Setup PointerController.
@@ -10108,7 +10108,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthSwipe) {
     // The min freeform gesture width is 25units/mm x 30mm = 750
     // which is greater than fraction of the diagnal length of the touchpad (349).
     // Thus, MaxSwipWidth is 750.
-    preparePointerMode(25 /*xResolution*/, 25 /*yResolution*/);
+    preparePointerMode(/*xResolution=*/25, /*yResolution=*/25);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
     NotifyMotionArgs motionArgs;
 
@@ -10168,7 +10168,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthLowResolutionSwipe)
     // The min freeform gesture width is 5units/mm x 30mm = 150
     // which is greater than fraction of the diagnal length of the touchpad (349).
     // Thus, MaxSwipWidth is the fraction of the diagnal length, 349.
-    preparePointerMode(5 /*xResolution*/, 5 /*yResolution*/);
+    preparePointerMode(/*xResolution=*/5, /*yResolution=*/5);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
     NotifyMotionArgs motionArgs;
 
@@ -10224,7 +10224,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthLowResolutionSwipe)
  * freeform gestures after two fingers start to move downwards.
  */
 TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthFreeform) {
-    preparePointerMode(25 /*xResolution*/, 25 /*yResolution*/);
+    preparePointerMode(/*xResolution=*/25, /*yResolution=*/25);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
     NotifyMotionArgs motionArgs;
@@ -10319,7 +10319,7 @@ TEST_F(MultiTouchPointerModeTest, PointerGestureMaxSwipeWidthFreeform) {
 }
 
 TEST_F(MultiTouchPointerModeTest, TwoFingerSwipeOffsets) {
-    preparePointerMode(25 /*xResolution*/, 25 /*yResolution*/);
+    preparePointerMode(/*xResolution=*/25, /*yResolution=*/25);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
     NotifyMotionArgs motionArgs;
 
@@ -10365,7 +10365,7 @@ TEST_F(MultiTouchPointerModeTest, TwoFingerSwipeOffsets) {
 }
 
 TEST_F(MultiTouchPointerModeTest, WhenViewportActiveStatusChanged_PointerGestureIsReset) {
-    preparePointerMode(25 /*xResolution*/, 25 /*yResolution*/);
+    preparePointerMode(/*xResolution=*/25, /*yResolution=*/25);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());

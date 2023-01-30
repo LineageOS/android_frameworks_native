@@ -44,15 +44,15 @@ static NotifyMotionArgs generateBasicMotionArgs() {
     coords.setAxisValue(AMOTION_EVENT_AXIS_X, 1);
     coords.setAxisValue(AMOTION_EVENT_AXIS_Y, 1);
     static constexpr nsecs_t downTime = 2;
-    NotifyMotionArgs motionArgs(1 /*sequenceNum*/, downTime /*eventTime*/, 2 /*readTime*/,
-                                3 /*deviceId*/, AINPUT_SOURCE_ANY, ADISPLAY_ID_DEFAULT,
-                                4 /*policyFlags*/, AMOTION_EVENT_ACTION_DOWN, 0 /*actionButton*/,
-                                0 /*flags*/, AMETA_NONE, 0 /*buttonState*/,
+    NotifyMotionArgs motionArgs(/*sequenceNum=*/1, /*eventTime=*/downTime, /*readTime=*/2,
+                                /*deviceId=*/3, AINPUT_SOURCE_ANY, ADISPLAY_ID_DEFAULT,
+                                /*policyFlags=*/4, AMOTION_EVENT_ACTION_DOWN, /*actionButton=*/0,
+                                /*flags=*/0, AMETA_NONE, /*buttonState=*/0,
                                 MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
-                                1 /*pointerCount*/, &properties, &coords, 0 /*xPrecision*/,
-                                0 /*yPrecision*/, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                /*pointerCount=*/1, &properties, &coords, /*xPrecision=*/0,
+                                /*yPrecision=*/0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                 AMOTION_EVENT_INVALID_CURSOR_POSITION, downTime,
-                                {} /*videoFrames*/);
+                                /*videoFrames=*/{});
     return motionArgs;
 }
 
@@ -70,7 +70,7 @@ protected:
  */
 TEST_F(InputProcessorTest, SendToNextStage_NotifyConfigurationChangedArgs) {
     // Create a basic configuration change and send to processor
-    NotifyConfigurationChangedArgs args(1 /*sequenceNum*/, 2 /*eventTime*/);
+    NotifyConfigurationChangedArgs args(/*sequenceNum=*/1, /*eventTime=*/2);
 
     mProcessor->notifyConfigurationChanged(&args);
     NotifyConfigurationChangedArgs outArgs;
@@ -80,10 +80,10 @@ TEST_F(InputProcessorTest, SendToNextStage_NotifyConfigurationChangedArgs) {
 
 TEST_F(InputProcessorTest, SendToNextStage_NotifyKeyArgs) {
     // Create a basic key event and send to processor
-    NotifyKeyArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 21 /*readTime*/, 3 /*deviceId*/,
-                       AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT, 0 /*policyFlags*/,
-                       AKEY_EVENT_ACTION_DOWN, 4 /*flags*/, AKEYCODE_HOME, 5 /*scanCode*/,
-                       AMETA_NONE, 6 /*downTime*/);
+    NotifyKeyArgs args(/*sequenceNum=*/1, /*eventTime=*/2, /*readTime=*/21, /*deviceId=*/3,
+                       AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT, /*policyFlags=*/0,
+                       AKEY_EVENT_ACTION_DOWN, /*flags=*/4, AKEYCODE_HOME, /*scanCode=*/5,
+                       AMETA_NONE, /*downTime=*/6);
 
     mProcessor->notifyKey(&args);
     NotifyKeyArgs outArgs;
@@ -108,8 +108,8 @@ TEST_F(InputProcessorTest, SendToNextStage_NotifyMotionArgs) {
  * Expect that the event is received by the next input stage, unmodified.
  */
 TEST_F(InputProcessorTest, SendToNextStage_NotifySwitchArgs) {
-    NotifySwitchArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 3 /*policyFlags*/, 4 /*switchValues*/,
-                          5 /*switchMask*/);
+    NotifySwitchArgs args(/*sequenceNum=*/1, /*eventTime=*/2, /*policyFlags=*/3,
+                          /*switchValues=*/4, /*switchMask=*/5);
 
     mProcessor->notifySwitch(&args);
     NotifySwitchArgs outArgs;
@@ -122,7 +122,7 @@ TEST_F(InputProcessorTest, SendToNextStage_NotifySwitchArgs) {
  * Expect that the event is received by the next input stage, unmodified.
  */
 TEST_F(InputProcessorTest, SendToNextStage_NotifyDeviceResetArgs) {
-    NotifyDeviceResetArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 3 /*deviceId*/);
+    NotifyDeviceResetArgs args(/*sequenceNum=*/1, /*eventTime=*/2, /*deviceId=*/3);
 
     mProcessor->notifyDeviceReset(&args);
     NotifyDeviceResetArgs outArgs;
@@ -252,7 +252,7 @@ TEST_F(MotionClassifierTest, Reset_DoesNotCrash) {
  * Make sure MotionClassifier does not crash when a device is reset.
  */
 TEST_F(MotionClassifierTest, DeviceReset_DoesNotCrash) {
-    NotifyDeviceResetArgs args(1 /*sequenceNum*/, 2 /*eventTime*/, 3 /*deviceId*/);
+    NotifyDeviceResetArgs args(/*sequenceNum=*/1, /*eventTime=*/2, /*deviceId=*/3);
     ASSERT_NO_FATAL_FAILURE(mMotionClassifier->reset(args));
 }
 

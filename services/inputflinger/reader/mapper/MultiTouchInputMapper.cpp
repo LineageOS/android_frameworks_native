@@ -202,10 +202,10 @@ void MultiTouchInputMapper::configureRawPointerAxes() {
             slotCount = MAX_SLOTS;
         }
         mMultiTouchMotionAccumulator.configure(getDeviceContext(), slotCount,
-                                               true /*usingSlotsProtocol*/);
+                                               /*usingSlotsProtocol=*/true);
     } else {
         mMultiTouchMotionAccumulator.configure(getDeviceContext(), MAX_POINTERS,
-                                               false /*usingSlotsProtocol*/);
+                                               /*usingSlotsProtocol=*/false);
     }
 }
 

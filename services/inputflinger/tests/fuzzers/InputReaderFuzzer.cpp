@@ -182,13 +182,13 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     VibrationSequence pattern(patternCount);
     for (size_t i = 0; i < patternCount; ++i) {
         VibrationElement element(i);
-        element.addChannel(fdp->ConsumeIntegral<int32_t>() /* vibratorId */,
-                           fdp->ConsumeIntegral<uint8_t>() /* amplitude */);
+        element.addChannel(/*vibratorId=*/fdp->ConsumeIntegral<int32_t>(),
+                           /*amplitude=*/fdp->ConsumeIntegral<uint8_t>());
         pattern.addElement(element);
     }
     reader->vibrate(fdp->ConsumeIntegral<int32_t>(), pattern,
-                    fdp->ConsumeIntegral<ssize_t>() /*repeat*/,
-                    fdp->ConsumeIntegral<int32_t>() /*token*/);
+                    /*repeat=*/fdp->ConsumeIntegral<ssize_t>(),
+                    /*token=*/fdp->ConsumeIntegral<int32_t>());
     reader->start();
 
     // Loop through mapper operations until randomness is exhausted.

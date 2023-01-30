@@ -141,7 +141,7 @@ public:
                 ALOGE("Waited too long for consumer to produce an event, giving up");
                 break;
             }
-            result = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq,
+            result = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq,
                                         &event);
         }
         if (result != OK) {
@@ -308,13 +308,13 @@ static void benchmarkInjectMotion(benchmark::State& state) {
     for (auto _ : state) {
         MotionEvent event = generateMotionEvent();
         // Send ACTION_DOWN
-        dispatcher.injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+        dispatcher.injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                     INJECT_EVENT_TIMEOUT,
                                     POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 
         // Send ACTION_UP
         event.setAction(AMOTION_EVENT_ACTION_UP);
-        dispatcher.injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+        dispatcher.injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                     INJECT_EVENT_TIMEOUT,
                                     POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 
@@ -344,7 +344,7 @@ static void benchmarkOnWindowInfosChanged(benchmark::State& state) {
 
     for (auto _ : state) {
         dispatcher.onWindowInfosChanged(windowInfos, displayInfos);
-        dispatcher.onWindowInfosChanged({} /*windowInfos*/, {} /*displayInfos*/);
+        dispatcher.onWindowInfosChanged(/*windowInfos=*/{}, /*displayInfos=*/{});
     }
     dispatcher.stop();
 }
