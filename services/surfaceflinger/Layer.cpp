@@ -254,7 +254,7 @@ Layer::~Layer() {
     }
     if (hasTrustedPresentationListener()) {
         mFlinger->mNumTrustedPresentationListeners--;
-        updateTrustedPresentationState(nullptr, -1 /* time_in_ms */, true /* leaveState*/);
+        updateTrustedPresentationState(nullptr, nullptr, -1 /* time_in_ms */, true /* leaveState*/);
     }
 }
 
@@ -285,7 +285,7 @@ void Layer::removeFromCurrentState() {
         mRemovedFromDrawingState = true;
         mFlinger->mScheduler->deregisterLayer(this);
     }
-    updateTrustedPresentationState(nullptr, -1 /* time_in_ms */, true /* leaveState*/);
+    updateTrustedPresentationState(nullptr, nullptr, -1 /* time_in_ms */, true /* leaveState*/);
 
     mFlinger->markLayerPendingRemovalLocked(sp<Layer>::fromExisting(this));
 }
@@ -384,8 +384,9 @@ FloatRect Layer::getBounds(const Region& activeTransparentRegion) const {
 }
 
 // No early returns.
-void Layer::updateTrustedPresentationState(const DisplayDevice* display, int64_t time_in_ms,
-                                           bool leaveState) {
+void Layer::updateTrustedPresentationState(const DisplayDevice* display,
+                                           const frontend::LayerSnapshot* snapshot,
+                                           int64_t time_in_ms, bool leaveState) {
     if (!hasTrustedPresentationListener()) {
         return;
     }
@@ -394,12 +395,13 @@ void Layer::updateTrustedPresentationState(const DisplayDevice* display, int64_t
 
     if (!leaveState) {
         const auto outputLayer = findOutputLayerForDisplay(display);
-        if (outputLayer != nullptr) {
+        if (outputLayer != nullptr && snapshot != nullptr) {
             mLastComputedTrustedPresentationState =
-                    computeTrustedPresentationState(mBounds, mSourceBounds,
+                    computeTrustedPresentationState(snapshot->geomLayerBounds,
+                                                    snapshot->sourceBounds(),
                                                     outputLayer->getState().coveredRegion,
-                                                    mScreenBounds, getCompositionState()->alpha,
-                                                    getCompositionState()->geomLayerTransform,
+                                                    snapshot->transformedBounds, snapshot->alpha,
+                                                    snapshot->geomLayerTransform,
                                                     mTrustedPresentationThresholds);
         }
     }

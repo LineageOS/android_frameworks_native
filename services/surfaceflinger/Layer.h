@@ -539,7 +539,8 @@ public:
                                                 const FloatRect& screenBounds, float,
                                                 const ui::Transform&,
                                                 const TrustedPresentationThresholds&);
-    void updateTrustedPresentationState(const DisplayDevice* display, int64_t time_in_ms,
+    void updateTrustedPresentationState(const DisplayDevice* display,
+                                        const frontend::LayerSnapshot* snapshot, int64_t time_in_ms,
                                         bool leaveState);
 
     inline bool hasTrustedPresentationListener() {

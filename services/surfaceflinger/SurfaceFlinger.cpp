@@ -2750,13 +2750,23 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
     }
 
     if (mNumTrustedPresentationListeners > 0) {
+        display::DisplayMap<ui::LayerStack, const DisplayDevice*> layerStackToDisplay;
+        {
+            Mutex::Autolock lock(mStateLock);
+            for (const auto& [token, display] : mDisplays) {
+                layerStackToDisplay.emplace_or_replace(display->getLayerStack(), display.get());
+            }
+        }
+
         // We avoid any reverse traversal upwards so this shouldn't be too expensive
         mDrawingState.traverse([&](Layer* layer) {
             if (!layer->hasTrustedPresentationListener()) {
                 return;
             }
-            layer->updateTrustedPresentationState(display, nanoseconds_to_milliseconds(callTime),
-                                                  false);
+            const auto display =
+                    layerStackToDisplay.get(layer->getLayerSnapshot()->outputFilter.layerStack);
+            layer->updateTrustedPresentationState(display->get(), layer->getLayerSnapshot(),
+                                                  nanoseconds_to_milliseconds(callTime), false);
         });
     }
 
