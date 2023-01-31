@@ -29,6 +29,10 @@ bool TouchedWindow::hasHoveringPointers() const {
     return !mHoveringPointerIdsByDevice.empty();
 }
 
+bool TouchedWindow::hasHoveringPointers(int32_t deviceId) const {
+    return mHoveringPointerIdsByDevice.find(deviceId) != mHoveringPointerIdsByDevice.end();
+}
+
 void TouchedWindow::clearHoveringPointers() {
     mHoveringPointerIdsByDevice.clear();
 }

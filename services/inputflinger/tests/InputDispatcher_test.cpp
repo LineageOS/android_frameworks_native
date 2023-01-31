@@ -1470,10 +1470,16 @@ public:
         mAction = action;
         mSource = source;
         mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+        mDownTime = mEventTime;
     }
 
     MotionEventBuilder& deviceId(int32_t deviceId) {
         mDeviceId = deviceId;
+        return *this;
+    }
+
+    MotionEventBuilder& downTime(nsecs_t downTime) {
+        mDownTime = downTime;
         return *this;
     }
 
@@ -1539,7 +1545,7 @@ public:
                          mAction, mActionButton, mFlags, /* edgeFlags */ 0, AMETA_NONE,
                          mButtonState, MotionClassification::NONE, identityTransform,
                          /* xPrecision */ 0, /* yPrecision */ 0, mRawXCursorPosition,
-                         mRawYCursorPosition, identityTransform, mEventTime, mEventTime,
+                         mRawYCursorPosition, identityTransform, mDownTime, mEventTime,
                          mPointers.size(), pointerProperties.data(), pointerCoords.data());
 
         return event;
@@ -1549,6 +1555,7 @@ private:
     int32_t mAction;
     int32_t mDeviceId = DEVICE_ID;
     int32_t mSource;
+    nsecs_t mDownTime;
     nsecs_t mEventTime;
     int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
     int32_t mActionButton{0};
@@ -2061,6 +2068,123 @@ TEST_F(InputDispatcherTest, WallpaperWindowWhenSlippery) {
     leftWindow->consumeMotionCancel();
     rightWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
     wallpaperWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+}
+
+/**
+ * Two windows: a window on the left and a window on the right.
+ * Mouse is hovered from the right window into the left window.
+ * Next, we tap on the left window, where the cursor was last seen.
+ * The second tap is done onto the right window.
+ * The mouse and tap are from two different devices.
+ * We technically don't need to set the downtime / eventtime for these events, but setting these
+ * explicitly helps during debugging.
+ * This test reproduces a crash where there is a mismatch between the downTime and eventTime.
+ * In the buggy implementation, a tap on the right window would cause a crash.
+ */
+TEST_F(InputDispatcherTest, HoverFromLeftToRightAndTap) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
+    leftWindow->setFrame(Rect(0, 0, 200, 200));
+
+    sp<FakeWindowHandle> rightWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
+    rightWindow->setFrame(Rect(200, 0, 400, 200));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {leftWindow, rightWindow}}});
+    // All times need to start at the current time, otherwise the dispatcher will drop the events as
+    // stale.
+    const nsecs_t baseTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    const int32_t mouseDeviceId = 6;
+    const int32_t touchDeviceId = 4;
+    // Move the cursor from right
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .deviceId(mouseDeviceId)
+                                        .downTime(baseTime + 10)
+                                        .eventTime(baseTime + 20)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(100))
+                                        .build()));
+    rightWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+
+    // .. to the left window
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .deviceId(mouseDeviceId)
+                                        .downTime(baseTime + 10)
+                                        .eventTime(baseTime + 30)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(110)
+                                                         .y(100))
+                                        .build()));
+    rightWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+    leftWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    // Now tap the left window
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(touchDeviceId)
+                                        .downTime(baseTime + 40)
+                                        .eventTime(baseTime + 40)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(100)
+                                                         .y(100))
+                                        .build()));
+    leftWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+    leftWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+
+    // release tap
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(touchDeviceId)
+                                        .downTime(baseTime + 40)
+                                        .eventTime(baseTime + 50)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(100)
+                                                         .y(100))
+                                        .build()));
+    leftWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_UP));
+
+    // Tap the window on the right
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(touchDeviceId)
+                                        .downTime(baseTime + 60)
+                                        .eventTime(baseTime + 60)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(300)
+                                                         .y(100))
+                                        .build()));
+    rightWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+
+    // release tap
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(touchDeviceId)
+                                        .downTime(baseTime + 60)
+                                        .eventTime(baseTime + 70)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(300)
+                                                         .y(100))
+                                        .build()));
+    rightWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_UP));
+
+    // No more events
+    leftWindow->assertNoEvents();
+    rightWindow->assertNoEvents();
 }
 
 /**

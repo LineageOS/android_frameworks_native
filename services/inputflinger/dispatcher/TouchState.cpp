@@ -63,7 +63,7 @@ void TouchState::clearWindowsWithoutPointers() {
 
 void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
                                    ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
-                                   std::optional<nsecs_t> eventTime) {
+                                   std::optional<nsecs_t> firstDownTimeInTarget) {
     for (TouchedWindow& touchedWindow : windows) {
         // We do not compare windows by token here because two windows that share the same token
         // may have a different transform
@@ -77,7 +77,7 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
             // the window.
             touchedWindow.pointerIds.value |= pointerIds.value;
             if (!touchedWindow.firstDownTimeInTarget.has_value()) {
-                touchedWindow.firstDownTimeInTarget = eventTime;
+                touchedWindow.firstDownTimeInTarget = firstDownTimeInTarget;
             }
             return;
         }
@@ -86,7 +86,7 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
     touchedWindow.windowHandle = windowHandle;
     touchedWindow.targetFlags = targetFlags;
     touchedWindow.pointerIds = pointerIds;
-    touchedWindow.firstDownTimeInTarget = eventTime;
+    touchedWindow.firstDownTimeInTarget = firstDownTimeInTarget;
     windows.push_back(touchedWindow);
 }
 

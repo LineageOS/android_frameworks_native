@@ -47,7 +47,7 @@ struct TouchState {
                                         const sp<android::gui::WindowInfoHandle>& windowHandle);
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                            ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
-                           std::optional<nsecs_t> eventTime = std::nullopt);
+                           std::optional<nsecs_t> firstDownTimeInTarget = std::nullopt);
     void addHoveringPointerToWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                     int32_t deviceId, int32_t hoveringPointerId);
     void removeHoveringPointer(int32_t deviceId, int32_t hoveringPointerId);
