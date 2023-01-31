@@ -168,10 +168,11 @@ struct FrameNumberEqual {
 
 }  // namespace
 
-const size_t FrameEventHistory::MAX_FRAME_HISTORY =
+const size_t FrameEventHistory::INITIAL_MAX_FRAME_HISTORY =
         sysprop::LibGuiProperties::frame_event_history_size().value_or(8);
 
-FrameEventHistory::FrameEventHistory() : mFrames(std::vector<FrameEvents>(MAX_FRAME_HISTORY)) {}
+FrameEventHistory::FrameEventHistory()
+      : mFrames(std::vector<FrameEvents>(INITIAL_MAX_FRAME_HISTORY)) {}
 
 FrameEventHistory::~FrameEventHistory() = default;
 
@@ -227,7 +228,6 @@ void FrameEventHistory::dump(std::string& outString) const {
     }
 }
 
-
 // ============================================================================
 // ProducerFrameEventHistory
 // ============================================================================
@@ -272,6 +272,13 @@ void ProducerFrameEventHistory::updateAcquireFence(
 void ProducerFrameEventHistory::applyDelta(
         const FrameEventHistoryDelta& delta) {
     mCompositorTiming = delta.mCompositorTiming;
+
+    // Deltas should have enough reserved capacity for the consumer-side, therefore if there's a
+    // different capacity, we re-sized on the consumer side and now need to resize on the producer
+    // side.
+    if (delta.mDeltas.capacity() > mFrames.capacity()) {
+        resize(delta.mDeltas.capacity());
+    }
 
     for (auto& d : delta.mDeltas) {
         // Avoid out-of-bounds access.
@@ -349,13 +356,48 @@ std::shared_ptr<FenceTime> ProducerFrameEventHistory::createFenceTime(
     return std::make_shared<FenceTime>(fence);
 }
 
+void ProducerFrameEventHistory::resize(size_t newSize) {
+    // we don't want to drop events by resizing too small, so don't resize in the negative direction
+    if (newSize <= mFrames.size()) {
+        return;
+    }
+
+    // This algorithm for resizing needs to be the same as ConsumerFrameEventHistory::resize,
+    // because the indexes need to match when communicating the FrameEventDeltas.
+
+    // We need to find the oldest frame, because that frame needs to move to index 0 in the new
+    // frame history.
+    size_t oldestFrameIndex = 0;
+    size_t oldestFrameNumber = INT32_MAX;
+    for (size_t i = 0; i < mFrames.size(); ++i) {
+        if (mFrames[i].frameNumber < oldestFrameNumber && mFrames[i].valid) {
+            oldestFrameNumber = mFrames[i].frameNumber;
+            oldestFrameIndex = i;
+        }
+    }
+
+    // move the existing frame information into a new vector, so that the oldest frames are at
+    // index 0, and the latest frames are at the end of the vector
+    std::vector<FrameEvents> newFrames(newSize);
+    size_t oldI = oldestFrameIndex;
+    size_t newI = 0;
+    do {
+        if (mFrames[oldI].valid) {
+            newFrames[newI++] = std::move(mFrames[oldI]);
+        }
+        oldI = (oldI + 1) % mFrames.size();
+    } while (oldI != oldestFrameIndex);
+
+    mFrames = std::move(newFrames);
+    mAcquireOffset = 0; // this is just a hint, so setting this to anything is fine
+}
 
 // ============================================================================
 // ConsumerFrameEventHistory
 // ============================================================================
 
 ConsumerFrameEventHistory::ConsumerFrameEventHistory()
-      : mFramesDirty(std::vector<FrameEventDirtyFields>(MAX_FRAME_HISTORY)) {}
+      : mFramesDirty(std::vector<FrameEventDirtyFields>(INITIAL_MAX_FRAME_HISTORY)) {}
 
 ConsumerFrameEventHistory::~ConsumerFrameEventHistory() = default;
 
@@ -489,6 +531,36 @@ void ConsumerFrameEventHistory::getAndResetDelta(
     }
 }
 
+void ConsumerFrameEventHistory::resize(size_t newSize) {
+    // we don't want to drop events by resizing too small, so don't resize in the negative direction
+    if (newSize <= mFrames.size()) {
+        return;
+    }
+
+    // This algorithm for resizing needs to be the same as ProducerFrameEventHistory::resize,
+    // because the indexes need to match when communicating the FrameEventDeltas.
+
+    // move the existing frame information into a new vector, so that the oldest frames are at
+    // index 0, and the latest frames are towards the end of the vector
+    std::vector<FrameEvents> newFrames(newSize);
+    std::vector<FrameEventDirtyFields> newFramesDirty(newSize);
+    size_t oldestFrameIndex = mQueueOffset;
+    size_t oldI = oldestFrameIndex;
+    size_t newI = 0;
+    do {
+        if (mFrames[oldI].valid) {
+            newFrames[newI] = std::move(mFrames[oldI]);
+            newFramesDirty[newI] = mFramesDirty[oldI];
+            newI += 1;
+        }
+        oldI = (oldI + 1) % mFrames.size();
+    } while (oldI != oldestFrameIndex);
+
+    mFrames = std::move(newFrames);
+    mFramesDirty = std::move(newFramesDirty);
+    mQueueOffset = newI;
+    mCompositionOffset = 0; // this is just a hint, so setting this to anything is fine
+}
 
 // ============================================================================
 // FrameEventsDelta
@@ -558,8 +630,7 @@ status_t FrameEventsDelta::flatten(void*& buffer, size_t& size, int*& fds,
         return NO_MEMORY;
     }
 
-    if (mIndex >= FrameEventHistory::MAX_FRAME_HISTORY ||
-            mIndex > std::numeric_limits<uint16_t>::max()) {
+    if (mIndex >= UINT8_MAX || mIndex < 0) {
         return BAD_VALUE;
     }
 
@@ -601,7 +672,7 @@ status_t FrameEventsDelta::unflatten(void const*& buffer, size_t& size,
     uint16_t temp16 = 0;
     FlattenableUtils::read(buffer, size, temp16);
     mIndex = temp16;
-    if (mIndex >= FrameEventHistory::MAX_FRAME_HISTORY) {
+    if (mIndex >= UINT8_MAX) {
         return BAD_VALUE;
     }
     uint8_t temp8 = 0;
@@ -627,6 +698,25 @@ status_t FrameEventsDelta::unflatten(void const*& buffer, size_t& size,
     return NO_ERROR;
 }
 
+uint64_t FrameEventsDelta::getFrameNumber() const {
+    return mFrameNumber;
+}
+
+bool FrameEventsDelta::getLatchTime(nsecs_t* latchTime) const {
+    if (mLatchTime == FrameEvents::TIMESTAMP_PENDING) {
+        return false;
+    }
+    *latchTime = mLatchTime;
+    return true;
+}
+
+bool FrameEventsDelta::getDisplayPresentFence(sp<Fence>* fence) const {
+    if (mDisplayPresentFence.fence == Fence::NO_FENCE) {
+        return false;
+    }
+    *fence = mDisplayPresentFence.fence;
+    return true;
+}
 
 // ============================================================================
 // FrameEventHistoryDelta
@@ -665,7 +755,7 @@ size_t FrameEventHistoryDelta::getFdCount() const {
 
 status_t FrameEventHistoryDelta::flatten(
             void*& buffer, size_t& size, int*& fds, size_t& count) const {
-    if (mDeltas.size() > FrameEventHistory::MAX_FRAME_HISTORY) {
+    if (mDeltas.size() > UINT8_MAX) {
         return BAD_VALUE;
     }
     if (size < getFlattenedSize()) {
@@ -695,7 +785,7 @@ status_t FrameEventHistoryDelta::unflatten(
 
     uint32_t deltaCount = 0;
     FlattenableUtils::read(buffer, size, deltaCount);
-    if (deltaCount > FrameEventHistory::MAX_FRAME_HISTORY) {
+    if (deltaCount > UINT8_MAX) {
         return BAD_VALUE;
     }
     mDeltas.resize(deltaCount);
@@ -708,5 +798,12 @@ status_t FrameEventHistoryDelta::unflatten(
     return NO_ERROR;
 }
 
+std::vector<FrameEventsDelta>::const_iterator FrameEventHistoryDelta::begin() const {
+    return mDeltas.begin();
+}
+
+std::vector<FrameEventsDelta>::const_iterator FrameEventHistoryDelta::end() const {
+    return mDeltas.end();
+}
 
 } // namespace android
