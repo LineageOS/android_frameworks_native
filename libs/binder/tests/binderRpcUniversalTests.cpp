@@ -386,11 +386,11 @@ TEST_P(BinderRpc, SameBinderEqualityWeak) {
     EXPECT_EQ(b, weak.promote());
 }
 
-#define EXPECT_SESSIONS(expected, iface)                  \
+#define expectSessions(expected, iface)                   \
     do {                                                  \
         int session;                                      \
         EXPECT_OK((iface)->getNumOpenSessions(&session)); \
-        EXPECT_EQ(static_cast<int>(expected), session);   \
+        EXPECT_EQ(expected, session);                     \
     } while (false)
 
 TEST_P(BinderRpc, SingleSession) {
@@ -402,9 +402,9 @@ TEST_P(BinderRpc, SingleSession) {
     EXPECT_OK(session->getName(&out));
     EXPECT_EQ("aoeu", out);
 
-    EXPECT_SESSIONS(1, proc.rootIface);
+    expectSessions(1, proc.rootIface);
     session = nullptr;
-    EXPECT_SESSIONS(0, proc.rootIface);
+    expectSessions(0, proc.rootIface);
 }
 
 TEST_P(BinderRpc, ManySessions) {
@@ -413,24 +413,24 @@ TEST_P(BinderRpc, ManySessions) {
     std::vector<sp<IBinderRpcSession>> sessions;
 
     for (size_t i = 0; i < 15; i++) {
-        EXPECT_SESSIONS(i, proc.rootIface);
+        expectSessions(i, proc.rootIface);
         sp<IBinderRpcSession> session;
         EXPECT_OK(proc.rootIface->openSession(std::to_string(i), &session));
         sessions.push_back(session);
     }
-    EXPECT_SESSIONS(sessions.size(), proc.rootIface);
+    expectSessions(sessions.size(), proc.rootIface);
     for (size_t i = 0; i < sessions.size(); i++) {
         std::string out;
         EXPECT_OK(sessions.at(i)->getName(&out));
         EXPECT_EQ(std::to_string(i), out);
     }
-    EXPECT_SESSIONS(sessions.size(), proc.rootIface);
+    expectSessions(sessions.size(), proc.rootIface);
 
     while (!sessions.empty()) {
         sessions.pop_back();
-        EXPECT_SESSIONS(sessions.size(), proc.rootIface);
+        expectSessions(sessions.size(), proc.rootIface);
     }
-    EXPECT_SESSIONS(0, proc.rootIface);
+    expectSessions(0, proc.rootIface);
 }
 
 TEST_P(BinderRpc, OnewayCallDoesNotWait) {
@@ -483,7 +483,7 @@ TEST_P(BinderRpc, Callbacks) {
                     cb->mCv.wait_for(_l, 1s, [&] { return !cb->mValues.empty(); });
                 }
 
-                EXPECT_EQ(cb->mValues.size(), 1UL)
+                EXPECT_EQ(cb->mValues.size(), 1)
                         << "callIsOneway: " << callIsOneway
                         << " callbackIsOneway: " << callbackIsOneway << " delayed: " << delayed;
                 if (cb->mValues.empty()) continue;
