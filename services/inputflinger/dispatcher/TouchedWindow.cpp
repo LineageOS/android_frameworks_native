@@ -63,10 +63,10 @@ std::string TouchedWindow::dump() const {
     std::string hoveringPointers =
             dumpMap(mHoveringPointerIdsByDevice, constToString, bitsetToString);
     out += StringPrintf("name='%s', pointerIds=0x%0x, targetFlags=%s, firstDownTimeInTarget=%s, "
-                        "mHoveringPointerIdsByDevice=%s\n",
+                        "mHoveringPointerIdsByDevice=%s, pilferedPointerIds=%s\n",
                         windowHandle->getName().c_str(), pointerIds.value,
                         targetFlags.string().c_str(), toString(firstDownTimeInTarget).c_str(),
-                        hoveringPointers.c_str());
+                        hoveringPointers.c_str(), bitsetToString(pilferedPointerIds).c_str());
     return out;
 }
 

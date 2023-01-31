@@ -59,7 +59,7 @@ struct TouchState {
     void cancelPointersForWindowsExcept(const BitSet32 pointerIds, const sp<IBinder>& token);
     // Cancel pointers for current set of non-pilfering windows i.e. windows with isPilferingWindow
     // set to false.
-    void cancelPointersForNonPilferingWindows(const BitSet32 pointerIds);
+    void cancelPointersForNonPilferingWindows();
 
     sp<android::gui::WindowInfoHandle> getFirstForegroundWindowHandle() const;
     bool isSlippery() const;
