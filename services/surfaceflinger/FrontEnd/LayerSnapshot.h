@@ -102,6 +102,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     std::string getDebugString() const;
     std::string getIsVisibleReason() const;
     bool hasInputInfo() const;
+    FloatRect sourceBounds() const;
 };
 
 } // namespace android::surfaceflinger::frontend
