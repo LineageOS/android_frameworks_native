@@ -117,7 +117,15 @@ int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const u
         *ctx_p = channelContext;
     };
 
-    base::unique_fd clientFd(chan);
+    // We need to duplicate the channel handle here because the tipc library
+    // owns the original handle and closes is automatically on channel cleanup.
+    // We use dup() because Trusty does not have fcntl().
+    // NOLINTNEXTLINE(android-cloexec-dup)
+    handle_t chanDup = dup(chan);
+    if (chanDup < 0) {
+        return chanDup;
+    }
+    base::unique_fd clientFd(chanDup);
     android::RpcTransportFd transportFd(std::move(clientFd));
 
     std::array<uint8_t, RpcServer::kRpcAddressSize> addr;
