@@ -173,6 +173,10 @@ bool Scheduler::isVsyncValid(TimePoint expectedVsyncTimestamp, uid_t uid) const 
     return mVsyncSchedule->getTracker().isVSyncInPhase(expectedVsyncTimestamp.ns(), *frameRate);
 }
 
+bool Scheduler::isVsyncInPhase(TimePoint timePoint, const Fps frameRate) const {
+    return mVsyncSchedule->getTracker().isVSyncInPhase(timePoint.ns(), frameRate);
+}
+
 impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() const {
     return [this](nsecs_t expectedVsyncTimestamp, uid_t uid) {
         return !isVsyncValid(TimePoint::fromNs(expectedVsyncTimestamp), uid);

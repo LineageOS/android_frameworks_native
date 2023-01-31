@@ -505,7 +505,8 @@ void SurfaceFlinger::run() {
     mScheduler->run();
 }
 
-sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secure) {
+sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secure,
+                                          float requestedRefreshRate) {
     // onTransact already checks for some permissions, but adding an additional check here.
     // This is to ensure that only system and graphics can request to create a secure
     // display. Secure displays can show secure content so we add an additional restriction on it.
@@ -536,6 +537,7 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secur
     DisplayDeviceState state;
     state.isSecure = secure;
     state.displayName = displayName;
+    state.requestedRefreshRate = Fps::fromValue(requestedRefreshRate);
     mCurrentState.displays.add(token, state);
     return token;
 }
@@ -2341,7 +2343,15 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     refreshArgs.outputs.reserve(displays.size());
     std::vector<DisplayId> displayIds;
     for (const auto& [_, display] : displays) {
-        refreshArgs.outputs.push_back(display->getCompositionDisplay());
+        bool dropFrame = false;
+        if (display->isVirtual()) {
+            Fps refreshRate = display->getAdjustedRefreshRate();
+            using fps_approx_ops::operator>;
+            dropFrame = (refreshRate > 0_Hz) && !mScheduler->isVsyncInPhase(frameTime, refreshRate);
+        }
+        if (!dropFrame) {
+            refreshArgs.outputs.push_back(display->getCompositionDisplay());
+        }
         displayIds.push_back(display->getId());
     }
     mPowerAdvisor->setDisplays(displayIds);
@@ -3094,6 +3104,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     creationArgs.initialPowerMode =
             state.isVirtual() ? std::make_optional(hal::PowerMode::ON) : std::nullopt;
 
+    creationArgs.requestedRefreshRate = state.requestedRefreshRate;
+
     sp<DisplayDevice> display = getFactory().createDisplayDevice(creationArgs);
 
     nativeWindowSurface->preallocateBuffers();
@@ -3208,6 +3220,10 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         }
 
         dispatchDisplayHotplugEvent(displayId, true);
+    }
+
+    if (display->isVirtual()) {
+        display->adjustRefreshRate(mScheduler->getLeaderRefreshRate());
     }
 
     mDisplays.try_emplace(displayToken, std::move(display));
@@ -7450,13 +7466,14 @@ binder::Status SurfaceComposerAIDL::createConnection(sp<gui::ISurfaceComposerCli
 }
 
 binder::Status SurfaceComposerAIDL::createDisplay(const std::string& displayName, bool secure,
+                                                  float requestedRefreshRate,
                                                   sp<IBinder>* outDisplay) {
     status_t status = checkAccessPermission();
     if (status != OK) {
         return binderStatusFromStatusT(status);
     }
     String8 displayName8 = String8::format("%s", displayName.c_str());
-    *outDisplay = mFlinger->createDisplay(displayName8, secure);
+    *outDisplay = mFlinger->createDisplay(displayName8, secure, requestedRefreshRate);
     return binder::Status::ok();
 }
 

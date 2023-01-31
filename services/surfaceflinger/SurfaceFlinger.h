@@ -485,7 +485,8 @@ private:
             EXCLUDES(mStateLock);
 
     // Implements ISurfaceComposer
-    sp<IBinder> createDisplay(const String8& displayName, bool secure);
+    sp<IBinder> createDisplay(const String8& displayName, bool secure,
+                              float requestedRefreshRate = 0);
     void destroyDisplay(const sp<IBinder>& displayToken);
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const EXCLUDES(mStateLock) {
         Mutex::Autolock lock(mStateLock);
@@ -1387,7 +1388,7 @@ public:
             sp<gui::IDisplayEventConnection>* outConnection) override;
     binder::Status createConnection(sp<gui::ISurfaceComposerClient>* outClient) override;
     binder::Status createDisplay(const std::string& displayName, bool secure,
-                                 sp<IBinder>* outDisplay) override;
+                                 float requestedRefreshRate, sp<IBinder>* outDisplay) override;
     binder::Status destroyDisplay(const sp<IBinder>& display) override;
     binder::Status getPhysicalDisplayIds(std::vector<int64_t>* outDisplayIds) override;
     binder::Status getPhysicalDisplayToken(int64_t displayId, sp<IBinder>* outDisplay) override;
