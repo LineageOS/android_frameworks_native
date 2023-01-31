@@ -39,8 +39,8 @@ void reparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
 
 LayerRenderArea::LayerRenderArea(SurfaceFlinger& flinger, sp<Layer> layer, const Rect& crop,
                                  ui::Size reqSize, ui::Dataspace reqDataSpace, bool childrenOnly,
-                                 const Rect& layerStackRect, bool allowSecureLayers)
-      : RenderArea(reqSize, CaptureFill::CLEAR, reqDataSpace, layerStackRect, allowSecureLayers),
+                                 bool allowSecureLayers)
+      : RenderArea(reqSize, CaptureFill::CLEAR, reqDataSpace, allowSecureLayers),
         mLayer(std::move(layer)),
         mCrop(crop),
         mFlinger(flinger),
@@ -50,24 +50,8 @@ const ui::Transform& LayerRenderArea::getTransform() const {
     return mTransform;
 }
 
-Rect LayerRenderArea::getBounds() const {
-    return mLayer->getBufferSize(mLayer->getDrawingState());
-}
-
-int LayerRenderArea::getHeight() const {
-    return mLayer->getBufferSize(mLayer->getDrawingState()).getHeight();
-}
-
-int LayerRenderArea::getWidth() const {
-    return mLayer->getBufferSize(mLayer->getDrawingState()).getWidth();
-}
-
 bool LayerRenderArea::isSecure() const {
     return mAllowSecureLayers;
-}
-
-bool LayerRenderArea::needsFiltering() const {
-    return mNeedsFiltering;
 }
 
 sp<const DisplayDevice> LayerRenderArea::getDisplayDevice() const {
@@ -76,7 +60,7 @@ sp<const DisplayDevice> LayerRenderArea::getDisplayDevice() const {
 
 Rect LayerRenderArea::getSourceCrop() const {
     if (mCrop.isEmpty()) {
-        return getBounds();
+        return mLayer->getBufferSize(mLayer->getDrawingState());
     } else {
         return mCrop;
     }
@@ -84,10 +68,6 @@ Rect LayerRenderArea::getSourceCrop() const {
 
 void LayerRenderArea::render(std::function<void()> drawLayers) {
     using namespace std::string_literals;
-
-    const Rect sourceCrop = getSourceCrop();
-    // no need to check rotation because there is none
-    mNeedsFiltering = sourceCrop.width() != getReqWidth() || sourceCrop.height() != getReqHeight();
 
     // If layer is offscreen, update mirroring info if it exists
     if (mLayer->isRemovedFromCurrentState()) {
@@ -116,7 +96,7 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
                  LayerMetadata()});
         {
             Mutex::Autolock _l(mFlinger.mStateLock);
-            reparentForDrawing(mLayer, screenshotParentLayer, sourceCrop);
+            reparentForDrawing(mLayer, screenshotParentLayer, getSourceCrop());
         }
         drawLayers();
         {

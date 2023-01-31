@@ -6559,13 +6559,10 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         return BAD_VALUE;
     }
 
-    Rect layerStackSpaceRect(crop.left, crop.top, crop.left + reqSize.width,
-                             crop.top + reqSize.height);
     bool childrenOnly = args.childrenOnly;
     RenderAreaFuture renderAreaFuture = ftl::defer([=]() -> std::unique_ptr<RenderArea> {
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
-                                                 childrenOnly, layerStackSpaceRect,
-                                                 args.captureSecureLayers);
+                                                 childrenOnly, args.captureSecureLayers);
     });
 
     auto traverseLayers = [parent, args, excludeLayerIds](const LayerVector::Visitor& visitor) {
@@ -6720,9 +6717,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
-    const auto& display = renderArea->getDisplayDevice();
-    const auto& transform = renderArea->getTransform();
-    std::unordered_set<compositionengine::LayerFE*> filterForScreenshot;
     auto layers = getLayerSnapshots();
     for (auto& [layer, layerFE] : layers) {
         frontend::LayerSnapshot* snapshot = layerFE->mSnapshot.get();
@@ -6730,9 +6724,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         captureResults.capturedHdrLayers |= isHdrLayer(*snapshot);
         layerFE->mSnapshot->geomLayerTransform =
                 renderArea->getTransform() * layerFE->mSnapshot->geomLayerTransform;
-        if (layer->needsFilteringForScreenshots(display.get(), transform)) {
-            filterForScreenshot.insert(layerFE.get());
-        }
     }
 
     // We allow the system server to take screenshots of secure layers for
@@ -6783,9 +6774,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     };
 
     auto present = [this, buffer = std::move(buffer), dataspace, sdrWhitePointNits,
-                    displayBrightnessNits, filterForScreenshot = std::move(filterForScreenshot),
-                    grayscale, layerFEs = copyLayerFEs(), layerStack, regionSampling,
-                    renderArea = std::move(renderArea), renderIntent]() -> FenceResult {
+                    displayBrightnessNits, grayscale, layerFEs = copyLayerFEs(), layerStack,
+                    regionSampling, renderArea = std::move(renderArea),
+                    renderIntent]() -> FenceResult {
         std::unique_ptr<compositionengine::CompositionEngine> compositionEngine =
                 mFactory.createCompositionEngine();
         compositionEngine->setRenderEngine(mRenderEngine.get());
@@ -6801,7 +6792,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                         .buffer = std::move(buffer),
                                         .sdrWhitePointNits = sdrWhitePointNits,
                                         .displayBrightnessNits = displayBrightnessNits,
-                                        .filterForScreenshot = std::move(filterForScreenshot),
                                         .regionSampling = regionSampling});
 
         const float colorSaturation = grayscale ? 0 : 1;

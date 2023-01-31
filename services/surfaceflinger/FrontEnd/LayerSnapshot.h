@@ -68,7 +68,6 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     renderengine::ShadowSettings shadowSettings;
     bool premultipliedAlpha;
     bool isHdrY410;
-    bool bufferNeedsFiltering;
     ui::Transform parentTransform;
     Rect bufferSize;
     Rect croppedBufferSize;

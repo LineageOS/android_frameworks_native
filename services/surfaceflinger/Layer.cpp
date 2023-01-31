@@ -3319,39 +3319,6 @@ sp<Layer> Layer::createClone() {
     return layer;
 }
 
-bool Layer::bufferNeedsFiltering() const {
-    const State& s(getDrawingState());
-    if (!s.buffer) {
-        return false;
-    }
-
-    int32_t bufferWidth = static_cast<int32_t>(s.buffer->getWidth());
-    int32_t bufferHeight = static_cast<int32_t>(s.buffer->getHeight());
-
-    // Undo any transformations on the buffer and return the result.
-    if (s.bufferTransform & ui::Transform::ROT_90) {
-        std::swap(bufferWidth, bufferHeight);
-    }
-
-    if (s.transformToDisplayInverse) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
-        if (invTransform & ui::Transform::ROT_90) {
-            std::swap(bufferWidth, bufferHeight);
-        }
-    }
-
-    const Rect layerSize{getBounds()};
-    int32_t layerWidth = layerSize.getWidth();
-    int32_t layerHeight = layerSize.getHeight();
-
-    // Align the layer orientation with the buffer before comparism
-    if (mTransformHint & ui::Transform::ROT_90) {
-        std::swap(layerWidth, layerHeight);
-    }
-
-    return layerWidth != bufferWidth || layerHeight != bufferHeight;
-}
-
 void Layer::decrementPendingBufferCount() {
     int32_t pendingBuffers = --mPendingBufferTransactions;
     tracePendingBufferCount(pendingBuffers);
@@ -3821,54 +3788,6 @@ bool Layer::isProtected() const {
             (mBufferInfo.mBuffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
-bool Layer::needsFiltering(const DisplayDevice* display) const {
-    if (!hasBufferOrSidebandStream()) {
-        return false;
-    }
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    if (outputLayer == nullptr) {
-        return false;
-    }
-
-    // We need filtering if the sourceCrop rectangle size does not match the
-    // displayframe rectangle size (not a 1:1 render)
-    const auto& compositionState = outputLayer->getState();
-    const auto displayFrame = compositionState.displayFrame;
-    const auto sourceCrop = compositionState.sourceCrop;
-    return sourceCrop.getHeight() != displayFrame.getHeight() ||
-            sourceCrop.getWidth() != displayFrame.getWidth();
-}
-
-bool Layer::needsFilteringForScreenshots(const DisplayDevice* display,
-                                         const ui::Transform& inverseParentTransform) const {
-    if (!hasBufferOrSidebandStream()) {
-        return false;
-    }
-    const auto outputLayer = findOutputLayerForDisplay(display);
-    if (outputLayer == nullptr) {
-        return false;
-    }
-
-    // We need filtering if the sourceCrop rectangle size does not match the
-    // viewport rectangle size (not a 1:1 render)
-    const auto& compositionState = outputLayer->getState();
-    const ui::Transform& displayTransform = display->getTransform();
-    const ui::Transform inverseTransform = inverseParentTransform * displayTransform.inverse();
-    // Undo the transformation of the displayFrame so that we're back into
-    // layer-stack space.
-    const Rect frame = inverseTransform.transform(compositionState.displayFrame);
-    const FloatRect sourceCrop = compositionState.sourceCrop;
-
-    int32_t frameHeight = frame.getHeight();
-    int32_t frameWidth = frame.getWidth();
-    // If the display transform had a rotational component then undo the
-    // rotation so that the orientation matches the source crop.
-    if (displayTransform.getOrientation() & ui::Transform::ROT_90) {
-        std::swap(frameHeight, frameWidth);
-    }
-    return sourceCrop.getHeight() != frameHeight || sourceCrop.getWidth() != frameWidth;
-}
-
 void Layer::latchAndReleaseBuffer() {
     if (hasReadyFrame()) {
         bool ignored = false;
@@ -4014,7 +3933,6 @@ void Layer::updateSnapshot(bool updateGeometry) {
     snapshot->layerOpaqueFlagSet =
             (mDrawingState.flags & layer_state_t::eLayerOpaque) == layer_state_t::eLayerOpaque;
     snapshot->isHdrY410 = isHdrY410();
-    snapshot->bufferNeedsFiltering = bufferNeedsFiltering();
     sp<Layer> p = mDrawingParent.promote();
     if (p != nullptr) {
         snapshot->parentTransform = p->getTransform();

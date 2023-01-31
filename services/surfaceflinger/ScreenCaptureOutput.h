@@ -33,7 +33,6 @@ struct ScreenCaptureOutputArgs {
     std::shared_ptr<renderengine::ExternalTexture> buffer;
     float sdrWhitePointNits;
     float displayBrightnessNits;
-    std::unordered_set<compositionengine::LayerFE*> filterForScreenshot;
     bool regionSampling;
 };
 
@@ -44,7 +43,6 @@ struct ScreenCaptureOutputArgs {
 class ScreenCaptureOutput : public compositionengine::impl::Output {
 public:
     ScreenCaptureOutput(const RenderArea& renderArea,
-                        std::unordered_set<compositionengine::LayerFE*> filterForScreenshot,
                         const compositionengine::Output::ColorProfile& colorProfile,
                         bool regionSampling);
 
@@ -54,15 +52,12 @@ public:
             bool supportsProtectedContent, ui::Dataspace outputDataspace,
             std::vector<compositionengine::LayerFE*>& outLayerFEs) override;
 
-    bool layerNeedsFiltering(const compositionengine::OutputLayer*) const override;
-
 protected:
     bool getSkipColorTransform() const override { return false; }
     renderengine::DisplaySettings generateClientCompositionDisplaySettings() const override;
 
 private:
     const RenderArea& mRenderArea;
-    const std::unordered_set<compositionengine::LayerFE*> mFilterForScreenshot;
     const compositionengine::Output::ColorProfile& mColorProfile;
     const bool mRegionSampling;
 };
