@@ -15,7 +15,9 @@
  */
 #pragma once
 
-__BEGIN_DECLS
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 struct tipc_hset;
 
@@ -26,4 +28,6 @@ int tipc_run_event_loop(struct tipc_hset*) {
     return 0;
 }
 
-__END_DECLS
+#if defined(__cplusplus)
+}
+#endif
