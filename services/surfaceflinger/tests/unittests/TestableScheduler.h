@@ -79,8 +79,6 @@ public:
         return mRefreshRateSelectors;
     }
 
-    bool hasRefreshRateSelectors() const { return !refreshRateSelectors().empty(); }
-
     void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
         ftl::FakeGuard guard(kMainThreadContext);
         Scheduler::registerDisplay(displayId, std::move(selectorPtr));
