@@ -222,6 +222,13 @@ static bool meetsDeclarationRequirements(const sp<IBinder>& binder, const std::s
 }
 #endif  // !VENDORSERVICEMANAGER
 
+ServiceManager::Service::~Service() {
+    if (!hasClients) {
+        // only expected to happen on process death
+        LOG(WARNING) << "a service was removed when there are clients";
+    }
+}
+
 ServiceManager::ServiceManager(std::unique_ptr<Access>&& access) : mAccess(std::move(access)) {
 // TODO(b/151696835): reenable performance hack when we solve bug, since with
 //     this hack and other fixes, it is unlikely we will see even an ephemeral
@@ -293,8 +300,13 @@ sp<IBinder> ServiceManager::tryGetService(const std::string& name, bool startIfN
     }
 
     if (out) {
-        // Setting this guarantee each time we hand out a binder ensures that the client-checking
-        // loop knows about the event even if the client immediately drops the service
+        // Force onClients to get sent, and then make sure the timerfd won't clear it
+        // by setting guaranteeClient again. This logic could be simplified by using
+        // a time-based guarantee. However, forcing onClients(true) to get sent
+        // right here is always going to be important for processes serving multiple
+        // lazy interfaces.
+        service->guaranteeClient = true;
+        CHECK(handleServiceClientCallback(2 /* sm + transaction */, name, false));
         service->guaranteeClient = true;
     }
 
@@ -384,8 +396,13 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
     };
 
     if (auto it = mNameToRegistrationCallback.find(name); it != mNameToRegistrationCallback.end()) {
+        // See also getService - handles case where client never gets the service,
+        // we want the service to quit.
+        mNameToService[name].guaranteeClient = true;
+        CHECK(handleServiceClientCallback(2 /* sm + transaction */, name, false));
+        mNameToService[name].guaranteeClient = true;
+
         for (const sp<IServiceCallback>& cb : it->second) {
-            mNameToService[name].guaranteeClient = true;
             // permission checked in registerForNotifications
             cb->onRegistration(name, binder);
         }
@@ -696,28 +713,28 @@ ssize_t ServiceManager::Service::getNodeStrongRefCount() {
 
 void ServiceManager::handleClientCallbacks() {
     for (const auto& [name, service] : mNameToService) {
-        handleServiceClientCallback(name, true);
+        handleServiceClientCallback(1 /* sm has one refcount */, name, true);
     }
 }
 
-ssize_t ServiceManager::handleServiceClientCallback(const std::string& serviceName,
-                                                    bool isCalledOnInterval) {
+bool ServiceManager::handleServiceClientCallback(size_t knownClients,
+                                                 const std::string& serviceName,
+                                                 bool isCalledOnInterval) {
     auto serviceIt = mNameToService.find(serviceName);
     if (serviceIt == mNameToService.end() || mNameToClientCallback.count(serviceName) < 1) {
-        return -1;
+        return true; // return we do have clients a.k.a. DON'T DO ANYTHING
     }
 
     Service& service = serviceIt->second;
     ssize_t count = service.getNodeStrongRefCount();
 
-    // binder driver doesn't support this feature
-    if (count == -1) return count;
+    // binder driver doesn't support this feature, consider we have clients
+    if (count == -1) return true;
 
-    bool hasClients = count > 1; // this process holds a strong count
+    bool hasKernelReportedClients = static_cast<size_t>(count) > knownClients;
 
     if (service.guaranteeClient) {
-        // we have no record of this client
-        if (!service.hasClients && !hasClients) {
+        if (!service.hasClients && !hasKernelReportedClients) {
             sendClientCallbackNotifications(serviceName, true,
                                             "service is guaranteed to be in use");
         }
@@ -726,21 +743,23 @@ ssize_t ServiceManager::handleServiceClientCallback(const std::string& serviceNa
         service.guaranteeClient = false;
     }
 
-    // only send notifications if this was called via the interval checking workflow
-    if (isCalledOnInterval) {
-        if (hasClients && !service.hasClients) {
-            // client was retrieved in some other way
-            sendClientCallbackNotifications(serviceName, true, "we now have a record of a client");
-        }
+    // Regardless of this situation, we want to give this notification as soon as possible.
+    // This way, we have a chance of preventing further thrashing.
+    if (hasKernelReportedClients && !service.hasClients) {
+        sendClientCallbackNotifications(serviceName, true, "we now have a record of a client");
+    }
 
-        // there are no more clients, but the callback has not been called yet
-        if (!hasClients && service.hasClients) {
+    // But limit rate of shutting down service.
+    if (isCalledOnInterval) {
+        if (!hasKernelReportedClients && service.hasClients) {
             sendClientCallbackNotifications(serviceName, false,
                                             "we now have no record of a client");
         }
     }
 
-    return count;
+    // May be different than 'hasKernelReportedClients'. We intentionally delay
+    // information about clients going away to reduce thrashing.
+    return service.hasClients;
 }
 
 void ServiceManager::sendClientCallbackNotifications(const std::string& serviceName,
@@ -753,13 +772,10 @@ void ServiceManager::sendClientCallbackNotifications(const std::string& serviceN
     }
     Service& service = serviceIt->second;
 
-    CHECK(hasClients != service.hasClients)
-            << "Record shows: " << service.hasClients
-            << " so we can't tell clients again that we have client: " << hasClients
-            << " when: " << context;
+    CHECK_NE(hasClients, service.hasClients) << context;
 
-    ALOGI("Notifying %s they %s have clients when %s", serviceName.c_str(),
-          hasClients ? "do" : "don't", context);
+    ALOGI("Notifying %s they %s (previously: %s) have clients when %s", serviceName.c_str(),
+          hasClients ? "do" : "don't", service.hasClients ? "do" : "don't", context);
 
     auto ccIt = mNameToClientCallback.find(serviceName);
     CHECK(ccIt != mNameToClientCallback.end())
@@ -803,26 +819,29 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
+    // important because we don't have timer-based guarantees, we don't want to clear
+    // this
     if (serviceIt->second.guaranteeClient) {
         ALOGI("Tried to unregister %s, but there is about to be a client.", name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
-    int clients = handleServiceClientCallback(name, false);
-
-    // clients < 0: feature not implemented or other error. Assume clients.
-    // Otherwise:
     // - kernel driver will hold onto one refcount (during this transaction)
     // - servicemanager has a refcount (guaranteed by this transaction)
-    // So, if clients > 2, then at least one other service on the system must hold a refcount.
-    if (clients < 0 || clients > 2) {
-        // client callbacks are either disabled or there are other clients
-        ALOGI("Tried to unregister %s, but there are clients: %d", name.c_str(), clients);
-        // Set this flag to ensure the clients are acknowledged in the next callback
+    constexpr size_t kKnownClients = 2;
+
+    if (handleServiceClientCallback(kKnownClients, name, false)) {
+        ALOGI("Tried to unregister %s, but there are clients.", name.c_str());
+
+        // Since we had a failed registration attempt, and the HIDL implementation of
+        // delaying service shutdown for multiple periods wasn't ported here... this may
+        // help reduce thrashing, but we should be able to remove it.
         serviceIt->second.guaranteeClient = true;
+
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
+    ALOGI("Unregistering %s", name.c_str());
     mNameToService.erase(name);
 
     return Status::ok();
