@@ -83,15 +83,14 @@ public:
 
         mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
         mFlinger.setupScheduler(std::unique_ptr<mock::VsyncController>(mVsyncController),
-                                std::unique_ptr<mock::VSyncTracker>(mVSyncTracker),
-                                std::move(eventThread), std::move(sfEventThread));
+                                mVSyncTracker, std::move(eventThread), std::move(sfEventThread));
         mFlinger.flinger()->addTransactionReadyFilters();
     }
 
     TestableSurfaceFlinger mFlinger;
 
     mock::VsyncController* mVsyncController = new mock::VsyncController();
-    mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker();
+    std::shared_ptr<mock::VSyncTracker> mVSyncTracker = std::make_shared<mock::VSyncTracker>();
 
     struct TransactionInfo {
         Vector<ComposerState> states;

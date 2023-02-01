@@ -1124,21 +1124,33 @@ status_t SurfaceFlinger::getDynamicDisplayInfoFromToken(const sp<IBinder>& displ
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* outStats) {
+status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& displayToken,
+                                         DisplayStatInfo* outStats) {
     if (!outStats) {
         return BAD_VALUE;
     }
 
-    const auto& schedule = mScheduler->getVsyncSchedule();
-    outStats->vsyncTime = schedule.vsyncDeadlineAfter(TimePoint::now()).ns();
-    outStats->vsyncPeriod = schedule.period().ns();
+    std::optional<PhysicalDisplayId> displayIdOpt;
+    {
+        Mutex::Autolock lock(mStateLock);
+        displayIdOpt = getPhysicalDisplayIdLocked(displayToken);
+    }
+
+    if (!displayIdOpt) {
+        ALOGE("%s: Invalid physical display token %p", __func__, displayToken.get());
+        return NAME_NOT_FOUND;
+    }
+    const auto schedule = mScheduler->getVsyncSchedule(displayIdOpt);
+    outStats->vsyncTime = schedule->vsyncDeadlineAfter(TimePoint::now()).ns();
+    outStats->vsyncPeriod = schedule->period().ns();
     return NO_ERROR;
 }
 
 void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request, bool force) {
     ATRACE_CALL();
 
-    auto display = getDisplayDeviceLocked(request.mode.modePtr->getPhysicalDisplayId());
+    const auto displayId = request.mode.modePtr->getPhysicalDisplayId();
+    const auto display = getDisplayDeviceLocked(displayId);
     if (!display) {
         ALOGW("%s: display is no longer valid", __func__);
         return;
@@ -1151,23 +1163,25 @@ void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request,
                                           force)) {
         case DisplayDevice::DesiredActiveModeAction::InitiateDisplayModeSwitch:
             // Set the render rate as setDesiredActiveMode updated it.
-            mScheduler->setRenderRate(display->refreshRateSelector().getActiveMode().fps);
+            mScheduler->setRenderRate(displayId,
+                                      display->refreshRateSelector().getActiveMode().fps);
 
             // Schedule a new frame to initiate the display mode switch.
             scheduleComposite(FrameHint::kNone);
 
             // Start receiving vsync samples now, so that we can detect a period
             // switch.
-            mScheduler->resyncToHardwareVsync(true, mode.modePtr->getFps());
+            mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */,
+                                              mode.modePtr->getFps());
+
             // As we called to set period, we will call to onRefreshRateChangeCompleted once
             // VsyncController model is locked.
-            mScheduler->modulateVsync(&VsyncModulator::onRefreshRateChangeInitiated);
-
+            mScheduler->modulateVsync(displayId, &VsyncModulator::onRefreshRateChangeInitiated);
             updatePhaseConfiguration(mode.fps);
             mScheduler->setModeChangePending(true);
             break;
         case DisplayDevice::DesiredActiveModeAction::InitiateRenderRateSwitch:
-            mScheduler->setRenderRate(mode.fps);
+            mScheduler->setRenderRate(displayId, mode.fps);
             updatePhaseConfiguration(mode.fps);
             mRefreshRateStats->setRefreshRate(mode.fps);
             if (display->getPhysicalId() == mActiveDisplayId && emitEvent) {
@@ -1283,11 +1297,14 @@ void SurfaceFlinger::clearDesiredActiveModeState(const sp<DisplayDevice>& displa
 }
 
 void SurfaceFlinger::desiredActiveModeChangeDone(const sp<DisplayDevice>& display) {
-    const auto displayFps = display->getDesiredActiveMode()->modeOpt->modePtr->getFps();
-    const auto renderFps = display->getDesiredActiveMode()->modeOpt->fps;
+    const auto desiredActiveMode = display->getDesiredActiveMode();
+    const auto& modeOpt = desiredActiveMode->modeOpt;
+    const auto displayId = modeOpt->modePtr->getPhysicalDisplayId();
+    const auto displayFps = modeOpt->modePtr->getFps();
+    const auto renderFps = modeOpt->fps;
     clearDesiredActiveModeState(display);
-    mScheduler->resyncToHardwareVsync(true, displayFps);
-    mScheduler->setRenderRate(renderFps);
+    mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, displayFps);
+    mScheduler->setRenderRate(displayId, renderFps);
     updatePhaseConfiguration(renderFps);
 }
 
@@ -2023,21 +2040,11 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
     ATRACE_FORMAT("onComposerHalVsync%s", tracePeriod.c_str());
 
     Mutex::Autolock lock(mStateLock);
-
-    if (!getHwComposer().onVsync(hwcDisplayId, timestamp)) {
-        return;
-    }
-
-    if (const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
-        displayId != mActiveDisplayId) {
-        // For now, we don't do anything with non active display vsyncs.
-        return;
-    }
-
-    bool periodFlushed = false;
-    mScheduler->addResyncSample(timestamp, vsyncPeriod, &periodFlushed);
-    if (periodFlushed) {
-        mScheduler->modulateVsync(&VsyncModulator::onRefreshRateChangeCompleted);
+    if (const auto displayIdOpt = getHwComposer().onVsync(hwcDisplayId, timestamp)) {
+        if (mScheduler->addResyncSample(*displayIdOpt, timestamp, vsyncPeriod)) {
+            // period flushed
+            mScheduler->modulateVsync(displayIdOpt, &VsyncModulator::onRefreshRateChangeCompleted);
+        }
     }
 }
 
@@ -2078,16 +2085,15 @@ void SurfaceFlinger::onComposerHalVsyncIdle(hal::HWDisplayId) {
     mScheduler->forceNextResync();
 }
 
-void SurfaceFlinger::setVsyncEnabled(bool enabled) {
-    ATRACE_CALL();
+void SurfaceFlinger::setVsyncEnabled(PhysicalDisplayId id, bool enabled) {
+    const char* const whence = __func__;
+    ATRACE_FORMAT("%s (%d) for %" PRIu64, whence, enabled, id.value);
 
     // On main thread to avoid race conditions with display power state.
     static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
-        mHWCVsyncPendingState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
-
-        if (const auto display = getDefaultDisplayDeviceLocked();
-            display && display->isPoweredOn()) {
-            setHWCVsyncEnabled(display->getPhysicalId(), mHWCVsyncPendingState);
+        ATRACE_FORMAT("%s (%d) for %" PRIu64 " (main thread)", whence, enabled, id.value);
+        if (const auto display = getDisplayDeviceLocked(id); display && display->isPoweredOn()) {
+            setHWCVsyncEnabled(id, enabled);
         }
     }));
 }
@@ -2114,13 +2120,13 @@ bool SurfaceFlinger::isFencePending(const FenceTimePtr& fence, int graceTimeMs) 
 TimePoint SurfaceFlinger::calculateExpectedPresentTime(TimePoint frameTime) const {
     const auto& schedule = mScheduler->getVsyncSchedule();
 
-    const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(frameTime);
+    const TimePoint vsyncDeadline = schedule->vsyncDeadlineAfter(frameTime);
     if (mScheduler->vsyncModulator().getVsyncConfig().sfOffset > 0) {
         return vsyncDeadline;
     }
 
     // Inflate the expected present time if we're targeting the next vsync.
-    return vsyncDeadline + schedule.period();
+    return vsyncDeadline + schedule->period();
 }
 
 void SurfaceFlinger::configure() FTL_FAKE_GUARD(kMainThreadContext) {
@@ -2147,7 +2153,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
                   ticks<std::milli, float>(mExpectedPresentTime - TimePoint::now()),
                   mExpectedPresentTime == expectedVsyncTime ? "" : " (adjusted)");
 
-    const Period vsyncPeriod = mScheduler->getVsyncSchedule().period();
+    const Period vsyncPeriod = mScheduler->getVsyncSchedule()->period();
     const FenceTimePtr& previousPresentFence = getPreviousPresentFence(frameTime, vsyncPeriod);
 
     // When backpressure propagation is enabled, we want to give a small grace period of 1ms
@@ -2417,7 +2423,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         refreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::milliseconds(mDebugFlashDelay);
     }
 
-    const auto prevVsyncTime = mExpectedPresentTime - mScheduler->getVsyncSchedule().period();
+    const auto prevVsyncTime = mExpectedPresentTime - mScheduler->getVsyncSchedule()->period();
     const auto hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration;
 
     refreshArgs.earliestPresentTime = prevVsyncTime - hwcMinWorkDuration;
@@ -2503,7 +2509,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     // TODO(b/160583065): Enable skip validation when SF caches all client composition layers.
     const bool hasGpuUseOrReuse =
             mCompositionCoverage.any(CompositionCoverage::Gpu | CompositionCoverage::GpuReuse);
-    mScheduler->modulateVsync(&VsyncModulator::onDisplayRefresh, hasGpuUseOrReuse);
+    mScheduler->modulateVsync({}, &VsyncModulator::onDisplayRefresh, hasGpuUseOrReuse);
 
     mLayersWithQueuedFrames.clear();
     if (mLayerTracingEnabled && mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
@@ -2645,9 +2651,9 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
             ? mPresentLatencyTracker.trackPendingFrame(compositeTime, presentFenceTime)
             : Duration::zero();
 
-    const auto& schedule = mScheduler->getVsyncSchedule();
-    const TimePoint vsyncDeadline = schedule.vsyncDeadlineAfter(presentTime);
-    const Period vsyncPeriod = schedule.period();
+    const auto schedule = mScheduler->getVsyncSchedule();
+    const TimePoint vsyncDeadline = schedule->vsyncDeadlineAfter(presentTime);
+    const Period vsyncPeriod = schedule->period();
     const nsecs_t vsyncPhase = mVsyncConfiguration->getCurrentConfigs().late.sfOffset;
 
     const CompositorTiming compositorTiming(vsyncDeadline.ns(), vsyncPeriod.ns(), vsyncPhase,
@@ -2722,15 +2728,19 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
     mTimeStats->incrementTotalFrames();
     mTimeStats->setPresentFenceGlobal(presentFenceTime);
 
-    const bool isInternalDisplay = display &&
-            FTL_FAKE_GUARD(mStateLock, mPhysicalDisplays)
-                    .get(display->getPhysicalId())
-                    .transform(&PhysicalDisplay::isInternal)
-                    .value_or(false);
-
-    if (isInternalDisplay && display && display->getPowerMode() == hal::PowerMode::ON &&
-        presentFenceTime->isValid()) {
-        mScheduler->addPresentFence(std::move(presentFenceTime));
+    {
+        ftl::FakeGuard guard(mStateLock);
+        for (const auto& [id, physicalDisplay] : mPhysicalDisplays) {
+            if (auto displayDevice = getDisplayDeviceLocked(id);
+                displayDevice && displayDevice->isPoweredOn() && physicalDisplay.isInternal()) {
+                auto presentFenceTimeI = display && display->getPhysicalId() == id
+                        ? std::move(presentFenceTime)
+                        : std::make_shared<FenceTime>(getHwComposer().getPresentFence(id));
+                if (presentFenceTimeI->isValid()) {
+                    mScheduler->addPresentFence(id, std::move(presentFenceTimeI));
+                }
+            }
+        }
     }
 
     const bool isDisplayConnected =
@@ -2738,7 +2748,7 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
 
     if (!hasSyncFramework) {
         if (isDisplayConnected && display->isPoweredOn()) {
-            mScheduler->enableHardwareVsync();
+            mScheduler->enableHardwareVsync(display->getPhysicalId());
         }
     }
 
@@ -2848,7 +2858,7 @@ void SurfaceFlinger::commitTransactions() {
     // so we can call commitTransactionsLocked unconditionally.
     // We clear the flags with mStateLock held to guarantee that
     // mCurrentState won't change until the transaction is committed.
-    mScheduler->modulateVsync(&VsyncModulator::onTransactionCommit);
+    mScheduler->modulateVsync({}, &VsyncModulator::onTransactionCommit);
     commitTransactionsLocked(clearTransactionFlags(eTransactionMask));
 
     mDebugInTransaction = 0;
@@ -3687,10 +3697,9 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     mScheduler = std::make_unique<Scheduler>(static_cast<ICompositor&>(*this),
                                              static_cast<ISchedulerCallback&>(*this), features,
                                              std::move(modulatorPtr));
-    mScheduler->createVsyncSchedule(features);
     mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
 
-    setVsyncEnabled(false);
+    setVsyncEnabled(display->getPhysicalId(), false);
     mScheduler->startTimers();
 
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
@@ -3706,7 +3715,7 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
                                           /* workDuration */ activeRefreshRate.getPeriod(),
                                           /* readyDuration */ configs.late.sfWorkDuration);
 
-    mScheduler->initVsync(mScheduler->getVsyncSchedule().getDispatch(),
+    mScheduler->initVsync(mScheduler->getVsyncSchedule()->getDispatch(),
                           *mFrameTimeline->getTokenManager(), configs.late.sfWorkDuration);
 
     mRegionSamplingThread =
@@ -3917,7 +3926,7 @@ uint32_t SurfaceFlinger::clearTransactionFlags(uint32_t mask) {
 
 void SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule schedule,
                                          const sp<IBinder>& applyToken, FrameHint frameHint) {
-    mScheduler->modulateVsync(&VsyncModulator::setTransactionSchedule, schedule, applyToken);
+    mScheduler->modulateVsync({}, &VsyncModulator::setTransactionSchedule, schedule, applyToken);
 
     if (const bool scheduled = mTransactionFlags.fetch_or(mask) & mask; !scheduled) {
         scheduleCommit(frameHint);
@@ -3944,7 +3953,7 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyTimelin
         return TransactionReadiness::NotReady;
     }
 
-    if (!mScheduler->isVsyncValid(mExpectedPresentTime, transaction.originUid)) {
+    if (!mScheduler->isVsyncTargetForUid(mExpectedPresentTime, transaction.originUid)) {
         ATRACE_NAME("!isVsyncValid");
         return TransactionReadiness::NotReady;
     }
@@ -4088,7 +4097,7 @@ bool SurfaceFlinger::frameIsEarly(TimePoint expectedPresentTime, VsyncId vsyncId
         return false;
     }
 
-    const Duration earlyLatchVsyncThreshold = mScheduler->getVsyncSchedule().period() / 2;
+    const Duration earlyLatchVsyncThreshold = mScheduler->getVsyncSchedule()->period() / 2;
 
     return predictedPresentTime >= expectedPresentTime &&
             predictedPresentTime - expectedPresentTime >= earlyLatchVsyncThreshold;
@@ -4985,10 +4994,11 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
             ALOGW("Couldn't set SCHED_FIFO on display on: %s\n", strerror(errno));
         }
         getHwComposer().setPowerMode(displayId, mode);
-        if (isActiveDisplay && mode != hal::PowerMode::DOZE_SUSPEND) {
-            setHWCVsyncEnabled(displayId, mHWCVsyncPendingState);
-            mScheduler->onScreenAcquired(mAppConnectionHandle);
-            mScheduler->resyncToHardwareVsync(true, refreshRate);
+        if (mode != hal::PowerMode::DOZE_SUSPEND) {
+            if (isActiveDisplay) {
+                mScheduler->onScreenAcquired(mAppConnectionHandle);
+            }
+            mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, refreshRate);
         }
 
         mVisibleRegionsDirty = true;
@@ -5001,13 +5011,12 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         if (SurfaceFlinger::setSchedAttr(false) != NO_ERROR) {
             ALOGW("Couldn't set uclamp.min on display off: %s\n", strerror(errno));
         }
-        if (isActiveDisplay && *currentModeOpt != hal::PowerMode::DOZE_SUSPEND) {
-            mScheduler->disableHardwareVsync(true);
-            mScheduler->onScreenReleased(mAppConnectionHandle);
+        if (*currentModeOpt != hal::PowerMode::DOZE_SUSPEND) {
+            mScheduler->disableHardwareVsync(displayId, true);
+            if (isActiveDisplay) {
+                mScheduler->onScreenReleased(mAppConnectionHandle);
+            }
         }
-
-        // Make sure HWVsync is disabled before turning off the display
-        setHWCVsyncEnabled(displayId, hal::Vsync::DISABLE);
 
         getHwComposer().setPowerMode(displayId, mode);
         mVisibleRegionsDirty = true;
@@ -5015,19 +5024,21 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
         // Update display while dozing
         getHwComposer().setPowerMode(displayId, mode);
-        if (isActiveDisplay && *currentModeOpt == hal::PowerMode::DOZE_SUSPEND) {
+        if (*currentModeOpt == hal::PowerMode::DOZE_SUSPEND) {
+            if (isActiveDisplay) {
+                mScheduler->onScreenAcquired(mAppConnectionHandle);
+            }
             ALOGI("Force repainting for DOZE_SUSPEND -> DOZE or ON.");
             mVisibleRegionsDirty = true;
             scheduleRepaint();
-            mScheduler->onScreenAcquired(mAppConnectionHandle);
-            mScheduler->resyncToHardwareVsync(true, refreshRate);
+            mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, refreshRate);
         }
     } else if (mode == hal::PowerMode::DOZE_SUSPEND) {
         // Leave display going to doze
         if (isActiveDisplay) {
-            mScheduler->disableHardwareVsync(true);
             mScheduler->onScreenReleased(mAppConnectionHandle);
         }
+        mScheduler->disableHardwareVsync(displayId, true);
         getHwComposer().setPowerMode(displayId, mode);
     } else {
         ALOGE("Attempting to set unknown power mode: %d\n", mode);
@@ -5037,8 +5048,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (isActiveDisplay) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats->setPowerMode(mode);
-        mScheduler->setDisplayPowerMode(mode);
     }
+    mScheduler->setDisplayPowerMode(displayId, mode);
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(displayId).c_str());
 }
@@ -5215,14 +5226,6 @@ void SurfaceFlinger::dumpScheduler(std::string& result) const {
     utils::Dumper dumper{result};
 
     mScheduler->dump(dumper);
-
-    // TODO(b/241286146): Move to Scheduler.
-    {
-        utils::Dumper::Indent indent(dumper);
-        dumper.dump("lastHwcVsyncState"sv, mLastHWCVsyncState);
-        dumper.dump("pendingHwcVsyncState"sv, mHWCVsyncPendingState);
-    }
-    dumper.eol();
 
     // TODO(b/241285876): Move to DisplayModeController.
     dumper.dump("debugDisplayModeSetByBackdoor"sv, mDebugDisplayModeSetByBackdoor);

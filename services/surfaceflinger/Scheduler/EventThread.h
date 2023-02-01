@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <utils/Errors.h>
 
+#include <scheduler/Fps.h>
 #include <scheduler/FrameRateMode.h>
 #include <condition_variable>
 #include <cstdint>
@@ -65,6 +66,15 @@ enum class VSyncRequest {
     SingleSuppressCallback = 0,
     Periodic = 1,
     // Subsequent values are periods.
+};
+
+class IEventThreadCallback {
+public:
+    virtual ~IEventThreadCallback() = default;
+
+    virtual bool isVsyncTargetForUid(TimePoint expectedVsyncTime, uid_t uid) const = 0;
+
+    virtual Fps getLeaderRenderFrameRate(uid_t uid) const = 0;
 };
 
 class EventThreadConnection : public gui::BnDisplayEventConnection {
@@ -133,18 +143,17 @@ public:
 
     // Retrieves the number of event connections tracked by this EventThread.
     virtual size_t getEventThreadConnectionCount() = 0;
+
+    virtual void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) = 0;
 };
 
 namespace impl {
 
 class EventThread : public android::EventThread {
 public:
-    using ThrottleVsyncCallback = std::function<bool(nsecs_t, uid_t)>;
-    using GetVsyncPeriodFunction = std::function<nsecs_t(uid_t)>;
-
-    EventThread(const char* name, scheduler::VsyncSchedule&, frametimeline::TokenManager*,
-                ThrottleVsyncCallback, GetVsyncPeriodFunction,
-                std::chrono::nanoseconds workDuration, std::chrono::nanoseconds readyDuration);
+    EventThread(const char* name, std::shared_ptr<scheduler::VsyncSchedule>, IEventThreadCallback&,
+                frametimeline::TokenManager*, std::chrono::nanoseconds workDuration,
+                std::chrono::nanoseconds readyDuration);
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
@@ -176,6 +185,8 @@ public:
 
     size_t getEventThreadConnectionCount() override;
 
+    void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) override;
+
 private:
     friend EventThreadTest;
 
@@ -199,17 +210,19 @@ private:
                                nsecs_t timestamp, nsecs_t preferredExpectedPresentationTime,
                                nsecs_t preferredDeadlineTimestamp) const;
 
+    scheduler::VSyncDispatch::Callback createDispatchCallback();
+
     const char* const mThreadName;
     TracedOrdinal<int> mVsyncTracer;
     TracedOrdinal<std::chrono::nanoseconds> mWorkDuration GUARDED_BY(mMutex);
     std::chrono::nanoseconds mReadyDuration GUARDED_BY(mMutex);
-    scheduler::VsyncSchedule& mVsyncSchedule;
+    std::shared_ptr<scheduler::VsyncSchedule> mVsyncSchedule;
     TimePoint mLastVsyncCallbackTime GUARDED_BY(mMutex) = TimePoint::now();
     scheduler::VSyncCallbackRegistration mVsyncRegistration GUARDED_BY(mMutex);
     frametimeline::TokenManager* const mTokenManager;
 
-    const ThrottleVsyncCallback mThrottleVsyncCallback;
-    const GetVsyncPeriodFunction mGetVsyncPeriodFunction;
+    // mEventThreadCallback will outlive the EventThread.
+    IEventThreadCallback& mEventThreadCallback;
 
     std::thread mThread;
     mutable std::mutex mMutex;

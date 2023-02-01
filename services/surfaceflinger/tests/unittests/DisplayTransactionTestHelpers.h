@@ -128,8 +128,6 @@ public:
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     Hwc2::mock::Composer* mComposer = nullptr;
 
-    mock::VsyncController* mVsyncController = new mock::VsyncController;
-    mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker;
     mock::EventThread* mEventThread = new mock::EventThread;
     mock::EventThread* mSFEventThread = new mock::EventThread;
 

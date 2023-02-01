@@ -118,6 +118,34 @@ TEST_F(HWComposerTest, getActiveMode) {
     }
 }
 
+TEST_F(HWComposerTest, onVsync) {
+    constexpr hal::HWDisplayId kHwcDisplayId = 1;
+    expectHotplugConnect(kHwcDisplayId);
+
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+
+    const auto physicalDisplayId = info->id;
+
+    // Deliberately chosen not to match DisplayData.lastPresentTimestamp's
+    // initial value.
+    constexpr nsecs_t kTimestamp = 1;
+    auto displayIdOpt = mHwc.onVsync(kHwcDisplayId, kTimestamp);
+    ASSERT_TRUE(displayIdOpt);
+    EXPECT_EQ(physicalDisplayId, displayIdOpt);
+
+    // Attempt to send the same time stamp again.
+    displayIdOpt = mHwc.onVsync(kHwcDisplayId, kTimestamp);
+    EXPECT_FALSE(displayIdOpt);
+}
+
+TEST_F(HWComposerTest, onVsyncInvalid) {
+    constexpr hal::HWDisplayId kInvalidHwcDisplayId = 2;
+    constexpr nsecs_t kTimestamp = 1;
+    const auto displayIdOpt = mHwc.onVsync(kInvalidHwcDisplayId, kTimestamp);
+    EXPECT_FALSE(displayIdOpt);
+}
+
 struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
     MOCK_METHOD2(onComposerHalHotplug, void(hal::HWDisplayId, hal::Connection));
     MOCK_METHOD1(onComposerHalRefresh, void(hal::HWDisplayId));
