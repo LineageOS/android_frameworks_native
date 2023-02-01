@@ -237,12 +237,6 @@ void handleDropInputMode(LayerSnapshot& snapshot, const LayerSnapshot& parentSna
     }
 }
 
-bool getBufferNeedsFiltering(const LayerSnapshot& snapshot, const ui::Size& unrotatedBufferSize) {
-    const int32_t layerWidth = static_cast<int32_t>(snapshot.geomLayerBounds.getWidth());
-    const int32_t layerHeight = static_cast<int32_t>(snapshot.geomLayerBounds.getHeight());
-    return layerWidth != unrotatedBufferSize.width || layerHeight != unrotatedBufferSize.height;
-}
-
 auto getBlendMode(const LayerSnapshot& snapshot, const RequestedLayerState& requested) {
     auto blendMode = Hwc2::IComposerClient::BlendMode::NONE;
     if (snapshot.alpha != 1.0f || !snapshot.isContentOpaque()) {
@@ -871,11 +865,6 @@ void LayerSnapshotBuilder::updateLayerBounds(LayerSnapshot& snapshot,
     if (requested.potentialCursor) {
         snapshot.cursorFrame = snapshot.geomLayerTransform.transform(bounds);
     }
-
-    // TODO(b/238781169) use dest vs src
-    snapshot.bufferNeedsFiltering = snapshot.externalTexture &&
-            getBufferNeedsFiltering(snapshot,
-                                    requested.getUnrotatedBufferSize(displayRotationFlags));
 }
 
 void LayerSnapshotBuilder::updateShadows(LayerSnapshot& snapshot,

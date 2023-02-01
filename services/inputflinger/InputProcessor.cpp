@@ -402,7 +402,7 @@ void InputProcessor::setMotionClassifierEnabled(bool enabled) {
             { // acquire lock
                 std::scoped_lock threadLock(mLock);
                 mHalDeathRecipient =
-                        std::make_unique<ScopedDeathRecipient>(onBinderDied, this /*cookie*/);
+                        std::make_unique<ScopedDeathRecipient>(onBinderDied, /*cookie=*/this);
                 mHalDeathRecipient->linkToDeath(service->asBinder().get());
                 setMotionClassifierLocked(MotionClassifier::create(std::move(service)));
             } // release lock

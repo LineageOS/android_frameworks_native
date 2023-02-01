@@ -34,6 +34,8 @@
 #include <utils/Trace.h>
 
 #include <FrameTimeline/FrameTimeline.h>
+#include <scheduler/interface/ICompositor.h>
+
 #include <algorithm>
 #include <cinttypes>
 #include <cstdint>
@@ -124,6 +126,11 @@ void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
 
     std::scoped_lock lock(mDisplayLock);
     mRefreshRateSelectors.erase(displayId);
+
+    // Do not allow removing the final display. Code in the scheduler expects
+    // there to be at least one display. (This may be relaxed in the future with
+    // headless virtual display.)
+    LOG_ALWAYS_FATAL_IF(mRefreshRateSelectors.empty(), "Cannot unregister all displays!");
 
     promoteLeaderDisplay();
 }

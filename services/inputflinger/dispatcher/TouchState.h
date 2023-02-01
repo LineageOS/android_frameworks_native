@@ -47,7 +47,7 @@ struct TouchState {
                                         const sp<android::gui::WindowInfoHandle>& windowHandle);
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                            ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
-                           std::optional<nsecs_t> eventTime = std::nullopt);
+                           std::optional<nsecs_t> firstDownTimeInTarget = std::nullopt);
     void addHoveringPointerToWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                     int32_t deviceId, int32_t hoveringPointerId);
     void removeHoveringPointer(int32_t deviceId, int32_t hoveringPointerId);
@@ -59,7 +59,7 @@ struct TouchState {
     void cancelPointersForWindowsExcept(const BitSet32 pointerIds, const sp<IBinder>& token);
     // Cancel pointers for current set of non-pilfering windows i.e. windows with isPilferingWindow
     // set to false.
-    void cancelPointersForNonPilferingWindows(const BitSet32 pointerIds);
+    void cancelPointersForNonPilferingWindows();
 
     sp<android::gui::WindowInfoHandle> getFirstForegroundWindowHandle() const;
     bool isSlippery() const;

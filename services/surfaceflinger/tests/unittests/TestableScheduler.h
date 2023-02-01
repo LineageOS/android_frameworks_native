@@ -16,10 +16,11 @@
 
 #pragma once
 
-#include <Scheduler/Scheduler.h>
 #include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <gui/ISurfaceComposer.h>
+
+#include <scheduler/interface/ICompositor.h>
 
 #include "Scheduler/EventThread.h"
 #include "Scheduler/LayerHistory.h"
@@ -77,8 +78,6 @@ public:
     const auto& refreshRateSelectors() const NO_THREAD_SAFETY_ANALYSIS {
         return mRefreshRateSelectors;
     }
-
-    bool hasRefreshRateSelectors() const { return !refreshRateSelectors().empty(); }
 
     void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
         ftl::FakeGuard guard(kMainThreadContext);

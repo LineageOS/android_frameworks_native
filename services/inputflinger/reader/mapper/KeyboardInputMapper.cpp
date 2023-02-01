@@ -440,7 +440,7 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
     for (size_t i = 0; i < n; i++) {
         out.emplace_back(NotifyKeyArgs(getContext()->getNextId(), when,
                                        systemTime(SYSTEM_TIME_MONOTONIC), getDeviceId(), mSource,
-                                       getDisplayId(), 0 /*policyFlags*/, AKEY_EVENT_ACTION_UP,
+                                       getDisplayId(), /*policyFlags=*/0, AKEY_EVENT_ACTION_UP,
                                        AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED,
                                        mKeyDowns[i].keyCode, mKeyDowns[i].scanCode, AMETA_NONE,
                                        mKeyDowns[i].downTime));

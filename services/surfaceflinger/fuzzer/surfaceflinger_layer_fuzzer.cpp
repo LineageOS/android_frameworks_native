@@ -166,7 +166,7 @@ void LayerFuzzer::invokeBufferStateLayer() {
                               {mFdp.ConsumeIntegral<int32_t>(),
                                mFdp.ConsumeIntegral<int32_t>()} /*reqSize*/,
                               mFdp.PickValueInArray(kDataspaces), mFdp.ConsumeBool(),
-                              getFuzzedRect(), mFdp.ConsumeBool());
+                              mFdp.ConsumeBool());
     layerArea.render([]() {} /*drawLayers*/);
 
     if (!ownsHandle) {

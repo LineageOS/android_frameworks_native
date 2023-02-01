@@ -59,7 +59,7 @@ std::list<NotifyArgs> SwitchInputMapper::sync(nsecs_t when) {
     std::list<NotifyArgs> out;
     if (mUpdatedSwitchMask) {
         uint32_t updatedSwitchValues = mSwitchValues & mUpdatedSwitchMask;
-        out.push_back(NotifySwitchArgs(getContext()->getNextId(), when, 0 /*policyFlags*/,
+        out.push_back(NotifySwitchArgs(getContext()->getNextId(), when, /*policyFlags=*/0,
                                        updatedSwitchValues, mUpdatedSwitchMask));
 
         mUpdatedSwitchMask = 0;

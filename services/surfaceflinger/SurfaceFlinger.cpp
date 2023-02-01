@@ -408,15 +408,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     mDebugFlashDelay = base::GetUintProperty("debug.sf.showupdates"s, 0u);
 
-    // DDMS debugging deprecated (b/120782499)
-    property_get("debug.sf.ddms", value, "0");
-    int debugDdms = atoi(value);
-    ALOGI_IF(debugDdms, "DDMS debugging not supported");
-
-    property_get("debug.sf.enable_gl_backpressure", value, "1");
-    mPropagateBackpressureClientComposition = atoi(value);
-    ALOGI_IF(mPropagateBackpressureClientComposition,
-             "Enabling backpressure propagation for Client Composition");
+    mBackpressureGpuComposition = base::GetBoolProperty("debug.sf.enable_gl_backpressure"s, true);
+    ALOGI_IF(mBackpressureGpuComposition, "Enabling backpressure for GPU composition");
 
     property_get("ro.surface_flinger.supports_background_blur", value, "0");
     bool supportsBlurs = atoi(value);
@@ -2155,11 +2148,11 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
     const Period vsyncPeriod = mScheduler->getVsyncSchedule().period();
     const FenceTimePtr& previousPresentFence = getPreviousPresentFence(frameTime, vsyncPeriod);
 
-    // When Backpressure propagation is enabled we want to give a small grace period
+    // When backpressure propagation is enabled, we want to give a small grace period of 1ms
     // for the present fence to fire instead of just giving up on this frame to handle cases
     // where present fence is just about to get signaled.
-    const int graceTimeForPresentFenceMs =
-            (mPropagateBackpressureClientComposition || !mHadClientComposition) ? 1 : 0;
+    const int graceTimeForPresentFenceMs = static_cast<int>(
+            mBackpressureGpuComposition || !mCompositionCoverage.test(CompositionCoverage::Gpu));
 
     // Pending frames may trigger backpressure propagation.
     const TracedOrdinal<bool> framePending = {"PrevFramePending",
@@ -2182,9 +2175,14 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
                                                       (lastScheduledPresentTime.ns() <
                                                        previousPresentTime - frameMissedSlop))};
     const TracedOrdinal<bool> hwcFrameMissed = {"PrevHwcFrameMissed",
-                                                mHadDeviceComposition && frameMissed};
+                                                frameMissed &&
+                                                        mCompositionCoverage.test(
+                                                                CompositionCoverage::Hwc)};
+
     const TracedOrdinal<bool> gpuFrameMissed = {"PrevGpuFrameMissed",
-                                                mHadClientComposition && frameMissed};
+                                                frameMissed &&
+                                                        mCompositionCoverage.test(
+                                                                CompositionCoverage::Gpu)};
 
     if (frameMissed) {
         mFrameMissedCount++;
@@ -2222,7 +2220,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
     }
 
     if (framePending) {
-        if ((hwcFrameMissed && !gpuFrameMissed) || mPropagateBackpressureClientComposition) {
+        if (mBackpressureGpuComposition || (hwcFrameMissed && !gpuFrameMissed)) {
             scheduleCommit(FrameHint::kNone);
             return false;
         }
@@ -2459,29 +2457,43 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     postComposition(presentTime);
 
-    const bool prevFrameHadClientComposition = mHadClientComposition;
+    const bool hadGpuComposited = mCompositionCoverage.test(CompositionCoverage::Gpu);
+    mCompositionCoverage.clear();
 
-    mHadClientComposition = mHadDeviceComposition = mReusedClientComposition = false;
     TimeStats::ClientCompositionRecord clientCompositionRecord;
     for (const auto& [_, display] : displays) {
         const auto& state = display->getCompositionDisplay()->getState();
-        mHadClientComposition |= state.usesClientComposition && !state.reusedClientComposition;
-        mHadDeviceComposition |= state.usesDeviceComposition;
-        mReusedClientComposition |= state.reusedClientComposition;
+
+        if (state.usesDeviceComposition) {
+            mCompositionCoverage |= CompositionCoverage::Hwc;
+        }
+
+        if (state.reusedClientComposition) {
+            mCompositionCoverage |= CompositionCoverage::GpuReuse;
+        } else if (state.usesClientComposition) {
+            mCompositionCoverage |= CompositionCoverage::Gpu;
+        }
+
         clientCompositionRecord.predicted |=
                 (state.strategyPrediction != CompositionStrategyPredictionState::DISABLED);
         clientCompositionRecord.predictionSucceeded |=
                 (state.strategyPrediction == CompositionStrategyPredictionState::SUCCESS);
     }
 
-    clientCompositionRecord.hadClientComposition = mHadClientComposition;
-    clientCompositionRecord.reused = mReusedClientComposition;
-    clientCompositionRecord.changed = prevFrameHadClientComposition != mHadClientComposition;
+    const bool hasGpuComposited = mCompositionCoverage.test(CompositionCoverage::Gpu);
+
+    clientCompositionRecord.hadClientComposition = hasGpuComposited;
+    clientCompositionRecord.reused = mCompositionCoverage.test(CompositionCoverage::GpuReuse);
+    clientCompositionRecord.changed = hadGpuComposited != hasGpuComposited;
+
     mTimeStats->pushCompositionStrategyState(clientCompositionRecord);
 
-    // TODO: b/160583065 Enable skip validation when SF caches all client composition layers
-    const bool usedGpuComposition = mHadClientComposition || mReusedClientComposition;
-    mScheduler->modulateVsync(&VsyncModulator::onDisplayRefresh, usedGpuComposition);
+    using namespace ftl::flag_operators;
+
+    // TODO(b/160583065): Enable skip validation when SF caches all client composition layers.
+    const bool hasGpuUseOrReuse =
+            mCompositionCoverage.any(CompositionCoverage::Gpu | CompositionCoverage::GpuReuse);
+    mScheduler->modulateVsync(&VsyncModulator::onDisplayRefresh, hasGpuUseOrReuse);
 
     mLayersWithQueuedFrames.clear();
     if (mLayerTracingEnabled && mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
@@ -6547,13 +6559,10 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         return BAD_VALUE;
     }
 
-    Rect layerStackSpaceRect(crop.left, crop.top, crop.left + reqSize.width,
-                             crop.top + reqSize.height);
     bool childrenOnly = args.childrenOnly;
     RenderAreaFuture renderAreaFuture = ftl::defer([=]() -> std::unique_ptr<RenderArea> {
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
-                                                 childrenOnly, layerStackSpaceRect,
-                                                 args.captureSecureLayers);
+                                                 childrenOnly, args.captureSecureLayers);
     });
 
     auto traverseLayers = [parent, args, excludeLayerIds](const LayerVector::Visitor& visitor) {
@@ -6708,9 +6717,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
-    const auto& display = renderArea->getDisplayDevice();
-    const auto& transform = renderArea->getTransform();
-    std::unordered_set<compositionengine::LayerFE*> filterForScreenshot;
     auto layers = getLayerSnapshots();
     for (auto& [layer, layerFE] : layers) {
         frontend::LayerSnapshot* snapshot = layerFE->mSnapshot.get();
@@ -6718,9 +6724,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         captureResults.capturedHdrLayers |= isHdrLayer(*snapshot);
         layerFE->mSnapshot->geomLayerTransform =
                 renderArea->getTransform() * layerFE->mSnapshot->geomLayerTransform;
-        if (layer->needsFilteringForScreenshots(display.get(), transform)) {
-            filterForScreenshot.insert(layerFE.get());
-        }
     }
 
     // We allow the system server to take screenshots of secure layers for
@@ -6771,9 +6774,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     };
 
     auto present = [this, buffer = std::move(buffer), dataspace, sdrWhitePointNits,
-                    displayBrightnessNits, filterForScreenshot = std::move(filterForScreenshot),
-                    grayscale, layerFEs = copyLayerFEs(), layerStack, regionSampling,
-                    renderArea = std::move(renderArea), renderIntent]() -> FenceResult {
+                    displayBrightnessNits, grayscale, layerFEs = copyLayerFEs(), layerStack,
+                    regionSampling, renderArea = std::move(renderArea),
+                    renderIntent]() -> FenceResult {
         std::unique_ptr<compositionengine::CompositionEngine> compositionEngine =
                 mFactory.createCompositionEngine();
         compositionEngine->setRenderEngine(mRenderEngine.get());
@@ -6789,7 +6792,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                         .buffer = std::move(buffer),
                                         .sdrWhitePointNits = sdrWhitePointNits,
                                         .displayBrightnessNits = displayBrightnessNits,
-                                        .filterForScreenshot = std::move(filterForScreenshot),
                                         .regionSampling = regionSampling});
 
         const float colorSaturation = grayscale ? 0 : 1;

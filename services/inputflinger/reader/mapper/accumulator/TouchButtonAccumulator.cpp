@@ -115,7 +115,7 @@ void TouchButtonAccumulator::processMappedKey(int32_t scanCode, bool down) {
     int32_t keyCode, metaState;
     uint32_t flags;
     if (mDeviceContext.mapKey(scanCode, mHidUsageAccumulator.consumeCurrentHidUsage(),
-                              0 /*metaState*/, &keyCode, &metaState, &flags) != OK) {
+                              /*metaState=*/0, &keyCode, &metaState, &flags) != OK) {
         return;
     }
     switch (keyCode) {

@@ -48,25 +48,13 @@ std::unique_ptr<RenderArea> DisplayRenderArea::create(wp<const DisplayDevice> di
 DisplayRenderArea::DisplayRenderArea(sp<const DisplayDevice> display, const Rect& sourceCrop,
                                      ui::Size reqSize, ui::Dataspace reqDataSpace,
                                      bool useIdentityTransform, bool allowSecureLayers)
-      : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, display->getLayerStackSpaceRect(),
-                   allowSecureLayers, applyDeviceOrientation(useIdentityTransform, *display)),
+      : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, allowSecureLayers,
+                   applyDeviceOrientation(useIdentityTransform, *display)),
         mDisplay(std::move(display)),
         mSourceCrop(sourceCrop) {}
 
 const ui::Transform& DisplayRenderArea::getTransform() const {
     return mTransform;
-}
-
-Rect DisplayRenderArea::getBounds() const {
-    return mDisplay->getBounds();
-}
-
-int DisplayRenderArea::getHeight() const {
-    return mDisplay->getHeight();
-}
-
-int DisplayRenderArea::getWidth() const {
-    return mDisplay->getWidth();
 }
 
 bool DisplayRenderArea::isSecure() const {
@@ -75,18 +63,6 @@ bool DisplayRenderArea::isSecure() const {
 
 sp<const DisplayDevice> DisplayRenderArea::getDisplayDevice() const {
     return mDisplay;
-}
-
-bool DisplayRenderArea::needsFiltering() const {
-    // check if the projection from the logical render area
-    // to the physical render area requires filtering
-    const Rect& sourceCrop = getSourceCrop();
-    int width = sourceCrop.width();
-    int height = sourceCrop.height();
-    if (getRotationFlags() & ui::Transform::ROT_90) {
-        std::swap(width, height);
-    }
-    return width != getReqWidth() || height != getReqHeight();
 }
 
 Rect DisplayRenderArea::getSourceCrop() const {

@@ -37,15 +37,7 @@
 
 namespace android {
 
-struct ICompositor {
-    virtual void configure() = 0;
-    virtual bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) = 0;
-    virtual void composite(TimePoint frameTime, VsyncId) = 0;
-    virtual void sample() = 0;
-
-protected:
-    ~ICompositor() = default;
-};
+struct ICompositor;
 
 template <typename F>
 class Task : public MessageHandler {

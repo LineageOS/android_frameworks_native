@@ -38,15 +38,15 @@ static NotifyMotionArgs generateBasicMotionArgs() {
     coords.setAxisValue(AMOTION_EVENT_AXIS_Y, 2);
     coords.setAxisValue(AMOTION_EVENT_AXIS_SIZE, 0.5);
     static constexpr nsecs_t downTime = 2;
-    NotifyMotionArgs motionArgs(1 /*sequenceNum*/, downTime /*eventTime*/, 2 /*readTime*/,
-                                3 /*deviceId*/, AINPUT_SOURCE_ANY, ADISPLAY_ID_DEFAULT,
-                                4 /*policyFlags*/, AMOTION_EVENT_ACTION_DOWN, 0 /*actionButton*/,
-                                0 /*flags*/, AMETA_NONE, 0 /*buttonState*/,
+    NotifyMotionArgs motionArgs(/*sequenceNum=*/1, /*eventTime=*/downTime, /*readTime=*/2,
+                                /*deviceId=*/3, AINPUT_SOURCE_ANY, ADISPLAY_ID_DEFAULT,
+                                /*policyFlags=*/4, AMOTION_EVENT_ACTION_DOWN, /*actionButton=*/0,
+                                /*flags=*/0, AMETA_NONE, /*buttonState=*/0,
                                 MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
-                                1 /*pointerCount*/, &properties, &coords, 0 /*xPrecision*/,
-                                0 /*yPrecision*/, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                /*pointerCount=*/1, &properties, &coords, /*xPrecision=*/0,
+                                /*yPrecision=*/0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                 AMOTION_EVENT_INVALID_CURSOR_POSITION, downTime,
-                                {} /*videoFrames*/);
+                                /*videoFrames=*/{});
     return motionArgs;
 }
 

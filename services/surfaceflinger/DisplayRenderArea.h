@@ -33,12 +33,8 @@ public:
                                               bool allowSecureLayers = true);
 
     const ui::Transform& getTransform() const override;
-    Rect getBounds() const override;
-    int getHeight() const override;
-    int getWidth() const override;
     bool isSecure() const override;
     sp<const DisplayDevice> getDisplayDevice() const override;
-    bool needsFiltering() const override;
     Rect getSourceCrop() const override;
 
 private:

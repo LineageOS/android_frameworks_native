@@ -301,9 +301,6 @@ TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
     choice = modeChoices.get(kDisplayId1);
     ASSERT_TRUE(choice);
     EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, globalSignals));
-
-    mScheduler->unregisterDisplay(kDisplayId1);
-    EXPECT_FALSE(mScheduler->hasRefreshRateSelectors());
 }
 
 TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
