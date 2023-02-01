@@ -39,6 +39,11 @@ using ::android::internal::Stability;
 
 namespace android {
 
+bool is_multiuser_uid_isolated(uid_t uid) {
+    uid_t appid = multiuser_get_app_id(uid);
+    return appid >= AID_ISOLATED_START && appid <= AID_ISOLATED_END;
+}
+
 #ifndef VENDORSERVICEMANAGER
 
 struct ManifestWithDescription {
@@ -273,13 +278,8 @@ sp<IBinder> ServiceManager::tryGetService(const std::string& name, bool startIfN
     if (auto it = mNameToService.find(name); it != mNameToService.end()) {
         service = &(it->second);
 
-        if (!service->allowIsolated) {
-            uid_t appid = multiuser_get_app_id(ctx.uid);
-            bool isIsolated = appid >= AID_ISOLATED_START && appid <= AID_ISOLATED_END;
-
-            if (isIsolated) {
-                return nullptr;
-            }
+        if (!service->allowIsolated && is_multiuser_uid_isolated(ctx.uid)) {
+            return nullptr;
         }
         out = service->binder;
     }
@@ -425,7 +425,17 @@ Status ServiceManager::registerForNotifications(
     auto ctx = mAccess->getCallingContext();
 
     if (!mAccess->canFind(ctx, name)) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux");
+    }
+
+    // note - we could allow isolated apps to get notifications if we
+    // keep track of isolated callbacks and non-isolated callbacks, but
+    // this is done since isolated apps shouldn't access lazy services
+    // so we should be able to use different APIs to keep things simple.
+    // Here, we disallow everything, because the service might not be
+    // registered yet.
+    if (is_multiuser_uid_isolated(ctx.uid)) {
+        return Status::fromExceptionCode(Status::EX_SECURITY, "isolated app");
     }
 
     if (!isValidServiceName(name)) {
