@@ -3921,14 +3921,18 @@ uint32_t SurfaceFlinger::getTransactionFlags() const {
 }
 
 uint32_t SurfaceFlinger::clearTransactionFlags(uint32_t mask) {
-    return mTransactionFlags.fetch_and(~mask) & mask;
+    uint32_t transactionFlags = mTransactionFlags.fetch_and(~mask);
+    ATRACE_INT("mTransactionFlags", transactionFlags);
+    return transactionFlags & mask;
 }
 
 void SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule schedule,
                                          const sp<IBinder>& applyToken, FrameHint frameHint) {
     mScheduler->modulateVsync({}, &VsyncModulator::setTransactionSchedule, schedule, applyToken);
+    uint32_t transactionFlags = mTransactionFlags.fetch_or(mask);
+    ATRACE_INT("mTransactionFlags", transactionFlags);
 
-    if (const bool scheduled = mTransactionFlags.fetch_or(mask) & mask; !scheduled) {
+    if (const bool scheduled = transactionFlags & mask; !scheduled) {
         scheduleCommit(frameHint);
     } else if (frameHint == FrameHint::kActive) {
         // Even if the next frame is already scheduled, we should reset the idle timer
@@ -4243,9 +4247,8 @@ status_t SurfaceFlinger::setTransactionState(
     }(state.flags);
 
     const auto frameHint = state.isFrameActive() ? FrameHint::kActive : FrameHint::kNone;
-    setTransactionFlags(eTransactionFlushNeeded, schedule, state.applyToken, frameHint);
     mTransactionHandler.queueTransaction(std::move(state));
-
+    setTransactionFlags(eTransactionFlushNeeded, schedule, applyToken, frameHint);
     return NO_ERROR;
 }
 
