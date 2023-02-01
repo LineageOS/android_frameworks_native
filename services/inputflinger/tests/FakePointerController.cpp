@@ -65,6 +65,10 @@ void FakePointerController::assertPosition(float x, float y) {
     ASSERT_NEAR(y, actualY, 1);
 }
 
+bool FakePointerController::isPointerShown() {
+    return mIsPointerShown;
+}
+
 bool FakePointerController::getBounds(float* outMinX, float* outMinY, float* outMaxX,
                                       float* outMaxY) const {
     *outMinX = mMinX;
@@ -81,6 +85,13 @@ void FakePointerController::move(float deltaX, float deltaY) {
     mY += deltaY;
     if (mY < mMinY) mY = mMinY;
     if (mY > mMaxY) mY = mMaxY;
+}
+
+void FakePointerController::fade(Transition) {
+    mIsPointerShown = false;
+}
+void FakePointerController::unfade(Transition) {
+    mIsPointerShown = true;
 }
 
 void FakePointerController::setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,

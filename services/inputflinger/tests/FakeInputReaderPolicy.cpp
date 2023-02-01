@@ -205,6 +205,10 @@ void FakeInputReaderPolicy::setStylusButtonMotionEventsEnabled(bool enabled) {
     mConfig.stylusButtonMotionEventsEnabled = enabled;
 }
 
+void FakeInputReaderPolicy::setStylusPointerIconEnabled(bool enabled) {
+    mConfig.stylusPointerIconEnabled = enabled;
+}
+
 void FakeInputReaderPolicy::getReaderConfiguration(InputReaderConfiguration* outConfig) {
     *outConfig = mConfig;
 }

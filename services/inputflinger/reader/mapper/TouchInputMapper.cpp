@@ -3709,7 +3709,8 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
     const int32_t displayId = getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE);
     const bool showDirectStylusPointer = mConfig.stylusPointerIconEnabled &&
             mDeviceMode == DeviceMode::DIRECT && isStylusEvent(source, action, pointerProperties) &&
-            displayId != ADISPLAY_ID_NONE && displayId == mPointerController->getDisplayId();
+            mPointerController && displayId != ADISPLAY_ID_NONE &&
+            displayId == mPointerController->getDisplayId();
     if (showDirectStylusPointer) {
         switch (action & AMOTION_EVENT_ACTION_MASK) {
             case AMOTION_EVENT_ACTION_HOVER_ENTER:
