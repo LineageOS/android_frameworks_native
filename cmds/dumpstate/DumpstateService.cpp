@@ -58,6 +58,13 @@ static binder::Status exception(uint32_t code, const std::string& msg,
     exit(0);
 }
 
+[[noreturn]] static void* dumpstate_thread_retrieve(void* data) {
+    std::unique_ptr<DumpstateInfo> ds_info(static_cast<DumpstateInfo*>(data));
+    ds_info->ds->Retrieve(ds_info->calling_uid, ds_info->calling_package);
+    MYLOGD("Finished retrieving a bugreport. Exiting.\n");
+    exit(0);
+}
+
 [[noreturn]] static void signalErrorAndExit(sp<IDumpstateListener> listener, int error_code) {
     listener->onError(error_code);
     exit(0);
@@ -189,6 +196,41 @@ binder::Status DumpstateService::cancelBugreport(int32_t calling_uid,
             StringPrintf("started by %d/%s", calling_uid_, calling_package_.c_str()));
     }
     ds_->Cancel();
+    return binder::Status::ok();
+}
+
+binder::Status DumpstateService::retrieveBugreport(
+    int32_t calling_uid, const std::string& calling_package,
+    android::base::unique_fd bugreport_fd,
+    const std::string& bugreport_file,
+    const sp<IDumpstateListener>& listener) {
+
+    ds_ = &(Dumpstate::GetInstance());
+    DumpstateInfo* ds_info = new DumpstateInfo();
+    ds_info->ds = ds_;
+    ds_info->calling_uid = calling_uid;
+    ds_info->calling_package = calling_package;
+    ds_->listener_ = listener;
+    std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
+    // Use a /dev/null FD when initializing options since none is provided.
+    android::base::unique_fd devnull_fd(
+        TEMP_FAILURE_RETRY(open("/dev/null", O_WRONLY | O_CLOEXEC)));
+
+    options->Initialize(Dumpstate::BugreportMode::BUGREPORT_DEFAULT,
+                        0, bugreport_fd, devnull_fd, false);
+
+    if (bugreport_fd.get() == -1) {
+        MYLOGE("Invalid filedescriptor");
+        signalErrorAndExit(listener, IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
+    }
+    ds_->SetOptions(std::move(options));
+    ds_->path_ = bugreport_file;
+    pthread_t thread;
+    status_t err = pthread_create(&thread, nullptr, dumpstate_thread_retrieve, ds_info);
+    if (err != 0) {
+        MYLOGE("Could not create a thread");
+        signalErrorAndExit(listener, IDumpstateListener::BUGREPORT_ERROR_RUNTIME_ERROR);
+    }
     return binder::Status::ok();
 }
 

@@ -46,6 +46,13 @@ class DumpstateService : public BinderService<DumpstateService>, public BnDumpst
                                   int bugreport_flags, const sp<IDumpstateListener>& listener,
                                   bool is_screenshot_requested) override;
 
+    binder::Status retrieveBugreport(int32_t calling_uid,
+                                     const std::string& calling_package,
+                                     android::base::unique_fd bugreport_fd,
+                                     const std::string& bugreport_file,
+                                     const sp<IDumpstateListener>& listener)
+                                     override;
+
     binder::Status cancelBugreport(int32_t calling_uid,
                                    const std::string& calling_package) override;
 
