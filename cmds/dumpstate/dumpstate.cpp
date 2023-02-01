@@ -3323,6 +3323,15 @@ void Dumpstate::MaybeSnapshotUiTraces() {
         return;
     }
 
+    // Include the proto logging from WMShell.
+    RunCommand(
+        // Empty name because it's not intended to be classified as a bugreport section.
+        // Actual logging files can be found as "/data/misc/wmtrace/shell_log.winscope"
+        // in the bugreport.
+        "", {"dumpsys", "activity", "service", "SystemUIService",
+             "WMShell", "protolog", "save-for-bugreport"},
+        CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
+
     // Currently WindowManagerService and InputMethodManagerSerivice support WinScope protocol.
     for (const auto& service : {"input_method", "window"}) {
         RunCommand(
