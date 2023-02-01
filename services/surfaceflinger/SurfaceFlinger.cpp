@@ -2614,12 +2614,13 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
     ATRACE_CALL();
     ALOGV(__func__);
 
-    const auto* display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
+    const auto* defaultDisplay = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
 
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
-    if (display && display->getCompositionDisplay()->getState().usesClientComposition) {
+    if (defaultDisplay &&
+        defaultDisplay->getCompositionDisplay()->getState().usesClientComposition) {
         glCompositionDoneFenceTime =
-                std::make_shared<FenceTime>(display->getCompositionDisplay()
+                std::make_shared<FenceTime>(defaultDisplay->getCompositionDisplay()
                                                     ->getRenderSurface()
                                                     ->getClientTargetAcquireFence());
     } else {
@@ -2628,8 +2629,9 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
 
     mPreviousPresentFences[1] = mPreviousPresentFences[0];
 
-    auto presentFence =
-            display ? getHwComposer().getPresentFence(display->getPhysicalId()) : Fence::NO_FENCE;
+    auto presentFence = defaultDisplay
+            ? getHwComposer().getPresentFence(defaultDisplay->getPhysicalId())
+            : Fence::NO_FENCE;
 
     auto presentFenceTime = std::make_shared<FenceTime>(presentFence);
     mPreviousPresentFences[0] = {presentFence, presentFenceTime};
@@ -2660,7 +2662,7 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
                                             presentLatency.ns());
 
     for (const auto& layer: mLayersWithQueuedFrames) {
-        layer->onPostComposition(display, glCompositionDoneFenceTime, presentFenceTime,
+        layer->onPostComposition(defaultDisplay, glCompositionDoneFenceTime, presentFenceTime,
                                  compositorTiming);
         layer->releasePendingBuffer(presentTime.ns());
     }
@@ -2733,7 +2735,7 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
         for (const auto& [id, physicalDisplay] : mPhysicalDisplays) {
             if (auto displayDevice = getDisplayDeviceLocked(id);
                 displayDevice && displayDevice->isPoweredOn() && physicalDisplay.isInternal()) {
-                auto presentFenceTimeI = display && display->getPhysicalId() == id
+                auto presentFenceTimeI = defaultDisplay && defaultDisplay->getPhysicalId() == id
                         ? std::move(presentFenceTime)
                         : std::make_shared<FenceTime>(getHwComposer().getPresentFence(id));
                 if (presentFenceTimeI->isValid()) {
@@ -2744,11 +2746,11 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
     }
 
     const bool isDisplayConnected =
-            display && getHwComposer().isConnected(display->getPhysicalId());
+            defaultDisplay && getHwComposer().isConnected(defaultDisplay->getPhysicalId());
 
     if (!hasSyncFramework) {
-        if (isDisplayConnected && display->isPoweredOn()) {
-            mScheduler->enableHardwareVsync(display->getPhysicalId());
+        if (isDisplayConnected && defaultDisplay->isPoweredOn()) {
+            mScheduler->enableHardwareVsync(defaultDisplay->getPhysicalId());
         }
     }
 
@@ -2756,7 +2758,7 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
     const size_t appConnections = mScheduler->getEventThreadConnectionCount(mAppConnectionHandle);
     mTimeStats->recordDisplayEventConnectionCount(sfConnections + appConnections);
 
-    if (isDisplayConnected && !display->isPoweredOn()) {
+    if (isDisplayConnected && !defaultDisplay->isPoweredOn()) {
         getRenderEngine().cleanupPostRender();
         return;
     }
@@ -2795,9 +2797,10 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
             if (!layer->hasTrustedPresentationListener()) {
                 return;
             }
-            const auto display =
+            const std::optional<const DisplayDevice*> displayOpt =
                     layerStackToDisplay.get(layer->getLayerSnapshot()->outputFilter.layerStack);
-            layer->updateTrustedPresentationState(display->get(), layer->getLayerSnapshot(),
+            const DisplayDevice* display = displayOpt.value_or(nullptr);
+            layer->updateTrustedPresentationState(display, layer->getLayerSnapshot(),
                                                   nanoseconds_to_milliseconds(callTime), false);
         });
     }
