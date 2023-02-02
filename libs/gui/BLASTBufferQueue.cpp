@@ -429,8 +429,8 @@ void BLASTBufferQueue::releaseBufferCallbackLocked(
         mCurrentMaxAcquiredBufferCount = *currentMaxAcquiredBufferCount;
     }
 
-    const auto numPendingBuffersToHold =
-            isEGL ? std::max(0u, mMaxAcquiredBuffers - mCurrentMaxAcquiredBufferCount) : 0;
+    const uint32_t numPendingBuffersToHold =
+            isEGL ? std::max(0, mMaxAcquiredBuffers - (int32_t)mCurrentMaxAcquiredBufferCount) : 0;
 
     auto rb = ReleasedBuffer{id, releaseFence};
     if (std::find(mPendingRelease.begin(), mPendingRelease.end(), rb) == mPendingRelease.end()) {
