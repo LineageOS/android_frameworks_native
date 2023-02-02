@@ -28,8 +28,7 @@ public:
     /**
      * Binder call to get vendor atom.
      */
-    virtual ndk::ScopedAStatus reportVendorAtom(
-        const VendorAtom& in_vendorAtom) override;
+    virtual ndk::ScopedAStatus reportVendorAtom(const VendorAtom& in_vendorAtom) override;
 };
 
 }  // namespace stats
