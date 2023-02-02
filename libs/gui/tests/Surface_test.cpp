@@ -725,6 +725,7 @@ public:
 
     binder::Status createDisplayEventConnection(
             VsyncSource /*vsyncSource*/, EventRegistration /*eventRegistration*/,
+            const sp<IBinder>& /*layerHandle*/,
             sp<gui::IDisplayEventConnection>* outConnection) override {
         *outConnection = nullptr;
         return binder::Status::ok();

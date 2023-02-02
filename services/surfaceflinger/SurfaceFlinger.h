@@ -509,7 +509,8 @@ private:
     sp<IDisplayEventConnection> createDisplayEventConnection(
             gui::ISurfaceComposer::VsyncSource vsyncSource =
                     gui::ISurfaceComposer::VsyncSource::eVsyncSourceApp,
-            EventRegistrationFlags eventRegistration = {});
+            EventRegistrationFlags eventRegistration = {},
+            const sp<IBinder>& layerHandle = nullptr);
 
     status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
     status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&);
@@ -1391,6 +1392,7 @@ public:
     binder::Status bootFinished() override;
     binder::Status createDisplayEventConnection(
             VsyncSource vsyncSource, EventRegistration eventRegistration,
+            const sp<IBinder>& layerHandle,
             sp<gui::IDisplayEventConnection>* outConnection) override;
     binder::Status createConnection(sp<gui::ISurfaceComposerClient>* outClient) override;
     binder::Status createDisplay(const std::string& displayName, bool secure,

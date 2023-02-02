@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "DisplayEventReceiver"
+
 #include <string.h>
 
 #include <utils/Errors.h>
@@ -32,7 +34,8 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 DisplayEventReceiver::DisplayEventReceiver(gui::ISurfaceComposer::VsyncSource vsyncSource,
-                                           EventRegistrationFlags eventRegistration) {
+                                           EventRegistrationFlags eventRegistration,
+                                           const sp<IBinder>& layerHandle) {
     sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
     if (sf != nullptr) {
         mEventConnection = nullptr;
@@ -41,8 +44,8 @@ DisplayEventReceiver::DisplayEventReceiver(gui::ISurfaceComposer::VsyncSource vs
                                                  static_cast<
                                                          gui::ISurfaceComposer::EventRegistration>(
                                                          eventRegistration.get()),
-                                                 &mEventConnection);
-        if (mEventConnection != nullptr) {
+                                                 layerHandle, &mEventConnection);
+        if (status.isOk() && mEventConnection != nullptr) {
             mDataChannel = std::make_unique<gui::BitTube>();
             status = mEventConnection->stealReceiveChannel(mDataChannel.get());
             if (!status.isOk()) {
@@ -51,6 +54,8 @@ DisplayEventReceiver::DisplayEventReceiver(gui::ISurfaceComposer::VsyncSource vs
                 mDataChannel.reset();
                 mEventConnection.clear();
             }
+        } else {
+            ALOGE("DisplayEventConnection creation failed: status=%s", status.toString8().c_str());
         }
     }
 }

@@ -26,7 +26,8 @@ public:
     explicit DisplayEventDispatcher(const sp<Looper>& looper,
                                     gui::ISurfaceComposer::VsyncSource vsyncSource =
                                             gui::ISurfaceComposer::VsyncSource::eVsyncSourceApp,
-                                    EventRegistrationFlags eventRegistration = {});
+                                    EventRegistrationFlags eventRegistration = {},
+                                    const sp<IBinder>& layerHandle = nullptr);
 
     status_t initialize();
     void dispose();

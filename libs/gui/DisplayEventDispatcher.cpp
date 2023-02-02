@@ -37,9 +37,10 @@ static constexpr nsecs_t WAITING_FOR_VSYNC_TIMEOUT = ms2ns(300);
 
 DisplayEventDispatcher::DisplayEventDispatcher(const sp<Looper>& looper,
                                                gui::ISurfaceComposer::VsyncSource vsyncSource,
-                                               EventRegistrationFlags eventRegistration)
+                                               EventRegistrationFlags eventRegistration,
+                                               const sp<IBinder>& layerHandle)
       : mLooper(looper),
-        mReceiver(vsyncSource, eventRegistration),
+        mReceiver(vsyncSource, eventRegistration, layerHandle),
         mWaitingForVsync(false),
         mLastVsyncCount(0),
         mLastScheduleVsyncTime(0) {

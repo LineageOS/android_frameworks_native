@@ -47,6 +47,7 @@
 #include "Display/DisplayMap.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
+#include "FrontEnd/LayerHandle.h"
 #include "OneShotTimer.h"
 #include "SurfaceFlingerProperties.h"
 #include "VSyncPredictor.h"
@@ -232,15 +233,21 @@ ConnectionHandle Scheduler::createConnection(std::unique_ptr<EventThread> eventT
 }
 
 sp<EventThreadConnection> Scheduler::createConnectionInternal(
-        EventThread* eventThread, EventRegistrationFlags eventRegistration) {
-    return eventThread->createEventConnection([&] { resync(); }, eventRegistration);
+        EventThread* eventThread, EventRegistrationFlags eventRegistration,
+        const sp<IBinder>& layerHandle) {
+    int32_t layerId = static_cast<int32_t>(LayerHandle::getLayerId(layerHandle));
+    auto connection = eventThread->createEventConnection([&] { resync(); }, eventRegistration);
+    mLayerHistory.attachChoreographer(layerId, connection);
+    return connection;
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
-        ConnectionHandle handle, EventRegistrationFlags eventRegistration) {
+        ConnectionHandle handle, EventRegistrationFlags eventRegistration,
+        const sp<IBinder>& layerHandle) {
     std::lock_guard<std::mutex> lock(mConnectionsLock);
     RETURN_IF_INVALID_HANDLE(handle, nullptr);
-    return createConnectionInternal(mConnections[handle].thread.get(), eventRegistration);
+    return createConnectionInternal(mConnections[handle].thread.get(), eventRegistration,
+                                    layerHandle);
 }
 
 sp<EventThreadConnection> Scheduler::getEventConnection(ConnectionHandle handle) {
