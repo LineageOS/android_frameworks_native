@@ -67,12 +67,12 @@ struct MockTokenManager : frametimeline::TokenManager {
 
 struct MessageQueueTest : testing::Test {
     void SetUp() override {
-        EXPECT_CALL(mVSyncDispatch, registerCallback(_, "sf")).WillOnce(Return(mCallbackToken));
+        EXPECT_CALL(*mVSyncDispatch, registerCallback(_, "sf")).WillOnce(Return(mCallbackToken));
         EXPECT_NO_FATAL_FAILURE(mEventQueue.initVsync(mVSyncDispatch, mTokenManager, kDuration));
-        EXPECT_CALL(mVSyncDispatch, unregisterCallback(mCallbackToken)).Times(1);
+        EXPECT_CALL(*mVSyncDispatch, unregisterCallback(mCallbackToken)).Times(1);
     }
 
-    mock::VSyncDispatch mVSyncDispatch;
+    std::shared_ptr<mock::VSyncDispatch> mVSyncDispatch = std::make_shared<mock::VSyncDispatch>();
     MockTokenManager mTokenManager;
     TestableMessageQueue mEventQueue;
 
@@ -90,7 +90,7 @@ TEST_F(MessageQueueTest, commit) {
                                                                  .earliestVsync = 0};
     EXPECT_FALSE(mEventQueue.getScheduledFrameTime());
 
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 
     ASSERT_TRUE(mEventQueue.getScheduledFrameTime());
@@ -103,13 +103,13 @@ TEST_F(MessageQueueTest, commitTwice) {
                                                                  .readyDuration = 0,
                                                                  .earliestVsync = 0};
 
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 
     ASSERT_TRUE(mEventQueue.getScheduledFrameTime());
     EXPECT_EQ(1234, mEventQueue.getScheduledFrameTime()->time_since_epoch().count());
 
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(4567));
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(4567));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 
     ASSERT_TRUE(mEventQueue.getScheduledFrameTime());
@@ -122,7 +122,7 @@ TEST_F(MessageQueueTest, commitTwiceWithCallback) {
                                                                  .readyDuration = 0,
                                                                  .earliestVsync = 0};
 
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 
     ASSERT_TRUE(mEventQueue.getScheduledFrameTime());
@@ -149,7 +149,7 @@ TEST_F(MessageQueueTest, commitTwiceWithCallback) {
                                                      .readyDuration = 0,
                                                      .earliestVsync = kPresentTime.ns()};
 
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timingAfterCallback)).WillOnce(Return(0));
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timingAfterCallback)).WillOnce(Return(0));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 }
 
@@ -161,7 +161,7 @@ TEST_F(MessageQueueTest, commitWithDurationChange) {
                                                      .readyDuration = 0,
                                                      .earliestVsync = 0};
 
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(0));
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(0));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 }
 

@@ -34,6 +34,7 @@ typedef enum {
   JPEGR_TF_LINEAR = 0,
   JPEGR_TF_HLG = 1,
   JPEGR_TF_PQ = 2,
+  JPEGR_TF_SRGB = 3,
 } jpegr_transfer_function;
 
 struct jpegr_info_struct {

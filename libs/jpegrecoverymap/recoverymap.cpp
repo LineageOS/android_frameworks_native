@@ -26,7 +26,10 @@
 #include <image_io/jpeg/jpeg_info_builder.h>
 #include <image_io/base/data_segment_data_source.h>
 #include <utils/Log.h>
+#include "SkColorSpace.h"
+#include "SkICC.h"
 
+#include <map>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -93,30 +96,19 @@ int GetCPUCoreCount() {
   return cpuCoreCount;
 }
 
-/*
- * Helper function copies the JPEG image from without EXIF.
- *
- * @param dest destination of the data to be written.
- * @param source source of data being written.
- * @param exif_pos position of the EXIF package, which is aligned with jpegdecoder.getEXIFPos().
- *                 (4 bypes offset to FF sign, the byte after FF E1 XX XX <this byte>).
- * @param exif_size exif size without the initial 4 bytes, aligned with jpegdecoder.getEXIFSize().
- */
-void copyJpegWithoutExif(jr_compressed_ptr dest,
-                         jr_compressed_ptr source,
-                         size_t exif_pos,
-                         size_t exif_size) {
-  memcpy(dest, source, sizeof(jpegr_compressed_struct));
+static const map<recoverymap::jpegr_color_gamut, skcms_Matrix3x3> jrGamut_to_skGamut {
+    {JPEGR_COLORGAMUT_BT709,     SkNamedGamut::kSRGB},
+    {JPEGR_COLORGAMUT_P3,        SkNamedGamut::kDisplayP3},
+    {JPEGR_COLORGAMUT_BT2100,    SkNamedGamut::kRec2020},
+};
 
-  const size_t exif_offset = 4; //exif_pos has 4 bypes offset to the FF sign
-  dest->length = source->length - exif_size - exif_offset;
-  dest->data = malloc(dest->length);
-
-  memcpy(dest->data, source->data, exif_pos - exif_offset);
-  memcpy((uint8_t*)dest->data + exif_pos - exif_offset,
-         (uint8_t*)source->data + exif_pos + exif_size,
-         source->length - exif_pos - exif_size);
-}
+static const map<
+        recoverymap::jpegr_transfer_function, skcms_TransferFunction> jrTransFunc_to_skTransFunc {
+    {JPEGR_TF_SRGB,        SkNamedTransferFn::kSRGB},
+    {JPEGR_TF_LINEAR,      SkNamedTransferFn::kLinear},
+    {JPEGR_TF_HLG,         SkNamedTransferFn::kHLG},
+    {JPEGR_TF_PQ,          SkNamedTransferFn::kPQ},
+};
 
 /* Encode API-0 */
 status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
@@ -164,11 +156,15 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
+  sk_sp<SkData> icc = SkWriteICCProfile(
+          jrTransFunc_to_skTransFunc.at(JPEGR_TF_SRGB),
+          jrGamut_to_skGamut.at(uncompressed_yuv_420_image.colorGamut));
+
   JpegEncoder jpeg_encoder;
-  // TODO: determine ICC data based on color gamut information
   if (!jpeg_encoder.compressImage(uncompressed_yuv_420_image.data,
                                   uncompressed_yuv_420_image.width,
-                                  uncompressed_yuv_420_image.height, quality, nullptr, 0)) {
+                                  uncompressed_yuv_420_image.height, quality,
+                                  icc.get()->data(), icc.get()->size())) {
     return ERROR_JPEGR_ENCODE_ERROR;
   }
   jpegr_compressed_struct jpeg;
@@ -228,11 +224,15 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   compressed_map.data = compressed_map_data.get();
   JPEGR_CHECK(compressRecoveryMap(&map, &compressed_map));
 
+  sk_sp<SkData> icc = SkWriteICCProfile(
+          jrTransFunc_to_skTransFunc.at(JPEGR_TF_SRGB),
+          jrGamut_to_skGamut.at(uncompressed_yuv_420_image->colorGamut));
+
   JpegEncoder jpeg_encoder;
-  // TODO: determine ICC data based on color gamut information
   if (!jpeg_encoder.compressImage(uncompressed_yuv_420_image->data,
                                   uncompressed_yuv_420_image->width,
-                                  uncompressed_yuv_420_image->height, quality, nullptr, 0)) {
+                                  uncompressed_yuv_420_image->height, quality,
+                                  icc.get()->data(), icc.get()->size())) {
     return ERROR_JPEGR_ENCODE_ERROR;
   }
   jpegr_compressed_struct jpeg;
@@ -574,7 +574,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
 #endif
       hdr_white_nits = kPqMaxNits;
       break;
-    case JPEGR_TF_UNSPECIFIED:
+    default:
       // Should be impossible to hit after input validation.
       return ERROR_JPEGR_INVALID_TRANS_FUNC;
   }
@@ -750,7 +750,7 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
         hdrOetf = pqOetf;
 #endif
         break;
-      case JPEGR_TF_UNSPECIFIED:
+      default:
         // Should be impossible to hit after input validation.
         hdrOetf = identityConversion;
     }

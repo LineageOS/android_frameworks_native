@@ -1182,12 +1182,14 @@ void SurfaceComposerClient::Transaction::setDefaultApplyToken(sp<IBinder> applyT
 }
 // ---------------------------------------------------------------------------
 
-sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool secure) {
+sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool secure,
+                                                 float requestedRefereshRate) {
     sp<IBinder> display = nullptr;
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->createDisplay(std::string(
                                                                              displayName.string()),
-                                                                     secure, &display);
+                                                                     secure, requestedRefereshRate,
+                                                                     &display);
     return status.isOk() ? display : nullptr;
 }
 

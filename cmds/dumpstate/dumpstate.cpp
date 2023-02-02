@@ -2825,6 +2825,7 @@ void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
                                         const android::base::unique_fd& screenshot_fd_in,
                                         bool is_screenshot_requested) {
     this->use_predumped_ui_data = bugreport_flags & BugreportFlag::BUGREPORT_USE_PREDUMPED_UI_DATA;
+    this->is_consent_deferred = bugreport_flags & BugreportFlag::BUGREPORT_FLAG_DEFER_CONSENT;
     // Duplicate the fds because the passed in fds don't outlive the binder transaction.
     bugreport_fd.reset(fcntl(bugreport_fd_in.get(), F_DUPFD_CLOEXEC, 0));
     screenshot_fd.reset(fcntl(screenshot_fd_in.get(), F_DUPFD_CLOEXEC, 0));
@@ -2907,10 +2908,64 @@ void Dumpstate::Initialize() {
 
 Dumpstate::RunStatus Dumpstate::Run(int32_t calling_uid, const std::string& calling_package) {
     Dumpstate::RunStatus status = RunInternal(calling_uid, calling_package);
-    if (listener_ != nullptr) {
+    HandleRunStatus(status);
+    return status;
+}
+
+Dumpstate::RunStatus Dumpstate::Retrieve(int32_t calling_uid, const std::string& calling_package) {
+    Dumpstate::RunStatus status = RetrieveInternal(calling_uid, calling_package);
+    HandleRunStatus(status);
+    return status;
+}
+
+Dumpstate::RunStatus  Dumpstate::RetrieveInternal(int32_t calling_uid,
+                                                  const std::string& calling_package) {
+  consent_callback_ = new ConsentCallback();
+  const String16 incidentcompanion("incidentcompanion");
+  sp<android::IBinder> ics(
+      defaultServiceManager()->checkService(incidentcompanion));
+  android::String16 package(calling_package.c_str());
+  if (ics != nullptr) {
+    MYLOGD("Checking user consent via incidentcompanion service\n");
+    android::interface_cast<android::os::IIncidentCompanion>(ics)->authorizeReport(
+        calling_uid, package, String16(), String16(),
+        0x1 /* FLAG_CONFIRMATION_DIALOG */, consent_callback_.get());
+  } else {
+    MYLOGD(
+        "Unable to check user consent; incidentcompanion service unavailable\n");
+    return RunStatus::USER_CONSENT_TIMED_OUT;
+  }
+  UserConsentResult consent_result = consent_callback_->getResult();
+  int timeout_ms = 30 * 1000;
+  while (consent_result == UserConsentResult::UNAVAILABLE &&
+      consent_callback_->getElapsedTimeMs() < timeout_ms) {
+    sleep(1);
+    consent_result = consent_callback_->getResult();
+  }
+  if (consent_result == UserConsentResult::DENIED) {
+    return RunStatus::USER_CONSENT_DENIED;
+  }
+  if (consent_result == UserConsentResult::UNAVAILABLE) {
+    MYLOGD("Canceling user consent request via incidentcompanion service\n");
+    android::interface_cast<android::os::IIncidentCompanion>(ics)->cancelAuthorization(
+        consent_callback_.get());
+    return RunStatus::USER_CONSENT_TIMED_OUT;
+  }
+
+  bool copy_succeeded =
+      android::os::CopyFileToFd(path_, options_->bugreport_fd.get());
+  if (copy_succeeded) {
+    android::os::UnlinkAndLogOnError(path_);
+  }
+  return copy_succeeded ? Dumpstate::RunStatus::OK
+                        : Dumpstate::RunStatus::ERROR;
+}
+
+void Dumpstate::HandleRunStatus(Dumpstate::RunStatus status) {
+      if (listener_ != nullptr) {
         switch (status) {
             case Dumpstate::RunStatus::OK:
-                listener_->onFinished();
+                listener_->onFinished(path_.c_str());
                 break;
             case Dumpstate::RunStatus::HELP:
                 break;
@@ -2928,9 +2983,7 @@ Dumpstate::RunStatus Dumpstate::Run(int32_t calling_uid, const std::string& call
                 break;
         }
     }
-    return status;
 }
-
 void Dumpstate::Cancel() {
     CleanupTmpFiles();
     android::os::UnlinkAndLogOnError(log_path_);
@@ -3181,7 +3234,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
     // Share the final file with the caller if the user has consented or Shell is the caller.
     Dumpstate::RunStatus status = Dumpstate::RunStatus::OK;
-    if (CalledByApi()) {
+    if (CalledByApi() && !options_->is_consent_deferred) {
         status = CopyBugreportIfUserConsented(calling_uid);
         if (status != Dumpstate::RunStatus::OK &&
             status != Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT) {
@@ -3270,6 +3323,15 @@ void Dumpstate::MaybeSnapshotUiTraces() {
         return;
     }
 
+    // Include the proto logging from WMShell.
+    RunCommand(
+        // Empty name because it's not intended to be classified as a bugreport section.
+        // Actual logging files can be found as "/data/misc/wmtrace/shell_log.winscope"
+        // in the bugreport.
+        "", {"dumpsys", "activity", "service", "SystemUIService",
+             "WMShell", "protolog", "save-for-bugreport"},
+        CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
+
     // Currently WindowManagerService and InputMethodManagerSerivice support WinScope protocol.
     for (const auto& service : {"input_method", "window"}) {
         RunCommand(
@@ -3326,9 +3388,11 @@ void Dumpstate::onUiIntensiveBugreportDumpsFinished(int32_t calling_uid) {
 }
 
 void Dumpstate::MaybeCheckUserConsent(int32_t calling_uid, const std::string& calling_package) {
-    if (multiuser_get_app_id(calling_uid) == AID_SHELL || !CalledByApi()) {
-        // No need to get consent for shell triggered dumpstates, or not through
-        // bugreporting API (i.e. no fd to copy back).
+    if (multiuser_get_app_id(calling_uid) == AID_SHELL ||
+        !CalledByApi() || options_->is_consent_deferred) {
+        // No need to get consent for shell triggered dumpstates, or not
+        // through bugreporting API (i.e. no fd to copy back), or when consent
+        // is deferred.
         return;
     }
     consent_callback_ = new ConsentCallback();

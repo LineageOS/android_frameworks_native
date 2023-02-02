@@ -52,11 +52,9 @@ constexpr PhysicalDisplayId EXTERNAL_DISPLAY_ID = PhysicalDisplayId::fromPort(22
 constexpr PhysicalDisplayId DISPLAY_ID_64BIT =
         PhysicalDisplayId::fromEdid(0xffu, 0xffffu, 0xffff'ffffu);
 
-constexpr std::chrono::duration VSYNC_PERIOD(16ms);
-
 } // namespace
 
-class EventThreadTest : public testing::Test {
+class EventThreadTest : public testing::Test, public IEventThreadCallback {
 protected:
     static constexpr std::chrono::nanoseconds kWorkDuration = 0ms;
     static constexpr std::chrono::nanoseconds kReadyDuration = 3ms;
@@ -97,7 +95,7 @@ protected:
     void expectConfigChangedEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
                                                       int32_t expectedConfigId,
                                                       nsecs_t expectedVsyncPeriod);
-    void expectThrottleVsyncReceived(nsecs_t expectedTimestamp, uid_t);
+    void expectThrottleVsyncReceived(TimePoint expectedTimestamp, uid_t);
     void expectUidFrameRateMappingEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
                                                             std::vector<FrameRateOverride>);
 
@@ -105,6 +103,14 @@ protected:
                       nsecs_t deadlineTimestamp) {
         mThread->onVsync(expectedPresentationTime, timestamp, deadlineTimestamp);
     }
+
+    // IEventThreadCallback overrides.
+    bool isVsyncTargetForUid(TimePoint expectedVsyncTime, uid_t uid) const override {
+        mThrottleVsyncCallRecorder.getInvocable()(expectedVsyncTime, uid);
+        return uid != mThrottledConnectionUid;
+    }
+
+    Fps getLeaderRenderFrameRate(uid_t uid) const override { return 60_Hz; }
 
     AsyncCallRecorderWithCannedReturn<
             scheduler::ScheduleResult (*)(scheduler::VSyncDispatch::CallbackToken,
@@ -121,11 +127,11 @@ protected:
     AsyncCallRecorder<void (*)(scheduler::VSyncDispatch::CallbackToken)>
             mVSyncCallbackUnregisterRecorder;
     AsyncCallRecorder<void (*)()> mResyncCallRecorder;
-    AsyncCallRecorder<void (*)(nsecs_t, uid_t)> mThrottleVsyncCallRecorder;
+    mutable AsyncCallRecorder<void (*)(TimePoint, uid_t)> mThrottleVsyncCallRecorder;
     ConnectionEventRecorder mConnectionEventCallRecorder{0};
     ConnectionEventRecorder mThrottledConnectionEventCallRecorder{0};
 
-    std::optional<scheduler::VsyncSchedule> mVsyncSchedule;
+    std::shared_ptr<scheduler::VsyncSchedule> mVsyncSchedule;
     std::unique_ptr<impl::EventThread> mThread;
     sp<MockEventThreadConnection> mConnection;
     sp<MockEventThreadConnection> mThrottledConnection;
@@ -140,12 +146,12 @@ EventThreadTest::EventThreadTest() {
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-    mVsyncSchedule.emplace(scheduler::VsyncSchedule(std::make_unique<mock::VSyncTracker>(),
-                                                    std::make_unique<mock::VSyncDispatch>(),
-                                                    nullptr));
-
-    mock::VSyncDispatch& mockDispatch =
-            *static_cast<mock::VSyncDispatch*>(&mVsyncSchedule->getDispatch());
+    auto mockDispatchPtr = std::make_shared<mock::VSyncDispatch>();
+    mVsyncSchedule = std::shared_ptr<scheduler::VsyncSchedule>(
+            new scheduler::VsyncSchedule(INTERNAL_DISPLAY_ID,
+                                         std::make_shared<mock::VSyncTracker>(), mockDispatchPtr,
+                                         nullptr));
+    mock::VSyncDispatch& mockDispatch = *mockDispatchPtr;
     EXPECT_CALL(mockDispatch, registerCallback(_, _))
             .WillRepeatedly(Invoke(mVSyncCallbackRegisterRecorder.getInvocable()));
     EXPECT_CALL(mockDispatch, schedule(_, _))
@@ -180,19 +186,10 @@ EventThreadTest::~EventThreadTest() {
 }
 
 void EventThreadTest::createThread() {
-    const auto throttleVsync = [&](nsecs_t expectedVsyncTimestamp, uid_t uid) {
-        mThrottleVsyncCallRecorder.getInvocable()(expectedVsyncTimestamp, uid);
-        return (uid == mThrottledConnectionUid);
-    };
-    const auto getVsyncPeriod = [](uid_t uid) {
-        return VSYNC_PERIOD.count();
-    };
-
     mTokenManager = std::make_unique<frametimeline::impl::TokenManager>();
     mThread =
-            std::make_unique<impl::EventThread>(/*std::move(source), */ "EventThreadTest",
-                                                *mVsyncSchedule, mTokenManager.get(), throttleVsync,
-                                                getVsyncPeriod, kWorkDuration, kReadyDuration);
+            std::make_unique<impl::EventThread>("EventThreadTest", mVsyncSchedule, *this,
+                                                mTokenManager.get(), kWorkDuration, kReadyDuration);
 
     // EventThread should register itself as VSyncSource callback.
     EXPECT_TRUE(mVSyncCallbackRegisterRecorder.waitForCall().has_value());
@@ -225,7 +222,7 @@ void EventThreadTest::expectVSyncSetDurationCallReceived(
     EXPECT_EQ(expectedReadyDuration.count(), std::get<1>(args.value()).readyDuration);
 }
 
-void EventThreadTest::expectThrottleVsyncReceived(nsecs_t expectedTimestamp, uid_t uid) {
+void EventThreadTest::expectThrottleVsyncReceived(TimePoint expectedTimestamp, uid_t uid) {
     auto args = mThrottleVsyncCallRecorder.waitForCall();
     ASSERT_TRUE(args.has_value());
     EXPECT_EQ(expectedTimestamp, std::get<0>(args.value()));
@@ -376,7 +373,7 @@ TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
     // Use the received callback to signal a first vsync event.
     // The throttler should receive the event, as well as the connection.
     onVSyncEvent(123, 456, 789);
-    expectThrottleVsyncReceived(456, mConnectionUid);
+    expectThrottleVsyncReceived(TimePoint::fromNs(456), mConnectionUid);
     expectVsyncEventReceivedByConnection(123, 1u);
 
     // EventThread is requesting one more callback due to VsyncRequest::SingleSuppressCallback
@@ -494,17 +491,17 @@ TEST_F(EventThreadTest, setVsyncRateOnePostsAllEventsToThatConnection) {
     // Send a vsync event. EventThread should then make a call to the
     // throttler, and the connection.
     onVSyncEvent(123, 456, 789);
-    expectThrottleVsyncReceived(456, mConnectionUid);
+    expectThrottleVsyncReceived(TimePoint::fromNs(456), mConnectionUid);
     expectVsyncEventReceivedByConnection(123, 1u);
 
     // A second event should go to the same places.
     onVSyncEvent(456, 123, 0);
-    expectThrottleVsyncReceived(123, mConnectionUid);
+    expectThrottleVsyncReceived(TimePoint::fromNs(123), mConnectionUid);
     expectVsyncEventReceivedByConnection(456, 2u);
 
     // A third event should go to the same places.
     onVSyncEvent(789, 777, 111);
-    expectThrottleVsyncReceived(777, mConnectionUid);
+    expectThrottleVsyncReceived(TimePoint::fromNs(777), mConnectionUid);
     expectVsyncEventReceivedByConnection(789, 3u);
 }
 
@@ -743,7 +740,7 @@ TEST_F(EventThreadTest, requestNextVsyncWithThrottleVsyncDoesntPostVSync) {
     // Use the received callback to signal a first vsync event.
     // The throttler should receive the event, but not the connection.
     onVSyncEvent(123, 456, 789);
-    expectThrottleVsyncReceived(456, mThrottledConnectionUid);
+    expectThrottleVsyncReceived(TimePoint::fromNs(456), mThrottledConnectionUid);
     mThrottledConnectionEventCallRecorder.waitForUnexpectedCall();
     expectVSyncCallbackScheduleReceived(true);
 
@@ -751,7 +748,7 @@ TEST_F(EventThreadTest, requestNextVsyncWithThrottleVsyncDoesntPostVSync) {
     // The throttler should receive the event, but the connection should
     // not as it was only interested in the first.
     onVSyncEvent(456, 123, 0);
-    expectThrottleVsyncReceived(123, mThrottledConnectionUid);
+    expectThrottleVsyncReceived(TimePoint::fromNs(123), mThrottledConnectionUid);
     EXPECT_FALSE(mConnectionEventCallRecorder.waitForUnexpectedCall().has_value());
     expectVSyncCallbackScheduleReceived(true);
 

@@ -71,7 +71,7 @@ class DumpstateListenerMock : public IDumpstateListener {
   public:
     MOCK_METHOD1(onProgress, binder::Status(int32_t progress));
     MOCK_METHOD1(onError, binder::Status(int32_t error_code));
-    MOCK_METHOD0(onFinished, binder::Status());
+    MOCK_METHOD1(onFinished, binder::Status(const std::string& bugreport_file));
     MOCK_METHOD1(onScreenshotTaken, binder::Status(bool success));
     MOCK_METHOD0(onUiIntensiveBugreportDumpsFinished, binder::Status());
 
@@ -484,6 +484,20 @@ TEST_F(DumpOptionsTest, ValidateOptionsRemoteMode) {
 
     options_.do_progress_updates = false;
     EXPECT_TRUE(options_.ValidateOptions());
+}
+
+TEST_F(DumpOptionsTest, InitializeBugreportFlags) {
+    int flags = Dumpstate::BugreportFlag::BUGREPORT_USE_PREDUMPED_UI_DATA |
+                Dumpstate::BugreportFlag::BUGREPORT_FLAG_DEFER_CONSENT;
+    options_.Initialize(
+      Dumpstate::BugreportMode::BUGREPORT_FULL, flags, fd, fd, true);
+    EXPECT_TRUE(options_.is_consent_deferred);
+    EXPECT_TRUE(options_.use_predumped_ui_data);
+
+    options_.Initialize(
+      Dumpstate::BugreportMode::BUGREPORT_FULL, 0, fd, fd, true);
+    EXPECT_FALSE(options_.is_consent_deferred);
+    EXPECT_FALSE(options_.use_predumped_ui_data);
 }
 
 class DumpstateTest : public DumpstateBaseTest {

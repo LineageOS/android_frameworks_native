@@ -75,19 +75,37 @@ void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, ns
     mHandler->dispatchFrame(vsyncId, expectedVsyncTime);
 }
 
-void MessageQueue::initVsync(scheduler::VSyncDispatch& dispatch,
+void MessageQueue::initVsync(std::shared_ptr<scheduler::VSyncDispatch> dispatch,
                              frametimeline::TokenManager& tokenManager,
                              std::chrono::nanoseconds workDuration) {
     std::lock_guard lock(mVsync.mutex);
     mVsync.workDuration = workDuration;
     mVsync.tokenManager = &tokenManager;
+    updateVsyncRegistrationLocked(std::move(dispatch));
+}
+
+void MessageQueue::updateVsyncRegistration(std::shared_ptr<scheduler::VSyncDispatch> dispatch) {
+    std::lock_guard lock(mVsync.mutex);
+    updateVsyncRegistrationLocked(std::move(dispatch));
+}
+
+void MessageQueue::updateVsyncRegistrationLocked(
+        std::shared_ptr<scheduler::VSyncDispatch> dispatch) {
+    const bool reschedule = mVsync.registration &&
+            mVsync.registration->cancel() == scheduler::CancelResult::Cancelled;
     mVsync.registration = std::make_unique<
-            scheduler::VSyncCallbackRegistration>(dispatch,
+            scheduler::VSyncCallbackRegistration>(std::move(dispatch),
                                                   std::bind(&MessageQueue::vsyncCallback, this,
                                                             std::placeholders::_1,
                                                             std::placeholders::_2,
                                                             std::placeholders::_3),
                                                   "sf");
+    if (reschedule) {
+        mVsync.scheduledFrameTime =
+                mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
+                                               .readyDuration = 0,
+                                               .earliestVsync = mVsync.lastCallbackTime.ns()});
+    }
 }
 
 void MessageQueue::destroyVsync() {
