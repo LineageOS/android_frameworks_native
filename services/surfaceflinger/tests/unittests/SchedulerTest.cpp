@@ -122,12 +122,6 @@ TEST_F(SchedulerTest, invalidConnectionHandle) {
     EXPECT_CALL(*mEventThread, onHotplugReceived(_, _)).Times(0);
     mScheduler->onHotplugReceived(handle, kDisplayId1, false);
 
-    EXPECT_CALL(*mEventThread, onScreenAcquired()).Times(0);
-    mScheduler->onScreenAcquired(handle);
-
-    EXPECT_CALL(*mEventThread, onScreenReleased()).Times(0);
-    mScheduler->onScreenReleased(handle);
-
     std::string output;
     EXPECT_CALL(*mEventThread, dump(_)).Times(0);
     mScheduler->dump(handle, output);
@@ -146,12 +140,6 @@ TEST_F(SchedulerTest, validConnectionHandle) {
 
     EXPECT_CALL(*mEventThread, onHotplugReceived(kDisplayId1, false)).Times(1);
     mScheduler->onHotplugReceived(mConnectionHandle, kDisplayId1, false);
-
-    EXPECT_CALL(*mEventThread, onScreenAcquired()).Times(1);
-    mScheduler->onScreenAcquired(mConnectionHandle);
-
-    EXPECT_CALL(*mEventThread, onScreenReleased()).Times(1);
-    mScheduler->onScreenReleased(mConnectionHandle);
 
     std::string output("dump");
     EXPECT_CALL(*mEventThread, dump(output)).Times(1);

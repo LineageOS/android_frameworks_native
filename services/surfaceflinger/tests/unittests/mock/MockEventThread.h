@@ -31,8 +31,7 @@ public:
 
     MOCK_CONST_METHOD2(createEventConnection,
                        sp<EventThreadConnection>(ResyncCallback, EventRegistrationFlags));
-    MOCK_METHOD0(onScreenReleased, void());
-    MOCK_METHOD0(onScreenAcquired, void());
+    MOCK_METHOD(void, enableSyntheticVsync, (bool), (override));
     MOCK_METHOD2(onHotplugReceived, void(PhysicalDisplayId, bool));
     MOCK_METHOD1(onModeChanged, void(const scheduler::FrameRateMode &));
     MOCK_METHOD2(onFrameRateOverridesChanged,
