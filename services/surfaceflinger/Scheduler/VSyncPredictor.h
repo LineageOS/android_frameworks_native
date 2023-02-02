@@ -29,14 +29,15 @@ namespace android::scheduler {
 class VSyncPredictor : public VSyncTracker {
 public:
     /*
+     * \param [in] name The name of the display this corresponds to.
      * \param [in] idealPeriod  The initial ideal period to use.
      * \param [in] historySize  The internal amount of entries to store in the model.
      * \param [in] minimumSamplesForPrediction The minimum number of samples to collect before
      * predicting. \param [in] outlierTolerancePercent a number 0 to 100 that will be used to filter
      * samples that fall outlierTolerancePercent from an anticipated vsync event.
      */
-    VSyncPredictor(nsecs_t idealPeriod, size_t historySize, size_t minimumSamplesForPrediction,
-                   uint32_t outlierTolerancePercent);
+    VSyncPredictor(std::string name, nsecs_t idealPeriod, size_t historySize,
+                   size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent);
     ~VSyncPredictor();
 
     bool addVsyncTimestamp(nsecs_t timestamp) final EXCLUDES(mMutex);
@@ -75,6 +76,8 @@ private:
     VSyncPredictor(VSyncPredictor const&) = delete;
     VSyncPredictor& operator=(VSyncPredictor const&) = delete;
     void clearTimestamps() REQUIRES(mMutex);
+
+    const std::string mName;
 
     inline void traceInt64If(const char* name, int64_t value) const;
     inline void traceInt64(const char* name, int64_t value) const;

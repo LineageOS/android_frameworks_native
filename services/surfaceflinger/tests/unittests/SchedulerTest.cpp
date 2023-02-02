@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
@@ -176,7 +177,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
 
     constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
-    mScheduler->setDisplayPowerMode(kPowerModeOn);
+    FTL_FAKE_GUARD(kMainThreadContext, mScheduler->setDisplayPowerMode(kDisplayId1, kPowerModeOn));
 
     constexpr uint32_t kDisplayArea = 999'999;
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
@@ -248,7 +249,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
 
     constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
-    mScheduler->setDisplayPowerMode(kPowerModeOn);
+    FTL_FAKE_GUARD(kMainThreadContext, mScheduler->setDisplayPowerMode(kDisplayId1, kPowerModeOn));
 
     constexpr uint32_t kDisplayArea = 999'999;
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
@@ -301,9 +302,6 @@ TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
     choice = modeChoices.get(kDisplayId1);
     ASSERT_TRUE(choice);
     EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, globalSignals));
-
-    mScheduler->unregisterDisplay(kDisplayId1);
-    EXPECT_FALSE(mScheduler->hasRefreshRateSelectors());
 }
 
 TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {

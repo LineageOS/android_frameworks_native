@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,21 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
+#include <vector>
 
-struct tipc_hset;
+#include <ui/DisplayId.h>
 
-struct tipc_hset* tipc_hset_create(void) {
-    return nullptr;
-}
-int tipc_run_event_loop(struct tipc_hset*) {
-    return 0;
-}
+#include "Display/DisplayModeRequest.h"
 
-#if defined(__cplusplus)
-}
-#endif
+namespace android::scheduler {
+
+struct ISchedulerCallback {
+    virtual void setVsyncEnabled(PhysicalDisplayId, bool) = 0;
+    virtual void requestDisplayModes(std::vector<display::DisplayModeRequest>) = 0;
+    virtual void kernelTimerChanged(bool expired) = 0;
+    virtual void triggerOnFrameRateOverridesChanged() = 0;
+
+protected:
+    ~ISchedulerCallback() = default;
+};
+
+} // namespace android::scheduler

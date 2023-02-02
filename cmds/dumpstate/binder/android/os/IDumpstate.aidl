@@ -50,7 +50,10 @@ interface IDumpstate {
     const int BUGREPORT_MODE_DEFAULT = 6;
 
     // Use pre-dumped data.
-    const int BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA = 1;
+    const int BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA = 0x1;
+
+    // Defer user consent.
+    const int BUGREPORT_FLAG_DEFER_CONSENT = 0x2;
 
     /**
      * Speculatively pre-dumps UI data for a bugreport request that might come later.
@@ -100,4 +103,22 @@ interface IDumpstate {
      * @param callingPackage package of the original application that requested the cancellation.
      */
     void cancelBugreport(int callingUid, @utf8InCpp String callingPackage);
+
+    /**
+     * Retrieves a previously generated bugreport.
+     *
+     * <p>The caller must have previously generated a bugreport using
+     * {@link #startBugreport} with the {@link BUGREPORT_FLAG_DEFER_CONSENT}
+     * flag set.
+     *
+     * @param callingUid UID of the original application that requested the report.
+     * @param callingPackage package of the original application that requested the report.
+     * @param bugreportFd the file to which the zipped bugreport should be written
+     * @param bugreportFile the path of the bugreport file
+     * @param listener callback for updates; optional
+     */
+    void retrieveBugreport(int callingUid, @utf8InCpp String callingPackage,
+                           FileDescriptor bugreportFd,
+                           @utf8InCpp String bugreportFile,
+                           IDumpstateListener listener);
 }

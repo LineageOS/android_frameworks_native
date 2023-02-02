@@ -93,7 +93,7 @@ public:
     MOCK_METHOD2(onHotplug,
                  std::optional<DisplayIdentificationInfo>(hal::HWDisplayId, hal::Connection));
     MOCK_CONST_METHOD0(updatesDeviceProductInfoOnHotplugReconnect, bool());
-    MOCK_METHOD2(onVsync, bool(hal::HWDisplayId, int64_t));
+    MOCK_METHOD(std::optional<PhysicalDisplayId>, onVsync, (hal::HWDisplayId, int64_t));
     MOCK_METHOD2(setVsyncEnabled, void(PhysicalDisplayId, hal::Vsync));
     MOCK_CONST_METHOD1(isConnected, bool(PhysicalDisplayId));
     MOCK_CONST_METHOD1(getModes, std::vector<HWComposer::HWCDisplayMode>(PhysicalDisplayId));

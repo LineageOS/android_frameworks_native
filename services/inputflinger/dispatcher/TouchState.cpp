@@ -34,6 +34,7 @@ void TouchState::reset() {
 void TouchState::removeTouchedPointer(int32_t pointerId) {
     for (TouchedWindow& touchedWindow : windows) {
         touchedWindow.pointerIds.clearBit(pointerId);
+        touchedWindow.pilferedPointerIds.reset(pointerId);
     }
 }
 
@@ -42,6 +43,7 @@ void TouchState::removeTouchedPointerFromWindow(
     for (TouchedWindow& touchedWindow : windows) {
         if (touchedWindow.windowHandle == windowHandle) {
             touchedWindow.pointerIds.clearBit(pointerId);
+            touchedWindow.pilferedPointerIds.reset(pointerId);
             return;
         }
     }
@@ -61,7 +63,7 @@ void TouchState::clearWindowsWithoutPointers() {
 
 void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
                                    ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
-                                   std::optional<nsecs_t> eventTime) {
+                                   std::optional<nsecs_t> firstDownTimeInTarget) {
     for (TouchedWindow& touchedWindow : windows) {
         // We do not compare windows by token here because two windows that share the same token
         // may have a different transform
@@ -75,7 +77,7 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
             // the window.
             touchedWindow.pointerIds.value |= pointerIds.value;
             if (!touchedWindow.firstDownTimeInTarget.has_value()) {
-                touchedWindow.firstDownTimeInTarget = eventTime;
+                touchedWindow.firstDownTimeInTarget = firstDownTimeInTarget;
             }
             return;
         }
@@ -84,7 +86,7 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
     touchedWindow.windowHandle = windowHandle;
     touchedWindow.targetFlags = targetFlags;
     touchedWindow.pointerIds = pointerIds;
-    touchedWindow.firstDownTimeInTarget = eventTime;
+    touchedWindow.firstDownTimeInTarget = firstDownTimeInTarget;
     windows.push_back(touchedWindow);
 }
 
@@ -137,11 +139,40 @@ void TouchState::cancelPointersForWindowsExcept(const BitSet32 pointerIds,
     std::erase_if(windows, [](const TouchedWindow& w) { return w.pointerIds.isEmpty(); });
 }
 
-void TouchState::cancelPointersForNonPilferingWindows(const BitSet32 pointerIds) {
-    if (pointerIds.isEmpty()) return;
-    std::for_each(windows.begin(), windows.end(), [&pointerIds](TouchedWindow& w) {
-        if (!w.isPilferingPointers) {
-            w.pointerIds &= BitSet32(~pointerIds.value);
+/**
+ * For any pointer that's being pilfered, remove it from all of the other windows that currently
+ * aren't pilfering it. For example, if we determined that pointer 1 is going to both window A and
+ * window B, but window A is currently pilfering pointer 1, then pointer 1 should not go to window
+ * B.
+ */
+void TouchState::cancelPointersForNonPilferingWindows() {
+    // First, find all pointers that are being pilfered, across all windows
+    std::bitset<MAX_POINTERS> allPilferedPointerIds;
+    std::for_each(windows.begin(), windows.end(), [&allPilferedPointerIds](const TouchedWindow& w) {
+        allPilferedPointerIds |= w.pilferedPointerIds;
+    });
+
+    // Optimization: most of the time, pilfering does not occur
+    if (allPilferedPointerIds.none()) return;
+
+    // Now, remove all pointers from every window that's being pilfered by other windows.
+    // For example, if window A is pilfering pointer 1 (only), and window B is pilfering pointer 2
+    // (only), the remove pointer 2 from window A and pointer 1 from window B. Usually, the set of
+    // pilfered pointers will be disjoint across all windows, but there's no reason to cause that
+    // limitation here.
+    std::for_each(windows.begin(), windows.end(), [&allPilferedPointerIds](TouchedWindow& w) {
+        std::bitset<MAX_POINTERS> pilferedByOtherWindows =
+                w.pilferedPointerIds ^ allPilferedPointerIds;
+        // TODO(b/211379801) : convert pointerIds to use std::bitset, which would allow us to
+        // replace the loop below with a bitwise operation. Currently, the XOR operation above is
+        // redundant, but is done to make the code more explicit / easier to convert later.
+        for (std::size_t i = 0; i < pilferedByOtherWindows.size(); i++) {
+            if (pilferedByOtherWindows.test(i) && !w.pilferedPointerIds.test(i)) {
+                // Pointer is pilfered by other windows, but not by this one! Remove it from here.
+                // We could call 'removeTouchedPointerFromWindow' here, but it's faster to directly
+                // manipulate it.
+                w.pointerIds.clearBit(i);
+            }
         }
     });
     std::erase_if(windows, [](const TouchedWindow& w) { return w.pointerIds.isEmpty(); });

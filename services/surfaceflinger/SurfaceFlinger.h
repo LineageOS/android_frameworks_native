@@ -57,6 +57,8 @@
 #include <scheduler/PresentLatencyTracker.h>
 #include <scheduler/Time.h>
 #include <scheduler/TransactionSchedule.h>
+#include <scheduler/interface/CompositionCoverage.h>
+#include <scheduler/interface/ICompositor.h>
 #include <ui/FenceResult.h>
 
 #include "Display/DisplayMap.h"
@@ -72,6 +74,7 @@
 #include "FrontEnd/LayerSnapshot.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
+#include "Scheduler/ISchedulerCallback.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
@@ -483,7 +486,8 @@ private:
             EXCLUDES(mStateLock);
 
     // Implements ISurfaceComposer
-    sp<IBinder> createDisplay(const String8& displayName, bool secure);
+    sp<IBinder> createDisplay(const String8& displayName, bool secure,
+                              float requestedRefreshRate = 0);
     void destroyDisplay(const sp<IBinder>& displayToken);
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const EXCLUDES(mStateLock) {
         Mutex::Autolock lock(mStateLock);
@@ -606,26 +610,16 @@ private:
     void onComposerHalVsyncIdle(hal::HWDisplayId) override;
 
     // ICompositor overrides:
-
-    // Configures physical displays, processing hotplug and/or mode setting via the Composer HAL.
     void configure() override;
-
-    // Commits transactions for layers and displays. Returns whether any state has been invalidated,
-    // i.e. whether a frame should be composited for each display.
     bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) override;
-
-    // Composites a frame for each display. CompositionEngine performs GPU and/or HAL composition
-    // via RenderEngine and the Composer HAL, respectively.
     void composite(TimePoint frameTime, VsyncId) override;
-
-    // Samples the composited frame via RegionSamplingThread.
     void sample() override;
 
     // ISchedulerCallback overrides:
 
     // Toggles hardware VSYNC by calling into HWC.
     // TODO(b/241286146): Rename for self-explanatory API.
-    void setVsyncEnabled(bool) override;
+    void setVsyncEnabled(PhysicalDisplayId, bool) override;
     void requestDisplayModes(std::vector<display::DisplayModeRequest>) override;
     void kernelTimerChanged(bool expired) override;
     void triggerOnFrameRateOverridesChanged() override;
@@ -960,9 +954,9 @@ private:
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
 
-    void setHWCVsyncEnabled(PhysicalDisplayId id, hal::Vsync enabled) {
-        mLastHWCVsyncState = enabled;
-        getHwComposer().setVsyncEnabled(id, enabled);
+    void setHWCVsyncEnabled(PhysicalDisplayId id, bool enabled) {
+        hal::Vsync halState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
+        getHwComposer().setVsyncEnabled(id, halState);
     }
 
     using FenceTimePtr = std::shared_ptr<FenceTime>;
@@ -1097,7 +1091,15 @@ private:
     pid_t mPid;
     std::future<void> mRenderEnginePrimeCacheFuture;
 
-    // access must be protected by mStateLock
+    // mStateLock has conventions related to the current thread, because only
+    // the main thread should modify variables protected by mStateLock.
+    // - read access from a non-main thread must lock mStateLock, since the main
+    // thread may modify these variables.
+    // - write access from a non-main thread is not permitted.
+    // - read access from the main thread can use an ftl::FakeGuard, since other
+    // threads must not modify these variables.
+    // - write access from the main thread must lock mStateLock, since another
+    // thread may be reading these variables.
     mutable Mutex mStateLock;
     State mCurrentState{LayerVector::StateSet::Current};
     std::atomic<int32_t> mTransactionFlags = 0;
@@ -1158,17 +1160,6 @@ private:
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
 
-    // True if in the previous frame at least one layer was composed via the GPU.
-    bool mHadClientComposition = false;
-    // True if in the previous frame at least one layer was composed via HW Composer.
-    // Note that it is possible for a frame to be composed via both client and device
-    // composition, for example in the case of overlays.
-    bool mHadDeviceComposition = false;
-    // True if in the previous frame, the client composition was skipped by reusing the buffer
-    // used in a previous composition. This can happed if the client composition requests
-    // did not change.
-    bool mReusedClientComposition = false;
-
     BootStage mBootStage = BootStage::BOOTLOADER;
 
     struct HotplugEvent {
@@ -1204,7 +1195,7 @@ private:
     std::atomic_bool mForceFullDamage = false;
 
     bool mLayerCachingEnabled = false;
-    bool mPropagateBackpressureClientComposition = false;
+    bool mBackpressureGpuComposition = false;
 
     LayerTracing mLayerTracing{*this};
     bool mLayerTracingEnabled = false;
@@ -1268,6 +1259,9 @@ private:
     std::atomic<int> mNumTrustedPresentationListeners = 0;
 
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
+
+    CompositionCoverageFlags mCompositionCoverage;
+
     // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
     // any mutex.
     size_t mMaxRenderTargetSize{1};
@@ -1295,9 +1289,6 @@ private:
 
     TimePoint mScheduledPresentTime GUARDED_BY(kMainThreadContext);
     TimePoint mExpectedPresentTime GUARDED_BY(kMainThreadContext);
-
-    hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
-    hal::Vsync mLastHWCVsyncState = hal::Vsync::DISABLE;
 
     // below flags are set by main thread only
     bool mSetActiveModePending = false;
@@ -1403,7 +1394,7 @@ public:
             sp<gui::IDisplayEventConnection>* outConnection) override;
     binder::Status createConnection(sp<gui::ISurfaceComposerClient>* outClient) override;
     binder::Status createDisplay(const std::string& displayName, bool secure,
-                                 sp<IBinder>* outDisplay) override;
+                                 float requestedRefreshRate, sp<IBinder>* outDisplay) override;
     binder::Status destroyDisplay(const sp<IBinder>& display) override;
     binder::Status getPhysicalDisplayIds(std::vector<int64_t>* outDisplayIds) override;
     binder::Status getPhysicalDisplayToken(int64_t displayId, sp<IBinder>* outDisplay) override;

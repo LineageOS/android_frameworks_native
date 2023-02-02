@@ -97,7 +97,7 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
     switch (actionMasked) {
         case AMOTION_EVENT_ACTION_UP:
         case AMOTION_EVENT_ACTION_CANCEL: {
-            ssize_t index = findMotionMemento(entry, false /*hovering*/);
+            ssize_t index = findMotionMemento(entry, /*hovering=*/false);
             if (index >= 0) {
                 mMotionMementos.erase(mMotionMementos.begin() + index);
                 return true;
@@ -111,11 +111,11 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
         }
 
         case AMOTION_EVENT_ACTION_DOWN: {
-            ssize_t index = findMotionMemento(entry, false /*hovering*/);
+            ssize_t index = findMotionMemento(entry, /*hovering=*/false);
             if (index >= 0) {
                 mMotionMementos.erase(mMotionMementos.begin() + index);
             }
-            addMotionMemento(entry, flags, false /*hovering*/);
+            addMotionMemento(entry, flags, /*hovering=*/false);
             return true;
         }
 
@@ -129,7 +129,7 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
                 return true;
             }
 
-            ssize_t index = findMotionMemento(entry, false /*hovering*/);
+            ssize_t index = findMotionMemento(entry, /*hovering=*/false);
 
             if (entry.source & AINPUT_SOURCE_CLASS_JOYSTICK) {
                 // Joysticks can send MOVE events without a corresponding DOWN or UP. Since all
@@ -145,7 +145,7 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
                         memento.setPointers(entry);
                     }
                 } else if (!entry.pointerCoords[0].isEmpty()) {
-                    addMotionMemento(entry, flags, false /*hovering*/);
+                    addMotionMemento(entry, flags, /*hovering=*/false);
                 }
 
                 // Joysticks and trackballs can send MOVE events without corresponding DOWN or UP.
@@ -168,7 +168,7 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
         }
 
         case AMOTION_EVENT_ACTION_HOVER_EXIT: {
-            ssize_t index = findMotionMemento(entry, true /*hovering*/);
+            ssize_t index = findMotionMemento(entry, /*hovering=*/true);
             if (index >= 0) {
                 mMotionMementos.erase(mMotionMementos.begin() + index);
                 return true;
@@ -183,11 +183,11 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
 
         case AMOTION_EVENT_ACTION_HOVER_ENTER:
         case AMOTION_EVENT_ACTION_HOVER_MOVE: {
-            ssize_t index = findMotionMemento(entry, true /*hovering*/);
+            ssize_t index = findMotionMemento(entry, /*hovering=*/true);
             if (index >= 0) {
                 mMotionMementos.erase(mMotionMementos.begin() + index);
             }
-            addMotionMemento(entry, flags, true /*hovering*/);
+            addMotionMemento(entry, flags, /*hovering=*/true);
             return true;
         }
 
@@ -280,7 +280,7 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents
                                                memento.policyFlags, AKEY_EVENT_ACTION_UP,
                                                memento.flags | AKEY_EVENT_FLAG_CANCELED,
                                                memento.keyCode, memento.scanCode, memento.metaState,
-                                               0 /*repeatCount*/, memento.downTime));
+                                               /*repeatCount=*/0, memento.downTime));
         }
     }
 
@@ -297,8 +297,8 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents
                         std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
                                                       memento.deviceId, memento.source,
                                                       memento.displayId, memento.policyFlags,
-                                                      action, 0 /*actionButton*/, flags, AMETA_NONE,
-                                                      0 /*buttonState*/, MotionClassification::NONE,
+                                                      action, /*actionButton=*/0, flags, AMETA_NONE,
+                                                      /*buttonState=*/0, MotionClassification::NONE,
                                                       AMOTION_EVENT_EDGE_FLAG_NONE,
                                                       memento.xPrecision, memento.yPrecision,
                                                       memento.xCursorPosition,
@@ -359,8 +359,8 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
                     std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
                                                   memento.deviceId, memento.source,
                                                   memento.displayId, memento.policyFlags, action,
-                                                  0 /*actionButton*/, memento.flags, AMETA_NONE,
-                                                  0 /*buttonState*/, MotionClassification::NONE,
+                                                  /*actionButton=*/0, memento.flags, AMETA_NONE,
+                                                  /*buttonState=*/0, MotionClassification::NONE,
                                                   AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                                   memento.yPrecision, memento.xCursorPosition,
                                                   memento.yCursorPosition, memento.downTime,
@@ -398,8 +398,8 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
         events.push_back(
                 std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime, memento.deviceId,
                                               memento.source, memento.displayId,
-                                              memento.policyFlags, action, 0 /*actionButton*/,
-                                              flags, AMETA_NONE, 0 /*buttonState*/,
+                                              memento.policyFlags, action, /*actionButton=*/0,
+                                              flags, AMETA_NONE, /*buttonState=*/0,
                                               MotionClassification::NONE,
                                               AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                               memento.yPrecision, memento.xCursorPosition,
@@ -425,9 +425,9 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
                     std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
                                                   memento.deviceId, memento.source,
                                                   memento.displayId, memento.policyFlags, action,
-                                                  0 /*actionButton*/,
+                                                  /*actionButton=*/0,
                                                   memento.flags | AMOTION_EVENT_FLAG_CANCELED,
-                                                  AMETA_NONE, 0 /*buttonState*/,
+                                                  AMETA_NONE, /*buttonState=*/0,
                                                   MotionClassification::NONE,
                                                   AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                                   memento.yPrecision, memento.xCursorPosition,

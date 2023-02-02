@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,21 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
+#include <cstdint>
 
-struct tipc_hset;
+#include <ftl/flags.h>
 
-struct tipc_hset* tipc_hset_create(void) {
-    return nullptr;
-}
-int tipc_run_event_loop(struct tipc_hset*) {
-    return 0;
-}
+namespace android {
 
-#if defined(__cplusplus)
-}
-#endif
+// Whether composition was covered by HWC and/or GPU.
+enum class CompositionCoverage : std::uint8_t {
+    Hwc = 1 << 0,
+
+    // Mutually exclusive: The composition either used the GPU, or reused a buffer that had been
+    // composited on the GPU.
+    Gpu = 1 << 1,
+    GpuReuse = 1 << 2,
+};
+
+using CompositionCoverageFlags = ftl::Flags<CompositionCoverage>;
+
+} // namespace android

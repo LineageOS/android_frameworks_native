@@ -148,7 +148,7 @@ void LatencyTracker::trackGraphicsLatency(
 void LatencyTracker::reportAndPruneMatureRecords(nsecs_t newEventTime) {
     while (!mEventTimes.empty()) {
         const auto& [oldestEventTime, oldestInputEventId] = *mEventTimes.begin();
-        if (isMatureEvent(oldestEventTime, newEventTime /*now*/)) {
+        if (isMatureEvent(oldestEventTime, /*now=*/newEventTime)) {
             // Report and drop this event
             const auto it = mTimelines.find(oldestInputEventId);
             LOG_ALWAYS_FATAL_IF(it == mTimelines.end(),

@@ -68,7 +68,6 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     renderengine::ShadowSettings shadowSettings;
     bool premultipliedAlpha;
     bool isHdrY410;
-    bool bufferNeedsFiltering;
     ui::Transform parentTransform;
     Rect bufferSize;
     Rect croppedBufferSize;
@@ -103,6 +102,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     std::string getDebugString() const;
     std::string getIsVisibleReason() const;
     bool hasInputInfo() const;
+    FloatRect sourceBounds() const;
 };
 
 } // namespace android::surfaceflinger::frontend

@@ -539,7 +539,8 @@ public:
                                                 const FloatRect& screenBounds, float,
                                                 const ui::Transform&,
                                                 const TrustedPresentationThresholds&);
-    void updateTrustedPresentationState(const DisplayDevice* display, int64_t time_in_ms,
+    void updateTrustedPresentationState(const DisplayDevice* display,
+                                        const frontend::LayerSnapshot* snapshot, int64_t time_in_ms,
                                         bool leaveState);
 
     inline bool hasTrustedPresentationListener() {
@@ -1037,10 +1038,6 @@ private:
     Rect computeBufferCrop(const State& s);
 
     bool willPresentCurrentTransaction() const;
-
-    // Returns true if the transformed buffer size does not match the layer size and we need
-    // to apply filtering.
-    bool bufferNeedsFiltering() const;
 
     void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
                                    const sp<GraphicBuffer>& buffer, uint64_t framenumber,

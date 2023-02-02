@@ -36,10 +36,10 @@ const std::chrono::duration ANR_TIMEOUT = std::chrono::milliseconds(
 
 InputEventTimeline getTestTimeline() {
     InputEventTimeline t(
-            /*isDown*/ true,
-            /*eventTime*/ 2,
-            /*readTime*/ 3);
-    ConnectionTimeline expectedCT(/*deliveryTime*/ 6, /* consumeTime*/ 7, /*finishTime*/ 8);
+            /*isDown=*/true,
+            /*eventTime=*/2,
+            /*readTime=*/3);
+    ConnectionTimeline expectedCT(/*deliveryTime=*/6, /*consumeTime=*/7, /*finishTime=*/8);
     std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
     graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME] = 9;
     graphicsTimeline[GraphicsTimeline::PRESENT_TIME] = 10;
@@ -87,7 +87,8 @@ private:
 void LatencyTrackerTest::triggerEventReporting(nsecs_t lastEventTime) {
     const nsecs_t triggerEventTime =
             lastEventTime + std::chrono::nanoseconds(ANR_TIMEOUT).count() + 1;
-    mTracker->trackListener(1 /*inputEventId*/, true /*isDown*/, triggerEventTime, 3 /*readTime*/);
+    mTracker->trackListener(/*inputEventId=*/1, /*isDown=*/true, triggerEventTime,
+                            /*readTime=*/3);
 }
 
 void LatencyTrackerTest::assertReceivedTimeline(const InputEventTimeline& timeline) {
@@ -136,8 +137,9 @@ void LatencyTrackerTest::assertReceivedTimelines(const std::vector<InputEventTim
  * any additional ConnectionTimeline's.
  */
 TEST_F(LatencyTrackerTest, TrackListener_DoesNotTriggerReporting) {
-    mTracker->trackListener(1 /*inputEventId*/, false /*isDown*/, 2 /*eventTime*/, 3 /*readTime*/);
-    triggerEventReporting(2 /*eventTime*/);
+    mTracker->trackListener(/*inputEventId=*/1, /*isDown=*/false, /*eventTime=*/2,
+                            /*readTime=*/3);
+    triggerEventReporting(/*eventTime=*/2);
     assertReceivedTimeline(InputEventTimeline{false, 2, 3});
 }
 
@@ -145,9 +147,9 @@ TEST_F(LatencyTrackerTest, TrackListener_DoesNotTriggerReporting) {
  * A single call to trackFinishedEvent should not cause a timeline to be reported.
  */
 TEST_F(LatencyTrackerTest, TrackFinishedEvent_DoesNotTriggerReporting) {
-    mTracker->trackFinishedEvent(1 /*inputEventId*/, connection1, 2 /*deliveryTime*/,
-                                 3 /*consumeTime*/, 4 /*finishTime*/);
-    triggerEventReporting(4 /*eventTime*/);
+    mTracker->trackFinishedEvent(/*inputEventId=*/1, connection1, /*deliveryTime=*/2,
+                                 /*consumeTime=*/3, /*finishTime=*/4);
+    triggerEventReporting(/*eventTime=*/4);
     assertReceivedTimelines({});
 }
 
@@ -158,8 +160,8 @@ TEST_F(LatencyTrackerTest, TrackGraphicsLatency_DoesNotTriggerReporting) {
     std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
     graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME] = 2;
     graphicsTimeline[GraphicsTimeline::PRESENT_TIME] = 3;
-    mTracker->trackGraphicsLatency(1 /*inputEventId*/, connection2, graphicsTimeline);
-    triggerEventReporting(3 /*eventTime*/);
+    mTracker->trackGraphicsLatency(/*inputEventId=*/1, connection2, graphicsTimeline);
+    triggerEventReporting(/*eventTime=*/3);
     assertReceivedTimelines({});
 }
 
@@ -189,10 +191,10 @@ TEST_F(LatencyTrackerTest, WhenDuplicateEventsAreReported_DoesNotCrash) {
 
     // In the following 2 calls to trackListener, the inputEventId's are the same, but event times
     // are different.
-    mTracker->trackListener(inputEventId, isDown, 1 /*eventTime*/, readTime);
-    mTracker->trackListener(inputEventId, isDown, 2 /*eventTime*/, readTime);
+    mTracker->trackListener(inputEventId, isDown, /*eventTime=*/1, readTime);
+    mTracker->trackListener(inputEventId, isDown, /*eventTime=*/2, readTime);
 
-    triggerEventReporting(2 /*eventTime*/);
+    triggerEventReporting(/*eventTime=*/2);
     // Since we sent duplicate input events, the tracker should just delete all of them, because it
     // does not have enough information to properly track them.
     assertReceivedTimelines({});
@@ -215,13 +217,13 @@ TEST_F(LatencyTrackerTest, MultipleEvents_AreReportedConsistently) {
 
     constexpr int32_t inputEventId2 = 10;
     InputEventTimeline timeline2(
-            /*isDown*/ false,
-            /*eventTime*/ 20,
-            /*readTime*/ 30);
+            /*isDown=*/false,
+            /*eventTime=*/20,
+            /*readTime=*/30);
     timeline2.connectionTimelines.emplace(connection2,
-                                          ConnectionTimeline(/*deliveryTime*/ 60,
-                                                             /*consumeTime*/ 70,
-                                                             /*finishTime*/ 80));
+                                          ConnectionTimeline(/*deliveryTime=*/60,
+                                                             /*consumeTime=*/70,
+                                                             /*finishTime=*/80));
     ConnectionTimeline& connectionTimeline2 = timeline2.connectionTimelines.begin()->second;
     std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline2;
     graphicsTimeline2[GraphicsTimeline::GPU_COMPLETED_TIME] = 90;
@@ -258,15 +260,15 @@ TEST_F(LatencyTrackerTest, IncompleteEvents_AreHandledConsistently) {
     const sp<IBinder>& token = timeline.connectionTimelines.begin()->first;
 
     for (size_t i = 1; i <= 100; i++) {
-        mTracker->trackListener(i /*inputEventId*/, timeline.isDown, timeline.eventTime,
+        mTracker->trackListener(/*inputEventId=*/i, timeline.isDown, timeline.eventTime,
                                 timeline.readTime);
         expectedTimelines.push_back(
                 InputEventTimeline{timeline.isDown, timeline.eventTime, timeline.readTime});
     }
     // Now, complete the first event that was sent.
-    mTracker->trackFinishedEvent(1 /*inputEventId*/, token, expectedCT.deliveryTime,
+    mTracker->trackFinishedEvent(/*inputEventId=*/1, token, expectedCT.deliveryTime,
                                  expectedCT.consumeTime, expectedCT.finishTime);
-    mTracker->trackGraphicsLatency(1 /*inputEventId*/, token, expectedCT.graphicsTimeline);
+    mTracker->trackGraphicsLatency(/*inputEventId=*/1, token, expectedCT.graphicsTimeline);
 
     expectedTimelines[0].connectionTimelines.emplace(token, std::move(expectedCT));
     triggerEventReporting(timeline.eventTime);

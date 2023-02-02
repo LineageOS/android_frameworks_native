@@ -71,6 +71,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mRenderFrameRateFPSTrace("RenderRateFPS -" + to_string(getId())),
         mPhysicalOrientation(args.physicalOrientation),
         mIsPrimary(args.isPrimary),
+        mRequestedRefreshRate(args.requestedRefreshRate),
         mRefreshRateSelector(std::move(args.refreshRateSelector)) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
@@ -347,10 +348,6 @@ const Region& DisplayDevice::getUndefinedRegion() const {
     return mCompositionDisplay->getState().undefinedRegion;
 }
 
-bool DisplayDevice::needsFiltering() const {
-    return mCompositionDisplay->getState().needsFiltering;
-}
-
 ui::LayerStack DisplayDevice::getLayerStack() const {
     return mCompositionDisplay->getState().layerFilter.layerStack;
 }
@@ -511,6 +508,23 @@ void DisplayDevice::clearDesiredActiveModeState() {
     std::scoped_lock lock(mActiveModeLock);
     mDesiredActiveMode.event = scheduler::DisplayModeEvent::None;
     mDesiredActiveModeChanged = false;
+}
+
+void DisplayDevice::adjustRefreshRate(Fps leaderDisplayRefreshRate) {
+    using fps_approx_ops::operator==;
+    if (mRequestedRefreshRate == 0_Hz) {
+        return;
+    }
+
+    using fps_approx_ops::operator>;
+    if (mRequestedRefreshRate > leaderDisplayRefreshRate) {
+        mAdjustedRefreshRate = leaderDisplayRefreshRate;
+        return;
+    }
+
+    unsigned divisor = static_cast<unsigned>(
+            std::round(leaderDisplayRefreshRate.getValue() / mRequestedRefreshRate.getValue()));
+    mAdjustedRefreshRate = leaderDisplayRefreshRate / divisor;
 }
 
 std::atomic<int32_t> DisplayDeviceState::sNextSequenceId(1);

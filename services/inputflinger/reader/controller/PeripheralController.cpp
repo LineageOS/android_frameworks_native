@@ -152,7 +152,7 @@ std::optional<int32_t> PeripheralController::MonoLight::getLightColor() {
         return std::nullopt;
     }
 
-    return toArgb(brightness.value(), 0 /* red */, 0 /* green */, 0 /* blue */);
+    return toArgb(brightness.value(), /*red=*/0, /*green=*/0, /*blue=*/0);
 }
 
 std::optional<int32_t> PeripheralController::RgbLight::getLightColor() {
@@ -197,13 +197,12 @@ std::optional<int32_t> PeripheralController::MultiColorLight::getLightColor() {
     }
     std::unordered_map<LightColor, int32_t> intensities = ret.value();
     // Get red, green, blue colors
-    int32_t color = toArgb(0 /* brightness */, intensities.at(LightColor::RED) /* red */,
-                           intensities.at(LightColor::GREEN) /* green */,
-                           intensities.at(LightColor::BLUE) /* blue */);
+    int32_t color = toArgb(/*brightness=*/0, intensities.at(LightColor::RED),
+                           intensities.at(LightColor::GREEN), intensities.at(LightColor::BLUE));
     // Get brightness
     std::optional<int32_t> brightness = getRawLightBrightness(rawId);
     if (brightness.has_value()) {
-        return toArgb(brightness.value() /* A */, 0, 0, 0) | color;
+        return toArgb(/*brightness=*/brightness.value(), 0, 0, 0) | color;
     }
     return std::nullopt;
 }
@@ -273,7 +272,7 @@ void PeripheralController::populateDeviceInfo(InputDeviceInfo* deviceInfo) {
     for (const auto& [lightId, light] : mLights) {
         // Input device light doesn't support ordinal, always pass 1.
         InputDeviceLightInfo lightInfo(light->name, light->id, light->type, light->capabilityFlags,
-                                       1 /* ordinal */);
+                                       /*ordinal=*/1);
         deviceInfo->addLightInfo(lightInfo);
     }
 }

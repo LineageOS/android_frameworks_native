@@ -168,4 +168,11 @@ std::string LayerSnapshot::getDebugString() const {
     return debug.str();
 }
 
+FloatRect LayerSnapshot::sourceBounds() const {
+    if (!externalTexture) {
+        return geomLayerBounds;
+    }
+    return geomBufferSize.toFloatRect();
+}
+
 } // namespace android::surfaceflinger::frontend

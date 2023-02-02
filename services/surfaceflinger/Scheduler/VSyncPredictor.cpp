@@ -31,6 +31,7 @@
 #include <android-base/stringprintf.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
+#include <gui/TraceUtils.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
@@ -40,14 +41,16 @@
 namespace android::scheduler {
 
 using base::StringAppendF;
+using base::StringPrintf;
 
 static auto constexpr kMaxPercent = 100u;
 
 VSyncPredictor::~VSyncPredictor() = default;
 
-VSyncPredictor::VSyncPredictor(nsecs_t idealPeriod, size_t historySize,
+VSyncPredictor::VSyncPredictor(std::string name, nsecs_t idealPeriod, size_t historySize,
                                size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent)
-      : mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
+      : mName(name),
+        mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
         kHistorySize(historySize),
         kMinimumSamplesForPrediction(minimumSamplesForPrediction),
         kOutlierTolerancePercent(std::min(outlierTolerancePercent, kMaxPercent)),
@@ -57,12 +60,14 @@ VSyncPredictor::VSyncPredictor(nsecs_t idealPeriod, size_t historySize,
 
 inline void VSyncPredictor::traceInt64If(const char* name, int64_t value) const {
     if (CC_UNLIKELY(mTraceOn)) {
-        ATRACE_INT64(name, value);
+        traceInt64(name, value);
     }
 }
 
 inline void VSyncPredictor::traceInt64(const char* name, int64_t value) const {
-    ATRACE_INT64(name, value);
+    // TODO (b/266817103): Pass in PhysicalDisplayId and use ftl::Concat to
+    // avoid unnecessary allocations.
+    ATRACE_INT64(StringPrintf("%s %s", name, mName.c_str()).c_str(), value);
 }
 
 inline size_t VSyncPredictor::next(size_t i) const {
@@ -214,8 +219,8 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
 
     it->second = {anticipatedPeriod, intercept};
 
-    ALOGV("model update ts: %" PRId64 " slope: %" PRId64 " intercept: %" PRId64, timestamp,
-          anticipatedPeriod, intercept);
+    ALOGV("model update ts %s: %" PRId64 " slope: %" PRId64 " intercept: %" PRId64, mName.c_str(),
+          timestamp, anticipatedPeriod, intercept);
     return true;
 }
 
@@ -327,7 +332,7 @@ bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) c
 }
 
 void VSyncPredictor::setDivisor(unsigned divisor) {
-    ALOGV("%s: %d", __func__, divisor);
+    ALOGV("%s %s: %d", __func__, mName.c_str(), divisor);
     std::lock_guard lock(mMutex);
     mDivisor = divisor;
 }
@@ -343,7 +348,7 @@ VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModelLocked() const {
 }
 
 void VSyncPredictor::setPeriod(nsecs_t period) {
-    ATRACE_CALL();
+    ATRACE_FORMAT("%s %s", __func__, mName.c_str());
     traceInt64("VSP-setPeriod", period);
 
     std::lock_guard lock(mMutex);
