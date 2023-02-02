@@ -80,8 +80,6 @@ private:
 
         // the number of clients of the service, including servicemanager itself
         ssize_t getNodeStrongRefCount();
-
-        ~Service();
     };
 
     using ServiceCallbackMap = std::map<std::string, std::vector<sp<IServiceCallback>>>;
@@ -93,9 +91,7 @@ private:
     void removeRegistrationCallback(const wp<IBinder>& who,
                         ServiceCallbackMap::iterator* it,
                         bool* found);
-    // returns whether there are known clients in addition to the count provided
-    bool handleServiceClientCallback(size_t knownClients, const std::string& serviceName,
-                                     bool isCalledOnInterval);
+    ssize_t handleServiceClientCallback(const std::string& serviceName, bool isCalledOnInterval);
     // Also updates mHasClients (of what the last callback was)
     void sendClientCallbackNotifications(const std::string& serviceName, bool hasClients,
                                          const char* context);
