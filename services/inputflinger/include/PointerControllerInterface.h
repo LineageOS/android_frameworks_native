@@ -79,8 +79,10 @@ public:
         POINTER,
         // Show spots and a spot anchor in place of the mouse pointer.
         SPOT,
+        // Show the stylus hover pointer.
+        STYLUS_HOVER,
 
-        ftl_last = SPOT,
+        ftl_last = STYLUS_HOVER,
     };
 
     /* Sets the mode of the pointer controller. */

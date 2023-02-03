@@ -6678,6 +6678,52 @@ TEST_F(SingleTouchInputMapperTest, WhenDeviceTypeIsSetToTouchNavigation_setsCorr
     ASSERT_EQ(AINPUT_SOURCE_TOUCH_NAVIGATION, mapper.getSources());
 }
 
+TEST_F(SingleTouchInputMapperTest, Process_WhenConfigEnabled_ShouldShowDirectStylusPointer) {
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(ui::ROTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
+    mFakePolicy->setPointerController(fakePointerController);
+    mFakePolicy->setStylusPointerIconEnabled(true);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    processKey(mapper, BTN_TOOL_PEN, 1);
+    processMove(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS),
+                  WithPointerCoords(0, toDisplayX(100), toDisplayY(200)))));
+    ASSERT_TRUE(fakePointerController->isPointerShown());
+    ASSERT_NO_FATAL_FAILURE(
+            fakePointerController->assertPosition(toDisplayX(100), toDisplayY(200)));
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_WhenConfigDisabled_ShouldNotShowDirectStylusPointer) {
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(ui::ROTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
+    mFakePolicy->setPointerController(fakePointerController);
+    mFakePolicy->setStylusPointerIconEnabled(false);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    processKey(mapper, BTN_TOOL_PEN, 1);
+    processMove(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS),
+                  WithPointerCoords(0, toDisplayX(100), toDisplayY(200)))));
+    ASSERT_FALSE(fakePointerController->isPointerShown());
+}
+
 // --- TouchDisplayProjectionTest ---
 
 class TouchDisplayProjectionTest : public SingleTouchInputMapperTest {
@@ -9755,6 +9801,58 @@ TEST_F(MultiTouchInputMapperTest, StylusSourceIsAddedDynamicallyFromToolType) {
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
                   WithSource(AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS),
                   WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS))));
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_WhenConfigEnabled_ShouldShowDirectStylusPointer) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(ui::ROTATION_0);
+    prepareAxes(POSITION | ID | SLOT | TOOL_TYPE | PRESSURE);
+    // Add BTN_TOOL_PEN to statically show stylus support, since using ABS_MT_TOOL_TYPE can only
+    // indicate stylus presence dynamically.
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+    mFakePolicy->setPointerController(fakePointerController);
+    mFakePolicy->setStylusPointerIconEnabled(true);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPressure(mapper, RAW_PRESSURE_MIN);
+    processPosition(mapper, 100, 200);
+    processToolType(mapper, MT_TOOL_PEN);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS),
+                  WithPointerCoords(0, toDisplayX(100), toDisplayY(200)))));
+    ASSERT_TRUE(fakePointerController->isPointerShown());
+    ASSERT_NO_FATAL_FAILURE(
+            fakePointerController->assertPosition(toDisplayX(100), toDisplayY(200)));
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_WhenConfigDisabled_ShouldNotShowDirectStylusPointer) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(ui::ROTATION_0);
+    prepareAxes(POSITION | ID | SLOT | TOOL_TYPE | PRESSURE);
+    // Add BTN_TOOL_PEN to statically show stylus support, since using ABS_MT_TOOL_TYPE can only
+    // indicate stylus presence dynamically.
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+    mFakePolicy->setPointerController(fakePointerController);
+    mFakePolicy->setStylusPointerIconEnabled(false);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    processId(mapper, FIRST_TRACKING_ID);
+    processPressure(mapper, RAW_PRESSURE_MIN);
+    processPosition(mapper, 100, 200);
+    processToolType(mapper, MT_TOOL_PEN);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                  WithToolType(AMOTION_EVENT_TOOL_TYPE_STYLUS),
+                  WithPointerCoords(0, toDisplayX(100), toDisplayY(200)))));
+    ASSERT_FALSE(fakePointerController->isPointerShown());
 }
 
 // --- MultiTouchInputMapperTest_ExternalDevice ---

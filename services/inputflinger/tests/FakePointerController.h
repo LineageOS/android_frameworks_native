@@ -39,12 +39,13 @@ public:
     void setDisplayViewport(const DisplayViewport& viewport) override;
 
     void assertPosition(float x, float y);
+    bool isPointerShown();
 
 private:
     bool getBounds(float* outMinX, float* outMinY, float* outMaxX, float* outMaxY) const override;
     void move(float deltaX, float deltaY) override;
-    void fade(Transition) override {}
-    void unfade(Transition) override {}
+    void fade(Transition) override;
+    void unfade(Transition) override;
     void setPresentation(Presentation) override {}
     void setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,
                   int32_t displayId) override;
@@ -55,6 +56,7 @@ private:
     float mX{0}, mY{0};
     int32_t mButtonState{0};
     int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
+    bool mIsPointerShown{false};
 
     std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;
 };
