@@ -611,9 +611,11 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
                                        metadata, dest, hdrInvOetf, hdrGamutConversionFn,
                                        luminanceFn, hdr_white_nits, &jobQueue]() -> void {
     size_t rowStart, rowEnd;
+    size_t dest_map_width = uncompressed_yuv_420_image->width / kMapDimensionScaleFactor;
+    size_t dest_map_stride = dest->width;
     while (jobQueue.dequeueJob(rowStart, rowEnd)) {
       for (size_t y = rowStart; y < rowEnd; ++y) {
-        for (size_t x = 0; x < dest->width; ++x) {
+        for (size_t x = 0; x < dest_map_width; ++x) {
           Color sdr_yuv_gamma =
               sampleYuv420(uncompressed_yuv_420_image, kMapDimensionScaleFactor, x, y);
           Color sdr_rgb_gamma = srgbYuvToRgb(sdr_yuv_gamma);
@@ -630,7 +632,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
           hdr_rgb = hdrGamutConversionFn(hdr_rgb);
           float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
 
-          size_t pixel_idx = x + y * dest->width;
+          size_t pixel_idx = x + y * dest_map_stride;
           reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
               encodeRecovery(sdr_y_nits, hdr_y_nits, metadata->maxContentBoost);
         }
