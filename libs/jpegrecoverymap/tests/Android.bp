@@ -29,14 +29,17 @@ cc_test {
         "recoverymapmath_test.cpp",
     ],
     shared_libs: [
-        "libjpeg",
-        "libjpegrecoverymap",
         "libimage_io",
+        "libjpeg",
         "liblog",
     ],
     static_libs: [
         "libgmock",
         "libgtest",
+        "libjpegdecoder",
+        "libjpegencoder",
+        "libjpegrecoverymap",
+        "libskia",
     ],
 }
 
@@ -48,11 +51,11 @@ cc_test {
     ],
     shared_libs: [
         "libjpeg",
-        "libjpegencoder",
         "liblog",
     ],
     static_libs: [
         "libgtest",
+        "libjpegencoder",
     ],
 }
 
@@ -64,10 +67,10 @@ cc_test {
     ],
     shared_libs: [
         "libjpeg",
-        "libjpegdecoder",
         "liblog",
     ],
     static_libs: [
         "libgtest",
+        "libjpegdecoder",
     ],
 }
