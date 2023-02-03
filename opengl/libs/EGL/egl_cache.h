@@ -25,6 +25,7 @@
 #include <string>
 
 #include "FileBlobCache.h"
+#include "MultifileBlobCache.h"
 
 namespace android {
 
@@ -32,6 +33,11 @@ class egl_display_t;
 
 class EGLAPI egl_cache_t {
 public:
+    enum class EGLCacheMode {
+        Monolithic,
+        Multifile,
+    };
+
     // get returns a pointer to the singleton egl_cache_t object.  This
     // singleton object will never be destroyed.
     static egl_cache_t* get();
@@ -64,6 +70,9 @@ public:
     // cache contents from one program invocation to another.
     void setCacheFilename(const char* filename);
 
+    // Allow setting monolithic or multifile modes
+    void setCacheMode(EGLCacheMode cacheMode);
+
     // Allow the fixed cache limit to be overridden
     void setCacheLimit(int64_t cacheByteLimit);
 
@@ -85,6 +94,9 @@ private:
     // possible.
     BlobCache* getBlobCacheLocked();
 
+    // Get or create the multifile blobcache
+    MultifileBlobCache* getMultifileBlobCacheLocked();
+
     // mInitialized indicates whether the egl_cache_t is in the initialized
     // state.  It is initialized to false at construction time, and gets set to
     // true when initialize is called.  It is set back to false when terminate
@@ -97,6 +109,9 @@ private:
     // is initially NULL, and will be initialized by getBlobCacheLocked the
     // first time it's needed.
     std::unique_ptr<FileBlobCache> mBlobCache;
+
+    // The multifile version of blobcache allowing larger contents to be stored
+    std::unique_ptr<MultifileBlobCache> mMultifileBlobCache;
 
     // mFilename is the name of the file for storing cache contents in between
     // program invocations.  It is initialized to an empty string at
@@ -123,11 +138,7 @@ private:
     bool mMultifileMode;
 
     // Cache limit
-    int64_t mCacheByteLimit;
-
-    // Whether we've kicked off a side thread that will check the multifile
-    // cache size and remove entries if needed.
-    bool mMultifileCleanupPending;
+    size_t mCacheByteLimit;
 };
 
 }; // namespace android
