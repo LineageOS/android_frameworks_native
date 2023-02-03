@@ -44,6 +44,7 @@
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/OverlayProperties.h>
+#include <aidl/android/hardware/graphics/composer3/RefreshRateChangedDebugData.h>
 
 namespace android {
 
@@ -63,6 +64,8 @@ class Layer;
 
 namespace hal = android::hardware::graphics::composer::hal;
 
+using aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
+
 // Implement this interface to receive hardware composer events.
 //
 // These callback functions will generally be called on a hwbinder thread, but
@@ -77,6 +80,7 @@ struct ComposerCallback {
                                                        const hal::VsyncPeriodChangeTimeline&) = 0;
     virtual void onComposerHalSeamlessPossible(hal::HWDisplayId) = 0;
     virtual void onComposerHalVsyncIdle(hal::HWDisplayId) = 0;
+    virtual void onRefreshRateChangedDebug(const RefreshRateChangedDebugData&) = 0;
 
 protected:
     ~ComposerCallback() = default;

@@ -2085,6 +2085,10 @@ void SurfaceFlinger::onComposerHalVsyncIdle(hal::HWDisplayId) {
     mScheduler->forceNextResync();
 }
 
+void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData&) {
+    // TODO(b/202734676) update refresh rate value on the RefreshRateOverlay
+}
+
 void SurfaceFlinger::setVsyncEnabled(bool enabled) {
     ATRACE_CALL();
 

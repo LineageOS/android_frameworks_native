@@ -52,6 +52,7 @@ namespace aidl = aidl::android::hardware::graphics::composer3;
 
 using Hwc2::Config;
 
+using ::aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
 using ::testing::_;
 using ::testing::DoAll;
 using ::testing::ElementsAreArray;
@@ -127,6 +128,7 @@ struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
                  void(hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline&));
     MOCK_METHOD1(onComposerHalSeamlessPossible, void(hal::HWDisplayId));
     MOCK_METHOD1(onComposerHalVsyncIdle, void(hal::HWDisplayId));
+    MOCK_METHOD(void, onRefreshRateChangedDebug, (const RefreshRateChangedDebugData&), (override));
 };
 
 struct HWComposerSetCallbackTest : HWComposerTest {
