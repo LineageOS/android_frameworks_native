@@ -72,16 +72,6 @@ static const size_t kJpegBlock = 8;
 // JPEG compress quality (0 ~ 100) for recovery map
 static const int kMapCompressQuality = 85;
 
-// TODO: fill in st2086 metadata
-static const st2086_metadata kSt2086Metadata = {
-  {0.0f, 0.0f},
-  {0.0f, 0.0f},
-  {0.0f, 0.0f},
-  {0.0f, 0.0f},
-  0,
-  1.0f,
-};
-
 #define CONFIG_MULTITHREAD 1
 int GetCPUCoreCount() {
   int cpuCoreCount = 1;
@@ -133,10 +123,6 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
   jpegr_metadata metadata;
   metadata.version = kJpegrVersion;
-  metadata.transferFunction = hdr_tf;
-  if (hdr_tf == JPEGR_TF_PQ) {
-    metadata.hdr10Metadata.st2086Metadata = kSt2086Metadata;
-  }
 
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
   unique_ptr<uint8_t[]> uncompressed_yuv_420_image_data = make_unique<uint8_t[]>(
@@ -146,7 +132,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
   jpegr_uncompressed_struct map;
   JPEGR_CHECK(generateRecoveryMap(
-      &uncompressed_yuv_420_image, uncompressed_p010_image, &metadata, &map));
+      &uncompressed_yuv_420_image, uncompressed_p010_image, hdr_tf, &metadata, &map));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -207,14 +193,10 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
   jpegr_metadata metadata;
   metadata.version = kJpegrVersion;
-  metadata.transferFunction = hdr_tf;
-  if (hdr_tf == JPEGR_TF_PQ) {
-    metadata.hdr10Metadata.st2086Metadata = kSt2086Metadata;
-  }
 
   jpegr_uncompressed_struct map;
   JPEGR_CHECK(generateRecoveryMap(
-      uncompressed_yuv_420_image, uncompressed_p010_image, &metadata, &map));
+      uncompressed_yuv_420_image, uncompressed_p010_image, hdr_tf, &metadata, &map));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -271,14 +253,10 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
   jpegr_metadata metadata;
   metadata.version = kJpegrVersion;
-  metadata.transferFunction = hdr_tf;
-  if (hdr_tf == JPEGR_TF_PQ) {
-    metadata.hdr10Metadata.st2086Metadata = kSt2086Metadata;
-  }
 
   jpegr_uncompressed_struct map;
   JPEGR_CHECK(generateRecoveryMap(
-      uncompressed_yuv_420_image, uncompressed_p010_image, &metadata, &map));
+      uncompressed_yuv_420_image, uncompressed_p010_image, hdr_tf, &metadata, &map));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -328,14 +306,10 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
   jpegr_metadata metadata;
   metadata.version = kJpegrVersion;
-  metadata.transferFunction = hdr_tf;
-  if (hdr_tf == JPEGR_TF_PQ) {
-    metadata.hdr10Metadata.st2086Metadata = kSt2086Metadata;
-  }
 
   jpegr_uncompressed_struct map;
   JPEGR_CHECK(generateRecoveryMap(
-      &uncompressed_yuv_420_image, uncompressed_p010_image, &metadata, &map));
+      &uncompressed_yuv_420_image, uncompressed_p010_image, hdr_tf, &metadata, &map));
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
@@ -437,7 +411,6 @@ status_t RecoveryMap::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recov
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  // TODO: should we have ICC data for the map?
   JpegEncoder jpeg_encoder;
   if (!jpeg_encoder.compressImage(uncompressed_recovery_map->data,
                                   uncompressed_recovery_map->width,
@@ -518,6 +491,7 @@ void JobQueue::reset() {
 
 status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                           jr_uncompressed_ptr uncompressed_p010_image,
+                                          jpegr_transfer_function hdr_tf,
                                           jr_metadata_ptr metadata,
                                           jr_uncompressed_ptr dest) {
   if (uncompressed_yuv_420_image == nullptr
@@ -554,7 +528,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
 
   ColorTransformFn hdrInvOetf = nullptr;
   float hdr_white_nits = 0.0f;
-  switch (metadata->transferFunction) {
+  switch (hdr_tf) {
     case JPEGR_TF_LINEAR:
       hdrInvOetf = identityConversion;
       break;
@@ -658,7 +632,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
 
           size_t pixel_idx = x + y * dest->width;
           reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
-              encodeRecovery(sdr_y_nits, hdr_y_nits, metadata->rangeScalingFactor);
+              encodeRecovery(sdr_y_nits, hdr_y_nits, metadata->maxContentBoost);
         }
       }
     }
@@ -681,11 +655,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   workers.clear();
   hdr_y_nits_avg /= image_width * image_height;
 
-  metadata->rangeScalingFactor = hdr_y_nits_max / kSdrWhiteNits;
-  if (metadata->transferFunction == JPEGR_TF_PQ) {
-    metadata->hdr10Metadata.maxFALL = hdr_y_nits_avg;
-    metadata->hdr10Metadata.maxCLL = hdr_y_nits_max;
-  }
+  metadata->maxContentBoost = hdr_y_nits_max / kSdrWhiteNits;
 
   // generate map
   jobQueue.reset();
@@ -721,39 +691,21 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
   dest->width = uncompressed_yuv_420_image->width;
   dest->height = uncompressed_yuv_420_image->height;
   ShepardsIDW idwTable(kMapDimensionScaleFactor);
-  RecoveryLUT recoveryLUT(metadata->rangeScalingFactor);
+  RecoveryLUT recoveryLUT(metadata->maxContentBoost);
 
   JobQueue jobQueue;
   std::function<void()> applyRecMap = [uncompressed_yuv_420_image, uncompressed_recovery_map,
                                        metadata, dest, &jobQueue, &idwTable,
                                        &recoveryLUT]() -> void {
-    const float hdr_ratio = metadata->rangeScalingFactor;
+    const float hdr_ratio = metadata->maxContentBoost;
     size_t width = uncompressed_yuv_420_image->width;
     size_t height = uncompressed_yuv_420_image->height;
 
-    ColorTransformFn hdrOetf = nullptr;
-    switch (metadata->transferFunction) {
-      case JPEGR_TF_LINEAR:
-        hdrOetf = identityConversion;
-        break;
-      case JPEGR_TF_HLG:
 #if USE_HLG_OETF_LUT
-        hdrOetf = hlgOetfLUT;
+    ColorTransformFn hdrOetf = hlgOetfLUT;
 #else
-        hdrOetf = hlgOetf;
+    ColorTransformFn hdrOetf = hlgOetf;
 #endif
-        break;
-      case JPEGR_TF_PQ:
-#if USE_PQ_OETF_LUT
-        hdrOetf = pqOetfLUT;
-#else
-        hdrOetf = pqOetf;
-#endif
-        break;
-      default:
-        // Should be impossible to hit after input validation.
-        hdrOetf = identityConversion;
-    }
 
     size_t rowStart, rowEnd;
     while (jobQueue.dequeueJob(rowStart, rowEnd)) {
@@ -783,7 +735,7 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
 #else
           Color rgb_hdr = applyRecovery(rgb_sdr, recovery, hdr_ratio);
 #endif
-          Color rgb_gamma_hdr = hdrOetf(rgb_hdr / metadata->rangeScalingFactor);
+          Color rgb_gamma_hdr = hdrOetf(rgb_hdr / metadata->maxContentBoost);
           uint32_t rgba1010102 = colorToRgba1010102(rgb_gamma_hdr);
 
           size_t pixel_idx = x + y * width;
@@ -811,8 +763,8 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
 }
 
 status_t RecoveryMap::extractPrimaryImageAndRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
-                                               jr_compressed_ptr primary_image,
-                                               jr_compressed_ptr recovery_map) {
+                                                        jr_compressed_ptr primary_image,
+                                                        jr_compressed_ptr recovery_map) {
   if (compressed_jpegr_image == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }

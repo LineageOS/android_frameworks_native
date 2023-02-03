@@ -21,6 +21,7 @@
 
 namespace android::recoverymap {
 
+// Color gamuts for image data
 typedef enum {
   JPEGR_COLORGAMUT_UNSPECIFIED,
   JPEGR_COLORGAMUT_BT709,
@@ -28,7 +29,7 @@ typedef enum {
   JPEGR_COLORGAMUT_BT2100,
 } jpegr_color_gamut;
 
-// Transfer functions as defined for XMP metadata
+// Transfer functions for image data
 typedef enum {
   JPEGR_TF_UNSPECIFIED = -1,
   JPEGR_TF_LINEAR = 0,
@@ -82,45 +83,11 @@ struct jpegr_exif_struct {
     int length;
 };
 
-struct chromaticity_coord {
-  float x;
-  float y;
-};
-
-
-struct st2086_metadata {
-  // xy chromaticity coordinate of the red primary of the mastering display
-  chromaticity_coord redPrimary;
-  // xy chromaticity coordinate of the green primary of the mastering display
-  chromaticity_coord greenPrimary;
-  // xy chromaticity coordinate of the blue primary of the mastering display
-  chromaticity_coord bluePrimary;
-  // xy chromaticity coordinate of the white point of the mastering display
-  chromaticity_coord whitePoint;
-  // Maximum luminance in nits of the mastering display
-  uint32_t maxLuminance;
-  // Minimum luminance in nits of the mastering display
-  float minLuminance;
-};
-
-struct hdr10_metadata {
-  // Mastering display color volume
-  st2086_metadata st2086Metadata;
-  // Max frame average light level in nits
-  float maxFALL;
-  // Max content light level in nits
-  float maxCLL;
-};
-
 struct jpegr_metadata {
   // JPEG/R version
   uint32_t version;
-  // Range scaling factor for the map
-  float rangeScalingFactor;
-  // The transfer function for decoding the HDR representation of the image
-  jpegr_transfer_function transferFunction;
-  // HDR10 metadata, only applicable for transferFunction of JPEGR_TF_PQ
-  hdr10_metadata hdr10Metadata;
+  // Max Content Boost for the map
+  float maxContentBoost;
 };
 
 typedef struct jpegr_uncompressed_struct* jr_uncompressed_ptr;
@@ -270,14 +237,14 @@ private:
      *
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
+     * @param hdr_tf transfer function of the HDR image
      * @param dest recovery map; caller responsible for memory of data
-     * @param metadata metadata provides the transfer function for the HDR
-     *                 image; range_scaling_factor and hdr10 FALL and CLL will
-     *                 be updated.
+     * @param metadata max_content_boost is filled in
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                  jr_uncompressed_ptr uncompressed_p010_image,
+                                 jpegr_transfer_function hdr_tf,
                                  jr_metadata_ptr metadata,
                                  jr_uncompressed_ptr dest);
 
@@ -285,8 +252,7 @@ private:
      * This method is called in the decoding pipeline. It will take the uncompressed (decoded)
      * 8-bit yuv image, the uncompressed (decoded) recovery map, and extracted JPEG/R metadata as
      * input, and calculate the 10-bit recovered image. The recovered output image is the same
-     * color gamut as the SDR image, with the transfer function specified in the JPEG/R metadata,
-     * and is in RGBA1010102 data format.
+     * color gamut as the SDR image, with HLG transfer function, and is in RGBA1010102 data format.
      *
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param uncompressed_recovery_map uncompressed recovery map
