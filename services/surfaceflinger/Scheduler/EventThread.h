@@ -97,6 +97,9 @@ public:
     const uid_t mOwnerUid;
     const EventRegistrationFlags mEventRegistration;
 
+    /** The frame rate set to the attached choreographer. */
+    Fps frameRate;
+
 private:
     virtual void onFirstRef();
     EventThread* const mEventThread;

@@ -64,7 +64,7 @@ public:
     MOCK_METHOD(binder::Status, bootFinished, (), (override));
     MOCK_METHOD(binder::Status, createDisplayEventConnection,
                 (gui::ISurfaceComposer::VsyncSource, gui::ISurfaceComposer::EventRegistration,
-                 sp<gui::IDisplayEventConnection>*),
+                 const sp<IBinder>& /*layerHandle*/, sp<gui::IDisplayEventConnection>*),
                 (override));
     MOCK_METHOD(binder::Status, createConnection, (sp<gui::ISurfaceComposerClient>*), (override));
     MOCK_METHOD(binder::Status, createDisplay, (const std::string&, bool, float, sp<IBinder>*),

@@ -307,7 +307,8 @@ public:
     bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/);
     bool setApi(int32_t /*api*/);
     bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/);
-    bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& /*handles*/);
+    bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& /*handles*/,
+                                          bool willPresent);
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
     virtual bool setDimmingEnabled(const bool dimmingEnabled);
@@ -328,9 +329,12 @@ public:
 
     virtual sp<LayerFE> getCompositionEngineLayerFE() const;
     virtual sp<LayerFE> copyCompositionEngineLayerFE() const;
+    sp<LayerFE> getCompositionEngineLayerFE(const frontend::LayerHierarchy::TraversalPath&);
 
     const frontend::LayerSnapshot* getLayerSnapshot() const;
     frontend::LayerSnapshot* editLayerSnapshot();
+    std::unique_ptr<frontend::LayerSnapshot> stealLayerSnapshot();
+    void updateLayerSnapshot(std::unique_ptr<frontend::LayerSnapshot> snapshot);
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
@@ -512,7 +516,7 @@ public:
     // implements compositionengine::LayerFE
     const compositionengine::LayerFECompositionState* getCompositionState() const;
     bool fenceHasSignaled() const;
-    bool onPreComposition(nsecs_t refreshStartTime);
+    void onPreComposition(nsecs_t refreshStartTime);
     void onLayerDisplayed(ftl::SharedFuture<FenceResult>);
 
     void setWasClientComposed(const sp<Fence>& fence) {
@@ -832,6 +836,7 @@ public:
     void updateMetadataSnapshot(const LayerMetadata& parentMetadata);
     void updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMetadata,
                                         std::unordered_set<Layer*>& visited);
+    bool willPresentCurrentTransaction() const;
 
 protected:
     // For unit tests
@@ -1037,8 +1042,6 @@ private:
     // Crop that applies to the buffer
     Rect computeBufferCrop(const State& s);
 
-    bool willPresentCurrentTransaction() const;
-
     void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
                                    const sp<GraphicBuffer>& buffer, uint64_t framenumber,
                                    const sp<Fence>& releaseFence,
@@ -1146,34 +1149,10 @@ private:
     // not specify a destination frame.
     ui::Transform mRequestedTransform;
 
-    sp<LayerFE> mLayerFE;
+    sp<LayerFE> mLegacyLayerFE;
+    std::vector<std::pair<frontend::LayerHierarchy::TraversalPath, sp<LayerFE>>> mLayerFEs;
     std::unique_ptr<frontend::LayerSnapshot> mSnapshot =
             std::make_unique<frontend::LayerSnapshot>();
-
-    friend class LayerSnapshotGuard;
-};
-
-// LayerSnapshotGuard manages the movement of LayerSnapshot between a Layer and its corresponding
-// LayerFE. This class must be used whenever LayerFEs are passed to CompositionEngine. Instances of
-// LayerSnapshotGuard should only be constructed on the main thread and should not be moved outside
-// the main thread.
-//
-// Moving the snapshot instead of sharing common state prevents use of LayerFE outside the main
-// thread by making errors obvious (i.e. use outside the main thread results in SEGFAULTs due to
-// nullptr dereference).
-class LayerSnapshotGuard {
-public:
-    LayerSnapshotGuard(Layer* layer) REQUIRES(kMainThreadContext);
-    ~LayerSnapshotGuard() REQUIRES(kMainThreadContext);
-
-    LayerSnapshotGuard(const LayerSnapshotGuard&) = delete;
-    LayerSnapshotGuard& operator=(const LayerSnapshotGuard&) = delete;
-
-    LayerSnapshotGuard(LayerSnapshotGuard&& other) REQUIRES(kMainThreadContext);
-    LayerSnapshotGuard& operator=(LayerSnapshotGuard&& other) REQUIRES(kMainThreadContext);
-
-private:
-    Layer* mLayer;
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);

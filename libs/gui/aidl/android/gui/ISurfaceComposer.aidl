@@ -68,9 +68,15 @@ interface ISurfaceComposer {
 
     /**
      * Create a display event connection
+     *
+     * layerHandle
+     *     Optional binder handle representing a Layer in SF to associate the new
+     *     DisplayEventConnection with. This handle can be found inside a surface control after
+     *     surface creation, see ISurfaceComposerClient::createSurface. Set to null if no layer
+     *     association should be made.
      */
     @nullable IDisplayEventConnection createDisplayEventConnection(VsyncSource vsyncSource,
-            EventRegistration eventRegistration);
+            EventRegistration eventRegistration, @nullable IBinder layerHandle);
 
     /**
      * Create a connection with SurfaceFlinger.
