@@ -147,7 +147,8 @@ public:
                                        std::chrono::nanoseconds readyDuration);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
-            ConnectionHandle, EventRegistrationFlags eventRegistration = {});
+            ConnectionHandle, EventRegistrationFlags eventRegistration = {},
+            const sp<IBinder>& layerHandle = nullptr);
 
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
@@ -302,7 +303,8 @@ private:
     // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);
     sp<EventThreadConnection> createConnectionInternal(
-            EventThread*, EventRegistrationFlags eventRegistration = {});
+            EventThread*, EventRegistrationFlags eventRegistration = {},
+            const sp<IBinder>& layerHandle = nullptr);
 
     // Update feature state machine to given state when corresponding timer resets or expires.
     void kernelIdleTimerCallback(TimerState) EXCLUDES(mDisplayLock);

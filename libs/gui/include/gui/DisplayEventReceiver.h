@@ -119,7 +119,8 @@ public:
      */
     explicit DisplayEventReceiver(gui::ISurfaceComposer::VsyncSource vsyncSource =
                                           gui::ISurfaceComposer::VsyncSource::eVsyncSourceApp,
-                                  EventRegistrationFlags eventRegistration = {});
+                                  EventRegistrationFlags eventRegistration = {},
+                                  const sp<IBinder>& layerHandle = nullptr);
 
     /*
      * ~DisplayEventReceiver severs the connection with SurfaceFlinger, new events

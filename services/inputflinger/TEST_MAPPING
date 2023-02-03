@@ -42,9 +42,11 @@
       "options": [
         {
           "include-filter": "android.view.cts.input",
+          "include-filter": "android.view.cts.HoverTest",
           "include-filter": "android.view.cts.MotionEventTest",
           "include-filter": "android.view.cts.PointerCaptureTest",
           "include-filter": "android.view.cts.TooltipTest",
+          "include-filter": "android.view.cts.VelocityTrackerTest",
           "include-filter": "android.view.cts.VerifyInputEventTest"
         }
       ]
@@ -131,9 +133,12 @@
       "name": "CtsViewTestCases",
       "options": [
         {
+          "include-filter": "android.view.cts.input",
+          "include-filter": "android.view.cts.HoverTest",
           "include-filter": "android.view.cts.MotionEventTest",
           "include-filter": "android.view.cts.PointerCaptureTest",
           "include-filter": "android.view.cts.TooltipTest",
+          "include-filter": "android.view.cts.VelocityTrackerTest",
           "include-filter": "android.view.cts.VerifyInputEventTest"
         }
       ]

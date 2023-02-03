@@ -532,6 +532,12 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
                                      const sp<EventThreadConnection>& connection) const {
     const auto throttleVsync = [&] {
         const auto& vsyncData = event.vsync.vsyncData;
+        if (connection->frameRate.isValid()) {
+            return !mVsyncSchedule->getTracker()
+                            .isVSyncInPhase(vsyncData.preferredExpectedPresentationTime(),
+                                            connection->frameRate);
+        }
+
         const auto expectedPresentTime =
                 TimePoint::fromNs(vsyncData.preferredExpectedPresentationTime());
         return !mEventThreadCallback.isVsyncTargetForUid(expectedPresentTime,

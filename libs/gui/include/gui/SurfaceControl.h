@@ -36,6 +36,7 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
+class Choreographer;
 class IGraphicBufferProducer;
 class Surface;
 class SurfaceComposerClient;
@@ -79,6 +80,9 @@ public:
     sp<IBinder> getLayerStateHandle() const;
     int32_t getLayerId() const;
     const std::string& getName() const;
+
+    // TODO(b/267195698): Consider renaming.
+    std::shared_ptr<Choreographer> getChoreographer();
 
     sp<IGraphicBufferProducer> getIGraphicBufferProducer();
 
@@ -130,6 +134,7 @@ private:
     PixelFormat mFormat = PIXEL_FORMAT_NONE;
     uint32_t mCreateFlags = 0;
     uint64_t mFallbackFrameNumber = 100;
+    std::shared_ptr<Choreographer> mChoreographer;
 };
 
 }; // namespace android

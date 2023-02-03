@@ -73,7 +73,8 @@ public:
     };
     static Context gChoreographers;
 
-    explicit Choreographer(const sp<Looper>& looper) EXCLUDES(gChoreographers.lock);
+    explicit Choreographer(const sp<Looper>& looper, const sp<IBinder>& layerHandle = nullptr)
+            EXCLUDES(gChoreographers.lock);
     void postFrameCallbackDelayed(AChoreographer_frameCallback cb,
                                   AChoreographer_frameCallback64 cb64,
                                   AChoreographer_vsyncCallback vsyncCallback, void* data,
