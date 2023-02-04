@@ -55,7 +55,7 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  *
  * below is an example of the XMP metadata that this function generates where
  * secondary_image_length = 1000
- * range_scaling_factor = 1.25
+ * max_content_boost = 8.0
  *
  * <x:xmpmeta
  *   xmlns:x="adobe:ns:meta/"
@@ -63,31 +63,26 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  *   <rdf:RDF
  *     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
  *     <rdf:Description
- *       xmlns:GContainer="http://ns.google.com/photos/1.0/container/"
+ *       xmlns:Container="http://ns.google.com/photos/1.0/container/"
+ *       xmlns:Item="http://ns.google.com/photos/1.0/container/item/"
  *       xmlns:RecoveryMap="http://ns.google.com/photos/1.0/recoverymap/">
- *       <GContainer:Version>1</GContainer:Version>
- *       <GContainer:Directory>
+ *       <Container:Directory>
  *         <rdf:Seq>
  *           <rdf:li>
- *             <GContainer:Item
- *               GContainer:ItemSemantic="Primary"
- *               GContainer:ItemMime="image/jpeg"
- *               RecoveryMap:Version=”1”
- *               RecoveryMap:RangeScalingFactor=”1.25”
- *               RecoveryMap:TransferFunction=”2”/>
- *               <RecoveryMap:HDR10Metadata
- *                 // some attributes
- *                 // some elements
- *               </RecoveryMap:HDR10Metadata>
+ *             <Container:Item
+ *              Item:Semantic="Primary"
+ *              Item:Mime="image/jpeg"
+ *              RecoveryMap:Version="1"
+ *              RecoveryMap:MaxContentBoost="8.0"/>
  *           </rdf:li>
  *           <rdf:li>
- *             <GContainer:Item
- *               GContainer:ItemSemantic="RecoveryMap"
- *               GContainer:ItemMime="image/jpeg"
- *               GContainer:ItemLength="1000"/>
+ *             <Container:Item
+ *               Item:Semantic="RecoveryMap"
+ *               Item:Mime="image/jpeg"
+ *               Item:Length="1000"/>
  *           </rdf:li>
  *         </rdf:Seq>
- *       </GContainer:Directory>
+ *       </Container:Directory>
  *     </rdf:Description>
  *   </rdf:RDF>
  * </x:xmpmeta>

@@ -103,8 +103,7 @@ TEST_F(RecoveryMapTest, build) {
 
 TEST_F(RecoveryMapTest, writeXmpThenRead) {
   jpegr_metadata metadata_expected;
-  metadata_expected.transferFunction = JPEGR_TF_HLG;
-  metadata_expected.rangeScalingFactor = 1.25;
+  metadata_expected.maxContentBoost = 1.25;
   int length_expected = 1000;
   const std::string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
   const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
@@ -120,8 +119,7 @@ TEST_F(RecoveryMapTest, writeXmpThenRead) {
 
   jpegr_metadata metadata_read;
   EXPECT_TRUE(getMetadataFromXMP(xmpData.data(), xmpData.size(), &metadata_read));
-  ASSERT_EQ(metadata_expected.transferFunction, metadata_read.transferFunction);
-  ASSERT_EQ(metadata_expected.rangeScalingFactor, metadata_read.rangeScalingFactor);
+  ASSERT_EQ(metadata_expected.maxContentBoost, metadata_read.maxContentBoost);
 }
 
 /* Test Encode API-0 and decode */

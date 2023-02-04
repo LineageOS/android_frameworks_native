@@ -383,6 +383,22 @@ TEST(ServiceNotifications, NoPermissionsRegister) {
 
     sp<CallbackHistorian> cb = sp<CallbackHistorian>::make();
 
+    EXPECT_EQ(sm->registerForNotifications("foofoo", cb).exceptionCode(), Status::EX_SECURITY);
+}
+
+TEST(GetService, IsolatedCantRegister) {
+    std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
+
+    EXPECT_CALL(*access, getCallingContext())
+            .WillOnce(Return(Access::CallingContext{
+                    .uid = AID_ISOLATED_START,
+            }));
+    EXPECT_CALL(*access, canFind(_, _)).WillOnce(Return(true));
+
+    sp<ServiceManager> sm = sp<ServiceManager>::make(std::move(access));
+
+    sp<CallbackHistorian> cb = sp<CallbackHistorian>::make();
+
     EXPECT_EQ(sm->registerForNotifications("foofoo", cb).exceptionCode(),
         Status::EX_SECURITY);
 }

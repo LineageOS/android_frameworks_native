@@ -88,10 +88,10 @@ public:
     return luminance_scaled * scale_factor;
   }
 
-  Color Recover(Color yuv_gamma, float recovery, float range_scaling_factor) {
+  Color Recover(Color yuv_gamma, float recovery, float max_content_boost) {
     Color rgb_gamma = srgbYuvToRgb(yuv_gamma);
     Color rgb = srgbInvOetf(rgb_gamma);
-    return applyRecovery(rgb, recovery, range_scaling_factor);
+    return applyRecovery(rgb, recovery, max_content_boost);
   }
 
   jpegr_uncompressed_struct Yuv420Image() {
