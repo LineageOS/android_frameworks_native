@@ -333,6 +333,9 @@ struct InputReaderConfiguration {
     // stylus button state changes are reported through motion events.
     bool stylusButtonMotionEventsEnabled;
 
+    // True if a pointer icon should be shown for direct stylus pointers.
+    bool stylusPointerIconEnabled;
+
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
             pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f,
@@ -358,7 +361,8 @@ struct InputReaderConfiguration {
             touchpadNaturalScrollingEnabled(true),
             touchpadTapToClickEnabled(true),
             touchpadRightClickZoneEnabled(false),
-            stylusButtonMotionEventsEnabled(true) {}
+            stylusButtonMotionEventsEnabled(true),
+            stylusPointerIconEnabled(false) {}
 
     static std::string changesToString(uint32_t changes);
 
