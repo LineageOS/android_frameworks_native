@@ -24,31 +24,34 @@ using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
 
-void InputTarget::addPointers(BitSet32 newPointerIds, const ui::Transform& transform) {
+void InputTarget::addPointers(std::bitset<MAX_POINTER_ID + 1> newPointerIds,
+                              const ui::Transform& transform) {
     // The pointerIds can be empty, but still a valid InputTarget. This can happen when there is no
     // valid pointer property from the input event.
-    if (newPointerIds.isEmpty()) {
+    if (newPointerIds.none()) {
         setDefaultPointerTransform(transform);
         return;
     }
 
     // Ensure that the new set of pointers doesn't overlap with the current set of pointers.
-    ALOG_ASSERT((pointerIds & newPointerIds) == 0);
+    LOG_ALWAYS_FATAL_IF((pointerIds & newPointerIds).any());
 
     pointerIds |= newPointerIds;
-    while (!newPointerIds.isEmpty()) {
-        int32_t pointerId = newPointerIds.clearFirstMarkedBit();
-        pointerTransforms[pointerId] = transform;
+    for (size_t i = 0; i < newPointerIds.size(); i++) {
+        if (!newPointerIds.test(i)) {
+            continue;
+        }
+        pointerTransforms[i] = transform;
     }
 }
 
 void InputTarget::setDefaultPointerTransform(const ui::Transform& transform) {
-    pointerIds.clear();
+    pointerIds.reset();
     pointerTransforms[0] = transform;
 }
 
 bool InputTarget::useDefaultPointerTransform() const {
-    return pointerIds.isEmpty();
+    return pointerIds.none();
 }
 
 const ui::Transform& InputTarget::getDefaultPointerTransform() const {
@@ -63,8 +66,8 @@ std::string InputTarget::getPointerInfoString() const {
         return out;
     }
 
-    for (uint32_t i = pointerIds.firstMarkedBit(); i <= pointerIds.lastMarkedBit(); i++) {
-        if (!pointerIds.hasBit(i)) {
+    for (uint32_t i = 0; i < pointerIds.size(); i++) {
+        if (!pointerIds.test(i)) {
             continue;
         }
 

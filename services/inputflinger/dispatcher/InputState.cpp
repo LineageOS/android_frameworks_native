@@ -374,7 +374,8 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
 }
 
 std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEventsForPointers(
-        const MotionMemento& memento, const BitSet32 pointerIds, nsecs_t currentTime) {
+        const MotionMemento& memento, std::bitset<MAX_POINTER_ID + 1> pointerIds,
+        nsecs_t currentTime) {
     std::vector<std::unique_ptr<MotionEntry>> events;
     std::vector<uint32_t> canceledPointerIndices;
     std::vector<PointerProperties> pointerProperties(MAX_POINTERS);
@@ -383,7 +384,7 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
         uint32_t pointerId = uint32_t(memento.pointerProperties[pointerIdx].id);
         pointerProperties[pointerIdx].copyFrom(memento.pointerProperties[pointerIdx]);
         pointerCoords[pointerIdx].copyFrom(memento.pointerCoords[pointerIdx]);
-        if (pointerIds.hasBit(pointerId)) {
+        if (pointerIds.test(pointerId)) {
             canceledPointerIndices.push_back(pointerIdx);
         }
     }

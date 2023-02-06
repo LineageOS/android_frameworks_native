@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <bitset>
 #include <set>
 #include "TouchedWindow.h"
 
@@ -46,7 +47,8 @@ struct TouchState {
     void removeTouchedPointerFromWindow(int32_t pointerId,
                                         const sp<android::gui::WindowInfoHandle>& windowHandle);
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
-                           ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
+                           ftl::Flags<InputTarget::Flags> targetFlags,
+                           std::bitset<MAX_POINTER_ID + 1> pointerIds,
                            std::optional<nsecs_t> firstDownTimeInTarget = std::nullopt);
     void addHoveringPointerToWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                     int32_t deviceId, int32_t hoveringPointerId);
@@ -56,7 +58,8 @@ struct TouchState {
     void filterNonAsIsTouchWindows();
 
     // Cancel pointers for current set of windows except the window with particular binder token.
-    void cancelPointersForWindowsExcept(const BitSet32 pointerIds, const sp<IBinder>& token);
+    void cancelPointersForWindowsExcept(std::bitset<MAX_POINTER_ID + 1> pointerIds,
+                                        const sp<IBinder>& token);
     // Cancel pointers for current set of non-pilfering windows i.e. windows with isPilferingWindow
     // set to false.
     void cancelPointersForNonPilferingWindows();

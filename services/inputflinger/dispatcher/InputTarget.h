@@ -21,6 +21,7 @@
 #include <input/InputTransport.h>
 #include <ui/Transform.h>
 #include <utils/BitSet.h>
+#include <bitset>
 
 namespace android::inputdispatcher {
 
@@ -105,7 +106,7 @@ struct InputTarget {
 
     // The subset of pointer ids to include in motion events dispatched to this input target
     // if FLAG_SPLIT is set.
-    BitSet32 pointerIds;
+    std::bitset<MAX_POINTER_ID + 1> pointerIds;
     // Event time for the first motion event (ACTION_DOWN) dispatched to this input target if
     // FLAG_SPLIT is set.
     std::optional<nsecs_t> firstDownTimeInTarget;
@@ -113,7 +114,7 @@ struct InputTarget {
     // Transform per pointerId.
     ui::Transform pointerTransforms[MAX_POINTERS];
 
-    void addPointers(BitSet32 pointerIds, const ui::Transform& transform);
+    void addPointers(std::bitset<MAX_POINTER_ID + 1> pointerIds, const ui::Transform& transform);
     void setDefaultPointerTransform(const ui::Transform& transform);
 
     /**
