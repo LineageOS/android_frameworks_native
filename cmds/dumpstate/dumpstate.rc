@@ -8,7 +8,6 @@ service dumpstate /system/bin/dumpstate -s
     socket dumpstate stream 0660 shell log
     disabled
     oneshot
-    capabilities CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID KILL NET_ADMIN NET_RAW SETGID SETUID SYS_PTRACE SYS_RESOURCE BLOCK_SUSPEND SYSLOG
 
 # dumpstatez generates a zipped bugreport but also uses a socket to print the file location once
 # it is finished.
@@ -17,11 +16,9 @@ service dumpstatez /system/bin/dumpstate -S
     class main
     disabled
     oneshot
-    capabilities CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID KILL NET_ADMIN NET_RAW SETGID SETUID SYS_PTRACE SYS_RESOURCE BLOCK_SUSPEND SYSLOG
 
 # bugreportd starts dumpstate binder service and makes it wait for a listener to connect.
 service bugreportd /system/bin/dumpstate -w
     class main
     disabled
     oneshot
-    capabilities CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID KILL NET_ADMIN NET_RAW SETGID SETUID SYS_PTRACE SYS_RESOURCE BLOCK_SUSPEND SYSLOG
