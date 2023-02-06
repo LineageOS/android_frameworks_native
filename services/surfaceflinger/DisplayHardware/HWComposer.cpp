@@ -30,7 +30,6 @@
 #include <compositionengine/Output.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
-#include <ftl/concat.h>
 #include <log/log.h>
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
@@ -149,17 +148,16 @@ bool HWComposer::updatesDeviceProductInfoOnHotplugReconnect() const {
     return mUpdateDeviceProductInfoOnHotplugReconnect;
 }
 
-std::optional<PhysicalDisplayId> HWComposer::onVsync(hal::HWDisplayId hwcDisplayId,
-                                                     nsecs_t timestamp) {
-    const auto displayIdOpt = toPhysicalDisplayId(hwcDisplayId);
-    if (!displayIdOpt) {
+bool HWComposer::onVsync(hal::HWDisplayId hwcDisplayId, nsecs_t timestamp) {
+    const auto displayId = toPhysicalDisplayId(hwcDisplayId);
+    if (!displayId) {
         LOG_HWC_DISPLAY_ERROR(hwcDisplayId, "Invalid HWC display");
-        return {};
+        return false;
     }
 
-    RETURN_IF_INVALID_DISPLAY(*displayIdOpt, {});
+    RETURN_IF_INVALID_DISPLAY(*displayId, false);
 
-    auto& displayData = mDisplayData[*displayIdOpt];
+    auto& displayData = mDisplayData[*displayId];
 
     {
         // There have been reports of HWCs that signal several vsync events
@@ -168,18 +166,18 @@ std::optional<PhysicalDisplayId> HWComposer::onVsync(hal::HWDisplayId hwcDisplay
         // out here so they don't cause havoc downstream.
         if (timestamp == displayData.lastPresentTimestamp) {
             ALOGW("Ignoring duplicate VSYNC event from HWC for display %s (t=%" PRId64 ")",
-                  to_string(*displayIdOpt).c_str(), timestamp);
-            return {};
+                  to_string(*displayId).c_str(), timestamp);
+            return false;
         }
 
         displayData.lastPresentTimestamp = timestamp;
     }
 
-    const ftl::Concat tag("HW_VSYNC_", displayIdOpt->value);
+    const auto tag = "HW_VSYNC_" + to_string(*displayId);
     ATRACE_INT(tag.c_str(), displayData.vsyncTraceToggle);
     displayData.vsyncTraceToggle = !displayData.vsyncTraceToggle;
 
-    return displayIdOpt;
+    return true;
 }
 
 size_t HWComposer::getMaxVirtualDisplayCount() const {

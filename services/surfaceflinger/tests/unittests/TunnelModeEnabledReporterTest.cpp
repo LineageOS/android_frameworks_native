@@ -117,7 +117,7 @@ void TunnelModeEnabledReporterTest::setupScheduler() {
                                                              ResyncCallback())));
 
     auto vsyncController = std::make_unique<mock::VsyncController>();
-    auto vsyncTracker = std::make_shared<mock::VSyncTracker>();
+    auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
 
     EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
     EXPECT_CALL(*vsyncTracker, currentPeriod())
