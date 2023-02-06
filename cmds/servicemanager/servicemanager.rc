@@ -5,7 +5,7 @@ service servicemanager /system/bin/servicemanager
     critical
     file /dev/kmsg w
     onrestart setprop servicemanager.ready false
-    onrestart restart apexd
+    onrestart restart --only-if-running apexd
     onrestart restart audioserver
     onrestart restart gatekeeperd
     onrestart class_restart --only-enabled main
