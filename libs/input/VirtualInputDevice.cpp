@@ -1,0 +1,378 @@
+/*
+ * Copyright (C) 2023 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#define LOG_TAG "VirtualInputDevice"
+
+#include <android/input.h>
+#include <android/keycodes.h>
+#include <fcntl.h>
+#include <input/Input.h>
+#include <input/VirtualInputDevice.h>
+#include <linux/uinput.h>
+#include <math.h>
+#include <utils/Log.h>
+
+#include <map>
+#include <string>
+
+using android::base::unique_fd;
+
+/**
+ * Log debug messages about native virtual input devices.
+ * Enable this via "adb shell setprop log.tag.VirtualInputDevice DEBUG"
+ */
+static bool isDebug() {
+    return __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG, ANDROID_LOG_INFO);
+}
+
+namespace android {
+VirtualInputDevice::VirtualInputDevice(unique_fd fd) : mFd(std::move(fd)) {}
+VirtualInputDevice::~VirtualInputDevice() {
+    ioctl(mFd, UI_DEV_DESTROY);
+}
+
+bool VirtualInputDevice::writeInputEvent(uint16_t type, uint16_t code, int32_t value) {
+    struct input_event ev = {.type = type, .code = code, .value = value};
+    return TEMP_FAILURE_RETRY(write(mFd, &ev, sizeof(struct input_event))) == sizeof(ev);
+}
+
+/** Utility method to write keyboard key events or mouse button events. */
+bool VirtualInputDevice::writeEvKeyEvent(int32_t androidCode, int32_t androidAction,
+                                         const std::map<int, int>& evKeyCodeMapping,
+                                         const std::map<int, UinputAction>& actionMapping) {
+    auto evKeyCodeIterator = evKeyCodeMapping.find(androidCode);
+    if (evKeyCodeIterator == evKeyCodeMapping.end()) {
+        ALOGE("Unsupported native EV keycode for android code %d", androidCode);
+        return false;
+    }
+    auto actionIterator = actionMapping.find(androidAction);
+    if (actionIterator == actionMapping.end()) {
+        return false;
+    }
+    if (!writeInputEvent(EV_KEY, static_cast<uint16_t>(evKeyCodeIterator->second),
+                         static_cast<int32_t>(actionIterator->second))) {
+        return false;
+    }
+    if (!writeInputEvent(EV_SYN, SYN_REPORT, 0)) {
+        return false;
+    }
+    return true;
+}
+
+// --- VirtualKeyboard ---
+const std::map<int, UinputAction> VirtualKeyboard::KEY_ACTION_MAPPING = {
+        {AKEY_EVENT_ACTION_DOWN, UinputAction::PRESS},
+        {AKEY_EVENT_ACTION_UP, UinputAction::RELEASE},
+};
+// Keycode mapping from https://source.android.com/devices/input/keyboard-devices
+const std::map<int, int> VirtualKeyboard::KEY_CODE_MAPPING = {
+        {AKEYCODE_0, KEY_0},
+        {AKEYCODE_1, KEY_1},
+        {AKEYCODE_2, KEY_2},
+        {AKEYCODE_3, KEY_3},
+        {AKEYCODE_4, KEY_4},
+        {AKEYCODE_5, KEY_5},
+        {AKEYCODE_6, KEY_6},
+        {AKEYCODE_7, KEY_7},
+        {AKEYCODE_8, KEY_8},
+        {AKEYCODE_9, KEY_9},
+        {AKEYCODE_A, KEY_A},
+        {AKEYCODE_B, KEY_B},
+        {AKEYCODE_C, KEY_C},
+        {AKEYCODE_D, KEY_D},
+        {AKEYCODE_E, KEY_E},
+        {AKEYCODE_F, KEY_F},
+        {AKEYCODE_G, KEY_G},
+        {AKEYCODE_H, KEY_H},
+        {AKEYCODE_I, KEY_I},
+        {AKEYCODE_J, KEY_J},
+        {AKEYCODE_K, KEY_K},
+        {AKEYCODE_L, KEY_L},
+        {AKEYCODE_M, KEY_M},
+        {AKEYCODE_N, KEY_N},
+        {AKEYCODE_O, KEY_O},
+        {AKEYCODE_P, KEY_P},
+        {AKEYCODE_Q, KEY_Q},
+        {AKEYCODE_R, KEY_R},
+        {AKEYCODE_S, KEY_S},
+        {AKEYCODE_T, KEY_T},
+        {AKEYCODE_U, KEY_U},
+        {AKEYCODE_V, KEY_V},
+        {AKEYCODE_W, KEY_W},
+        {AKEYCODE_X, KEY_X},
+        {AKEYCODE_Y, KEY_Y},
+        {AKEYCODE_Z, KEY_Z},
+        {AKEYCODE_GRAVE, KEY_GRAVE},
+        {AKEYCODE_MINUS, KEY_MINUS},
+        {AKEYCODE_EQUALS, KEY_EQUAL},
+        {AKEYCODE_LEFT_BRACKET, KEY_LEFTBRACE},
+        {AKEYCODE_RIGHT_BRACKET, KEY_RIGHTBRACE},
+        {AKEYCODE_BACKSLASH, KEY_BACKSLASH},
+        {AKEYCODE_SEMICOLON, KEY_SEMICOLON},
+        {AKEYCODE_APOSTROPHE, KEY_APOSTROPHE},
+        {AKEYCODE_COMMA, KEY_COMMA},
+        {AKEYCODE_PERIOD, KEY_DOT},
+        {AKEYCODE_SLASH, KEY_SLASH},
+        {AKEYCODE_ALT_LEFT, KEY_LEFTALT},
+        {AKEYCODE_ALT_RIGHT, KEY_RIGHTALT},
+        {AKEYCODE_CTRL_LEFT, KEY_LEFTCTRL},
+        {AKEYCODE_CTRL_RIGHT, KEY_RIGHTCTRL},
+        {AKEYCODE_SHIFT_LEFT, KEY_LEFTSHIFT},
+        {AKEYCODE_SHIFT_RIGHT, KEY_RIGHTSHIFT},
+        {AKEYCODE_META_LEFT, KEY_LEFTMETA},
+        {AKEYCODE_META_RIGHT, KEY_RIGHTMETA},
+        {AKEYCODE_CAPS_LOCK, KEY_CAPSLOCK},
+        {AKEYCODE_SCROLL_LOCK, KEY_SCROLLLOCK},
+        {AKEYCODE_NUM_LOCK, KEY_NUMLOCK},
+        {AKEYCODE_ENTER, KEY_ENTER},
+        {AKEYCODE_TAB, KEY_TAB},
+        {AKEYCODE_SPACE, KEY_SPACE},
+        {AKEYCODE_DPAD_DOWN, KEY_DOWN},
+        {AKEYCODE_DPAD_UP, KEY_UP},
+        {AKEYCODE_DPAD_LEFT, KEY_LEFT},
+        {AKEYCODE_DPAD_RIGHT, KEY_RIGHT},
+        {AKEYCODE_MOVE_END, KEY_END},
+        {AKEYCODE_MOVE_HOME, KEY_HOME},
+        {AKEYCODE_PAGE_DOWN, KEY_PAGEDOWN},
+        {AKEYCODE_PAGE_UP, KEY_PAGEUP},
+        {AKEYCODE_DEL, KEY_BACKSPACE},
+        {AKEYCODE_FORWARD_DEL, KEY_DELETE},
+        {AKEYCODE_INSERT, KEY_INSERT},
+        {AKEYCODE_ESCAPE, KEY_ESC},
+        {AKEYCODE_BREAK, KEY_PAUSE},
+        {AKEYCODE_F1, KEY_F1},
+        {AKEYCODE_F2, KEY_F2},
+        {AKEYCODE_F3, KEY_F3},
+        {AKEYCODE_F4, KEY_F4},
+        {AKEYCODE_F5, KEY_F5},
+        {AKEYCODE_F6, KEY_F6},
+        {AKEYCODE_F7, KEY_F7},
+        {AKEYCODE_F8, KEY_F8},
+        {AKEYCODE_F9, KEY_F9},
+        {AKEYCODE_F10, KEY_F10},
+        {AKEYCODE_F11, KEY_F11},
+        {AKEYCODE_F12, KEY_F12},
+        {AKEYCODE_BACK, KEY_BACK},
+        {AKEYCODE_FORWARD, KEY_FORWARD},
+        {AKEYCODE_NUMPAD_1, KEY_KP1},
+        {AKEYCODE_NUMPAD_2, KEY_KP2},
+        {AKEYCODE_NUMPAD_3, KEY_KP3},
+        {AKEYCODE_NUMPAD_4, KEY_KP4},
+        {AKEYCODE_NUMPAD_5, KEY_KP5},
+        {AKEYCODE_NUMPAD_6, KEY_KP6},
+        {AKEYCODE_NUMPAD_7, KEY_KP7},
+        {AKEYCODE_NUMPAD_8, KEY_KP8},
+        {AKEYCODE_NUMPAD_9, KEY_KP9},
+        {AKEYCODE_NUMPAD_0, KEY_KP0},
+        {AKEYCODE_NUMPAD_ADD, KEY_KPPLUS},
+        {AKEYCODE_NUMPAD_SUBTRACT, KEY_KPMINUS},
+        {AKEYCODE_NUMPAD_MULTIPLY, KEY_KPASTERISK},
+        {AKEYCODE_NUMPAD_DIVIDE, KEY_KPSLASH},
+        {AKEYCODE_NUMPAD_DOT, KEY_KPDOT},
+        {AKEYCODE_NUMPAD_ENTER, KEY_KPENTER},
+        {AKEYCODE_NUMPAD_EQUALS, KEY_KPEQUAL},
+        {AKEYCODE_NUMPAD_COMMA, KEY_KPCOMMA},
+};
+VirtualKeyboard::VirtualKeyboard(unique_fd fd) : VirtualInputDevice(std::move(fd)) {}
+VirtualKeyboard::~VirtualKeyboard() {}
+
+bool VirtualKeyboard::writeKeyEvent(int32_t androidKeyCode, int32_t androidAction) {
+    return writeEvKeyEvent(androidKeyCode, androidAction, KEY_CODE_MAPPING, KEY_ACTION_MAPPING);
+}
+
+// --- VirtualDpad ---
+// Dpad keycode mapping from https://source.android.com/devices/input/keyboard-devices
+const std::map<int, int> VirtualDpad::DPAD_KEY_CODE_MAPPING = {
+        // clang-format off
+        {AKEYCODE_DPAD_DOWN, KEY_DOWN},
+        {AKEYCODE_DPAD_UP, KEY_UP},
+        {AKEYCODE_DPAD_LEFT, KEY_LEFT},
+        {AKEYCODE_DPAD_RIGHT, KEY_RIGHT},
+        {AKEYCODE_DPAD_CENTER, KEY_SELECT},
+        {AKEYCODE_BACK, KEY_BACK},
+        // clang-format on
+};
+
+VirtualDpad::VirtualDpad(unique_fd fd) : VirtualInputDevice(std::move(fd)) {}
+
+VirtualDpad::~VirtualDpad() {}
+
+bool VirtualDpad::writeDpadKeyEvent(int32_t androidKeyCode, int32_t androidAction) {
+    return writeEvKeyEvent(androidKeyCode, androidAction, DPAD_KEY_CODE_MAPPING,
+                           VirtualKeyboard::KEY_ACTION_MAPPING);
+}
+
+// --- VirtualMouse ---
+const std::map<int, UinputAction> VirtualMouse::BUTTON_ACTION_MAPPING = {
+        {AMOTION_EVENT_ACTION_BUTTON_PRESS, UinputAction::PRESS},
+        {AMOTION_EVENT_ACTION_BUTTON_RELEASE, UinputAction::RELEASE},
+};
+
+// Button code mapping from https://source.android.com/devices/input/touch-devices
+const std::map<int, int> VirtualMouse::BUTTON_CODE_MAPPING = {
+        // clang-format off
+        {AMOTION_EVENT_BUTTON_PRIMARY, BTN_LEFT},
+        {AMOTION_EVENT_BUTTON_SECONDARY, BTN_RIGHT},
+        {AMOTION_EVENT_BUTTON_TERTIARY, BTN_MIDDLE},
+        {AMOTION_EVENT_BUTTON_BACK, BTN_BACK},
+        {AMOTION_EVENT_BUTTON_FORWARD, BTN_FORWARD},
+        // clang-format on
+};
+
+VirtualMouse::VirtualMouse(unique_fd fd) : VirtualInputDevice(std::move(fd)) {}
+
+VirtualMouse::~VirtualMouse() {}
+
+bool VirtualMouse::writeButtonEvent(int32_t androidButtonCode, int32_t androidAction) {
+    return writeEvKeyEvent(androidButtonCode, androidAction, BUTTON_CODE_MAPPING,
+                           BUTTON_ACTION_MAPPING);
+}
+
+bool VirtualMouse::writeRelativeEvent(float relativeX, float relativeY) {
+    return writeInputEvent(EV_REL, REL_X, relativeX) && writeInputEvent(EV_REL, REL_Y, relativeY) &&
+            writeInputEvent(EV_SYN, SYN_REPORT, 0);
+}
+
+bool VirtualMouse::writeScrollEvent(float xAxisMovement, float yAxisMovement) {
+    return writeInputEvent(EV_REL, REL_HWHEEL, xAxisMovement) &&
+            writeInputEvent(EV_REL, REL_WHEEL, yAxisMovement) &&
+            writeInputEvent(EV_SYN, SYN_REPORT, 0);
+}
+
+// --- VirtualTouchscreen ---
+const std::map<int, UinputAction> VirtualTouchscreen::TOUCH_ACTION_MAPPING = {
+        {AMOTION_EVENT_ACTION_DOWN, UinputAction::PRESS},
+        {AMOTION_EVENT_ACTION_UP, UinputAction::RELEASE},
+        {AMOTION_EVENT_ACTION_MOVE, UinputAction::MOVE},
+        {AMOTION_EVENT_ACTION_CANCEL, UinputAction::CANCEL},
+};
+// Tool type mapping from https://source.android.com/devices/input/touch-devices
+const std::map<int, int> VirtualTouchscreen::TOOL_TYPE_MAPPING = {
+        {AMOTION_EVENT_TOOL_TYPE_FINGER, MT_TOOL_FINGER},
+        {AMOTION_EVENT_TOOL_TYPE_PALM, MT_TOOL_PALM},
+};
+
+VirtualTouchscreen::VirtualTouchscreen(unique_fd fd) : VirtualInputDevice(std::move(fd)) {}
+
+VirtualTouchscreen::~VirtualTouchscreen() {}
+
+bool VirtualTouchscreen::isValidPointerId(int32_t pointerId, UinputAction uinputAction) {
+    if (pointerId < -1 || pointerId >= (int)MAX_POINTERS) {
+        ALOGE("Virtual touch event has invalid pointer id %d; value must be between -1 and %zu",
+              pointerId, MAX_POINTERS - 0);
+        return false;
+    }
+
+    if (uinputAction == UinputAction::PRESS && mActivePointers.test(pointerId)) {
+        ALOGE("Repetitive action DOWN event received on a pointer %d that is already down.",
+              pointerId);
+        return false;
+    }
+    if (uinputAction == UinputAction::RELEASE && !mActivePointers.test(pointerId)) {
+        ALOGE("PointerId %d action UP received with no prior action DOWN on touchscreen %d.",
+              pointerId, mFd.get());
+        return false;
+    }
+    return true;
+}
+
+bool VirtualTouchscreen::writeTouchEvent(int32_t pointerId, int32_t toolType, int32_t action,
+                                         float locationX, float locationY, float pressure,
+                                         float majorAxisSize) {
+    auto actionIterator = TOUCH_ACTION_MAPPING.find(action);
+    if (actionIterator == TOUCH_ACTION_MAPPING.end()) {
+        return false;
+    }
+    UinputAction uinputAction = actionIterator->second;
+    if (!isValidPointerId(pointerId, uinputAction)) {
+        return false;
+    }
+    if (!writeInputEvent(EV_ABS, ABS_MT_SLOT, pointerId)) {
+        return false;
+    }
+    auto toolTypeIterator = TOOL_TYPE_MAPPING.find(toolType);
+    if (toolTypeIterator == TOOL_TYPE_MAPPING.end()) {
+        return false;
+    }
+    if (!writeInputEvent(EV_ABS, ABS_MT_TOOL_TYPE,
+                         static_cast<int32_t>(toolTypeIterator->second))) {
+        return false;
+    }
+    if (uinputAction == UinputAction::PRESS && !handleTouchDown(pointerId)) {
+        return false;
+    }
+    if (uinputAction == UinputAction::RELEASE && !handleTouchUp(pointerId)) {
+        return false;
+    }
+    if (!writeInputEvent(EV_ABS, ABS_MT_POSITION_X, locationX)) {
+        return false;
+    }
+    if (!writeInputEvent(EV_ABS, ABS_MT_POSITION_Y, locationY)) {
+        return false;
+    }
+    if (!isnan(pressure)) {
+        if (!writeInputEvent(EV_ABS, ABS_MT_PRESSURE, pressure)) {
+            return false;
+        }
+    }
+    if (!isnan(majorAxisSize)) {
+        if (!writeInputEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, majorAxisSize)) {
+            return false;
+        }
+    }
+    return writeInputEvent(EV_SYN, SYN_REPORT, 0);
+}
+
+bool VirtualTouchscreen::handleTouchUp(int32_t pointerId) {
+    if (!writeInputEvent(EV_ABS, ABS_MT_TRACKING_ID, static_cast<int32_t>(-1))) {
+        return false;
+    }
+    // When a pointer is no longer in touch, remove the pointer id from the corresponding
+    // entry in the unreleased touches map.
+    mActivePointers.reset(pointerId);
+    ALOGD_IF(isDebug(), "Pointer %d erased from the touchscreen %d", pointerId, mFd.get());
+
+    // Only sends the BTN UP event when there's no pointers on the touchscreen.
+    if (mActivePointers.none()) {
+        if (!writeInputEvent(EV_KEY, BTN_TOUCH, static_cast<int32_t>(UinputAction::RELEASE))) {
+            return false;
+        }
+        ALOGD_IF(isDebug(), "No pointers on touchscreen %d, BTN UP event sent.", mFd.get());
+    }
+    return true;
+}
+
+bool VirtualTouchscreen::handleTouchDown(int32_t pointerId) {
+    // When a new pointer is down on the touchscreen, add the pointer id in the corresponding
+    // entry in the unreleased touches map.
+    if (mActivePointers.none()) {
+        // Only sends the BTN Down event when the first pointer on the touchscreen is down.
+        if (!writeInputEvent(EV_KEY, BTN_TOUCH, static_cast<int32_t>(UinputAction::PRESS))) {
+            return false;
+        }
+        ALOGD_IF(isDebug(), "First pointer %d down under touchscreen %d, BTN DOWN event sent",
+                 pointerId, mFd.get());
+    }
+
+    mActivePointers.set(pointerId);
+    ALOGD_IF(isDebug(), "Added pointer %d under touchscreen %d in the map", pointerId, mFd.get());
+    if (!writeInputEvent(EV_ABS, ABS_MT_TRACKING_ID, static_cast<int32_t>(pointerId))) {
+        return false;
+    }
+    return true;
+}
+
+} // namespace android
