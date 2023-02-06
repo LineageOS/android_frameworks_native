@@ -23,7 +23,8 @@
 #include <optional>
 #include <span>
 #include <string>
-#include <vector>
+
+#include <input/RingBuffer.h>
 
 #include <tensorflow/lite/core/api/error_reporter.h>
 #include <tensorflow/lite/interpreter.h>
@@ -83,11 +84,11 @@ public:
 private:
     int64_t mTimestamp = 0;
 
-    std::vector<float> mInputR;
-    std::vector<float> mInputPhi;
-    std::vector<float> mInputPressure;
-    std::vector<float> mInputTilt;
-    std::vector<float> mInputOrientation;
+    RingBuffer<float> mInputR;
+    RingBuffer<float> mInputPhi;
+    RingBuffer<float> mInputPressure;
+    RingBuffer<float> mInputTilt;
+    RingBuffer<float> mInputOrientation;
 
     // The samples defining the current polar axis.
     std::optional<TfLiteMotionPredictorSample> mAxisFrom;
