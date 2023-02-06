@@ -254,6 +254,10 @@ cc_library_shared {
     lto: {
         thin: true,
     },
+
+    cflags: [
+        "-Wthread-safety",
+    ],
 }
 
 // Used by media codec services exclusively as a static lib for

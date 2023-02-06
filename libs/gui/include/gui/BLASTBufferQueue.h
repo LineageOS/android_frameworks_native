@@ -44,23 +44,23 @@ public:
             mCurrentlyConnected(false),
             mPreviouslyConnected(false) {}
 
-    void onDisconnect() override;
+    void onDisconnect() override EXCLUDES(mMutex);
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
-                                  FrameEventHistoryDelta* outDelta) override REQUIRES(mMutex);
+                                  FrameEventHistoryDelta* outDelta) override EXCLUDES(mMutex);
     void updateFrameTimestamps(uint64_t frameNumber, nsecs_t refreshStartTime,
                                const sp<Fence>& gpuCompositionDoneFence,
                                const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
                                CompositorTiming compositorTiming, nsecs_t latchTime,
-                               nsecs_t dequeueReadyTime) REQUIRES(mMutex);
-    void getConnectionEvents(uint64_t frameNumber, bool* needsDisconnect);
+                               nsecs_t dequeueReadyTime) EXCLUDES(mMutex);
+    void getConnectionEvents(uint64_t frameNumber, bool* needsDisconnect) EXCLUDES(mMutex);
 
 protected:
-    void onSidebandStreamChanged() override REQUIRES(mMutex);
+    void onSidebandStreamChanged() override EXCLUDES(mMutex);
 
 private:
     const wp<BLASTBufferQueue> mBLASTBufferQueue;
 
-    uint64_t mCurrentFrameNumber = 0;
+    uint64_t mCurrentFrameNumber GUARDED_BY(mMutex) = 0;
 
     Mutex mMutex;
     ConsumerFrameEventHistory mFrameEventHistory GUARDED_BY(mMutex);
@@ -94,7 +94,7 @@ public:
                                std::optional<uint32_t> currentMaxAcquiredBufferCount);
     void releaseBufferCallbackLocked(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
                                      std::optional<uint32_t> currentMaxAcquiredBufferCount,
-                                     bool fakeRelease);
+                                     bool fakeRelease) REQUIRES(mMutex);
     void syncNextTransaction(std::function<void(SurfaceComposerClient::Transaction*)> callback,
                              bool acquireSingleBuffer = true);
     void stopContinuousSyncTransaction();
@@ -150,7 +150,7 @@ private:
     // mNumAcquired (buffers that queued to SF)  mPendingRelease.size() (buffers that are held by
     // blast). This counter is read by android studio profiler.
     std::string mQueuedBufferTrace;
-    sp<SurfaceControl> mSurfaceControl;
+    sp<SurfaceControl> mSurfaceControl GUARDED_BY(mMutex);
 
     mutable std::mutex mMutex;
     std::condition_variable mCallbackCV;
@@ -252,7 +252,7 @@ private:
     // callback for them.
     std::queue<sp<SurfaceControl>> mSurfaceControlsWithPendingCallback GUARDED_BY(mMutex);
 
-    uint32_t mCurrentMaxAcquiredBufferCount;
+    uint32_t mCurrentMaxAcquiredBufferCount GUARDED_BY(mMutex);
 
     // Flag to determine if syncTransaction should only acquire a single buffer and then clear or
     // continue to acquire buffers until explicitly cleared
@@ -276,8 +276,8 @@ private:
     // need to set this flag, notably only in the case where we are transitioning from a previous
     // transaction applied by us (one way, may not yet have reached server) and an upcoming
     // transaction that will be applied by some sync consumer.
-    bool mAppliedLastTransaction = false;
-    uint64_t mLastAppliedFrameNumber = 0;
+    bool mAppliedLastTransaction GUARDED_BY(mMutex) = false;
+    uint64_t mLastAppliedFrameNumber GUARDED_BY(mMutex) = 0;
 
     std::function<void(const std::string&)> mTransactionHangCallback;
 
