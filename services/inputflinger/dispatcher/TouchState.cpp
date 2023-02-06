@@ -164,17 +164,7 @@ void TouchState::cancelPointersForNonPilferingWindows() {
     std::for_each(windows.begin(), windows.end(), [&allPilferedPointerIds](TouchedWindow& w) {
         std::bitset<MAX_POINTER_ID + 1> pilferedByOtherWindows =
                 w.pilferedPointerIds ^ allPilferedPointerIds;
-        // TODO(b/211379801) : convert pointerIds to use std::bitset, which would allow us to
-        // replace the loop below with a bitwise operation. Currently, the XOR operation above is
-        // redundant, but is done to make the code more explicit / easier to convert later.
-        for (std::size_t i = 0; i < pilferedByOtherWindows.size(); i++) {
-            if (pilferedByOtherWindows.test(i) && !w.pilferedPointerIds.test(i)) {
-                // Pointer is pilfered by other windows, but not by this one! Remove it from here.
-                // We could call 'removeTouchedPointerFromWindow' here, but it's faster to directly
-                // manipulate it.
-                w.pointerIds.reset(i);
-            }
-        }
+        w.pointerIds &= ~pilferedByOtherWindows;
     });
     std::erase_if(windows, [](const TouchedWindow& w) { return w.pointerIds.none(); });
 }
