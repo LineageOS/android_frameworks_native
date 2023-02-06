@@ -20,6 +20,7 @@
 #include "Entry.h"
 
 #include <utils/Timers.h>
+#include <bitset>
 
 namespace android {
 namespace inputdispatcher {
@@ -128,7 +129,8 @@ private:
 
     // Synthesizes pointer cancel events for a particular set of pointers.
     std::vector<std::unique_ptr<MotionEntry>> synthesizeCancelationEventsForPointers(
-            const MotionMemento& memento, const BitSet32 pointerIds, nsecs_t currentTime);
+            const MotionMemento& memento, std::bitset<MAX_POINTER_ID + 1> pointerIds,
+            nsecs_t currentTime);
 };
 
 } // namespace inputdispatcher

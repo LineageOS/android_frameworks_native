@@ -30,9 +30,9 @@ namespace inputdispatcher {
 struct TouchedWindow {
     sp<gui::WindowInfoHandle> windowHandle;
     ftl::Flags<InputTarget::Flags> targetFlags;
-    BitSet32 pointerIds;
+    std::bitset<MAX_POINTER_ID + 1> pointerIds;
     // The pointer ids of the pointers that this window is currently pilfering
-    std::bitset<MAX_POINTERS> pilferedPointerIds;
+    std::bitset<MAX_POINTER_ID + 1> pilferedPointerIds;
     // Time at which the first action down occurred on this window.
     // NOTE: This is not initialized in case of HOVER entry/exit and DISPATCH_AS_OUTSIDE scenario.
     std::optional<nsecs_t> firstDownTimeInTarget;
@@ -47,7 +47,7 @@ struct TouchedWindow {
     std::string dump() const;
 
 private:
-    std::map<int32_t /*deviceId*/, std::bitset<MAX_POINTERS>> mHoveringPointerIdsByDevice;
+    std::map<int32_t /*deviceId*/, std::bitset<MAX_POINTER_ID + 1>> mHoveringPointerIdsByDevice;
 };
 
 } // namespace inputdispatcher

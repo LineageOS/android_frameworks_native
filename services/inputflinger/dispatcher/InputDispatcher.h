@@ -46,6 +46,7 @@
 #include <utils/Looper.h>
 #include <utils/Timers.h>
 #include <utils/threads.h>
+#include <bitset>
 #include <condition_variable>
 #include <deque>
 #include <optional>
@@ -550,7 +551,8 @@ private:
             const std::vector<Monitor>& gestureMonitors) const REQUIRES(mLock);
 
     void addWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
-                               ftl::Flags<InputTarget::Flags> targetFlags, BitSet32 pointerIds,
+                               ftl::Flags<InputTarget::Flags> targetFlags,
+                               std::bitset<MAX_POINTER_ID + 1> pointerIds,
                                std::optional<nsecs_t> firstDownTimeInTarget,
                                std::vector<InputTarget>& inputTargets) const REQUIRES(mLock);
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
@@ -636,7 +638,8 @@ private:
     // Splitting motion events across windows. When splitting motion event for a target,
     // splitDownTime refers to the time of first 'down' event on that particular target
     std::unique_ptr<MotionEntry> splitMotionEvent(const MotionEntry& originalMotionEntry,
-                                                  BitSet32 pointerIds, nsecs_t splitDownTime);
+                                                  std::bitset<MAX_POINTER_ID + 1> pointerIds,
+                                                  nsecs_t splitDownTime);
 
     // Reset and drop everything the dispatcher is doing.
     void resetAndDropEverythingLocked(const char* reason) REQUIRES(mLock);
@@ -703,7 +706,8 @@ private:
                                 ftl::Flags<InputTarget::Flags> newTargetFlags,
                                 const sp<android::gui::WindowInfoHandle> fromWindowHandle,
                                 const sp<android::gui::WindowInfoHandle> toWindowHandle,
-                                TouchState& state, const BitSet32& pointerIds) REQUIRES(mLock);
+                                TouchState& state, std::bitset<MAX_POINTER_ID + 1> pointerIds)
+            REQUIRES(mLock);
 
     sp<android::gui::WindowInfoHandle> findWallpaperWindowBelow(
             const sp<android::gui::WindowInfoHandle>& windowHandle) const REQUIRES(mLock);
