@@ -439,9 +439,6 @@ private:
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
 
     FrameRateOverrideMappings mFrameRateOverrideMappings;
-
-    // Keeps track of whether the screen is acquired for debug
-    std::atomic<bool> mScreenAcquired = false;
 };
 
 } // namespace scheduler
