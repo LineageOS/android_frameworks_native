@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
@@ -177,7 +176,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
 
     constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
-    FTL_FAKE_GUARD(kMainThreadContext, mScheduler->setDisplayPowerMode(kDisplayId1, kPowerModeOn));
+    mScheduler->setDisplayPowerMode(kPowerModeOn);
 
     constexpr uint32_t kDisplayArea = 999'999;
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
@@ -249,7 +248,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
 
     constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
-    FTL_FAKE_GUARD(kMainThreadContext, mScheduler->setDisplayPowerMode(kDisplayId1, kPowerModeOn));
+    mScheduler->setDisplayPowerMode(kPowerModeOn);
 
     constexpr uint32_t kDisplayArea = 999'999;
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);

@@ -55,7 +55,7 @@ struct VSyncPredictorTest : testing::Test {
     static constexpr size_t kOutlierTolerancePercent = 25;
     static constexpr nsecs_t mMaxRoundingError = 100;
 
-    VSyncPredictor tracker{"tracker", mPeriod, kHistorySize, kMinimumSamplesForPrediction,
+    VSyncPredictor tracker{mPeriod, kHistorySize, kMinimumSamplesForPrediction,
                            kOutlierTolerancePercent};
 };
 
@@ -376,8 +376,7 @@ TEST_F(VSyncPredictorTest, doesNotPredictBeforeTimePointWithHigherIntercept) {
 
 // See b/151146131
 TEST_F(VSyncPredictorTest, hasEnoughPrecision) {
-    VSyncPredictor tracker{"tracker", mPeriod, 20, kMinimumSamplesForPrediction,
-                           kOutlierTolerancePercent};
+    VSyncPredictor tracker{mPeriod, 20, kMinimumSamplesForPrediction, kOutlierTolerancePercent};
     std::vector<nsecs_t> const simulatedVsyncs{840873348817, 840890049444, 840906762675,
                                                840923581635, 840940161584, 840956868096,
                                                840973702473, 840990256277, 841007116851,

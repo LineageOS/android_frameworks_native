@@ -61,7 +61,7 @@ struct DozeNotSupportedVariant {
 struct EventThreadBaseSupportedVariant {
     static void setupVsyncAndEventThreadNoCallExpectations(DisplayTransactionTest* test) {
         // The callback should not be notified to toggle VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, _)).Times(0);
+        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_)).Times(0);
 
         // The event thread should not be notified.
         EXPECT_CALL(*test->mEventThread, onScreenReleased()).Times(0);
@@ -71,28 +71,24 @@ struct EventThreadBaseSupportedVariant {
 
 struct EventThreadNotSupportedVariant : public EventThreadBaseSupportedVariant {
     static void setupAcquireAndEnableVsyncCallExpectations(DisplayTransactionTest* test) {
-        // The callback should be notified to enable VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, true)).Times(1);
+        // These calls are only expected for the primary display.
 
-        // The event thread should not be notified.
-        EXPECT_CALL(*test->mEventThread, onScreenReleased()).Times(0);
-        EXPECT_CALL(*test->mEventThread, onScreenAcquired()).Times(0);
+        // Instead expect no calls.
+        setupVsyncAndEventThreadNoCallExpectations(test);
     }
 
     static void setupReleaseAndDisableVsyncCallExpectations(DisplayTransactionTest* test) {
-        // The callback should be notified to disable VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, false)).Times(1);
+        // These calls are only expected for the primary display.
 
-        // The event thread should not be notified.
-        EXPECT_CALL(*test->mEventThread, onScreenReleased()).Times(0);
-        EXPECT_CALL(*test->mEventThread, onScreenAcquired()).Times(0);
+        // Instead expect no calls.
+        setupVsyncAndEventThreadNoCallExpectations(test);
     }
 };
 
 struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
     static void setupAcquireAndEnableVsyncCallExpectations(DisplayTransactionTest* test) {
         // The callback should be notified to enable VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, true)).Times(1);
+        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(true)).Times(1);
 
         // The event thread should be notified that the screen was acquired.
         EXPECT_CALL(*test->mEventThread, onScreenAcquired()).Times(1);
@@ -100,7 +96,7 @@ struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
 
     static void setupReleaseAndDisableVsyncCallExpectations(DisplayTransactionTest* test) {
         // The callback should be notified to disable VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, false)).Times(1);
+        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(false)).Times(1);
 
         // The event thread should not be notified that the screen was released.
         EXPECT_CALL(*test->mEventThread, onScreenReleased()).Times(1);
@@ -109,12 +105,8 @@ struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
 
 struct DispSyncIsSupportedVariant {
     static void setupResetModelCallExpectations(DisplayTransactionTest* test) {
-        auto vsyncSchedule = test->mFlinger.scheduler()->getVsyncSchedule();
-        EXPECT_CALL(static_cast<mock::VsyncController&>(vsyncSchedule->getController()),
-                    startPeriodTransition(DEFAULT_VSYNC_PERIOD, false))
-                .Times(1);
-        EXPECT_CALL(static_cast<mock::VSyncTracker&>(vsyncSchedule->getTracker()), resetModel())
-                .Times(1);
+        EXPECT_CALL(*test->mVsyncController, startPeriodTransition(DEFAULT_VSYNC_PERIOD)).Times(1);
+        EXPECT_CALL(*test->mVSyncTracker, resetModel()).Times(1);
     }
 };
 
@@ -270,9 +262,8 @@ struct DisplayPowerCase {
         return display;
     }
 
-    static void setInitialHwVsyncEnabled(DisplayTransactionTest* test, PhysicalDisplayId id,
-                                         bool enabled) {
-        test->mFlinger.scheduler()->setInitialHwVsyncEnabled(id, enabled);
+    static void setInitialPrimaryHWVsyncEnabled(DisplayTransactionTest* test, bool enabled) {
+        test->mFlinger.scheduler()->mutablePrimaryHWVsyncEnabled() = enabled;
     }
 
     static void setupRepaintEverythingCallExpectations(DisplayTransactionTest* test) {
@@ -309,11 +300,6 @@ using PrimaryDisplayPowerCase =
 // A sample configuration for the external display.
 // In addition to not having event thread support, we emulate not having doze
 // support.
-// FIXME (b/267483230): ExternalDisplay supports the features tracked in
-// DispSyncIsSupportedVariant, but is the follower, so the
-// expectations set by DispSyncIsSupportedVariant don't match (wrong schedule).
-// We need a way to retrieve the proper DisplayId from
-// setupResetModelCallExpectations (or pass it in).
 template <typename TransitionVariant>
 using ExternalDisplayPowerCase =
         DisplayPowerCase<ExternalDisplayVariant, DozeNotSupportedVariant<ExternalDisplayVariant>,
@@ -343,12 +329,9 @@ void SetPowerModeInternalTest::transitionDisplayCommon() {
     Case::Doze::setupComposerCallExpectations(this);
     auto display =
             Case::injectDisplayWithInitialPowerMode(this, Case::Transition::INITIAL_POWER_MODE);
-    auto displayId = display->getId();
-    if (auto physicalDisplayId = PhysicalDisplayId::tryCast(displayId)) {
-        Case::setInitialHwVsyncEnabled(this, *physicalDisplayId,
-                                       PowerModeInitialVSyncEnabled<
-                                               Case::Transition::INITIAL_POWER_MODE>::value);
-    }
+    Case::setInitialPrimaryHWVsyncEnabled(this,
+                                          PowerModeInitialVSyncEnabled<
+                                                  Case::Transition::INITIAL_POWER_MODE>::value);
 
     // --------------------------------------------------------------------
     // Call Expectations
