@@ -101,6 +101,8 @@ public:
     // Creates a model from an encoded Flatbuffer model.
     static std::unique_ptr<TfLiteMotionPredictorModel> create(const char* modelPath);
 
+    ~TfLiteMotionPredictorModel();
+
     // Returns the length of the model's input buffers.
     size_t inputLength() const;
 

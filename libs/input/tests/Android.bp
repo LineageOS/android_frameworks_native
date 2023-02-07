@@ -34,6 +34,7 @@ cc_test {
         "libgmock",
         "libgui_window_info_static",
         "libinput",
+        "libtflite_static",
         "libui-types",
     ],
     cflags: [
@@ -48,7 +49,6 @@ cc_test {
         "libcutils",
         "liblog",
         "libPlatformProperties",
-        "libtflite",
         "libutils",
         "libvintf",
     ],

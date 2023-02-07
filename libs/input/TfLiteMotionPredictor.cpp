@@ -35,9 +35,11 @@
 #include <log/log.h>
 
 #include "tensorflow/lite/core/api/error_reporter.h"
+#include "tensorflow/lite/core/api/op_resolver.h"
 #include "tensorflow/lite/interpreter.h"
-#include "tensorflow/lite/kernels/register.h"
+#include "tensorflow/lite/kernels/builtin_op_kernels.h"
 #include "tensorflow/lite/model.h"
+#include "tensorflow/lite/mutable_op_resolver.h"
 
 namespace android {
 namespace {
@@ -100,6 +102,15 @@ void checkTensor(const TfLiteTensor* tensor) {
 
     const auto buffer = getTensorBuffer<const T>(tensor);
     LOG_ALWAYS_FATAL_IF(buffer.empty(), "No buffer for tensor '%s'", tensor->name);
+}
+
+std::unique_ptr<tflite::OpResolver> createOpResolver() {
+    auto resolver = std::make_unique<tflite::MutableOpResolver>();
+    resolver->AddBuiltin(::tflite::BuiltinOperator_CONCATENATION,
+                         ::tflite::ops::builtin::Register_CONCATENATION());
+    resolver->AddBuiltin(::tflite::BuiltinOperator_FULLY_CONNECTED,
+                         ::tflite::ops::builtin::Register_FULLY_CONNECTED());
+    return resolver;
 }
 
 } // namespace
@@ -214,8 +225,8 @@ TfLiteMotionPredictorModel::TfLiteMotionPredictorModel(std::string model)
                                                                mErrorReporter.get());
     LOG_ALWAYS_FATAL_IF(!mModel);
 
-    tflite::ops::builtin::BuiltinOpResolver resolver;
-    tflite::InterpreterBuilder builder(*mModel, resolver);
+    auto resolver = createOpResolver();
+    tflite::InterpreterBuilder builder(*mModel, *resolver);
 
     if (builder(&mInterpreter) != kTfLiteOk || !mInterpreter) {
         LOG_ALWAYS_FATAL("Failed to build interpreter");
@@ -226,6 +237,8 @@ TfLiteMotionPredictorModel::TfLiteMotionPredictorModel(std::string model)
 
     allocateTensors();
 }
+
+TfLiteMotionPredictorModel::~TfLiteMotionPredictorModel() {}
 
 void TfLiteMotionPredictorModel::allocateTensors() {
     if (mRunner->AllocateTensors() != kTfLiteOk) {
