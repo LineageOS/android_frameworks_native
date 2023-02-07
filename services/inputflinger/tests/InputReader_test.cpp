@@ -10084,6 +10084,26 @@ TEST_F(MultiTouchInputMapperTest, Process_UnCapturedTouchpadPointer) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0], 100 * scale, 100 * scale, 0,
                                                 0, 0, 0, 0, 0, 0, 0));
+
+    // BUTTON DOWN
+    processKey(mapper, BTN_LEFT, 1);
+    processSync(mapper);
+
+    // touchinputmapper design sends a move before button press
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, args.action);
+
+    // BUTTON UP
+    processKey(mapper, BTN_LEFT, 0);
+    processSync(mapper);
+
+    // touchinputmapper design sends a move after button release
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, args.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
 }
 
 TEST_F(MultiTouchInputMapperTest, WhenCapturedAndNotCaptured_GetSources) {
