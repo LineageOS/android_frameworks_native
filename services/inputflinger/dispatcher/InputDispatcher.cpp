@@ -2276,6 +2276,20 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                 tempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags, pointerIds);
             }
         }
+
+        // Update the pointerIds for non-splittable when it received pointer down.
+        if (!isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
+            // If no split, we suppose all touched windows should receive pointer down.
+            const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
+            for (size_t i = 0; i < tempTouchState.windows.size(); i++) {
+                TouchedWindow& touchedWindow = tempTouchState.windows[i];
+                // Ignore drag window for it should just track one pointer.
+                if (mDragState && mDragState->dragWindow == touchedWindow.windowHandle) {
+                    continue;
+                }
+                touchedWindow.pointerIds.markBit(entry.pointerProperties[pointerIndex].id);
+            }
+        }
     }
 
     // Update dispatching for hover enter and exit.
@@ -2384,13 +2398,15 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                 if (info->displayId == displayId &&
                     windowHandle->getInfo()->inputConfig.test(
                             WindowInfo::InputConfig::IS_WALLPAPER)) {
+                    BitSet32 pointerIds;
+                    pointerIds.markBit(entry.pointerProperties[0].id);
                     tempTouchState
                             .addOrUpdateWindow(windowHandle,
                                                InputTarget::FLAG_WINDOW_IS_OBSCURED |
                                                        InputTarget::
                                                                FLAG_WINDOW_IS_PARTIALLY_OBSCURED |
                                                        InputTarget::FLAG_DISPATCH_AS_IS,
-                                               BitSet32(0));
+                                               pointerIds);
                 }
             }
         }
@@ -2459,17 +2475,6 @@ Failed:
                     continue;
                 }
                 i += 1;
-            }
-        } else if (!isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
-            // If no split, we suppose all touched windows should receive pointer down.
-            const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
-            for (size_t i = 0; i < tempTouchState.windows.size(); i++) {
-                TouchedWindow& touchedWindow = tempTouchState.windows[i];
-                // Ignore drag window for it should just track one pointer.
-                if (mDragState && mDragState->dragWindow == touchedWindow.windowHandle) {
-                    continue;
-                }
-                touchedWindow.pointerIds.markBit(entry.pointerProperties[pointerIndex].id);
             }
         }
 
