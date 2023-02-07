@@ -109,7 +109,7 @@ public:
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format);
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
-    status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
+    status_t setFrameTimelineInfo(uint64_t frameNumber, const FrameTimelineInfo& info);
 
     void setSidebandStream(const sp<NativeHandle>& stream);
 
@@ -237,7 +237,7 @@ private:
     std::vector<std::tuple<uint64_t /* framenumber */, SurfaceComposerClient::Transaction>>
             mPendingTransactions GUARDED_BY(mMutex);
 
-    std::queue<FrameTimelineInfo> mNextFrameTimelineInfoQueue GUARDED_BY(mMutex);
+    std::queue<std::pair<uint64_t, FrameTimelineInfo>> mPendingFrameTimelines GUARDED_BY(mMutex);
 
     // Tracks the last acquired frame number
     uint64_t mLastAcquiredFrameNumber GUARDED_BY(mMutex) = 0;
