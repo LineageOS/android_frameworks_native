@@ -74,6 +74,7 @@
 #include "FrontEnd/LayerSnapshot.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
+#include "Scheduler/ISchedulerCallback.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
@@ -954,9 +955,9 @@ private:
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
 
-    void setHWCVsyncEnabled(PhysicalDisplayId id, hal::Vsync enabled) {
-        mLastHWCVsyncState = enabled;
-        getHwComposer().setVsyncEnabled(id, enabled);
+    void setHWCVsyncEnabled(PhysicalDisplayId id, bool enabled) {
+        hal::Vsync halState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
+        getHwComposer().setVsyncEnabled(id, halState);
     }
 
     using FenceTimePtr = std::shared_ptr<FenceTime>;
@@ -1281,9 +1282,6 @@ private:
 
     TimePoint mScheduledPresentTime GUARDED_BY(kMainThreadContext);
     TimePoint mExpectedPresentTime GUARDED_BY(kMainThreadContext);
-
-    hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
-    hal::Vsync mLastHWCVsyncState = hal::Vsync::DISABLE;
 
     // below flags are set by main thread only
     bool mSetActiveModePending = false;

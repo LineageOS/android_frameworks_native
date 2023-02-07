@@ -2031,8 +2031,7 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
         return;
     }
 
-    bool periodFlushed = false;
-    mScheduler->addResyncSample(timestamp, vsyncPeriod, &periodFlushed);
+    const bool periodFlushed = mScheduler->addResyncSample(timestamp, vsyncPeriod);
     if (periodFlushed) {
         mScheduler->modulateVsync(&VsyncModulator::onRefreshRateChangeCompleted);
     }
@@ -2080,11 +2079,14 @@ void SurfaceFlinger::setVsyncEnabled(bool enabled) {
 
     // On main thread to avoid race conditions with display power state.
     static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
-        mHWCVsyncPendingState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
+        {
+            ftl::FakeGuard guard(kMainThreadContext);
+            mScheduler->getVsyncSchedule().setPendingHardwareVsyncState(enabled);
+        }
 
         if (const auto display = getDefaultDisplayDeviceLocked();
             display && display->isPoweredOn()) {
-            setHWCVsyncEnabled(display->getPhysicalId(), mHWCVsyncPendingState);
+            setHWCVsyncEnabled(display->getPhysicalId(), enabled);
         }
     }));
 }
@@ -5012,7 +5014,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
         getHwComposer().setPowerMode(displayId, mode);
         if (isActiveDisplay && mode != hal::PowerMode::DOZE_SUSPEND) {
-            setHWCVsyncEnabled(displayId, mHWCVsyncPendingState);
+            setHWCVsyncEnabled(displayId,
+                               mScheduler->getVsyncSchedule().getPendingHardwareVsyncState());
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, refreshRate);
         }
@@ -5033,7 +5036,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
 
         // Make sure HWVsync is disabled before turning off the display
-        setHWCVsyncEnabled(displayId, hal::Vsync::DISABLE);
+        setHWCVsyncEnabled(displayId, false);
 
         getHwComposer().setPowerMode(displayId, mode);
         mVisibleRegionsDirty = true;
@@ -5241,14 +5244,6 @@ void SurfaceFlinger::dumpScheduler(std::string& result) const {
     utils::Dumper dumper{result};
 
     mScheduler->dump(dumper);
-
-    // TODO(b/241286146): Move to Scheduler.
-    {
-        utils::Dumper::Indent indent(dumper);
-        dumper.dump("lastHwcVsyncState"sv, mLastHWCVsyncState);
-        dumper.dump("pendingHwcVsyncState"sv, mHWCVsyncPendingState);
-    }
-    dumper.eol();
 
     // TODO(b/241285876): Move to DisplayModeController.
     dumper.dump("debugDisplayModeSetByBackdoor"sv, mDebugDisplayModeSetByBackdoor);

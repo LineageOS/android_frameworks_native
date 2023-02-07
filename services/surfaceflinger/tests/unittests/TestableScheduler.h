@@ -44,9 +44,9 @@ public:
                       std::unique_ptr<VSyncTracker> tracker, RefreshRateSelectorPtr selectorPtr,
                       sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
           : Scheduler(*this, callback, Feature::kContentDetection, std::move(modulatorPtr)) {
-        mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker),
-                                             std::make_unique<mock::VSyncDispatch>(),
-                                             std::move(controller)));
+        mVsyncSchedule = std::unique_ptr<VsyncSchedule>(
+                new VsyncSchedule(std::move(tracker), std::make_unique<mock::VSyncDispatch>(),
+                                  std::move(controller)));
 
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplay(displayId, std::move(selectorPtr));
@@ -65,13 +65,6 @@ public:
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
         return Scheduler::createConnection(std::move(eventThread));
     }
-
-    /* ------------------------------------------------------------------------
-     * Read-write access to private data to set up preconditions and assert
-     * post-conditions.
-     */
-    auto& mutablePrimaryHWVsyncEnabled() { return mPrimaryHWVsyncEnabled; }
-    auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
 
     auto refreshRateSelector() { return leaderSelectorPtr(); }
 
@@ -155,6 +148,12 @@ public:
 
     void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, const FrameRateMode& mode) {
         Scheduler::onNonPrimaryDisplayModeChanged(handle, mode);
+    }
+
+    void setInitialHwVsyncEnabled(bool enabled) {
+        std::lock_guard<std::mutex> lock(mVsyncSchedule->mHwVsyncLock);
+        mVsyncSchedule->mHwVsyncState = enabled ? VsyncSchedule::HwVsyncState::Enabled
+                                                : VsyncSchedule::HwVsyncState::Disabled;
     }
 
 private:

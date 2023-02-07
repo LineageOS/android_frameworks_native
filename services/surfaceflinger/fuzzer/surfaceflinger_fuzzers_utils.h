@@ -234,7 +234,8 @@ public:
                       std::shared_ptr<RefreshRateSelector> selectorPtr,
                       sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
           : Scheduler(*this, callback, Feature::kContentDetection, std::move(modulatorPtr)) {
-        mVsyncSchedule.emplace(VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
+        mVsyncSchedule = std::unique_ptr<VsyncSchedule>(
+                new VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
 
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplay(displayId, std::move(selectorPtr));
@@ -243,9 +244,6 @@ public:
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
         return Scheduler::createConnection(std::move(eventThread));
     }
-
-    auto &mutablePrimaryHWVsyncEnabled() { return mPrimaryHWVsyncEnabled; }
-    auto &mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
 
     auto &mutableLayerHistory() { return mLayerHistory; }
 

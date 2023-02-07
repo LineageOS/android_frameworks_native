@@ -155,7 +155,7 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
 }
 
 void Scheduler::createVsyncSchedule(FeatureFlags features) {
-    mVsyncSchedule.emplace(features);
+    mVsyncSchedule = std::make_unique<VsyncSchedule>(features);
 }
 
 std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
@@ -393,38 +393,17 @@ void Scheduler::setVsyncConfig(const VsyncConfig& config, Period vsyncPeriod) {
 }
 
 void Scheduler::enableHardwareVsync() {
-    std::lock_guard<std::mutex> lock(mHWVsyncLock);
-    if (!mPrimaryHWVsyncEnabled && mHWVsyncAvailable) {
-        mVsyncSchedule->getTracker().resetModel();
-        mSchedulerCallback.setVsyncEnabled(true);
-        mPrimaryHWVsyncEnabled = true;
-    }
+    mVsyncSchedule->enableHardwareVsync(mSchedulerCallback);
 }
 
-void Scheduler::disableHardwareVsync(bool makeUnavailable) {
-    std::lock_guard<std::mutex> lock(mHWVsyncLock);
-    if (mPrimaryHWVsyncEnabled) {
-        mSchedulerCallback.setVsyncEnabled(false);
-        mPrimaryHWVsyncEnabled = false;
-    }
-    if (makeUnavailable) {
-        mHWVsyncAvailable = false;
-    }
+void Scheduler::disableHardwareVsync(bool disallow) {
+    mVsyncSchedule->disableHardwareVsync(mSchedulerCallback, disallow);
 }
 
-void Scheduler::resyncToHardwareVsync(bool makeAvailable, Fps refreshRate) {
-    {
-        std::lock_guard<std::mutex> lock(mHWVsyncLock);
-        if (makeAvailable) {
-            mHWVsyncAvailable = makeAvailable;
-        } else if (!mHWVsyncAvailable) {
-            // Hardware vsync is not currently available, so abort the resync
-            // attempt for now
-            return;
-        }
+void Scheduler::resyncToHardwareVsync(bool allowToEnable, Fps refreshRate) {
+    if (mVsyncSchedule->isHardwareVsyncAllowed(allowToEnable) && refreshRate.isValid()) {
+        mVsyncSchedule->startPeriodTransition(mSchedulerCallback, refreshRate.getPeriod());
     }
-
-    setVsyncPeriod(refreshRate.getPeriodNsecs());
 }
 
 void Scheduler::setRenderRate(Fps renderFrameRate) {
@@ -457,37 +436,12 @@ void Scheduler::resync() {
     }
 }
 
-void Scheduler::setVsyncPeriod(nsecs_t period) {
-    if (period <= 0) return;
-
-    std::lock_guard<std::mutex> lock(mHWVsyncLock);
-    mVsyncSchedule->getController().startPeriodTransition(period);
-
-    if (!mPrimaryHWVsyncEnabled) {
-        mVsyncSchedule->getTracker().resetModel();
-        mSchedulerCallback.setVsyncEnabled(true);
-        mPrimaryHWVsyncEnabled = true;
-    }
-}
-
-void Scheduler::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
-                                bool* periodFlushed) {
-    bool needsHwVsync = false;
-    *periodFlushed = false;
-    { // Scope for the lock
-        std::lock_guard<std::mutex> lock(mHWVsyncLock);
-        if (mPrimaryHWVsyncEnabled) {
-            needsHwVsync =
-                    mVsyncSchedule->getController().addHwVsyncTimestamp(timestamp, hwcVsyncPeriod,
-                                                                        periodFlushed);
-        }
-    }
-
-    if (needsHwVsync) {
-        enableHardwareVsync();
-    } else {
-        disableHardwareVsync(false);
-    }
+bool Scheduler::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriodIn) {
+    const auto hwcVsyncPeriod = ftl::Optional(hwcVsyncPeriodIn).transform([](nsecs_t nanos) {
+        return Period::fromNs(nanos);
+    });
+    return mVsyncSchedule->addResyncSample(mSchedulerCallback, TimePoint::fromNs(timestamp),
+                                           hwcVsyncPeriod);
 }
 
 void Scheduler::addPresentFence(std::shared_ptr<FenceTime> fence) {
@@ -635,14 +589,6 @@ void Scheduler::dump(utils::Dumper& dumper) const {
 
     mFrameRateOverrideMappings.dump(dumper);
     dumper.eol();
-
-    {
-        utils::Dumper::Section section(dumper, "Hardware VSYNC"sv);
-
-        std::lock_guard lock(mHWVsyncLock);
-        dumper.dump("hwVsyncAvailable"sv, mHWVsyncAvailable);
-        dumper.dump("hwVsyncEnabled"sv, mPrimaryHWVsyncEnabled);
-    }
 }
 
 void Scheduler::dumpVsync(std::string& out) const {
