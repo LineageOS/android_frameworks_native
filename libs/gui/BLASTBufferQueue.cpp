@@ -678,7 +678,6 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
         BBQ_TRACE();
         bool waitForTransactionCallback = !mSyncedFrameNumbers.empty();
 
-        bool waitForTransactionCallback = !mSyncedFrameNumbers.empty();
         const bool syncTransactionSet = mTransactionReadyCallback != nullptr;
         BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
 
