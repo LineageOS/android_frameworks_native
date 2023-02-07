@@ -2741,7 +2741,8 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
         if (displayInfoIt != mDisplayInfos.end()) {
             inputTarget.displayTransform = displayInfoIt->second.transform;
         } else {
-            ALOGE("DisplayInfo not found for window on display: %d", windowInfo->displayId);
+            // DisplayInfo not found for this window on display windowInfo->displayId.
+            // TODO(b/198444055): Make this an error message after 'setInputWindows' API is removed.
         }
         inputTargets.push_back(inputTarget);
         it = inputTargets.end() - 1;
