@@ -2031,13 +2031,9 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
 
     Mutex::Autolock lock(mStateLock);
 
-    if (!getHwComposer().onVsync(hwcDisplayId, timestamp)) {
-        return;
-    }
-
-    if (const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
-        displayId != mActiveDisplayId) {
-        // For now, we don't do anything with non active display vsyncs.
+    if (const auto displayIdOpt = getHwComposer().onVsync(hwcDisplayId, timestamp);
+        displayIdOpt != mActiveDisplayId) {
+        // Ignore VSYNC for invalid/inactive displays.
         return;
     }
 
