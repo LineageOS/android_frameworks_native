@@ -26,11 +26,11 @@
 #include <android-base/thread_annotations.h>
 
 #include "VSyncDispatch.h"
+#include "VsyncSchedule.h"
 
 namespace android::scheduler {
 
 class TimeKeeper;
-class VSyncTracker;
 
 // VSyncDispatchTimerQueueEntry is a helper class representing internal state for each entry in
 // VSyncDispatchTimerQueue hoisted to public for unit testing.
@@ -120,8 +120,8 @@ public:
     //                                  should be grouped into one wakeup.
     // \param[in] minVsyncDistance      The minimum distance between two vsync estimates before the
     //                                  vsyncs are considered the same vsync event.
-    VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper>, VSyncTracker&, nsecs_t timerSlack,
-                            nsecs_t minVsyncDistance);
+    VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper>, VsyncSchedule::TrackerPtr,
+                            nsecs_t timerSlack, nsecs_t minVsyncDistance);
     ~VSyncDispatchTimerQueue();
 
     CallbackToken registerCallback(Callback, std::string callbackName) final;
@@ -148,7 +148,7 @@ private:
 
     static constexpr nsecs_t kInvalidTime = std::numeric_limits<int64_t>::max();
     std::unique_ptr<TimeKeeper> const mTimeKeeper;
-    VSyncTracker& mTracker;
+    VsyncSchedule::TrackerPtr mTracker;
     nsecs_t const mTimerSlack;
     nsecs_t const mMinVsyncDistance;
 
