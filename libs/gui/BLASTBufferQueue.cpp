@@ -35,6 +35,7 @@
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
 
+#include <android-base/thread_annotations.h>
 #include <chrono>
 
 using namespace std::chrono_literals;
@@ -62,6 +63,10 @@ namespace android {
 #define BBQ_TRACE(x, ...)                                                                  \
     ATRACE_FORMAT("%s - %s(f:%u,a:%u)" x, __FUNCTION__, mName.c_str(), mNumFrameAvailable, \
                   mNumAcquired, ##__VA_ARGS__)
+
+#define UNIQUE_LOCK_WITH_ASSERTION(mutex) \
+    std::unique_lock _lock{mutex};        \
+    base::ScopedLockAssertion assumeLocked(mutex);
 
 void BLASTBufferItemConsumer::onDisconnect() {
     Mutex::Autolock lock(mMutex);
@@ -207,7 +212,7 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
                               int32_t format) {
     LOG_ALWAYS_FATAL_IF(surface == nullptr, "BLASTBufferQueue: mSurfaceControl must not be NULL");
 
-    std::unique_lock _lock{mMutex};
+    std::lock_guard _lock{mMutex};
     if (mFormat != format) {
         mFormat = format;
         mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
@@ -277,7 +282,7 @@ void BLASTBufferQueue::transactionCommittedCallback(nsecs_t /*latchTime*/,
                                                     const sp<Fence>& /*presentFence*/,
                                                     const std::vector<SurfaceControlStats>& stats) {
     {
-        std::unique_lock _lock{mMutex};
+        std::lock_guard _lock{mMutex};
         BBQ_TRACE();
         BQA_LOGV("transactionCommittedCallback");
         if (!mSurfaceControlsWithPendingCallback.empty()) {
@@ -325,7 +330,7 @@ static void transactionCallbackThunk(void* context, nsecs_t latchTime,
 void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence>& /*presentFence*/,
                                            const std::vector<SurfaceControlStats>& stats) {
     {
-        std::unique_lock _lock{mMutex};
+        std::lock_guard _lock{mMutex};
         BBQ_TRACE();
         BQA_LOGV("transactionCallback");
 
@@ -406,9 +411,8 @@ void BLASTBufferQueue::flushShadowQueue() {
 void BLASTBufferQueue::releaseBufferCallback(
         const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
         std::optional<uint32_t> currentMaxAcquiredBufferCount) {
+    std::lock_guard _lock{mMutex};
     BBQ_TRACE();
-
-    std::unique_lock _lock{mMutex};
     releaseBufferCallbackLocked(id, releaseFence, currentMaxAcquiredBufferCount,
                                 false /* fakeRelease */);
 }
@@ -423,10 +427,8 @@ void BLASTBufferQueue::releaseBufferCallbackLocked(
     // to the buffer queue. This will prevent higher latency when we are running
     // on a lower refresh rate than the max supported. We only do that for EGL
     // clients as others don't care about latency
-    const bool isEGL = [&] {
-        const auto it = mSubmitted.find(id);
-        return it != mSubmitted.end() && it->second.mApi == NATIVE_WINDOW_API_EGL;
-    }();
+    const auto it = mSubmitted.find(id);
+    const bool isEGL = it != mSubmitted.end() && it->second.mApi == NATIVE_WINDOW_API_EGL;
 
     if (currentMaxAcquiredBufferCount) {
         mCurrentMaxAcquiredBufferCount = *currentMaxAcquiredBufferCount;
@@ -607,7 +609,7 @@ status_t BLASTBufferQueue::acquireNextBufferLocked(
     }
 
     {
-        std::unique_lock _lock{mTimestampMutex};
+        std::lock_guard _lock{mTimestampMutex};
         auto dequeueTime = mDequeueTimestamps.find(buffer->getId());
         if (dequeueTime != mDequeueTimestamps.end()) {
             Parcel p;
@@ -662,11 +664,11 @@ void BLASTBufferQueue::acquireAndReleaseBuffer() {
 void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     std::function<void(SurfaceComposerClient::Transaction*)> prevCallback = nullptr;
     SurfaceComposerClient::Transaction* prevTransaction = nullptr;
-    bool waitForTransactionCallback = !mSyncedFrameNumbers.empty();
 
     {
-        std::unique_lock _lock{mMutex};
+        UNIQUE_LOCK_WITH_ASSERTION(mMutex);
         BBQ_TRACE();
+        bool waitForTransactionCallback = !mSyncedFrameNumbers.empty();
 
         const bool syncTransactionSet = mTransactionReadyCallback != nullptr;
         BQA_LOGV("onFrameAvailable-start syncTransactionSet=%s", boolToString(syncTransactionSet));
@@ -745,25 +747,24 @@ void BLASTBufferQueue::onFrameReplaced(const BufferItem& item) {
 }
 
 void BLASTBufferQueue::onFrameDequeued(const uint64_t bufferId) {
-    std::unique_lock _lock{mTimestampMutex};
+    std::lock_guard _lock{mTimestampMutex};
     mDequeueTimestamps[bufferId] = systemTime();
 };
 
 void BLASTBufferQueue::onFrameCancelled(const uint64_t bufferId) {
-    std::unique_lock _lock{mTimestampMutex};
+    std::lock_guard _lock{mTimestampMutex};
     mDequeueTimestamps.erase(bufferId);
 };
 
 void BLASTBufferQueue::syncNextTransaction(
         std::function<void(SurfaceComposerClient::Transaction*)> callback,
         bool acquireSingleBuffer) {
-    BBQ_TRACE();
-
     std::function<void(SurfaceComposerClient::Transaction*)> prevCallback = nullptr;
     SurfaceComposerClient::Transaction* prevTransaction = nullptr;
 
     {
         std::lock_guard _lock{mMutex};
+        BBQ_TRACE();
         // We're about to overwrite the previous call so we should invoke that callback
         // immediately.
         if (mTransactionReadyCallback) {
@@ -829,8 +830,8 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
 class BBQSurface : public Surface {
 private:
     std::mutex mMutex;
-    sp<BLASTBufferQueue> mBbq;
-    bool mDestroyed = false;
+    sp<BLASTBufferQueue> mBbq GUARDED_BY(mMutex);
+    bool mDestroyed GUARDED_BY(mMutex) = false;
 
 public:
     BBQSurface(const sp<IGraphicBufferProducer>& igbp, bool controlledByApp,
@@ -851,7 +852,7 @@ public:
 
     status_t setFrameRate(float frameRate, int8_t compatibility,
                           int8_t changeFrameRateStrategy) override {
-        std::unique_lock _lock{mMutex};
+        std::lock_guard _lock{mMutex};
         if (mDestroyed) {
             return DEAD_OBJECT;
         }
@@ -864,7 +865,7 @@ public:
 
     status_t setFrameTimelineInfo(uint64_t frameNumber,
                                   const FrameTimelineInfo& frameTimelineInfo) override {
-        std::unique_lock _lock{mMutex};
+        std::lock_guard _lock{mMutex};
         if (mDestroyed) {
             return DEAD_OBJECT;
         }
@@ -874,7 +875,7 @@ public:
     void destroy() override {
         Surface::destroy();
 
-        std::unique_lock _lock{mMutex};
+        std::lock_guard _lock{mMutex};
         mDestroyed = true;
         mBbq = nullptr;
     }
@@ -884,7 +885,7 @@ public:
 // no timing issues.
 status_t BLASTBufferQueue::setFrameRate(float frameRate, int8_t compatibility,
                                         bool shouldBeSeamless) {
-    std::unique_lock _lock{mMutex};
+    std::lock_guard _lock{mMutex};
     SurfaceComposerClient::Transaction t;
 
     return t.setFrameRate(mSurfaceControl, frameRate, compatibility, shouldBeSeamless).apply();
@@ -894,20 +895,20 @@ status_t BLASTBufferQueue::setFrameTimelineInfo(uint64_t frameNumber,
                                                 const FrameTimelineInfo& frameTimelineInfo) {
     ATRACE_FORMAT("%s(%s) frameNumber: %" PRIu64 " vsyncId: %" PRId64, __func__, mName.c_str(),
                   frameNumber, frameTimelineInfo.vsyncId);
-    std::unique_lock _lock{mMutex};
+    std::lock_guard _lock{mMutex};
     mPendingFrameTimelines.push({frameNumber, frameTimelineInfo});
     return OK;
 }
 
 void BLASTBufferQueue::setSidebandStream(const sp<NativeHandle>& stream) {
-    std::unique_lock _lock{mMutex};
+    std::lock_guard _lock{mMutex};
     SurfaceComposerClient::Transaction t;
 
     t.setSidebandStream(mSurfaceControl, stream).apply();
 }
 
 sp<Surface> BLASTBufferQueue::getSurface(bool includeSurfaceControlHandle) {
-    std::unique_lock _lock{mMutex};
+    std::lock_guard _lock{mMutex};
     sp<IBinder> scHandle = nullptr;
     if (includeSurfaceControlHandle && mSurfaceControl) {
         scHandle = mSurfaceControl->getHandle();
@@ -1098,6 +1099,7 @@ PixelFormat BLASTBufferQueue::convertBufferFormat(PixelFormat& format) {
 }
 
 uint32_t BLASTBufferQueue::getLastTransformHint() const {
+    std::lock_guard _lock{mMutex};
     if (mSurfaceControl != nullptr) {
         return mSurfaceControl->getTransformHint();
     } else {
@@ -1106,18 +1108,18 @@ uint32_t BLASTBufferQueue::getLastTransformHint() const {
 }
 
 uint64_t BLASTBufferQueue::getLastAcquiredFrameNum() {
-    std::unique_lock _lock{mMutex};
+    std::lock_guard _lock{mMutex};
     return mLastAcquiredFrameNumber;
 }
 
 bool BLASTBufferQueue::isSameSurfaceControl(const sp<SurfaceControl>& surfaceControl) const {
-    std::unique_lock _lock{mMutex};
+    std::lock_guard _lock{mMutex};
     return SurfaceControl::isSameSurface(mSurfaceControl, surfaceControl);
 }
 
 void BLASTBufferQueue::setTransactionHangCallback(
         std::function<void(const std::string&)> callback) {
-    std::unique_lock _lock{mMutex};
+    std::lock_guard _lock{mMutex};
     mTransactionHangCallback = callback;
 }
 
