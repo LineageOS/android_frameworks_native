@@ -238,7 +238,6 @@ struct RefreshRateSelector::RefreshRateScoreComparator {
         std::string name = to_string(frameRateMode);
 
         ALOGV("%s sorting scores %.2f", name.c_str(), overallScore);
-        ATRACE_INT(name.c_str(), static_cast<int>(std::round(overallScore * 100)));
 
         if (!ScoredFrameRate::scoresEqual(overallScore, rhs.overallScore)) {
             return overallScore > rhs.overallScore;
