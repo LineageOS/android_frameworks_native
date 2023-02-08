@@ -17,8 +17,6 @@
 #ifndef ANDROID_PRIVATE_NATIVE_PERFORMANCE_HINT_PRIVATE_H
 #define ANDROID_PRIVATE_NATIVE_PERFORMANCE_HINT_PRIVATE_H
 
-#include <stdint.h>
-
 __BEGIN_DECLS
 
 /**
@@ -29,7 +27,7 @@ void APerformanceHint_setIHintManagerForTesting(void* iManager);
 /**
  * Hints for the session used to signal upcoming changes in the mode or workload.
  */
-enum SessionHint: int32_t {
+enum SessionHint {
     /**
      * This hint indicates a sudden increase in CPU workload intensity. It means
      * that this hint session needs extra CPU resources immediately to meet the
@@ -63,7 +61,7 @@ enum SessionHint: int32_t {
  * @return 0 on success
  *         EPIPE if communication with the system service has failed.
  */
-int APerformanceHint_sendHint(void* session, SessionHint hint);
+int APerformanceHint_sendHint(void* session, int hint);
 
 /**
  * Return the list of thread ids, this API should only be used for testing only.

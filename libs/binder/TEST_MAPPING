@@ -89,6 +89,9 @@
       "name": "CtsRootRollbackManagerHostTestCases"
     },
     {
+      "name": "StagedRollbackTest"
+    },
+    {
       "name": "binderRpcTestNoKernel"
     },
     {

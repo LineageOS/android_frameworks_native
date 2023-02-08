@@ -104,13 +104,13 @@ void checkTensor(const TfLiteTensor* tensor) {
 
 } // namespace
 
-TfLiteMotionPredictorBuffers::TfLiteMotionPredictorBuffers(size_t inputLength) {
+TfLiteMotionPredictorBuffers::TfLiteMotionPredictorBuffers(size_t inputLength)
+      : mInputR(inputLength, 0),
+        mInputPhi(inputLength, 0),
+        mInputPressure(inputLength, 0),
+        mInputTilt(inputLength, 0),
+        mInputOrientation(inputLength, 0) {
     LOG_ALWAYS_FATAL_IF(inputLength == 0, "Buffer input size must be greater than 0");
-    mInputR.resize(inputLength);
-    mInputPhi.resize(inputLength);
-    mInputPressure.resize(inputLength);
-    mInputTilt.resize(inputLength);
-    mInputOrientation.resize(inputLength);
 }
 
 void TfLiteMotionPredictorBuffers::reset() {
@@ -186,17 +186,11 @@ void TfLiteMotionPredictorBuffers::pushSample(int64_t timestamp,
     mAxisTo = sample;
 
     // Push the current sample onto the end of the input buffers.
-    mInputR.erase(mInputR.begin());
-    mInputPhi.erase(mInputPhi.begin());
-    mInputPressure.erase(mInputPressure.begin());
-    mInputTilt.erase(mInputTilt.begin());
-    mInputOrientation.erase(mInputOrientation.begin());
-
-    mInputR.push_back(r);
-    mInputPhi.push_back(phi);
-    mInputPressure.push_back(sample.pressure);
-    mInputTilt.push_back(sample.tilt);
-    mInputOrientation.push_back(orientation);
+    mInputR.pushBack(r);
+    mInputPhi.pushBack(phi);
+    mInputPressure.pushBack(sample.pressure);
+    mInputTilt.pushBack(sample.tilt);
+    mInputOrientation.pushBack(orientation);
 }
 
 std::unique_ptr<TfLiteMotionPredictorModel> TfLiteMotionPredictorModel::create(
