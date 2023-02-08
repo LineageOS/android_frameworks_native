@@ -865,7 +865,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     // initialize our drawing state
     mDrawingState = mCurrentState;
 
-    // set initial conditions (e.g. unblank default device)
+    onActiveDisplayChangedLocked(nullptr, *display);
     initializeDisplays();
 
     mPowerAdvisor->init();
@@ -4972,21 +4972,15 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (!currentModeOpt || *currentModeOpt == hal::PowerMode::OFF) {
         // Turn on the display
 
-        // Activate the display (which involves a modeset to the active mode):
-        //     1) When the first (a.k.a. primary) display is powered on during boot.
-        //     2) When the inner or outer display of a foldable is powered on. This condition relies
-        //        on the above DisplayDevice::setPowerMode. If `display` and `activeDisplay` are the
-        //        same display, then the `activeDisplay->isPoweredOn()` below is true, such that the
-        //        display is not activated every time it is powered on.
+        // Activate the display (which involves a modeset to the active mode) when the inner or
+        // outer display of a foldable is powered on. This condition relies on the above
+        // DisplayDevice::setPowerMode. If `display` and `activeDisplay` are the same display,
+        // then the `activeDisplay->isPoweredOn()` below is true, such that the display is not
+        // activated every time it is powered on.
         //
         // TODO(b/255635821): Remove the concept of active display.
-        const bool activeDisplayChanged =
-                isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn());
-
-        static bool sPrimaryDisplay = true;
-        if (sPrimaryDisplay || activeDisplayChanged) {
+        if (isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn())) {
             onActiveDisplayChangedLocked(activeDisplay.get(), *display);
-            sPrimaryDisplay = false;
         }
 
         // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
