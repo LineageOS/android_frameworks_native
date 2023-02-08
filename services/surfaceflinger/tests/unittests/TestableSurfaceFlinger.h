@@ -473,7 +473,7 @@ public:
         return mFlinger->setDesiredDisplayModeSpecs(displayToken, specs);
     }
 
-    void onActiveDisplayChanged(const sp<DisplayDevice>& activeDisplay) {
+    void onActiveDisplayChanged(const DisplayDevice& activeDisplay) {
         Mutex::Autolock lock(mFlinger->mStateLock);
         ftl::FakeGuard guard(kMainThreadContext);
         mFlinger->onActiveDisplayChangedLocked(nullptr, activeDisplay);
