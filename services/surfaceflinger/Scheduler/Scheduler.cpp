@@ -272,7 +272,6 @@ void Scheduler::onScreenAcquired(ConnectionHandle handle) {
         thread = mConnections[handle].thread.get();
     }
     thread->onScreenAcquired();
-    mScreenAcquired = true;
 }
 
 void Scheduler::onScreenReleased(ConnectionHandle handle) {
@@ -283,7 +282,6 @@ void Scheduler::onScreenReleased(ConnectionHandle handle) {
         thread = mConnections[handle].thread.get();
     }
     thread->onScreenReleased();
-    mScreenAcquired = false;
 }
 
 void Scheduler::onFrameRateOverridesChanged(ConnectionHandle handle, PhysicalDisplayId displayId) {
@@ -642,7 +640,6 @@ void Scheduler::dump(utils::Dumper& dumper) const {
         utils::Dumper::Section section(dumper, "Hardware VSYNC"sv);
 
         std::lock_guard lock(mHWVsyncLock);
-        dumper.dump("screenAcquired"sv, mScreenAcquired.load());
         dumper.dump("hwVsyncAvailable"sv, mHWVsyncAvailable);
         dumper.dump("hwVsyncEnabled"sv, mPrimaryHWVsyncEnabled);
     }
