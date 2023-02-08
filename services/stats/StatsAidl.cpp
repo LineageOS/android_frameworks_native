@@ -17,17 +17,70 @@
 #define DEBUG false  // STOPSHIP if true
 #define LOG_TAG "StatsAidl"
 
+#define VLOG(...) \
+    if (DEBUG) ALOGD(__VA_ARGS__);
+
 #include "StatsAidl.h"
 
 #include <log/log.h>
+#include <stats_annotations.h>
+#include <stats_event.h>
 #include <statslog.h>
+
+#include <unordered_map>
 
 namespace aidl {
 namespace android {
 namespace frameworks {
 namespace stats {
 
+template <typename E>
+constexpr typename std::underlying_type<E>::type to_underlying(E e) noexcept {
+    return static_cast<typename std::underlying_type<E>::type>(e);
+}
+
 StatsHal::StatsHal() {
+}
+
+bool write_annotation(AStatsEvent* event, const Annotation& annotation) {
+    switch (annotation.value.getTag()) {
+        case AnnotationValue::boolValue: {
+            AStatsEvent_addBoolAnnotation(event, to_underlying(annotation.annotationId),
+                                          annotation.value.get<AnnotationValue::boolValue>());
+            break;
+        }
+        case AnnotationValue::intValue: {
+            AStatsEvent_addInt32Annotation(event, to_underlying(annotation.annotationId),
+                                           annotation.value.get<AnnotationValue::intValue>());
+            break;
+        }
+        default: {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool write_atom_annotations(AStatsEvent* event,
+                            const std::vector<std::optional<Annotation>>& annotations) {
+    for (const auto& atomAnnotation : annotations) {
+        if (!atomAnnotation) {
+            return false;
+        }
+        if (!write_annotation(event, *atomAnnotation)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool write_field_annotations(AStatsEvent* event, const std::vector<Annotation>& annotations) {
+    for (const auto& fieldAnnotation : annotations) {
+        if (!write_annotation(event, fieldAnnotation)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
@@ -44,7 +97,30 @@ ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
     }
     AStatsEvent* event = AStatsEvent_obtain();
     AStatsEvent_setAtomId(event, vendorAtom.atomId);
+
+    if (vendorAtom.atomAnnotations) {
+        if (!write_atom_annotations(event, *vendorAtom.atomAnnotations)) {
+            ALOGE("Atom ID %ld has incompatible atom level annotation", (long)vendorAtom.atomId);
+            AStatsEvent_release(event);
+            return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
+                    -1, "invalid atom annotation");
+        }
+    }
+
+    // populate map for quickier access for VendorAtomValue associated annotations by value index
+    std::unordered_map<int, int> fieldIndexToAnnotationSetMap;
+    if (vendorAtom.valuesAnnotations) {
+        const std::vector<std::optional<AnnotationSet>>& valuesAnnotations =
+                *vendorAtom.valuesAnnotations;
+        for (int i = 0; i < valuesAnnotations.size(); i++) {
+            if (valuesAnnotations[i]) {
+                fieldIndexToAnnotationSetMap[valuesAnnotations[i]->valueIndex] = i;
+            }
+        }
+    }
+
     AStatsEvent_writeString(event, vendorAtom.reverseDomainName.c_str());
+    size_t atomValueIdx = 0;
     for (const auto& atomValue : vendorAtom.values) {
         switch (atomValue.getTag()) {
             case VendorAtomValue::intValue:
@@ -143,12 +219,37 @@ ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
                 AStatsEvent_writeByteArray(event, byteArrayValue->data(), byteArrayValue->size());
                 break;
             }
+            default: {
+                AStatsEvent_release(event);
+                ALOGE("Atom ID %ld has invalid atomValue.getTag", (long)vendorAtom.atomId);
+                return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
+                        -1, "invalid atomValue.getTag");
+                break;
+            }
         }
+
+        const auto& valueAnnotationIndex = fieldIndexToAnnotationSetMap.find(atomValueIdx);
+        if (valueAnnotationIndex != fieldIndexToAnnotationSetMap.end()) {
+            const std::vector<Annotation>& fieldAnnotations =
+                    (*vendorAtom.valuesAnnotations)[valueAnnotationIndex->second]->annotations;
+            VLOG("Atom ID %ld has %ld annotations for field #%ld", (long)vendorAtom.atomId,
+                 (long)fieldAnnotations.size(), (long)atomValueIdx + 2);
+            if (!write_field_annotations(event, fieldAnnotations)) {
+                ALOGE("Atom ID %ld has incompatible field level annotation for field #%ld",
+                      (long)vendorAtom.atomId, (long)atomValueIdx + 2);
+                AStatsEvent_release(event);
+                return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
+                        -1, "invalid atom field annotation");
+            }
+        }
+        atomValueIdx++;
     }
     AStatsEvent_build(event);
     const int ret = AStatsEvent_write(event);
     AStatsEvent_release(event);
-
+    if (ret <= 0) {
+        ALOGE("Error writing Atom ID %ld. Result: %d", (long)vendorAtom.atomId, ret);
+    }
     return ret <= 0 ? ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(ret,
                                                                               "report atom failed")
                     : ndk::ScopedAStatus::ok();
