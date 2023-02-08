@@ -21,7 +21,6 @@
 
 #include <assert.h>
 #include <cutils/properties.h>
-#include <gui/TraceUtils.h>
 #include <log/log.h>
 #include <utils/Trace.h>
 
@@ -33,7 +32,6 @@
 namespace android::scheduler {
 
 using base::StringAppendF;
-using base::StringPrintf;
 
 VsyncController::~VsyncController() = default;
 
@@ -41,12 +39,12 @@ nsecs_t SystemClock::now() const {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
-VSyncReactor::VSyncReactor(std::string name, std::unique_ptr<Clock> clock, VSyncTracker& tracker,
+VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, VSyncTracker& tracker,
                            size_t pendingFenceLimit, bool supportKernelIdleTimer)
-      : mName(name),
-        mClock(std::move(clock)),
+      : mClock(std::move(clock)),
         mTracker(tracker),
         mPendingLimit(pendingFenceLimit),
+        // TODO(adyabr): change mSupportKernelIdleTimer when the active display changes
         mSupportKernelIdleTimer(supportKernelIdleTimer) {}
 
 VSyncReactor::~VSyncReactor() = default;
@@ -116,7 +114,7 @@ void VSyncReactor::updateIgnorePresentFencesInternal() {
 }
 
 void VSyncReactor::startPeriodTransitionInternal(nsecs_t newPeriod) {
-    ATRACE_FORMAT("%s %s", __func__, mName.c_str());
+    ATRACE_CALL();
     mPeriodConfirmationInProgress = true;
     mPeriodTransitioningTo = newPeriod;
     mMoreSamplesNeeded = true;
@@ -124,20 +122,18 @@ void VSyncReactor::startPeriodTransitionInternal(nsecs_t newPeriod) {
 }
 
 void VSyncReactor::endPeriodTransition() {
-    ATRACE_FORMAT("%s %s", __func__, mName.c_str());
+    ATRACE_CALL();
     mPeriodTransitioningTo.reset();
     mPeriodConfirmationInProgress = false;
     mLastHwVsync.reset();
 }
 
-void VSyncReactor::startPeriodTransition(nsecs_t period, bool force) {
-    // TODO (b/266817103): Pass in PhysicalDisplayId and use ftl::Concat to
-    // avoid unnecessary allocations.
-    ATRACE_INT64(StringPrintf("VSR-startPeriodTransition %s", mName.c_str()).c_str(), period);
+void VSyncReactor::startPeriodTransition(nsecs_t period) {
+    ATRACE_INT64("VSR-startPeriodTransition", period);
     std::lock_guard lock(mMutex);
     mLastHwVsync.reset();
 
-    if (!mSupportKernelIdleTimer && period == mTracker.currentPeriod() && !force) {
+    if (!mSupportKernelIdleTimer && period == mTracker.currentPeriod()) {
         endPeriodTransition();
         setIgnorePresentFencesInternal(false);
         mMoreSamplesNeeded = false;
@@ -185,7 +181,7 @@ bool VSyncReactor::addHwVsyncTimestamp(nsecs_t timestamp, std::optional<nsecs_t>
 
     std::lock_guard lock(mMutex);
     if (periodConfirmed(timestamp, hwcVsyncPeriod)) {
-        ATRACE_FORMAT("VSR %s: period confirmed", mName.c_str());
+        ATRACE_NAME("VSR: period confirmed");
         if (mPeriodTransitioningTo) {
             mTracker.setPeriod(*mPeriodTransitioningTo);
             *periodFlushed = true;
@@ -199,12 +195,12 @@ bool VSyncReactor::addHwVsyncTimestamp(nsecs_t timestamp, std::optional<nsecs_t>
         endPeriodTransition();
         mMoreSamplesNeeded = mTracker.needsMoreSamples();
     } else if (mPeriodConfirmationInProgress) {
-        ATRACE_FORMAT("VSR %s: still confirming period", mName.c_str());
+        ATRACE_NAME("VSR: still confirming period");
         mLastHwVsync = timestamp;
         mMoreSamplesNeeded = true;
         *periodFlushed = false;
     } else {
-        ATRACE_FORMAT("VSR %s: adding sample", mName.c_str());
+        ATRACE_NAME("VSR: adding sample");
         *periodFlushed = false;
         mTracker.addVsyncTimestamp(timestamp);
         mMoreSamplesNeeded = mTracker.needsMoreSamples();

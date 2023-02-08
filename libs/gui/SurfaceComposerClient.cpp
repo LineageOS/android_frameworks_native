@@ -53,6 +53,7 @@
 #include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
 
+#include <android-base/thread_annotations.h>
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
 
@@ -2988,6 +2989,7 @@ void ReleaseCallbackThread::threadMain() {
     while (true) {
         {
             std::unique_lock<std::mutex> lock(mMutex);
+            base::ScopedLockAssertion assumeLocked(mMutex);
             callbackInfos = std::move(mCallbackInfos);
             mCallbackInfos = {};
         }
@@ -3000,6 +3002,7 @@ void ReleaseCallbackThread::threadMain() {
 
         {
             std::unique_lock<std::mutex> lock(mMutex);
+            base::ScopedLockAssertion assumeLocked(mMutex);
             if (mCallbackInfos.size() == 0) {
                 mReleaseCallbackPending.wait(lock);
             }

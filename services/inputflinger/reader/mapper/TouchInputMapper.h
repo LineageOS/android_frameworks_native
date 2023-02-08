@@ -735,6 +735,14 @@ private:
                                                               uint32_t policyFlags);
     [[nodiscard]] std::list<NotifyArgs> dispatchButtonPress(nsecs_t when, nsecs_t readTime,
                                                             uint32_t policyFlags);
+    [[nodiscard]] std::list<NotifyArgs> dispatchGestureButtonPress(nsecs_t when,
+                                                                   uint32_t policyFlags,
+                                                                   BitSet32 idBits,
+                                                                   nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> dispatchGestureButtonRelease(nsecs_t when,
+                                                                     uint32_t policyFlags,
+                                                                     BitSet32 idBits,
+                                                                     nsecs_t readTime);
     const BitSet32& findActiveIdBits(const CookedPointerData& cookedPointerData);
     void cookPointerData();
     [[nodiscard]] std::list<NotifyArgs> abortTouches(nsecs_t when, nsecs_t readTime,

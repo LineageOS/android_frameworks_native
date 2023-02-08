@@ -26,7 +26,7 @@ namespace android {
 namespace scheduler {
 
 // TODO(b/185535769): Pull Clock.h to libscheduler to reuse this.
-using SchedulerClock = std::chrono::high_resolution_clock;
+using SchedulerClock = std::chrono::steady_clock;
 static_assert(SchedulerClock::is_steady);
 
 } // namespace scheduler

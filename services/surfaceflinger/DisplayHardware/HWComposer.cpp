@@ -175,8 +175,8 @@ std::optional<PhysicalDisplayId> HWComposer::onVsync(hal::HWDisplayId hwcDisplay
         displayData.lastPresentTimestamp = timestamp;
     }
 
-    const ftl::Concat tag("HW_VSYNC_", displayIdOpt->value);
-    ATRACE_INT(tag.c_str(), displayData.vsyncTraceToggle);
+    ATRACE_INT(ftl::Concat("HW_VSYNC_", displayIdOpt->value).c_str(),
+               displayData.vsyncTraceToggle);
     displayData.vsyncTraceToggle = !displayData.vsyncTraceToggle;
 
     return displayIdOpt;
@@ -377,8 +377,8 @@ void HWComposer::setVsyncEnabled(PhysicalDisplayId displayId, hal::Vsync enabled
 
     displayData.vsyncEnabled = enabled;
 
-    const auto tag = "HW_VSYNC_ON_" + to_string(displayId);
-    ATRACE_INT(tag.c_str(), enabled == hal::Vsync::ENABLE ? 1 : 0);
+    ATRACE_INT(ftl::Concat("HW_VSYNC_ON_", displayId.value).c_str(),
+               enabled == hal::Vsync::ENABLE ? 1 : 0);
 }
 
 status_t HWComposer::setClientTarget(HalDisplayId displayId, uint32_t slot,

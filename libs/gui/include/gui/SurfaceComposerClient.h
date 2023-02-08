@@ -921,7 +921,7 @@ public:
     void onTrustedPresentationChanged(int id, bool presentedWithinThresholds) override;
 
 private:
-    ReleaseBufferCallback popReleaseBufferCallbackLocked(const ReleaseCallbackId&);
+    ReleaseBufferCallback popReleaseBufferCallbackLocked(const ReleaseCallbackId&) REQUIRES(mMutex);
     static sp<TransactionCompletedListener> sInstance;
 };
 
