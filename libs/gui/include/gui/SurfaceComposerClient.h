@@ -742,6 +742,8 @@ public:
 
         static sp<IBinder> getDefaultApplyToken();
         static void setDefaultApplyToken(sp<IBinder> applyToken);
+
+        static status_t sendSurfaceFlushJankDataTransaction(const sp<SurfaceControl>& sc);
     };
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;
