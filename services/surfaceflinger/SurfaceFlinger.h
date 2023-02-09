@@ -557,7 +557,8 @@ private:
     status_t clearBootDisplayMode(const sp<IBinder>& displayToken);
     status_t getHdrConversionCapabilities(
             std::vector<gui::HdrConversionCapability>* hdrConversionCapaabilities) const;
-    status_t setHdrConversionStrategy(const gui::HdrConversionStrategy& hdrConversionStrategy);
+    status_t setHdrConversionStrategy(const gui::HdrConversionStrategy& hdrConversionStrategy,
+                                      int32_t*);
     status_t getHdrOutputConversionSupport(bool* outSupport) const;
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on);
     void setGameContentType(const sp<IBinder>& displayToken, bool on);
@@ -1462,8 +1463,8 @@ public:
     binder::Status getOverlaySupport(gui::OverlayProperties* outProperties) override;
     binder::Status getHdrConversionCapabilities(
             std::vector<gui::HdrConversionCapability>*) override;
-    binder::Status setHdrConversionStrategy(
-            const gui::HdrConversionStrategy& hdrConversionStrategy) override;
+    binder::Status setHdrConversionStrategy(const gui::HdrConversionStrategy& hdrConversionStrategy,
+                                            int32_t*) override;
     binder::Status getHdrOutputConversionSupport(bool* outSupport) override;
     binder::Status setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override;
     binder::Status setGameContentType(const sp<IBinder>& display, bool on) override;
