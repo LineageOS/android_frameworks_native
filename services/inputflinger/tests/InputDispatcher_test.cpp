@@ -1567,6 +1567,113 @@ private:
     std::vector<PointerBuilder> mPointers;
 };
 
+class MotionArgsBuilder {
+public:
+    MotionArgsBuilder(int32_t action, int32_t source) {
+        mAction = action;
+        mSource = source;
+        mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+        mDownTime = mEventTime;
+    }
+
+    MotionArgsBuilder& deviceId(int32_t deviceId) {
+        mDeviceId = deviceId;
+        return *this;
+    }
+
+    MotionArgsBuilder& downTime(nsecs_t downTime) {
+        mDownTime = downTime;
+        return *this;
+    }
+
+    MotionArgsBuilder& eventTime(nsecs_t eventTime) {
+        mEventTime = eventTime;
+        return *this;
+    }
+
+    MotionArgsBuilder& displayId(int32_t displayId) {
+        mDisplayId = displayId;
+        return *this;
+    }
+
+    MotionArgsBuilder& policyFlags(int32_t policyFlags) {
+        mPolicyFlags = policyFlags;
+        return *this;
+    }
+
+    MotionArgsBuilder& actionButton(int32_t actionButton) {
+        mActionButton = actionButton;
+        return *this;
+    }
+
+    MotionArgsBuilder& buttonState(int32_t buttonState) {
+        mButtonState = buttonState;
+        return *this;
+    }
+
+    MotionArgsBuilder& rawXCursorPosition(float rawXCursorPosition) {
+        mRawXCursorPosition = rawXCursorPosition;
+        return *this;
+    }
+
+    MotionArgsBuilder& rawYCursorPosition(float rawYCursorPosition) {
+        mRawYCursorPosition = rawYCursorPosition;
+        return *this;
+    }
+
+    MotionArgsBuilder& pointer(PointerBuilder pointer) {
+        mPointers.push_back(pointer);
+        return *this;
+    }
+
+    MotionArgsBuilder& addFlag(uint32_t flags) {
+        mFlags |= flags;
+        return *this;
+    }
+
+    NotifyMotionArgs build() {
+        std::vector<PointerProperties> pointerProperties;
+        std::vector<PointerCoords> pointerCoords;
+        for (const PointerBuilder& pointer : mPointers) {
+            pointerProperties.push_back(pointer.buildProperties());
+            pointerCoords.push_back(pointer.buildCoords());
+        }
+
+        // Set mouse cursor position for the most common cases to avoid boilerplate.
+        if (mSource == AINPUT_SOURCE_MOUSE &&
+            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition) &&
+            mPointers.size() == 1) {
+            mRawXCursorPosition = pointerCoords[0].getX();
+            mRawYCursorPosition = pointerCoords[0].getY();
+        }
+
+        NotifyMotionArgs args(InputEvent::nextId(), mEventTime, /*readTime=*/mEventTime, mDeviceId,
+                              mSource, mDisplayId, mPolicyFlags, mAction, mActionButton, mFlags,
+                              AMETA_NONE, mButtonState, MotionClassification::NONE, /*edgeFlags=*/0,
+                              mPointers.size(), pointerProperties.data(), pointerCoords.data(),
+                              /*xPrecision=*/0, /*yPrecision=*/0, mRawXCursorPosition,
+                              mRawYCursorPosition, mDownTime, /*videoFrames=*/{});
+
+        return args;
+    }
+
+private:
+    int32_t mAction;
+    int32_t mDeviceId = DEVICE_ID;
+    int32_t mSource;
+    nsecs_t mDownTime;
+    nsecs_t mEventTime;
+    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
+    int32_t mPolicyFlags = DEFAULT_POLICY_FLAGS;
+    int32_t mActionButton{0};
+    int32_t mButtonState{0};
+    int32_t mFlags{0};
+    float mRawXCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
+    float mRawYCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
+
+    std::vector<PointerBuilder> mPointers;
+};
+
 static InputEventInjectionResult injectMotionEvent(
         const std::unique_ptr<InputDispatcher>& dispatcher, const MotionEvent& event,
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
@@ -2052,6 +2159,92 @@ TEST_F(InputDispatcherTest, WallpaperWindowWhenSlippery) {
     leftWindow->consumeMotionCancel();
     rightWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
     wallpaperWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+}
+
+/**
+ * The policy typically sets POLICY_FLAG_PASS_TO_USER to the events. But when the display is not
+ * interactive, it might stop sending this flag.
+ * In this test, we check that if the policy stops sending this flag mid-gesture, we still ensure
+ * to have a consistent input stream.
+ *
+ * Test procedure:
+ * DOWN -> POINTER_DOWN -> (stop sending POLICY_FLAG_PASS_TO_USER) -> CANCEL.
+ * DOWN (new gesture).
+ *
+ * In the bad implementation, we could potentially drop the CANCEL event, and get an inconsistent
+ * state in the dispatcher. This would cause the final DOWN event to not be delivered to the app.
+ *
+ * We technically just need a single window here, but we are using two windows (spy on top and a
+ * regular window below) to emulate the actual situation where it happens on the device.
+ */
+TEST_F(InputDispatcherTest, TwoPointerCancelInconsistentPolicy) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> spyWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy", ADISPLAY_ID_DEFAULT);
+    spyWindow->setFrame(Rect(0, 0, 200, 200));
+    spyWindow->setTrustedOverlay(true);
+    spyWindow->setSpy(true);
+
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 200, 200));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spyWindow, window}}});
+    const int32_t touchDeviceId = 4;
+    NotifyMotionArgs args;
+
+    // Two pointers down
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .policyFlags(DEFAULT_POLICY_FLAGS)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .build()));
+
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .policyFlags(DEFAULT_POLICY_FLAGS)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(120).y(120))
+                           .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+    spyWindow->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+    window->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
+
+    // Cancel the current gesture. Send the cancel without the default policy flags.
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(AMOTION_EVENT_ACTION_CANCEL, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .policyFlags(0)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(120).y(120))
+                           .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL));
+
+    // We don't need to reset the device to reproduce the issue, but the reset event typically
+    // follows, so we keep it here to model the actual listener behaviour more closely.
+    NotifyDeviceResetArgs resetArgs;
+    resetArgs.id = 1; // arbitrary id
+    resetArgs.eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    resetArgs.deviceId = touchDeviceId;
+    mDispatcher->notifyDeviceReset(&resetArgs);
+
+    // Start new gesture
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .policyFlags(DEFAULT_POLICY_FLAGS)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+
+    // No more events
+    spyWindow->assertNoEvents();
+    window->assertNoEvents();
 }
 
 /**
