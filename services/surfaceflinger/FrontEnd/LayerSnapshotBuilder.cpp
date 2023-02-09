@@ -391,9 +391,7 @@ bool LayerSnapshotBuilder::tryFastUpdate(const Args& args) {
 
 void LayerSnapshotBuilder::updateSnapshots(const Args& args) {
     ATRACE_NAME("UpdateSnapshots");
-    if (args.parentCrop) {
-        mRootSnapshot.geomLayerBounds = *args.parentCrop;
-    } else if (args.forceUpdate || args.displayChanges) {
+    if (args.forceUpdate || args.displayChanges) {
         mRootSnapshot.geomLayerBounds = getMaxDisplayBounds(args.displays);
     }
     if (args.displayChanges) {
@@ -620,8 +618,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
              RequestedLayerState::Changes::AffectsChildren);
     snapshot.changes = parentChanges | requested.changes;
     snapshot.isHiddenByPolicyFromParent = parentSnapshot.isHiddenByPolicyFromParent ||
-            parentSnapshot.invalidTransform || requested.isHiddenByPolicy() ||
-            (args.excludeLayerIds.find(path.id) != args.excludeLayerIds.end());
+            parentSnapshot.invalidTransform || requested.isHiddenByPolicy();
     snapshot.contentDirty = requested.what & layer_state_t::CONTENT_DIRTY;
     // TODO(b/238781169) scope down the changes to only buffer updates.
     snapshot.hasReadyFrame =
@@ -984,20 +981,6 @@ void LayerSnapshotBuilder::forEachVisibleSnapshot(const ConstVisitor& visitor) c
         if (!snapshot.isVisible) continue;
         visitor(snapshot);
     }
-}
-
-// Visit each visible snapshot in z-order
-void LayerSnapshotBuilder::forEachVisibleSnapshot(const ConstVisitor& visitor,
-                                                  const LayerHierarchy& root) const {
-    root.traverseInZOrder(
-            [this, visitor](const LayerHierarchy&,
-                            const LayerHierarchy::TraversalPath& traversalPath) -> bool {
-                LayerSnapshot* snapshot = getSnapshot(traversalPath);
-                if (snapshot && snapshot->isVisible) {
-                    visitor(*snapshot);
-                }
-                return true;
-            });
 }
 
 void LayerSnapshotBuilder::forEachVisibleSnapshot(const Visitor& visitor) {
