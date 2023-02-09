@@ -43,27 +43,18 @@ public:
         // With peak display brightnesses exceeding 1,000 nits currently, HLG's request could
         // actually be satisfied in some ambient conditions such that limiting that max for that
         // content in theory makes sense
-        float maxDesiredSdrHdrRatio = 0.f;
+        float maxDesiredHdrSdrRatio = 0.f;
 
         bool operator==(const HdrLayerInfo& other) const {
             return numberOfHdrLayers == other.numberOfHdrLayers && maxW == other.maxW &&
-                    maxH == other.maxH && flags == other.flags;
+                    maxH == other.maxH && flags == other.flags &&
+                    maxDesiredHdrSdrRatio == other.maxDesiredHdrSdrRatio;
         }
 
         bool operator!=(const HdrLayerInfo& other) const { return !(*this == other); }
 
         void mergeDesiredRatio(float update) {
-            if (maxDesiredSdrHdrRatio == 0.f) {
-                // If nothing is set, take the incoming value
-                maxDesiredSdrHdrRatio = update;
-            } else if (update == 1.f) {
-                // If the request is to "go to max", then take it regardless
-                maxDesiredSdrHdrRatio = 1.f;
-            } else if (maxDesiredSdrHdrRatio != 1.f) {
-                // If we're not currently asked to "go to max", then take the max
-                // of the incoming requests
-                maxDesiredSdrHdrRatio = std::max(maxDesiredSdrHdrRatio, update);
-            }
+            maxDesiredHdrSdrRatio = std::max(maxDesiredHdrSdrRatio, update);
         }
     };
 

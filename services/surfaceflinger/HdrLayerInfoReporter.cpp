@@ -40,7 +40,8 @@ void HdrLayerInfoReporter::dispatchHdrLayerInfo(const HdrLayerInfo& info) {
 
     for (const auto& listener : toInvoke) {
         ATRACE_NAME("invoking onHdrLayerInfoChanged");
-        listener->onHdrLayerInfoChanged(info.numberOfHdrLayers, info.maxW, info.maxH, info.flags);
+        listener->onHdrLayerInfoChanged(info.numberOfHdrLayers, info.maxW, info.maxH, info.flags,
+                                        info.maxDesiredHdrSdrRatio);
     }
 }
 
