@@ -43,6 +43,7 @@ struct TouchedWindow {
     bool hasHoveringPointer(int32_t deviceId, int32_t pointerId) const;
     void addHoveringPointer(int32_t deviceId, int32_t pointerId);
     void removeHoveringPointer(int32_t deviceId, int32_t pointerId);
+    void removeTouchingPointer(int32_t pointerId);
     void clearHoveringPointers();
     std::string dump() const;
 
