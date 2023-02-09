@@ -92,11 +92,6 @@ status_t TransactionCallbackInvoker::addCallbackHandles(
     return NO_ERROR;
 }
 
-status_t TransactionCallbackInvoker::registerUnpresentedCallbackHandle(
-        const sp<CallbackHandle>& handle) {
-    return addCallbackHandle(handle, std::vector<JankData>());
-}
-
 status_t TransactionCallbackInvoker::findOrCreateTransactionStats(
         const sp<IBinder>& listener, const std::vector<CallbackId>& callbackIds,
         TransactionStats** outTransactionStats) {
