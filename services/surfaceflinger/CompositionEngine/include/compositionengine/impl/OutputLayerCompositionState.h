@@ -63,8 +63,14 @@ struct OutputLayerCompositionState {
     // The portion of the layer that is not obscured and is also opaque
     Region visibleNonTransparentRegion;
 
-    // The portion of the layer that is obscured by opaque layers on top
+    // The portion of the layer that is obscured by all layers on top. This includes transparent and
+    // opaque.
     Region coveredRegion;
+
+    // The portion of the layer that is obscured by all layers on top excluding display overlays.
+    // This only has a value if there's something needing it, like when a
+    // TrustedPresentationListener is set.
+    std::optional<Region> coveredRegionExcludingDisplayOverlays;
 
     // The visibleRegion transformed to output space
     Region outputSpaceVisibleRegion;

@@ -395,14 +395,22 @@ void Layer::updateTrustedPresentationState(const DisplayDevice* display,
 
     if (!leaveState) {
         const auto outputLayer = findOutputLayerForDisplay(display);
-        if (outputLayer != nullptr && snapshot != nullptr) {
-            mLastComputedTrustedPresentationState =
-                    computeTrustedPresentationState(snapshot->geomLayerBounds,
-                                                    snapshot->sourceBounds(),
-                                                    outputLayer->getState().coveredRegion,
-                                                    snapshot->transformedBounds, snapshot->alpha,
-                                                    snapshot->geomLayerTransform,
-                                                    mTrustedPresentationThresholds);
+        if (outputLayer != nullptr) {
+            if (outputLayer->getState().coveredRegionExcludingDisplayOverlays) {
+                Region coveredRegion =
+                        *outputLayer->getState().coveredRegionExcludingDisplayOverlays;
+                mLastComputedTrustedPresentationState =
+                        computeTrustedPresentationState(snapshot->geomLayerBounds,
+                                                        snapshot->sourceBounds(), coveredRegion,
+                                                        snapshot->transformedBounds,
+                                                        snapshot->alpha,
+                                                        snapshot->geomLayerTransform,
+                                                        mTrustedPresentationThresholds);
+            } else {
+                ALOGE("CoveredRegionExcludingDisplayOverlays was not set for %s. Don't compute "
+                      "TrustedPresentationState",
+                      getDebugName());
+            }
         }
     }
     const bool newState = mLastComputedTrustedPresentationState;
@@ -459,10 +467,15 @@ bool Layer::computeTrustedPresentationState(const FloatRect& bounds, const Float
     float boundsOverSourceH = bounds.getHeight() / (float)sourceBounds.getHeight();
     fractionRendered *= boundsOverSourceW * boundsOverSourceH;
 
-    Rect coveredBounds = coveredRegion.bounds();
-    fractionRendered *= (1 -
-                         ((coveredBounds.width() / (float)screenBounds.getWidth()) *
-                          coveredBounds.height() / (float)screenBounds.getHeight()));
+    Region tJunctionFreeRegion = Region::createTJunctionFreeRegion(coveredRegion);
+    // Compute the size of all the rects since they may be disconnected.
+    float coveredSize = 0;
+    for (auto rect = tJunctionFreeRegion.begin(); rect < tJunctionFreeRegion.end(); rect++) {
+        float size = rect->width() * rect->height();
+        coveredSize += size;
+    }
+
+    fractionRendered *= (1 - (coveredSize / (screenBounds.getWidth() * screenBounds.getHeight())));
 
     if (fractionRendered < thresholds.minFractionRendered) {
         return false;
@@ -3996,6 +4009,7 @@ void Layer::updateSnapshot(bool updateGeometry) {
     snapshot->bufferSize = getBufferSize(mDrawingState);
     snapshot->externalTexture = mBufferInfo.mBuffer;
     snapshot->hasReadyFrame = hasReadyFrame();
+    snapshot->isInternalDisplayOverlay = isInternalDisplayOverlay();
     preparePerFrameCompositionState();
 }
 
