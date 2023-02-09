@@ -565,13 +565,11 @@ public:
         return NO_ERROR;
     }
 
-    uint64_t cache(const sp<GraphicBuffer>& buffer,
-                   std::optional<client_cache_t>& outUncacheBuffer) {
+    uint64_t cache(const sp<GraphicBuffer>& buffer) {
         std::lock_guard<std::mutex> lock(mMutex);
 
         if (mBuffers.size() >= BUFFER_CACHE_MAX_SIZE) {
-            outUncacheBuffer = findLeastRecentlyUsedBuffer();
-            mBuffers.erase(outUncacheBuffer->id);
+            evictLeastRecentlyUsedBuffer();
         }
 
         buffer->addDeathCallback(removeDeadBufferCallback, nullptr);
@@ -582,13 +580,16 @@ public:
 
     void uncache(uint64_t cacheId) {
         std::lock_guard<std::mutex> lock(mMutex);
-        if (mBuffers.erase(cacheId)) {
-            SurfaceComposerClient::doUncacheBufferTransaction(cacheId);
-        }
+        uncacheLocked(cacheId);
+    }
+
+    void uncacheLocked(uint64_t cacheId) REQUIRES(mMutex) {
+        mBuffers.erase(cacheId);
+        SurfaceComposerClient::doUncacheBufferTransaction(cacheId);
     }
 
 private:
-    client_cache_t findLeastRecentlyUsedBuffer() REQUIRES(mMutex) {
+    void evictLeastRecentlyUsedBuffer() REQUIRES(mMutex) {
         auto itr = mBuffers.begin();
         uint64_t minCounter = itr->second;
         auto minBuffer = itr;
@@ -602,8 +603,7 @@ private:
             }
             itr++;
         }
-
-        return {.token = getToken(), .id = minBuffer->first};
+        uncacheLocked(minBuffer->first);
     }
 
     uint64_t getCounter() REQUIRES(mMutex) {
@@ -741,18 +741,6 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     InputWindowCommands inputWindowCommands;
     inputWindowCommands.read(*parcel);
 
-    count = static_cast<size_t>(parcel->readUint32());
-    if (count > parcel->dataSize()) {
-        return BAD_VALUE;
-    }
-    std::vector<client_cache_t> uncacheBuffers(count);
-    for (size_t i = 0; i < count; i++) {
-        sp<IBinder> tmpBinder;
-        SAFE_PARCEL(parcel->readStrongBinder, &tmpBinder);
-        uncacheBuffers[i].token = tmpBinder;
-        SAFE_PARCEL(parcel->readUint64, &uncacheBuffers[i].id);
-    }
-
     // Parsing was successful. Update the object.
     mId = transactionId;
     mTransactionNestCount = transactionNestCount;
@@ -767,7 +755,6 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     mComposerStates = composerStates;
     mInputWindowCommands = inputWindowCommands;
     mApplyToken = applyToken;
-    mUncacheBuffers = std::move(uncacheBuffers);
     return NO_ERROR;
 }
 
@@ -819,13 +806,6 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     }
 
     mInputWindowCommands.write(*parcel);
-
-    SAFE_PARCEL(parcel->writeUint32, static_cast<uint32_t>(mUncacheBuffers.size()));
-    for (const client_cache_t& uncacheBuffer : mUncacheBuffers) {
-        SAFE_PARCEL(parcel->writeStrongBinder, uncacheBuffer.token.promote());
-        SAFE_PARCEL(parcel->writeUint64, uncacheBuffer.id);
-    }
-
     return NO_ERROR;
 }
 
@@ -893,10 +873,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
         }
     }
 
-    for (const auto& cacheId : other.mUncacheBuffers) {
-        mUncacheBuffers.push_back(cacheId);
-    }
-
     mInputWindowCommands.merge(other.mInputWindowCommands);
 
     mMayContainBuffer |= other.mMayContainBuffer;
@@ -915,7 +891,6 @@ void SurfaceComposerClient::Transaction::clear() {
     mDisplayStates.clear();
     mListenerCallbacks.clear();
     mInputWindowCommands.clear();
-    mUncacheBuffers.clear();
     mMayContainBuffer = false;
     mTransactionNestCount = 0;
     mAnimation = false;
@@ -938,10 +913,10 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     uncacheBuffer.token = BufferCache::getInstance().getToken();
     uncacheBuffer.id = cacheId;
     Vector<ComposerState> composerStates;
-    status_t status = sf->setTransactionState(FrameTimelineInfo{}, composerStates, {},
-                                              ISurfaceComposer::eOneWay,
-                                              Transaction::getDefaultApplyToken(), {}, systemTime(),
-                                              true, {uncacheBuffer}, false, {}, generateId());
+    status_t status =
+            sf->setTransactionState(FrameTimelineInfo{}, composerStates, {},
+                                    ISurfaceComposer::eOneWay, Transaction::getDefaultApplyToken(),
+                                    {}, systemTime(), true, uncacheBuffer, false, {}, generateId());
     if (status != NO_ERROR) {
         ALOGE_AND_TRACE("SurfaceComposerClient::doUncacheBufferTransaction - %s",
                         strerror(-status));
@@ -979,11 +954,7 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
             s->bufferData->buffer = nullptr;
         } else {
             // Cache-miss. Include the buffer and send the new cacheId.
-            std::optional<client_cache_t> uncacheBuffer;
-            cacheId = BufferCache::getInstance().cache(s->bufferData->buffer, uncacheBuffer);
-            if (uncacheBuffer) {
-                mUncacheBuffers.push_back(*uncacheBuffer);
-            }
+            cacheId = BufferCache::getInstance().cache(s->bufferData->buffer);
         }
         s->bufferData->flags |= BufferData::BufferDataChange::cachedBufferChanged;
         s->bufferData->cachedBuffer.token = BufferCache::getInstance().getToken();
@@ -1116,7 +1087,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     sf->setTransactionState(mFrameTimelineInfo, composerStates, displayStates, flags, applyToken,
                             mInputWindowCommands, mDesiredPresentTime, mIsAutoTimestamp,
-                            mUncacheBuffers, hasListenerCallbacks, listenerCallbacks, mId);
+                            {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
+                            hasListenerCallbacks, listenerCallbacks, mId);
     mId = generateId();
 
     // Clear the current states and flags
