@@ -24,6 +24,7 @@
 #include <android-base/thread_annotations.h>
 #include <android/native_window.h>
 #include <binder/IBinder.h>
+#include <ftl/concat.h>
 #include <gui/LayerState.h>
 #include <math/mat4.h>
 #include <renderengine/RenderEngine.h>
@@ -300,8 +301,8 @@ private:
 
     mutable std::mutex mActiveModeLock;
     ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
-    TracedOrdinal<bool> mDesiredActiveModeChanged
-            GUARDED_BY(mActiveModeLock) = {"DesiredActiveModeChanged", false};
+    TracedOrdinal<bool> mDesiredActiveModeChanged GUARDED_BY(mActiveModeLock) =
+            {ftl::Concat("DesiredActiveModeChanged-", getId().value).c_str(), false};
     ActiveModeInfo mUpcomingActiveMode GUARDED_BY(kMainThreadContext);
 };
 
