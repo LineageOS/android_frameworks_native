@@ -4,58 +4,7 @@
       "name": "SurfaceFlinger_test",
       "options": [
         {
-          "include-filter": "*CredentialsTest.*"
-        },
-        {
-          "include-filter": "*SurfaceFlingerStress.*"
-        },
-        {
-          "include-filter": "*SurfaceInterceptorTest.*"
-        },
-        {
-          "include-filter": "*LayerTransactionTest.*"
-        },
-        {
-          "include-filter": "*LayerTypeTransactionTest.*"
-        },
-        {
-          "include-filter": "*LayerUpdateTest.*"
-        },
-        {
-          "include-filter": "*GeometryLatchingTest.*"
-        },
-        {
-          "include-filter": "*CropLatchingTest.*"
-        },
-        {
-          "include-filter": "*ChildLayerTest.*"
-        },
-        {
-          "include-filter": "*ScreenCaptureTest.*"
-        },
-        {
-          "include-filter": "*ScreenCaptureChildOnlyTest.*"
-        },
-        {
-          "include-filter": "*DereferenceSurfaceControlTest.*"
-        },
-        {
-          "include-filter": "*BoundlessLayerTest.*"
-        },
-        {
-          "include-filter": "*MultiDisplayLayerBoundsTest.*"
-        },
-        {
-          "include-filter": "*InvalidHandleTest.*"
-        },
-        {
-          "include-filter": "*VirtualDisplayTest.*"
-        },
-        {
-          "include-filter": "*RelativeZTest.*"
-        },
-        {
-          "include-filter": "*RefreshRateOverlayTest.*"
+          "include-filter": "*"
         },
         {
           "exclude-filter": "*ChildLayerTest#ChildrenSurviveParentDestruction"
@@ -76,58 +25,7 @@
       "name": "SurfaceFlinger_test",
       "options": [
         {
-          "include-filter": "*CredentialsTest.*"
-        },
-        {
-          "include-filter": "*SurfaceFlingerStress.*"
-        },
-        {
-          "include-filter": "*SurfaceInterceptorTest.*"
-        },
-        {
-          "include-filter": "*LayerTransactionTest.*"
-        },
-        {
-          "include-filter": "*LayerTypeTransactionTest.*"
-        },
-        {
-          "include-filter": "*LayerUpdateTest.*"
-        },
-        {
-          "include-filter": "*GeometryLatchingTest.*"
-        },
-        {
-          "include-filter": "*CropLatchingTest.*"
-        },
-        {
-          "include-filter": "*ChildLayerTest.*"
-        },
-        {
-          "include-filter": "*ScreenCaptureTest.*"
-        },
-        {
-          "include-filter": "*ScreenCaptureChildOnlyTest.*"
-        },
-        {
-          "include-filter": "*DereferenceSurfaceControlTest.*"
-        },
-        {
-          "include-filter": "*BoundlessLayerTest.*"
-        },
-        {
-          "include-filter": "*MultiDisplayLayerBoundsTest.*"
-        },
-        {
-          "include-filter": "*InvalidHandleTest.*"
-        },
-        {
-          "include-filter": "*VirtualDisplayTest.*"
-        },
-        {
-          "include-filter": "*RelativeZTest.*"
-        },
-        {
-          "include-filter": "*RefreshRateOverlayTest.*"
+          "include-filter": "*"
         }
       ]
     }
