@@ -22,8 +22,8 @@
 #include <memory>
 #include <optional>
 #include <span>
-#include <string>
 
+#include <android-base/mapped_file.h>
 #include <input/RingBuffer.h>
 
 #include <tensorflow/lite/core/api/error_reporter.h>
@@ -124,7 +124,7 @@ public:
     std::span<const float> outputPressure() const;
 
 private:
-    explicit TfLiteMotionPredictorModel(std::string model);
+    explicit TfLiteMotionPredictorModel(std::unique_ptr<android::base::MappedFile> model);
 
     void allocateTensors();
     void attachInputTensors();
@@ -140,7 +140,7 @@ private:
     const TfLiteTensor* mOutputPhi = nullptr;
     const TfLiteTensor* mOutputPressure = nullptr;
 
-    std::string mFlatBuffer;
+    std::unique_ptr<android::base::MappedFile> mFlatBuffer;
     std::unique_ptr<tflite::ErrorReporter> mErrorReporter;
     std::unique_ptr<tflite::FlatBufferModel> mModel;
     std::unique_ptr<tflite::Interpreter> mInterpreter;
