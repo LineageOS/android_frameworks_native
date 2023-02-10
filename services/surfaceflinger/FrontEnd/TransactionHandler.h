@@ -34,7 +34,7 @@ namespace surfaceflinger::frontend {
 class TransactionHandler {
 public:
     struct TransactionFlushState {
-        const TransactionState* transaction;
+        TransactionState* transaction;
         bool firstTransaction = true;
         nsecs_t queueProcessTime = 0;
         // Layer handles that have transactions with buffers that are ready to be applied.

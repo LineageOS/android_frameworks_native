@@ -111,6 +111,7 @@ public:
     uint64_t frameNumber = 0;
     bool hasBarrier = false;
     uint64_t barrierFrameNumber = 0;
+    uint32_t producerId = 0;
 
     // Listens to when the buffer is safe to be released. This is used for blast
     // layers only. The callback includes a release fence as well as the graphic

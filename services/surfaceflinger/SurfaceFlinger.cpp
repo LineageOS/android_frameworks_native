@@ -3971,16 +3971,30 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
         sp<Layer> layer = LayerHandle::getLayer(s.surface);
         const auto& transaction = *flushState.transaction;
         // check for barrier frames
-        if (s.bufferData->hasBarrier &&
-            ((layer->getDrawingState().frameNumber) < s.bufferData->barrierFrameNumber)) {
-            const bool willApplyBarrierFrame =
-                    flushState.bufferLayersReadyToPresent.contains(s.surface.get()) &&
-                    (flushState.bufferLayersReadyToPresent.get(s.surface.get()) >=
-                     s.bufferData->barrierFrameNumber);
-            if (!willApplyBarrierFrame) {
-                ATRACE_NAME("NotReadyBarrier");
-                ready = TransactionReadiness::NotReadyBarrier;
-                return false;
+        if (s.bufferData->hasBarrier) {
+            // The current producerId is already a newer producer than the buffer that has a
+            // barrier. This means the incoming buffer is older and we can release it here. We
+            // don't wait on the barrier since we know that's stale information.
+            if (layer->getDrawingState().producerId > s.bufferData->producerId) {
+                layer->callReleaseBufferCallback(s.bufferData->releaseBufferListener,
+                                                 s.bufferData->buffer, s.bufferData->frameNumber,
+                                                 s.bufferData->acquireFence);
+                // Delete the entire state at this point and not just release the buffer because
+                // everything associated with the Layer in this Transaction is now out of date.
+                ATRACE_NAME("DeleteStaleBuffer");
+                return TraverseBuffersReturnValues::DELETE_AND_CONTINUE_TRAVERSAL;
+            }
+
+            if (layer->getDrawingState().frameNumber < s.bufferData->barrierFrameNumber) {
+                const bool willApplyBarrierFrame =
+                        flushState.bufferLayersReadyToPresent.contains(s.surface.get()) &&
+                        ((flushState.bufferLayersReadyToPresent.get(s.surface.get()) >=
+                          s.bufferData->barrierFrameNumber));
+                if (!willApplyBarrierFrame) {
+                    ATRACE_NAME("NotReadyBarrier");
+                    ready = TransactionReadiness::NotReadyBarrier;
+                    return TraverseBuffersReturnValues::STOP_TRAVERSAL;
+                }
             }
         }
 
@@ -3991,7 +4005,7 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
         if (layer->backpressureEnabled() && hasPendingBuffer && transaction.isAutoTimestamp) {
             ATRACE_NAME("hasPendingBuffer");
             ready = TransactionReadiness::NotReady;
-            return false;
+            return TraverseBuffersReturnValues::STOP_TRAVERSAL;
         }
 
         // check fence status
@@ -4018,14 +4032,14 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
                                                        "Buffer processing hung up due to stuck "
                                                        "fence. Indicates GPU hang");
                 }
-                return false;
+                return TraverseBuffersReturnValues::STOP_TRAVERSAL;
             }
 
             ready = enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer
                     ? TransactionReadiness::ReadyUnsignaledSingle
                     : TransactionReadiness::ReadyUnsignaled;
         }
-        return true;
+        return TraverseBuffersReturnValues::CONTINUE_TRAVERSAL;
     });
     ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
     return ready;

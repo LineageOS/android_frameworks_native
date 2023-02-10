@@ -984,6 +984,7 @@ status_t BufferData::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(output->writeUint64, cachedBuffer.id);
     SAFE_PARCEL(output->writeBool, hasBarrier);
     SAFE_PARCEL(output->writeUint64, barrierFrameNumber);
+    SAFE_PARCEL(output->writeUint32, producerId);
 
     return NO_ERROR;
 }
@@ -1022,6 +1023,7 @@ status_t BufferData::readFromParcel(const Parcel* input) {
 
     SAFE_PARCEL(input->readBool, &hasBarrier);
     SAFE_PARCEL(input->readUint64, &barrierFrameNumber);
+    SAFE_PARCEL(input->readUint32, &producerId);
 
     return NO_ERROR;
 }
