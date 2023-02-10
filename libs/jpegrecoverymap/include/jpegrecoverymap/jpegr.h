@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_RECOVERYMAP_H
-#define ANDROID_JPEGRECOVERYMAP_RECOVERYMAP_H
+#ifndef ANDROID_JPEGRECOVERYMAP_JPEGR_H
+#define ANDROID_JPEGRECOVERYMAP_JPEGR_H
 
 #include "jpegrerrorcode.h"
 
@@ -98,7 +98,7 @@ typedef struct jpegr_exif_struct* jr_exif_ptr;
 typedef struct jpegr_metadata* jr_metadata_ptr;
 typedef struct jpegr_info_struct* jr_info_ptr;
 
-class RecoveryMap {
+class JpegR {
 public:
     /*
      * Encode API-0
@@ -221,10 +221,7 @@ public:
     */
     status_t getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
                           jr_info_ptr jpegr_info);
-
 protected:
-    // Following functions protected instead of private for testing.
-
     /*
      * This method is called in the encoding pipeline. It will take the uncompressed 8-bit and
      * 10-bit yuv images as input, and calculate the uncompressed recovery map. The input images
@@ -234,7 +231,7 @@ protected:
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param hdr_tf transfer function of the HDR image
      * @param dest recovery map; caller responsible for memory of data
-     * @param metadata minContentBoost and maxContentBoost are filled in
+     * @param metadata max_content_boost is filled in
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
@@ -328,4 +325,4 @@ private:
 
 } // namespace android::recoverymap
 
-#endif // ANDROID_JPEGRECOVERYMAP_RECOVERYMAP_H
+#endif // ANDROID_JPEGRECOVERYMAP_JPEGR_H

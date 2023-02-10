@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/recoverymap.h>
+#include <jpegrecoverymap/jpegr.h>
 #include <jpegrecoverymap/jpegencoderhelper.h>
 #include <jpegrecoverymap/jpegdecoderhelper.h>
 #include <jpegrecoverymap/recoverymapmath.h>
-#include <jpegrecoverymap/recoverymaputils.h>
+#include <jpegrecoverymap/jpegrutils.h>
 
 #include <image_io/jpeg/jpeg_marker.h>
 #include <image_io/jpeg/jpeg_info.h>
@@ -101,7 +101,7 @@ static const map<
 };
 
 /* Encode API-0 */
-status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
+status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jpegr_transfer_function hdr_tf,
                                   jr_compressed_ptr dest,
                                   int quality,
@@ -163,7 +163,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 }
 
 /* Encode API-1 */
-status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
+status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
                                   jpegr_transfer_function hdr_tf,
                                   jr_compressed_ptr dest,
@@ -227,7 +227,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 }
 
 /* Encode API-2 */
-status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
+status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_uncompressed_ptr uncompressed_yuv_420_image,
                                   jr_compressed_ptr compressed_jpeg_image,
                                   jpegr_transfer_function hdr_tf,
@@ -272,7 +272,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 }
 
 /* Encode API-3 */
-status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
+status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                                   jr_compressed_ptr compressed_jpeg_image,
                                   jpegr_transfer_function hdr_tf,
                                   jr_compressed_ptr dest) {
@@ -324,7 +324,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   return NO_ERROR;
 }
 
-status_t RecoveryMap::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
+status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
                                    jr_info_ptr jpegr_info) {
   if (compressed_jpegr_image == nullptr || jpegr_info == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
@@ -345,7 +345,7 @@ status_t RecoveryMap::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
 }
 
 /* Decode API */
-status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
+status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                                   jr_uncompressed_ptr dest,
                                   jr_exif_ptr exif,
                                   bool request_sdr) {
@@ -405,7 +405,7 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   return NO_ERROR;
 }
 
-status_t RecoveryMap::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
+status_t JpegR::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
                                           jr_compressed_ptr dest) {
   if (uncompressed_recovery_map == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
@@ -489,7 +489,7 @@ void JobQueue::reset() {
   mQueuedAllJobs = false;
 }
 
-status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
+status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                           jr_uncompressed_ptr uncompressed_p010_image,
                                           jpegr_transfer_function hdr_tf,
                                           jr_metadata_ptr metadata,
@@ -689,7 +689,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   return NO_ERROR;
 }
 
-status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
+status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                        jr_uncompressed_ptr uncompressed_recovery_map,
                                        jr_metadata_ptr metadata,
                                        jr_uncompressed_ptr dest) {
@@ -773,7 +773,7 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
   return NO_ERROR;
 }
 
-status_t RecoveryMap::extractPrimaryImageAndRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
+status_t JpegR::extractPrimaryImageAndRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
                                                         jr_compressed_ptr primary_image,
                                                         jr_compressed_ptr recovery_map) {
   if (compressed_jpegr_image == nullptr) {
@@ -823,7 +823,7 @@ status_t RecoveryMap::extractPrimaryImageAndRecoveryMap(jr_compressed_ptr compre
 }
 
 
-status_t RecoveryMap::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
+status_t JpegR::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
                                          jr_compressed_ptr dest) {
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
@@ -854,7 +854,7 @@ status_t RecoveryMap::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_imag
 // Exif 2.2 spec for EXIF marker
 // Adobe XMP spec part 3 for XMP marker
 // ICC v4.3 spec for ICC
-status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
+status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
                                         jr_compressed_ptr compressed_recovery_map,
                                         jr_exif_ptr exif,
                                         jr_metadata_ptr metadata,
@@ -917,7 +917,7 @@ status_t RecoveryMap::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
   return NO_ERROR;
 }
 
-status_t RecoveryMap::toneMap(jr_uncompressed_ptr src,
+status_t JpegR::toneMap(jr_uncompressed_ptr src,
                               jr_uncompressed_ptr dest) {
   if (src == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;

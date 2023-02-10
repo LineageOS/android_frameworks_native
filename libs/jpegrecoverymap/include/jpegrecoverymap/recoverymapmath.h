@@ -20,7 +20,7 @@
 #include <cmath>
 #include <stdint.h>
 
-#include <jpegrecoverymap/recoverymap.h>
+#include <jpegrecoverymap/jpegr.h>
 
 namespace android::recoverymap {
 

@@ -29,9 +29,9 @@ cc_library {
     local_include_dirs: ["include"],
 
     srcs: [
-        "recoverymap.cpp",
+        "jpegr.cpp",
         "recoverymapmath.cpp",
-        "recoverymaputils.cpp",
+        "jpegrutils.cpp",
     ],
 
     shared_libs: [
