@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_JPEGENCODER_H
-#define ANDROID_JPEGRECOVERYMAP_JPEGENCODER_H
+#ifndef ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H
+#define ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H
 
 // We must include cstdio before jpeglib.h. It is a requirement of libjpeg.
 #include <cstdio>
@@ -34,10 +34,10 @@ namespace android::recoverymap {
  * Encapsulates a converter from raw image (YUV420planer or grey-scale) to JPEG format.
  * This class is not thread-safe.
  */
-class JpegEncoder {
+class JpegEncoderHelper {
 public:
-    JpegEncoder();
-    ~JpegEncoder();
+    JpegEncoderHelper();
+    ~JpegEncoderHelper();
 
     /*
      * Compresses YUV420Planer image to JPEG format. After calling this method, call
@@ -92,4 +92,4 @@ private:
 
 } /* namespace android  */
 
-#endif // ANDROID_JPEGRECOVERYMAP_JPEGENCODER_H
+#endif // ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H

@@ -57,7 +57,7 @@ cc_library {
     export_include_dirs: ["include"],
 
     srcs: [
-        "jpegencoder.cpp",
+        "jpegencoderhelper.cpp",
     ],
 }
 
@@ -73,6 +73,6 @@ cc_library {
     export_include_dirs: ["include"],
 
     srcs: [
-        "jpegdecoder.cpp",
+        "jpegdecoderhelper.cpp",
     ],
 }
