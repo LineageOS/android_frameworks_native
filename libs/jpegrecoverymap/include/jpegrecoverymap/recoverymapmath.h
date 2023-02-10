@@ -118,11 +118,12 @@ inline Color operator/(const Color& lhs, const float rhs) {
 constexpr size_t kRecoveryFactorPrecision = 10;
 constexpr size_t kRecoveryFactorNumEntries = 1 << kRecoveryFactorPrecision;
 struct RecoveryLUT {
-  RecoveryLUT(float hdrRatio) {
-    float increment = 2.0 / kRecoveryFactorNumEntries;
-    float value = -1.0f;
-    for (int idx = 0; idx < kRecoveryFactorNumEntries; idx++, value += increment) {
-      mRecoveryTable[idx] = pow(hdrRatio, value);
+  RecoveryLUT(jr_metadata_ptr metadata) {
+    for (int idx = 0; idx < kRecoveryFactorNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kRecoveryFactorNumEntries - 1);
+      float logBoost = log2(metadata->minContentBoost) * (1.0f - value)
+                     + log2(metadata->maxContentBoost) * value;
+      mRecoveryTable[idx] = exp2(logBoost);
     }
   }
 
@@ -130,10 +131,10 @@ struct RecoveryLUT {
   }
 
   float getRecoveryFactor(float recovery) {
-    uint32_t value = static_cast<uint32_t>(((recovery + 1.0f) / 2.0f) * kRecoveryFactorNumEntries);
+    uint32_t idx = static_cast<uint32_t>(recovery * (kRecoveryFactorNumEntries - 1));
     //TODO() : Remove once conversion modules have appropriate clamping in place
-    value = CLIP3(value, 0, kRecoveryFactorNumEntries - 1);
-    return mRecoveryTable[value];
+    idx = CLIP3(idx, 0, kRecoveryFactorNumEntries - 1);
+    return mRecoveryTable[idx];
   }
 
 private:
@@ -219,6 +220,9 @@ Color srgbInvOetf(Color e_gamma);
 float srgbInvOetfLUT(float e_gamma);
 Color srgbInvOetfLUT(Color e_gamma);
 
+constexpr size_t kSrgbInvOETFPrecision = 10;
+constexpr size_t kSrgbInvOETFNumEntries = 1 << kSrgbInvOETFPrecision;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Display-P3 transformations
 
@@ -260,6 +264,9 @@ Color hlgOetf(Color e);
 float hlgOetfLUT(float e);
 Color hlgOetfLUT(Color e);
 
+constexpr size_t kHlgOETFPrecision = 10;
+constexpr size_t kHlgOETFNumEntries = 1 << kHlgOETFPrecision;
+
 /*
  * Convert from HLG to scene luminance.
  *
@@ -269,6 +276,9 @@ float hlgInvOetf(float e_gamma);
 Color hlgInvOetf(Color e_gamma);
 float hlgInvOetfLUT(float e_gamma);
 Color hlgInvOetfLUT(Color e_gamma);
+
+constexpr size_t kHlgInvOETFPrecision = 10;
+constexpr size_t kHlgInvOETFNumEntries = 1 << kHlgInvOETFPrecision;
 
 /*
  * Convert from scene luminance to PQ.
@@ -280,6 +290,9 @@ Color pqOetf(Color e);
 float pqOetfLUT(float e);
 Color pqOetfLUT(Color e);
 
+constexpr size_t kPqOETFPrecision = 10;
+constexpr size_t kPqOETFNumEntries = 1 << kPqOETFPrecision;
+
 /*
  * Convert from PQ to scene luminance in nits.
  *
@@ -289,6 +302,9 @@ float pqInvOetf(float e_gamma);
 Color pqInvOetf(Color e_gamma);
 float pqInvOetfLUT(float e_gamma);
 Color pqInvOetfLUT(Color e_gamma);
+
+constexpr size_t kPqInvOETFPrecision = 10;
+constexpr size_t kPqInvOETFNumEntries = 1 << kPqInvOETFPrecision;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -326,13 +342,13 @@ ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gam
  * Calculate the 8-bit unsigned integer recovery value for the given SDR and HDR
  * luminances in linear space, and the hdr ratio to encode against.
  */
-uint8_t encodeRecovery(float y_sdr, float y_hdr, float hdr_ratio);
+uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata);
 
 /*
  * Calculates the linear luminance in nits after applying the given recovery
  * value, with the given hdr ratio, to the given sdr input in the range [0, 1].
  */
-Color applyRecovery(Color e, float recovery, float hdr_ratio);
+Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata);
 Color applyRecoveryLUT(Color e, float recovery, RecoveryLUT& recoveryLUT);
 
 /*

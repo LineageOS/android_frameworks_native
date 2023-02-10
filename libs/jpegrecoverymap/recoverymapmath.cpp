@@ -20,65 +20,46 @@
 
 namespace android::recoverymap {
 
-constexpr size_t kPqOETFPrecision = 10;
-constexpr size_t kPqOETFNumEntries = 1 << kPqOETFPrecision;
-
 static const std::vector<float> kPqOETF = [] {
     std::vector<float> result;
-    float increment = 1.0 / kPqOETFNumEntries;
-    float value = 0.0f;
-    for (int idx = 0; idx < kPqOETFNumEntries; idx++, value += increment) {
+    for (int idx = 0; idx < kPqOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kPqOETFNumEntries - 1);
       result.push_back(pqOetf(value));
     }
     return result;
 }();
 
-constexpr size_t kPqInvOETFPrecision = 10;
-constexpr size_t kPqInvOETFNumEntries = 1 << kPqInvOETFPrecision;
-
 static const std::vector<float> kPqInvOETF = [] {
     std::vector<float> result;
-    float increment = 1.0 / kPqInvOETFNumEntries;
-    float value = 0.0f;
-    for (int idx = 0; idx < kPqInvOETFNumEntries; idx++, value += increment) {
+    for (int idx = 0; idx < kPqInvOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kPqInvOETFNumEntries - 1);
       result.push_back(pqInvOetf(value));
     }
     return result;
 }();
 
-constexpr size_t kHlgOETFPrecision = 10;
-constexpr size_t kHlgOETFNumEntries = 1 << kHlgOETFPrecision;
-
 static const std::vector<float> kHlgOETF = [] {
     std::vector<float> result;
-    float increment = 1.0 / kHlgOETFNumEntries;
-    float value = 0.0f;
-    for (int idx = 0; idx < kHlgOETFNumEntries; idx++, value += increment) {
+    for (int idx = 0; idx < kHlgOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kHlgOETFNumEntries - 1);
       result.push_back(hlgOetf(value));
     }
     return result;
 }();
 
-constexpr size_t kHlgInvOETFPrecision = 10;
-constexpr size_t kHlgInvOETFNumEntries = 1 << kHlgInvOETFPrecision;
-
 static const std::vector<float> kHlgInvOETF = [] {
     std::vector<float> result;
-    float increment = 1.0 / kHlgInvOETFNumEntries;
-    float value = 0.0f;
-    for (int idx = 0; idx < kHlgInvOETFNumEntries; idx++, value += increment) {
+    for (int idx = 0; idx < kHlgInvOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kHlgInvOETFNumEntries - 1);
       result.push_back(hlgInvOetf(value));
     }
     return result;
 }();
 
-constexpr size_t kSRGBInvOETFPrecision = 10;
-constexpr size_t kSRGBInvOETFNumEntries = 1 << kSRGBInvOETFPrecision;
-static const std::vector<float> kSRGBInvOETF = [] {
+static const std::vector<float> kSrgbInvOETF = [] {
     std::vector<float> result;
-    float increment = 1.0 / kSRGBInvOETFNumEntries;
-    float value = 0.0f;
-    for (int idx = 0; idx < kSRGBInvOETFNumEntries; idx++, value += increment) {
+    for (int idx = 0; idx < kSrgbInvOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kSrgbInvOETFNumEntries - 1);
       result.push_back(srgbInvOetf(value));
     }
     return result;
@@ -182,10 +163,10 @@ Color srgbInvOetf(Color e_gamma) {
 
 // See IEC 61966-2-1, Equations F.5 and F.6.
 float srgbInvOetfLUT(float e_gamma) {
-  uint32_t value = static_cast<uint32_t>(e_gamma * kSRGBInvOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e_gamma * kSrgbInvOETFNumEntries);
   //TODO() : Remove once conversion modules have appropriate clamping in place
-  value = CLIP3(value, 0, kSRGBInvOETFNumEntries - 1);
-  return kSRGBInvOETF[value];
+  value = CLIP3(value, 0, kSrgbInvOETFNumEntries - 1);
+  return kSrgbInvOETF[value];
 }
 
 Color srgbInvOetfLUT(Color e_gamma) {
@@ -461,21 +442,24 @@ ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gam
 
 ////////////////////////////////////////////////////////////////////////////////
 // Recovery map calculations
-
-uint8_t encodeRecovery(float y_sdr, float y_hdr, float hdr_ratio) {
+uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata) {
   float gain = 1.0f;
   if (y_sdr > 0.0f) {
     gain = y_hdr / y_sdr;
   }
 
-  if (gain < (1.0f / hdr_ratio)) gain = 1.0f / hdr_ratio;
-  if (gain > hdr_ratio) gain = hdr_ratio;
+  if (gain < metadata->minContentBoost) gain = metadata->minContentBoost;
+  if (gain > metadata->maxContentBoost) gain = metadata->maxContentBoost;
 
-  return static_cast<uint8_t>(log2(gain) / log2(hdr_ratio) * 127.5f  + 127.5f);
+  return static_cast<uint8_t>((log2(gain) - log2(metadata->minContentBoost))
+                            / (log2(metadata->maxContentBoost) - log2(metadata->minContentBoost))
+                            * 255.0f);
 }
 
-Color applyRecovery(Color e, float recovery, float hdr_ratio) {
-  float recoveryFactor = pow(hdr_ratio, recovery);
+Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata) {
+  float logBoost = log2(metadata->minContentBoost) * (1.0f - recovery)
+                 + log2(metadata->maxContentBoost) * recovery;
+  float recoveryFactor = exp2(logBoost);
   return e * recoveryFactor;
 }
 
@@ -550,7 +534,7 @@ static size_t clamp(const size_t& val, const size_t& low, const size_t& high) {
 }
 
 static float mapUintToFloat(uint8_t map_uint) {
-  return (static_cast<float>(map_uint) - 127.5f) / 127.5f;
+  return static_cast<float>(map_uint) / 255.0f;
 }
 
 static float pythDistance(float x_diff, float y_diff) {
@@ -558,9 +542,9 @@ static float pythDistance(float x_diff, float y_diff) {
 }
 
 // TODO: If map_scale_factor is guaranteed to be an integer, then remove the following.
-float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y) {
-  float x_map = static_cast<float>(x) / static_cast<float>(map_scale_factor);
-  float y_map = static_cast<float>(y) / static_cast<float>(map_scale_factor);
+float sampleMap(jr_uncompressed_ptr map, float map_scale_factor, size_t x, size_t y) {
+  float x_map = static_cast<float>(x) / map_scale_factor;
+  float y_map = static_cast<float>(y) / map_scale_factor;
 
   size_t x_lower = static_cast<size_t>(floor(x_map));
   size_t x_upper = x_lower + 1;
