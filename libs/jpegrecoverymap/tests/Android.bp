@@ -44,10 +44,10 @@ cc_test {
 }
 
 cc_test {
-    name: "libjpegencoder_test",
+    name: "libjpegencoderhelper_test",
     test_suites: ["device-tests"],
     srcs: [
-        "jpegencoder_test.cpp",
+        "jpegencoderhelper_test.cpp",
     ],
     shared_libs: [
         "libjpeg",
@@ -60,10 +60,10 @@ cc_test {
 }
 
 cc_test {
-    name: "libjpegdecoder_test",
+    name: "libjpegdecoderhelper_test",
     test_suites: ["device-tests"],
     srcs: [
-        "jpegdecoder_test.cpp",
+        "jpegdecoderhelper_test.cpp",
     ],
     shared_libs: [
         "libjpeg",

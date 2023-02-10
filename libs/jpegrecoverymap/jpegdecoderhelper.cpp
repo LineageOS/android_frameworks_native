@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegdecoder.h>
+#include <jpegrecoverymap/jpegdecoderhelper.h>
 
 #include <utils/Log.h>
 
@@ -90,14 +90,14 @@ static void jpegrerror_exit(j_common_ptr cinfo) {
     longjmp(err->setjmp_buffer, 1);
 }
 
-JpegDecoder::JpegDecoder() {
+JpegDecoderHelper::JpegDecoderHelper() {
   mExifPos = 0;
 }
 
-JpegDecoder::~JpegDecoder() {
+JpegDecoderHelper::~JpegDecoderHelper() {
 }
 
-bool JpegDecoder::decompressImage(const void* image, int length, bool decodeToRGBA) {
+bool JpegDecoderHelper::decompressImage(const void* image, int length, bool decodeToRGBA) {
     if (image == nullptr || length <= 0) {
         ALOGE("Image size can not be handled: %d", length);
         return false;
@@ -112,39 +112,39 @@ bool JpegDecoder::decompressImage(const void* image, int length, bool decodeToRG
     return true;
 }
 
-void* JpegDecoder::getDecompressedImagePtr() {
+void* JpegDecoderHelper::getDecompressedImagePtr() {
     return mResultBuffer.data();
 }
 
-size_t JpegDecoder::getDecompressedImageSize() {
+size_t JpegDecoderHelper::getDecompressedImageSize() {
     return mResultBuffer.size();
 }
 
-void* JpegDecoder::getXMPPtr() {
+void* JpegDecoderHelper::getXMPPtr() {
     return mXMPBuffer.data();
 }
 
-size_t JpegDecoder::getXMPSize() {
+size_t JpegDecoderHelper::getXMPSize() {
     return mXMPBuffer.size();
 }
 
-void* JpegDecoder::getEXIFPtr() {
+void* JpegDecoderHelper::getEXIFPtr() {
     return mEXIFBuffer.data();
 }
 
-size_t JpegDecoder::getEXIFSize() {
+size_t JpegDecoderHelper::getEXIFSize() {
     return mEXIFBuffer.size();
 }
 
-size_t JpegDecoder::getDecompressedImageWidth() {
+size_t JpegDecoderHelper::getDecompressedImageWidth() {
     return mWidth;
 }
 
-size_t JpegDecoder::getDecompressedImageHeight() {
+size_t JpegDecoderHelper::getDecompressedImageHeight() {
     return mHeight;
 }
 
-bool JpegDecoder::decode(const void* image, int length, bool decodeToRGBA) {
+bool JpegDecoderHelper::decode(const void* image, int length, bool decodeToRGBA) {
     jpeg_decompress_struct cinfo;
     jpegr_source_mgr mgr(static_cast<const uint8_t*>(image), length);
     jpegrerror_mgr myerr;
@@ -248,7 +248,7 @@ bool JpegDecoder::decode(const void* image, int length, bool decodeToRGBA) {
     return true;
 }
 
-bool JpegDecoder::decompress(jpeg_decompress_struct* cinfo, const uint8_t* dest,
+bool JpegDecoderHelper::decompress(jpeg_decompress_struct* cinfo, const uint8_t* dest,
         bool isSingleChannel) {
     if (isSingleChannel) {
         return decompressSingleChannel(cinfo, dest);
@@ -259,7 +259,7 @@ bool JpegDecoder::decompress(jpeg_decompress_struct* cinfo, const uint8_t* dest,
         return decompressYUV(cinfo, dest);
 }
 
-bool JpegDecoder::getCompressedImageParameters(const void* image, int length,
+bool JpegDecoderHelper::getCompressedImageParameters(const void* image, int length,
                               size_t *pWidth, size_t *pHeight,
                               std::vector<uint8_t> *iccData , std::vector<uint8_t> *exifData) {
     jpeg_decompress_struct cinfo;
@@ -326,7 +326,7 @@ bool JpegDecoder::getCompressedImageParameters(const void* image, int length,
     return true;
 }
 
-bool JpegDecoder::decompressRGBA(jpeg_decompress_struct* cinfo, const uint8_t* dest) {
+bool JpegDecoderHelper::decompressRGBA(jpeg_decompress_struct* cinfo, const uint8_t* dest) {
     JSAMPLE* decodeDst = (JSAMPLE*) dest;
     uint32_t lines = 0;
     // TODO: use batches for more effectiveness
@@ -341,7 +341,7 @@ bool JpegDecoder::decompressRGBA(jpeg_decompress_struct* cinfo, const uint8_t* d
     return lines == cinfo->image_height;
 }
 
-bool JpegDecoder::decompressYUV(jpeg_decompress_struct* cinfo, const uint8_t* dest) {
+bool JpegDecoderHelper::decompressYUV(jpeg_decompress_struct* cinfo, const uint8_t* dest) {
 
     JSAMPROW y[kCompressBatchSize];
     JSAMPROW cb[kCompressBatchSize / 2];
@@ -386,7 +386,7 @@ bool JpegDecoder::decompressYUV(jpeg_decompress_struct* cinfo, const uint8_t* de
     return true;
 }
 
-bool JpegDecoder::decompressSingleChannel(jpeg_decompress_struct* cinfo, const uint8_t* dest) {
+bool JpegDecoderHelper::decompressSingleChannel(jpeg_decompress_struct* cinfo, const uint8_t* dest) {
     JSAMPROW y[kCompressBatchSize];
     JSAMPARRAY planes[1] {y};
 

@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2022 The Android Open Source Project
  *
@@ -15,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_JPEGDECODER_H
-#define ANDROID_JPEGRECOVERYMAP_JPEGDECODER_H
+#ifndef ANDROID_JPEGRECOVERYMAP_JPEGDECODERHELPER_H
+#define ANDROID_JPEGRECOVERYMAP_JPEGDECODERHELPER_H
 
 // We must include cstdio before jpeglib.h. It is a requirement of libjpeg.
 #include <cstdio>
@@ -31,10 +30,10 @@ namespace android::recoverymap {
  * Encapsulates a converter from JPEG to raw image (YUV420planer or grey-scale) format.
  * This class is not thread-safe.
  */
-class JpegDecoder {
+class JpegDecoderHelper {
 public:
-    JpegDecoder();
-    ~JpegDecoder();
+    JpegDecoderHelper();
+    ~JpegDecoderHelper();
     /*
      * Decompresses JPEG image to raw image (YUV420planer, grey-scale or RGBA) format. After
      * calling this method, call getDecompressedImage() to get the image.
@@ -118,4 +117,4 @@ private:
 };
 } /* namespace android  */
 
-#endif // ANDROID_JPEGRECOVERYMAP_JPEGDECODER_H
+#endif // ANDROID_JPEGRECOVERYMAP_JPEGDECODERHELPER_H
