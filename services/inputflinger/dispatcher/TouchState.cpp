@@ -33,8 +33,7 @@ void TouchState::reset() {
 
 void TouchState::removeTouchedPointer(int32_t pointerId) {
     for (TouchedWindow& touchedWindow : windows) {
-        touchedWindow.pointerIds.reset(pointerId);
-        touchedWindow.pilferedPointerIds.reset(pointerId);
+        touchedWindow.removeTouchingPointer(pointerId);
     }
 }
 
@@ -42,8 +41,7 @@ void TouchState::removeTouchedPointerFromWindow(
         int32_t pointerId, const sp<android::gui::WindowInfoHandle>& windowHandle) {
     for (TouchedWindow& touchedWindow : windows) {
         if (touchedWindow.windowHandle == windowHandle) {
-            touchedWindow.pointerIds.reset(pointerId);
-            touchedWindow.pilferedPointerIds.reset(pointerId);
+            touchedWindow.removeTouchingPointer(pointerId);
             return;
         }
     }

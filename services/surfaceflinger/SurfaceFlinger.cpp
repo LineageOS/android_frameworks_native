@@ -4552,8 +4552,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (layer == nullptr) {
         for (auto& [listener, callbackIds] : s.listeners) {
-            mTransactionCallbackInvoker.registerUnpresentedCallbackHandle(
-                    sp<CallbackHandle>::make(listener, callbackIds, s.surface));
+            mTransactionCallbackInvoker.addCallbackHandle(sp<CallbackHandle>::make(listener,
+                                                                                   callbackIds,
+                                                                                   s.surface),
+                                                          std::vector<JankData>());
         }
         return 0;
     }
@@ -4830,6 +4832,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
                                           s.trustedPresentationListener);
     }
 
+    if (what & layer_state_t::eFlushJankData) {
+        // Do nothing. Processing the transaction completed listeners currently cause the flush.
+    }
+
     if (layer->setTransactionCompletedListeners(callbackHandles,
                                                 layer->willPresentCurrentTransaction())) {
         flags |= eTraversalNeeded;
@@ -4887,8 +4893,10 @@ uint32_t SurfaceFlinger::updateLayerCallbacksAndStats(const FrameTimelineInfo& f
     }
     if (layer == nullptr) {
         for (auto& [listener, callbackIds] : s.listeners) {
-            mTransactionCallbackInvoker.registerUnpresentedCallbackHandle(
-                    sp<CallbackHandle>::make(listener, callbackIds, s.surface));
+            mTransactionCallbackInvoker.addCallbackHandle(sp<CallbackHandle>::make(listener,
+                                                                                   callbackIds,
+                                                                                   s.surface),
+                                                          std::vector<JankData>());
         }
         return 0;
     }
