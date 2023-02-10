@@ -24,7 +24,7 @@
 #include <string>
 #include <cstdio>
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 struct jpegr_metadata;
 
@@ -92,6 +92,6 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  * @return XMP metadata in type of string
  */
 std::string generateXmp(int secondary_image_length, jpegr_metadata& metadata);
-}
+}  // namespace android::jpegrecoverymap
 
 #endif //ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H

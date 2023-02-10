@@ -34,7 +34,7 @@
 #define SAVE_DECODING_RESULT true
 #define SAVE_INPUT_RGBA true
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 struct Timer {
   struct timeval StartingTime;

@@ -43,7 +43,7 @@
 using namespace std;
 using namespace photos_editing_formats::image_io;
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 #define USE_SRGB_INVOETF_LUT 1
 #define USE_HLG_OETF_LUT 1
@@ -86,14 +86,15 @@ int GetCPUCoreCount() {
   return cpuCoreCount;
 }
 
-static const map<recoverymap::jpegr_color_gamut, skcms_Matrix3x3> jrGamut_to_skGamut {
+static const map<jpegrecoverymap::jpegr_color_gamut, skcms_Matrix3x3> jrGamut_to_skGamut {
     {JPEGR_COLORGAMUT_BT709,     SkNamedGamut::kSRGB},
     {JPEGR_COLORGAMUT_P3,        SkNamedGamut::kDisplayP3},
     {JPEGR_COLORGAMUT_BT2100,    SkNamedGamut::kRec2020},
 };
 
 static const map<
-        recoverymap::jpegr_transfer_function, skcms_TransferFunction> jrTransFunc_to_skTransFunc {
+        jpegrecoverymap::jpegr_transfer_function,
+        skcms_TransferFunction> jrTransFunc_to_skTransFunc {
     {JPEGR_TF_SRGB,        SkNamedTransferFn::kSRGB},
     {JPEGR_TF_LINEAR,      SkNamedTransferFn::kLinear},
     {JPEGR_TF_HLG,         SkNamedTransferFn::kHLG},
@@ -954,4 +955,4 @@ status_t JpegR::toneMap(jr_uncompressed_ptr src,
   return NO_ERROR;
 }
 
-} // namespace android::recoverymap
+} // namespace android::jpegrecoverymap

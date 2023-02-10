@@ -25,7 +25,7 @@
 using namespace photos_editing_formats::image_io;
 using namespace std;
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 /*
  * Helper function used for generating XMP metadata.
@@ -247,4 +247,4 @@ string generateXmp(int secondary_image_length, jpegr_metadata& metadata) {
   return ss.str();
 }
 
-} // namespace android::recoverymap
+} // namespace android::jpegrecoverymap

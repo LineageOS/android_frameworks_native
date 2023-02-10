@@ -25,7 +25,7 @@ extern "C" {
 }
 #include <utils/Errors.h>
 #include <vector>
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 /*
  * Encapsulates a converter from JPEG to raw image (YUV420planer or grey-scale) format.
  * This class is not thread-safe.
@@ -115,6 +115,6 @@ private:
     // Position of EXIF package, default value is -1 which means no EXIF package appears.
     size_t mExifPos;
 };
-} /* namespace android  */
+} /* namespace android::jpegrecoverymap  */
 
 #endif // ANDROID_JPEGRECOVERYMAP_JPEGDECODERHELPER_H

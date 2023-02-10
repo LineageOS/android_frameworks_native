@@ -20,7 +20,7 @@
 
 #include <fcntl.h>
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 #define YUV_IMAGE "/sdcard/Documents/minnie-320x240-yuv.jpg"
 #define YUV_IMAGE_SIZE 20193
@@ -99,4 +99,4 @@ TEST_F(JpegDecoderHelperTest, decodeGreyImage) {
     ASSERT_GT(decoder.getDecompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-}
+}  // namespace android::jpegrecoverymap

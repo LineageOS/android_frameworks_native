@@ -22,7 +22,7 @@
 
 #include <jpegrecoverymap/jpegr.h>
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 #define CLIP3(x, min, max) ((x) < (min)) ? (min) : ((x) > (max)) ? (max) : (x)
 
@@ -392,6 +392,6 @@ float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size
  */
 uint32_t colorToRgba1010102(Color e_gamma);
 
-} // namespace android::recoverymap
+} // namespace android::jpegrecoverymap
 
 #endif // ANDROID_JPEGRECOVERYMAP_RECOVERYMAPMATH_H

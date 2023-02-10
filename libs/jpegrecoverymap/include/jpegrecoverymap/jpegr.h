@@ -19,7 +19,7 @@
 
 #include "jpegrerrorcode.h"
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 // Color gamuts for image data
 typedef enum {
@@ -323,6 +323,6 @@ private:
                      jr_uncompressed_ptr dest);
 };
 
-} // namespace android::recoverymap
+} // namespace android::jpegrecoverymap
 
 #endif // ANDROID_JPEGRECOVERYMAP_JPEGR_H
