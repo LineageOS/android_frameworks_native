@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 
 #include <android-base/thread_annotations.h>
@@ -73,6 +74,7 @@ public:
 
 private:
     const nsecs_t mPredictionTimestampOffsetNanos;
+    const std::string mModelPath;
     const std::function<bool()> mCheckMotionPredictionEnabled;
 
     std::unique_ptr<TfLiteMotionPredictorModel> mModel;
