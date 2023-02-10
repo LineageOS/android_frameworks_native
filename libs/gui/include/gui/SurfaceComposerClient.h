@@ -742,6 +742,8 @@ public:
 
         static sp<IBinder> getDefaultApplyToken();
         static void setDefaultApplyToken(sp<IBinder> applyToken);
+
+        static status_t sendSurfaceFlushJankDataTransaction(const sp<SurfaceControl>& sc);
     };
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;
@@ -876,10 +878,14 @@ public:
             const std::unordered_set<sp<SurfaceControl>, SurfaceComposerClient::SCHash>&
                     surfaceControls,
             CallbackId::Type callbackType);
+    CallbackId addCallbackFunctionLocked(
+            const TransactionCompletedCallback& callbackFunction,
+            const std::unordered_set<sp<SurfaceControl>, SurfaceComposerClient::SCHash>&
+                    surfaceControls,
+            CallbackId::Type callbackType) REQUIRES(mMutex);
 
-    void addSurfaceControlToCallbacks(
-            const sp<SurfaceControl>& surfaceControl,
-            const std::unordered_set<CallbackId, CallbackIdHash>& callbackIds);
+    void addSurfaceControlToCallbacks(SurfaceComposerClient::CallbackInfo& callbackInfo,
+                                      const sp<SurfaceControl>& surfaceControl);
 
     void addQueueStallListener(std::function<void(const std::string&)> stallListener, void* id);
     void removeQueueStallListener(void *id);

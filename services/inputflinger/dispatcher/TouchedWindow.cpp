@@ -50,6 +50,14 @@ void TouchedWindow::addHoveringPointer(int32_t deviceId, int32_t pointerId) {
     it->second.set(pointerId);
 }
 
+void TouchedWindow::removeTouchingPointer(int32_t pointerId) {
+    pointerIds.reset(pointerId);
+    pilferedPointerIds.reset(pointerId);
+    if (pointerIds.none()) {
+        firstDownTimeInTarget.reset();
+    }
+}
+
 void TouchedWindow::removeHoveringPointer(int32_t deviceId, int32_t pointerId) {
     const auto it = mHoveringPointerIdsByDevice.find(deviceId);
     if (it == mHoveringPointerIdsByDevice.end()) {

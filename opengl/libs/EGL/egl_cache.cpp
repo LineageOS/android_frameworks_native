@@ -14,8 +14,6 @@
  ** limitations under the License.
  */
 
-// #define LOG_NDEBUG 0
-
 #include "egl_cache.h"
 
 #include <android-base/properties.h>
@@ -27,19 +25,22 @@
 #include <thread>
 
 #include "../egl_impl.h"
+#include "egl_cache_multifile.h"
 #include "egl_display.h"
 
 // Monolithic cache size limits.
-static const size_t kMaxMonolithicKeySize = 12 * 1024;
-static const size_t kMaxMonolithicValueSize = 64 * 1024;
-static const size_t kMaxMonolithicTotalSize = 2 * 1024 * 1024;
+static const size_t maxKeySize = 12 * 1024;
+static const size_t maxValueSize = 64 * 1024;
+static const size_t maxTotalSize = 32 * 1024 * 1024;
 
 // The time in seconds to wait before saving newly inserted monolithic cache entries.
-static const unsigned int kDeferredMonolithicSaveDelay = 4;
+static const unsigned int deferredSaveDelay = 4;
 
-// Multifile cache size limits
-constexpr uint32_t kMultifileHotCacheLimit = 8 * 1024 * 1024;
-constexpr uint32_t kMultifileCacheByteLimit = 32 * 1024 * 1024;
+// Multifile cache size limit
+constexpr size_t kMultifileCacheByteLimit = 64 * 1024 * 1024;
+
+// Delay before cleaning up multifile cache entries
+static const unsigned int deferredMultifileCleanupDelaySeconds = 1;
 
 namespace android {
 
@@ -67,7 +68,10 @@ static EGLsizeiANDROID getBlob(const void* key, EGLsizeiANDROID keySize, void* v
 // egl_cache_t definition
 //
 egl_cache_t::egl_cache_t()
-      : mInitialized(false), mMultifileMode(false), mCacheByteLimit(kMaxMonolithicTotalSize) {}
+      : mInitialized(false),
+        mMultifileMode(false),
+        mCacheByteLimit(maxTotalSize),
+        mMultifileCleanupPending(false) {}
 
 egl_cache_t::~egl_cache_t() {}
 
@@ -81,7 +85,7 @@ void egl_cache_t::initialize(egl_display_t* display) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     egl_connection_t* const cnx = &gEGLImpl;
-    if (display && cnx->dso && cnx->major >= 0 && cnx->minor >= 0) {
+    if (cnx->dso && cnx->major >= 0 && cnx->minor >= 0) {
         const char* exts = display->disp.queryString.extensions;
         size_t bcExtLen = strlen(BC_EXT_STR);
         size_t extsLen = strlen(exts);
@@ -110,36 +114,14 @@ void egl_cache_t::initialize(egl_display_t* display) {
         }
     }
 
-    // Check the device config to decide whether multifile should be used
-    if (base::GetBoolProperty("ro.egl.blobcache.multifile", false)) {
-        mMultifileMode = true;
-        ALOGV("Using multifile EGL blobcache");
-    }
-
-    // Allow forcing the mode for debug purposes
-    std::string mode = base::GetProperty("debug.egl.blobcache.multifile", "");
-    if (mode == "true") {
-        ALOGV("Forcing multifile cache due to debug.egl.blobcache.multifile == %s", mode.c_str());
-        mMultifileMode = true;
-    } else if (mode == "false") {
-        ALOGV("Forcing monolithic cache due to debug.egl.blobcache.multifile == %s", mode.c_str());
+    // Allow forcing monolithic cache for debug purposes
+    if (base::GetProperty("debug.egl.blobcache.multifilemode", "") == "false") {
+        ALOGD("Forcing monolithic cache due to debug.egl.blobcache.multifilemode == \"false\"");
         mMultifileMode = false;
     }
 
     if (mMultifileMode) {
-        mCacheByteLimit = static_cast<size_t>(
-                base::GetUintProperty<uint32_t>("ro.egl.blobcache.multifile_limit",
-                                                kMultifileCacheByteLimit));
-
-        // Check for a debug value
-        int debugCacheSize = base::GetIntProperty("debug.egl.blobcache.multifile_limit", -1);
-        if (debugCacheSize >= 0) {
-            ALOGV("Overriding cache limit %zu with %i from debug.egl.blobcache.multifile_limit",
-                  mCacheByteLimit, debugCacheSize);
-            mCacheByteLimit = debugCacheSize;
-        }
-
-        ALOGV("Using multifile EGL blobcache limit of %zu bytes", mCacheByteLimit);
+        mCacheByteLimit = kMultifileCacheByteLimit;
     }
 
     mInitialized = true;
@@ -151,10 +133,10 @@ void egl_cache_t::terminate() {
         mBlobCache->writeToFile();
     }
     mBlobCache = nullptr;
-    if (mMultifileBlobCache) {
-        mMultifileBlobCache->finish();
+    if (mMultifileMode) {
+        checkMultifileCacheSize(mCacheByteLimit);
     }
-    mMultifileBlobCache = nullptr;
+    mMultifileMode = false;
     mInitialized = false;
 }
 
@@ -169,8 +151,20 @@ void egl_cache_t::setBlob(const void* key, EGLsizeiANDROID keySize, const void* 
 
     if (mInitialized) {
         if (mMultifileMode) {
-            MultifileBlobCache* mbc = getMultifileBlobCacheLocked();
-            mbc->set(key, keySize, value, valueSize);
+            setBlobMultifile(key, keySize, value, valueSize, mFilename);
+
+            if (!mMultifileCleanupPending) {
+                mMultifileCleanupPending = true;
+                // Kick off a thread to cull cache files below limit
+                std::thread deferredMultifileCleanupThread([this]() {
+                    sleep(deferredMultifileCleanupDelaySeconds);
+                    std::lock_guard<std::mutex> lock(mMutex);
+                    // Check the size of cache and remove entries to stay under limit
+                    checkMultifileCacheSize(mCacheByteLimit);
+                    mMultifileCleanupPending = false;
+                });
+                deferredMultifileCleanupThread.detach();
+            }
         } else {
             BlobCache* bc = getBlobCacheLocked();
             bc->set(key, keySize, value, valueSize);
@@ -178,7 +172,7 @@ void egl_cache_t::setBlob(const void* key, EGLsizeiANDROID keySize, const void* 
             if (!mSavePending) {
                 mSavePending = true;
                 std::thread deferredSaveThread([this]() {
-                    sleep(kDeferredMonolithicSaveDelay);
+                    sleep(deferredSaveDelay);
                     std::lock_guard<std::mutex> lock(mMutex);
                     if (mInitialized && mBlobCache) {
                         mBlobCache->writeToFile();
@@ -202,19 +196,13 @@ EGLsizeiANDROID egl_cache_t::getBlob(const void* key, EGLsizeiANDROID keySize, v
 
     if (mInitialized) {
         if (mMultifileMode) {
-            MultifileBlobCache* mbc = getMultifileBlobCacheLocked();
-            return mbc->get(key, keySize, value, valueSize);
+            return getBlobMultifile(key, keySize, value, valueSize, mFilename);
         } else {
             BlobCache* bc = getBlobCacheLocked();
             return bc->get(key, keySize, value, valueSize);
         }
     }
-
     return 0;
-}
-
-void egl_cache_t::setCacheMode(EGLCacheMode cacheMode) {
-    mMultifileMode = (cacheMode == EGLCacheMode::Multifile);
 }
 
 void egl_cache_t::setCacheFilename(const char* filename) {
@@ -228,7 +216,7 @@ void egl_cache_t::setCacheLimit(int64_t cacheByteLimit) {
     if (!mMultifileMode) {
         // If we're not in multifile mode, ensure the cache limit is only being lowered,
         // not increasing above the hard coded platform limit
-        if (cacheByteLimit > kMaxMonolithicTotalSize) {
+        if (cacheByteLimit > maxTotalSize) {
             return;
         }
     }
@@ -238,8 +226,8 @@ void egl_cache_t::setCacheLimit(int64_t cacheByteLimit) {
 
 size_t egl_cache_t::getCacheSize() {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (mMultifileBlobCache) {
-        return mMultifileBlobCache->getTotalSize();
+    if (mMultifileMode) {
+        return getMultifileCacheSize();
     }
     if (mBlobCache) {
         return mBlobCache->getSize();
@@ -249,18 +237,9 @@ size_t egl_cache_t::getCacheSize() {
 
 BlobCache* egl_cache_t::getBlobCacheLocked() {
     if (mBlobCache == nullptr) {
-        mBlobCache.reset(new FileBlobCache(kMaxMonolithicKeySize, kMaxMonolithicValueSize,
-                                           mCacheByteLimit, mFilename));
+        mBlobCache.reset(new FileBlobCache(maxKeySize, maxValueSize, mCacheByteLimit, mFilename));
     }
     return mBlobCache.get();
-}
-
-MultifileBlobCache* egl_cache_t::getMultifileBlobCacheLocked() {
-    if (mMultifileBlobCache == nullptr) {
-        mMultifileBlobCache.reset(
-                new MultifileBlobCache(mCacheByteLimit, kMultifileHotCacheLimit, mFilename));
-    }
-    return mMultifileBlobCache.get();
 }
 
 }; // namespace android

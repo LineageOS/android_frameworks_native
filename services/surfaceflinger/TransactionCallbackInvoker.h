@@ -66,9 +66,6 @@ public:
     status_t addOnCommitCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
                                              std::deque<sp<CallbackHandle>>& outRemainingHandles);
 
-    // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
-    // presented this frame.
-    status_t registerUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
     void addEmptyTransaction(const ListenerCallbacks& listenerCallbacks);
 
     void addPresentFence(sp<Fence>);

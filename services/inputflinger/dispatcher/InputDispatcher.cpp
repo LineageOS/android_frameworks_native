@@ -4185,6 +4185,17 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
     bool needWake = false;
     { // acquire lock
         mLock.lock();
+        if (!(policyFlags & POLICY_FLAG_PASS_TO_USER)) {
+            // Set the flag anyway if we already have an ongoing gesture. That would allow us to
+            // complete the processing of the current stroke.
+            const auto touchStateIt = mTouchStatesByDisplay.find(args->displayId);
+            if (touchStateIt != mTouchStatesByDisplay.end()) {
+                const TouchState& touchState = touchStateIt->second;
+                if (touchState.deviceId == args->deviceId && touchState.isDown()) {
+                    policyFlags |= POLICY_FLAG_PASS_TO_USER;
+                }
+            }
+        }
 
         if (shouldSendMotionToInputFilterLocked(args)) {
             ui::Transform displayTransform;

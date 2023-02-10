@@ -170,7 +170,7 @@ struct layer_state_t {
         eTransparentRegionChanged = 0x00000020,
         eFlagsChanged = 0x00000040,
         eLayerStackChanged = 0x00000080,
-        /* unused = 0x00000100, */
+        eFlushJankData = 0x00000100,
         /* unused = 0x00000200, */
         eDimmingEnabledChanged = 0x00000400,
         eShadowRadiusChanged = 0x00000800,
