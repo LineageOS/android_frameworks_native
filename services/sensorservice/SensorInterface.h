@@ -108,12 +108,12 @@ class RuntimeSensor : public BaseSensor {
 public:
     static constexpr int DEFAULT_DEVICE_ID = 0;
 
-    class StateChangeCallback : public virtual RefBase {
+    class SensorCallback : public virtual RefBase {
       public:
-        virtual void onStateChanged(bool enabled, int64_t samplingPeriodNs,
-                                    int64_t batchReportLatencyNs) = 0;
+        virtual status_t onConfigurationChanged(int handle, bool enabled, int64_t samplingPeriodNs,
+                                                int64_t batchReportLatencyNs) = 0;
     };
-    RuntimeSensor(const sensor_t& sensor, sp<StateChangeCallback> callback);
+    RuntimeSensor(const sensor_t& sensor, sp<SensorCallback> callback);
     virtual status_t activate(void* ident, bool enabled) override;
     virtual status_t batch(void* ident, int handle, int flags, int64_t samplingPeriodNs,
                            int64_t maxBatchReportLatencyNs) override;
@@ -125,7 +125,7 @@ private:
     bool mEnabled = false;
     int64_t mSamplingPeriodNs = 0;
     int64_t mBatchReportLatencyNs = 0;
-    sp<StateChangeCallback> mCallback;
+    sp<SensorCallback> mCallback;
 };
 
 // ---------------------------------------------------------------------------
