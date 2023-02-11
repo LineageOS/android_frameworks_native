@@ -22,6 +22,7 @@
 #include "LayerLifecycleManager.h"
 #include "Layer.h" // temporarily needed for LayerHandle
 #include "LayerHandle.h"
+#include "LayerLog.h"
 #include "SwapErase.h"
 
 namespace android::surfaceflinger::frontend {
@@ -36,6 +37,7 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
     mGlobalChanges |= RequestedLayerState::Changes::Hierarchy;
     for (auto& newLayer : newLayers) {
         RequestedLayerState& layer = *newLayer.get();
+        LLOGV(layer.id, "%s layer %s", __func__, layer.getDebugStringShort().c_str());
         auto [it, inserted] = mIdToLayer.try_emplace(layer.id, References{.owner = layer});
         if (!inserted) {
             LOG_ALWAYS_FATAL("Duplicate layer id %d found. Existing layer: %s", layer.id,
@@ -146,7 +148,7 @@ void LayerLifecycleManager::onHandlesDestroyed(const std::vector<uint32_t>& dest
     while (it != mLayers.end()) {
         RequestedLayerState* layer = it->get();
         if (layer->changes.test(RequestedLayerState::Changes::Destroyed)) {
-            ALOGV("%s destroyed layer %s", __func__, layer->getDebugStringShort().c_str());
+            LLOGV(layer->id, "destroyed layer %s", layer->getDebugStringShort().c_str());
             std::iter_swap(it, mLayers.end() - 1);
             mDestroyedLayers.emplace_back(std::move(mLayers.back()));
             if (it == mLayers.end() - 1) {
