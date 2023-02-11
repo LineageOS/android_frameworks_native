@@ -2461,6 +2461,86 @@ TEST_F(InputDispatcherTest, HoverTapAndSplitTouch) {
 }
 
 /**
+ * Start hovering with a stylus device, and then tap with a touch device. Ensure no crash occurs.
+ * While the touch is down, new hover events from the stylus device should be ignored. After the
+ * touch is gone, stylus hovering should start working again.
+ */
+TEST_F(InputDispatcherTest, StylusHoverAndTouchTap) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 200, 200));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    const int32_t stylusDeviceId = 5;
+    const int32_t touchDeviceId = 4;
+    // Start hovering with stylus
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
+                                                   AINPUT_SOURCE_STYLUS)
+                                        .deviceId(stylusDeviceId)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                                         .x(50)
+                                                         .y(50))
+                                        .build()));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+
+    // Finger down on the window
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(touchDeviceId)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(100)
+                                                         .y(100))
+                                        .build()));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+
+    // Try to continue hovering with stylus. Since we are already down, injection should fail
+    ASSERT_EQ(InputEventInjectionResult::FAILED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_STYLUS)
+                                        .deviceId(stylusDeviceId)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                                         .x(50)
+                                                         .y(50))
+                                        .build()));
+    // No event should be sent. This event should be ignored because a pointer from another device
+    // is already down.
+
+    // Lift up the finger
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .deviceId(touchDeviceId)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(100)
+                                                         .y(100))
+                                        .build()));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_UP));
+
+    // Now that the touch is gone, stylus hovering should start working again
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_STYLUS)
+                                        .deviceId(stylusDeviceId)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                                         .x(50)
+                                                         .y(50))
+                                        .build()));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    // No more events
+    window->assertNoEvents();
+}
+
+/**
  * On the display, have a single window, and also an area where there's no window.
  * First pointer touches the "no window" area of the screen. Second pointer touches the window.
  * Make sure that the window receives the second pointer, and first pointer is simply ignored.

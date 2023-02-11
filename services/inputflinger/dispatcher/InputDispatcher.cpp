@@ -2185,8 +2185,9 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
 
     if (newGesture) {
-        bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
-        if (switchedDevice && tempTouchState.isDown() && !down && !isHoverAction) {
+        // If pointers are already down, let's finish the current gesture and ignore the new events
+        // from another device.
+        if (switchedDevice && wasDown) {
             ALOGI("Dropping event because a pointer for a different device is already down "
                   "in display %" PRId32,
                   displayId);
@@ -3761,9 +3762,9 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
     }
     if (DEBUG_OUTBOUND_EVENT_DETAILS) {
         ALOGD("channel '%s' ~ Synthesized %zu cancelation events to bring channel back in sync "
-              "with reality: %s, mode=%d.",
+              "with reality: %s, mode=%s.",
               connection->getInputChannelName().c_str(), cancelationEvents.size(), options.reason,
-              options.mode);
+              ftl::enum_string(options.mode).c_str());
     }
 
     std::string reason = std::string("reason=").append(options.reason);
