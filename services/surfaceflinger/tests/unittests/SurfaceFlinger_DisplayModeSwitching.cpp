@@ -50,7 +50,7 @@ public:
         mFlinger.configureAndCommit();
 
         mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
-                           .setDisplayModes(kModes, kModeId60, std::move(selectorPtr))
+                           .setRefreshRateSelector(std::move(selectorPtr))
                            .inject();
 
         // isVsyncPeriodSwitchSupported should return true, otherwise the SF's HWC proxy
