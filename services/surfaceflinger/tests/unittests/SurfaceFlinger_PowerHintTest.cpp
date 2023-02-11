@@ -28,9 +28,7 @@
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockPowerAdvisor.h"
-#include "mock/MockEventThread.h"
 #include "mock/MockTimeStats.h"
-#include "mock/MockVsyncController.h"
 #include "mock/system/window/MockNativeWindow.h"
 
 using namespace android;
@@ -53,8 +51,6 @@ class SurfaceFlingerPowerHintTest : public Test {
 public:
     void SetUp() override;
 
-    void setupScheduler();
-
 protected:
     TestableSurfaceFlinger mFlinger;
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
@@ -68,7 +64,7 @@ protected:
 };
 
 void SurfaceFlingerPowerHintTest::SetUp() {
-    setupScheduler();
+    mFlinger.setupMockScheduler({.displayId = DEFAULT_DISPLAY_ID});
     mComposer = new Hwc2::mock::Composer();
     mPowerAdvisor = new Hwc2::mock::PowerAdvisor();
     mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
@@ -97,36 +93,6 @@ void SurfaceFlingerPowerHintTest::SetUp() {
                     .setNativeWindow(mNativeWindow)
                     .setPowerMode(hal::PowerMode::ON)
                     .inject();
-}
-
-void SurfaceFlingerPowerHintTest::setupScheduler() {
-    auto eventThread = std::make_unique<mock::EventThread>();
-    auto sfEventThread = std::make_unique<mock::EventThread>();
-
-    EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
-    EXPECT_CALL(*eventThread, createEventConnection(_, _))
-            .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
-
-    EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
-    EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-            .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
-
-    auto vsyncController = std::make_unique<mock::VsyncController>();
-    auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
-
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-    EXPECT_CALL(*vsyncTracker, currentPeriod())
-            .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-
-    mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                            std::move(eventThread), std::move(sfEventThread),
-                            TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
-                            TestableSurfaceFlinger::kTwoDisplayModes);
 }
 
 TEST_F(SurfaceFlingerPowerHintTest, sendDurationsIncludingHwcWaitTime) {
