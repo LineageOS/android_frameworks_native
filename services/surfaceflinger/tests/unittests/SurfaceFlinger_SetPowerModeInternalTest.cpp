@@ -484,38 +484,5 @@ TEST_F(SetPowerModeInternalTest, transitionsDisplayFromOnToUnknownExternalDispla
     transitionDisplayCommon<ExternalDisplayPowerCase<TransitionOnToUnknownVariant>>();
 }
 
-// TODO(b/262417075)
-TEST_F(SetPowerModeInternalTest, DISABLED_designatesLeaderDisplay) {
-    using Case = SimplePrimaryDisplayCase;
-
-    // --------------------------------------------------------------------
-    // Preconditions
-
-    // Inject a primary display with uninitialized power mode.
-    constexpr bool kInitPowerMode = false;
-    Case::Display::injectHwcDisplay<kInitPowerMode>(this);
-    auto injector = Case::Display::makeFakeExistingDisplayInjector(this);
-    injector.setPowerMode(std::nullopt);
-    const auto display = injector.inject();
-
-    // --------------------------------------------------------------------
-    // Invocation
-
-    // FakeDisplayDeviceInjector registers the display with Scheduler, so it has already been
-    // designated as the leader. Set an arbitrary leader to verify that `setPowerModeInternal`
-    // designates a leader regardless of any preceding `Scheduler::registerDisplay` call(s).
-    constexpr PhysicalDisplayId kPlaceholderId = PhysicalDisplayId::fromPort(42);
-    ASSERT_NE(display->getPhysicalId(), kPlaceholderId);
-    mFlinger.scheduler()->setLeaderDisplay(kPlaceholderId);
-
-    mFlinger.setPowerModeInternal(display, PowerMode::ON);
-
-    // --------------------------------------------------------------------
-    // Postconditions
-
-    // The primary display should be designated as the leader.
-    EXPECT_EQ(mFlinger.scheduler()->leaderDisplayId(), display->getPhysicalId());
-}
-
 } // namespace
 } // namespace android
