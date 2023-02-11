@@ -163,6 +163,7 @@ LIBBINDER_NDK34 { # introduced=UpsideDownCake
 LIBBINDER_NDK_PLATFORM {
   global:
     AParcel_getAllowFds;
+    AServiceManager_addServiceWithAllowIsolated;
     extern "C++" {
         AIBinder_fromPlatformBinder*;
         AIBinder_toPlatformBinder*;

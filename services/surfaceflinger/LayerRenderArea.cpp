@@ -69,14 +69,6 @@ Rect LayerRenderArea::getSourceCrop() const {
 void LayerRenderArea::render(std::function<void()> drawLayers) {
     using namespace std::string_literals;
 
-    if (!mChildrenOnly) {
-        mTransform = mLayer->getTransform().inverse();
-    }
-
-    if (mFlinger.mLayerLifecycleManagerEnabled) {
-        drawLayers();
-        return;
-    }
     // If layer is offscreen, update mirroring info if it exists
     if (mLayer->isRemovedFromCurrentState()) {
         mLayer->traverse(LayerVector::StateSet::Drawing,
@@ -86,6 +78,7 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
     }
 
     if (!mChildrenOnly) {
+        mTransform = mLayer->getTransform().inverse();
         // If the layer is offscreen, compute bounds since we don't compute bounds for offscreen
         // layers in a regular cycles.
         if (mLayer->isRemovedFromCurrentState()) {

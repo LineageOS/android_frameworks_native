@@ -215,6 +215,8 @@ cc_library_headers {
 
 cc_defaults {
     name: "trusty_mock_defaults",
+    vendor_available: true,
+    host_supported: true,
 
     header_libs: [
         "trusty_mock_headers",
