@@ -2532,7 +2532,8 @@ sp<Layer> Layer::getClonedRoot() {
 }
 
 bool Layer::hasInputInfo() const {
-    return mDrawingState.inputInfo.token != nullptr;
+    return mDrawingState.inputInfo.token != nullptr ||
+            mDrawingState.inputInfo.inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL;
 }
 
 bool Layer::canReceiveInput() const {
