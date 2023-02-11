@@ -227,6 +227,7 @@ public:
         bool dimmingEnabled = true;
         float currentSdrHdrRatio = 1.f;
         float desiredSdrHdrRatio = 1.f;
+        gui::CachingHint cachingHint = gui::CachingHint::Enabled;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -296,6 +297,7 @@ public:
     virtual bool isDimmingEnabled() const { return getDrawingState().dimmingEnabled; }
     float getDesiredSdrHdrRatio() const { return getDrawingState().desiredSdrHdrRatio; }
     float getCurrentSdrHdrRatio() const { return getDrawingState().currentSdrHdrRatio; }
+    gui::CachingHint getCachingHint() const { return getDrawingState().cachingHint; }
 
     bool setTransform(uint32_t /*transform*/);
     bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/);
@@ -305,6 +307,7 @@ public:
                    std::optional<nsecs_t> /* dequeueTime */, const FrameTimelineInfo& /*info*/);
     bool setDataspace(ui::Dataspace /*dataspace*/);
     bool setExtendedRangeBrightness(float currentBufferRatio, float desiredRatio);
+    bool setCachingHint(gui::CachingHint cachingHint);
     bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/);
     bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/);
     bool setApi(int32_t /*api*/);

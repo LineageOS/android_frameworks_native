@@ -1729,6 +1729,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setExten
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCachingHint(
+        const sp<SurfaceControl>& sc, gui::CachingHint cachingHint) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eCachingHintChanged;
+    s->cachingHint = cachingHint;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setHdrMetadata(
         const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata) {
     layer_state_t* s = getLayerState(sc);
