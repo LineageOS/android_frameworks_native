@@ -800,16 +800,16 @@ public:
             return mFlinger.mutableDisplays().get(mDisplayToken)->get();
         }
 
-        // If `selectorPtr` is nullptr, the injector creates RefreshRateSelector from the `modes`.
-        // Otherwise, it uses `selectorPtr`, which the caller must create using the same `modes`.
-        //
-        // TODO(b/182939859): Once `modes` can be retrieved from RefreshRateSelector, remove
-        // the `selectorPtr` parameter in favor of an alternative setRefreshRateSelector API.
-        auto& setDisplayModes(
-                DisplayModes modes, DisplayModeId activeModeId,
-                std::shared_ptr<scheduler::RefreshRateSelector> selectorPtr = nullptr) {
+        auto& setDisplayModes(DisplayModes modes, DisplayModeId activeModeId) {
             mDisplayModes = std::move(modes);
             mCreationArgs.activeModeId = activeModeId;
+            mCreationArgs.refreshRateSelector = nullptr;
+            return *this;
+        }
+
+        auto& setRefreshRateSelector(RefreshRateSelectorPtr selectorPtr) {
+            mDisplayModes = selectorPtr->displayModes();
+            mCreationArgs.activeModeId = selectorPtr->getActiveMode().modePtr->getId();
             mCreationArgs.refreshRateSelector = std::move(selectorPtr);
             return *this;
         }

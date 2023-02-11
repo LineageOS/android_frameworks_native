@@ -32,7 +32,6 @@
 #include <scheduler/Seamlessness.h>
 
 #include "DisplayHardware/DisplayMode.h"
-#include "DisplayHardware/HWComposer.h"
 #include "Scheduler/OneShotTimer.h"
 #include "Scheduler/StrongTyping.h"
 #include "ThreadContext.h"
@@ -296,6 +295,8 @@ public:
 
     RefreshRateSelector(const RefreshRateSelector&) = delete;
     RefreshRateSelector& operator=(const RefreshRateSelector&) = delete;
+
+    const DisplayModes& displayModes() const { return mDisplayModes; }
 
     // Returns whether switching modes (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the modes only
