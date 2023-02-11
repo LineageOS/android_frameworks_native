@@ -85,7 +85,7 @@ public:
     // --------------------------------------------------------------------
     // Mock/Fake injection
 
-    void injectMockScheduler();
+    void injectMockScheduler(PhysicalDisplayId);
     void injectMockComposer(int virtualDisplayCount);
     void injectFakeBufferQueueFactory();
     void injectFakeNativeWindowSurfaceFactory();
@@ -139,7 +139,7 @@ public:
     surfaceflinger::mock::NativeWindowSurface* mNativeWindowSurface = nullptr;
 
 protected:
-    DisplayTransactionTest();
+    DisplayTransactionTest(bool withMockScheduler = true);
 };
 
 constexpr int32_t DEFAULT_VSYNC_PERIOD = 16'666'667;

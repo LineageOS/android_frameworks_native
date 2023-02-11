@@ -28,6 +28,7 @@
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/DisplaySurface.h>
 #include <ftl/fake_guard.h>
+#include <ftl/match.h>
 #include <gui/ScreenCaptureResults.h>
 
 #include <ui/DynamicDisplayInfo.h>
@@ -47,14 +48,12 @@
 #include "TestableScheduler.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
+#include "mock/MockEventThread.h"
 #include "mock/MockFrameTimeline.h"
 #include "mock/MockFrameTracer.h"
 #include "mock/MockSchedulerCallback.h"
 
 namespace android {
-
-class EventThread;
-
 namespace renderengine {
 
 class RenderEngine;
@@ -151,6 +150,11 @@ public:
     CreateCompositionEngineFunction mCreateCompositionEngine;
 };
 
+struct MockSchedulerOptions {
+    PhysicalDisplayId displayId = PhysicalDisplayId::fromPort(0);
+    bool useNiceMock = false;
+};
+
 } // namespace surfaceflinger::test
 
 class TestableSurfaceFlinger {
@@ -189,38 +193,31 @@ public:
 
     enum class SchedulerCallbackImpl { kNoOp, kMock };
 
-    static constexpr struct OneDisplayMode {
-    } kOneDisplayMode;
+    struct DefaultDisplayMode {
+        // The ID of the injected RefreshRateSelector and its default display mode.
+        PhysicalDisplayId displayId;
+    };
 
-    static constexpr struct TwoDisplayModes {
-    } kTwoDisplayModes;
+    using RefreshRateSelectorPtr = scheduler::Scheduler::RefreshRateSelectorPtr;
 
-    using RefreshRateSelectorPtr = std::shared_ptr<scheduler::RefreshRateSelector>;
-
-    using DisplayModesVariant =
-            std::variant<OneDisplayMode, TwoDisplayModes, RefreshRateSelectorPtr>;
+    using DisplayModesVariant = std::variant<DefaultDisplayMode, RefreshRateSelectorPtr>;
 
     void setupScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
                         std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
+                        DisplayModesVariant modesVariant,
                         SchedulerCallbackImpl callbackImpl = SchedulerCallbackImpl::kNoOp,
-                        DisplayModesVariant modesVariant = kOneDisplayMode,
                         bool useNiceMock = false) {
-        RefreshRateSelectorPtr selectorPtr;
-        if (std::holds_alternative<RefreshRateSelectorPtr>(modesVariant)) {
-            selectorPtr = std::move(std::get<RefreshRateSelectorPtr>(modesVariant));
-        } else {
-            constexpr DisplayModeId kModeId60{0};
-            DisplayModes modes = makeModes(mock::createDisplayMode(kModeId60, 60_Hz));
-
-            if (std::holds_alternative<TwoDisplayModes>(modesVariant)) {
-                constexpr DisplayModeId kModeId90{1};
-                modes.try_emplace(kModeId90, mock::createDisplayMode(kModeId90, 90_Hz));
-            }
-
-            selectorPtr = std::make_shared<scheduler::RefreshRateSelector>(modes, kModeId60);
-        }
+        RefreshRateSelectorPtr selectorPtr = ftl::match(
+                modesVariant,
+                [](DefaultDisplayMode arg) {
+                    constexpr DisplayModeId kModeId60{0};
+                    return std::make_shared<scheduler::RefreshRateSelector>(
+                            makeModes(mock::createDisplayMode(arg.displayId, kModeId60, 60_Hz)),
+                            kModeId60);
+                },
+                [](RefreshRateSelectorPtr selectorPtr) { return selectorPtr; });
 
         const auto fps = selectorPtr->getActiveMode().fps;
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
@@ -258,6 +255,37 @@ public:
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
         resetScheduler(mScheduler);
+    }
+
+    void setupMockScheduler(test::MockSchedulerOptions options = {}) {
+        using testing::_;
+        using testing::Return;
+
+        auto eventThread = makeMock<mock::EventThread>(options.useNiceMock);
+        auto sfEventThread = makeMock<mock::EventThread>(options.useNiceMock);
+
+        EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
+        EXPECT_CALL(*eventThread, createEventConnection(_, _))
+                .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
+                                                                 mock::EventThread::kCallingUid,
+                                                                 ResyncCallback())));
+
+        EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
+        EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
+                .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
+                                                                 mock::EventThread::kCallingUid,
+                                                                 ResyncCallback())));
+
+        auto vsyncController = makeMock<mock::VsyncController>(options.useNiceMock);
+        auto vsyncTracker = makeMock<mock::VSyncTracker>(options.useNiceMock);
+
+        EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+        EXPECT_CALL(*vsyncTracker, currentPeriod())
+                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
+        EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+        setupScheduler(std::move(vsyncController), std::move(vsyncTracker), std::move(eventThread),
+                       std::move(sfEventThread), DefaultDisplayMode{options.displayId},
+                       SchedulerCallbackImpl::kNoOp, options.useNiceMock);
     }
 
     void resetScheduler(scheduler::Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }
@@ -910,6 +938,11 @@ public:
     };
 
 private:
+    template <typename T>
+    static std::unique_ptr<T> makeMock(bool useNiceMock) {
+        return useNiceMock ? std::make_unique<testing::NiceMock<T>>() : std::make_unique<T>();
+    }
+
     static constexpr VsyncId kVsyncId{123};
 
     surfaceflinger::test::Factory mFactory;
