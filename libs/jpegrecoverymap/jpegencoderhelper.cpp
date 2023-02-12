@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegencoder.h>
+#include <jpegrecoverymap/jpegencoderhelper.h>
 
 #include <utils/Log.h>
 
@@ -22,20 +22,20 @@
 
 namespace android::recoverymap {
 
-// The destination manager that can access |mResultBuffer| in JpegEncoder.
+// The destination manager that can access |mResultBuffer| in JpegEncoderHelper.
 struct destination_mgr {
 public:
     struct jpeg_destination_mgr mgr;
-    JpegEncoder* encoder;
+    JpegEncoderHelper* encoder;
 };
 
-JpegEncoder::JpegEncoder() {
+JpegEncoderHelper::JpegEncoderHelper() {
 }
 
-JpegEncoder::~JpegEncoder() {
+JpegEncoderHelper::~JpegEncoderHelper() {
 }
 
-bool JpegEncoder::compressImage(const void* image, int width, int height, int quality,
+bool JpegEncoderHelper::compressImage(const void* image, int width, int height, int quality,
                                    const void* iccBuffer, unsigned int iccSize,
                                    bool isSingleChannel) {
     if (width % 8 != 0 || height % 2 != 0) {
@@ -52,15 +52,15 @@ bool JpegEncoder::compressImage(const void* image, int width, int height, int qu
     return true;
 }
 
-void* JpegEncoder::getCompressedImagePtr() {
+void* JpegEncoderHelper::getCompressedImagePtr() {
     return mResultBuffer.data();
 }
 
-size_t JpegEncoder::getCompressedImageSize() {
+size_t JpegEncoderHelper::getCompressedImageSize() {
     return mResultBuffer.size();
 }
 
-void JpegEncoder::initDestination(j_compress_ptr cinfo) {
+void JpegEncoderHelper::initDestination(j_compress_ptr cinfo) {
     destination_mgr* dest = reinterpret_cast<destination_mgr*>(cinfo->dest);
     std::vector<JOCTET>& buffer = dest->encoder->mResultBuffer;
     buffer.resize(kBlockSize);
@@ -68,7 +68,7 @@ void JpegEncoder::initDestination(j_compress_ptr cinfo) {
     dest->mgr.free_in_buffer = buffer.size();
 }
 
-boolean JpegEncoder::emptyOutputBuffer(j_compress_ptr cinfo) {
+boolean JpegEncoderHelper::emptyOutputBuffer(j_compress_ptr cinfo) {
     destination_mgr* dest = reinterpret_cast<destination_mgr*>(cinfo->dest);
     std::vector<JOCTET>& buffer = dest->encoder->mResultBuffer;
     size_t oldsize = buffer.size();
@@ -78,13 +78,13 @@ boolean JpegEncoder::emptyOutputBuffer(j_compress_ptr cinfo) {
     return true;
 }
 
-void JpegEncoder::terminateDestination(j_compress_ptr cinfo) {
+void JpegEncoderHelper::terminateDestination(j_compress_ptr cinfo) {
     destination_mgr* dest = reinterpret_cast<destination_mgr*>(cinfo->dest);
     std::vector<JOCTET>& buffer = dest->encoder->mResultBuffer;
     buffer.resize(buffer.size() - dest->mgr.free_in_buffer);
 }
 
-void JpegEncoder::outputErrorMessage(j_common_ptr cinfo) {
+void JpegEncoderHelper::outputErrorMessage(j_common_ptr cinfo) {
     char buffer[JMSG_LENGTH_MAX];
 
     /* Create the message */
@@ -92,7 +92,7 @@ void JpegEncoder::outputErrorMessage(j_common_ptr cinfo) {
     ALOGE("%s\n", buffer);
 }
 
-bool JpegEncoder::encode(const void* image, int width, int height, int jpegQuality,
+bool JpegEncoderHelper::encode(const void* image, int width, int height, int jpegQuality,
                          const void* iccBuffer, unsigned int iccSize, bool isSingleChannel) {
     jpeg_compress_struct cinfo;
     jpeg_error_mgr jerr;
@@ -118,7 +118,7 @@ bool JpegEncoder::encode(const void* image, int width, int height, int jpegQuali
     return true;
 }
 
-void JpegEncoder::setJpegDestination(jpeg_compress_struct* cinfo) {
+void JpegEncoderHelper::setJpegDestination(jpeg_compress_struct* cinfo) {
     destination_mgr* dest = static_cast<struct destination_mgr *>((*cinfo->mem->alloc_small) (
             (j_common_ptr) cinfo, JPOOL_PERMANENT, sizeof(destination_mgr)));
     dest->encoder = this;
@@ -128,7 +128,7 @@ void JpegEncoder::setJpegDestination(jpeg_compress_struct* cinfo) {
     cinfo->dest = reinterpret_cast<struct jpeg_destination_mgr*>(dest);
 }
 
-void JpegEncoder::setJpegCompressStruct(int width, int height, int quality,
+void JpegEncoderHelper::setJpegCompressStruct(int width, int height, int quality,
                                         jpeg_compress_struct* cinfo, bool isSingleChannel) {
     cinfo->image_width = width;
     cinfo->image_height = height;
@@ -158,7 +158,7 @@ void JpegEncoder::setJpegCompressStruct(int width, int height, int quality,
     }
 }
 
-bool JpegEncoder::compress(
+bool JpegEncoderHelper::compress(
         jpeg_compress_struct* cinfo, const uint8_t* image, bool isSingleChannel) {
     if (isSingleChannel) {
         return compressSingleChannel(cinfo, image);
@@ -166,7 +166,7 @@ bool JpegEncoder::compress(
     return compressYuv(cinfo, image);
 }
 
-bool JpegEncoder::compressYuv(jpeg_compress_struct* cinfo, const uint8_t* yuv) {
+bool JpegEncoderHelper::compressYuv(jpeg_compress_struct* cinfo, const uint8_t* yuv) {
     JSAMPROW y[kCompressBatchSize];
     JSAMPROW cb[kCompressBatchSize / 2];
     JSAMPROW cr[kCompressBatchSize / 2];
@@ -210,7 +210,7 @@ bool JpegEncoder::compressYuv(jpeg_compress_struct* cinfo, const uint8_t* yuv) {
     return true;
 }
 
-bool JpegEncoder::compressSingleChannel(jpeg_compress_struct* cinfo, const uint8_t* image) {
+bool JpegEncoderHelper::compressSingleChannel(jpeg_compress_struct* cinfo, const uint8_t* image) {
     JSAMPROW y[kCompressBatchSize];
     JSAMPARRAY planes[1] {y};
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegencoder.h>
+#include <jpegrecoverymap/jpegencoderhelper.h>
 #include <gtest/gtest.h>
 #include <utils/Log.h>
 
@@ -33,15 +33,15 @@ namespace android::recoverymap {
 #define INVALID_SIZE_IMAGE_HEIGHT 240
 #define JPEG_QUALITY 90
 
-class JpegEncoderTest : public testing::Test {
+class JpegEncoderHelperTest : public testing::Test {
 public:
     struct Image {
         std::unique_ptr<uint8_t[]> buffer;
         size_t width;
         size_t height;
     };
-    JpegEncoderTest();
-    ~JpegEncoderTest();
+    JpegEncoderHelperTest();
+    ~JpegEncoderHelperTest();
 protected:
     virtual void SetUp();
     virtual void TearDown();
@@ -49,9 +49,9 @@ protected:
     Image mValidImage, mInvalidSizeImage, mSingleChannelImage;
 };
 
-JpegEncoderTest::JpegEncoderTest() {}
+JpegEncoderHelperTest::JpegEncoderHelperTest() {}
 
-JpegEncoderTest::~JpegEncoderTest() {}
+JpegEncoderHelperTest::~JpegEncoderHelperTest() {}
 
 static size_t getFileSize(int fd) {
     struct stat st;
@@ -62,7 +62,7 @@ static size_t getFileSize(int fd) {
     return st.st_size; // bytes
 }
 
-static bool loadFile(const char filename[], JpegEncoderTest::Image* result) {
+static bool loadFile(const char filename[], JpegEncoderHelperTest::Image* result) {
     int fd = open(filename, O_CLOEXEC);
     if (fd < 0) {
         return false;
@@ -81,7 +81,7 @@ static bool loadFile(const char filename[], JpegEncoderTest::Image* result) {
     return true;
 }
 
-void JpegEncoderTest::SetUp() {
+void JpegEncoderHelperTest::SetUp() {
     if (!loadFile(VALID_IMAGE, &mValidImage)) {
         FAIL() << "Load file " << VALID_IMAGE << " failed";
     }
@@ -99,23 +99,23 @@ void JpegEncoderTest::SetUp() {
     mSingleChannelImage.height = SINGLE_CHANNEL_IMAGE_HEIGHT;
 }
 
-void JpegEncoderTest::TearDown() {}
+void JpegEncoderHelperTest::TearDown() {}
 
-TEST_F(JpegEncoderTest, validImage) {
-    JpegEncoder encoder;
+TEST_F(JpegEncoderHelperTest, validImage) {
+    JpegEncoderHelper encoder;
     EXPECT_TRUE(encoder.compressImage(mValidImage.buffer.get(), mValidImage.width,
                                          mValidImage.height, JPEG_QUALITY, NULL, 0));
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-TEST_F(JpegEncoderTest, invalidSizeImage) {
-    JpegEncoder encoder;
+TEST_F(JpegEncoderHelperTest, invalidSizeImage) {
+    JpegEncoderHelper encoder;
     EXPECT_FALSE(encoder.compressImage(mInvalidSizeImage.buffer.get(), mInvalidSizeImage.width,
                                           mInvalidSizeImage.height, JPEG_QUALITY, NULL, 0));
 }
 
-TEST_F(JpegEncoderTest, singleChannelImage) {
-    JpegEncoder encoder;
+TEST_F(JpegEncoderHelperTest, singleChannelImage) {
+    JpegEncoderHelper encoder;
     EXPECT_TRUE(encoder.compressImage(mSingleChannelImage.buffer.get(), mSingleChannelImage.width,
                                          mSingleChannelImage.height, JPEG_QUALITY, NULL, 0, true));
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));

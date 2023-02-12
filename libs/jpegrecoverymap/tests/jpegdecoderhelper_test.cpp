@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegdecoder.h>
+#include <jpegrecoverymap/jpegdecoderhelper.h>
 #include <gtest/gtest.h>
 #include <utils/Log.h>
 
@@ -27,14 +27,14 @@ namespace android::recoverymap {
 #define GREY_IMAGE "/sdcard/Documents/minnie-320x240-y.jpg"
 #define GREY_IMAGE_SIZE 20193
 
-class JpegDecoderTest : public testing::Test {
+class JpegDecoderHelperTest : public testing::Test {
 public:
     struct Image {
         std::unique_ptr<uint8_t[]> buffer;
         size_t size;
     };
-    JpegDecoderTest();
-    ~JpegDecoderTest();
+    JpegDecoderHelperTest();
+    ~JpegDecoderHelperTest();
 protected:
     virtual void SetUp();
     virtual void TearDown();
@@ -42,9 +42,9 @@ protected:
     Image mYuvImage, mGreyImage;
 };
 
-JpegDecoderTest::JpegDecoderTest() {}
+JpegDecoderHelperTest::JpegDecoderHelperTest() {}
 
-JpegDecoderTest::~JpegDecoderTest() {}
+JpegDecoderHelperTest::~JpegDecoderHelperTest() {}
 
 static size_t getFileSize(int fd) {
     struct stat st;
@@ -55,7 +55,7 @@ static size_t getFileSize(int fd) {
     return st.st_size; // bytes
 }
 
-static bool loadFile(const char filename[], JpegDecoderTest::Image* result) {
+static bool loadFile(const char filename[], JpegDecoderHelperTest::Image* result) {
     int fd = open(filename, O_CLOEXEC);
     if (fd < 0) {
         return false;
@@ -74,7 +74,7 @@ static bool loadFile(const char filename[], JpegDecoderTest::Image* result) {
     return true;
 }
 
-void JpegDecoderTest::SetUp() {
+void JpegDecoderHelperTest::SetUp() {
     if (!loadFile(YUV_IMAGE, &mYuvImage)) {
         FAIL() << "Load file " << YUV_IMAGE << " failed";
     }
@@ -85,16 +85,16 @@ void JpegDecoderTest::SetUp() {
     mGreyImage.size = GREY_IMAGE_SIZE;
 }
 
-void JpegDecoderTest::TearDown() {}
+void JpegDecoderHelperTest::TearDown() {}
 
-TEST_F(JpegDecoderTest, decodeYuvImage) {
-    JpegDecoder decoder;
+TEST_F(JpegDecoderHelperTest, decodeYuvImage) {
+    JpegDecoderHelper decoder;
     EXPECT_TRUE(decoder.decompressImage(mYuvImage.buffer.get(), mYuvImage.size));
     ASSERT_GT(decoder.getDecompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-TEST_F(JpegDecoderTest, decodeGreyImage) {
-    JpegDecoder decoder;
+TEST_F(JpegDecoderHelperTest, decodeGreyImage) {
+    JpegDecoderHelper decoder;
     EXPECT_TRUE(decoder.decompressImage(mGreyImage.buffer.get(), mGreyImage.size));
     ASSERT_GT(decoder.getDecompressedImageSize(), static_cast<uint32_t>(0));
 }
