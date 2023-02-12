@@ -28,10 +28,10 @@
 #include <ftl/enum.h>
 #include <ftl/fake_guard.h>
 #include <ftl/small_map.h>
+#include <gui/TraceUtils.h>
 #include <gui/WindowInfo.h>
 #include <system/window.h>
 #include <utils/Timers.h>
-#include <utils/Trace.h>
 
 #include <FrameTimeline/FrameTimeline.h>
 #include <scheduler/interface/ICompositor.h>
@@ -171,6 +171,7 @@ bool Scheduler::isVsyncValid(TimePoint expectedVsyncTimestamp, uid_t uid) const 
         return true;
     }
 
+    ATRACE_FORMAT("%s uid: %d frameRate: %s", __func__, uid, to_string(*frameRate).c_str());
     return mVsyncSchedule->getTracker().isVSyncInPhase(expectedVsyncTimestamp.ns(), *frameRate);
 }
 
