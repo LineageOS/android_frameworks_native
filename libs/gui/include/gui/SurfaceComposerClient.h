@@ -536,7 +536,7 @@ public:
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
                                const std::optional<sp<Fence>>& fence = std::nullopt,
                                const std::optional<uint64_t>& frameNumber = std::nullopt,
-                               ReleaseBufferCallback callback = nullptr);
+                               uint32_t producerId = 0, ReleaseBufferCallback callback = nullptr);
         std::shared_ptr<BufferData> getAndClearBuffer(const sp<SurfaceControl>& sc);
 
         /**

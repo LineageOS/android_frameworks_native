@@ -85,7 +85,8 @@ public:
                              sp<Fence> fence, CallbackHelper& callback, const ReleaseCallbackId& id,
                              ReleaseBufferCallbackHelper& releaseCallback) {
         Transaction t;
-        t.setBuffer(layer, buffer, fence, id.framenumber, releaseCallback.getCallback());
+        t.setBuffer(layer, buffer, fence, id.framenumber, 0 /* producerId */,
+                    releaseCallback.getCallback());
         t.addTransactionCompletedCallback(callback.function, callback.getContext());
         t.apply();
     }
@@ -301,7 +302,7 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
 
     Transaction t;
     t.setBuffer(layer, firstBuffer, std::nullopt, firstBufferCallbackId.framenumber,
-                releaseCallback->getCallback());
+                0 /* producerId */, releaseCallback->getCallback());
     t.addTransactionCompletedCallback(transactionCallback.function,
                                       transactionCallback.getContext());
     t.setDesiredPresentTime(time);
@@ -317,7 +318,7 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_FrameDropping) {
     sp<GraphicBuffer> secondBuffer = getBuffer();
     ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
     t.setBuffer(layer, secondBuffer, std::nullopt, secondBufferCallbackId.framenumber,
-                releaseCallback->getCallback());
+                0 /* producerId */, releaseCallback->getCallback());
     t.addTransactionCompletedCallback(transactionCallback.function,
                                       transactionCallback.getContext());
     t.setDesiredPresentTime(time);
@@ -362,7 +363,7 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_Merge_Different_Processes) {
 
     Transaction transaction1;
     transaction1.setBuffer(layer, secondBuffer, std::nullopt, secondBufferCallbackId.framenumber,
-                           releaseCallback->getCallback());
+                           0 /* producerId */, releaseCallback->getCallback());
     transaction1.addTransactionCompletedCallback(callback1.function, callback1.getContext());
 
     // Set a different TransactionCompletedListener to mimic a second process
@@ -397,14 +398,14 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_SetBuffer_OverwriteBuffers) {
     // Create transaction with a buffer.
     Transaction transaction;
     transaction.setBuffer(layer, firstBuffer, std::nullopt, firstBufferCallbackId.framenumber,
-                          releaseCallback->getCallback());
+                          0 /* producerId */, releaseCallback->getCallback());
 
     sp<GraphicBuffer> secondBuffer = getBuffer();
     ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
 
     // Call setBuffer on the same transaction with a different buffer.
     transaction.setBuffer(layer, secondBuffer, std::nullopt, secondBufferCallbackId.framenumber,
-                          releaseCallback->getCallback());
+                          0 /* producerId */, releaseCallback->getCallback());
 
     ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
 }
@@ -419,7 +420,7 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_Merge_Transactions_OverwriteBuffers) 
     // Create transaction with a buffer.
     Transaction transaction1;
     transaction1.setBuffer(layer, firstBuffer, std::nullopt, firstBufferCallbackId.framenumber,
-                           releaseCallback->getCallback());
+                           0 /* producerId */, releaseCallback->getCallback());
 
     sp<GraphicBuffer> secondBuffer = getBuffer();
     ReleaseCallbackId secondBufferCallbackId(secondBuffer->getId(), generateFrameNumber());
@@ -427,7 +428,7 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_Merge_Transactions_OverwriteBuffers) 
     // Create a second transaction with a new buffer for the same layer.
     Transaction transaction2;
     transaction2.setBuffer(layer, secondBuffer, std::nullopt, secondBufferCallbackId.framenumber,
-                           releaseCallback->getCallback());
+                           0 /* producerId */, releaseCallback->getCallback());
 
     // merge transaction1 into transaction2 so ensure we get a proper buffer release callback.
     transaction1.merge(std::move(transaction2));
@@ -450,7 +451,7 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_MergeBuffers_Different_Processes) {
 
     Transaction transaction1;
     transaction1.setBuffer(layer, firstBuffer, std::nullopt, firstBufferCallbackId.framenumber,
-                           releaseCallback->getCallback());
+                           0 /* producerId */, releaseCallback->getCallback());
 
     // Sent a second buffer to allow the first buffer to get released.
     sp<GraphicBuffer> secondBuffer = getBuffer();
@@ -458,7 +459,7 @@ TEST_F(ReleaseBufferCallbackTest, DISABLED_MergeBuffers_Different_Processes) {
 
     Transaction transaction2;
     transaction2.setBuffer(layer, secondBuffer, std::nullopt, secondBufferCallbackId.framenumber,
-                           releaseCallback->getCallback());
+                           0 /* producerId */, releaseCallback->getCallback());
 
     // Set a different TransactionCompletedListener to mimic a second process
     TransactionCompletedListener::setInstance(secondCompletedListener);
@@ -479,10 +480,11 @@ TEST_F(ReleaseBufferCallbackTest, SetBuffer_OverwriteBuffersWithNull) {
     // Create transaction with a buffer.
     Transaction transaction;
     transaction.setBuffer(layer, firstBuffer, std::nullopt, firstBufferCallbackId.framenumber,
-                          releaseCallback->getCallback());
+                          0 /* producerId */, releaseCallback->getCallback());
 
     // Call setBuffer on the same transaction with a null buffer.
-    transaction.setBuffer(layer, nullptr, std::nullopt, 0, releaseCallback->getCallback());
+    transaction.setBuffer(layer, nullptr, std::nullopt, 0, 0 /* producerId */,
+                          releaseCallback->getCallback());
 
     ASSERT_NO_FATAL_FAILURE(waitForReleaseBufferCallback(*releaseCallback, firstBufferCallbackId));
 }

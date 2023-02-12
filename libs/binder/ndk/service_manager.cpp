@@ -41,6 +41,19 @@ binder_exception_t AServiceManager_addService(AIBinder* binder, const char* inst
     status_t exception = sm->addService(String16(instance), binder->getBinder());
     return PruneException(exception);
 }
+
+binder_exception_t AServiceManager_addServiceWithAllowIsolated(AIBinder* binder,
+                                                               const char* instance,
+                                                               bool allowIsolated) {
+    if (binder == nullptr || instance == nullptr) {
+        return EX_ILLEGAL_ARGUMENT;
+    }
+
+    sp<IServiceManager> sm = defaultServiceManager();
+    status_t exception = sm->addService(String16(instance), binder->getBinder(), allowIsolated);
+    return PruneException(exception);
+}
+
 AIBinder* AServiceManager_checkService(const char* instance) {
     if (instance == nullptr) {
         return nullptr;

@@ -20,6 +20,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
 
+#include <cutils/atomic.h>
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/BufferQueueConsumer.h>
@@ -157,11 +158,11 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, bool updateDestinati
                                                       GraphicBuffer::USAGE_HW_COMPOSER |
                                                               GraphicBuffer::USAGE_HW_TEXTURE,
                                                       1, false, this);
-    static int32_t id = 0;
-    mName = name + "#" + std::to_string(id);
-    auto consumerName = mName + "(BLAST Consumer)" + std::to_string(id);
-    mQueuedBufferTrace = "QueuedBuffer - " + mName + "BLAST#" + std::to_string(id);
-    id++;
+    static std::atomic<uint32_t> nextId = 0;
+    mProducerId = nextId++;
+    mName = name + "#" + std::to_string(mProducerId);
+    auto consumerName = mName + "(BLAST Consumer)" + std::to_string(mProducerId);
+    mQueuedBufferTrace = "QueuedBuffer - " + mName + "BLAST#" + std::to_string(mProducerId);
     mBufferItemConsumer->setName(String8(consumerName.c_str()));
     mBufferItemConsumer->setFrameAvailableListener(this);
 
@@ -572,7 +573,8 @@ status_t BLASTBufferQueue::acquireNextBufferLocked(
             std::bind(releaseBufferCallbackThunk, wp<BLASTBufferQueue>(this) /* callbackContext */,
                       std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
     sp<Fence> fence = bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE;
-    t->setBuffer(mSurfaceControl, buffer, fence, bufferItem.mFrameNumber, releaseBufferCallback);
+    t->setBuffer(mSurfaceControl, buffer, fence, bufferItem.mFrameNumber, mProducerId,
+                 releaseBufferCallback);
     t->setDataspace(mSurfaceControl, static_cast<ui::Dataspace>(bufferItem.mDataSpace));
     t->setHdrMetadata(mSurfaceControl, bufferItem.mHdrMetadata);
     t->setSurfaceDamageRegion(mSurfaceControl, bufferItem.mSurfaceDamage);
