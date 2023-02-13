@@ -38,6 +38,22 @@ __attribute__((warn_unused_result)) binder_exception_t AServiceManager_addServic
         AIBinder* binder, const char* instance) __INTRODUCED_IN(29);
 
 /**
+ * This registers the service with the default service manager under this instance name. This does
+ * not take ownership of binder.
+ *
+ * WARNING: when using this API across an APEX boundary, do not use with unstable
+ * AIDL services. TODO(b/139325195)
+ *
+ * \param binder object to register globally with the service manager.
+ * \param instance identifier of the service. This will be used to lookup the service.
+ * \param allowIsolated allows if this service can be isolated.
+ *
+ * \return EX_NONE on success.
+ */
+__attribute__((warn_unused_result)) binder_exception_t AServiceManager_addServiceWithAllowIsolated(
+        AIBinder* binder, const char* instance, bool allowIsolated) __INTRODUCED_IN(34);
+
+/**
  * Gets a binder object with this specific instance name. Will return nullptr immediately if the
  * service is not available This also implicitly calls AIBinder_incStrong (so the caller of this
  * function is responsible for calling AIBinder_decStrong).
