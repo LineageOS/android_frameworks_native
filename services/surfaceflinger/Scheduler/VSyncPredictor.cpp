@@ -31,8 +31,8 @@
 #include <android-base/stringprintf.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
+#include <gui/TraceUtils.h>
 #include <utils/Log.h>
-#include <utils/Trace.h>
 
 #include "RefreshRateSelector.h"
 #include "VSyncPredictor.h"
@@ -282,6 +282,13 @@ bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const {
 }
 
 bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const {
+    const TimePoint now = TimePoint::now();
+    const auto getTimePointIn = [](TimePoint now, nsecs_t timePoint) -> float {
+        return ticks<std::milli, float>(TimePoint::fromNs(timePoint) - now);
+    };
+    ATRACE_FORMAT("%s timePoint in: %.2f divisor: %zu", __func__, getTimePointIn(now, timePoint),
+                  divisor);
+
     struct VsyncError {
         nsecs_t vsyncTimestamp;
         float error;
@@ -304,6 +311,7 @@ bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) c
     if (knownTimestampIter == mRateDivisorKnownTimestampMap.end()) {
         const auto vsync = nextAnticipatedVSyncTimeFromLocked(justBeforeTimePoint);
         mRateDivisorKnownTimestampMap[dividedPeriod] = vsync;
+        ATRACE_FORMAT_INSTANT("(first) knownVsync in: %.2f", getTimePointIn(now, vsync));
         return true;
     }
 
@@ -323,6 +331,8 @@ bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) c
 
     const auto minVsyncError = std::min_element(vsyncs.begin(), vsyncs.end());
     mRateDivisorKnownTimestampMap[dividedPeriod] = minVsyncError->vsyncTimestamp;
+    ATRACE_FORMAT_INSTANT("knownVsync in: %.2f",
+                          getTimePointIn(now, minVsyncError->vsyncTimestamp));
     return std::abs(minVsyncError->vsyncTimestamp - timePoint) < period / 2;
 }
 

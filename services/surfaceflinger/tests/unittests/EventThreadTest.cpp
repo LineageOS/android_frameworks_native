@@ -125,7 +125,7 @@ protected:
     ConnectionEventRecorder mConnectionEventCallRecorder{0};
     ConnectionEventRecorder mThrottledConnectionEventCallRecorder{0};
 
-    std::optional<scheduler::VsyncSchedule> mVsyncSchedule;
+    std::unique_ptr<scheduler::VsyncSchedule> mVsyncSchedule;
     std::unique_ptr<impl::EventThread> mThread;
     sp<MockEventThreadConnection> mConnection;
     sp<MockEventThreadConnection> mThrottledConnection;
@@ -140,9 +140,9 @@ EventThreadTest::EventThreadTest() {
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-    mVsyncSchedule.emplace(scheduler::VsyncSchedule(std::make_unique<mock::VSyncTracker>(),
-                                                    std::make_unique<mock::VSyncDispatch>(),
-                                                    nullptr));
+    mVsyncSchedule = std::unique_ptr<scheduler::VsyncSchedule>(
+            new scheduler::VsyncSchedule(std::make_unique<mock::VSyncTracker>(),
+                                         std::make_unique<mock::VSyncDispatch>(), nullptr));
 
     mock::VSyncDispatch& mockDispatch =
             *static_cast<mock::VSyncDispatch*>(&mVsyncSchedule->getDispatch());
