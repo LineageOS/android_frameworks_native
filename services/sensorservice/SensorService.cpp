@@ -116,16 +116,17 @@ int32_t nextRuntimeSensorHandle() {
     return nextHandle++;
 }
 
-class RuntimeSensorCallbackProxy : public RuntimeSensor::StateChangeCallback {
+class RuntimeSensorCallbackProxy : public RuntimeSensor::SensorCallback {
  public:
-    RuntimeSensorCallbackProxy(sp<SensorService::RuntimeSensorStateChangeCallback> callback)
+    RuntimeSensorCallbackProxy(sp<SensorService::RuntimeSensorCallback> callback)
         : mCallback(std::move(callback)) {}
-    void onStateChanged(bool enabled, int64_t samplingPeriodNs,
-                        int64_t batchReportLatencyNs) override {
-        mCallback->onStateChanged(enabled, samplingPeriodNs, batchReportLatencyNs);
+    status_t onConfigurationChanged(int handle, bool enabled, int64_t samplingPeriodNs,
+                                    int64_t batchReportLatencyNs) override {
+        return mCallback->onConfigurationChanged(handle, enabled, samplingPeriodNs,
+                batchReportLatencyNs);
     }
  private:
-    sp<SensorService::RuntimeSensorStateChangeCallback> mCallback;
+    sp<SensorService::RuntimeSensorCallback> mCallback;
 };
 
 } // namespace
@@ -166,7 +167,7 @@ SensorService::SensorService()
 }
 
 int SensorService::registerRuntimeSensor(
-    const sensor_t& sensor, int deviceId, sp<RuntimeSensorStateChangeCallback> callback) {
+        const sensor_t& sensor, int deviceId, sp<RuntimeSensorCallback> callback) {
     int handle = 0;
     while (handle == 0 || !mSensors.isNewHandle(handle)) {
         handle = nextRuntimeSensorHandle();
@@ -179,7 +180,7 @@ int SensorService::registerRuntimeSensor(
     ALOGI("Registering runtime sensor handle 0x%x, type %d, name %s",
             handle, sensor.type, sensor.name);
 
-    sp<RuntimeSensor::StateChangeCallback> runtimeSensorCallback(
+    sp<RuntimeSensor::SensorCallback> runtimeSensorCallback(
         new RuntimeSensorCallbackProxy(std::move(callback)));
     sensor_t runtimeSensor = sensor;
     // force the handle to be consistent

@@ -147,12 +147,13 @@ public:
         virtual void onProximityActive(bool isActive) = 0;
     };
 
-    class RuntimeSensorStateChangeCallback : public virtual RefBase {
+    class RuntimeSensorCallback : public virtual RefBase {
     public:
         // Note that the callback is invoked from an async thread and can interact with the
         // SensorService directly.
-        virtual void onStateChanged(bool enabled, int64_t samplingPeriodNanos,
-                                    int64_t batchReportLatencyNanos) = 0;
+        virtual status_t onConfigurationChanged(int handle, bool enabled,
+                                                int64_t samplingPeriodNanos,
+                                                int64_t batchReportLatencyNanos) = 0;
     };
 
     static char const* getServiceName() ANDROID_API { return "sensorservice"; }
@@ -182,7 +183,7 @@ public:
     status_t removeProximityActiveListener(const sp<ProximityActiveListener>& callback) ANDROID_API;
 
     int registerRuntimeSensor(const sensor_t& sensor, int deviceId,
-                              sp<RuntimeSensorStateChangeCallback> callback) ANDROID_API;
+                              sp<RuntimeSensorCallback> callback) ANDROID_API;
     status_t unregisterRuntimeSensor(int handle) ANDROID_API;
     status_t sendRuntimeSensorEvent(const sensors_event_t& event) ANDROID_API;
 
