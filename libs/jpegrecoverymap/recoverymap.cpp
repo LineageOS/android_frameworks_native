@@ -573,19 +573,20 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   }
 
   std::mutex mutex;
-  float hdr_y_nits_max = 0.0f;
-  double hdr_y_nits_avg = 0.0f;
+  float max_gain = 0.0f;
+  float min_gain = 1.0f;
   const int threads = std::clamp(GetCPUCoreCount(), 1, 4);
   size_t rowStep = threads == 1 ? image_height : kJobSzInRows;
   JobQueue jobQueue;
 
-  std::function<void()> computeMetadata = [uncompressed_p010_image, hdrInvOetf,
-                                           hdrGamutConversionFn, luminanceFn, hdr_white_nits,
-                                           threads, &mutex, &hdr_y_nits_avg,
-                                           &hdr_y_nits_max, &jobQueue]() -> void {
+  std::function<void()> computeMetadata = [uncompressed_p010_image, uncompressed_yuv_420_image,
+                                           hdrInvOetf, hdrGamutConversionFn, luminanceFn,
+                                           hdr_white_nits, threads, &mutex, &max_gain, &min_gain,
+                                           &jobQueue]() -> void {
     size_t rowStart, rowEnd;
-    float hdr_y_nits_max_th = 0.0f;
-    double hdr_y_nits_avg_th = 0.0f;
+    float max_gain_th = 0.0f;
+    float min_gain_th = 1.0f;
+
     while (jobQueue.dequeueJob(rowStart, rowEnd)) {
       for (size_t y = rowStart; y < rowEnd; ++y) {
         for (size_t x = 0; x < uncompressed_p010_image->width; ++x) {
@@ -595,16 +596,25 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
           hdr_rgb = hdrGamutConversionFn(hdr_rgb);
           float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
 
-          hdr_y_nits_avg_th += hdr_y_nits;
-          if (hdr_y_nits > hdr_y_nits_max_th) {
-            hdr_y_nits_max_th = hdr_y_nits;
-          }
+          Color sdr_yuv_gamma =
+              getYuv420Pixel(uncompressed_yuv_420_image, x, y);
+          Color sdr_rgb_gamma = srgbYuvToRgb(sdr_yuv_gamma);
+#if USE_SRGB_INVOETF_LUT
+          Color sdr_rgb = srgbInvOetfLUT(sdr_rgb_gamma);
+#else
+          Color sdr_rgb = srgbInvOetf(sdr_rgb_gamma);
+#endif
+          float sdr_y_nits = luminanceFn(sdr_rgb) * kSdrWhiteNits;
+
+          float gain = hdr_y_nits / sdr_y_nits;
+          max_gain_th = std::max(max_gain_th, gain);
+          min_gain_th = std::min(min_gain_th, gain);
         }
       }
     }
     std::unique_lock<std::mutex> lock{mutex};
-    hdr_y_nits_avg += hdr_y_nits_avg_th;
-    hdr_y_nits_max = std::max(hdr_y_nits_max, hdr_y_nits_max_th);
+    max_gain = std::max(max_gain, max_gain_th);
+    min_gain = std::min(min_gain, min_gain_th);
   };
 
   std::function<void()> generateMap = [uncompressed_yuv_420_image, uncompressed_p010_image,
@@ -634,7 +644,7 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
 
           size_t pixel_idx = x + y * dest_map_stride;
           reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
-              encodeRecovery(sdr_y_nits, hdr_y_nits, metadata->maxContentBoost);
+              encodeRecovery(sdr_y_nits, hdr_y_nits, metadata);
         }
       }
     }
@@ -655,9 +665,9 @@ status_t RecoveryMap::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_4
   computeMetadata();
   std::for_each(workers.begin(), workers.end(), [](std::thread& t) { t.join(); });
   workers.clear();
-  hdr_y_nits_avg /= image_width * image_height;
 
-  metadata->maxContentBoost = hdr_y_nits_max / kSdrWhiteNits;
+  metadata->maxContentBoost = max_gain;
+  metadata->minContentBoost = min_gain;
 
   // generate map
   jobQueue.reset();
@@ -693,7 +703,7 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
   dest->width = uncompressed_yuv_420_image->width;
   dest->height = uncompressed_yuv_420_image->height;
   ShepardsIDW idwTable(kMapDimensionScaleFactor);
-  RecoveryLUT recoveryLUT(metadata->maxContentBoost);
+  RecoveryLUT recoveryLUT(metadata);
 
   JobQueue jobQueue;
   std::function<void()> applyRecMap = [uncompressed_yuv_420_image, uncompressed_recovery_map,
@@ -729,13 +739,12 @@ status_t RecoveryMap::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_
           if (map_scale_factor != floorf(map_scale_factor)) {
             recovery = sampleMap(uncompressed_recovery_map, map_scale_factor, x, y);
           } else {
-            recovery = sampleMap(uncompressed_recovery_map, map_scale_factor, x, y,
-                                idwTable);
+            recovery = sampleMap(uncompressed_recovery_map, map_scale_factor, x, y, idwTable);
           }
 #if USE_APPLY_RECOVERY_LUT
           Color rgb_hdr = applyRecoveryLUT(rgb_sdr, recovery, recoveryLUT);
 #else
-          Color rgb_hdr = applyRecovery(rgb_sdr, recovery, hdr_ratio);
+          Color rgb_hdr = applyRecovery(rgb_sdr, recovery, metadata);
 #endif
           Color rgb_gamma_hdr = hdrOetf(rgb_hdr / metadata->maxContentBoost);
           uint32_t rgba1010102 = colorToRgba1010102(rgb_gamma_hdr);

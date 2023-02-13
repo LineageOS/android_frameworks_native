@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <sys/time.h>
 #include <utils/Log.h>
 
 #define RAW_P010_IMAGE "/sdcard/Documents/raw_p010_image.p010"
@@ -35,27 +36,24 @@
 
 namespace android::recoverymap {
 
-class RecoveryMapTest : public testing::Test {
-public:
-  RecoveryMapTest();
-  ~RecoveryMapTest();
-protected:
-  virtual void SetUp();
-  virtual void TearDown();
-
-  struct jpegr_uncompressed_struct mRawP010Image;
-  struct jpegr_uncompressed_struct mRawYuv420Image;
-  struct jpegr_compressed_struct mJpegImage;
+struct Timer {
+  struct timeval StartingTime;
+  struct timeval EndingTime;
+  struct timeval ElapsedMicroseconds;
 };
 
-RecoveryMapTest::RecoveryMapTest() {}
-RecoveryMapTest::~RecoveryMapTest() {}
+void timerStart(Timer *t) {
+  gettimeofday(&t->StartingTime, nullptr);
+}
 
-void RecoveryMapTest::SetUp() {}
-void RecoveryMapTest::TearDown() {
-  free(mRawP010Image.data);
-  free(mRawYuv420Image.data);
-  free(mJpegImage.data);
+void timerStop(Timer *t) {
+  gettimeofday(&t->EndingTime, nullptr);
+}
+
+int64_t elapsedTime(Timer *t) {
+  t->ElapsedMicroseconds.tv_sec = t->EndingTime.tv_sec - t->StartingTime.tv_sec;
+  t->ElapsedMicroseconds.tv_usec = t->EndingTime.tv_usec - t->StartingTime.tv_usec;
+  return t->ElapsedMicroseconds.tv_sec * 1000000 + t->ElapsedMicroseconds.tv_usec;
 }
 
 static size_t getFileSize(int fd) {
@@ -87,6 +85,80 @@ static bool loadFile(const char filename[], void*& result, int* fileLength) {
   }
   close(fd);
   return true;
+}
+
+class RecoveryMapTest : public testing::Test {
+public:
+  RecoveryMapTest();
+  ~RecoveryMapTest();
+
+protected:
+  virtual void SetUp();
+  virtual void TearDown();
+
+  struct jpegr_uncompressed_struct mRawP010Image;
+  struct jpegr_uncompressed_struct mRawYuv420Image;
+  struct jpegr_compressed_struct mJpegImage;
+};
+
+RecoveryMapTest::RecoveryMapTest() {}
+RecoveryMapTest::~RecoveryMapTest() {}
+
+void RecoveryMapTest::SetUp() {}
+void RecoveryMapTest::TearDown() {
+  free(mRawP010Image.data);
+  free(mRawYuv420Image.data);
+  free(mJpegImage.data);
+}
+
+class RecoveryMapBenchmark : public RecoveryMap {
+public:
+ void BenchmarkGenerateRecoveryMap(jr_uncompressed_ptr yuv420Image, jr_uncompressed_ptr p010Image,
+                                   jr_metadata_ptr metadata, jr_uncompressed_ptr map);
+ void BenchmarkApplyRecoveryMap(jr_uncompressed_ptr yuv420Image, jr_uncompressed_ptr map,
+                                jr_metadata_ptr metadata, jr_uncompressed_ptr dest);
+private:
+ const int kProfileCount = 10;
+};
+
+void RecoveryMapBenchmark::BenchmarkGenerateRecoveryMap(jr_uncompressed_ptr yuv420Image,
+                                                        jr_uncompressed_ptr p010Image,
+                                                        jr_metadata_ptr metadata,
+                                                        jr_uncompressed_ptr map) {
+  ASSERT_EQ(yuv420Image->width, p010Image->width);
+  ASSERT_EQ(yuv420Image->height, p010Image->height);
+
+  Timer genRecMapTime;
+
+  timerStart(&genRecMapTime);
+  for (auto i = 0; i < kProfileCount; i++) {
+      ASSERT_EQ(OK, generateRecoveryMap(
+          yuv420Image, p010Image, jpegr_transfer_function::JPEGR_TF_HLG, metadata, map));
+      if (i != kProfileCount - 1) delete[] static_cast<uint8_t *>(map->data);
+  }
+  timerStop(&genRecMapTime);
+
+  ALOGE("Generate Recovery Map:- Res = %i x %i, time = %f ms",
+        yuv420Image->width, yuv420Image->height,
+        elapsedTime(&genRecMapTime) / (kProfileCount * 1000.f));
+
+}
+
+void RecoveryMapBenchmark::BenchmarkApplyRecoveryMap(jr_uncompressed_ptr yuv420Image,
+                                                     jr_uncompressed_ptr map,
+                                                     jr_metadata_ptr metadata,
+                                                     jr_uncompressed_ptr dest) {
+  Timer applyRecMapTime;
+
+  timerStart(&applyRecMapTime);
+  for (auto i = 0; i < kProfileCount; i++) {
+      ASSERT_EQ(OK, applyRecoveryMap(yuv420Image, map, metadata, dest));
+  }
+  timerStop(&applyRecMapTime);
+
+  ALOGE("Apply Recovery Map:- Res = %i x %i, time = %f ms",
+        yuv420Image->width, yuv420Image->height,
+        elapsedTime(&applyRecMapTime) / (kProfileCount * 1000.f));
 }
 
 TEST_F(RecoveryMapTest, build) {
@@ -380,6 +452,48 @@ TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
 
   free(jpegR.data);
   free(decodedJpegR.data);
+}
+
+TEST_F(RecoveryMapTest, ProfileRecoveryMapFuncs) {
+  const size_t kWidth = TEST_IMAGE_WIDTH;
+  const size_t kHeight = TEST_IMAGE_HEIGHT;
+
+  // Load input files.
+  if (!loadFile(RAW_P010_IMAGE, mRawP010Image.data, nullptr)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+  }
+  mRawP010Image.width = kWidth;
+  mRawP010Image.height = kHeight;
+  mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+
+  if (!loadFile(RAW_YUV420_IMAGE, mRawYuv420Image.data, nullptr)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+  }
+  mRawYuv420Image.width = kWidth;
+  mRawYuv420Image.height = kHeight;
+  mRawYuv420Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
+
+  RecoveryMapBenchmark benchmark;
+
+  jpegr_metadata metadata = { .version = 1,
+                              .maxContentBoost = 8.0f,
+                              .minContentBoost = 1.0f / 8.0f };
+
+  jpegr_uncompressed_struct map = { .data = NULL,
+                                    .width = 0,
+                                    .height = 0,
+                                    .colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED };
+
+  benchmark.BenchmarkGenerateRecoveryMap(&mRawYuv420Image, &mRawP010Image, &metadata, &map);
+
+  const int dstSize = mRawYuv420Image.width * mRawYuv420Image.height * 4;
+  auto bufferDst = std::make_unique<uint8_t[]>(dstSize);
+  jpegr_uncompressed_struct dest = { .data = bufferDst.get(),
+                                     .width = 0,
+                                     .height = 0,
+                                     .colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED };
+
+  benchmark.BenchmarkApplyRecoveryMap(&mRawYuv420Image, &map, &metadata, &dest);
 }
 
 } // namespace android::recoverymap

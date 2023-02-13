@@ -88,6 +88,8 @@ struct jpegr_metadata {
   uint32_t version;
   // Max Content Boost for the map
   float maxContentBoost;
+  // Min Content Boost for the map
+  float minContentBoost;
 };
 
 typedef struct jpegr_uncompressed_struct* jr_uncompressed_ptr;
@@ -219,16 +221,9 @@ public:
     */
     status_t getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
                           jr_info_ptr jpegr_info);
-private:
-    /*
-     * This method is called in the encoding pipeline. It will encode the recovery map.
-     *
-     * @param uncompressed_recovery_map uncompressed recovery map
-     * @param dest encoded recover map
-     * @return NO_ERROR if encoding succeeds, error code if error occurs.
-     */
-    status_t compressRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
-                               jr_compressed_ptr dest);
+
+protected:
+    // Following functions protected instead of private for testing.
 
     /*
      * This method is called in the encoding pipeline. It will take the uncompressed 8-bit and
@@ -239,7 +234,7 @@ private:
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param hdr_tf transfer function of the HDR image
      * @param dest recovery map; caller responsible for memory of data
-     * @param metadata max_content_boost is filled in
+     * @param metadata minContentBoost and maxContentBoost are filled in
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
@@ -264,6 +259,17 @@ private:
                               jr_uncompressed_ptr uncompressed_recovery_map,
                               jr_metadata_ptr metadata,
                               jr_uncompressed_ptr dest);
+
+private:
+    /*
+     * This method is called in the encoding pipeline. It will encode the recovery map.
+     *
+     * @param uncompressed_recovery_map uncompressed recovery map
+     * @param dest encoded recover map
+     * @return NO_ERROR if encoding succeeds, error code if error occurs.
+     */
+    status_t compressRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
+                               jr_compressed_ptr dest);
 
     /*
      * This methoud is called to separate primary image and recovery map image from JPEGR
