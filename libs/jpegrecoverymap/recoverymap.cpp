@@ -15,8 +15,8 @@
  */
 
 #include <jpegrecoverymap/recoverymap.h>
-#include <jpegrecoverymap/jpegencoder.h>
-#include <jpegrecoverymap/jpegdecoder.h>
+#include <jpegrecoverymap/jpegencoderhelper.h>
+#include <jpegrecoverymap/jpegdecoderhelper.h>
 #include <jpegrecoverymap/recoverymapmath.h>
 #include <jpegrecoverymap/recoverymaputils.h>
 
@@ -146,7 +146,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
           jrTransFunc_to_skTransFunc.at(JPEGR_TF_SRGB),
           jrGamut_to_skGamut.at(uncompressed_yuv_420_image.colorGamut));
 
-  JpegEncoder jpeg_encoder;
+  JpegEncoderHelper jpeg_encoder;
   if (!jpeg_encoder.compressImage(uncompressed_yuv_420_image.data,
                                   uncompressed_yuv_420_image.width,
                                   uncompressed_yuv_420_image.height, quality,
@@ -210,7 +210,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
           jrTransFunc_to_skTransFunc.at(JPEGR_TF_SRGB),
           jrGamut_to_skGamut.at(uncompressed_yuv_420_image->colorGamut));
 
-  JpegEncoder jpeg_encoder;
+  JpegEncoderHelper jpeg_encoder;
   if (!jpeg_encoder.compressImage(uncompressed_yuv_420_image->data,
                                   uncompressed_yuv_420_image->width,
                                   uncompressed_yuv_420_image->height, quality,
@@ -289,7 +289,7 @@ status_t RecoveryMap::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  JpegDecoder jpeg_decoder;
+  JpegDecoderHelper jpeg_decoder;
   if (!jpeg_decoder.decompressImage(compressed_jpeg_image->data, compressed_jpeg_image->length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
@@ -334,7 +334,7 @@ status_t RecoveryMap::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
   JPEGR_CHECK(extractPrimaryImageAndRecoveryMap(compressed_jpegr_image,
                                                 &primary_image, &recovery_map));
 
-  JpegDecoder jpeg_decoder;
+  JpegDecoderHelper jpeg_decoder;
   if (!jpeg_decoder.getCompressedImageParameters(primary_image.data, primary_image.length,
                                                  &jpegr_info->width, &jpegr_info->height,
                                                  jpegr_info->iccData, jpegr_info->exifData)) {
@@ -356,7 +356,7 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   (void) exif;
 
   if (request_sdr) {
-    JpegDecoder jpeg_decoder;
+    JpegDecoderHelper jpeg_decoder;
     if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length,
                                       true)) {
         return ERROR_JPEGR_DECODE_ERROR;
@@ -376,12 +376,12 @@ status_t RecoveryMap::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   jpegr_metadata metadata;
   JPEGR_CHECK(extractRecoveryMap(compressed_jpegr_image, &compressed_map));
 
-  JpegDecoder jpeg_decoder;
+  JpegDecoderHelper jpeg_decoder;
   if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
 
-  JpegDecoder recovery_map_decoder;
+  JpegDecoderHelper recovery_map_decoder;
   if (!recovery_map_decoder.decompressImage(compressed_map.data, compressed_map.length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
@@ -411,7 +411,7 @@ status_t RecoveryMap::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recov
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  JpegEncoder jpeg_encoder;
+  JpegEncoderHelper jpeg_encoder;
   if (!jpeg_encoder.compressImage(uncompressed_recovery_map->data,
                                   uncompressed_recovery_map->width,
                                   uncompressed_recovery_map->height,
