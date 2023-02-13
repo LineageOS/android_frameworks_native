@@ -41,6 +41,7 @@ class SurfaceComposerClient;
 
 namespace android::hardware::graphics::composer::hal {
 
+using aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
 using ::android::hardware::Return;
 using ::android::hardware::Void;
 using ::android::HWC2::ComposerCallback;
@@ -99,6 +100,7 @@ struct TestHWC2ComposerCallback : public HWC2::ComposerCallback {
     void onComposerHalVsyncPeriodTimingChanged(HWDisplayId, const VsyncPeriodChangeTimeline&) {}
     void onComposerHalSeamlessPossible(HWDisplayId) {}
     void onComposerHalVsyncIdle(HWDisplayId) {}
+    void onRefreshRateChangedDebug(const RefreshRateChangedDebugData&) {}
 };
 
 } // namespace android::hardware::graphics::composer::hal

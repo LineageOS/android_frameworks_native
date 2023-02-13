@@ -208,6 +208,12 @@ public:
         return ::ndk::ScopedAStatus::ok();
     }
 
+    ::ndk::ScopedAStatus onRefreshRateChangedDebug(
+            const RefreshRateChangedDebugData& refreshRateChangedDebugData) override {
+        mCallback.onRefreshRateChangedDebug(refreshRateChangedDebugData);
+        return ::ndk::ScopedAStatus::ok();
+    }
+
 private:
     HWC2::ComposerCallback& mCallback;
 };
