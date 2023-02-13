@@ -76,7 +76,7 @@ private:
 
     FuzzedDataProvider mFdp;
 
-    std::optional<scheduler::VsyncSchedule> mVsyncSchedule;
+    std::unique_ptr<scheduler::VsyncSchedule> mVsyncSchedule;
 };
 
 PhysicalDisplayId SchedulerFuzzer::getPhysicalDisplayId() {
@@ -90,9 +90,9 @@ PhysicalDisplayId SchedulerFuzzer::getPhysicalDisplayId() {
 }
 
 void SchedulerFuzzer::fuzzEventThread() {
-    mVsyncSchedule.emplace(scheduler::VsyncSchedule(std::make_unique<mock::VSyncTracker>(),
-                                                    std::make_unique<mock::VSyncDispatch>(),
-                                                    nullptr));
+    mVsyncSchedule = std::unique_ptr<scheduler::VsyncSchedule>(
+            new scheduler::VsyncSchedule(std::make_unique<mock::VSyncTracker>(),
+                                         std::make_unique<mock::VSyncDispatch>(), nullptr));
     const auto getVsyncPeriod = [](uid_t /* uid */) { return kSyncPeriod.count(); };
     std::unique_ptr<android::impl::EventThread> thread = std::make_unique<
             android::impl::EventThread>("fuzzer", *mVsyncSchedule, nullptr, nullptr, getVsyncPeriod,

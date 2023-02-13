@@ -43,6 +43,7 @@
 #include "Display/DisplayModeRequest.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
+#include "ISchedulerCallback.h"
 #include "LayerHistory.h"
 #include "MessageQueue.h"
 #include "OneShotTimer.h"
@@ -91,16 +92,6 @@ class TokenManager;
 namespace scheduler {
 
 using GlobalSignals = RefreshRateSelector::GlobalSignals;
-
-struct ISchedulerCallback {
-    virtual void setVsyncEnabled(bool) = 0;
-    virtual void requestDisplayModes(std::vector<display::DisplayModeRequest>) = 0;
-    virtual void kernelTimerChanged(bool expired) = 0;
-    virtual void triggerOnFrameRateOverridesChanged() = 0;
-
-protected:
-    ~ISchedulerCallback() = default;
-};
 
 class Scheduler : android::impl::MessageQueue {
     using Impl = android::impl::MessageQueue;
@@ -192,20 +183,20 @@ public:
     void setRenderRate(Fps);
 
     void enableHardwareVsync();
-    void disableHardwareVsync(bool makeUnavailable);
+    void disableHardwareVsync(bool disallow);
 
     // Resyncs the scheduler to hardware vsync.
-    // If makeAvailable is true, then hardware vsync will be turned on.
+    // If allowToEnable is true, then hardware vsync will be turned on.
     // Otherwise, if hardware vsync is not already enabled then this method will
     // no-op.
-    void resyncToHardwareVsync(bool makeAvailable, Fps refreshRate);
+    void resyncToHardwareVsync(bool allowToEnable, Fps refreshRate);
     void resync() EXCLUDES(mDisplayLock);
     void forceNextResync() { mLastResyncTime = 0; }
 
-    // Passes a vsync sample to VsyncController. periodFlushed will be true if
-    // VsyncController detected that the vsync period changed, and false otherwise.
-    void addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
-                         bool* periodFlushed);
+    // Passes a vsync sample to VsyncController. Returns true if
+    // VsyncController detected that the vsync period changed and false
+    // otherwise.
+    bool addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod);
     void addPresentFence(std::shared_ptr<FenceTime>);
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
@@ -297,7 +288,6 @@ private:
     void touchTimerCallback(TimerState);
     void displayPowerTimerCallback(TimerState);
 
-    void setVsyncPeriod(nsecs_t period);
     void setVsyncConfig(const VsyncConfig&, Period vsyncPeriod);
 
     // Chooses a leader among the registered displays, unless `leaderIdOpt` is specified. The new
@@ -362,14 +352,10 @@ private:
     ConnectionHandle mAppConnectionHandle;
     ConnectionHandle mSfConnectionHandle;
 
-    mutable std::mutex mHWVsyncLock;
-    bool mPrimaryHWVsyncEnabled GUARDED_BY(mHWVsyncLock) = false;
-    bool mHWVsyncAvailable GUARDED_BY(mHWVsyncLock) = false;
-
     std::atomic<nsecs_t> mLastResyncTime = 0;
 
     const FeatureFlags mFeatures;
-    std::optional<VsyncSchedule> mVsyncSchedule;
+    std::unique_ptr<VsyncSchedule> mVsyncSchedule;
 
     // Shifts the VSYNC phase during certain transactions and refresh rate changes.
     const sp<VsyncModulator> mVsyncModulator;

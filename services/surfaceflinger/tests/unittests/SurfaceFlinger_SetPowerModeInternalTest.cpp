@@ -262,8 +262,8 @@ struct DisplayPowerCase {
         return display;
     }
 
-    static void setInitialPrimaryHWVsyncEnabled(DisplayTransactionTest* test, bool enabled) {
-        test->mFlinger.scheduler()->mutablePrimaryHWVsyncEnabled() = enabled;
+    static void setInitialHwVsyncEnabled(DisplayTransactionTest* test, bool enabled) {
+        test->mFlinger.scheduler()->setInitialHwVsyncEnabled(enabled);
     }
 
     static void setupRepaintEverythingCallExpectations(DisplayTransactionTest* test) {
@@ -329,9 +329,9 @@ void SetPowerModeInternalTest::transitionDisplayCommon() {
     Case::Doze::setupComposerCallExpectations(this);
     auto display =
             Case::injectDisplayWithInitialPowerMode(this, Case::Transition::INITIAL_POWER_MODE);
-    Case::setInitialPrimaryHWVsyncEnabled(this,
-                                          PowerModeInitialVSyncEnabled<
-                                                  Case::Transition::INITIAL_POWER_MODE>::value);
+    Case::setInitialHwVsyncEnabled(this,
+                                   PowerModeInitialVSyncEnabled<
+                                           Case::Transition::INITIAL_POWER_MODE>::value);
 
     // --------------------------------------------------------------------
     // Call Expectations

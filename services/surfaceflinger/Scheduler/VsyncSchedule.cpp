@@ -16,11 +16,14 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <ftl/fake_guard.h>
 #include <scheduler/Fps.h>
 #include <scheduler/Timer.h>
 
 #include "VsyncSchedule.h"
 
+#include "ISchedulerCallback.h"
+#include "Utils/Dumper.h"
 #include "VSyncDispatchTimerQueue.h"
 #include "VSyncPredictor.h"
 #include "VSyncReactor.h"
@@ -54,18 +57,16 @@ private:
 VsyncSchedule::VsyncSchedule(FeatureFlags features)
       : mTracker(createTracker()),
         mDispatch(createDispatch(*mTracker)),
-        mController(createController(*mTracker, features)) {
-    if (features.test(Feature::kTracePredictedVsync)) {
-        mTracer = std::make_unique<PredictedVsyncTracer>(*mDispatch);
-    }
-}
+        mController(createController(*mTracker, features)),
+        mTracer(features.test(Feature::kTracePredictedVsync)
+                        ? std::make_unique<PredictedVsyncTracer>(*mDispatch)
+                        : nullptr) {}
 
 VsyncSchedule::VsyncSchedule(TrackerPtr tracker, DispatchPtr dispatch, ControllerPtr controller)
       : mTracker(std::move(tracker)),
         mDispatch(std::move(dispatch)),
         mController(std::move(controller)) {}
 
-VsyncSchedule::VsyncSchedule(VsyncSchedule&&) = default;
 VsyncSchedule::~VsyncSchedule() = default;
 
 Period VsyncSchedule::period() const {
@@ -77,6 +78,16 @@ TimePoint VsyncSchedule::vsyncDeadlineAfter(TimePoint timePoint) const {
 }
 
 void VsyncSchedule::dump(std::string& out) const {
+    utils::Dumper dumper(out);
+    {
+        std::lock_guard<std::mutex> lock(mHwVsyncLock);
+        dumper.dump("hwVsyncState", ftl::enum_string(mHwVsyncState));
+
+        ftl::FakeGuard guard(kMainThreadContext);
+        dumper.dump("pendingHwVsyncState", ftl::enum_string(mPendingHwVsyncState));
+        dumper.eol();
+    }
+
     out.append("VsyncController:\n");
     mController->dump(out);
 
@@ -118,6 +129,69 @@ VsyncSchedule::ControllerPtr VsyncSchedule::createController(VsyncTracker& track
 
     reactor->setIgnorePresentFences(!features.test(Feature::kPresentFences));
     return reactor;
+}
+
+void VsyncSchedule::startPeriodTransition(ISchedulerCallback& callback, Period period) {
+    std::lock_guard<std::mutex> lock(mHwVsyncLock);
+    mController->startPeriodTransition(period.ns());
+    enableHardwareVsyncLocked(callback);
+}
+
+bool VsyncSchedule::addResyncSample(ISchedulerCallback& callback, TimePoint timestamp,
+                                    ftl::Optional<Period> hwcVsyncPeriod) {
+    bool needsHwVsync = false;
+    bool periodFlushed = false;
+    {
+        std::lock_guard<std::mutex> lock(mHwVsyncLock);
+        if (mHwVsyncState == HwVsyncState::Enabled) {
+            needsHwVsync = mController->addHwVsyncTimestamp(timestamp.ns(),
+                                                            hwcVsyncPeriod.transform(&Period::ns),
+                                                            &periodFlushed);
+        }
+    }
+    if (needsHwVsync) {
+        enableHardwareVsync(callback);
+    } else {
+        disableHardwareVsync(callback, false /* disallow */);
+    }
+    return periodFlushed;
+}
+
+void VsyncSchedule::enableHardwareVsync(ISchedulerCallback& callback) {
+    std::lock_guard<std::mutex> lock(mHwVsyncLock);
+    enableHardwareVsyncLocked(callback);
+}
+
+void VsyncSchedule::enableHardwareVsyncLocked(ISchedulerCallback& callback) {
+    if (mHwVsyncState == HwVsyncState::Disabled) {
+        getTracker().resetModel();
+        callback.setVsyncEnabled(true);
+        mHwVsyncState = HwVsyncState::Enabled;
+    }
+}
+
+void VsyncSchedule::disableHardwareVsync(ISchedulerCallback& callback, bool disallow) {
+    std::lock_guard<std::mutex> lock(mHwVsyncLock);
+    if (mHwVsyncState == HwVsyncState::Enabled) {
+        callback.setVsyncEnabled(false);
+    }
+    mHwVsyncState = disallow ? HwVsyncState::Disallowed : HwVsyncState::Disabled;
+}
+
+bool VsyncSchedule::isHardwareVsyncAllowed(bool makeAllowed) {
+    std::lock_guard<std::mutex> lock(mHwVsyncLock);
+    if (makeAllowed && mHwVsyncState == HwVsyncState::Disallowed) {
+        mHwVsyncState = HwVsyncState::Disabled;
+    }
+    return mHwVsyncState != HwVsyncState::Disallowed;
+}
+
+void VsyncSchedule::setPendingHardwareVsyncState(bool enabled) {
+    mPendingHwVsyncState = enabled ? HwVsyncState::Enabled : HwVsyncState::Disabled;
+}
+
+bool VsyncSchedule::getPendingHardwareVsyncState() const {
+    return mPendingHwVsyncState == HwVsyncState::Enabled;
 }
 
 } // namespace android::scheduler
