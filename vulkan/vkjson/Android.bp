@@ -25,10 +25,8 @@ cc_library_shared {
         ".",
     ],
     shared_libs: [
-        "libvulkan",
-    ],
-    whole_static_libs: [
         "libjsoncpp",
+        "libvulkan",
     ],
     export_shared_lib_headers: [
         "libvulkan",
