@@ -71,7 +71,9 @@
 #include "FlagManager.h"
 #include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerCreationArgs.h"
+#include "FrontEnd/LayerLifecycleManager.h"
 #include "FrontEnd/LayerSnapshot.h"
+#include "FrontEnd/LayerSnapshotBuilder.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
 #include "Scheduler/ISchedulerCallback.h"
@@ -450,6 +452,26 @@ private:
         FINISHED,
     };
 
+    struct LayerCreatedState {
+        LayerCreatedState(const wp<Layer>& layer, const wp<Layer>& parent, bool addToRoot)
+              : layer(layer), initialParent(parent), addToRoot(addToRoot) {}
+        wp<Layer> layer;
+        // Indicates the initial parent of the created layer, only used for creating layer in
+        // SurfaceFlinger. If nullptr, it may add the created layer into the current root layers.
+        wp<Layer> initialParent;
+        // Indicates whether the layer getting created should be added at root if there's no parent
+        // and has permission ACCESS_SURFACE_FLINGER. If set to false and no parent, the layer will
+        // be added offscreen.
+        bool addToRoot;
+    };
+
+    struct LifecycleUpdate {
+        std::vector<TransactionState> transactions;
+        std::vector<LayerCreatedState> layerCreatedStates;
+        std::vector<std::unique_ptr<frontend::RequestedLayerState>> newLayers;
+        std::vector<uint32_t> destroyedHandles;
+    };
+
     template <typename F, std::enable_if_t<!std::is_member_function_pointer_v<F>>* = nullptr>
     static Dumper dumper(F&& dump) {
         using namespace std::placeholders;
@@ -688,6 +710,17 @@ private:
 
     void updateLayerGeometry();
     void updateLayerMetadataSnapshot();
+    std::vector<std::pair<Layer*, LayerFE*>> moveSnapshotsToCompositionArgs(
+            compositionengine::CompositionRefreshArgs& refreshArgs, bool cursorOnly,
+            int64_t vsyncId);
+    void moveSnapshotsFromCompositionArgs(compositionengine::CompositionRefreshArgs& refreshArgs,
+                                          std::vector<std::pair<Layer*, LayerFE*>>& layers);
+    bool updateLayerSnapshotsLegacy(VsyncId vsyncId, LifecycleUpdate& update,
+                                    bool transactionsFlushed, bool& out)
+            REQUIRES(kMainThreadContext);
+    bool updateLayerSnapshots(VsyncId vsyncId, LifecycleUpdate& update, bool transactionsFlushed,
+                              bool& out) REQUIRES(kMainThreadContext);
+    LifecycleUpdate flushLifecycleUpdates() REQUIRES(kMainThreadContext);
 
     void updateInputFlinger();
     void persistDisplayBrightness(bool needsComposite) REQUIRES(kMainThreadContext);
@@ -717,6 +750,8 @@ private:
     bool flushTransactionQueues(VsyncId) REQUIRES(kMainThreadContext);
 
     bool applyTransactions(std::vector<TransactionState>&, VsyncId) REQUIRES(kMainThreadContext);
+    bool applyAndCommitDisplayTransactionStates(std::vector<TransactionState>& transactions)
+            REQUIRES(kMainThreadContext);
 
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
@@ -732,7 +767,10 @@ private:
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
                                   int64_t postTime, uint32_t permissions, uint64_t transactionId)
             REQUIRES(mStateLock);
-
+    uint32_t updateLayerCallbacksAndStats(const FrameTimelineInfo&, ResolvedComposerState&,
+                                          int64_t desiredPresentTime, bool isAutoTimestamp,
+                                          int64_t postTime, uint32_t permissions,
+                                          uint64_t transactionId) REQUIRES(mStateLock);
     uint32_t getTransactionFlags() const;
 
     // Sets the masked bits, and schedules a commit if needed.
@@ -890,7 +928,7 @@ private:
 
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
-    void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
+    void invalidateLayerStack(const ui::LayerFilter& layerFilter, const Region& dirty);
 
     ui::LayerFilter makeLayerFilterForDisplay(DisplayId displayId, ui::LayerStack layerStack)
             REQUIRES(mStateLock) {
@@ -1148,6 +1186,7 @@ private:
     // Set if LayerMetadata has changed since the last LayerMetadata snapshot.
     bool mLayerMetadataSnapshotNeeded = false;
 
+    // TODO(b/238781169) validate these on composition
     // Tracks layers that have pending frames which are candidates for being
     // latched.
     std::unordered_set<sp<Layer>, SpHash<Layer>> mLayersWithQueuedFrames;
@@ -1319,23 +1358,11 @@ private:
             GUARDED_BY(mStateLock);
 
     mutable std::mutex mCreatedLayersLock;
-    struct LayerCreatedState {
-        LayerCreatedState(const wp<Layer>& layer, const wp<Layer> parent, bool addToRoot)
-              : layer(layer), initialParent(parent), addToRoot(addToRoot) {}
-        wp<Layer> layer;
-        // Indicates the initial parent of the created layer, only used for creating layer in
-        // SurfaceFlinger. If nullptr, it may add the created layer into the current root layers.
-        wp<Layer> initialParent;
-        // Indicates whether the layer getting created should be added at root if there's no parent
-        // and has permission ACCESS_SURFACE_FLINGER. If set to false and no parent, the layer will
-        // be added offscreen.
-        bool addToRoot;
-    };
 
     // A temporay pool that store the created layers and will be added to current state in main
     // thread.
     std::vector<LayerCreatedState> mCreatedLayers GUARDED_BY(mCreatedLayersLock);
-    bool commitCreatedLayers(VsyncId);
+    bool commitCreatedLayers(VsyncId, std::vector<LayerCreatedState>& createdLayers);
     void handleLayerCreatedLocked(const LayerCreatedState&, VsyncId) REQUIRES(mStateLock);
 
     mutable std::mutex mMirrorDisplayLock;
@@ -1357,6 +1384,11 @@ private:
         return hasDisplay(
                 [](const auto& display) { return display.isRefreshRateOverlayEnabled(); });
     }
+    std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshotsForScreenshots(
+            std::optional<ui::LayerStack> layerStack, uint32_t uid);
+    std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshotsForScreenshots(
+            uint32_t rootLayerId, uint32_t uid, std::unordered_set<uint32_t> excludeLayerIds,
+            bool childrenOnly, const FloatRect& parentCrop);
 
     const sp<WindowInfosListenerInvoker> mWindowInfosListenerInvoker;
 
@@ -1369,6 +1401,18 @@ private:
 
     bool mPowerHintSessionEnabled;
 
+    bool mLayerLifecycleManagerEnabled = false;
+    bool mLegacyFrontEndEnabled = true;
+
+    frontend::LayerLifecycleManager mLayerLifecycleManager;
+    frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};
+    frontend::LayerSnapshotBuilder mLayerSnapshotBuilder;
+
+    std::vector<uint32_t> mDestroyedHandles;
+    std::vector<std::unique_ptr<frontend::RequestedLayerState>> mNewLayers;
+    // These classes do not store any client state but help with managing transaction callbacks
+    // and stats.
+    std::unordered_map<uint32_t, sp<Layer>> mLegacyLayers;
     struct {
         bool late = false;
         bool early = false;
@@ -1376,6 +1420,7 @@ private:
 
     TransactionHandler mTransactionHandler;
     display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
+    bool mFrontEndDisplayInfosChanged = false;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

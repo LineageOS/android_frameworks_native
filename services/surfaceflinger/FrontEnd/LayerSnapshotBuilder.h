@@ -36,7 +36,7 @@ namespace android::surfaceflinger::frontend {
 class LayerSnapshotBuilder {
 public:
     struct Args {
-        const LayerHierarchy& root;
+        LayerHierarchy root;
         const LayerLifecycleManager& layerLifecycleManager;
         bool forceUpdate = false;
         bool includeMetadata = false;
@@ -46,6 +46,8 @@ public:
         const renderengine::ShadowSettings& globalShadowSettings;
         bool supportsBlur = true;
         bool forceFullDamage = false;
+        std::optional<FloatRect> parentCrop = std::nullopt;
+        std::unordered_set<uint32_t> excludeLayerIds;
     };
     LayerSnapshotBuilder();
 
@@ -64,6 +66,9 @@ public:
 
     // Visit each visible snapshot in z-order
     void forEachVisibleSnapshot(const ConstVisitor& visitor) const;
+
+    // Visit each visible snapshot in z-order
+    void forEachVisibleSnapshot(const ConstVisitor& visitor, const LayerHierarchy& root) const;
 
     typedef std::function<void(std::unique_ptr<LayerSnapshot>& snapshot)> Visitor;
     // Visit each visible snapshot in z-order and move the snapshot if needed
