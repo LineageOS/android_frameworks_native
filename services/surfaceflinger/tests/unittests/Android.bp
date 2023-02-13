@@ -133,6 +133,7 @@ cc_test {
         "VSyncPredictorTest.cpp",
         "VSyncReactorTest.cpp",
         "VsyncConfigurationTest.cpp",
+        "VsyncScheduleTest.cpp",
     ],
 }
 
