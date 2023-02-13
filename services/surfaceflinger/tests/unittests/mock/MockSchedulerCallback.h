@@ -18,7 +18,7 @@
 
 #include <gmock/gmock.h>
 
-#include "Scheduler/Scheduler.h"
+#include "Scheduler/ISchedulerCallback.h"
 
 namespace android::scheduler::mock {
 
