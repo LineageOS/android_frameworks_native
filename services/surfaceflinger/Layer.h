@@ -614,7 +614,7 @@ public:
      * doTransaction - process the transaction. This is a good place to figure
      * out which attributes of the surface have changed.
      */
-    virtual uint32_t doTransaction(uint32_t transactionFlags);
+    virtual uint32_t doTransaction(uint32_t transactionFlags, nsecs_t currentLatchTime);
 
     /*
      * Remove relative z for the layer if its relative parent is not part of the
@@ -846,7 +846,7 @@ protected:
     void preparePerFrameCompositionState();
     void preparePerFrameBufferCompositionState();
     void preparePerFrameEffectsCompositionState();
-    virtual void commitTransaction(State& stateToCommit);
+    virtual void commitTransaction(State& stateToCommit, nsecs_t currentLatchTime = 0);
     void gatherBufferInfo();
     void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&);
 
