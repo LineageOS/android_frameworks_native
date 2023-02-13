@@ -4076,7 +4076,7 @@ bool SurfaceFlinger::applyTransactionsLocked(std::vector<TransactionState>& tran
                                       transaction.displays, transaction.flags,
                                       transaction.inputWindowCommands,
                                       transaction.desiredPresentTime, transaction.isAutoTimestamp,
-                                      std::move(transaction.uncacheBufferIds), transaction.postTime,
+                                      transaction.buffer, transaction.postTime,
                                       transaction.permissions, transaction.hasListenerCallbacks,
                                       transaction.listenerCallbacks, transaction.originPid,
                                       transaction.originUid, transaction.id);
@@ -4164,9 +4164,8 @@ status_t SurfaceFlinger::setTransactionState(
         const FrameTimelineInfo& frameTimelineInfo, Vector<ComposerState>& states,
         const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
         const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
-        bool isAutoTimestamp, const std::vector<client_cache_t>& uncacheBuffers,
-        bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
-        uint64_t transactionId) {
+        bool isAutoTimestamp, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
+        const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) {
     ATRACE_CALL();
 
     uint32_t permissions =
@@ -4200,15 +4199,6 @@ status_t SurfaceFlinger::setTransactionState(
     const int originPid = ipc->getCallingPid();
     const int originUid = ipc->getCallingUid();
 
-    std::vector<uint64_t> uncacheBufferIds;
-    uncacheBufferIds.reserve(uncacheBuffers.size());
-    for (const auto& uncacheBuffer : uncacheBuffers) {
-        sp<GraphicBuffer> buffer = ClientCache::getInstance().erase(uncacheBuffer);
-        if (buffer != nullptr) {
-            uncacheBufferIds.push_back(buffer->getId());
-        }
-    }
-
     std::vector<ResolvedComposerState> resolvedStates;
     resolvedStates.reserve(states.size());
     for (auto& state : states) {
@@ -4226,22 +4216,14 @@ status_t SurfaceFlinger::setTransactionState(
         }
     }
 
-    TransactionState state{frameTimelineInfo,
-                           resolvedStates,
-                           displays,
-                           flags,
-                           applyToken,
-                           inputWindowCommands,
-                           desiredPresentTime,
-                           isAutoTimestamp,
-                           std::move(uncacheBufferIds),
-                           postTime,
-                           permissions,
-                           hasListenerCallbacks,
-                           listenerCallbacks,
-                           originPid,
-                           originUid,
-                           transactionId};
+    TransactionState state{frameTimelineInfo,  resolvedStates,
+                           displays,           flags,
+                           applyToken,         inputWindowCommands,
+                           desiredPresentTime, isAutoTimestamp,
+                           uncacheBuffer,      postTime,
+                           permissions,        hasListenerCallbacks,
+                           listenerCallbacks,  originPid,
+                           originUid,          transactionId};
 
     if (mTransactionTracing) {
         mTransactionTracing->addQueuedTransaction(state);
@@ -4264,7 +4246,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                                            Vector<DisplayState>& displays, uint32_t flags,
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime, bool isAutoTimestamp,
-                                           const std::vector<uint64_t>& uncacheBufferIds,
+                                           const client_cache_t& uncacheBuffer,
                                            const int64_t postTime, uint32_t permissions,
                                            bool hasListenerCallbacks,
                                            const std::vector<ListenerCallbacks>& listenerCallbacks,
@@ -4305,8 +4287,11 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
         ALOGE("Only privileged callers are allowed to send input commands.");
     }
 
-    for (uint64_t uncacheBufferId : uncacheBufferIds) {
-        mBufferIdsToUncache.push_back(uncacheBufferId);
+    if (uncacheBuffer.isValid()) {
+        sp<GraphicBuffer> buffer = ClientCache::getInstance().erase(uncacheBuffer);
+        if (buffer != nullptr) {
+            mBufferIdsToUncache.push_back(buffer->getId());
+        }
     }
 
     // If a synchronous transaction is explicitly requested without any changes, force a transaction

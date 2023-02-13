@@ -102,7 +102,7 @@ public:
         int64_t desiredPresentTime = 0;
         bool isAutoTimestamp = true;
         FrameTimelineInfo frameTimelineInfo;
-        std::vector<client_cache_t> uncacheBuffers;
+        client_cache_t uncacheBuffer;
         uint64_t id = static_cast<uint64_t>(-1);
         static_assert(0xffffffffffffffff == static_cast<uint64_t>(-1));
     };
@@ -138,7 +138,7 @@ public:
                                      transaction.displays, transaction.flags,
                                      transaction.applyToken, transaction.inputWindowCommands,
                                      transaction.desiredPresentTime, transaction.isAutoTimestamp,
-                                     transaction.uncacheBuffers, mHasListenerCallbacks, mCallbacks,
+                                     transaction.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
                                      transaction.id);
 
         // If transaction is synchronous, SF applyTransactionState should time out (5s) wating for
@@ -165,7 +165,7 @@ public:
                                      transaction.displays, transaction.flags,
                                      transaction.applyToken, transaction.inputWindowCommands,
                                      transaction.desiredPresentTime, transaction.isAutoTimestamp,
-                                     transaction.uncacheBuffers, mHasListenerCallbacks, mCallbacks,
+                                     transaction.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
                                      transaction.id);
 
         nsecs_t returnedTime = systemTime();
@@ -196,7 +196,7 @@ public:
                                      transactionA.displays, transactionA.flags,
                                      transactionA.applyToken, transactionA.inputWindowCommands,
                                      transactionA.desiredPresentTime, transactionA.isAutoTimestamp,
-                                     transactionA.uncacheBuffers, mHasListenerCallbacks, mCallbacks,
+                                     transactionA.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
                                      transactionA.id);
 
         // This thread should not have been blocked by the above transaction
@@ -211,7 +211,7 @@ public:
                                      transactionB.displays, transactionB.flags,
                                      transactionB.applyToken, transactionB.inputWindowCommands,
                                      transactionB.desiredPresentTime, transactionB.isAutoTimestamp,
-                                     transactionB.uncacheBuffers, mHasListenerCallbacks, mCallbacks,
+                                     transactionB.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
                                      transactionB.id);
 
         // this thread should have been blocked by the above transaction
@@ -248,7 +248,7 @@ TEST_F(TransactionApplicationTest, AddToPendingQueue) {
     mFlinger.setTransactionState(transactionA.frameTimelineInfo, transactionA.states,
                                  transactionA.displays, transactionA.flags, transactionA.applyToken,
                                  transactionA.inputWindowCommands, transactionA.desiredPresentTime,
-                                 transactionA.isAutoTimestamp, transactionA.uncacheBuffers,
+                                 transactionA.isAutoTimestamp, transactionA.uncacheBuffer,
                                  mHasListenerCallbacks, mCallbacks, transactionA.id);
 
     auto& transactionQueue = mFlinger.getTransactionQueue();
@@ -268,7 +268,7 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     mFlinger.setTransactionState(transactionA.frameTimelineInfo, transactionA.states,
                                  transactionA.displays, transactionA.flags, transactionA.applyToken,
                                  transactionA.inputWindowCommands, transactionA.desiredPresentTime,
-                                 transactionA.isAutoTimestamp, transactionA.uncacheBuffers,
+                                 transactionA.isAutoTimestamp, transactionA.uncacheBuffer,
                                  mHasListenerCallbacks, mCallbacks, transactionA.id);
 
     auto& transactionQueue = mFlinger.getTransactionQueue();
@@ -282,7 +282,7 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     mFlinger.setTransactionState(empty.frameTimelineInfo, empty.states, empty.displays, empty.flags,
                                  empty.applyToken, empty.inputWindowCommands,
                                  empty.desiredPresentTime, empty.isAutoTimestamp,
-                                 empty.uncacheBuffers, mHasListenerCallbacks, mCallbacks, empty.id);
+                                 empty.uncacheBuffer, mHasListenerCallbacks, mCallbacks, empty.id);
 
     // flush transaction queue should flush as desiredPresentTime has
     // passed
@@ -379,7 +379,8 @@ public:
                                               transaction.applyToken,
                                               transaction.inputWindowCommands,
                                               transaction.desiredPresentTime,
-                                              transaction.isAutoTimestamp, {}, systemTime(), 0,
+                                              transaction.isAutoTimestamp,
+                                              transaction.uncacheBuffer, systemTime(), 0,
                                               mHasListenerCallbacks, mCallbacks, getpid(),
                                               static_cast<int>(getuid()), transaction.id);
             mFlinger.setTransactionStateInternal(transactionState);
