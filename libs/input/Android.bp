@@ -73,11 +73,15 @@ cc_library {
         "liblog",
         "libPlatformProperties",
         "libvintf",
-        "libtflite",
+    ],
+
+    ldflags: [
+        "-Wl,--exclude-libs=libtflite_static.a",
     ],
 
     static_libs: [
         "libui-types",
+        "libtflite_static",
     ],
 
     export_static_lib_headers: [
