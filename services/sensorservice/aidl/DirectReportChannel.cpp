@@ -32,7 +32,7 @@ ndk::ScopedAStatus DirectReportChannel::configure(
         int32_t sensorHandle, ::aidl::android::hardware::sensors::ISensors::RateLevel rate,
         int32_t* _aidl_return) {
     int token = mManager.configureDirectChannel(mId, sensorHandle, static_cast<int>(rate));
-    if (token <= 0) {
+    if (token < 0) {
         return ndk::ScopedAStatus::fromServiceSpecificError(token);
     }
     *_aidl_return = token;
