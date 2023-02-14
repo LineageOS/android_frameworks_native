@@ -78,21 +78,24 @@ private:
 
     inline void traceInt64If(const char* name, int64_t value) const;
     inline void traceInt64(const char* name, int64_t value) const;
-    bool const mTraceOn;
 
+    size_t next(size_t i) const REQUIRES(mMutex);
+    bool validate(nsecs_t timestamp) const REQUIRES(mMutex);
+    Model getVSyncPredictionModelLocked() const REQUIRES(mMutex);
+    nsecs_t nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) const REQUIRES(mMutex);
+    bool isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const REQUIRES(mMutex);
+
+    struct VsyncSequence {
+        nsecs_t vsyncTime;
+        int64_t seq;
+    };
+    VsyncSequence getVsyncSequenceLocked(nsecs_t timestamp) const REQUIRES(mMutex);
+
+    bool const mTraceOn;
     size_t const kHistorySize;
     size_t const kMinimumSamplesForPrediction;
     size_t const kOutlierTolerancePercent;
-
     std::mutex mutable mMutex;
-    size_t next(size_t i) const REQUIRES(mMutex);
-    bool validate(nsecs_t timestamp) const REQUIRES(mMutex);
-
-    Model getVSyncPredictionModelLocked() const REQUIRES(mMutex);
-
-    nsecs_t nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) const REQUIRES(mMutex);
-
-    bool isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const REQUIRES(mMutex);
 
     nsecs_t mIdealPeriod GUARDED_BY(mMutex);
     std::optional<nsecs_t> mKnownTimestamp GUARDED_BY(mMutex);
@@ -100,13 +103,12 @@ private:
     // Map between ideal vsync period and the calculated model
     std::unordered_map<nsecs_t, Model> mutable mRateMap GUARDED_BY(mMutex);
 
-    // Map between the divided vsync period and the last known vsync timestamp
-    std::unordered_map<nsecs_t, nsecs_t> mutable mRateDivisorKnownTimestampMap GUARDED_BY(mMutex);
-
     size_t mLastTimestampIndex GUARDED_BY(mMutex) = 0;
     std::vector<nsecs_t> mTimestamps GUARDED_BY(mMutex);
 
     unsigned mDivisor GUARDED_BY(mMutex) = 1;
+
+    mutable std::optional<VsyncSequence> mLastVsyncSequence GUARDED_BY(mMutex);
 };
 
 } // namespace android::scheduler

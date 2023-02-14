@@ -219,6 +219,17 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     return true;
 }
 
+auto VSyncPredictor::getVsyncSequenceLocked(nsecs_t timestamp) const -> VsyncSequence {
+    const auto vsync = nextAnticipatedVSyncTimeFromLocked(timestamp);
+    if (!mLastVsyncSequence) return {vsync, 0};
+
+    const auto [slope, _] = getVSyncPredictionModelLocked();
+    const auto [lastVsyncTime, lastVsyncSequence] = *mLastVsyncSequence;
+    const auto vsyncSequence = lastVsyncSequence +
+            static_cast<int64_t>(std::round((vsync - lastVsyncTime) / static_cast<float>(slope)));
+    return {vsync, vsyncSequence};
+}
+
 nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) const {
     auto const [slope, intercept] = getVSyncPredictionModelLocked();
 
@@ -258,12 +269,17 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) co
 nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     std::lock_guard lock(mMutex);
 
-    // TODO(b/246164114): This implementation is not efficient at all. Refactor.
-    nsecs_t nextVsync = nextAnticipatedVSyncTimeFromLocked(timePoint);
-    while (!isVSyncInPhaseLocked(nextVsync, mDivisor)) {
-        nextVsync = nextAnticipatedVSyncTimeFromLocked(nextVsync + 1);
+    // update the mLastVsyncSequence for reference point
+    mLastVsyncSequence = getVsyncSequenceLocked(timePoint);
+
+    const auto mod = mLastVsyncSequence->seq % mDivisor;
+    if (mod == 0) {
+        return mLastVsyncSequence->vsyncTime;
     }
-    return nextVsync;
+
+    auto const [slope, intercept] = getVSyncPredictionModelLocked();
+    const auto approximateNextVsync = mLastVsyncSequence->vsyncTime + slope * (mDivisor - mod);
+    return nextAnticipatedVSyncTimeFromLocked(approximateNextVsync - slope / 2);
 }
 
 /*
@@ -289,51 +305,16 @@ bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) c
     ATRACE_FORMAT("%s timePoint in: %.2f divisor: %zu", __func__, getTimePointIn(now, timePoint),
                   divisor);
 
-    struct VsyncError {
-        nsecs_t vsyncTimestamp;
-        float error;
-
-        bool operator<(const VsyncError& other) const { return error < other.error; }
-    };
-
     if (divisor <= 1 || timePoint == 0) {
         return true;
     }
 
     const nsecs_t period = mRateMap[mIdealPeriod].slope;
     const nsecs_t justBeforeTimePoint = timePoint - period / 2;
-    const nsecs_t dividedPeriod = mIdealPeriod / divisor;
-
-    // If this is the first time we have asked about this divisor with the
-    // current vsync period, it is considered in phase and we store the closest
-    // vsync timestamp
-    const auto knownTimestampIter = mRateDivisorKnownTimestampMap.find(dividedPeriod);
-    if (knownTimestampIter == mRateDivisorKnownTimestampMap.end()) {
-        const auto vsync = nextAnticipatedVSyncTimeFromLocked(justBeforeTimePoint);
-        mRateDivisorKnownTimestampMap[dividedPeriod] = vsync;
-        ATRACE_FORMAT_INSTANT("(first) knownVsync in: %.2f", getTimePointIn(now, vsync));
-        return true;
-    }
-
-    // Find the next N vsync timestamp where N is the divisor.
-    // One of these vsyncs will be in phase. We return the one which is
-    // the most aligned with the last known in phase vsync
-    std::vector<VsyncError> vsyncs(static_cast<size_t>(divisor));
-    const nsecs_t knownVsync = knownTimestampIter->second;
-    nsecs_t point = justBeforeTimePoint;
-    for (size_t i = 0; i < divisor; i++) {
-        const nsecs_t vsync = nextAnticipatedVSyncTimeFromLocked(point);
-        const auto numPeriods = static_cast<float>(vsync - knownVsync) / (period * divisor);
-        const auto error = std::abs(std::round(numPeriods) - numPeriods);
-        vsyncs[i] = {vsync, error};
-        point = vsync + 1;
-    }
-
-    const auto minVsyncError = std::min_element(vsyncs.begin(), vsyncs.end());
-    mRateDivisorKnownTimestampMap[dividedPeriod] = minVsyncError->vsyncTimestamp;
-    ATRACE_FORMAT_INSTANT("knownVsync in: %.2f",
-                          getTimePointIn(now, minVsyncError->vsyncTimestamp));
-    return std::abs(minVsyncError->vsyncTimestamp - timePoint) < period / 2;
+    const auto vsyncSequence = getVsyncSequenceLocked(justBeforeTimePoint);
+    ATRACE_FORMAT_INSTANT("vsync in: %.2f sequence: %" PRId64,
+                          getTimePointIn(now, vsyncSequence.vsyncTime), vsyncSequence.seq);
+    return vsyncSequence.seq % divisor == 0;
 }
 
 void VSyncPredictor::setDivisor(unsigned divisor) {
@@ -382,6 +363,7 @@ void VSyncPredictor::clearTimestamps() {
         mTimestamps.clear();
         mLastTimestampIndex = 0;
     }
+    mLastVsyncSequence.reset();
 }
 
 bool VSyncPredictor::needsMoreSamples() const {
