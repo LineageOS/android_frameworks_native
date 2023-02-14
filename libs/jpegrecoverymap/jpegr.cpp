@@ -27,7 +27,9 @@
 #include <image_io/base/data_segment_data_source.h>
 #include <utils/Log.h>
 #include "SkColorSpace.h"
+#include "SkData.h"
 #include "SkICC.h"
+#include "SkRefCnt.h"
 
 #include <map>
 #include <memory>
