@@ -6541,21 +6541,14 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1001:
                 return NAME_NOT_FOUND;
             case 1002: // Toggle flashing on surface damage.
-                if (const int delay = data.readInt32(); delay > 0) {
-                    mDebugFlashDelay = delay;
-                } else {
-                    mDebugFlashDelay = mDebugFlashDelay ? 0 : 1;
-                }
-                scheduleRepaint();
+                sfdo_setDebugFlash(data.readInt32());
                 return NO_ERROR;
             case 1004: // Force composite ahead of next VSYNC.
             case 1006:
-                scheduleComposite(FrameHint::kActive);
+                sfdo_scheduleComposite();
                 return NO_ERROR;
             case 1005: { // Force commit ahead of next VSYNC.
-                Mutex::Autolock lock(mStateLock);
-                setTransactionFlags(eTransactionNeeded | eDisplayTransactionNeeded |
-                                    eTraversalNeeded);
+                sfdo_scheduleCommit();
                 return NO_ERROR;
             }
             case 1007: // Unused.
@@ -6800,19 +6793,13 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1034: {
-                auto future = mScheduler->schedule(
-                        [&]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(kMainThreadContext) {
-                            switch (n = data.readInt32()) {
-                                case 0:
-                                case 1:
-                                    enableRefreshRateOverlay(static_cast<bool>(n));
-                                    break;
-                                default:
-                                    reply->writeBool(isRefreshRateOverlayEnabled());
-                            }
-                        });
-
-                future.wait();
+                n = data.readInt32();
+                if (n == 0 || n == 1) {
+                    sfdo_enableRefreshRateOverlay(static_cast<bool>(n));
+                } else {
+                    Mutex::Autolock lock(mStateLock);
+                    reply->writeBool(isRefreshRateOverlayEnabled());
+                }
                 return NO_ERROR;
             }
             case 1035: {
@@ -8740,6 +8727,33 @@ void SurfaceFlinger::addToLayerTracing(bool visibleRegionDirty, TimePoint time, 
                          std::move(hwcDump), &displays);
 }
 
+// sfdo functions
+
+void SurfaceFlinger::sfdo_enableRefreshRateOverlay(bool active) {
+    auto future = mScheduler->schedule(
+            [&]() FTL_FAKE_GUARD(mStateLock)
+                    FTL_FAKE_GUARD(kMainThreadContext) { enableRefreshRateOverlay(active); });
+    future.wait();
+}
+
+void SurfaceFlinger::sfdo_setDebugFlash(int delay) {
+    if (delay > 0) {
+        mDebugFlashDelay = delay;
+    } else {
+        mDebugFlashDelay = mDebugFlashDelay ? 0 : 1;
+    }
+    scheduleRepaint();
+}
+
+void SurfaceFlinger::sfdo_scheduleComposite() {
+    scheduleComposite(SurfaceFlinger::FrameHint::kActive);
+}
+
+void SurfaceFlinger::sfdo_scheduleCommit() {
+    Mutex::Autolock lock(mStateLock);
+    setTransactionFlags(eTransactionNeeded | eDisplayTransactionNeeded | eTraversalNeeded);
+}
+
 // gui::ISurfaceComposer
 
 binder::Status SurfaceComposerAIDL::bootFinished() {
@@ -9431,6 +9445,26 @@ binder::Status SurfaceComposerAIDL::setOverrideFrameRate(int32_t uid, float fram
         status = PERMISSION_DENIED;
     }
     return binderStatusFromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::enableRefreshRateOverlay(bool active) {
+    mFlinger->sfdo_enableRefreshRateOverlay(active);
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::setDebugFlash(int delay) {
+    mFlinger->sfdo_setDebugFlash(delay);
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::scheduleComposite() {
+    mFlinger->sfdo_scheduleComposite();
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::scheduleCommit() {
+    mFlinger->sfdo_scheduleCommit();
+    return binder::Status::ok();
 }
 
 binder::Status SurfaceComposerAIDL::getGpuContextPriority(int32_t* outPriority) {

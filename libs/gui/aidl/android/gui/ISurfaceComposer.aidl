@@ -480,6 +480,30 @@ interface ISurfaceComposer {
     void setOverrideFrameRate(int uid, float frameRate);
 
     /**
+     * Enables or disables the frame rate overlay in the top left corner.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void enableRefreshRateOverlay(boolean active);
+
+    /**
+     * Enables or disables the debug flash.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void setDebugFlash(int delay);
+
+    /**
+     * Force composite ahead of next VSYNC.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void scheduleComposite();
+
+    /**
+     * Force commit ahead of next VSYNC.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void scheduleCommit();
+
+    /**
      * Gets priority of the RenderEngine in SurfaceFlinger.
      */
     int getGpuContextPriority();
