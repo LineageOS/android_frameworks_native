@@ -3143,7 +3143,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const auto enableFrameRateOverride = sysprop::enable_frame_rate_override(true)
                 ? Config::FrameRateOverride::Enabled
                 : Config::FrameRateOverride::Disabled;
-        scheduler::RefreshRateSelector::Config config =
+        Config config =
                 {.enableFrameRateOverride = enableFrameRateOverride,
                  .frameRateMultipleThreshold =
                          base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0),
