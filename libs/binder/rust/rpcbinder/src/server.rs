@@ -102,6 +102,29 @@ impl RpcServer {
         }
     }
 
+    /// Creates a binder RPC server, serving the supplied binder service implementation on the given
+    /// IP address and port.
+    pub fn new_inet(mut service: SpIBinder, address: &str, port: u32) -> Result<RpcServer, Error> {
+        let address = match CString::new(address) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Cannot convert {} to CString. Error: {:?}", address, e);
+                return Err(Error::from(ErrorKind::InvalidInput));
+            }
+        };
+        let service = service.as_native_mut();
+
+        // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
+        // Plus the binder objects are threadsafe.
+        unsafe {
+            Self::checked_from_ptr(binder_rpc_unstable_bindgen::ARpcServer_newInet(
+                service,
+                address.as_ptr(),
+                port,
+            ))
+        }
+    }
+
     unsafe fn checked_from_ptr(ptr: *mut ARpcServer) -> Result<RpcServer, Error> {
         if ptr.is_null() {
             return Err(Error::new(ErrorKind::Other, "Failed to start server"));
