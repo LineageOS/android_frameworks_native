@@ -175,6 +175,7 @@ public:
                  Error(aidl::android::hardware::graphics::composer3::OverlayProperties*));
     MOCK_METHOD1(onHotplugConnect, void(Display));
     MOCK_METHOD1(onHotplugDisconnect, void(Display));
+    MOCK_METHOD(Error, setRefreshRateChangedCallbackDebugEnabled, (Display, bool));
 };
 
 } // namespace Hwc2::mock

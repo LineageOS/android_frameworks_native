@@ -147,6 +147,7 @@ public:
     MOCK_METHOD(bool, getValidateSkipped, (HalDisplayId), (const, override));
     MOCK_METHOD(const aidl::android::hardware::graphics::composer3::OverlayProperties&,
                 getOverlaySupport, (), (const, override));
+    MOCK_METHOD(status_t, setRefreshRateChangedCallbackDebugEnabled, (PhysicalDisplayId, bool));
 };
 
 } // namespace mock

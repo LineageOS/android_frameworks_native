@@ -160,6 +160,7 @@ struct layer_state_t {
         // This is needed to maintain compatibility for SurfaceView scaling behavior.
         // See SurfaceView scaling behavior for more details.
         eIgnoreDestinationFrame = 0x400,
+        eLayerIsRefreshRateIndicator = 0x800, // REFRESH_RATE_INDICATOR
     };
 
     enum {

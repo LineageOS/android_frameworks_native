@@ -1358,6 +1358,10 @@ Error HidlComposer::setHdrConversionStrategy(HdrConversionStrategy, Hdr*) {
     return Error::UNSUPPORTED;
 }
 
+Error HidlComposer::setRefreshRateChangedCallbackDebugEnabled(Display, bool) {
+    return Error::UNSUPPORTED;
+}
+
 Error HidlComposer::getClientTargetProperty(
         Display display, ClientTargetPropertyWithBrightness* outClientTargetProperty) {
     IComposerClient::ClientTargetProperty property;
