@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_RECOVERYMAPUTILS_H
-#define ANDROID_JPEGRECOVERYMAP_RECOVERYMAPUTILS_H
+#ifndef ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H
+#define ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H
 
-#include <jpegrecoverymap/recoverymap.h>
+#include <jpegrecoverymap/jpegr.h>
 
 #include <sstream>
 #include <stdint.h>
@@ -94,4 +94,4 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
 std::string generateXmp(int secondary_image_length, jpegr_metadata& metadata);
 }
 
-#endif //ANDROID_JPEGRECOVERYMAP_RECOVERYMAPUTILS_H
+#endif //ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H

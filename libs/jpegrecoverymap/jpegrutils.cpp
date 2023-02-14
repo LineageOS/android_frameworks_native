@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/recoverymaputils.h>
+#include <jpegrecoverymap/jpegrutils.h>
 #include <image_io/xml/xml_reader.h>
 #include <image_io/xml/xml_writer.h>
 #include <image_io/base/message_handler.h>

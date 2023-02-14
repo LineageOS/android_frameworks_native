@@ -25,7 +25,7 @@ cc_test {
     name: "libjpegrecoverymap_test",
     test_suites: ["device-tests"],
     srcs: [
-        "recoverymap_test.cpp",
+        "jpegr_test.cpp",
         "recoverymapmath_test.cpp",
     ],
     shared_libs: [
