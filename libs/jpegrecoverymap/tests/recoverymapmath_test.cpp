@@ -42,7 +42,7 @@ public:
   }
 
   float Map(uint8_t e) {
-    return (static_cast<float>(e) - 127.5f) / 127.5f;
+    return static_cast<float>(e) / 255.0f;
   }
 
   Color ColorMin(Color e1, Color e2) {
@@ -88,10 +88,10 @@ public:
     return luminance_scaled * scale_factor;
   }
 
-  Color Recover(Color yuv_gamma, float recovery, float max_content_boost) {
+  Color Recover(Color yuv_gamma, float recovery, jr_metadata_ptr metadata) {
     Color rgb_gamma = srgbYuvToRgb(yuv_gamma);
     Color rgb = srgbInvOetf(rgb_gamma);
-    return applyRecovery(rgb, recovery, max_content_boost);
+    return applyRecovery(rgb, recovery, metadata);
   }
 
   jpegr_uncompressed_struct Yuv420Image() {
@@ -518,59 +518,95 @@ TEST_F(RecoveryMapMathTest, PqInvOetf) {
 }
 
 TEST_F(RecoveryMapMathTest, PqInvOetfLUT) {
-    float increment = 1.0 / 1024.0;
-    float value = 0.0f;
-    for (int idx = 0; idx < 1024; idx++, value += increment) {
+    for (int idx = 0; idx < kPqInvOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kPqInvOETFNumEntries - 1);
       EXPECT_FLOAT_EQ(pqInvOetf(value), pqInvOetfLUT(value));
     }
 }
 
 TEST_F(RecoveryMapMathTest, HlgInvOetfLUT) {
-    float increment = 1.0 / 1024.0;
-    float value = 0.0f;
-    for (int idx = 0; idx < 1024; idx++, value += increment) {
+    for (int idx = 0; idx < kHlgInvOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kHlgInvOETFNumEntries - 1);
       EXPECT_FLOAT_EQ(hlgInvOetf(value), hlgInvOetfLUT(value));
     }
 }
 
 TEST_F(RecoveryMapMathTest, pqOetfLUT) {
-    float increment = 1.0 / 1024.0;
-    float value = 0.0f;
-    for (int idx = 0; idx < 1024; idx++, value += increment) {
+    for (int idx = 0; idx < kPqOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kPqOETFNumEntries - 1);
       EXPECT_FLOAT_EQ(pqOetf(value), pqOetfLUT(value));
     }
 }
 
 TEST_F(RecoveryMapMathTest, hlgOetfLUT) {
-    float increment = 1.0 / 1024.0;
-    float value = 0.0f;
-    for (int idx = 0; idx < 1024; idx++, value += increment) {
+    for (int idx = 0; idx < kHlgOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kHlgOETFNumEntries - 1);
       EXPECT_FLOAT_EQ(hlgOetf(value), hlgOetfLUT(value));
     }
 }
 
 TEST_F(RecoveryMapMathTest, srgbInvOetfLUT) {
-    float increment = 1.0 / 1024.0;
-    float value = 0.0f;
-    for (int idx = 0; idx < 1024; idx++, value += increment) {
+    for (int idx = 0; idx < kSrgbInvOETFNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kSrgbInvOETFNumEntries - 1);
       EXPECT_FLOAT_EQ(srgbInvOetf(value), srgbInvOetfLUT(value));
     }
 }
 
 TEST_F(RecoveryMapMathTest, applyRecoveryLUT) {
-  float increment = 2.0 / kRecoveryFactorNumEntries;
-  for (float hdrRatio = 1.0f; hdrRatio <= 10.0f; hdrRatio += 1.0f)  {
-    RecoveryLUT recoveryLUT(hdrRatio);
-    for (float value = -1.0f; value <= -1.0f; value += increment) {
-      EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), value, hdrRatio),
+  for (int boost = 1; boost <= 10; boost++) {
+    jpegr_metadata metadata = { .maxContentBoost = static_cast<float>(boost),
+                                .minContentBoost = 1.0f / static_cast<float>(boost) };
+    RecoveryLUT recoveryLUT(&metadata);
+    for (int idx = 0; idx < kRecoveryFactorNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kRecoveryFactorNumEntries - 1);
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), value, &metadata),
                       applyRecoveryLUT(RgbBlack(), value, recoveryLUT));
-      EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), value, hdrRatio),
+      EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), value, &metadata),
                       applyRecoveryLUT(RgbWhite(), value, recoveryLUT));
-      EXPECT_RGB_NEAR(applyRecovery(RgbRed(), value, hdrRatio),
+      EXPECT_RGB_NEAR(applyRecovery(RgbRed(), value, &metadata),
                       applyRecoveryLUT(RgbRed(), value, recoveryLUT));
-      EXPECT_RGB_NEAR(applyRecovery(RgbGreen(), value, hdrRatio),
+      EXPECT_RGB_NEAR(applyRecovery(RgbGreen(), value, &metadata),
                       applyRecoveryLUT(RgbGreen(), value, recoveryLUT));
-      EXPECT_RGB_NEAR(applyRecovery(RgbBlue(), value, hdrRatio),
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlue(), value, &metadata),
+                      applyRecoveryLUT(RgbBlue(), value, recoveryLUT));
+    }
+  }
+
+  for (int boost = 1; boost <= 10; boost++) {
+    jpegr_metadata metadata = { .maxContentBoost = static_cast<float>(boost),
+                                .minContentBoost = 1.0f };
+    RecoveryLUT recoveryLUT(&metadata);
+    for (int idx = 0; idx < kRecoveryFactorNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kRecoveryFactorNumEntries - 1);
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), value, &metadata),
+                      applyRecoveryLUT(RgbBlack(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), value, &metadata),
+                      applyRecoveryLUT(RgbWhite(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbRed(), value, &metadata),
+                      applyRecoveryLUT(RgbRed(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbGreen(), value, &metadata),
+                      applyRecoveryLUT(RgbGreen(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlue(), value, &metadata),
+                      applyRecoveryLUT(RgbBlue(), value, recoveryLUT));
+    }
+  }
+
+  for (int boost = 1; boost <= 10; boost++) {
+    jpegr_metadata metadata = { .maxContentBoost = static_cast<float>(boost),
+                                .minContentBoost = 1.0f / pow(static_cast<float>(boost),
+                                                              1.0f / 3.0f) };
+    RecoveryLUT recoveryLUT(&metadata);
+    for (int idx = 0; idx < kRecoveryFactorNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kRecoveryFactorNumEntries - 1);
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), value, &metadata),
+                      applyRecoveryLUT(RgbBlack(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), value, &metadata),
+                      applyRecoveryLUT(RgbWhite(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbRed(), value, &metadata),
+                      applyRecoveryLUT(RgbRed(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbGreen(), value, &metadata),
+                      applyRecoveryLUT(RgbGreen(), value, recoveryLUT));
+      EXPECT_RGB_NEAR(applyRecovery(RgbBlue(), value, &metadata),
                       applyRecoveryLUT(RgbBlue(), value, recoveryLUT));
     }
   }
@@ -623,60 +659,121 @@ TEST_F(RecoveryMapMathTest, ColorConversionLookup) {
 }
 
 TEST_F(RecoveryMapMathTest, EncodeRecovery) {
-  EXPECT_EQ(encodeRecovery(0.0f, 0.0f, 4.0f), 127);
-  EXPECT_EQ(encodeRecovery(0.0f, 1.0f, 4.0f), 127);
-  EXPECT_EQ(encodeRecovery(1.0f, 0.0f, 4.0f), 0);
-  EXPECT_EQ(encodeRecovery(0.5f, 0.0f, 4.0f), 0);
+  jpegr_metadata metadata = { .maxContentBoost = 4.0f,
+                              .minContentBoost = 1.0f / 4.0f };
 
-  EXPECT_EQ(encodeRecovery(1.0f, 1.0f, 4.0f), 127);
-  EXPECT_EQ(encodeRecovery(1.0f, 4.0f, 4.0f), 255);
-  EXPECT_EQ(encodeRecovery(1.0f, 5.0f, 4.0f), 255);
-  EXPECT_EQ(encodeRecovery(4.0f, 1.0f, 4.0f), 0);
-  EXPECT_EQ(encodeRecovery(4.0f, 0.5f, 4.0f), 0);
-  EXPECT_EQ(encodeRecovery(1.0f, 2.0f, 4.0f), 191);
-  EXPECT_EQ(encodeRecovery(2.0f, 1.0f, 4.0f), 63);
+  EXPECT_EQ(encodeRecovery(0.0f, 0.0f, &metadata), 127);
+  EXPECT_EQ(encodeRecovery(0.0f, 1.0f, &metadata), 127);
+  EXPECT_EQ(encodeRecovery(1.0f, 0.0f, &metadata), 0);
+  EXPECT_EQ(encodeRecovery(0.5f, 0.0f, &metadata), 0);
 
-  EXPECT_EQ(encodeRecovery(1.0f, 2.0f, 2.0f), 255);
-  EXPECT_EQ(encodeRecovery(2.0f, 1.0f, 2.0f), 0);
-  EXPECT_EQ(encodeRecovery(1.0f, 1.41421f, 2.0f), 191);
-  EXPECT_EQ(encodeRecovery(1.41421f, 1.0f, 2.0f), 63);
+  EXPECT_EQ(encodeRecovery(1.0f, 1.0f, &metadata), 127);
+  EXPECT_EQ(encodeRecovery(1.0f, 4.0f, &metadata), 255);
+  EXPECT_EQ(encodeRecovery(1.0f, 5.0f, &metadata), 255);
+  EXPECT_EQ(encodeRecovery(4.0f, 1.0f, &metadata), 0);
+  EXPECT_EQ(encodeRecovery(4.0f, 0.5f, &metadata), 0);
+  EXPECT_EQ(encodeRecovery(1.0f, 2.0f, &metadata), 191);
+  EXPECT_EQ(encodeRecovery(2.0f, 1.0f, &metadata), 63);
 
-  EXPECT_EQ(encodeRecovery(1.0f, 8.0f, 8.0f), 255);
-  EXPECT_EQ(encodeRecovery(8.0f, 1.0f, 8.0f), 0);
-  EXPECT_EQ(encodeRecovery(1.0f, 2.82843f, 8.0f), 191);
-  EXPECT_EQ(encodeRecovery(2.82843f, 1.0f, 8.0f), 63);
+  metadata.maxContentBoost = 2.0f;
+  metadata.minContentBoost = 1.0f / 2.0f;
+
+  EXPECT_EQ(encodeRecovery(1.0f, 2.0f, &metadata), 255);
+  EXPECT_EQ(encodeRecovery(2.0f, 1.0f, &metadata), 0);
+  EXPECT_EQ(encodeRecovery(1.0f, 1.41421f, &metadata), 191);
+  EXPECT_EQ(encodeRecovery(1.41421f, 1.0f, &metadata), 63);
+
+  metadata.maxContentBoost = 8.0f;
+  metadata.minContentBoost = 1.0f / 8.0f;
+
+  EXPECT_EQ(encodeRecovery(1.0f, 8.0f, &metadata), 255);
+  EXPECT_EQ(encodeRecovery(8.0f, 1.0f, &metadata), 0);
+  EXPECT_EQ(encodeRecovery(1.0f, 2.82843f, &metadata), 191);
+  EXPECT_EQ(encodeRecovery(2.82843f, 1.0f, &metadata), 63);
+
+  metadata.maxContentBoost = 8.0f;
+  metadata.minContentBoost = 1.0f;
+
+  EXPECT_EQ(encodeRecovery(0.0f, 0.0f, &metadata), 0);
+  EXPECT_EQ(encodeRecovery(1.0f, 0.0f, &metadata), 0);
+
+  EXPECT_EQ(encodeRecovery(1.0f, 1.0f, &metadata), 0);
+  EXPECT_EQ(encodeRecovery(1.0f, 8.0f, &metadata), 255);
+  EXPECT_EQ(encodeRecovery(1.0f, 4.0f, &metadata), 170);
+  EXPECT_EQ(encodeRecovery(1.0f, 2.0f, &metadata), 85);
+
+  metadata.maxContentBoost = 8.0f;
+  metadata.minContentBoost = 0.5f;
+
+  EXPECT_EQ(encodeRecovery(0.0f, 0.0f, &metadata), 63);
+  EXPECT_EQ(encodeRecovery(1.0f, 0.0f, &metadata), 0);
+
+  EXPECT_EQ(encodeRecovery(1.0f, 1.0f, &metadata), 63);
+  EXPECT_EQ(encodeRecovery(1.0f, 8.0f, &metadata), 255);
+  EXPECT_EQ(encodeRecovery(1.0f, 4.0f, &metadata), 191);
+  EXPECT_EQ(encodeRecovery(1.0f, 2.0f, &metadata), 127);
+  EXPECT_EQ(encodeRecovery(1.0f, 0.7071f, &metadata), 31);
+  EXPECT_EQ(encodeRecovery(1.0f, 0.5f, &metadata), 0);
 }
 
 TEST_F(RecoveryMapMathTest, ApplyRecovery) {
-  EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), -1.0f, 4.0f), RgbBlack());
-  EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), 0.0f, 4.0f), RgbBlack());
-  EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), 1.0f, 4.0f), RgbBlack());
+  jpegr_metadata metadata = { .maxContentBoost = 4.0f,
+                              .minContentBoost = 1.0f / 4.0f };
 
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), -1.0f, 4.0f), RgbWhite() / 4.0f);
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), -0.5f, 4.0f), RgbWhite() / 2.0f);
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.0f, 4.0f), RgbWhite());
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.5f, 4.0f), RgbWhite() * 2.0f);
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 1.0f, 4.0f), RgbWhite() * 4.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), 0.0f, &metadata), RgbBlack());
+  EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), 0.5f, &metadata), RgbBlack());
+  EXPECT_RGB_NEAR(applyRecovery(RgbBlack(), 1.0f, &metadata), RgbBlack());
 
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), -1.0f, 2.0f), RgbWhite() / 2.0f);
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), -0.5f, 2.0f), RgbWhite() / 1.41421f);
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.0f, 2.0f), RgbWhite());
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.5f, 2.0f), RgbWhite() * 1.41421f);
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 1.0f, 2.0f), RgbWhite() * 2.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.0f, &metadata), RgbWhite() / 4.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.25f, &metadata), RgbWhite() / 2.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.5f, &metadata), RgbWhite());
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.75f, &metadata), RgbWhite() * 2.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 1.0f, &metadata), RgbWhite() * 4.0f);
 
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), -1.0f, 8.0f), RgbWhite() / 8.0f);
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), -0.5f, 8.0f), RgbWhite() / 2.82843f);
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.0f, 8.0f), RgbWhite());
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.5f, 8.0f), RgbWhite() * 2.82843f);
-  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 1.0f, 8.0f), RgbWhite() * 8.0f);
+  metadata.maxContentBoost = 2.0f;
+  metadata.minContentBoost = 1.0f / 2.0f;
+
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.0f, &metadata), RgbWhite() / 2.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.25f, &metadata), RgbWhite() / 1.41421f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.5f, &metadata), RgbWhite());
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.75f, &metadata), RgbWhite() * 1.41421f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 1.0f, &metadata), RgbWhite() * 2.0f);
+
+  metadata.maxContentBoost = 8.0f;
+  metadata.minContentBoost = 1.0f / 8.0f;
+
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.0f, &metadata), RgbWhite() / 8.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.25f, &metadata), RgbWhite() / 2.82843f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.5f, &metadata), RgbWhite());
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.75f, &metadata), RgbWhite() * 2.82843f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 1.0f, &metadata), RgbWhite() * 8.0f);
+
+  metadata.maxContentBoost = 8.0f;
+  metadata.minContentBoost = 1.0f;
+
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.0f, &metadata), RgbWhite());
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 1.0f / 3.0f, &metadata), RgbWhite() * 2.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 2.0f / 3.0f, &metadata), RgbWhite() * 4.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 1.0f, &metadata), RgbWhite() * 8.0f);
+
+  metadata.maxContentBoost = 8.0f;
+  metadata.minContentBoost = 0.5f;
+
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.0f, &metadata), RgbWhite() / 2.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.25f, &metadata), RgbWhite());
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.5f, &metadata), RgbWhite() * 2.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 0.75f, &metadata), RgbWhite() * 4.0f);
+  EXPECT_RGB_NEAR(applyRecovery(RgbWhite(), 1.0f, &metadata), RgbWhite() * 8.0f);
 
   Color e = {{{ 0.0f, 0.5f, 1.0f }}};
+  metadata.maxContentBoost = 4.0f;
+  metadata.minContentBoost = 1.0f / 4.0f;
 
-  EXPECT_RGB_NEAR(applyRecovery(e, -1.0f, 4.0f), e / 4.0f);
-  EXPECT_RGB_NEAR(applyRecovery(e, -0.5f, 4.0f), e / 2.0f);
-  EXPECT_RGB_NEAR(applyRecovery(e, 0.0f, 4.0f), e);
-  EXPECT_RGB_NEAR(applyRecovery(e, 0.5f, 4.0f), e * 2.0f);
-  EXPECT_RGB_NEAR(applyRecovery(e, 1.0f, 4.0f), e * 4.0f);
+  EXPECT_RGB_NEAR(applyRecovery(e, 0.0f, &metadata), e / 4.0f);
+  EXPECT_RGB_NEAR(applyRecovery(e, 0.25f, &metadata), e / 2.0f);
+  EXPECT_RGB_NEAR(applyRecovery(e, 0.5f, &metadata), e);
+  EXPECT_RGB_NEAR(applyRecovery(e, 0.75f, &metadata), e * 2.0f);
+  EXPECT_RGB_NEAR(applyRecovery(e, 1.0f, &metadata), e * 4.0f);
 }
 
 TEST_F(RecoveryMapMathTest, GetYuv420Pixel) {
@@ -785,8 +882,10 @@ TEST_F(RecoveryMapMathTest, SampleMap) {
       // Instead of reimplementing the sampling algorithm, confirm that the
       // sample output is within the range of the min and max of the nearest
       // points.
-      EXPECT_THAT(sampleMap(&image, kMapScaleFactor, x, y, idwTable),
+      EXPECT_THAT(sampleMap(&image, kMapScaleFactor, x, y),
                   testing::AllOf(testing::Ge(min), testing::Le(max)));
+      EXPECT_EQ(sampleMap(&image, kMapScaleFactor, x, y, idwTable),
+                sampleMap(&image, kMapScaleFactor, x, y));
     }
   }
 }
@@ -882,60 +981,89 @@ TEST_F(RecoveryMapMathTest, GenerateMapLuminancePq) {
 }
 
 TEST_F(RecoveryMapMathTest, ApplyMap) {
-  EXPECT_RGB_EQ(Recover(YuvWhite(), 1.0f, 8.0f),
+  jpegr_metadata metadata = { .maxContentBoost = 8.0f,
+                              .minContentBoost = 1.0f / 8.0f };
+
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 1.0f, &metadata),
                 RgbWhite() * 8.0f);
-  EXPECT_RGB_EQ(Recover(YuvBlack(), 1.0f, 8.0f),
+  EXPECT_RGB_EQ(Recover(YuvBlack(), 1.0f, &metadata),
                 RgbBlack());
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), 1.0f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), 1.0f, &metadata),
                   RgbRed() * 8.0f);
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), 1.0f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), 1.0f, &metadata),
                   RgbGreen() * 8.0f);
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), 1.0f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), 1.0f, &metadata),
                   RgbBlue() * 8.0f);
 
-  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.5f, 8.0f),
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.75f, &metadata),
                 RgbWhite() * sqrt(8.0f));
-  EXPECT_RGB_EQ(Recover(YuvBlack(), 0.5f, 8.0f),
+  EXPECT_RGB_EQ(Recover(YuvBlack(), 0.75f, &metadata),
                 RgbBlack());
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), 0.5f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), 0.75f, &metadata),
                   RgbRed() * sqrt(8.0f));
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), 0.5f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), 0.75f, &metadata),
                   RgbGreen() * sqrt(8.0f));
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), 0.5f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), 0.75f, &metadata),
                   RgbBlue() * sqrt(8.0f));
 
-  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.0f, 8.0f),
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.5f, &metadata),
                 RgbWhite());
-  EXPECT_RGB_EQ(Recover(YuvBlack(), 0.0f, 8.0f),
+  EXPECT_RGB_EQ(Recover(YuvBlack(), 0.5f, &metadata),
                 RgbBlack());
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), 0.0f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), 0.5f, &metadata),
                   RgbRed());
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), 0.0f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), 0.5f, &metadata),
                   RgbGreen());
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), 0.0f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), 0.5f, &metadata),
                   RgbBlue());
 
-  EXPECT_RGB_EQ(Recover(YuvWhite(), -0.5f, 8.0f),
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.25f, &metadata),
                 RgbWhite() / sqrt(8.0f));
-  EXPECT_RGB_EQ(Recover(YuvBlack(), -0.5f, 8.0f),
+  EXPECT_RGB_EQ(Recover(YuvBlack(), 0.25f, &metadata),
                 RgbBlack());
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), -0.5f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), 0.25f, &metadata),
                   RgbRed() / sqrt(8.0f));
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), -0.5f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), 0.25f, &metadata),
                   RgbGreen() / sqrt(8.0f));
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), -0.5f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), 0.25f, &metadata),
                   RgbBlue() / sqrt(8.0f));
 
-  EXPECT_RGB_EQ(Recover(YuvWhite(), -1.0f, 8.0f),
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.0f, &metadata),
                 RgbWhite() / 8.0f);
-  EXPECT_RGB_EQ(Recover(YuvBlack(), -1.0f, 8.0f),
+  EXPECT_RGB_EQ(Recover(YuvBlack(), 0.0f, &metadata),
                 RgbBlack());
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), -1.0f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvRed(), 0.0f, &metadata),
                   RgbRed() / 8.0f);
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), -1.0f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvGreen(), 0.0f, &metadata),
                   RgbGreen() / 8.0f);
-  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), -1.0f, 8.0f),
+  EXPECT_RGB_CLOSE(Recover(SrgbYuvBlue(), 0.0f, &metadata),
                   RgbBlue() / 8.0f);
+
+  metadata.maxContentBoost = 8.0f;
+  metadata.minContentBoost = 1.0f;
+
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 1.0f, &metadata),
+                RgbWhite() * 8.0f);
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 2.0f / 3.0f, &metadata),
+                RgbWhite() * 4.0f);
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 1.0f / 3.0f, &metadata),
+                RgbWhite() * 2.0f);
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.0f, &metadata),
+                RgbWhite());
+
+  metadata.maxContentBoost = 8.0f;
+  metadata.minContentBoost = 0.5f;;
+
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 1.0f, &metadata),
+                RgbWhite() * 8.0f);
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.75, &metadata),
+                RgbWhite() * 4.0f);
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.5f, &metadata),
+                RgbWhite() * 2.0f);
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.25f, &metadata),
+                RgbWhite());
+  EXPECT_RGB_EQ(Recover(YuvWhite(), 0.0f, &metadata),
+                RgbWhite() / 2.0f);
 }
 
 } // namespace android::recoverymap
