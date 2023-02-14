@@ -770,7 +770,7 @@ void Layer::transferAvailableJankData(const std::deque<sp<CallbackHandle>>& hand
 // transaction
 // ----------------------------------------------------------------------------
 
-uint32_t Layer::doTransaction(uint32_t flags) {
+uint32_t Layer::doTransaction(uint32_t flags, nsecs_t latchTime) {
     ATRACE_CALL();
 
     // TODO: This is unfortunate.
@@ -798,23 +798,24 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         mFlinger->mUpdateInputInfo = true;
     }
 
-    commitTransaction(mDrawingState);
+    commitTransaction(mDrawingState, latchTime);
 
     return flags;
 }
 
-void Layer::commitTransaction(State&) {
+void Layer::commitTransaction(State&, nsecs_t currentLatchTime) {
     // Set the present state for all bufferlessSurfaceFramesTX to Presented. The
     // bufferSurfaceFrameTX will be presented in latchBuffer.
     for (auto& [token, surfaceFrame] : mDrawingState.bufferlessSurfaceFramesTX) {
         if (surfaceFrame->getPresentState() != PresentState::Presented) {
             // With applyPendingStates, we could end up having presented surfaceframes from previous
             // states
-            surfaceFrame->setPresentState(PresentState::Presented);
+            surfaceFrame->setPresentState(PresentState::Presented, mLastLatchTime);
             mFlinger->mFrameTimeline->addSurfaceFrame(surfaceFrame);
         }
     }
     mDrawingState.bufferlessSurfaceFramesTX.clear();
+    mLastLatchTime = currentLatchTime;
 }
 
 uint32_t Layer::clearTransactionFlags(uint32_t mask) {
