@@ -2517,6 +2517,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     refreshArgs.previousPresentFence = mPreviousPresentFences[0].fenceTime;
     refreshArgs.scheduledFrameTime = mScheduler->getScheduledFrameTime();
     refreshArgs.expectedPresentTime = mExpectedPresentTime.ns();
+    refreshArgs.hasTrustedPresentationListener = mNumTrustedPresentationListeners > 0;
 
     // Store the present time just before calling to the composition engine so we could notify
     // the scheduler.
