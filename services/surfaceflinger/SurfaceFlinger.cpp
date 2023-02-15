@@ -1580,7 +1580,8 @@ status_t SurfaceFlinger::getHdrConversionCapabilities(
 }
 
 status_t SurfaceFlinger::setHdrConversionStrategy(
-        const gui::HdrConversionStrategy& hdrConversionStrategy) {
+        const gui::HdrConversionStrategy& hdrConversionStrategy,
+        int32_t* outPreferredHdrOutputType) {
     bool hdrOutputConversionSupport;
     getHdrOutputConversionSupport(&hdrOutputConversionSupport);
     if (hdrOutputConversionSupport == false) {
@@ -1592,11 +1593,16 @@ status_t SurfaceFlinger::setHdrConversionStrategy(
                 aidl::android::hardware::graphics::common::HdrConversionStrategy;
         using GuiHdrConversionStrategyTag = gui::HdrConversionStrategy::Tag;
         AidlHdrConversionStrategy aidlConversionStrategy;
+        status_t status;
+        aidl::android::hardware::graphics::common::Hdr aidlPreferredHdrOutputType;
         switch (hdrConversionStrategy.getTag()) {
             case GuiHdrConversionStrategyTag::passthrough: {
                 aidlConversionStrategy.set<AidlHdrConversionStrategy::Tag::passthrough>(
                         hdrConversionStrategy.get<GuiHdrConversionStrategyTag::passthrough>());
-                return getHwComposer().setHdrConversionStrategy(aidlConversionStrategy);
+                status = getHwComposer().setHdrConversionStrategy(aidlConversionStrategy,
+                                                                  &aidlPreferredHdrOutputType);
+                *outPreferredHdrOutputType = static_cast<int32_t>(aidlPreferredHdrOutputType);
+                return status;
             }
             case GuiHdrConversionStrategyTag::autoAllowedHdrTypes: {
                 auto autoHdrTypes =
@@ -1609,7 +1615,10 @@ status_t SurfaceFlinger::setHdrConversionStrategy(
                 }
                 aidlConversionStrategy.set<AidlHdrConversionStrategy::Tag::autoAllowedHdrTypes>(
                         aidlAutoHdrTypes);
-                return getHwComposer().setHdrConversionStrategy(aidlConversionStrategy);
+                status = getHwComposer().setHdrConversionStrategy(aidlConversionStrategy,
+                                                                  &aidlPreferredHdrOutputType);
+                *outPreferredHdrOutputType = static_cast<int32_t>(aidlPreferredHdrOutputType);
+                return status;
             }
             case GuiHdrConversionStrategyTag::forceHdrConversion: {
                 auto forceHdrConversion =
@@ -1618,7 +1627,10 @@ status_t SurfaceFlinger::setHdrConversionStrategy(
                 aidlConversionStrategy.set<AidlHdrConversionStrategy::Tag::forceHdrConversion>(
                         static_cast<aidl::android::hardware::graphics::common::Hdr>(
                                 forceHdrConversion));
-                return getHwComposer().setHdrConversionStrategy(aidlConversionStrategy);
+                status = getHwComposer().setHdrConversionStrategy(aidlConversionStrategy,
+                                                                  &aidlPreferredHdrOutputType);
+                *outPreferredHdrOutputType = static_cast<int32_t>(aidlPreferredHdrOutputType);
+                return status;
             }
         }
     });
@@ -8164,10 +8176,12 @@ binder::Status SurfaceComposerAIDL::getHdrConversionCapabilities(
 }
 
 binder::Status SurfaceComposerAIDL::setHdrConversionStrategy(
-        const gui::HdrConversionStrategy& hdrConversionStrategy) {
+        const gui::HdrConversionStrategy& hdrConversionStrategy,
+        int32_t* outPreferredHdrOutputType) {
     status_t status = checkAccessPermission();
     if (status == OK) {
-        status = mFlinger->setHdrConversionStrategy(hdrConversionStrategy);
+        status = mFlinger->setHdrConversionStrategy(hdrConversionStrategy,
+                                                    outPreferredHdrOutputType);
     }
     return binderStatusFromStatusT(status);
 }

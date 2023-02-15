@@ -2657,9 +2657,11 @@ status_t SurfaceComposerClient::getHdrConversionCapabilities(
 }
 
 status_t SurfaceComposerClient::setHdrConversionStrategy(
-        gui::HdrConversionStrategy hdrConversionStrategy) {
-    binder::Status status = ComposerServiceAIDL::getComposerService()->setHdrConversionStrategy(
-            hdrConversionStrategy);
+        gui::HdrConversionStrategy hdrConversionStrategy, ui::Hdr* outPreferredHdrOutputType) {
+    int hdrType;
+    binder::Status status = ComposerServiceAIDL::getComposerService()
+                                    ->setHdrConversionStrategy(hdrConversionStrategy, &hdrType);
+    *outPreferredHdrOutputType = static_cast<ui::Hdr>(hdrType);
     return statusTFromBinderStatus(status);
 }
 

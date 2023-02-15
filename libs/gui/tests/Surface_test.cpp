@@ -827,7 +827,8 @@ public:
     }
 
     binder::Status setHdrConversionStrategy(
-            const gui::HdrConversionStrategy& /*hdrConversionStrategy*/) override {
+            const gui::HdrConversionStrategy& /*hdrConversionStrategy*/,
+            int32_t* /*outPreferredHdrOutputType*/) override {
         return binder::Status::ok();
     }
 
