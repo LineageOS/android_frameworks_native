@@ -871,7 +871,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     // initialize our drawing state
     mDrawingState = mCurrentState;
 
-    // set initial conditions (e.g. unblank default device)
+    onActiveDisplayChangedLocked(nullptr, *display);
     initializeDisplays();
 
     mPowerAdvisor->init();
@@ -3394,7 +3394,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
 
             // TODO(b/175678251) Call a listener instead.
             if (currentState.physical->hwcDisplayId == getHwComposer().getPrimaryHwcDisplayId()) {
-                updateInternalDisplayVsyncLocked(display);
+                updateActiveDisplayVsyncLocked(*display);
             }
         }
         return;
@@ -3422,15 +3422,15 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             display->setDisplaySize(currentState.width, currentState.height);
 
             if (display->getId() == mActiveDisplayId) {
-                onActiveDisplaySizeChanged(display);
+                onActiveDisplaySizeChanged(*display);
             }
         }
     }
 }
 
-void SurfaceFlinger::updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay) {
+void SurfaceFlinger::updateActiveDisplayVsyncLocked(const DisplayDevice& activeDisplay) {
     mVsyncConfiguration->reset();
-    const Fps refreshRate = activeDisplay->getActiveMode().fps;
+    const Fps refreshRate = activeDisplay.getActiveMode().fps;
     updatePhaseConfiguration(refreshRate);
     mRefreshRateStats->setRefreshRate(refreshRate);
 }
@@ -5222,21 +5222,15 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (!currentModeOpt || *currentModeOpt == hal::PowerMode::OFF) {
         // Turn on the display
 
-        // Activate the display (which involves a modeset to the active mode):
-        //     1) When the first (a.k.a. primary) display is powered on during boot.
-        //     2) When the inner or outer display of a foldable is powered on. This condition relies
-        //        on the above DisplayDevice::setPowerMode. If `display` and `activeDisplay` are the
-        //        same display, then the `activeDisplay->isPoweredOn()` below is true, such that the
-        //        display is not activated every time it is powered on.
+        // Activate the display (which involves a modeset to the active mode) when the inner or
+        // outer display of a foldable is powered on. This condition relies on the above
+        // DisplayDevice::setPowerMode. If `display` and `activeDisplay` are the same display,
+        // then the `activeDisplay->isPoweredOn()` below is true, such that the display is not
+        // activated every time it is powered on.
         //
         // TODO(b/255635821): Remove the concept of active display.
-        const bool activeDisplayChanged =
-                isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn());
-
-        static bool sPrimaryDisplay = true;
-        if (sPrimaryDisplay || activeDisplayChanged) {
-            onActiveDisplayChangedLocked(activeDisplay, display);
-            sPrimaryDisplay = false;
+        if (isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn())) {
+            onActiveDisplayChangedLocked(activeDisplay.get(), *display);
         }
 
         // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
@@ -7535,35 +7529,35 @@ void SurfaceFlinger::sample() {
     mRegionSamplingThread->onCompositionComplete(mScheduler->getScheduledFrameTime());
 }
 
-void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<const DisplayDevice>& activeDisplay) {
-    mScheduler->onActiveDisplayAreaChanged(activeDisplay->getWidth() * activeDisplay->getHeight());
-    getRenderEngine().onActiveDisplaySizeChanged(activeDisplay->getSize());
+void SurfaceFlinger::onActiveDisplaySizeChanged(const DisplayDevice& activeDisplay) {
+    mScheduler->onActiveDisplayAreaChanged(activeDisplay.getWidth() * activeDisplay.getHeight());
+    getRenderEngine().onActiveDisplaySizeChanged(activeDisplay.getSize());
 }
 
-void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& inactiveDisplay,
-                                                  const sp<DisplayDevice>& activeDisplay) {
+void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveDisplayPtr,
+                                                  const DisplayDevice& activeDisplay) {
     ATRACE_CALL();
 
-    if (inactiveDisplay) {
-        inactiveDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
+    if (inactiveDisplayPtr) {
+        inactiveDisplayPtr->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
     }
 
-    mActiveDisplayId = activeDisplay->getPhysicalId();
-    activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
+    mActiveDisplayId = activeDisplay.getPhysicalId();
+    activeDisplay.getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
 
-    updateInternalDisplayVsyncLocked(activeDisplay);
+    updateActiveDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
     mScheduler->setLeaderDisplay(mActiveDisplayId);
 
     onActiveDisplaySizeChanged(activeDisplay);
-    mActiveDisplayTransformHint = activeDisplay->getTransformHint();
+    mActiveDisplayTransformHint = activeDisplay.getTransformHint();
 
     // The policy of the new active/leader display may have changed while it was inactive. In that
     // case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In either
     // case, the Scheduler's cachedModeChangedParams must be initialized to the newly active mode,
     // and the kernel idle timer of the newly active display must be toggled.
     constexpr bool kForce = true;
-    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay->refreshRateSelector(), kForce);
+    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector(), kForce);
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(
