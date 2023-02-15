@@ -2184,18 +2184,20 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     const bool newGesture = isDown || maskedAction == AMOTION_EVENT_ACTION_SCROLL || isHoverAction;
     const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
 
+    // If pointers are already down, let's finish the current gesture and ignore the new events
+    // from another device. However, if the new event is a down event, let's cancel the current
+    // touch and let the new one take over.
+    if (switchedDevice && wasDown && !isDown) {
+        LOG(INFO) << "Dropping event because a pointer for device " << oldState->deviceId
+                  << " is already down in display " << displayId << ": " << entry.getDescription();
+        // TODO(b/211379801): test multiple simultaneous input streams.
+        outInjectionResult = InputEventInjectionResult::FAILED;
+        return {}; // wrong device
+    }
+
     if (newGesture) {
-        // If pointers are already down, let's finish the current gesture and ignore the new events
-        // from another device.
-        if (switchedDevice && wasDown) {
-            ALOGI("Dropping event because a pointer for a different device is already down "
-                  "in display %" PRId32,
-                  displayId);
-            // TODO(b/211379801): test multiple simultaneous input streams.
-            outInjectionResult = InputEventInjectionResult::FAILED;
-            return {}; // wrong device
-        }
-        tempTouchState.clearWindowsWithoutPointers();
+        // If a new gesture is starting, clear the touch state completely.
+        tempTouchState.reset();
         tempTouchState.deviceId = entry.deviceId;
         tempTouchState.source = entry.source;
         isSplit = false;
@@ -2317,6 +2319,10 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             const bool isDownOrPointerDown = maskedAction == AMOTION_EVENT_ACTION_DOWN ||
                     maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN;
 
+            // TODO(b/211379801): Currently, even if pointerIds are empty (hover case), we would
+            // still add a window to the touch state. We should avoid doing that, but some of the
+            // later checks ("at least one foreground window") rely on this in order to dispatch
+            // the event properly, so that needs to be updated, possibly by looking at InputTargets.
             tempTouchState.addOrUpdateWindow(windowHandle, targetFlags, pointerIds,
                                              isDownOrPointerDown
                                                      ? std::make_optional(entry.eventTime)
@@ -2369,10 +2375,9 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
 
         // If the pointer is not currently down, then ignore the event.
         if (!tempTouchState.isDown()) {
-            ALOGD_IF(DEBUG_FOCUS,
-                     "Dropping event because the pointer is not down or we previously "
-                     "dropped the pointer down event in display %" PRId32 ": %s",
-                     displayId, entry.getDescription().c_str());
+            LOG(INFO) << "Dropping event because the pointer is not down or we previously "
+                         "dropped the pointer down event in display "
+                      << displayId << ": " << entry.getDescription();
             outInjectionResult = InputEventInjectionResult::FAILED;
             return {};
         }
@@ -2530,7 +2535,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     }
 
     // Success!  Output targets from the touch state.
-    tempTouchState.clearWindowsWithoutPointers();
     for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
         if (touchedWindow.pointerIds.none() && !touchedWindow.hasHoveringPointers(entry.deviceId)) {
             // Windows with hovering pointers are getting persisted inside TouchState.
@@ -2570,14 +2574,13 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
         // Pointer went up.
         tempTouchState.removeTouchedPointer(entry.pointerProperties[0].id);
-        tempTouchState.clearWindowsWithoutPointers();
     } else if (maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
         // All pointers up or canceled.
         tempTouchState.reset();
     } else if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
         // First pointer went down.
-        if (oldState && oldState->isDown()) {
-            ALOGD("Conflicting pointer actions: Down received while already down.");
+        if (oldState && (oldState->isDown() || oldState->hasHoveringPointers())) {
+            ALOGD("Conflicting pointer actions: Down received while already down or hovering.");
             *outConflictingPointerActions = true;
         }
     } else if (maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
@@ -2600,6 +2603,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     // state was only valid for this one action.
     if (maskedAction != AMOTION_EVENT_ACTION_SCROLL) {
         if (displayId >= 0) {
+            tempTouchState.clearWindowsWithoutPointers();
             mTouchStatesByDisplay[displayId] = tempTouchState;
         } else {
             mTouchStatesByDisplay.erase(displayId);
