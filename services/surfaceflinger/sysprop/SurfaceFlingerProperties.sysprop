@@ -445,28 +445,6 @@ prop {
     prop_name: "ro.surface_flinger.enable_frame_rate_override"
 }
 
-# Limits the frame rate override feature (enable_frame_rate_override) to override the refresh rate
-# to native display refresh rates only. Before introducing this flag, native display refresh rates
-# was the default behaviour. With this flag we can control which behaviour we want explicitly.
-# This flag is introduced as a fail-safe mechanism and planned to be defaulted to false.
-prop {
-    api_name: "frame_rate_override_for_native_rates"
-    type: Boolean
-    scope: Public
-    access: Readonly
-    prop_name: "ro.surface_flinger.frame_rate_override_for_native_rates"
-}
-
-# Enables the frame rate override feature (enable_frame_rate_override) to
-# override the frame rate globally instead of only for individual apps.
-prop {
-    api_name: "frame_rate_override_global"
-    type: Boolean
-    scope: Public
-    access: Readonly
-    prop_name: "ro.surface_flinger.frame_rate_override_global"
-}
-
 # Enables Layer Caching
 prop {
     api_name: "enable_layer_caching"

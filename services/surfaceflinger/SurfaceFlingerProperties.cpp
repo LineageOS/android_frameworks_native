@@ -367,14 +367,6 @@ bool enable_frame_rate_override(bool defaultValue) {
     return SurfaceFlingerProperties::enable_frame_rate_override().value_or(defaultValue);
 }
 
-bool frame_rate_override_for_native_rates(bool defaultValue) {
-    return SurfaceFlingerProperties::frame_rate_override_for_native_rates().value_or(defaultValue);
-}
-
-bool frame_rate_override_global(bool defaultValue) {
-    return SurfaceFlingerProperties::frame_rate_override_global().value_or(defaultValue);
-}
-
 bool enable_layer_caching(bool defaultValue) {
     return SurfaceFlingerProperties::enable_layer_caching().value_or(defaultValue);
 }
