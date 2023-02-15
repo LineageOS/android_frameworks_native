@@ -97,6 +97,8 @@ struct CompositionRefreshArgs {
     std::optional<std::chrono::steady_clock::time_point> scheduledFrameTime;
 
     std::vector<BorderRenderInfo> borderInfoList;
+
+    bool hasTrustedPresentationListener = false;
 };
 
 } // namespace android::compositionengine

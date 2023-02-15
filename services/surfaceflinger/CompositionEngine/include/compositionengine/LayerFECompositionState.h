@@ -212,6 +212,8 @@ struct LayerFECompositionState {
     float currentSdrHdrRatio = 1.f;
     float desiredSdrHdrRatio = 1.f;
 
+    bool isInternalDisplayOverlay = false;
+
     virtual ~LayerFECompositionState();
 
     // Debugging

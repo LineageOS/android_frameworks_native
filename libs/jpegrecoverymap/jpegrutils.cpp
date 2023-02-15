@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/recoverymaputils.h>
+#include <jpegrecoverymap/jpegrutils.h>
 #include <image_io/xml/xml_reader.h>
 #include <image_io/xml/xml_writer.h>
 #include <image_io/base/message_handler.h>
@@ -25,7 +25,7 @@
 using namespace photos_editing_formats::image_io;
 using namespace std;
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 /*
  * Helper function used for generating XMP metadata.
@@ -247,4 +247,4 @@ string generateXmp(int secondary_image_length, jpegr_metadata& metadata) {
   return ss.str();
 }
 
-} // namespace android::recoverymap
+} // namespace android::jpegrecoverymap

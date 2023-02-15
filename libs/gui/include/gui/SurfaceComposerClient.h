@@ -194,6 +194,8 @@ public:
     static status_t getHdrConversionCapabilities(std::vector<gui::HdrConversionCapability>*);
     // Sets the HDR conversion strategy for the device
     static status_t setHdrConversionStrategy(gui::HdrConversionStrategy hdrConversionStrategy);
+    // Returns whether HDR conversion is supported by the device.
+    static status_t getHdrOutputConversionSupport(bool* isSupported);
 
     // Sets the frame rate of a particular app (uid). This is currently called
     // by GameManager.
@@ -413,6 +415,7 @@ public:
         SortedVector<DisplayState> mDisplayStates;
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
                 mListenerCallbacks;
+        std::vector<client_cache_t> mUncacheBuffers;
 
         uint64_t mId;
 

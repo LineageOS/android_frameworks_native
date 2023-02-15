@@ -113,6 +113,8 @@ inline std::string to_string(
             return "Sideband";
         case aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION:
             return "DisplayDecoration";
+        case aidl::android::hardware::graphics::composer3::Composition::REFRESH_RATE_INDICATOR:
+            return "RefreshRateIndicator";
         default:
             return "Unknown";
     }

@@ -105,6 +105,7 @@
 #include <vector>
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include <aidl/android/hardware/graphics/composer3/RefreshRateChangedDebugData.h>
 #include "Client.h"
 
 using namespace android::surfaceflinger;
@@ -128,6 +129,7 @@ class FrameTracer;
 class ScreenCapturer;
 class WindowInfosListenerInvoker;
 
+using ::aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
 using frontend::TransactionHandler;
 using gui::CaptureArgs;
 using gui::DisplayCaptureArgs;
@@ -522,7 +524,8 @@ private:
                                  uint32_t flags, const sp<IBinder>& applyToken,
                                  const InputWindowCommands& inputWindowCommands,
                                  int64_t desiredPresentTime, bool isAutoTimestamp,
-                                 const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
+                                 const std::vector<client_cache_t>& uncacheBuffers,
+                                 bool hasListenerCallbacks,
                                  const std::vector<ListenerCallbacks>& listenerCallbacks,
                                  uint64_t transactionId) override;
     void bootFinished();
@@ -630,6 +633,7 @@ private:
                                                const hal::VsyncPeriodChangeTimeline&) override;
     void onComposerHalSeamlessPossible(hal::HWDisplayId) override;
     void onComposerHalVsyncIdle(hal::HWDisplayId) override;
+    void onRefreshRateChangedDebug(const RefreshRateChangedDebugData&) override;
 
     // ICompositor overrides:
     void configure() override;
@@ -735,16 +739,14 @@ private:
     /*
      * Transactions
      */
-    bool applyTransactionState(const FrameTimelineInfo& info,
-                               std::vector<ResolvedComposerState>& state,
-                               Vector<DisplayState>& displays, uint32_t flags,
-                               const InputWindowCommands& inputWindowCommands,
-                               const int64_t desiredPresentTime, bool isAutoTimestamp,
-                               const client_cache_t& uncacheBuffer, const int64_t postTime,
-                               uint32_t permissions, bool hasListenerCallbacks,
-                               const std::vector<ListenerCallbacks>& listenerCallbacks,
-                               int originPid, int originUid, uint64_t transactionId)
-            REQUIRES(mStateLock);
+    bool applyTransactionState(
+            const FrameTimelineInfo& info, std::vector<ResolvedComposerState>& state,
+            Vector<DisplayState>& displays, uint32_t flags,
+            const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
+            bool isAutoTimestamp, const std::vector<uint64_t>& uncacheBufferIds,
+            const int64_t postTime, uint32_t permissions, bool hasListenerCallbacks,
+            const std::vector<ListenerCallbacks>& listenerCallbacks, int originPid, int originUid,
+            uint64_t transactionId) REQUIRES(mStateLock);
     // Flush pending transactions that were presented after desiredPresentTime.
     // For test only
     bool flushTransactionQueues(VsyncId) REQUIRES(kMainThreadContext);

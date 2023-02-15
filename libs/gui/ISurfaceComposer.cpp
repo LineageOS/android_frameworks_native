@@ -63,7 +63,8 @@ public:
                                  Vector<ComposerState>& state, const Vector<DisplayState>& displays,
                                  uint32_t flags, const sp<IBinder>& applyToken,
                                  const InputWindowCommands& commands, int64_t desiredPresentTime,
-                                 bool isAutoTimestamp, const client_cache_t& uncacheBuffer,
+                                 bool isAutoTimestamp,
+                                 const std::vector<client_cache_t>& uncacheBuffers,
                                  bool hasListenerCallbacks,
                                  const std::vector<ListenerCallbacks>& listenerCallbacks,
                                  uint64_t transactionId) override {
@@ -87,8 +88,11 @@ public:
         SAFE_PARCEL(commands.write, data);
         SAFE_PARCEL(data.writeInt64, desiredPresentTime);
         SAFE_PARCEL(data.writeBool, isAutoTimestamp);
-        SAFE_PARCEL(data.writeStrongBinder, uncacheBuffer.token.promote());
-        SAFE_PARCEL(data.writeUint64, uncacheBuffer.id);
+        SAFE_PARCEL(data.writeUint32, static_cast<uint32_t>(uncacheBuffers.size()));
+        for (const client_cache_t& uncacheBuffer : uncacheBuffers) {
+            SAFE_PARCEL(data.writeStrongBinder, uncacheBuffer.token.promote());
+            SAFE_PARCEL(data.writeUint64, uncacheBuffer.id);
+        }
         SAFE_PARCEL(data.writeBool, hasListenerCallbacks);
 
         SAFE_PARCEL(data.writeVectorSize, listenerCallbacks);
@@ -158,11 +162,14 @@ status_t BnSurfaceComposer::onTransact(
             SAFE_PARCEL(data.readInt64, &desiredPresentTime);
             SAFE_PARCEL(data.readBool, &isAutoTimestamp);
 
-            client_cache_t uncachedBuffer;
+            SAFE_PARCEL_READ_SIZE(data.readUint32, &count, data.dataSize());
+            std::vector<client_cache_t> uncacheBuffers(count);
             sp<IBinder> tmpBinder;
-            SAFE_PARCEL(data.readNullableStrongBinder, &tmpBinder);
-            uncachedBuffer.token = tmpBinder;
-            SAFE_PARCEL(data.readUint64, &uncachedBuffer.id);
+            for (size_t i = 0; i < count; i++) {
+                SAFE_PARCEL(data.readNullableStrongBinder, &tmpBinder);
+                uncacheBuffers[i].token = tmpBinder;
+                SAFE_PARCEL(data.readUint64, &uncacheBuffers[i].id);
+            }
 
             bool hasListenerCallbacks = false;
             SAFE_PARCEL(data.readBool, &hasListenerCallbacks);
@@ -182,7 +189,7 @@ status_t BnSurfaceComposer::onTransact(
 
             return setTransactionState(frameTimelineInfo, state, displays, stateFlags, applyToken,
                                        inputWindowCommands, desiredPresentTime, isAutoTimestamp,
-                                       uncachedBuffer, hasListenerCallbacks, listenerCallbacks,
+                                       uncacheBuffers, hasListenerCallbacks, listenerCallbacks,
                                        transactionId);
         }
         default: {

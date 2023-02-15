@@ -57,6 +57,15 @@ enum class ARpcSession_FileDescriptorTransportMode {
 // could not be started.
 [[nodiscard]] ARpcServer* ARpcServer_newUnixDomainBootstrap(AIBinder* service, int bootstrapFd);
 
+// Starts an RPC server on a given IP address+port and a given IBinder object.
+// Returns an opaque handle to the running server instance, or null if the server
+// could not be started.
+// Does not take ownership of `service`.
+// Returns an opaque handle to the running service instance, or null if the server
+// could not be started.
+[[nodiscard]] ARpcServer* ARpcServer_newInet(AIBinder* service, const char* address,
+                                             unsigned int port);
+
 // Sets the list of supported file descriptor transport modes of this RPC server.
 void ARpcServer_setSupportedFileDescriptorTransportModes(
         ARpcServer* handle,
@@ -97,6 +106,10 @@ AIBinder* ARpcSession_setupUnixDomainClient(ARpcSession* session, const char* na
 // Does NOT take ownership of `bootstrapFd`.
 AIBinder* ARpcSession_setupUnixDomainBootstrapClient(ARpcSession* session,
                                                      int bootstrapFd);
+
+// Connects to an RPC server over an INET socket at a given IP address on a given port.
+// Returns the root Binder object of the server.
+AIBinder* ARpcSession_setupInet(ARpcSession* session, const char* address, unsigned int port);
 
 // Connects to an RPC server with preconnected file descriptors.
 //

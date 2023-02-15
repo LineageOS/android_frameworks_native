@@ -153,6 +153,10 @@ public:
         Region aboveOpaqueLayers;
         // The region of the output which should be considered dirty
         Region dirtyRegion;
+        // The region of the output which is covered by layers, excluding display overlays. This
+        // only has a value if there's something needing it, like when a TrustedPresentationListener
+        // is set
+        std::optional<Region> aboveCoveredLayersExcludingOverlays;
     };
 
     virtual ~Output();

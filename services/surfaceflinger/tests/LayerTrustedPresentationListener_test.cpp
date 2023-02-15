@@ -238,4 +238,50 @@ TEST_F(LayerTrustedPresentationListenerTest, obscuring_with_alpha) {
     EXPECT_TRUE(pch.awaitCallback());
 }
 
+TEST_F(LayerTrustedPresentationListenerTest, obscuring_with_display_overlay) {
+    auto otherLayer = makeLayer();
+    t.show(otherLayer)
+            .setPosition(otherLayer, 100, 100)
+            .setLayer(otherLayer, INT32_MAX)
+            .setFlags(otherLayer, layer_state_t::eLayerSkipScreenshot,
+                      layer_state_t::eLayerSkipScreenshot)
+            .setLayer(mainLayer, INT32_MAX - 1)
+            .show(mainLayer)
+            .setPosition(mainLayer, 100, 100)
+            .setTrustedPresentationCallback(
+                    mainLayer,
+                    [&](void* context, bool state) {
+                        PresentationCallbackHelper* helper = (PresentationCallbackHelper*)context;
+                        helper->callbackArrived(state);
+                    },
+                    thresholds, &pch, mCallback)
+            .apply();
+    EXPECT_TRUE(pch.awaitCallback());
+}
+
+TEST_F(LayerTrustedPresentationListenerTest, obscuring_with_non_overlapping_bounds) {
+    thresholds.minFractionRendered = 0.5;
+    auto otherLayer1 = makeLayer();
+    auto otherLayer2 = makeLayer();
+    t.show(otherLayer1)
+            .show(otherLayer2)
+            .setPosition(otherLayer1, 100, 25)
+            .setLayer(otherLayer1, INT32_MAX)
+            .setPosition(otherLayer2, 100, 175)
+            .setLayer(otherLayer2, INT32_MAX)
+            .setLayer(mainLayer, INT32_MAX - 1)
+            .show(mainLayer)
+            .setPosition(mainLayer, 100, 100)
+            .setTrustedPresentationCallback(
+                    mainLayer,
+                    [&](void* context, bool state) {
+                        PresentationCallbackHelper* helper = (PresentationCallbackHelper*)context;
+                        helper->callbackArrived(state);
+                    },
+                    thresholds, &pch, mCallback)
+            .apply();
+
+    EXPECT_TRUE(pch.awaitCallback());
+}
+
 } // namespace android
