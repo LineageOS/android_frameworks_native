@@ -95,6 +95,8 @@ public:
             if (context.BuildTokenValue(&val)) {
                 if (!val.compare(maxContentBoostAttrName)) {
                     lastAttributeName = maxContentBoostAttrName;
+                } else if (!val.compare(minContentBoostAttrName)) {
+                    lastAttributeName = minContentBoostAttrName;
                 } else {
                     lastAttributeName = "";
                 }
@@ -109,6 +111,8 @@ public:
             if (context.BuildTokenValue(&val, true)) {
                 if (!lastAttributeName.compare(maxContentBoostAttrName)) {
                     maxContentBoostStr = val;
+                } else if (!lastAttributeName.compare(minContentBoostAttrName)) {
+                    minContentBoostStr = val;
                 }
             }
         }
@@ -130,10 +134,27 @@ public:
         }
     }
 
+    bool getMinContentBoost(float* min_content_boost) {
+        if (gContainerItemState == Done) {
+            stringstream ss(minContentBoostStr);
+            float val;
+            if (ss >> val) {
+                *min_content_boost = val;
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
 private:
     static const string gContainerItemName;
     static const string maxContentBoostAttrName;
     string              maxContentBoostStr;
+    static const string minContentBoostAttrName;
+    string              minContentBoostStr;
     string              lastAttributeName;
     ParseState          gContainerItemState;
 };
@@ -169,10 +190,12 @@ const string kRecoveryMapPrefix   = "RecoveryMap";
 
 // RecoveryMap XMP constants - element and attribute names
 const string kMapMaxContentBoost  = Name(kRecoveryMapPrefix, "MaxContentBoost");
+const string kMapMinContentBoost  = Name(kRecoveryMapPrefix, "MinContentBoost");
 const string kMapVersion          = Name(kRecoveryMapPrefix, "Version");
 
 // RecoveryMap XMP constants - names for XMP handlers
 const string XMPXmlHandler::maxContentBoostAttrName = kMapMaxContentBoost;
+const string XMPXmlHandler::minContentBoostAttrName = kMapMinContentBoost;
 
 bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* metadata) {
     string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
@@ -213,6 +236,10 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
         return false;
     }
 
+    if (!handler.getMinContentBoost(&metadata->minContentBoost)) {
+        return false;
+    }
+
     return true;
 }
 
@@ -235,13 +262,14 @@ string generateXmp(int secondary_image_length, jpegr_metadata& metadata) {
   size_t item_depth = writer.StartWritingElements(kLiItem);
   writer.WriteAttributeNameAndValue(kItemSemantic, kSemanticPrimary);
   writer.WriteAttributeNameAndValue(kItemMime, kMimeImageJpeg);
-  writer.WriteAttributeNameAndValue(kMapVersion, metadata.version);
-  writer.WriteAttributeNameAndValue(kMapMaxContentBoost, metadata.maxContentBoost);
   writer.FinishWritingElementsToDepth(item_depth);
   writer.StartWritingElements(kLiItem);
   writer.WriteAttributeNameAndValue(kItemSemantic, kSemanticRecoveryMap);
   writer.WriteAttributeNameAndValue(kItemMime, kMimeImageJpeg);
   writer.WriteAttributeNameAndValue(kItemLength, secondary_image_length);
+  writer.WriteAttributeNameAndValue(kMapVersion, metadata.version);
+  writer.WriteAttributeNameAndValue(kMapMaxContentBoost, metadata.maxContentBoost);
+  writer.WriteAttributeNameAndValue(kMapMinContentBoost, metadata.minContentBoost);
   writer.FinishWriting();
 
   return ss.str();
