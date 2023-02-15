@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/recoverymap.h>
+#include <jpegrecoverymap/jpegr.h>
+#include <jpegrecoverymap/jpegrutils.h>
 #include <jpegrecoverymap/recoverymapmath.h>
-#include <jpegrecoverymap/recoverymaputils.h>
 #include <fcntl.h>
 #include <fstream>
 #include <gtest/gtest.h>
@@ -34,7 +34,7 @@
 #define SAVE_DECODING_RESULT true
 #define SAVE_INPUT_RGBA true
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 struct Timer {
   struct timeval StartingTime;
@@ -87,10 +87,10 @@ static bool loadFile(const char filename[], void*& result, int* fileLength) {
   return true;
 }
 
-class RecoveryMapTest : public testing::Test {
+class JpegRTest : public testing::Test {
 public:
-  RecoveryMapTest();
-  ~RecoveryMapTest();
+  JpegRTest();
+  ~JpegRTest();
 
 protected:
   virtual void SetUp();
@@ -101,17 +101,17 @@ protected:
   struct jpegr_compressed_struct mJpegImage;
 };
 
-RecoveryMapTest::RecoveryMapTest() {}
-RecoveryMapTest::~RecoveryMapTest() {}
+JpegRTest::JpegRTest() {}
+JpegRTest::~JpegRTest() {}
 
-void RecoveryMapTest::SetUp() {}
-void RecoveryMapTest::TearDown() {
+void JpegRTest::SetUp() {}
+void JpegRTest::TearDown() {
   free(mRawP010Image.data);
   free(mRawYuv420Image.data);
   free(mJpegImage.data);
 }
 
-class RecoveryMapBenchmark : public RecoveryMap {
+class JpegRBenchmark : public JpegR {
 public:
  void BenchmarkGenerateRecoveryMap(jr_uncompressed_ptr yuv420Image, jr_uncompressed_ptr p010Image,
                                    jr_metadata_ptr metadata, jr_uncompressed_ptr map);
@@ -121,7 +121,7 @@ private:
  const int kProfileCount = 10;
 };
 
-void RecoveryMapBenchmark::BenchmarkGenerateRecoveryMap(jr_uncompressed_ptr yuv420Image,
+void JpegRBenchmark::BenchmarkGenerateRecoveryMap(jr_uncompressed_ptr yuv420Image,
                                                         jr_uncompressed_ptr p010Image,
                                                         jr_metadata_ptr metadata,
                                                         jr_uncompressed_ptr map) {
@@ -144,7 +144,7 @@ void RecoveryMapBenchmark::BenchmarkGenerateRecoveryMap(jr_uncompressed_ptr yuv4
 
 }
 
-void RecoveryMapBenchmark::BenchmarkApplyRecoveryMap(jr_uncompressed_ptr yuv420Image,
+void JpegRBenchmark::BenchmarkApplyRecoveryMap(jr_uncompressed_ptr yuv420Image,
                                                      jr_uncompressed_ptr map,
                                                      jr_metadata_ptr metadata,
                                                      jr_uncompressed_ptr dest) {
@@ -161,19 +161,19 @@ void RecoveryMapBenchmark::BenchmarkApplyRecoveryMap(jr_uncompressed_ptr yuv420I
         elapsedTime(&applyRecMapTime) / (kProfileCount * 1000.f));
 }
 
-TEST_F(RecoveryMapTest, build) {
+TEST_F(JpegRTest, build) {
   // Force all of the recovery map lib to be linked by calling all public functions.
-  RecoveryMap recovery_map;
-  recovery_map.encodeJPEGR(nullptr, static_cast<jpegr_transfer_function>(0), nullptr, 0, nullptr);
-  recovery_map.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
-                           nullptr, 0, nullptr);
-  recovery_map.encodeJPEGR(nullptr, nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
-                           nullptr);
-  recovery_map.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0), nullptr);
-  recovery_map.decodeJPEGR(nullptr, nullptr, nullptr, false);
+  JpegR jpegRCodec;
+  jpegRCodec.encodeJPEGR(nullptr, static_cast<jpegr_transfer_function>(0), nullptr, 0, nullptr);
+  jpegRCodec.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
+                         nullptr, 0, nullptr);
+  jpegRCodec.encodeJPEGR(nullptr, nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
+                         nullptr);
+  jpegRCodec.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0), nullptr);
+  jpegRCodec.decodeJPEGR(nullptr, nullptr, nullptr, false);
 }
 
-TEST_F(RecoveryMapTest, writeXmpThenRead) {
+TEST_F(JpegRTest, writeXmpThenRead) {
   jpegr_metadata metadata_expected;
   metadata_expected.maxContentBoost = 1.25;
   int length_expected = 1000;
@@ -195,7 +195,7 @@ TEST_F(RecoveryMapTest, writeXmpThenRead) {
 }
 
 /* Test Encode API-0 and decode */
-TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
+TEST_F(JpegRTest, encodeFromP010ThenDecode) {
   int ret;
 
   // Load input files.
@@ -206,12 +206,12 @@ TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
   mRawP010Image.height = TEST_IMAGE_HEIGHT;
   mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
 
-  RecoveryMap recoveryMap;
+  JpegR jpegRCodec;
 
   jpegr_compressed_struct jpegR;
   jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
-  ret = recoveryMap.encodeJPEGR(
+  ret = jpegRCodec.encodeJPEGR(
       &mRawP010Image, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR, DEFAULT_JPEG_QUALITY, nullptr);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
@@ -229,7 +229,7 @@ TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
   jpegr_uncompressed_struct decodedJpegR;
   int decodedJpegRSize = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * 4;
   decodedJpegR.data = malloc(decodedJpegRSize);
-  ret = recoveryMap.decodeJPEGR(&jpegR, &decodedJpegR);
+  ret = jpegRCodec.decodeJPEGR(&jpegR, &decodedJpegR);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
   }
@@ -248,7 +248,7 @@ TEST_F(RecoveryMapTest, encodeFromP010ThenDecode) {
 }
 
 /* Test Encode API-1 and decode */
-TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrThenDecode) {
+TEST_F(JpegRTest, encodeFromRawHdrAndSdrThenDecode) {
   int ret;
 
   // Load input files.
@@ -266,12 +266,12 @@ TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrThenDecode) {
   mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
   mRawYuv420Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
 
-  RecoveryMap recoveryMap;
+  JpegR jpegRCodec;
 
   jpegr_compressed_struct jpegR;
   jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
-  ret = recoveryMap.encodeJPEGR(
+  ret = jpegRCodec.encodeJPEGR(
       &mRawP010Image, &mRawYuv420Image, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR,
       DEFAULT_JPEG_QUALITY, nullptr);
   if (ret != OK) {
@@ -290,7 +290,7 @@ TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrThenDecode) {
   jpegr_uncompressed_struct decodedJpegR;
   int decodedJpegRSize = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * 4;
   decodedJpegR.data = malloc(decodedJpegRSize);
-  ret = recoveryMap.decodeJPEGR(&jpegR, &decodedJpegR);
+  ret = jpegRCodec.decodeJPEGR(&jpegR, &decodedJpegR);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
   }
@@ -309,7 +309,7 @@ TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrThenDecode) {
 }
 
 /* Test Encode API-2 and decode */
-TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
+TEST_F(JpegRTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
   int ret;
 
   // Load input files.
@@ -332,12 +332,12 @@ TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
   }
   mJpegImage.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
 
-  RecoveryMap recoveryMap;
+  JpegR jpegRCodec;
 
   jpegr_compressed_struct jpegR;
   jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
-  ret = recoveryMap.encodeJPEGR(
+  ret = jpegRCodec.encodeJPEGR(
       &mRawP010Image, &mRawYuv420Image, &mJpegImage, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
@@ -355,7 +355,7 @@ TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
   jpegr_uncompressed_struct decodedJpegR;
   int decodedJpegRSize = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * 4;
   decodedJpegR.data = malloc(decodedJpegRSize);
-  ret = recoveryMap.decodeJPEGR(&jpegR, &decodedJpegR);
+  ret = jpegRCodec.decodeJPEGR(&jpegR, &decodedJpegR);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
   }
@@ -374,7 +374,7 @@ TEST_F(RecoveryMapTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
 }
 
 /* Test Encode API-3 and decode */
-TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
+TEST_F(JpegRTest, encodeFromJpegThenDecode) {
   int ret;
 
   // Load input files.
@@ -413,12 +413,12 @@ TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
   }
   mJpegImage.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
 
-  RecoveryMap recoveryMap;
+  JpegR jpegRCodec;
 
   jpegr_compressed_struct jpegR;
   jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
-  ret = recoveryMap.encodeJPEGR(
+  ret = jpegRCodec.encodeJPEGR(
       &mRawP010Image, &mJpegImage, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
@@ -436,7 +436,7 @@ TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
   jpegr_uncompressed_struct decodedJpegR;
   int decodedJpegRSize = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * 4;
   decodedJpegR.data = malloc(decodedJpegRSize);
-  ret = recoveryMap.decodeJPEGR(&jpegR, &decodedJpegR);
+  ret = jpegRCodec.decodeJPEGR(&jpegR, &decodedJpegR);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
   }
@@ -454,7 +454,7 @@ TEST_F(RecoveryMapTest, encodeFromJpegThenDecode) {
   free(decodedJpegR.data);
 }
 
-TEST_F(RecoveryMapTest, ProfileRecoveryMapFuncs) {
+TEST_F(JpegRTest, ProfileRecoveryMapFuncs) {
   const size_t kWidth = TEST_IMAGE_WIDTH;
   const size_t kHeight = TEST_IMAGE_HEIGHT;
 
@@ -473,7 +473,7 @@ TEST_F(RecoveryMapTest, ProfileRecoveryMapFuncs) {
   mRawYuv420Image.height = kHeight;
   mRawYuv420Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
 
-  RecoveryMapBenchmark benchmark;
+  JpegRBenchmark benchmark;
 
   jpegr_metadata metadata = { .version = 1,
                               .maxContentBoost = 8.0f,

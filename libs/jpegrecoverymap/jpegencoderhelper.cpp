@@ -20,7 +20,7 @@
 
 #include <errno.h>
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 // The destination manager that can access |mResultBuffer| in JpegEncoderHelper.
 struct destination_mgr {
@@ -236,4 +236,4 @@ bool JpegEncoderHelper::compressSingleChannel(jpeg_compress_struct* cinfo, const
     return true;
 }
 
-} // namespace android
+} // namespace jpegrecoverymap

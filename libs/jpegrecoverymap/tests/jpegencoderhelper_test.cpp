@@ -20,7 +20,7 @@
 
 #include <fcntl.h>
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 #define VALID_IMAGE "/sdcard/Documents/minnie-320x240.yu12"
 #define VALID_IMAGE_WIDTH 320
@@ -121,5 +121,5 @@ TEST_F(JpegEncoderHelperTest, singleChannelImage) {
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-}
+}  // namespace android::jpegrecoverymap
 

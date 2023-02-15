@@ -28,7 +28,7 @@ extern "C" {
 #include <utils/Errors.h>
 #include <vector>
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 /*
  * Encapsulates a converter from raw image (YUV420planer or grey-scale) to JPEG format.
@@ -90,6 +90,6 @@ private:
     std::vector<JOCTET> mResultBuffer;
 };
 
-} /* namespace android  */
+} /* namespace android::jpegrecoverymap  */
 
 #endif // ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H

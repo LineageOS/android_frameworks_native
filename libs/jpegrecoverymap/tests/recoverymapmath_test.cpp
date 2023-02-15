@@ -19,7 +19,7 @@
 #include <gmock/gmock.h>
 #include <jpegrecoverymap/recoverymapmath.h>
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 class RecoveryMapMathTest : public testing::Test {
 public:
@@ -1066,4 +1066,4 @@ TEST_F(RecoveryMapMathTest, ApplyMap) {
                 RgbWhite() / 2.0f);
 }
 
-} // namespace android::recoverymap
+} // namespace android::jpegrecoverymap

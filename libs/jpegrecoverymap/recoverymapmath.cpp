@@ -18,7 +18,7 @@
 #include <vector>
 #include <jpegrecoverymap/recoverymapmath.h>
 
-namespace android::recoverymap {
+namespace android::jpegrecoverymap {
 
 static const std::vector<float> kPqOETF = [] {
     std::vector<float> result;
@@ -631,4 +631,4 @@ uint32_t colorToRgba1010102(Color e_gamma) {
        | (0x3 << 30);  // Set alpha to 1.0
 }
 
-} // namespace android::recoverymap
+} // namespace android::jpegrecoverymap

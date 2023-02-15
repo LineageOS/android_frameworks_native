@@ -65,15 +65,19 @@ TfLiteMotionPredictorSample::Point convertPrediction(
 MotionPredictor::MotionPredictor(nsecs_t predictionTimestampOffsetNanos, const char* modelPath,
                                  std::function<bool()> checkMotionPredictionEnabled)
       : mPredictionTimestampOffsetNanos(predictionTimestampOffsetNanos),
-        mCheckMotionPredictionEnabled(std::move(checkMotionPredictionEnabled)),
-        mModel(TfLiteMotionPredictorModel::create(modelPath == nullptr ? DEFAULT_MODEL_PATH
-                                                                       : modelPath)) {}
+        mModelPath(modelPath == nullptr ? DEFAULT_MODEL_PATH : modelPath),
+        mCheckMotionPredictionEnabled(std::move(checkMotionPredictionEnabled)) {}
 
 void MotionPredictor::record(const MotionEvent& event) {
     if (!isPredictionAvailable(event.getDeviceId(), event.getSource())) {
         ALOGE("Prediction not supported for device %d's %s source", event.getDeviceId(),
               inputEventSourceToString(event.getSource()).c_str());
         return;
+    }
+
+    // Initialise the model now that it's likely to be used.
+    if (!mModel) {
+        mModel = TfLiteMotionPredictorModel::create(mModelPath.c_str());
     }
 
     TfLiteMotionPredictorBuffers& buffers =
@@ -130,6 +134,7 @@ std::vector<std::unique_ptr<MotionEvent>> MotionPredictor::predict(nsecs_t times
             continue;
         }
 
+        LOG_ALWAYS_FATAL_IF(!mModel);
         buffer.copyTo(*mModel);
         LOG_ALWAYS_FATAL_IF(!mModel->invoke());
 

@@ -87,14 +87,15 @@ VirtualSensor::VirtualSensor() :
 
 // ---------------------------------------------------------------------------
 
-RuntimeSensor::RuntimeSensor(const sensor_t& sensor, sp<StateChangeCallback> callback)
+RuntimeSensor::RuntimeSensor(const sensor_t& sensor, sp<SensorCallback> callback)
   : BaseSensor(sensor), mCallback(std::move(callback)) {
 }
 
 status_t RuntimeSensor::activate(void*, bool enabled) {
     if (enabled != mEnabled) {
         mEnabled = enabled;
-        mCallback->onStateChanged(mEnabled, mSamplingPeriodNs, mBatchReportLatencyNs);
+        return mCallback->onConfigurationChanged(mSensor.getHandle(), mEnabled, mSamplingPeriodNs,
+                mBatchReportLatencyNs);
     }
     return OK;
 }
@@ -105,7 +106,8 @@ status_t RuntimeSensor::batch(void*, int, int, int64_t samplingPeriodNs,
         mSamplingPeriodNs = samplingPeriodNs;
         mBatchReportLatencyNs = maxBatchReportLatencyNs;
         if (mEnabled) {
-            mCallback->onStateChanged(mEnabled, mSamplingPeriodNs, mBatchReportLatencyNs);
+            return mCallback->onConfigurationChanged(mSensor.getHandle(), mEnabled,
+                    mSamplingPeriodNs, mBatchReportLatencyNs);
         }
     }
     return OK;
@@ -115,7 +117,8 @@ status_t RuntimeSensor::setDelay(void*, int, int64_t ns) {
     if (mSamplingPeriodNs != ns) {
         mSamplingPeriodNs = ns;
         if (mEnabled) {
-            mCallback->onStateChanged(mEnabled, mSamplingPeriodNs, mBatchReportLatencyNs);
+            return mCallback->onConfigurationChanged(mSensor.getHandle(), mEnabled,
+                    mSamplingPeriodNs, mBatchReportLatencyNs);
         }
     }
     return OK;
