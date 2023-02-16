@@ -871,7 +871,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     // initialize our drawing state
     mDrawingState = mCurrentState;
 
-    // set initial conditions (e.g. unblank default device)
+    onActiveDisplayChangedLocked(nullptr, *display);
     initializeDisplays();
 
     mPowerAdvisor->init();
@@ -1580,7 +1580,8 @@ status_t SurfaceFlinger::getHdrConversionCapabilities(
 }
 
 status_t SurfaceFlinger::setHdrConversionStrategy(
-        const gui::HdrConversionStrategy& hdrConversionStrategy) {
+        const gui::HdrConversionStrategy& hdrConversionStrategy,
+        int32_t* outPreferredHdrOutputType) {
     bool hdrOutputConversionSupport;
     getHdrOutputConversionSupport(&hdrOutputConversionSupport);
     if (hdrOutputConversionSupport == false) {
@@ -1592,11 +1593,16 @@ status_t SurfaceFlinger::setHdrConversionStrategy(
                 aidl::android::hardware::graphics::common::HdrConversionStrategy;
         using GuiHdrConversionStrategyTag = gui::HdrConversionStrategy::Tag;
         AidlHdrConversionStrategy aidlConversionStrategy;
+        status_t status;
+        aidl::android::hardware::graphics::common::Hdr aidlPreferredHdrOutputType;
         switch (hdrConversionStrategy.getTag()) {
             case GuiHdrConversionStrategyTag::passthrough: {
                 aidlConversionStrategy.set<AidlHdrConversionStrategy::Tag::passthrough>(
                         hdrConversionStrategy.get<GuiHdrConversionStrategyTag::passthrough>());
-                return getHwComposer().setHdrConversionStrategy(aidlConversionStrategy);
+                status = getHwComposer().setHdrConversionStrategy(aidlConversionStrategy,
+                                                                  &aidlPreferredHdrOutputType);
+                *outPreferredHdrOutputType = static_cast<int32_t>(aidlPreferredHdrOutputType);
+                return status;
             }
             case GuiHdrConversionStrategyTag::autoAllowedHdrTypes: {
                 auto autoHdrTypes =
@@ -1609,7 +1615,10 @@ status_t SurfaceFlinger::setHdrConversionStrategy(
                 }
                 aidlConversionStrategy.set<AidlHdrConversionStrategy::Tag::autoAllowedHdrTypes>(
                         aidlAutoHdrTypes);
-                return getHwComposer().setHdrConversionStrategy(aidlConversionStrategy);
+                status = getHwComposer().setHdrConversionStrategy(aidlConversionStrategy,
+                                                                  &aidlPreferredHdrOutputType);
+                *outPreferredHdrOutputType = static_cast<int32_t>(aidlPreferredHdrOutputType);
+                return status;
             }
             case GuiHdrConversionStrategyTag::forceHdrConversion: {
                 auto forceHdrConversion =
@@ -1618,7 +1627,10 @@ status_t SurfaceFlinger::setHdrConversionStrategy(
                 aidlConversionStrategy.set<AidlHdrConversionStrategy::Tag::forceHdrConversion>(
                         static_cast<aidl::android::hardware::graphics::common::Hdr>(
                                 forceHdrConversion));
-                return getHwComposer().setHdrConversionStrategy(aidlConversionStrategy);
+                status = getHwComposer().setHdrConversionStrategy(aidlConversionStrategy,
+                                                                  &aidlPreferredHdrOutputType);
+                *outPreferredHdrOutputType = static_cast<int32_t>(aidlPreferredHdrOutputType);
+                return status;
             }
         }
     });
@@ -3132,24 +3144,11 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const auto [kernelIdleTimerController, idleTimerTimeoutMs] =
                 getKernelIdleTimerProperties(compositionDisplay->getId());
 
-        const auto enableFrameRateOverride = [&] {
-            using Config = scheduler::RefreshRateSelector::Config;
-            if (!sysprop::enable_frame_rate_override(true)) {
-                return Config::FrameRateOverride::Disabled;
-            }
-
-            if (sysprop::frame_rate_override_for_native_rates(false)) {
-                return Config::FrameRateOverride::AppOverrideNativeRefreshRates;
-            }
-
-            if (!sysprop::frame_rate_override_global(true)) {
-                return Config::FrameRateOverride::AppOverride;
-            }
-
-            return Config::FrameRateOverride::Enabled;
-        }();
-
-        scheduler::RefreshRateSelector::Config config =
+        using Config = scheduler::RefreshRateSelector::Config;
+        const auto enableFrameRateOverride = sysprop::enable_frame_rate_override(true)
+                ? Config::FrameRateOverride::Enabled
+                : Config::FrameRateOverride::Disabled;
+        Config config =
                 {.enableFrameRateOverride = enableFrameRateOverride,
                  .frameRateMultipleThreshold =
                          base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0),
@@ -3395,7 +3394,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
 
             // TODO(b/175678251) Call a listener instead.
             if (currentState.physical->hwcDisplayId == getHwComposer().getPrimaryHwcDisplayId()) {
-                updateInternalDisplayVsyncLocked(display);
+                updateActiveDisplayVsyncLocked(*display);
             }
         }
         return;
@@ -3423,15 +3422,15 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             display->setDisplaySize(currentState.width, currentState.height);
 
             if (display->getId() == mActiveDisplayId) {
-                onActiveDisplaySizeChanged(display);
+                onActiveDisplaySizeChanged(*display);
             }
         }
     }
 }
 
-void SurfaceFlinger::updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay) {
+void SurfaceFlinger::updateActiveDisplayVsyncLocked(const DisplayDevice& activeDisplay) {
     mVsyncConfiguration->reset();
-    const Fps refreshRate = activeDisplay->getActiveMode().fps;
+    const Fps refreshRate = activeDisplay.getActiveMode().fps;
     updatePhaseConfiguration(refreshRate);
     mRefreshRateStats->setRefreshRate(refreshRate);
 }
@@ -5223,21 +5222,15 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (!currentModeOpt || *currentModeOpt == hal::PowerMode::OFF) {
         // Turn on the display
 
-        // Activate the display (which involves a modeset to the active mode):
-        //     1) When the first (a.k.a. primary) display is powered on during boot.
-        //     2) When the inner or outer display of a foldable is powered on. This condition relies
-        //        on the above DisplayDevice::setPowerMode. If `display` and `activeDisplay` are the
-        //        same display, then the `activeDisplay->isPoweredOn()` below is true, such that the
-        //        display is not activated every time it is powered on.
+        // Activate the display (which involves a modeset to the active mode) when the inner or
+        // outer display of a foldable is powered on. This condition relies on the above
+        // DisplayDevice::setPowerMode. If `display` and `activeDisplay` are the same display,
+        // then the `activeDisplay->isPoweredOn()` below is true, such that the display is not
+        // activated every time it is powered on.
         //
         // TODO(b/255635821): Remove the concept of active display.
-        const bool activeDisplayChanged =
-                isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn());
-
-        static bool sPrimaryDisplay = true;
-        if (sPrimaryDisplay || activeDisplayChanged) {
-            onActiveDisplayChangedLocked(activeDisplay, display);
-            sPrimaryDisplay = false;
+        if (isInternalDisplay && (!activeDisplay || !activeDisplay->isPoweredOn())) {
+            onActiveDisplayChangedLocked(activeDisplay.get(), *display);
         }
 
         // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
@@ -7536,35 +7529,35 @@ void SurfaceFlinger::sample() {
     mRegionSamplingThread->onCompositionComplete(mScheduler->getScheduledFrameTime());
 }
 
-void SurfaceFlinger::onActiveDisplaySizeChanged(const sp<const DisplayDevice>& activeDisplay) {
-    mScheduler->onActiveDisplayAreaChanged(activeDisplay->getWidth() * activeDisplay->getHeight());
-    getRenderEngine().onActiveDisplaySizeChanged(activeDisplay->getSize());
+void SurfaceFlinger::onActiveDisplaySizeChanged(const DisplayDevice& activeDisplay) {
+    mScheduler->onActiveDisplayAreaChanged(activeDisplay.getWidth() * activeDisplay.getHeight());
+    getRenderEngine().onActiveDisplaySizeChanged(activeDisplay.getSize());
 }
 
-void SurfaceFlinger::onActiveDisplayChangedLocked(const sp<DisplayDevice>& inactiveDisplay,
-                                                  const sp<DisplayDevice>& activeDisplay) {
+void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveDisplayPtr,
+                                                  const DisplayDevice& activeDisplay) {
     ATRACE_CALL();
 
-    if (inactiveDisplay) {
-        inactiveDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
+    if (inactiveDisplayPtr) {
+        inactiveDisplayPtr->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
     }
 
-    mActiveDisplayId = activeDisplay->getPhysicalId();
-    activeDisplay->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
+    mActiveDisplayId = activeDisplay.getPhysicalId();
+    activeDisplay.getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
 
-    updateInternalDisplayVsyncLocked(activeDisplay);
+    updateActiveDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
     mScheduler->setLeaderDisplay(mActiveDisplayId);
 
     onActiveDisplaySizeChanged(activeDisplay);
-    mActiveDisplayTransformHint = activeDisplay->getTransformHint();
+    mActiveDisplayTransformHint = activeDisplay.getTransformHint();
 
     // The policy of the new active/leader display may have changed while it was inactive. In that
     // case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In either
     // case, the Scheduler's cachedModeChangedParams must be initialized to the newly active mode,
     // and the kernel idle timer of the newly active display must be toggled.
     constexpr bool kForce = true;
-    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay->refreshRateSelector(), kForce);
+    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector(), kForce);
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(
@@ -8164,10 +8157,12 @@ binder::Status SurfaceComposerAIDL::getHdrConversionCapabilities(
 }
 
 binder::Status SurfaceComposerAIDL::setHdrConversionStrategy(
-        const gui::HdrConversionStrategy& hdrConversionStrategy) {
+        const gui::HdrConversionStrategy& hdrConversionStrategy,
+        int32_t* outPreferredHdrOutputType) {
     status_t status = checkAccessPermission();
     if (status == OK) {
-        status = mFlinger->setHdrConversionStrategy(hdrConversionStrategy);
+        status = mFlinger->setHdrConversionStrategy(hdrConversionStrategy,
+                                                    outPreferredHdrOutputType);
     }
     return binderStatusFromStatusT(status);
 }

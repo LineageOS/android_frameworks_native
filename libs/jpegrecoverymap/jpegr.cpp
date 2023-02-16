@@ -27,7 +27,9 @@
 #include <image_io/base/data_segment_data_source.h>
 #include <utils/Log.h>
 #include "SkColorSpace.h"
+#include "SkData.h"
 #include "SkICC.h"
+#include "SkRefCnt.h"
 
 #include <map>
 #include <memory>
@@ -554,6 +556,9 @@ status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_ima
       return ERROR_JPEGR_INVALID_TRANS_FUNC;
   }
 
+  metadata->maxContentBoost = hdr_white_nits / kSdrWhiteNits;
+  metadata->minContentBoost = 1.0f;
+
   ColorTransformFn hdrGamutConversionFn = getHdrConversionFn(
       uncompressed_yuv_420_image->colorGamut, uncompressed_p010_image->colorGamut);
 
@@ -574,49 +579,9 @@ status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_ima
   }
 
   std::mutex mutex;
-  float max_gain = 0.0f;
-  float min_gain = 1.0f;
   const int threads = std::clamp(GetCPUCoreCount(), 1, 4);
   size_t rowStep = threads == 1 ? image_height : kJobSzInRows;
   JobQueue jobQueue;
-
-  std::function<void()> computeMetadata = [uncompressed_p010_image, uncompressed_yuv_420_image,
-                                           hdrInvOetf, hdrGamutConversionFn, luminanceFn,
-                                           hdr_white_nits, threads, &mutex, &max_gain, &min_gain,
-                                           &jobQueue]() -> void {
-    size_t rowStart, rowEnd;
-    float max_gain_th = 0.0f;
-    float min_gain_th = 1.0f;
-
-    while (jobQueue.dequeueJob(rowStart, rowEnd)) {
-      for (size_t y = rowStart; y < rowEnd; ++y) {
-        for (size_t x = 0; x < uncompressed_p010_image->width; ++x) {
-          Color hdr_yuv_gamma = getP010Pixel(uncompressed_p010_image, x, y);
-          Color hdr_rgb_gamma = bt2100YuvToRgb(hdr_yuv_gamma);
-          Color hdr_rgb = hdrInvOetf(hdr_rgb_gamma);
-          hdr_rgb = hdrGamutConversionFn(hdr_rgb);
-          float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
-
-          Color sdr_yuv_gamma =
-              getYuv420Pixel(uncompressed_yuv_420_image, x, y);
-          Color sdr_rgb_gamma = srgbYuvToRgb(sdr_yuv_gamma);
-#if USE_SRGB_INVOETF_LUT
-          Color sdr_rgb = srgbInvOetfLUT(sdr_rgb_gamma);
-#else
-          Color sdr_rgb = srgbInvOetf(sdr_rgb_gamma);
-#endif
-          float sdr_y_nits = luminanceFn(sdr_rgb) * kSdrWhiteNits;
-
-          float gain = hdr_y_nits / sdr_y_nits;
-          max_gain_th = std::max(max_gain_th, gain);
-          min_gain_th = std::min(min_gain_th, gain);
-        }
-      }
-    }
-    std::unique_lock<std::mutex> lock{mutex};
-    max_gain = std::max(max_gain, max_gain_th);
-    min_gain = std::min(min_gain, min_gain_th);
-  };
 
   std::function<void()> generateMap = [uncompressed_yuv_420_image, uncompressed_p010_image,
                                        metadata, dest, hdrInvOetf, hdrGamutConversionFn,
@@ -651,27 +616,8 @@ status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_ima
     }
   };
 
-  std::vector<std::thread> workers;
-  for (int th = 0; th < threads - 1; th++) {
-    workers.push_back(std::thread(computeMetadata));
-  }
-
-  // compute metadata
-  for (size_t rowStart = 0; rowStart < image_height;) {
-    size_t rowEnd = std::min(rowStart + rowStep, image_height);
-    jobQueue.enqueueJob(rowStart, rowEnd);
-    rowStart = rowEnd;
-  }
-  jobQueue.markQueueForEnd();
-  computeMetadata();
-  std::for_each(workers.begin(), workers.end(), [](std::thread& t) { t.join(); });
-  workers.clear();
-
-  metadata->maxContentBoost = max_gain;
-  metadata->minContentBoost = min_gain;
-
   // generate map
-  jobQueue.reset();
+  std::vector<std::thread> workers;
   for (int th = 0; th < threads - 1; th++) {
     workers.push_back(std::thread(generateMap));
   }

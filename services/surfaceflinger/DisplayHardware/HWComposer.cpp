@@ -796,10 +796,14 @@ std::vector<HdrConversionCapability> HWComposer::getHdrConversionCapabilities() 
     return mHdrConversionCapabilities;
 }
 
-status_t HWComposer::setHdrConversionStrategy(HdrConversionStrategy hdrConversionStrategy) {
-    const auto error = mComposer->setHdrConversionStrategy(hdrConversionStrategy);
+status_t HWComposer::setHdrConversionStrategy(
+        HdrConversionStrategy hdrConversionStrategy,
+        aidl::android::hardware::graphics::common::Hdr* outPreferredHdrOutputType) {
+    const auto error =
+            mComposer->setHdrConversionStrategy(hdrConversionStrategy, outPreferredHdrOutputType);
     if (error != hal::Error::NONE) {
         ALOGE("Error in setting HDR conversion strategy %s", to_string(error).c_str());
+        return INVALID_OPERATION;
     }
     return NO_ERROR;
 }

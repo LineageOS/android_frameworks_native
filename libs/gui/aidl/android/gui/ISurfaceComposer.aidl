@@ -191,10 +191,12 @@ interface ISurfaceComposer {
 
      /**
       * Sets the HDR conversion strategy of the device.
+      * Returns the preferred HDR output type of the device, in case when HdrConversionStrategy has
+      * autoAllowedHdrTypes set. Returns Hdr::INVALID in other cases.
       *
       * Requires the ACCESS_SURFACE_FLINGER permission.
       */
-     void setHdrConversionStrategy(in HdrConversionStrategy hdrConversionStrategy);
+     int setHdrConversionStrategy(in HdrConversionStrategy hdrConversionStrategy);
 
      /**
       * Gets whether HDR output conversion operations are supported on the device.

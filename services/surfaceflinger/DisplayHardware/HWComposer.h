@@ -44,6 +44,7 @@
 #include "Hal.h"
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include <aidl/android/hardware/graphics/common/Hdr.h>
 #include <aidl/android/hardware/graphics/common/HdrConversionCapability.h>
 #include <aidl/android/hardware/graphics/common/HdrConversionStrategy.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
@@ -294,7 +295,8 @@ public:
     virtual std::vector<aidl::android::hardware::graphics::common::HdrConversionCapability>
     getHdrConversionCapabilities() const = 0;
     virtual status_t setHdrConversionStrategy(
-            aidl::android::hardware::graphics::common::HdrConversionStrategy) = 0;
+            aidl::android::hardware::graphics::common::HdrConversionStrategy,
+            aidl::android::hardware::graphics::common::Hdr*) = 0;
 };
 
 static inline bool operator==(const android::HWComposer::DeviceRequestedChanges& lhs,
@@ -449,7 +451,8 @@ public:
     std::vector<aidl::android::hardware::graphics::common::HdrConversionCapability>
     getHdrConversionCapabilities() const override;
     status_t setHdrConversionStrategy(
-            aidl::android::hardware::graphics::common::HdrConversionStrategy) override;
+            aidl::android::hardware::graphics::common::HdrConversionStrategy,
+            aidl::android::hardware::graphics::common::Hdr*) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
