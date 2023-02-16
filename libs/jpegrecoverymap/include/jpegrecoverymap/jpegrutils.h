@@ -56,6 +56,7 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  * below is an example of the XMP metadata that this function generates where
  * secondary_image_length = 1000
  * max_content_boost = 8.0
+ * min_content_boost = 0.5
  *
  * <x:xmpmeta
  *   xmlns:x="adobe:ns:meta/"
@@ -70,16 +71,17 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  *         <rdf:Seq>
  *           <rdf:li>
  *             <Container:Item
- *              Item:Semantic="Primary"
- *              Item:Mime="image/jpeg"
- *              RecoveryMap:Version="1"
- *              RecoveryMap:MaxContentBoost="8.0"/>
+ *               Item:Semantic="Primary"
+ *               Item:Mime="image/jpeg"/>
  *           </rdf:li>
  *           <rdf:li>
  *             <Container:Item
  *               Item:Semantic="RecoveryMap"
  *               Item:Mime="image/jpeg"
- *               Item:Length="1000"/>
+ *               Item:Length="1000"
+ *               RecoveryMap:Version="1"
+ *               RecoveryMap:MaxContentBoost="8.0"
+ *               RecoveryMap:MinContentBoost="0.5"/>
  *           </rdf:li>
  *         </rdf:Seq>
  *       </Container:Directory>

@@ -176,6 +176,7 @@ TEST_F(JpegRTest, build) {
 TEST_F(JpegRTest, writeXmpThenRead) {
   jpegr_metadata metadata_expected;
   metadata_expected.maxContentBoost = 1.25;
+  metadata_expected.minContentBoost = 0.75;
   int length_expected = 1000;
   const std::string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
   const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
@@ -192,6 +193,7 @@ TEST_F(JpegRTest, writeXmpThenRead) {
   jpegr_metadata metadata_read;
   EXPECT_TRUE(getMetadataFromXMP(xmpData.data(), xmpData.size(), &metadata_read));
   ASSERT_EQ(metadata_expected.maxContentBoost, metadata_read.maxContentBoost);
+  ASSERT_EQ(metadata_expected.minContentBoost, metadata_read.minContentBoost);
 }
 
 /* Test Encode API-0 and decode */

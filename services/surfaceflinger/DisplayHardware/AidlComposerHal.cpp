@@ -1417,8 +1417,10 @@ Error AidlComposer::getHdrConversionCapabilities(
     return Error::NONE;
 }
 
-Error AidlComposer::setHdrConversionStrategy(AidlHdrConversionStrategy hdrConversionStrategy) {
-    const auto status = mAidlComposerClient->setHdrConversionStrategy(hdrConversionStrategy);
+Error AidlComposer::setHdrConversionStrategy(AidlHdrConversionStrategy hdrConversionStrategy,
+                                             Hdr* outPreferredHdrOutputType) {
+    const auto status = mAidlComposerClient->setHdrConversionStrategy(hdrConversionStrategy,
+                                                                      outPreferredHdrOutputType);
     if (!status.isOk()) {
         ALOGE("setHdrConversionStrategy failed %s", status.getDescription().c_str());
         return static_cast<Error>(status.getServiceSpecificError());

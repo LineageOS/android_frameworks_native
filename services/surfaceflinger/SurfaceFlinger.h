@@ -558,7 +558,8 @@ private:
     status_t clearBootDisplayMode(const sp<IBinder>& displayToken);
     status_t getHdrConversionCapabilities(
             std::vector<gui::HdrConversionCapability>* hdrConversionCapaabilities) const;
-    status_t setHdrConversionStrategy(const gui::HdrConversionStrategy& hdrConversionStrategy);
+    status_t setHdrConversionStrategy(const gui::HdrConversionStrategy& hdrConversionStrategy,
+                                      int32_t*);
     status_t getHdrOutputConversionSupport(bool* outSupport) const;
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on);
     void setGameContentType(const sp<IBinder>& displayToken, bool on);
@@ -1048,13 +1049,11 @@ private:
     VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat) REQUIRES(mStateLock);
     void releaseVirtualDisplay(VirtualDisplayId);
 
-    // TODO(b/255635821): Replace pointers with references. `inactiveDisplay` is only ever `nullptr`
-    // in tests, and `activeDisplay` must not be `nullptr` as a precondition.
-    void onActiveDisplayChangedLocked(const sp<DisplayDevice>& inactiveDisplay,
-                                      const sp<DisplayDevice>& activeDisplay)
+    void onActiveDisplayChangedLocked(const DisplayDevice* inactiveDisplayPtr,
+                                      const DisplayDevice& activeDisplay)
             REQUIRES(mStateLock, kMainThreadContext);
 
-    void onActiveDisplaySizeChanged(const sp<const DisplayDevice>&);
+    void onActiveDisplaySizeChanged(const DisplayDevice&);
 
     /*
      * Debugging & dumpsys
@@ -1120,7 +1119,7 @@ private:
                                                std::chrono::nanoseconds presentLatency);
     int getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) const;
 
-    void updateInternalDisplayVsyncLocked(const sp<DisplayDevice>& activeDisplay)
+    void updateActiveDisplayVsyncLocked(const DisplayDevice& activeDisplay)
             REQUIRES(mStateLock, kMainThreadContext);
 
     bool isHdrLayer(const frontend::LayerSnapshot& snapshot) const;
@@ -1461,8 +1460,8 @@ public:
     binder::Status getOverlaySupport(gui::OverlayProperties* outProperties) override;
     binder::Status getHdrConversionCapabilities(
             std::vector<gui::HdrConversionCapability>*) override;
-    binder::Status setHdrConversionStrategy(
-            const gui::HdrConversionStrategy& hdrConversionStrategy) override;
+    binder::Status setHdrConversionStrategy(const gui::HdrConversionStrategy& hdrConversionStrategy,
+                                            int32_t*) override;
     binder::Status getHdrOutputConversionSupport(bool* outSupport) override;
     binder::Status setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override;
     binder::Status setGameContentType(const sp<IBinder>& display, bool on) override;

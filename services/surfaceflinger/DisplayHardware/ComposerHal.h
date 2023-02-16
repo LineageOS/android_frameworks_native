@@ -293,7 +293,7 @@ public:
     virtual Error getHdrConversionCapabilities(
             std::vector<::aidl::android::hardware::graphics::common::HdrConversionCapability>*) = 0;
     virtual Error setHdrConversionStrategy(
-            ::aidl::android::hardware::graphics::common::HdrConversionStrategy) = 0;
+            ::aidl::android::hardware::graphics::common::HdrConversionStrategy, Hdr*) = 0;
 };
 
 } // namespace Hwc2
