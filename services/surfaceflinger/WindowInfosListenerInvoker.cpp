@@ -17,7 +17,6 @@
 #include <ftl/small_vector.h>
 #include <gui/ISurfaceComposer.h>
 
-#include "SurfaceFlinger.h"
 #include "WindowInfosListenerInvoker.h"
 
 namespace android {

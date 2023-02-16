@@ -3576,6 +3576,10 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
         });
     }
 
+    if (transactionFlags & eInputInfoUpdateNeeded) {
+        mUpdateInputInfo = true;
+    }
+
     doCommitTransactions();
 }
 
@@ -7566,8 +7570,9 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(
-        const sp<IWindowInfosListener>& windowInfosListener) const {
+        const sp<IWindowInfosListener>& windowInfosListener) {
     mWindowInfosListenerInvoker->addWindowInfosListener(windowInfosListener);
+    setTransactionFlags(eInputInfoUpdateNeeded);
     return NO_ERROR;
 }
 

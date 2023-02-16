@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <unordered_set>
+
 #include <android/gui/BnWindowInfosReportedListener.h>
 #include <android/gui/IWindowInfosListener.h>
 #include <android/gui/IWindowInfosReportedListener.h>
@@ -49,8 +51,6 @@ private:
     static constexpr size_t kStaticCapacity = 3;
     ftl::SmallMap<wp<IBinder>, const sp<gui::IWindowInfosListener>, kStaticCapacity>
             mWindowInfosListeners GUARDED_BY(mListenersMutex);
-
-    sp<gui::IWindowInfosReportedListener> mWindowInfosReportedListener;
 };
 
 } // namespace android
