@@ -144,7 +144,7 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     const half oldAlpha = color.a;
     const bool hadBufferOrSideStream = hasValidBuffer() || sidebandStream != nullptr;
     const layer_state_t& clientState = resolvedComposerState.state;
-
+    const bool hadBlur = hasBlur();
     uint64_t clientChanges = what | layer_state_t::diff(clientState);
     layer_state_t::merge(clientState);
     what = clientChanges;
@@ -170,6 +170,12 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     }
     if (what & (layer_state_t::eAlphaChanged)) {
         if (oldAlpha == 0 || color.a == 0) {
+            changes |= RequestedLayerState::Changes::Visibility |
+                    RequestedLayerState::Changes::VisibleRegion;
+        }
+    }
+    if (what & (layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBlurRegionsChanged)) {
+        if (hadBlur != hasBlur()) {
             changes |= RequestedLayerState::Changes::Visibility |
                     RequestedLayerState::Changes::VisibleRegion;
         }
@@ -319,11 +325,11 @@ ui::Transform RequestedLayerState::getTransform(uint32_t displayRotationFlags) c
 }
 
 std::string RequestedLayerState::getDebugString() const {
-    return "[" + std::to_string(id) + "]" + name + ",parent=" + layerIdToString(parentId) +
-            ",relativeParent=" + layerIdToString(relativeParentId) +
-            ",isRelativeOf=" + std::to_string(isRelativeOf) +
-            ",mirrorIds=" + layerIdsToString(mirrorIds) +
-            ",handleAlive=" + std::to_string(handleAlive) + ",z=" + std::to_string(z);
+    std::stringstream debug;
+    debug << "RequestedLayerState{" << name << " parent=" << layerIdToString(parentId)
+          << " relativeParent=" << layerIdToString(relativeParentId)
+          << " mirrorId=" << layerIdsToString(mirrorIds) << " handle=" << handleAlive << " z=" << z;
+    return debug.str();
 }
 
 std::string RequestedLayerState::getDebugStringShort() const {
@@ -440,6 +446,10 @@ bool RequestedLayerState::hasInputInfo() const {
     const auto windowInfo = windowInfoHandle->getInfo();
     return windowInfo->token != nullptr ||
             windowInfo->inputConfig.test(gui::WindowInfo::InputConfig::NO_INPUT_CHANNEL);
+}
+
+bool RequestedLayerState::hasBlur() const {
+    return backgroundBlurRadius > 0 || blurRegions.size() > 0;
 }
 
 } // namespace android::surfaceflinger::frontend

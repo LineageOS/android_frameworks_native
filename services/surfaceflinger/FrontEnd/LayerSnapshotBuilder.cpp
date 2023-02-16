@@ -259,8 +259,8 @@ void updateSurfaceDamage(const RequestedLayerState& requested, bool hasReadyFram
     }
 }
 
-void updateVisibility(LayerSnapshot& snapshot) {
-    snapshot.isVisible = snapshot.getIsVisible();
+void updateVisibility(LayerSnapshot& snapshot, bool visible) {
+    snapshot.isVisible = visible;
 
     // TODO(b/238781169) we are ignoring this compat for now, since we will have
     // to remove any optimization based on visibility.
@@ -273,9 +273,9 @@ void updateVisibility(LayerSnapshot& snapshot) {
     // We are just using these layers for occlusion detection in
     // InputDispatcher, and obviously if they aren't visible they can't occlude
     // anything.
-    const bool visible =
+    const bool visibleForInput =
             (snapshot.inputInfo.token != nullptr) ? snapshot.canReceiveInput() : snapshot.isVisible;
-    snapshot.inputInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_VISIBLE, !visible);
+    snapshot.inputInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_VISIBLE, !visibleForInput);
 }
 
 bool needsInputInfo(const LayerSnapshot& snapshot, const RequestedLayerState& requested) {
@@ -521,7 +521,7 @@ void LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
                 }
 
                 if (snapshot->getIsVisible() || snapshot->hasInputInfo()) {
-                    updateVisibility(*snapshot);
+                    updateVisibility(*snapshot, snapshot->getIsVisible());
                     size_t oldZ = snapshot->globalZ;
                     size_t newZ = globalZ++;
                     snapshot->globalZ = newZ;
@@ -539,7 +539,8 @@ void LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
     mNumInterestingSnapshots = (int)globalZ;
     while (globalZ < mSnapshots.size()) {
         mSnapshots[globalZ]->globalZ = globalZ;
-        updateVisibility(*mSnapshots[globalZ]);
+        /* mark unreachable snapshots as explicitly invisible */
+        updateVisibility(*mSnapshots[globalZ], false);
         globalZ++;
     }
 }
@@ -634,11 +635,15 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     const bool forceUpdate = newSnapshot || args.forceUpdate ||
             snapshot.changes.any(RequestedLayerState::Changes::Visibility |
                                  RequestedLayerState::Changes::Created);
+    snapshot.outputFilter.layerStack = requested.parentId != UNASSIGNED_LAYER_ID
+            ? parentSnapshot.outputFilter.layerStack
+            : requested.layerStack;
+
     uint32_t displayRotationFlags =
             getDisplayRotationFlags(args.displays, snapshot.outputFilter.layerStack);
 
     // always update the buffer regardless of visibility
-    if (forceUpdate || requested.what & layer_state_t::BUFFER_CHANGES) {
+    if (forceUpdate || requested.what & layer_state_t::BUFFER_CHANGES || args.displayChanges) {
         snapshot.acquireFence =
                 (requested.externalTexture &&
                  requested.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged))
@@ -727,9 +732,13 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     if (forceUpdate || snapshot.changes.any(RequestedLayerState::Changes::Content)) {
         snapshot.color.rgb = requested.getColor().rgb;
         snapshot.isColorspaceAgnostic = requested.colorSpaceAgnostic;
-        snapshot.backgroundBlurRadius =
-                args.supportsBlur ? static_cast<int>(requested.backgroundBlurRadius) : 0;
+        snapshot.backgroundBlurRadius = args.supportsBlur
+                ? static_cast<int>(parentSnapshot.color.a * (float)requested.backgroundBlurRadius)
+                : 0;
         snapshot.blurRegions = requested.blurRegions;
+        for (auto& region : snapshot.blurRegions) {
+            region.alpha = region.alpha * snapshot.color.a;
+        }
         snapshot.hdrMetadata = requested.hdrMetadata;
     }
 
@@ -965,7 +974,7 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     // touches from going outside the cloned area.
     if (path.isClone()) {
         snapshot.inputInfo.inputConfig |= gui::WindowInfo::InputConfig::CLONE;
-        auto clonedRootSnapshot = getSnapshot(path.mirrorRootIds.back());
+        auto clonedRootSnapshot = getSnapshot(path.getMirrorRoot());
         if (clonedRootSnapshot) {
             const Rect rect =
                     displayInfo.transform.transform(Rect{clonedRootSnapshot->transformedBounds});
