@@ -15,6 +15,8 @@
  */
 #pragma once
 
+#include <utils/Errors.h>
+
 #include <map>
 #include <vector>
 
