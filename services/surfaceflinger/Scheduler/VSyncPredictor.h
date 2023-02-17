@@ -67,7 +67,7 @@ public:
 
     bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const final EXCLUDES(mMutex);
 
-    void setRenderRate(Fps) final EXCLUDES(mMutex);
+    void setDivisor(unsigned divisor) final EXCLUDES(mMutex);
 
     void dump(std::string& result) const final EXCLUDES(mMutex);
 
@@ -106,7 +106,7 @@ private:
     size_t mLastTimestampIndex GUARDED_BY(mMutex) = 0;
     std::vector<nsecs_t> mTimestamps GUARDED_BY(mMutex);
 
-    std::optional<Fps> mRenderRate GUARDED_BY(mMutex);
+    unsigned mDivisor GUARDED_BY(mMutex) = 1;
 
     mutable std::optional<VsyncSequence> mLastVsyncSequence GUARDED_BY(mMutex);
 };

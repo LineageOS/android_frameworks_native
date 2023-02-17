@@ -554,7 +554,7 @@ TEST_F(VSyncPredictorTest, robustToDuplicateTimestamps_60hzRealTraceData) {
     EXPECT_THAT(intercept, IsCloseTo(expectedIntercept, mMaxRoundingError));
 }
 
-TEST_F(VSyncPredictorTest, setRenderRateIsRespected) {
+TEST_F(VSyncPredictorTest, setDivisorIsRespected) {
     auto last = mNow;
     for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
         EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
@@ -563,7 +563,7 @@ TEST_F(VSyncPredictorTest, setRenderRateIsRespected) {
         tracker.addVsyncTimestamp(mNow);
     }
 
-    tracker.setRenderRate(Fps::fromPeriodNsecs(3 * mPeriod));
+    tracker.setDivisor(3);
 
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 100), Eq(mNow + mPeriod));
@@ -574,7 +574,7 @@ TEST_F(VSyncPredictorTest, setRenderRateIsRespected) {
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 5100), Eq(mNow + 7 * mPeriod));
 }
 
-TEST_F(VSyncPredictorTest, setRenderRateOfDivisorIsInPhase) {
+TEST_F(VSyncPredictorTest, setDivisorOfDivosorIsInPhase) {
     auto last = mNow;
     for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
         EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
@@ -583,44 +583,18 @@ TEST_F(VSyncPredictorTest, setRenderRateOfDivisorIsInPhase) {
         tracker.addVsyncTimestamp(mNow);
     }
 
-    const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
-
-    tracker.setRenderRate(refreshRate / 4);
+    tracker.setDivisor(4);
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 3 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3 * mPeriod), Eq(mNow + 7 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 7 * mPeriod), Eq(mNow + 11 * mPeriod));
 
-    tracker.setRenderRate(refreshRate / 2);
+    tracker.setDivisor(2);
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 1 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod), Eq(mNow + 3 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3 * mPeriod), Eq(mNow + 5 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 5 * mPeriod), Eq(mNow + 7 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 7 * mPeriod), Eq(mNow + 9 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 9 * mPeriod), Eq(mNow + 11 * mPeriod));
-
-    tracker.setRenderRate(refreshRate / 6);
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 1 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod), Eq(mNow + 7 * mPeriod));
-}
-
-TEST_F(VSyncPredictorTest, setRenderRateIsIgnoredIfNotDivisor) {
-    auto last = mNow;
-    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
-        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
-        mNow += mPeriod;
-        last = mNow;
-        tracker.addVsyncTimestamp(mNow);
-    }
-
-    tracker.setRenderRate(Fps::fromPeriodNsecs(3.5f * mPeriod));
-
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 100), Eq(mNow + mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1100), Eq(mNow + 2 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 2100), Eq(mNow + 3 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3100), Eq(mNow + 4 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 4100), Eq(mNow + 5 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 5100), Eq(mNow + 6 * mPeriod));
 }
 
 } // namespace android::scheduler

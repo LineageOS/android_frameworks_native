@@ -272,26 +272,13 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     // update the mLastVsyncSequence for reference point
     mLastVsyncSequence = getVsyncSequenceLocked(timePoint);
 
-    const auto renderRatePhase = [&]() REQUIRES(mMutex) -> int {
-        if (!mRenderRate) return 0;
-
-        const auto divisor =
-                RefreshRateSelector::getFrameRateDivisor(Fps::fromPeriodNsecs(mIdealPeriod),
-                                                         *mRenderRate);
-        if (divisor <= 1) return 0;
-
-        const int mod = mLastVsyncSequence->seq % divisor;
-        if (mod == 0) return 0;
-
-        return divisor - mod;
-    }();
-
-    if (renderRatePhase == 0) {
+    const auto mod = mLastVsyncSequence->seq % mDivisor;
+    if (mod == 0) {
         return mLastVsyncSequence->vsyncTime;
     }
 
     auto const [slope, intercept] = getVSyncPredictionModelLocked();
-    const auto approximateNextVsync = mLastVsyncSequence->vsyncTime + slope * renderRatePhase;
+    const auto approximateNextVsync = mLastVsyncSequence->vsyncTime + slope * (mDivisor - mod);
     return nextAnticipatedVSyncTimeFromLocked(approximateNextVsync - slope / 2);
 }
 
@@ -330,10 +317,10 @@ bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) c
     return vsyncSequence.seq % divisor == 0;
 }
 
-void VSyncPredictor::setRenderRate(Fps fps) {
-    ALOGV("%s: %s", __func__, to_string(fps).c_str());
+void VSyncPredictor::setDivisor(unsigned divisor) {
+    ALOGV("%s: %d", __func__, divisor);
     std::lock_guard lock(mMutex);
-    mRenderRate = fps;
+    mDivisor = divisor;
 }
 
 VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModel() const {
