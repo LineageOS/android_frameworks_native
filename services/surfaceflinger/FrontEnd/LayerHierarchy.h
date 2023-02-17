@@ -50,12 +50,32 @@ public:
         ftl_last = Mirror,
     };
     // Represents a unique path to a node.
+    // The layer hierarchy is represented as a graph. Each node can be visited by multiple parents.
+    // This allows us to represent mirroring in an efficient way. See the example below:
+    // root
+    // ├─ A {Traversal path id = 1}
+    // ├─ B {Traversal path id = 2}
+    // │  ├─ C {Traversal path id = 3}
+    // │  ├─ D {Traversal path id = 4}
+    // │  └─ E {Traversal path id = 5}
+    // ├─ F (Mirrors B) {Traversal path id = 6}
+    // └─ G (Mirrors F) {Traversal path id = 7}
+    //
+    // C, D and E can be traversed via B or via F then B or via G then F then B.
+    // Depending on how the node is reached, its properties such as geometry or visibility might be
+    // different. And we can uniquely identify the node by keeping track of the nodes leading up to
+    // it. But to be more efficient we only need to track the nodes id and the top mirror root path.
+    // So C for example, would have the following unique traversal paths:
+    //  - {Traversal path id = 3}
+    //  - {Traversal path id = 3, mirrorRootId = 6}
+    //  - {Traversal path id = 3, mirrorRootId = 7}
+
     struct TraversalPath {
         uint32_t id;
         LayerHierarchy::Variant variant;
         // Mirrored layers can have a different geometry than their parents so we need to track
         // the mirror roots in the traversal.
-        ftl::SmallVector<uint32_t, 5> mirrorRootIds;
+        uint32_t mirrorRootId = UNASSIGNED_LAYER_ID;
         // Relative layers can be visited twice, once by their parent and then once again by
         // their relative parent. We keep track of the roots here to detect any loops in the
         // hierarchy. If a relative root already exists in the list while building the
@@ -73,10 +93,11 @@ public:
         // Returns true if the node or its parents are not Detached.
         bool isAttached() const { return !detached; }
         // Returns true if the node is a clone.
-        bool isClone() const { return !mirrorRootIds.empty(); }
+        bool isClone() const { return mirrorRootId != UNASSIGNED_LAYER_ID; }
+        TraversalPath getMirrorRoot() const;
 
         bool operator==(const TraversalPath& other) const {
-            return id == other.id && mirrorRootIds == other.mirrorRootIds;
+            return id == other.id && mirrorRootId == other.mirrorRootId;
         }
         std::string toString() const;
 
@@ -93,9 +114,7 @@ public:
 
     private:
         TraversalPath& mTraversalPath;
-        uint32_t mParentId;
-        LayerHierarchy::Variant mParentVariant;
-        bool mParentDetached;
+        TraversalPath mParentPath;
     };
     LayerHierarchy(RequestedLayerState* layer);
 

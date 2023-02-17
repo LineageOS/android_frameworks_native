@@ -115,8 +115,8 @@ private:
     struct TraversalPathHash {
         std::size_t operator()(const LayerHierarchy::TraversalPath& key) const {
             uint32_t hashCode = key.id * 31;
-            for (auto mirrorRoot : key.mirrorRootIds) {
-                hashCode += mirrorRoot * 31;
+            if (key.mirrorRootId != UNASSIGNED_LAYER_ID) {
+                hashCode += key.mirrorRootId * 31;
             }
             return std::hash<size_t>{}(hashCode);
         }

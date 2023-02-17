@@ -38,6 +38,8 @@ public:
     static sp<ProcessState> self();
     static sp<ProcessState> selfOrNull();
 
+    static bool isVndservicemanagerEnabled();
+
     /* initWithDriver() can be used to configure libbinder to use
      * a different binder driver dev node. It must be called *before*
      * any call to ProcessState::self(). The default is /dev/vndbinder

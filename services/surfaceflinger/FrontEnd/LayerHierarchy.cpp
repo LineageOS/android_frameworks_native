@@ -19,6 +19,7 @@
 #define LOG_TAG "LayerHierarchy"
 
 #include "LayerHierarchy.h"
+#include "LayerLog.h"
 #include "SwapErase.h"
 
 namespace android::surfaceflinger::frontend {
@@ -259,6 +260,7 @@ void LayerHierarchyBuilder::onLayerAdded(RequestedLayerState* layer) {
 }
 
 void LayerHierarchyBuilder::onLayerDestroyed(RequestedLayerState* layer) {
+    LLOGV(layer->id, "");
     LayerHierarchy* hierarchy = getHierarchyFromId(layer->id, /*crashOnFailure=*/false);
     if (!hierarchy) {
         // Layer was never part of the hierarchy if it was created and destroyed in the same
@@ -408,29 +410,32 @@ std::string LayerHierarchy::TraversalPath::toString() const {
     if (id == UNASSIGNED_LAYER_ID) {
         return "TraversalPath{ROOT}";
     }
-    std::string debugString = "TraversalPath{.id = " + std::to_string(id);
+    std::stringstream ss;
+    ss << "TraversalPath{.id = " << id;
 
-    if (!mirrorRootIds.empty()) {
-        debugString += ", .mirrorRootIds=";
-        for (auto rootId : mirrorRootIds) {
-            debugString += std::to_string(rootId) + ",";
-        }
+    if (mirrorRootId != UNASSIGNED_LAYER_ID) {
+        ss << ", .mirrorRootId=" << mirrorRootId;
     }
 
     if (!relativeRootIds.empty()) {
-        debugString += ", .relativeRootIds=";
+        ss << ", .relativeRootIds=";
         for (auto rootId : relativeRootIds) {
-            debugString += std::to_string(rootId) + ",";
+            ss << rootId << ",";
         }
     }
 
     if (hasRelZLoop()) {
-        debugString += ", hasRelZLoop=true invalidRelativeRootId=";
-        debugString += std::to_string(invalidRelativeRootId) + ",";
+        ss << "hasRelZLoop=true invalidRelativeRootId=" << invalidRelativeRootId << ",";
     }
+    ss << "}";
+    return ss.str();
+}
 
-    debugString += "}";
-    return debugString;
+LayerHierarchy::TraversalPath LayerHierarchy::TraversalPath::getMirrorRoot() const {
+    LOG_ALWAYS_FATAL_IF(!isClone(), "Cannot get mirror root of a non cloned node");
+    TraversalPath mirrorRootPath = *this;
+    mirrorRootPath.id = mirrorRootId;
+    return mirrorRootPath;
 }
 
 // Helper class to update a passed in TraversalPath when visiting a child. When the object goes out
@@ -438,16 +443,13 @@ std::string LayerHierarchy::TraversalPath::toString() const {
 LayerHierarchy::ScopedAddToTraversalPath::ScopedAddToTraversalPath(TraversalPath& traversalPath,
                                                                    uint32_t layerId,
                                                                    LayerHierarchy::Variant variant)
-      : mTraversalPath(traversalPath),
-        mParentId(traversalPath.id),
-        mParentVariant(traversalPath.variant),
-        mParentDetached(traversalPath.detached) {
+      : mTraversalPath(traversalPath), mParentPath(traversalPath) {
     // Update the traversal id with the child layer id and variant. Parent id and variant are
     // stored to reset the id upon destruction.
     traversalPath.id = layerId;
     traversalPath.variant = variant;
     if (variant == LayerHierarchy::Variant::Mirror) {
-        traversalPath.mirrorRootIds.emplace_back(layerId);
+        traversalPath.mirrorRootId = layerId;
     } else if (variant == LayerHierarchy::Variant::Relative) {
         if (std::find(traversalPath.relativeRootIds.begin(), traversalPath.relativeRootIds.end(),
                       layerId) != traversalPath.relativeRootIds.end()) {
@@ -462,16 +464,16 @@ LayerHierarchy::ScopedAddToTraversalPath::~ScopedAddToTraversalPath() {
     // Reset the traversal id to its original parent state using the state that was saved in
     // the constructor.
     if (mTraversalPath.variant == LayerHierarchy::Variant::Mirror) {
-        mTraversalPath.mirrorRootIds.pop_back();
+        mTraversalPath.mirrorRootId = mParentPath.mirrorRootId;
     } else if (mTraversalPath.variant == LayerHierarchy::Variant::Relative) {
         mTraversalPath.relativeRootIds.pop_back();
     }
     if (mTraversalPath.invalidRelativeRootId == mTraversalPath.id) {
         mTraversalPath.invalidRelativeRootId = UNASSIGNED_LAYER_ID;
     }
-    mTraversalPath.id = mParentId;
-    mTraversalPath.variant = mParentVariant;
-    mTraversalPath.detached = mParentDetached;
+    mTraversalPath.id = mParentPath.id;
+    mTraversalPath.variant = mParentPath.variant;
+    mTraversalPath.detached = mParentPath.detached;
 }
 
 } // namespace android::surfaceflinger::frontend

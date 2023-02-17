@@ -100,6 +100,10 @@ static void verifyNotForked(bool forked) {
     LOG_ALWAYS_FATAL_IF(forked, "libbinder ProcessState can not be used after fork");
 }
 
+bool ProcessState::isVndservicemanagerEnabled() {
+    return access("/vendor/bin/vndservicemanager", R_OK) == 0;
+}
+
 sp<ProcessState> ProcessState::init(const char *driver, bool requireDefault)
 {
 #ifdef BINDER_IPC_32BIT
@@ -121,6 +125,11 @@ sp<ProcessState> ProcessState::init(const char *driver, bool requireDefault)
         if (access(driver, R_OK) == -1) {
             ALOGE("Binder driver %s is unavailable. Using /dev/binder instead.", driver);
             driver = "/dev/binder";
+        }
+
+        if (0 == strcmp(driver, "/dev/vndbinder") && !isVndservicemanagerEnabled()) {
+            ALOGE("vndservicemanager is not started on this device, you can save resources/threads "
+                  "by not initializing ProcessState with /dev/vndbinder.");
         }
 
         // we must install these before instantiating the gProcess object,
