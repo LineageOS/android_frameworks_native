@@ -162,6 +162,11 @@ status_t SensorManager::assertStateLocked() {
 
         mSensors = mSensorServer->getSensorList(mOpPackageName);
         size_t count = mSensors.size();
+        if (count == 0) {
+            ALOGE("Failed to get Sensor list");
+            mSensorServer.clear();
+            return UNKNOWN_ERROR;
+        }
         mSensorList =
                 static_cast<Sensor const**>(malloc(count * sizeof(Sensor*)));
         LOG_ALWAYS_FATAL_IF(mSensorList == nullptr, "mSensorList NULL");
