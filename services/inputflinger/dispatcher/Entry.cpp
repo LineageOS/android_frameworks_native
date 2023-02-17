@@ -23,10 +23,16 @@
 #include <cutils/atomic.h>
 #include <inttypes.h>
 
-using android::base::GetBoolProperty;
 using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
+
+static const bool DEBUGGABLE =
+#if defined(__ANDROID__)
+        android::base::GetBoolProperty("ro.debuggable", false);
+#else
+        true;
+#endif
 
 VerifiedKeyEvent verifiedKeyEventFromKeyEntry(const KeyEntry& entry) {
     return {{VerifiedInputEvent::Type::KEY, entry.deviceId, entry.eventTime, entry.source,
@@ -172,7 +178,7 @@ KeyEntry::KeyEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t sou
 KeyEntry::~KeyEntry() {}
 
 std::string KeyEntry::getDescription() const {
-    if (!GetBoolProperty("ro.debuggable", false)) {
+    if (!DEBUGGABLE) {
         return "KeyEvent";
     }
     return StringPrintf("KeyEvent(deviceId=%d, eventTime=%" PRIu64 ", source=%s, displayId=%" PRId32
@@ -242,7 +248,7 @@ MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32
 MotionEntry::~MotionEntry() {}
 
 std::string MotionEntry::getDescription() const {
-    if (!GetBoolProperty("ro.debuggable", false)) {
+    if (!DEBUGGABLE) {
         return "MotionEvent";
     }
     std::string msg;
@@ -292,7 +298,7 @@ std::string SensorEntry::getDescription() const {
                         deviceId, inputEventSourceToString(source).c_str(),
                         ftl::enum_string(sensorType).c_str(), accuracy, hwTimestamp);
 
-    if (!GetBoolProperty("ro.debuggable", false)) {
+    if (DEBUGGABLE) {
         for (size_t i = 0; i < values.size(); i++) {
             if (i > 0) {
                 msg += ", ";
