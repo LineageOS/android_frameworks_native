@@ -71,6 +71,7 @@ struct RequestedLayerState : layer_state_t {
     aidl::android::hardware::graphics::composer3::Composition getCompositionType() const;
     bool hasValidRelativeParent() const;
     bool hasInputInfo() const;
+    bool hasBlur() const;
 
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
