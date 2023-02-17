@@ -110,38 +110,6 @@ void egl_cache_t::initialize(egl_display_t* display) {
         }
     }
 
-    // Check the device config to decide whether multifile should be used
-    if (base::GetBoolProperty("ro.egl.blobcache.multifile", false)) {
-        mMultifileMode = true;
-        ALOGV("Using multifile EGL blobcache");
-    }
-
-    // Allow forcing the mode for debug purposes
-    std::string mode = base::GetProperty("debug.egl.blobcache.multifile", "");
-    if (mode == "true") {
-        ALOGV("Forcing multifile cache due to debug.egl.blobcache.multifile == %s", mode.c_str());
-        mMultifileMode = true;
-    } else if (mode == "false") {
-        ALOGV("Forcing monolithic cache due to debug.egl.blobcache.multifile == %s", mode.c_str());
-        mMultifileMode = false;
-    }
-
-    if (mMultifileMode) {
-        mCacheByteLimit = static_cast<size_t>(
-                base::GetUintProperty<uint32_t>("ro.egl.blobcache.multifile_limit",
-                                                kMultifileCacheByteLimit));
-
-        // Check for a debug value
-        int debugCacheSize = base::GetIntProperty("debug.egl.blobcache.multifile_limit", -1);
-        if (debugCacheSize >= 0) {
-            ALOGV("Overriding cache limit %zu with %i from debug.egl.blobcache.multifile_limit",
-                  mCacheByteLimit, debugCacheSize);
-            mCacheByteLimit = debugCacheSize;
-        }
-
-        ALOGV("Using multifile EGL blobcache limit of %zu bytes", mCacheByteLimit);
-    }
-
     mInitialized = true;
 }
 
