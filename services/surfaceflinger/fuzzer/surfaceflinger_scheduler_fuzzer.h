@@ -100,7 +100,7 @@ public:
         return true;
     }
 
-    void setRenderRate(Fps) override {}
+    void setDivisor(unsigned) override {}
 
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {
         if (timePoint % mPeriod == 0) {
