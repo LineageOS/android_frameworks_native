@@ -25,7 +25,6 @@ rust_library {
     ],
     visibility: [
         "//device/google/cuttlefish/shared/minidroid/sample",
-        "//packages/modules/Uwb",
         "//packages/modules/Virtualization:__subpackages__",
     ],
     apex_available: [
