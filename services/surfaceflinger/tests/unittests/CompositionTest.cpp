@@ -99,7 +99,7 @@ public:
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-        setupScheduler();
+        mFlinger.setupMockScheduler({.displayId = DEFAULT_DISPLAY_ID});
 
         EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
                 .WillRepeatedly(DoAll(SetArgPointee<1>(DEFAULT_DISPLAY_WIDTH), Return(0)));
@@ -120,36 +120,6 @@ public:
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
-    }
-
-    void setupScheduler() {
-        auto eventThread = std::make_unique<mock::EventThread>();
-        auto sfEventThread = std::make_unique<mock::EventThread>();
-
-        EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
-        EXPECT_CALL(*eventThread, createEventConnection(_, _))
-                .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
-                                                                 mock::EventThread::kCallingUid,
-                                                                 ResyncCallback())));
-
-        EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
-        EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-                .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
-                                                                 mock::EventThread::kCallingUid,
-                                                                 ResyncCallback())));
-
-        auto vsyncController = std::make_unique<mock::VsyncController>();
-        auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
-
-        EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-        EXPECT_CALL(*vsyncTracker, currentPeriod())
-                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
-        EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-
-        mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                                std::move(eventThread), std::move(sfEventThread),
-                                TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
-                                TestableSurfaceFlinger::kTwoDisplayModes);
     }
 
     void setupForceGeometryDirty() {
@@ -176,7 +146,6 @@ public:
     bool mDisplayOff = false;
     TestableSurfaceFlinger mFlinger;
     sp<DisplayDevice> mDisplay;
-    sp<DisplayDevice> mExternalDisplay;
     sp<compositionengine::mock::DisplaySurface> mDisplaySurface =
             sp<compositionengine::mock::DisplaySurface>::make();
     sp<mock::NativeWindow> mNativeWindow = sp<mock::NativeWindow>::make();

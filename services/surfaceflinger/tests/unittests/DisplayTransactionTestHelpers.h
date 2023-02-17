@@ -85,7 +85,7 @@ public:
     // --------------------------------------------------------------------
     // Mock/Fake injection
 
-    void injectMockScheduler();
+    void injectMockScheduler(PhysicalDisplayId);
     void injectMockComposer(int virtualDisplayCount);
     void injectFakeBufferQueueFactory();
     void injectFakeNativeWindowSurfaceFactory();
@@ -139,7 +139,7 @@ public:
     surfaceflinger::mock::NativeWindowSurface* mNativeWindowSurface = nullptr;
 
 protected:
-    DisplayTransactionTest();
+    DisplayTransactionTest(bool withMockScheduler = true);
 };
 
 constexpr int32_t DEFAULT_VSYNC_PERIOD = 16'666'667;
@@ -158,7 +158,6 @@ constexpr int POWER_MODE_LEET = 1337; // An out of range power mode value
 #define BOOL_SUBSTITUTE(TYPENAME) enum class TYPENAME : bool { FALSE = false, TRUE = true };
 
 BOOL_SUBSTITUTE(Async);
-BOOL_SUBSTITUTE(Critical);
 BOOL_SUBSTITUTE(Primary);
 BOOL_SUBSTITUTE(Secure);
 BOOL_SUBSTITUTE(Virtual);
@@ -238,8 +237,8 @@ struct HwcDisplayIdGetter<PhysicalDisplayIdType<PhysicalDisplay>> {
 //     1) PhysicalDisplayIdType<...> for generated ID of physical display backed by HWC.
 //     2) HalVirtualDisplayIdType<...> for hard-coded ID of virtual display backed by HWC.
 //     3) GpuVirtualDisplayIdType for virtual display without HWC backing.
-template <typename DisplayIdType, int width, int height, Critical critical, Async async,
-          Secure secure, Primary primary, int grallocUsage, int displayFlags>
+template <typename DisplayIdType, int width, int height, Async async, Secure secure,
+          Primary primary, int grallocUsage, int displayFlags>
 struct DisplayVariant {
     using DISPLAY_ID = DisplayIdGetter<DisplayIdType>;
     using CONNECTION_TYPE = DisplayConnectionTypeGetter<DisplayIdType>;
@@ -254,9 +253,6 @@ struct DisplayVariant {
     // Whether the display is virtual or physical
     static constexpr Virtual VIRTUAL =
             IsPhysicalDisplayId<DisplayIdType>{} ? Virtual::FALSE : Virtual::TRUE;
-
-    // When creating native window surfaces for the framebuffer, whether those should be critical
-    static constexpr Critical CRITICAL = critical;
 
     // When creating native window surfaces for the framebuffer, whether those should be async
     static constexpr Async ASYNC = async;
@@ -486,17 +482,16 @@ constexpr uint32_t GRALLOC_USAGE_PHYSICAL_DISPLAY =
 
 constexpr int PHYSICAL_DISPLAY_FLAGS = 0x1;
 
-template <typename PhysicalDisplay, int width, int height, Critical critical>
+template <typename PhysicalDisplay, int width, int height>
 struct PhysicalDisplayVariant
-      : DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, critical,
-                       Async::FALSE, Secure::TRUE, PhysicalDisplay::PRIMARY,
-                       GRALLOC_USAGE_PHYSICAL_DISPLAY, PHYSICAL_DISPLAY_FLAGS>,
-        HwcDisplayVariant<
-                PhysicalDisplay::HWC_DISPLAY_ID, DisplayType::PHYSICAL,
-                DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, critical,
-                               Async::FALSE, Secure::TRUE, PhysicalDisplay::PRIMARY,
-                               GRALLOC_USAGE_PHYSICAL_DISPLAY, PHYSICAL_DISPLAY_FLAGS>,
-                PhysicalDisplay> {};
+      : DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, Async::FALSE,
+                       Secure::TRUE, PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY,
+                       PHYSICAL_DISPLAY_FLAGS>,
+        HwcDisplayVariant<PhysicalDisplay::HWC_DISPLAY_ID, DisplayType::PHYSICAL,
+                          DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height,
+                                         Async::FALSE, Secure::TRUE, PhysicalDisplay::PRIMARY,
+                                         GRALLOC_USAGE_PHYSICAL_DISPLAY, PHYSICAL_DISPLAY_FLAGS>,
+                          PhysicalDisplay> {};
 
 template <bool hasIdentificationData>
 struct PrimaryDisplay {
@@ -525,15 +520,9 @@ struct TertiaryDisplay {
     static constexpr auto GET_IDENTIFICATION_DATA = getExternalEdid;
 };
 
-// A primary display is a physical display that is critical
-using PrimaryDisplayVariant =
-        PhysicalDisplayVariant<PrimaryDisplay<false>, 3840, 2160, Critical::TRUE>;
-
-// An external display is physical display that is not critical.
-using ExternalDisplayVariant =
-        PhysicalDisplayVariant<ExternalDisplay<false>, 1920, 1280, Critical::FALSE>;
-
-using TertiaryDisplayVariant = PhysicalDisplayVariant<TertiaryDisplay, 1600, 1200, Critical::FALSE>;
+using PrimaryDisplayVariant = PhysicalDisplayVariant<PrimaryDisplay<false>, 3840, 2160>;
+using ExternalDisplayVariant = PhysicalDisplayVariant<ExternalDisplay<false>, 1920, 1280>;
+using TertiaryDisplayVariant = PhysicalDisplayVariant<TertiaryDisplay, 1600, 1200>;
 
 // A virtual display not supported by the HWC.
 constexpr uint32_t GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY = 0;
@@ -542,12 +531,11 @@ constexpr int VIRTUAL_DISPLAY_FLAGS = 0x0;
 
 template <int width, int height, Secure secure>
 struct NonHwcVirtualDisplayVariant
-      : DisplayVariant<GpuVirtualDisplayIdType, width, height, Critical::FALSE, Async::TRUE, secure,
-                       Primary::FALSE, GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY,
-                       VIRTUAL_DISPLAY_FLAGS> {
-    using Base = DisplayVariant<GpuVirtualDisplayIdType, width, height, Critical::FALSE,
-                                Async::TRUE, secure, Primary::FALSE,
-                                GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY, VIRTUAL_DISPLAY_FLAGS>;
+      : DisplayVariant<GpuVirtualDisplayIdType, width, height, Async::TRUE, secure, Primary::FALSE,
+                       GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY, VIRTUAL_DISPLAY_FLAGS> {
+    using Base = DisplayVariant<GpuVirtualDisplayIdType, width, height, Async::TRUE, secure,
+                                Primary::FALSE, GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY,
+                                VIRTUAL_DISPLAY_FLAGS>;
 
     static void injectHwcDisplay(DisplayTransactionTest*) {}
 
@@ -589,17 +577,14 @@ constexpr uint32_t GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY = GRALLOC_USAGE_HW_COMPOSER
 
 template <int width, int height, Secure secure>
 struct HwcVirtualDisplayVariant
-      : DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Critical::FALSE, Async::TRUE,
-                       secure, Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY,
-                       VIRTUAL_DISPLAY_FLAGS>,
-        HwcDisplayVariant<
-                HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, DisplayType::VIRTUAL,
-                DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Critical::FALSE,
-                               Async::TRUE, secure, Primary::FALSE,
-                               GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY, VIRTUAL_DISPLAY_FLAGS>> {
-    using Base = DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Critical::FALSE,
-                                Async::TRUE, secure, Primary::FALSE, GRALLOC_USAGE_HW_COMPOSER,
-                                VIRTUAL_DISPLAY_FLAGS>;
+      : DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Async::TRUE, secure,
+                       Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY, VIRTUAL_DISPLAY_FLAGS>,
+        HwcDisplayVariant<HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, DisplayType::VIRTUAL,
+                          DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Async::TRUE,
+                                         secure, Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY,
+                                         VIRTUAL_DISPLAY_FLAGS>> {
+    using Base = DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Async::TRUE, secure,
+                                Primary::FALSE, GRALLOC_USAGE_HW_COMPOSER, VIRTUAL_DISPLAY_FLAGS>;
     using Self = HwcVirtualDisplayVariant<width, height, secure>;
 
     static std::shared_ptr<compositionengine::Display> injectCompositionDisplay(

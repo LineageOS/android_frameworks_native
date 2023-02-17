@@ -50,7 +50,7 @@ public:
         mFlinger.configureAndCommit();
 
         mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
-                           .setDisplayModes(kModes, kModeId60, std::move(selectorPtr))
+                           .setRefreshRateSelector(std::move(selectorPtr))
                            .inject();
 
         // isVsyncPeriodSwitchSupported should return true, otherwise the SF's HWC proxy
@@ -109,8 +109,8 @@ void DisplayModeSwitchingTest::setupScheduler(
     EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
     mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
                             std::move(eventThread), std::move(sfEventThread),
-                            TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
-                            std::move(selectorPtr));
+                            std::move(selectorPtr),
+                            TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp);
 }
 
 TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRequired) {

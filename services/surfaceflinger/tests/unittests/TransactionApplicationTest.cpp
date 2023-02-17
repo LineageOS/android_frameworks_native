@@ -33,15 +33,12 @@
 #include "FrontEnd/TransactionHandler.h"
 #include "TestableSurfaceFlinger.h"
 #include "TransactionState.h"
-#include "mock/MockEventThread.h"
-#include "mock/MockVsyncController.h"
 
 namespace android {
 
 using testing::_;
 using testing::Return;
 
-using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
 using frontend::TransactionHandler;
 
 constexpr nsecs_t TRANSACTION_TIMEOUT = s2ns(5);
@@ -52,7 +49,9 @@ public:
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-        setupScheduler();
+        mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
+        mFlinger.setupMockScheduler();
+        mFlinger.flinger()->addTransactionReadyFilters();
     }
 
     ~TransactionApplicationTest() {
@@ -61,37 +60,7 @@ public:
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
     }
 
-    void setupScheduler() {
-        auto eventThread = std::make_unique<mock::EventThread>();
-        auto sfEventThread = std::make_unique<mock::EventThread>();
-
-        EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
-        EXPECT_CALL(*eventThread, createEventConnection(_, _))
-                .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
-                                                                 mock::EventThread::kCallingUid,
-                                                                 ResyncCallback())));
-
-        EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
-        EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-                .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
-                                                                 mock::EventThread::kCallingUid,
-                                                                 ResyncCallback())));
-
-        EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-        EXPECT_CALL(*mVSyncTracker, currentPeriod())
-                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
-
-        mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
-        mFlinger.setupScheduler(std::unique_ptr<mock::VsyncController>(mVsyncController),
-                                std::unique_ptr<mock::VSyncTracker>(mVSyncTracker),
-                                std::move(eventThread), std::move(sfEventThread));
-        mFlinger.flinger()->addTransactionReadyFilters();
-    }
-
     TestableSurfaceFlinger mFlinger;
-
-    mock::VsyncController* mVsyncController = new mock::VsyncController();
-    mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker();
 
     struct TransactionInfo {
         Vector<ComposerState> states;
