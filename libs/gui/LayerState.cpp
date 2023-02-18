@@ -189,6 +189,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeParcelable, trustedPresentationListener);
     SAFE_PARCEL(output.writeFloat, currentSdrHdrRatio);
     SAFE_PARCEL(output.writeFloat, desiredSdrHdrRatio);
+    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(cachingHint))
     return NO_ERROR;
 }
 
@@ -327,6 +328,10 @@ status_t layer_state_t::read(const Parcel& input)
     currentSdrHdrRatio = tmpFloat;
     SAFE_PARCEL(input.readFloat, &tmpFloat);
     desiredSdrHdrRatio = tmpFloat;
+
+    int32_t tmpInt32;
+    SAFE_PARCEL(input.readInt32, &tmpInt32);
+    cachingHint = static_cast<gui::CachingHint>(tmpInt32);
 
     return NO_ERROR;
 }
@@ -580,6 +585,10 @@ void layer_state_t::merge(const layer_state_t& other) {
         desiredSdrHdrRatio = other.desiredSdrHdrRatio;
         currentSdrHdrRatio = other.currentSdrHdrRatio;
     }
+    if (other.what & eCachingHintChanged) {
+        what |= eCachingHintChanged;
+        cachingHint = other.cachingHint;
+    }
     if (other.what & eHdrMetadataChanged) {
         what |= eHdrMetadataChanged;
         hdrMetadata = other.hdrMetadata;
@@ -731,6 +740,7 @@ uint64_t layer_state_t::diff(const layer_state_t& other) const {
     CHECK_DIFF(diff, eDataspaceChanged, other, dataspace);
     CHECK_DIFF2(diff, eExtendedRangeBrightnessChanged, other, currentSdrHdrRatio,
                 desiredSdrHdrRatio);
+    CHECK_DIFF(diff, eCachingHintChanged, other, cachingHint);
     CHECK_DIFF(diff, eHdrMetadataChanged, other, hdrMetadata);
     if (other.what & eSurfaceDamageRegionChanged &&
         (!surfaceDamageRegion.hasSameRects(other.surfaceDamageRegion))) {
