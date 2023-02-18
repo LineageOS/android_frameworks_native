@@ -172,7 +172,7 @@ struct layer_state_t {
         eFlagsChanged = 0x00000040,
         eLayerStackChanged = 0x00000080,
         eFlushJankData = 0x00000100,
-        /* unused = 0x00000200, */
+        eCachingHintChanged = 0x00000200,
         eDimmingEnabledChanged = 0x00000400,
         eShadowRadiusChanged = 0x00000800,
         eRenderBorderChanged = 0x00001000,
@@ -211,7 +211,8 @@ struct layer_state_t {
         eStretchChanged = 0x2000'00000000,
         eTrustedOverlayChanged = 0x4000'00000000,
         eDropInputModeChanged = 0x8000'00000000,
-        eExtendedRangeBrightnessChanged = 0x10000'00000000
+        eExtendedRangeBrightnessChanged = 0x10000'00000000,
+
     };
 
     layer_state_t();
@@ -390,6 +391,8 @@ struct layer_state_t {
     bool dimmingEnabled;
     float currentSdrHdrRatio = 1.f;
     float desiredSdrHdrRatio = 1.f;
+
+    gui::CachingHint cachingHint = gui::CachingHint::Enabled;
 
     TrustedPresentationThresholds trustedPresentationThresholds;
     TrustedPresentationListener trustedPresentationListener;

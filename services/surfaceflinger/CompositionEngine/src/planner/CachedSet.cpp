@@ -393,6 +393,18 @@ bool CachedSet::hasSolidColorLayers() const {
     });
 }
 
+bool CachedSet::cachingHintExcludesLayers() const {
+    const bool shouldExcludeLayers =
+            std::any_of(mLayers.cbegin(), mLayers.cend(), [](const Layer& layer) {
+                return layer.getState()->getCachingHint() == gui::CachingHint::Disabled;
+            });
+
+    LOG_ALWAYS_FATAL_IF(shouldExcludeLayers && getLayerCount() > 1,
+                        "CachedSet is invalid: should be excluded but contains %zu layers",
+                        getLayerCount());
+    return shouldExcludeLayers;
+}
+
 void CachedSet::dump(std::string& result) const {
     const auto now = std::chrono::steady_clock::now();
 

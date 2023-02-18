@@ -4783,6 +4783,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             flags |= eTraversalNeeded;
         }
     }
+    if (what & layer_state_t::eCachingHintChanged) {
+        if (layer->setCachingHint(s.cachingHint)) {
+            flags |= eTraversalNeeded;
+        }
+    }
     if (what & layer_state_t::eHdrMetadataChanged) {
         if (layer->setHdrMetadata(s.hdrMetadata)) flags |= eTraversalNeeded;
     }

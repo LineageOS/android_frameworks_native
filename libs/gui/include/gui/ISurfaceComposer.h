@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android/gui/CachingHint.h>
 #include <android/gui/DisplayBrightness.h>
 #include <android/gui/FrameTimelineInfo.h>
 #include <android/gui/IDisplayEventConnection.h>
