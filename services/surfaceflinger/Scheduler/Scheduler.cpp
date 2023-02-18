@@ -418,11 +418,7 @@ void Scheduler::setRenderRate(Fps renderFrameRate) {
     ALOGV("%s %s (%s)", __func__, to_string(mode.fps).c_str(),
           to_string(mode.modePtr->getFps()).c_str());
 
-    const auto divisor = RefreshRateSelector::getFrameRateDivisor(mode.modePtr->getFps(), mode.fps);
-    LOG_ALWAYS_FATAL_IF(divisor == 0, "%s <> %s -- not divisors", to_string(mode.fps).c_str(),
-                        to_string(mode.fps).c_str());
-
-    mVsyncSchedule->getTracker().setDivisor(static_cast<unsigned>(divisor));
+    mVsyncSchedule->getTracker().setRenderRate(renderFrameRate);
 }
 
 void Scheduler::resync() {

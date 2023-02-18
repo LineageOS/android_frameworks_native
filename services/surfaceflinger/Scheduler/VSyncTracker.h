@@ -80,15 +80,16 @@ public:
     virtual bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const = 0;
 
     /*
-     * Sets a divisor on the rate (which is a multiplier of the period).
+     * Sets a render rate on the tracker. If the render rate is not a divisor
+     * of the period, the render rate is ignored until the period changes.
      * The tracker will continue to track the vsync timeline and expect it
      * to match the current period, however, nextAnticipatedVSyncTimeFrom will
-     * return vsyncs according to the divisor set. Setting a divisor is useful
+     * return vsyncs according to the render rate set. Setting a render rate is useful
      * when a display is running at 120Hz but the render frame rate is 60Hz.
      *
-     * \param [in] divisor   The rate divisor the tracker should operate at.
+     * \param [in] Fps   The render rate the tracker should operate at.
      */
-    virtual void setDivisor(unsigned divisor) = 0;
+    virtual void setRenderRate(Fps) = 0;
 
     virtual void dump(std::string& result) const = 0;
 
