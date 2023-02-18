@@ -994,6 +994,45 @@ TEST_F(LayerStateTest, hasBlurBehind_withBlurRegion_returnsTrue) {
     EXPECT_TRUE(mLayerState->hasBlurBehind());
 }
 
+TEST_F(LayerStateTest, updateCachingHint) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.cachingHint = gui::CachingHint::Enabled;
+    setupMocksForLayer(mOutputLayer, *mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+
+    mock::OutputLayer newOutputLayer;
+    sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.cachingHint = gui::CachingHint::Disabled;
+    setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::CachingHint), updates);
+}
+
+TEST_F(LayerStateTest, compareCachingHint) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.cachingHint = gui::CachingHint::Enabled;
+    setupMocksForLayer(mOutputLayer, *mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    mock::OutputLayer newOutputLayer;
+    sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.cachingHint = gui::CachingHint::Disabled;
+    setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+    auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);
+
+    verifyNonUniqueDifferingFields(*mLayerState, *otherLayerState, LayerStateField::CachingHint);
+
+    EXPECT_TRUE(mLayerState->compare(*otherLayerState));
+    EXPECT_TRUE(otherLayerState->compare(*mLayerState));
+}
+
 TEST_F(LayerStateTest, dumpDoesNotCrash) {
     OutputLayerCompositionState outputLayerCompositionState;
     LayerFECompositionState layerFECompositionState;

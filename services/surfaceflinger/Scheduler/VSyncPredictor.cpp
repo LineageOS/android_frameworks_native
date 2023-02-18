@@ -376,7 +376,6 @@ void VSyncPredictor::clearTimestamps() {
         mTimestamps.clear();
         mLastTimestampIndex = 0;
     }
-    mLastVsyncSequence.reset();
 }
 
 bool VSyncPredictor::needsMoreSamples() const {
