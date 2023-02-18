@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android/gui/CachingHint.h>
 #include <gui/LayerMetadata.h>
 #include "FrontEnd/LayerSnapshot.h"
 #include "compositionengine/LayerFE.h"
