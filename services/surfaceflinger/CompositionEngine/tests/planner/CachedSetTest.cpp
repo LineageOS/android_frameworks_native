@@ -577,6 +577,20 @@ TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
     cachedSet.append(CachedSet(layer3));
 }
 
+TEST_F(CachedSetTest, cachingHintIncludesLayersByDefault) {
+    CachedSet cachedSet(*mTestLayers[0]->cachedSetLayer.get());
+    EXPECT_FALSE(cachedSet.cachingHintExcludesLayers());
+}
+
+TEST_F(CachedSetTest, cachingHintExcludesLayersWhenDisabled) {
+    CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
+    mTestLayers[0]->layerFECompositionState.cachingHint = gui::CachingHint::Disabled;
+    mTestLayers[0]->layerState->update(&mTestLayers[0]->outputLayer);
+
+    CachedSet cachedSet(layer1);
+    EXPECT_TRUE(cachedSet.cachingHintExcludesLayers());
+}
+
 TEST_F(CachedSetTest, holePunch_requiresBuffer) {
     CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
     auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;

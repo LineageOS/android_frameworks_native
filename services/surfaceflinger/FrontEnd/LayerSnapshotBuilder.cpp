@@ -727,6 +727,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         snapshot.dimmingEnabled = requested.dimmingEnabled;
         snapshot.layerOpaqueFlagSet =
                 (requested.flags & layer_state_t::eLayerOpaque) == layer_state_t::eLayerOpaque;
+        snapshot.cachingHint = requested.cachingHint;
     }
 
     if (forceUpdate || snapshot.changes.any(RequestedLayerState::Changes::Content)) {

@@ -137,6 +137,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     dataspace = ui::Dataspace::V0_SRGB;
     gameMode = gui::GameMode::Unsupported;
     requestedFrameRate = {};
+    cachingHint = gui::CachingHint::Enabled;
 }
 
 void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerState) {

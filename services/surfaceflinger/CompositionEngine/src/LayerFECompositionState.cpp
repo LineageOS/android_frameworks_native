@@ -126,6 +126,7 @@ void LayerFECompositionState::dump(std::string& out) const {
         dumpVal(out, "desired sdr/hdr ratio", desiredSdrHdrRatio);
     }
     dumpVal(out, "colorTransform", colorTransform);
+    dumpVal(out, "caching hint", toString(cachingHint));
 
     out.append("\n");
 }
