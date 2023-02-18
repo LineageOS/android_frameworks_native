@@ -24,8 +24,6 @@
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
-#include "mock/MockEventThread.h"
-#include "mock/MockVsyncController.h"
 
 namespace android {
 
@@ -37,8 +35,6 @@ using testing::SetArgPointee;
 
 using android::Hwc2::IComposer;
 using android::Hwc2::IComposerClient;
-
-using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
 
 /**
  * This class covers all the test that are related to refresh rate selection.
@@ -56,7 +52,6 @@ protected:
     static constexpr uint32_t LAYER_FLAGS = 0;
     static constexpr int32_t PRIORITY_UNSET = -1;
 
-    void setupScheduler();
     sp<Layer> createBufferStateLayer();
     sp<Layer> createEffectLayer();
 
@@ -76,7 +71,7 @@ RefreshRateSelectionTest::RefreshRateSelectionTest() {
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-    setupScheduler();
+    mFlinger.setupMockScheduler();
     mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
 }
 
@@ -108,37 +103,8 @@ void RefreshRateSelectionTest::commitTransaction(Layer* layer) {
     layer->commitTransaction(c);
 }
 
-void RefreshRateSelectionTest::setupScheduler() {
-    auto eventThread = std::make_unique<mock::EventThread>();
-    auto sfEventThread = std::make_unique<mock::EventThread>();
-
-    EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
-    EXPECT_CALL(*eventThread, createEventConnection(_, _))
-            .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
-
-    EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
-    EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-            .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
-
-    auto vsyncController = std::make_unique<mock::VsyncController>();
-    auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
-
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-    EXPECT_CALL(*vsyncTracker, currentPeriod())
-            .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-    mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                            std::move(eventThread), std::move(sfEventThread));
-}
-
 namespace {
-/* ------------------------------------------------------------------------
- * Test cases
- */
+
 TEST_F(RefreshRateSelectionTest, testPriorityOnBufferStateLayers) {
     mParent = createBufferStateLayer();
     mChild = createBufferStateLayer();
