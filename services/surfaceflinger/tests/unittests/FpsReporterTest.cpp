@@ -29,9 +29,7 @@
 #include "TestableSurfaceFlinger.h"
 #include "fake/FakeClock.h"
 #include "mock/DisplayHardware/MockComposer.h"
-#include "mock/MockEventThread.h"
 #include "mock/MockFrameTimeline.h"
-#include "mock/MockVsyncController.h"
 
 namespace android {
 
@@ -47,7 +45,6 @@ using testing::UnorderedElementsAre;
 using android::Hwc2::IComposer;
 using android::Hwc2::IComposerClient;
 
-using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
 using gui::LayerMetadata;
 
 struct TestableFpsListener : public gui::BnFpsListener {
@@ -77,7 +74,6 @@ protected:
     static constexpr uint32_t LAYER_FLAGS = 0;
     static constexpr int32_t PRIORITY_UNSET = -1;
 
-    void setupScheduler();
     sp<Layer> createBufferStateLayer(LayerMetadata metadata);
 
     TestableSurfaceFlinger mFlinger;
@@ -102,7 +98,7 @@ FpsReporterTest::FpsReporterTest() {
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-    setupScheduler();
+    mFlinger.setupMockScheduler();
     mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
 
     mFpsListener = sp<TestableFpsListener>::make();
@@ -118,33 +114,6 @@ sp<Layer> FpsReporterTest::createBufferStateLayer(LayerMetadata metadata = {}) {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", LAYER_FLAGS, metadata);
     return sp<Layer>::make(args);
-}
-
-void FpsReporterTest::setupScheduler() {
-    auto eventThread = std::make_unique<mock::EventThread>();
-    auto sfEventThread = std::make_unique<mock::EventThread>();
-
-    EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
-    EXPECT_CALL(*eventThread, createEventConnection(_, _))
-            .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
-
-    EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
-    EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-            .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
-
-    auto vsyncController = std::make_unique<mock::VsyncController>();
-    auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
-
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-    EXPECT_CALL(*vsyncTracker, currentPeriod())
-            .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-    mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                            std::move(eventThread), std::move(sfEventThread));
 }
 
 namespace {

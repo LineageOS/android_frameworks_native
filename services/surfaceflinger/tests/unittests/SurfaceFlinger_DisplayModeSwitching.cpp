@@ -109,8 +109,8 @@ void DisplayModeSwitchingTest::setupScheduler(
     EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
     mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
                             std::move(eventThread), std::move(sfEventThread),
-                            TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
-                            std::move(selectorPtr));
+                            std::move(selectorPtr),
+                            TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp);
 }
 
 TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRequired) {

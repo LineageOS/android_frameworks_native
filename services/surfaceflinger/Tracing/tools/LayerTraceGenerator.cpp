@@ -191,29 +191,20 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
         return false;
     }
 
-    Factory mFactory;
-    sp<MockSurfaceFlinger> flinger = sp<MockSurfaceFlinger>::make(mFactory);
-    TestableSurfaceFlinger mFlinger(flinger);
-    mFlinger.setupRenderEngine(
+    Factory factory;
+    sp<MockSurfaceFlinger> flingerPtr = sp<MockSurfaceFlinger>::make(factory);
+    TestableSurfaceFlinger flinger(flingerPtr);
+    flinger.setupRenderEngine(
             std::make_unique<testing::NiceMock<renderengine::mock::RenderEngine>>());
-    mock::VsyncController* mVsyncController = new testing::NiceMock<mock::VsyncController>();
-    mock::VSyncTracker* mVSyncTracker = new testing::NiceMock<mock::VSyncTracker>();
-    mock::EventThread* mEventThread = new testing::NiceMock<mock::EventThread>();
-    mock::EventThread* mSFEventThread = new testing::NiceMock<mock::EventThread>();
-    mFlinger.setupScheduler(std::unique_ptr<scheduler::VsyncController>(mVsyncController),
-                            std::unique_ptr<scheduler::VSyncTracker>(mVSyncTracker),
-                            std::unique_ptr<EventThread>(mEventThread),
-                            std::unique_ptr<EventThread>(mSFEventThread),
-                            TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp,
-                            TestableSurfaceFlinger::kOneDisplayMode, true /* useNiceMock */);
+    flinger.setupMockScheduler({.useNiceMock = true});
 
-    Hwc2::mock::Composer* mComposer = new testing::NiceMock<Hwc2::mock::Composer>();
-    mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
-    mFlinger.mutableMaxRenderTargetSize() = 16384;
+    Hwc2::mock::Composer* composerPtr = new testing::NiceMock<Hwc2::mock::Composer>();
+    flinger.setupComposer(std::unique_ptr<Hwc2::Composer>(composerPtr));
+    flinger.mutableMaxRenderTargetSize() = 16384;
 
-    flinger->setLayerTracingFlags(LayerTracing::TRACE_INPUT | LayerTracing::TRACE_BUFFERS);
-    flinger->setLayerTraceSize(512 * 1024); // 512MB buffer size
-    flinger->startLayerTracing(traceFile.entry(0).elapsed_realtime_nanos());
+    flingerPtr->setLayerTracingFlags(LayerTracing::TRACE_INPUT | LayerTracing::TRACE_BUFFERS);
+    flingerPtr->setLayerTraceSize(512 * 1024); // 512MB buffer size
+    flingerPtr->startLayerTracing(traceFile.entry(0).elapsed_realtime_nanos());
     std::unique_ptr<TraceGenFlingerDataMapper> mapper =
             std::make_unique<TraceGenFlingerDataMapper>();
     TraceGenFlingerDataMapper* dataMapper = mapper.get();
@@ -234,7 +225,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
             parser.fromProto(entry.added_layers(j), tracingArgs);
 
             gui::CreateSurfaceResult outResult;
-            LayerCreationArgs args(mFlinger.flinger(), nullptr /* client */, tracingArgs.name,
+            LayerCreationArgs args(flinger.flinger(), nullptr /* client */, tracingArgs.name,
                                    tracingArgs.flags, LayerMetadata(),
                                    std::make_optional<int32_t>(tracingArgs.layerId));
 
@@ -247,10 +238,10 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
                 } else if (tracingArgs.parentId != -1) {
                     parentHandle = dataMapper->getLayerHandle(tracingArgs.parentId);
                 }
-                mFlinger.createLayer(args, parentHandle, outResult);
+                flinger.createLayer(args, parentHandle, outResult);
             } else {
                 sp<IBinder> mirrorFromHandle = dataMapper->getLayerHandle(tracingArgs.mirrorFromId);
-                mFlinger.mirrorLayer(args, mirrorFromHandle, outResult);
+                flinger.mirrorLayer(args, mirrorFromHandle, outResult);
             }
             LOG_ALWAYS_FATAL_IF(outResult.layerId != tracingArgs.layerId,
                                 "Could not create layer expected:%d actual:%d", tracingArgs.layerId,
@@ -261,19 +252,19 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
         for (int j = 0; j < entry.transactions_size(); j++) {
             // apply transactions
             TransactionState transaction = parser.fromProto(entry.transactions(j));
-            mFlinger.setTransactionStateInternal(transaction);
+            flinger.setTransactionStateInternal(transaction);
         }
 
         const auto frameTime = TimePoint::fromNs(entry.elapsed_realtime_nanos());
         const auto vsyncId = VsyncId{entry.vsync_id()};
-        mFlinger.commit(frameTime, vsyncId);
+        flinger.commit(frameTime, vsyncId);
 
         for (int j = 0; j < entry.removed_layer_handles_size(); j++) {
             dataMapper->mLayerHandles.erase(entry.removed_layer_handles(j));
         }
     }
 
-    flinger->stopLayerTracing(outputLayersTracePath);
+    flingerPtr->stopLayerTracing(outputLayersTracePath);
     ALOGD("End of generating trace file. File written to %s", outputLayersTracePath);
     dataMapper->mLayerHandles.clear();
     return true;
