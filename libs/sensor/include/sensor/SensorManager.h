@@ -54,6 +54,7 @@ class SensorManager : public ASensorManager
 {
 public:
     static SensorManager& getInstanceForPackage(const String16& packageName);
+    static void removeInstanceForPackage(const String16& packageName);
     ~SensorManager();
 
     ssize_t getSensorList(Sensor const* const** list);
