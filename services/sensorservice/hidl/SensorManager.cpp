@@ -60,6 +60,9 @@ SensorManager::~SensorManager() {
     if (mPollThread.joinable()) {
         mPollThread.join();
     }
+
+    ::android::SensorManager::removeInstanceForPackage(
+            String16(ISensorManager::descriptor));
 }
 
 // Methods from ::android::frameworks::sensorservice::V1_0::ISensorManager follow.
