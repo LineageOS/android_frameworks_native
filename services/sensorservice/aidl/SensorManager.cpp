@@ -59,6 +59,9 @@ SensorManagerAidl::~SensorManagerAidl() {
     if (mPollThread.joinable()) {
         mPollThread.join();
     }
+
+    ::android::SensorManager::removeInstanceForPackage(
+            String16(ISensorManager::descriptor));
 }
 
 ndk::ScopedAStatus createDirectChannel(::android::SensorManager& manager, size_t size, int type,
