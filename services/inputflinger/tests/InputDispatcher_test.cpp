@@ -58,8 +58,23 @@ static constexpr int32_t SECOND_DEVICE_ID = 2;
 static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
 static constexpr int32_t SECOND_DISPLAY_ID = 1;
 
+static constexpr int32_t ACTION_DOWN = AMOTION_EVENT_ACTION_DOWN;
+static constexpr int32_t ACTION_MOVE = AMOTION_EVENT_ACTION_MOVE;
+static constexpr int32_t ACTION_UP = AMOTION_EVENT_ACTION_UP;
+static constexpr int32_t ACTION_HOVER_ENTER = AMOTION_EVENT_ACTION_HOVER_ENTER;
+static constexpr int32_t ACTION_HOVER_EXIT = AMOTION_EVENT_ACTION_HOVER_EXIT;
 static constexpr int32_t ACTION_OUTSIDE = AMOTION_EVENT_ACTION_OUTSIDE;
 static constexpr int32_t ACTION_CANCEL = AMOTION_EVENT_ACTION_CANCEL;
+/**
+ * The POINTER_DOWN(0) is an unusual, but valid, action. It just means that the new pointer in the
+ * MotionEvent is at the index 0 rather than 1 (or later). That is, the pointer id=0 (which is at
+ * index 0) is the new pointer going down. The same pointer could have been placed at a different
+ * index, and the action would become POINTER_1_DOWN, 2, etc..; these would all be valid. In
+ * general, we try to place pointer id = 0 at the index 0. Of course, this is not possible if
+ * pointer id=0 leaves but the pointer id=1 remains.
+ */
+static constexpr int32_t POINTER_0_DOWN =
+        AMOTION_EVENT_ACTION_POINTER_DOWN | (0 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 static constexpr int32_t POINTER_1_DOWN =
         AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 static constexpr int32_t POINTER_2_DOWN =
@@ -145,6 +160,10 @@ MATCHER_P(WithDisplayId, displayId, "InputEvent with specified displayId") {
     return arg.getDisplayId() == displayId;
 }
 
+MATCHER_P(WithDeviceId, deviceId, "InputEvent with specified deviceId") {
+    return arg.getDeviceId() == deviceId;
+}
+
 MATCHER_P(WithSource, source, "InputEvent with specified source") {
     *result_listener << "expected source " << inputEventSourceToString(source) << ", but got "
                      << inputEventSourceToString(arg.getSource());
@@ -161,6 +180,10 @@ MATCHER_P2(WithCoords, x, y, "MotionEvent with specified coordinates") {
         return false;
     }
     return arg.getX(/*pointerIndex=*/0) == x && arg.getY(/*pointerIndex=*/0) == y;
+}
+
+MATCHER_P(WithPointerCount, pointerCount, "MotionEvent with specified number of pointers") {
+    return arg.getPointerCount() == pointerCount;
 }
 
 MATCHER_P(WithPointers, pointers, "MotionEvent with specified pointers") {
@@ -2365,6 +2388,165 @@ TEST_F(InputDispatcherTest, HoverFromLeftToRightAndTap) {
 }
 
 /**
+ * Two windows: a window on the left and a window on the right.
+ * Mouse is clicked on the left window and remains down. Touch is touched on the right and remains
+ * down. Then, on the left window, also place second touch pointer down.
+ * This test tries to reproduce a crash.
+ * In the buggy implementation, second pointer down on the left window would cause a crash.
+ */
+TEST_F(InputDispatcherTest, MultiDeviceSplitTouch) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
+    leftWindow->setFrame(Rect(0, 0, 200, 200));
+
+    sp<FakeWindowHandle> rightWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
+    rightWindow->setFrame(Rect(200, 0, 400, 200));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {leftWindow, rightWindow}}});
+
+    const int32_t touchDeviceId = 4;
+    const int32_t mouseDeviceId = 6;
+    NotifyMotionArgs args;
+
+    // Start hovering over the left window
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .build()));
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_ENTER), WithDeviceId(mouseDeviceId)));
+
+    // Mouse down on left window
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .build()));
+
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithDeviceId(mouseDeviceId)));
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(mouseDeviceId)));
+
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(AMOTION_EVENT_ACTION_BUTTON_PRESS, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .build()));
+    leftWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
+
+    // First touch pointer down on right window
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .build()));
+    leftWindow->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
+
+    rightWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+
+    // Second touch pointer down on left window
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .build()));
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId)));
+    // This MOVE event is not necessary (doesn't carry any new information), but it's there in the
+    // current implementation.
+    const std::map<int32_t, PointF> expectedPointers{{0, PointF{100, 100}}};
+    rightWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_MOVE), WithPointers(expectedPointers)));
+
+    leftWindow->assertNoEvents();
+    rightWindow->assertNoEvents();
+}
+
+/**
+ * On a single window, use two different devices: mouse and touch.
+ * Touch happens first, with two pointers going down, and then the first pointer leaving.
+ * Mouse is clicked next, which causes the touch stream to be aborted with ACTION_CANCEL.
+ * Finally, a second touch pointer goes down again. Ensure the second touch pointer is ignored,
+ * because the mouse is currently down, and a POINTER_DOWN event from the touchscreen does not
+ * represent a new gesture.
+ */
+TEST_F(InputDispatcherTest, MixedTouchAndMouseWithPointerDown) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 400, 400));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    const int32_t touchDeviceId = 4;
+    const int32_t mouseDeviceId = 6;
+    NotifyMotionArgs args;
+
+    // First touch pointer down on right window
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .build()));
+    // Second touch pointer down
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(350).y(100))
+                           .build()));
+    // First touch pointer lifts. The second one remains down
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(POINTER_0_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(350).y(100))
+                           .build()));
+    window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+    window->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
+    window->consumeMotionEvent(WithMotionAction(POINTER_0_UP));
+
+    // Mouse down. The touch should be canceled
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(320).y(100))
+                           .build()));
+
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(touchDeviceId),
+                                     WithPointerCount(2u)));
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(mouseDeviceId)));
+
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(AMOTION_EVENT_ACTION_BUTTON_PRESS, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(320).y(100))
+                           .build()));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
+
+    // Second touch pointer down.
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(POINTER_0_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(350).y(100))
+                           .build()));
+    // The pointer_down event should be ignored
+    window->assertNoEvents();
+}
+
+/**
  * This test is similar to the test above, but the sequence of injected events is different.
  *
  * Two windows: a window on the left and a window on the right.
@@ -2541,6 +2723,182 @@ TEST_F(InputDispatcherTest, StylusHoverAndTouchTap) {
 }
 
 /**
+ * A spy window above a window with no input channel.
+ * Start hovering with a stylus device, and then tap with it.
+ * Ensure spy window receives the entire sequence.
+ */
+TEST_F(InputDispatcherTest, StylusHoverAndDownNoInputChannel) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> spyWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy", ADISPLAY_ID_DEFAULT);
+    spyWindow->setFrame(Rect(0, 0, 200, 200));
+    spyWindow->setTrustedOverlay(true);
+    spyWindow->setSpy(true);
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setNoInputChannel(true);
+    window->setFrame(Rect(0, 0, 200, 200));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spyWindow, window}}});
+
+    NotifyMotionArgs args;
+
+    // Start hovering with stylus
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+    // Stop hovering
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+
+    // Stylus touches down
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_STYLUS)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+
+    // Stylus goes up
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_STYLUS)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_UP));
+
+    // Again hover
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+    // Stop hovering
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+
+    // No more events
+    spyWindow->assertNoEvents();
+    window->assertNoEvents();
+}
+
+/**
+ * Start hovering with a mouse, and then tap with a touch device. Pilfer the touch stream.
+ * Next, click with the mouse device. Both windows (spy and regular) should receive the new mouse
+ * ACTION_DOWN event because that's a new gesture, and pilfering should no longer be active.
+ * While the mouse is down, new move events from the touch device should be ignored.
+ */
+TEST_F(InputDispatcherTest, TouchPilferAndMouseMove) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> spyWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy", ADISPLAY_ID_DEFAULT);
+    spyWindow->setFrame(Rect(0, 0, 200, 200));
+    spyWindow->setTrustedOverlay(true);
+    spyWindow->setSpy(true);
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 200, 200));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spyWindow, window}}});
+
+    const int32_t mouseDeviceId = 7;
+    const int32_t touchDeviceId = 4;
+    NotifyMotionArgs args;
+
+    // Hover a bit with mouse first
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .build()));
+    spyWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_ENTER), WithDeviceId(mouseDeviceId)));
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_ENTER), WithDeviceId(mouseDeviceId)));
+
+    // Start touching
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                             .deviceId(touchDeviceId)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                             .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+    window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                             .deviceId(touchDeviceId)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(55).y(55))
+                             .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+    window->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+
+    // Pilfer the stream
+    EXPECT_EQ(OK, mDispatcher->pilferPointers(spyWindow->getToken()));
+    window->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
+
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                             .deviceId(touchDeviceId)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(60).y(60))
+                             .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+
+    // Mouse down
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .build()));
+
+    spyWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(touchDeviceId)));
+    spyWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(mouseDeviceId)));
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(mouseDeviceId)));
+
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(AMOTION_EVENT_ACTION_BUTTON_PRESS, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
+
+    // Mouse move!
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(110).y(110))
+                           .build()));
+    spyWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+    window->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+
+    // Touch move!
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                             .deviceId(touchDeviceId)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(65).y(65))
+                             .build()));
+
+    // No more events
+    spyWindow->assertNoEvents();
+    window->assertNoEvents();
+}
+
+/**
  * On the display, have a single window, and also an area where there's no window.
  * First pointer touches the "no window" area of the screen. Second pointer touches the window.
  * Make sure that the window receives the second pointer, and first pointer is simply ignored.
@@ -2705,7 +3063,8 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    windowLeft->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    windowLeft->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+    windowLeft->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher,
@@ -2750,12 +3109,75 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                          .x(900)
                                                          .y(400))
                                         .build()));
-    windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
     windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
 
     // No more events
     windowLeft->assertNoEvents();
     windowRight->assertNoEvents();
+}
+
+/**
+ * Put two fingers down (and don't release them) and click the mouse button.
+ * The clicking of mouse is a new ACTION_DOWN event. Since it's from a different device, the
+ * currently active gesture should be canceled, and the new one should proceed.
+ */
+TEST_F(InputDispatcherTest, TwoPointersDownMouseClick) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 600, 800));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    const int32_t touchDeviceId = 4;
+    const int32_t mouseDeviceId = 6;
+    NotifyMotionArgs args;
+
+    // Two pointers down
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .build()));
+
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(120).y(120))
+                           .build()));
+    window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+    window->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
+
+    // Inject a series of mouse events for a mouse click
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(300).y(400))
+                           .build()));
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(touchDeviceId),
+                                     WithPointerCount(2u)));
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(mouseDeviceId)));
+
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(AMOTION_EVENT_ACTION_BUTTON_PRESS, AINPUT_SOURCE_MOUSE)
+                           .deviceId(mouseDeviceId)
+                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(300).y(400))
+                           .build()));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
+
+    // Try to send more touch events while the mouse is down. Since it's a continuation of an
+    // already canceled gesture, it should be ignored.
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(101).y(101))
+                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(121).y(121))
+                           .build()));
+    window->assertNoEvents();
 }
 
 TEST_F(InputDispatcherTest, HoverWithSpyWindows) {
@@ -2940,7 +3362,8 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+    window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher,
@@ -2984,7 +3407,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                                          .x(300)
                                                          .y(400))
                                         .build()));
-    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+    window->assertNoEvents();
 }
 
 /**
