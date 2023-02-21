@@ -27,6 +27,7 @@
 #include <ftl/enum.h>
 #include <gui/SurfaceComposerClient.h>
 #include <input/InputDevice.h>
+#include <openssl/mem.h>
 #include <powermanager/PowerManager.h>
 #include <unistd.h>
 #include <utils/Trace.h>
@@ -4422,7 +4423,7 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
     if (calculatedHmac == INVALID_HMAC) {
         return nullptr;
     }
-    if (calculatedHmac != event.getHmac()) {
+    if (0 != CRYPTO_memcmp(calculatedHmac.data(), event.getHmac().data(), calculatedHmac.size())) {
         return nullptr;
     }
     return result;
