@@ -2541,7 +2541,7 @@ TEST_F(InputDispatcherTest, MixedTouchAndMouseWithPointerDown) {
     const int32_t mouseDeviceId = 6;
     NotifyMotionArgs args;
 
-    // First touch pointer down on right window
+    // First touch pointer down
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
@@ -3488,6 +3488,42 @@ TEST_F(InputDispatcherTest, HoverExitIsSentToRemovedWindow) {
     // Remove the window, but keep the channel.
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {}}});
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+}
+
+/**
+ * If mouse is hovering when the touch goes down, the hovering should be stopped via HOVER_EXIT.
+ */
+TEST_F(InputDispatcherTest, TouchDownAfterMouseHover) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 100, 100));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    const int32_t mouseDeviceId = 7;
+    const int32_t touchDeviceId = 4;
+    NotifyMotionArgs args;
+
+    // Start hovering with the mouse
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                             .deviceId(mouseDeviceId)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(10).y(10))
+                             .build()));
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_ENTER), WithDeviceId(mouseDeviceId)));
+
+    // Touch goes down
+    mDispatcher->notifyMotion(
+            &(args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                             .deviceId(touchDeviceId)
+                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                             .build()));
+
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithDeviceId(mouseDeviceId)));
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId)));
 }
 
 /**
