@@ -71,6 +71,7 @@ struct TouchState {
             const sp<android::gui::WindowInfoHandle>& windowHandle) const;
     // Whether any of the windows are currently being touched
     bool isDown() const;
+    bool hasHoveringPointers() const;
 
     std::set<sp<android::gui::WindowInfoHandle>> getWindowsWithHoveringPointer(
             int32_t deviceId, int32_t pointerId) const;
