@@ -74,9 +74,6 @@ cc_defaults {
     name: "libbinder_common_defaults",
     host_supported: true,
 
-    // for vndbinder and binderRpcTest
-    vendor_available: true,
-
     srcs: [
         "Binder.cpp",
         "BpBinder.cpp",
@@ -200,7 +197,6 @@ cc_defaults {
 
 cc_library_headers {
     name: "trusty_mock_headers",
-    vendor_available: true,
     host_supported: true,
 
     export_include_dirs: [
@@ -215,7 +211,6 @@ cc_library_headers {
 
 cc_defaults {
     name: "trusty_mock_defaults",
-    vendor_available: true,
     host_supported: true,
 
     header_libs: [
@@ -309,6 +304,8 @@ cc_library {
 
     version_script: "libbinder.map",
 
+    // for vndbinder
+    vendor_available: true,
     vndk: {
         enabled: true,
     },
@@ -471,7 +468,6 @@ cc_library_shared {
 cc_library_static {
     name: "libbinder_tls_static",
     defaults: ["libbinder_tls_defaults"],
-    vendor_available: true,
     visibility: [
         ":__subpackages__",
     ],
