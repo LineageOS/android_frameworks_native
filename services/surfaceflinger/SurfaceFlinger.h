@@ -736,6 +736,8 @@ private:
     void updateCursorAsync();
 
     void initScheduler(const sp<const DisplayDevice>&) REQUIRES(kMainThreadContext, mStateLock);
+
+    void resetPhaseConfiguration(Fps) REQUIRES(mStateLock, kMainThreadContext);
     void updatePhaseConfiguration(Fps) REQUIRES(mStateLock);
 
     /*
@@ -1119,9 +1121,6 @@ private:
     static int calculateMaxAcquiredBufferCount(Fps refreshRate,
                                                std::chrono::nanoseconds presentLatency);
     int getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) const;
-
-    void updateActiveDisplayVsyncLocked(const DisplayDevice& activeDisplay)
-            REQUIRES(mStateLock, kMainThreadContext);
 
     bool isHdrLayer(const frontend::LayerSnapshot& snapshot) const;
 

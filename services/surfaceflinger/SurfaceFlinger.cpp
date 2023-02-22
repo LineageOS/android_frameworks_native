@@ -3452,7 +3452,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
 
             // TODO(b/175678251) Call a listener instead.
             if (currentState.physical->hwcDisplayId == getHwComposer().getPrimaryHwcDisplayId()) {
-                updateActiveDisplayVsyncLocked(*display);
+                resetPhaseConfiguration(display->getActiveMode().fps);
             }
         }
         return;
@@ -3486,9 +3486,11 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
     }
 }
 
-void SurfaceFlinger::updateActiveDisplayVsyncLocked(const DisplayDevice& activeDisplay) {
+void SurfaceFlinger::resetPhaseConfiguration(Fps refreshRate) {
+    // Cancel the pending refresh rate change, if any, before updating the phase configuration.
+    mScheduler->vsyncModulator().cancelRefreshRateChange();
+
     mVsyncConfiguration->reset();
-    const Fps refreshRate = activeDisplay.getActiveMode().fps;
     updatePhaseConfiguration(refreshRate);
     mRefreshRateStats->setRefreshRate(refreshRate);
 }
@@ -4303,9 +4305,8 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
         // We don't want to latch unsignaled if are in early / client composition
         // as it leads to jank due to RenderEngine waiting for unsignaled buffer
         // or window animations being slow.
-        const auto isDefaultVsyncConfig = mScheduler->vsyncModulator().isVsyncConfigDefault();
-        if (!isDefaultVsyncConfig) {
-            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; !isDefaultVsyncConfig)",
+        if (mScheduler->vsyncModulator().isVsyncConfigEarly()) {
+            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; isVsyncConfigEarly)",
                   __func__);
             return false;
         }
@@ -7692,7 +7693,8 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
     mActiveDisplayId = activeDisplay.getPhysicalId();
     activeDisplay.getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
 
-    updateActiveDisplayVsyncLocked(activeDisplay);
+    resetPhaseConfiguration(activeDisplay.getActiveMode().fps);
+
     mScheduler->setModeChangePending(false);
     mScheduler->setPacesetterDisplay(mActiveDisplayId);
 
