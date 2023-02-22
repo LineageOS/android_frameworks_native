@@ -486,6 +486,17 @@ void BLASTBufferQueue::releaseBuffer(const ReleaseCallbackId& callbackId,
     mSyncedFrameNumbers.erase(callbackId.framenumber);
 }
 
+static ui::Size getBufferSize(const BufferItem& item) {
+    uint32_t bufWidth = item.mGraphicBuffer->getWidth();
+    uint32_t bufHeight = item.mGraphicBuffer->getHeight();
+
+    // Take the buffer's orientation into account
+    if (item.mTransform & ui::Transform::ROT_90) {
+        std::swap(bufWidth, bufHeight);
+    }
+    return ui::Size(bufWidth, bufHeight);
+}
+
 status_t BLASTBufferQueue::acquireNextBufferLocked(
         const std::optional<SurfaceComposerClient::Transaction*> transaction) {
     // Check if we have frames available and we have not acquired the maximum number of buffers.
@@ -563,7 +574,12 @@ status_t BLASTBufferQueue::acquireNextBufferLocked(
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
 
-    mSize = mRequestedSize;
+    // Only update mSize for destination bounds if the incoming buffer matches the requested size.
+    // Otherwise, it could cause stretching since the destination bounds will update before the
+    // buffer with the new size is acquired.
+    if (mRequestedSize == getBufferSize(bufferItem)) {
+        mSize = mRequestedSize;
+    }
     Rect crop = computeCrop(bufferItem);
     mLastBufferInfo.update(true /* hasBuffer */, bufferItem.mGraphicBuffer->getWidth(),
                            bufferItem.mGraphicBuffer->getHeight(), bufferItem.mTransform,
@@ -834,14 +850,7 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
         return false;
     }
 
-    uint32_t bufWidth = item.mGraphicBuffer->getWidth();
-    uint32_t bufHeight = item.mGraphicBuffer->getHeight();
-
-    // Take the buffer's orientation into account
-    if (item.mTransform & ui::Transform::ROT_90) {
-        std::swap(bufWidth, bufHeight);
-    }
-    ui::Size bufferSize(bufWidth, bufHeight);
+    ui::Size bufferSize = getBufferSize(item);
     if (mRequestedSize != mSize && mRequestedSize == bufferSize) {
         return false;
     }
