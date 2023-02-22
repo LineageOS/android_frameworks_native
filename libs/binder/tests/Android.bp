@@ -397,11 +397,6 @@ cc_binary {
 
 cc_test {
     name: "binderRpcTest",
-    // TODO(b/269799024)
-    test_options: {
-        unit_test: false,
-    },
-
     defaults: [
         "binderRpcTest_defaults",
         "binderRpcTest_shared_defaults",
