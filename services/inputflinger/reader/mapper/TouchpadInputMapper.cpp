@@ -16,6 +16,7 @@
 
 #include "../Macros.h"
 
+#include <limits>
 #include <optional>
 
 #include <android/input.h>
@@ -29,6 +30,76 @@
 namespace android {
 
 namespace {
+
+// Describes a segment of the acceleration curve.
+struct CurveSegment {
+    // The maximum pointer speed which this segment should apply. The last segment in a curve should
+    // always set this to infinity.
+    double maxPointerSpeedMmPerS;
+    double slope;
+    double intercept;
+};
+
+const std::vector<CurveSegment> segments = {
+        {10.922, 3.19, 0},
+        {31.750, 4.79, -17.526},
+        {98.044, 7.28, -96.52},
+        {std::numeric_limits<double>::infinity(), 15.04, -857.758},
+};
+
+const std::vector<double> sensitivityFactors = {1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20};
+
+std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
+                                                          size_t propertySize) {
+    LOG_ALWAYS_FATAL_IF(propertySize < 4 * segments.size());
+    std::vector<double> output(propertySize, 0);
+
+    // The Gestures library uses functions of the following form to define curve segments, where a,
+    // b, and c can be specified by us:
+    //     output_speed(input_speed_mm) = a * input_speed_mm ^ 2 + b * input_speed_mm + c
+    //
+    // (a, b, and c are also called sqr_, mul_, and int_ in the Gestures library code.)
+    //
+    // We are trying to implement the following function, where slope and intercept are the
+    // parameters specified in the `segments` array above:
+    //     gain(input_speed_mm) =
+    //             0.64 * (sensitivityFactor / 10) * (slope + intercept / input_speed_mm)
+    // Where "gain" is a multiplier applied to the input speed to produce the output speed:
+    //     output_speed(input_speed_mm) = input_speed_mm * gain(input_speed_mm)
+    //
+    // To put our function in the library's form, we substitute it into the function above:
+    //     output_speed(input_speed_mm) =
+    //             input_speed_mm * (0.64 * (sensitivityFactor / 10) *
+    //             (slope + 25.4 * intercept / input_speed_mm))
+    // then expand the brackets so that input_speed_mm cancels out for the intercept term:
+    //     gain(input_speed_mm) =
+    //             0.64 * (sensitivityFactor / 10) * slope * input_speed_mm +
+    //             0.64 * (sensitivityFactor / 10) * intercept
+    //
+    // This gives us the following parameters for the Gestures library function form:
+    //     a = 0
+    //     b = 0.64 * (sensitivityFactor / 10) * slope
+    //     c = 0.64 * (sensitivityFactor / 10) * intercept
+
+    double commonFactor = 0.64 * sensitivityFactors[sensitivity + 7] / 10;
+
+    size_t i = 0;
+    for (CurveSegment seg : segments) {
+        // The library's curve format consists of four doubles per segment:
+        // * maximum pointer speed for the segment (mm/s)
+        // * multiplier for the x² term (a.k.a. "a" or "sqr")
+        // * multiplier for the x term (a.k.a. "b" or "mul")
+        // * the intercept (a.k.a. "c" or "int")
+        // (see struct CurveSegment in the library's AccelFilterInterpreter)
+        output[i + 0] = seg.maxPointerSpeedMmPerS;
+        output[i + 1] = 0;
+        output[i + 2] = commonFactor * seg.slope;
+        output[i + 3] = commonFactor * seg.intercept;
+        i += 4;
+    }
+
+    return output;
+}
 
 short getMaxTouchCount(const InputDeviceContext& context) {
     if (context.hasScanCode(BTN_TOOL_QUINTTAP)) return 5;
@@ -147,10 +218,12 @@ std::list<NotifyArgs> TouchpadInputMapper::configure(nsecs_t when,
         mGestureConverter.setOrientation(orientation);
     }
     if (!changes || (changes & InputReaderConfiguration::CHANGE_TOUCHPAD_SETTINGS)) {
-        // TODO(b/265798483): load an Android-specific acceleration curve instead of mapping to one
-        // of five ChromeOS curves.
-        const int pointerSensitivity = (config->touchpadPointerSpeed + 7) / 3 + 1;
-        mPropertyProvider.getProperty("Pointer Sensitivity").setIntValues({pointerSensitivity});
+        mPropertyProvider.getProperty("Use Custom Touchpad Pointer Accel Curve")
+                .setBoolValues({true});
+        GesturesProp accelCurveProp = mPropertyProvider.getProperty("Pointer Accel Curve");
+        accelCurveProp.setRealValues(
+                createAccelerationCurveForSensitivity(config->touchpadPointerSpeed,
+                                                      accelCurveProp.getCount()));
         mPropertyProvider.getProperty("Invert Scrolling")
                 .setBoolValues({config->touchpadNaturalScrollingEnabled});
         mPropertyProvider.getProperty("Tap Enable")
