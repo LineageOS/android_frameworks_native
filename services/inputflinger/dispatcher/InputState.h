@@ -34,9 +34,6 @@ public:
     explicit InputState(const IdGenerator& idGenerator);
     ~InputState();
 
-    // Returns true if there is no state to be canceled.
-    bool isNeutral() const;
-
     // Returns true if the specified source is known to have received a hover enter
     // motion event.
     bool isHovering(int32_t deviceId, uint32_t source, int32_t displayId) const;
