@@ -105,6 +105,8 @@ static constexpr std::chrono::duration STALE_EVENT_TIMEOUT = 1000ms;
 static constexpr int expectedWallpaperFlags =
         AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
 
+using ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID;
+
 struct PointF {
     float x;
     float y;
@@ -2544,6 +2546,46 @@ TEST_F(InputDispatcherTest, MixedTouchAndMouseWithPointerDown) {
                            .build()));
     // The pointer_down event should be ignored
     window->assertNoEvents();
+}
+
+/**
+ * Inject a touch down and then send a new event via 'notifyMotion'. Ensure the new event cancels
+ * the injected event.
+ */
+TEST_F(InputDispatcherTest, UnfinishedInjectedEvent) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 400, 400));
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    const int32_t touchDeviceId = 4;
+    NotifyMotionArgs args;
+    // Pretend a test injects an ACTION_DOWN mouse event, but forgets to lift up the touch after
+    // completion.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                                        .deviceId(ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(50)
+                                                         .y(50))
+                                        .build()));
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(VIRTUAL_KEYBOARD_ID)));
+
+    // Now a real touch comes. Rather than crashing or dropping the real event, the injected pointer
+    // should be canceled and the new gesture should take over.
+    mDispatcher->notifyMotion(&(
+            args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                           .deviceId(touchDeviceId)
+                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .build()));
+
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(VIRTUAL_KEYBOARD_ID)));
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId)));
 }
 
 /**
