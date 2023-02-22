@@ -7680,8 +7680,13 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
                                                   const DisplayDevice& activeDisplay) {
     ATRACE_CALL();
 
+    // For the first display activated during boot, there is no need to force setDesiredActiveMode,
+    // because DM is about to send its policy via setDesiredDisplayModeSpecs.
+    bool forceApplyPolicy = false;
+
     if (inactiveDisplayPtr) {
         inactiveDisplayPtr->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
+        forceApplyPolicy = true;
     }
 
     mActiveDisplayId = activeDisplay.getPhysicalId();
@@ -7698,8 +7703,8 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
     // that case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In
     // either case, the Scheduler's cachedModeChangedParams must be initialized to the newly active
     // mode, and the kernel idle timer of the newly active display must be toggled.
-    constexpr bool kForce = true;
-    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector(), kForce);
+    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector(),
+                                   forceApplyPolicy);
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(

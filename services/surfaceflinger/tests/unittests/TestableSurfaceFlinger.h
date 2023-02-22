@@ -505,10 +505,11 @@ public:
         return mFlinger->setDesiredDisplayModeSpecs(displayToken, specs);
     }
 
-    void onActiveDisplayChanged(const DisplayDevice& activeDisplay) {
+    void onActiveDisplayChanged(const DisplayDevice* inactiveDisplayPtr,
+                                const DisplayDevice& activeDisplay) {
         Mutex::Autolock lock(mFlinger->mStateLock);
         ftl::FakeGuard guard(kMainThreadContext);
-        mFlinger->onActiveDisplayChangedLocked(nullptr, activeDisplay);
+        mFlinger->onActiveDisplayChangedLocked(inactiveDisplayPtr, activeDisplay);
     }
 
     auto createLayer(LayerCreationArgs& args, const sp<IBinder>& parentHandle,
