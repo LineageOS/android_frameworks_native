@@ -32,6 +32,7 @@ cc_library {
         "jpegr.cpp",
         "recoverymapmath.cpp",
         "jpegrutils.cpp",
+        "multipictureformat.cpp",
     ],
 
     shared_libs: [
@@ -40,6 +41,7 @@ cc_library {
         "libjpegencoder",
         "libjpegdecoder",
         "liblog",
+        "libutils",
     ],
 
     static_libs: ["libskia"],

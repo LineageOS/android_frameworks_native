@@ -19,6 +19,7 @@
 #include <jpegrecoverymap/jpegdecoderhelper.h>
 #include <jpegrecoverymap/recoverymapmath.h>
 #include <jpegrecoverymap/jpegrutils.h>
+#include <jpegrecoverymap/multipictureformat.h>
 
 #include <image_io/jpeg/jpeg_marker.h>
 #include <image_io/jpeg/jpeg_info.h>
@@ -105,10 +106,10 @@ static const map<
 
 /* Encode API-0 */
 status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
-                                  jpegr_transfer_function hdr_tf,
-                                  jr_compressed_ptr dest,
-                                  int quality,
-                                  jr_exif_ptr exif) {
+                            jpegr_transfer_function hdr_tf,
+                            jr_compressed_ptr dest,
+                            int quality,
+                            jr_exif_ptr exif) {
   if (uncompressed_p010_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -167,11 +168,11 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
 /* Encode API-1 */
 status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
-                                  jr_uncompressed_ptr uncompressed_yuv_420_image,
-                                  jpegr_transfer_function hdr_tf,
-                                  jr_compressed_ptr dest,
-                                  int quality,
-                                  jr_exif_ptr exif) {
+                            jr_uncompressed_ptr uncompressed_yuv_420_image,
+                            jpegr_transfer_function hdr_tf,
+                            jr_compressed_ptr dest,
+                            int quality,
+                            jr_exif_ptr exif) {
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
    || dest == nullptr) {
@@ -231,10 +232,10 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
 /* Encode API-2 */
 status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
-                                  jr_uncompressed_ptr uncompressed_yuv_420_image,
-                                  jr_compressed_ptr compressed_jpeg_image,
-                                  jpegr_transfer_function hdr_tf,
-                                  jr_compressed_ptr dest) {
+                            jr_uncompressed_ptr uncompressed_yuv_420_image,
+                            jr_compressed_ptr compressed_jpeg_image,
+                            jpegr_transfer_function hdr_tf,
+                            jr_compressed_ptr dest) {
   if (uncompressed_p010_image == nullptr
    || uncompressed_yuv_420_image == nullptr
    || compressed_jpeg_image == nullptr
@@ -276,9 +277,9 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
 
 /* Encode API-3 */
 status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
-                                  jr_compressed_ptr compressed_jpeg_image,
-                                  jpegr_transfer_function hdr_tf,
-                                  jr_compressed_ptr dest) {
+                            jr_compressed_ptr compressed_jpeg_image,
+                            jpegr_transfer_function hdr_tf,
+                            jr_compressed_ptr dest) {
   if (uncompressed_p010_image == nullptr
    || compressed_jpeg_image == nullptr
    || dest == nullptr) {
@@ -327,8 +328,7 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   return NO_ERROR;
 }
 
-status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
-                                   jr_info_ptr jpegr_info) {
+status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image, jr_info_ptr jpegr_info) {
   if (compressed_jpegr_image == nullptr || jpegr_info == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -349,9 +349,9 @@ status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image,
 
 /* Decode API */
 status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
-                                  jr_uncompressed_ptr dest,
-                                  jr_exif_ptr exif,
-                                  bool request_sdr) {
+                            jr_uncompressed_ptr dest,
+                            jr_exif_ptr exif,
+                            bool request_sdr) {
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -399,8 +399,8 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
 
-  if (!getMetadataFromXMP(static_cast<uint8_t*>(jpeg_decoder.getXMPPtr()),
-                          jpeg_decoder.getXMPSize(), &metadata)) {
+  if (!getMetadataFromXMP(static_cast<uint8_t*>(recovery_map_decoder.getXMPPtr()),
+                          recovery_map_decoder.getXMPSize(), &metadata)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
 
@@ -409,7 +409,7 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
 }
 
 status_t JpegR::compressRecoveryMap(jr_uncompressed_ptr uncompressed_recovery_map,
-                                          jr_compressed_ptr dest) {
+                                    jr_compressed_ptr dest) {
   if (uncompressed_recovery_map == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -493,10 +493,10 @@ void JobQueue::reset() {
 }
 
 status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
-                                          jr_uncompressed_ptr uncompressed_p010_image,
-                                          jpegr_transfer_function hdr_tf,
-                                          jr_metadata_ptr metadata,
-                                          jr_uncompressed_ptr dest) {
+                                    jr_uncompressed_ptr uncompressed_p010_image,
+                                    jpegr_transfer_function hdr_tf,
+                                    jr_metadata_ptr metadata,
+                                    jr_uncompressed_ptr dest) {
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_p010_image == nullptr
    || metadata == nullptr
@@ -637,9 +637,9 @@ status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_ima
 }
 
 status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
-                                       jr_uncompressed_ptr uncompressed_recovery_map,
-                                       jr_metadata_ptr metadata,
-                                       jr_uncompressed_ptr dest) {
+                                 jr_uncompressed_ptr uncompressed_recovery_map,
+                                 jr_metadata_ptr metadata,
+                                 jr_uncompressed_ptr dest) {
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_recovery_map == nullptr
    || metadata == nullptr
@@ -721,8 +721,8 @@ status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
 }
 
 status_t JpegR::extractPrimaryImageAndRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
-                                                        jr_compressed_ptr primary_image,
-                                                        jr_compressed_ptr recovery_map) {
+                                                  jr_compressed_ptr primary_image,
+                                                  jr_compressed_ptr recovery_map) {
   if (compressed_jpegr_image == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -771,7 +771,7 @@ status_t JpegR::extractPrimaryImageAndRecoveryMap(jr_compressed_ptr compressed_j
 
 
 status_t JpegR::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
-                                         jr_compressed_ptr dest) {
+                                   jr_compressed_ptr dest) {
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -790,11 +790,22 @@ status_t JpegR::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
 // (Required, XMP package) APP1 (ff e1)
 // 2 bytes of length (2 + 29 + length of xmp package)
 // name space ("http://ns.adobe.com/xap/1.0/\0")
-// xmp
+// XMP
+//
+// (Required, MPF package) APP2 (ff e2)
+// 2 bytes of length
+// MPF
 //
 // (Required) primary image (without the first two bytes (SOI), may have other packages)
 //
-// (Required) secondary image (the recovery map)
+// SOI (ff d8)
+//
+// (Required, XMP package) APP1 (ff e1)
+// 2 bytes of length (2 + 29 + length of xmp package)
+// name space ("http://ns.adobe.com/xap/1.0/\0")
+// XMP
+//
+// (Required) secondary image (the recovery map, without the first two bytes (SOI))
 //
 // Metadata versions we are using:
 // ECMA TR-98 for JFIF marker
@@ -802,10 +813,10 @@ status_t JpegR::extractRecoveryMap(jr_compressed_ptr compressed_jpegr_image,
 // Adobe XMP spec part 3 for XMP marker
 // ICC v4.3 spec for ICC
 status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
-                                        jr_compressed_ptr compressed_recovery_map,
-                                        jr_exif_ptr exif,
-                                        jr_metadata_ptr metadata,
-                                        jr_compressed_ptr dest) {
+                                  jr_compressed_ptr compressed_recovery_map,
+                                  jr_exif_ptr exif,
+                                  jr_metadata_ptr metadata,
+                                  jr_compressed_ptr dest) {
   if (compressed_jpeg_image == nullptr
    || compressed_recovery_map == nullptr
    || metadata == nullptr
@@ -815,6 +826,10 @@ status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
 
   int pos = 0;
 
+  const string xmp_primary = generateXmpForPrimaryImage(compressed_recovery_map->length);
+  const string xmp_secondary = generateXmpForSecondaryImage(*metadata);
+
+  // Begin primary image
   // Write SOI
   JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
   JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kSOI, 1, pos));
@@ -833,13 +848,12 @@ status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
 
   // Prepare and write XMP
   {
-    const string xmp = generateXmp(compressed_recovery_map->length, *metadata);
     const string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
     const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
     // 2 bytes: representing the length of the package
     // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0",
     // x bytes: length of xmp packet
-    const int length = 2 + nameSpaceLength + xmp.size();
+    const int length = 2 + nameSpaceLength + xmp_primary.size();
     const uint8_t lengthH = ((length >> 8) & 0xff);
     const uint8_t lengthL = (length & 0xff);
     JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
@@ -847,15 +861,59 @@ status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
     JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
     JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
     JPEGR_CHECK(Write(dest, (void*)nameSpace.c_str(), nameSpaceLength, pos));
-    JPEGR_CHECK(Write(dest, (void*)xmp.c_str(), xmp.size(), pos));
+    JPEGR_CHECK(Write(dest, (void*)xmp_primary.c_str(), xmp_primary.size(), pos));
+  }
+
+  // Prepare and write MPF
+  {
+      const int length = 2 + calculateMpfSize();
+      const uint8_t lengthH = ((length >> 8) & 0xff);
+      const uint8_t lengthL = (length & 0xff);
+      int primary_image_size = pos + length + compressed_jpeg_image->length;
+      int secondary_image_offset = primary_image_size;
+      int secondary_image_size = xmp_secondary.size() + compressed_recovery_map->length;
+      sp<DataStruct> mpf = generateMpf(0, /* primary_image_offset */
+                                       primary_image_size,
+                                       secondary_image_offset,
+                                       secondary_image_size);
+      JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
+      JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP2, 1, pos));
+      JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
+      JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
+      JPEGR_CHECK(Write(dest, (void*)mpf->getData(), mpf->getLength(), pos));
   }
 
   // Write primary image
   JPEGR_CHECK(Write(dest,
       (uint8_t*)compressed_jpeg_image->data + 2, compressed_jpeg_image->length - 2, pos));
+  // Finish primary image
+
+  // Begin secondary image (recovery map)
+  // Write SOI
+  JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
+  JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kSOI, 1, pos));
+
+  // Prepare and write XMP
+  {
+    const string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
+    const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
+    // 2 bytes: representing the length of the package
+    // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0",
+    // x bytes: length of xmp packet
+    const int length = 2 + nameSpaceLength + xmp_secondary.size();
+    const uint8_t lengthH = ((length >> 8) & 0xff);
+    const uint8_t lengthL = (length & 0xff);
+    JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
+    JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP1, 1, pos));
+    JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
+    JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
+    JPEGR_CHECK(Write(dest, (void*)nameSpace.c_str(), nameSpaceLength, pos));
+    JPEGR_CHECK(Write(dest, (void*)xmp_secondary.c_str(), xmp_secondary.size(), pos));
+  }
 
   // Write secondary image
-  JPEGR_CHECK(Write(dest, compressed_recovery_map->data, compressed_recovery_map->length, pos));
+  JPEGR_CHECK(Write(dest,
+        (uint8_t*)compressed_recovery_map->data + 2, compressed_recovery_map->length - 2, pos));
 
   // Set back length
   dest->length = pos;
@@ -864,8 +922,7 @@ status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
   return NO_ERROR;
 }
 
-status_t JpegR::toneMap(jr_uncompressed_ptr src,
-                              jr_uncompressed_ptr dest) {
+status_t JpegR::toneMap(jr_uncompressed_ptr src, jr_uncompressed_ptr dest) {
   if (src == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
