@@ -105,6 +105,7 @@ cc_test {
         "SurfaceFlinger_DisplayTransactionCommitTest.cpp",
         "SurfaceFlinger_GetDisplayNativePrimariesTest.cpp",
         "SurfaceFlinger_HotplugTest.cpp",
+        "SurfaceFlinger_MultiDisplayLeaderTest.cpp",
         "SurfaceFlinger_NotifyPowerBoostTest.cpp",
         "SurfaceFlinger_OnInitializeDisplaysTest.cpp",
         "SurfaceFlinger_PowerHintTest.cpp",

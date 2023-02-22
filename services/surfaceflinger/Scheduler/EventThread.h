@@ -106,11 +106,8 @@ public:
     virtual sp<EventThreadConnection> createEventConnection(
             ResyncCallback, EventRegistrationFlags eventRegistration = {}) const = 0;
 
-    // called before the screen is turned off from main thread
-    virtual void onScreenReleased() = 0;
-
-    // called after the screen is turned on from main thread
-    virtual void onScreenAcquired() = 0;
+    // Feed clients with fake VSYNC, e.g. while the display is off.
+    virtual void enableSyntheticVsync(bool) = 0;
 
     virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
 
@@ -159,11 +156,7 @@ public:
     VsyncEventData getLatestVsyncEventData(
             const sp<EventThreadConnection>& connection) const override;
 
-    // called before the screen is turned off from main thread
-    void onScreenReleased() override;
-
-    // called after the screen is turned on from main thread
-    void onScreenAcquired() override;
+    void enableSyntheticVsync(bool) override;
 
     void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 

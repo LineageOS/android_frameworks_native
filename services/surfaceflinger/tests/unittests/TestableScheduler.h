@@ -91,6 +91,7 @@ public:
         Scheduler::setLeaderDisplay(displayId);
     }
 
+    auto& mutableAppConnectionHandle() { return mAppConnectionHandle; }
     auto& mutableVsyncModulator() { return *mVsyncModulator; }
     auto& mutableLayerHistory() { return mLayerHistory; }
 
