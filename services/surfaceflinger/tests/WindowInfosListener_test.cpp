@@ -18,61 +18,61 @@
 #include <gui/SurfaceComposerClient.h>
 #include <private/android_filesystem_config.h>
 #include <future>
-#include "utils/TransactionUtils.h"
 
 namespace android {
 using Transaction = SurfaceComposerClient::Transaction;
 using gui::DisplayInfo;
 using gui::WindowInfo;
 
+using WindowInfosPredicate = std::function<bool(const std::vector<WindowInfo>&)>;
+
 class WindowInfosListenerTest : public ::testing::Test {
 protected:
     void SetUp() override {
         seteuid(AID_SYSTEM);
         mClient = sp<SurfaceComposerClient>::make();
-        mWindowInfosListener = sp<SyncWindowInfosListener>::make();
-        mClient->addWindowInfosListener(mWindowInfosListener);
     }
 
-    void TearDown() override {
-        mClient->removeWindowInfosListener(mWindowInfosListener);
-        seteuid(AID_ROOT);
-    }
+    void TearDown() override { seteuid(AID_ROOT); }
 
-    struct SyncWindowInfosListener : public gui::WindowInfosListener {
+    struct WindowInfosListener : public gui::WindowInfosListener {
     public:
+        WindowInfosListener(WindowInfosPredicate predicate, std::promise<void>& promise)
+              : mPredicate(std::move(predicate)), mPromise(promise) {}
+
         void onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos,
                                   const std::vector<DisplayInfo>&) override {
-            windowInfosPromise.set_value(windowInfos);
-        }
-
-        std::vector<WindowInfo> waitForWindowInfos() {
-            std::future<std::vector<WindowInfo>> windowInfosFuture =
-                    windowInfosPromise.get_future();
-            std::vector<WindowInfo> windowInfos = windowInfosFuture.get();
-            windowInfosPromise = std::promise<std::vector<WindowInfo>>();
-            return windowInfos;
+            if (mPredicate(windowInfos)) {
+                mPromise.set_value();
+            }
         }
 
     private:
-        std::promise<std::vector<WindowInfo>> windowInfosPromise;
+        WindowInfosPredicate mPredicate;
+        std::promise<void>& mPromise;
     };
 
     sp<SurfaceComposerClient> mClient;
-    sp<SyncWindowInfosListener> mWindowInfosListener;
+
+    bool waitForWindowInfosPredicate(WindowInfosPredicate predicate) {
+        std::promise<void> promise;
+        auto listener = sp<WindowInfosListener>::make(std::move(predicate), promise);
+        mClient->addWindowInfosListener(listener);
+        auto future = promise.get_future();
+        bool satisfied = future.wait_for(std::chrono::seconds{1}) == std::future_status::ready;
+        mClient->removeWindowInfosListener(listener);
+        return satisfied;
+    }
 };
 
 std::optional<WindowInfo> findMatchingWindowInfo(WindowInfo targetWindowInfo,
                                                  std::vector<WindowInfo> windowInfos) {
-    std::optional<WindowInfo> foundWindowInfo = std::nullopt;
     for (WindowInfo windowInfo : windowInfos) {
         if (windowInfo.token == targetWindowInfo.token) {
-            foundWindowInfo = std::make_optional<>(windowInfo);
-            break;
+            return windowInfo;
         }
     }
-
-    return foundWindowInfo;
+    return std::nullopt;
 }
 
 TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
@@ -92,15 +92,17 @@ TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
             .setInputWindowInfo(surfaceControl, windowInfo)
             .apply();
 
-    std::vector<WindowInfo> windowInfos = mWindowInfosListener->waitForWindowInfos();
-    std::optional<WindowInfo> foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
-    ASSERT_NE(std::nullopt, foundWindowInfo);
+    auto windowPresent = [&](const std::vector<WindowInfo>& windowInfos) {
+        return findMatchingWindowInfo(windowInfo, windowInfos).has_value();
+    };
+    ASSERT_TRUE(waitForWindowInfosPredicate(windowPresent));
 
     Transaction().reparent(surfaceControl, nullptr).apply();
 
-    windowInfos = mWindowInfosListener->waitForWindowInfos();
-    foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
-    ASSERT_EQ(std::nullopt, foundWindowInfo);
+    auto windowNotPresent = [&](const std::vector<WindowInfo>& windowInfos) {
+        return !findMatchingWindowInfo(windowInfo, windowInfos).has_value();
+    };
+    ASSERT_TRUE(waitForWindowInfosPredicate(windowNotPresent));
 }
 
 TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
@@ -121,19 +123,28 @@ TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
             .setInputWindowInfo(surfaceControl, windowInfo)
             .apply();
 
-    std::vector<WindowInfo> windowInfos = mWindowInfosListener->waitForWindowInfos();
-    std::optional<WindowInfo> foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
-    ASSERT_NE(std::nullopt, foundWindowInfo);
-    ASSERT_TRUE(foundWindowInfo->touchableRegion.isEmpty());
+    auto windowIsPresentAndTouchableRegionEmpty = [&](const std::vector<WindowInfo>& windowInfos) {
+        auto foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
+        if (!foundWindowInfo) {
+            return false;
+        }
+        return foundWindowInfo->touchableRegion.isEmpty();
+    };
+    ASSERT_TRUE(waitForWindowInfosPredicate(windowIsPresentAndTouchableRegionEmpty));
 
     Rect touchableRegions(0, 0, 50, 50);
     windowInfo.addTouchableRegion(Rect(0, 0, 50, 50));
     Transaction().setInputWindowInfo(surfaceControl, windowInfo).apply();
 
-    windowInfos = mWindowInfosListener->waitForWindowInfos();
-    foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
-    ASSERT_NE(std::nullopt, foundWindowInfo);
-    ASSERT_TRUE(foundWindowInfo->touchableRegion.hasSameRects(windowInfo.touchableRegion));
+    auto windowIsPresentAndTouchableRegionMatches =
+            [&](const std::vector<WindowInfo>& windowInfos) {
+                auto foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
+                if (!foundWindowInfo) {
+                    return false;
+                }
+                return foundWindowInfo->touchableRegion.hasSameRects(windowInfo.touchableRegion);
+            };
+    ASSERT_TRUE(waitForWindowInfosPredicate(windowIsPresentAndTouchableRegionMatches));
 }
 
 } // namespace android
