@@ -157,8 +157,8 @@ public:
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
     void onPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&) EXCLUDES(mPolicyLock);
     void onNonPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&);
-    void onScreenAcquired(ConnectionHandle);
-    void onScreenReleased(ConnectionHandle);
+
+    void enableSyntheticVsync(bool = true) REQUIRES(kMainThreadContext);
 
     void onFrameRateOverridesChanged(ConnectionHandle, PhysicalDisplayId)
             EXCLUDES(mConnectionsLock);
