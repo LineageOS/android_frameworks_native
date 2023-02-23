@@ -35,6 +35,7 @@ void TouchState::removeTouchedPointer(int32_t pointerId) {
     for (TouchedWindow& touchedWindow : windows) {
         touchedWindow.removeTouchingPointer(pointerId);
     }
+    clearWindowsWithoutPointers();
 }
 
 void TouchState::removeTouchedPointerFromWindow(
@@ -42,6 +43,7 @@ void TouchState::removeTouchedPointerFromWindow(
     for (TouchedWindow& touchedWindow : windows) {
         if (touchedWindow.windowHandle == windowHandle) {
             touchedWindow.removeTouchingPointer(pointerId);
+            clearWindowsWithoutPointers();
             return;
         }
     }
@@ -51,6 +53,7 @@ void TouchState::clearHoveringPointers() {
     for (TouchedWindow& touchedWindow : windows) {
         touchedWindow.clearHoveringPointers();
     }
+    clearWindowsWithoutPointers();
 }
 
 void TouchState::clearWindowsWithoutPointers() {
@@ -135,7 +138,7 @@ void TouchState::cancelPointersForWindowsExcept(std::bitset<MAX_POINTER_ID + 1> 
             w.pointerIds &= ~pointerIds;
         }
     });
-    std::erase_if(windows, [](const TouchedWindow& w) { return w.pointerIds.none(); });
+    clearWindowsWithoutPointers();
 }
 
 /**
@@ -164,7 +167,7 @@ void TouchState::cancelPointersForNonPilferingWindows() {
                 w.pilferedPointerIds ^ allPilferedPointerIds;
         w.pointerIds &= ~pilferedByOtherWindows;
     });
-    std::erase_if(windows, [](const TouchedWindow& w) { return w.pointerIds.none(); });
+    clearWindowsWithoutPointers();
 }
 
 sp<WindowInfoHandle> TouchState::getFirstForegroundWindowHandle() const {
@@ -216,6 +219,11 @@ bool TouchState::isDown() const {
                        [](const TouchedWindow& window) { return window.pointerIds.any(); });
 }
 
+bool TouchState::hasHoveringPointers() const {
+    return std::any_of(windows.begin(), windows.end(),
+                       [](const TouchedWindow& window) { return window.hasHoveringPointers(); });
+}
+
 std::set<sp<WindowInfoHandle>> TouchState::getWindowsWithHoveringPointer(int32_t hoveringDeviceId,
                                                                          int32_t pointerId) const {
     std::set<sp<WindowInfoHandle>> out;
@@ -231,9 +239,7 @@ void TouchState::removeHoveringPointer(int32_t hoveringDeviceId, int32_t hoverin
     for (TouchedWindow& window : windows) {
         window.removeHoveringPointer(hoveringDeviceId, hoveringPointerId);
     }
-    std::erase_if(windows, [](const TouchedWindow& w) {
-        return w.pointerIds.none() && !w.hasHoveringPointers();
-    });
+    clearWindowsWithoutPointers();
 }
 
 std::string TouchState::dump() const {
