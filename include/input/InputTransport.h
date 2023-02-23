@@ -38,6 +38,7 @@
 #include <binder/IBinder.h>
 #include <binder/Parcelable.h>
 #include <input/Input.h>
+#include <input/InputVerifier.h>
 #include <sys/stat.h>
 #include <ui/Transform.h>
 #include <utils/BitSet.h>
@@ -444,6 +445,7 @@ public:
 
 private:
     std::shared_ptr<InputChannel> mChannel;
+    InputVerifier mInputVerifier;
 };
 
 /*

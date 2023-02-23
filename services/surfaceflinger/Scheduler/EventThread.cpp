@@ -384,23 +384,13 @@ VsyncEventData EventThread::getLatestVsyncEventData(
     return vsyncEventData;
 }
 
-void EventThread::onScreenReleased() {
+void EventThread::enableSyntheticVsync(bool enable) {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mVSyncState || mVSyncState->synthetic) {
+    if (!mVSyncState || mVSyncState->synthetic == enable) {
         return;
     }
 
-    mVSyncState->synthetic = true;
-    mCondition.notify_all();
-}
-
-void EventThread::onScreenAcquired() {
-    std::lock_guard<std::mutex> lock(mMutex);
-    if (!mVSyncState || !mVSyncState->synthetic) {
-        return;
-    }
-
-    mVSyncState->synthetic = false;
+    mVSyncState->synthetic = enable;
     mCondition.notify_all();
 }
 

@@ -3863,7 +3863,7 @@ void SurfaceFlinger::commitOffscreenLayers() {
     for (Layer* offscreenLayer : mOffscreenLayers) {
         offscreenLayer->traverse(LayerVector::StateSet::Drawing, [](Layer* layer) {
             if (layer->clearTransactionFlags(eTransactionNeeded)) {
-                layer->doTransaction(0, 0);
+                layer->doTransaction(0);
                 layer->commitChildList();
             }
         });
@@ -3899,7 +3899,7 @@ bool SurfaceFlinger::latchBuffers() {
     // second frame. But layer 0's second frame could be waiting on display.
     mDrawingState.traverse([&](Layer* layer) {
         if (layer->clearTransactionFlags(eTransactionNeeded) || mForceTransactionDisplayChange) {
-            const uint32_t flags = layer->doTransaction(0, latchTime);
+            const uint32_t flags = layer->doTransaction(0);
             if (flags & Layer::eVisibleRegion) {
                 mVisibleRegionsDirty = true;
             }
@@ -3910,6 +3910,8 @@ bool SurfaceFlinger::latchBuffers() {
             mLayersWithQueuedFrames.emplace(sp<Layer>::fromExisting(layer));
         } else {
             layer->useEmptyDamage();
+            // If the layer has frames we will update the latch time when latching the buffer.
+            layer->updateLastLatchTime(latchTime);
         }
     });
     mForceTransactionDisplayChange = false;
@@ -5210,7 +5212,6 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         return;
     }
 
-    const bool isActiveDisplay = displayId == mActiveDisplayId;
     const bool isInternalDisplay = mPhysicalDisplays.get(displayId)
                                            .transform(&PhysicalDisplay::isInternal)
                                            .value_or(false);
@@ -5247,10 +5248,10 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
             ALOGW("Couldn't set SCHED_FIFO on display on: %s\n", strerror(errno));
         }
         getHwComposer().setPowerMode(displayId, mode);
-        if (isActiveDisplay && mode != hal::PowerMode::DOZE_SUSPEND) {
+        if (displayId == mActiveDisplayId && mode != hal::PowerMode::DOZE_SUSPEND) {
             setHWCVsyncEnabled(displayId,
                                mScheduler->getVsyncSchedule().getPendingHardwareVsyncState());
-            mScheduler->onScreenAcquired(mAppConnectionHandle);
+            mScheduler->enableSyntheticVsync(false);
             mScheduler->resyncToHardwareVsync(true, refreshRate);
         }
 
@@ -5264,9 +5265,9 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         if (SurfaceFlinger::setSchedAttr(false) != NO_ERROR) {
             ALOGW("Couldn't set uclamp.min on display off: %s\n", strerror(errno));
         }
-        if (isActiveDisplay && *currentModeOpt != hal::PowerMode::DOZE_SUSPEND) {
+        if (displayId == mActiveDisplayId && *currentModeOpt != hal::PowerMode::DOZE_SUSPEND) {
             mScheduler->disableHardwareVsync(true);
-            mScheduler->onScreenReleased(mAppConnectionHandle);
+            mScheduler->enableSyntheticVsync();
         }
 
         // Make sure HWVsync is disabled before turning off the display
@@ -5278,18 +5279,18 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
         // Update display while dozing
         getHwComposer().setPowerMode(displayId, mode);
-        if (isActiveDisplay && *currentModeOpt == hal::PowerMode::DOZE_SUSPEND) {
+        if (displayId == mActiveDisplayId && *currentModeOpt == hal::PowerMode::DOZE_SUSPEND) {
             ALOGI("Force repainting for DOZE_SUSPEND -> DOZE or ON.");
             mVisibleRegionsDirty = true;
             scheduleRepaint();
-            mScheduler->onScreenAcquired(mAppConnectionHandle);
+            mScheduler->enableSyntheticVsync(false);
             mScheduler->resyncToHardwareVsync(true, refreshRate);
         }
     } else if (mode == hal::PowerMode::DOZE_SUSPEND) {
         // Leave display going to doze
-        if (isActiveDisplay) {
+        if (displayId == mActiveDisplayId) {
             mScheduler->disableHardwareVsync(true);
-            mScheduler->onScreenReleased(mAppConnectionHandle);
+            mScheduler->enableSyntheticVsync();
         }
         getHwComposer().setPowerMode(displayId, mode);
     } else {
@@ -5297,7 +5298,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         getHwComposer().setPowerMode(displayId, mode);
     }
 
-    if (isActiveDisplay) {
+    if (displayId == mActiveDisplayId) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats->setPowerMode(mode);
         mScheduler->setDisplayPowerMode(mode);

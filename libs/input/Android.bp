@@ -47,6 +47,7 @@ cc_library {
         "Input.cpp",
         "InputDevice.cpp",
         "InputEventLabels.cpp",
+        "InputVerifier.cpp",
         "Keyboard.cpp",
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",

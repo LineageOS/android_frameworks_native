@@ -92,6 +92,16 @@ SensorManager& SensorManager::getInstanceForPackage(const String16& packageName)
     return *sensorManager;
 }
 
+void SensorManager::removeInstanceForPackage(const String16& packageName) {
+    Mutex::Autolock _l(sLock);
+    auto iterator = sPackageInstances.find(packageName);
+    if (iterator != sPackageInstances.end()) {
+        SensorManager* sensorManager = iterator->second;
+        delete sensorManager;
+        sPackageInstances.erase(iterator);
+    }
+}
+
 SensorManager::SensorManager(const String16& opPackageName)
     : mSensorList(nullptr), mOpPackageName(opPackageName), mDirectConnectionHandle(1) {
     Mutex::Autolock _l(mLock);
@@ -166,6 +176,11 @@ status_t SensorManager::assertStateLocked() {
 
         mSensors = mSensorServer->getSensorList(mOpPackageName);
         size_t count = mSensors.size();
+        if (count == 0) {
+            ALOGE("Failed to get Sensor list");
+            mSensorServer.clear();
+            return UNKNOWN_ERROR;
+        }
         mSensorList =
                 static_cast<Sensor const**>(malloc(count * sizeof(Sensor*)));
         LOG_ALWAYS_FATAL_IF(mSensorList == nullptr, "mSensorList NULL");
