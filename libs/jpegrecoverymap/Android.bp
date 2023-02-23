@@ -29,6 +29,7 @@ cc_library {
     local_include_dirs: ["include"],
 
     srcs: [
+        "icc.cpp",
         "jpegr.cpp",
         "recoverymapmath.cpp",
         "jpegrutils.cpp",
@@ -43,8 +44,6 @@ cc_library {
         "liblog",
         "libutils",
     ],
-
-    static_libs: ["libskia"],
 }
 
 cc_library {

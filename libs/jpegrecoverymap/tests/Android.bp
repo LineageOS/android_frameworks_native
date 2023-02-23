@@ -39,7 +39,6 @@ cc_test {
         "libjpegdecoder",
         "libjpegencoder",
         "libjpegrecoverymap",
-        "libskia",
         "libutils",
     ],
 }
