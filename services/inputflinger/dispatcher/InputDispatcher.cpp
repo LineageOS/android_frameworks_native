@@ -4036,18 +4036,20 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
 
 /**
  * If one of the meta shortcuts is detected, process them here:
- *     Meta + Backspace -> generate BACK
- *     Meta + Enter -> generate HOME
- * This will potentially overwrite keyCode and metaState.
+ *     Meta + Backspace; Meta + Grave; Meta + Left arrow -> generate BACK
+ * Most System shortcuts are handled in PhoneWindowManager.java except 'Back' shortcuts. Unlike
+ * Back, other shortcuts DO NOT need to be sent to applications and are fully handled by the system.
+ * But for Back key and Back shortcuts, we need to send KEYCODE_BACK to applications which can
+ * potentially handle the back key presses.
+ * Note: We don't send any Meta based KeyEvents to applications, so we need to convert to a KeyEvent
+ * where meta modifier is off before sending. Currently only use case is 'Back'.
  */
 void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int32_t action,
                                               int32_t& keyCode, int32_t& metaState) {
     if (metaState & AMETA_META_ON && action == AKEY_EVENT_ACTION_DOWN) {
         int32_t newKeyCode = AKEYCODE_UNKNOWN;
-        if (keyCode == AKEYCODE_DEL) {
+        if (keyCode == AKEYCODE_DEL || keyCode == AKEYCODE_GRAVE || keyCode == AKEYCODE_DPAD_LEFT) {
             newKeyCode = AKEYCODE_BACK;
-        } else if (keyCode == AKEYCODE_ENTER) {
-            newKeyCode = AKEYCODE_HOME;
         }
         if (newKeyCode != AKEYCODE_UNKNOWN) {
             std::scoped_lock _l(mLock);
