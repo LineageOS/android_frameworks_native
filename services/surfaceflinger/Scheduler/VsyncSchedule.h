@@ -20,6 +20,7 @@
 #include <string>
 
 #include <ThreadContext.h>
+#include <android-base/thread_annotations.h>
 #include <ftl/enum.h>
 #include <ftl/optional.h>
 #include <scheduler/Features.h>
@@ -27,6 +28,7 @@
 
 namespace android {
 class EventThreadTest;
+class VsyncScheduleTest;
 }
 
 namespace android::fuzz {
@@ -96,6 +98,7 @@ public:
 private:
     friend class TestableScheduler;
     friend class android::EventThreadTest;
+    friend class android::VsyncScheduleTest;
     friend class android::fuzz::SchedulerFuzzer;
 
     using TrackerPtr = std::unique_ptr<VsyncTracker>;

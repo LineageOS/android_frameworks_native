@@ -76,6 +76,14 @@ static const nsecs_t RESAMPLE_MAX_PREDICTION = 8 * NANOS_PER_MS;
  */
 static const char* PROPERTY_RESAMPLING_ENABLED = "ro.input.resampling";
 
+/**
+ * Crash if the events that are getting sent to the InputPublisher are inconsistent.
+ * Enable this via "adb shell setprop log.tag.InputTransportVerifyEvents DEBUG"
+ */
+static bool verifyEvents() {
+    return __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "VerifyEvents", ANDROID_LOG_INFO);
+}
+
 template<typename T>
 inline static T min(const T& a, const T& b) {
     return a < b ? a : b;
@@ -492,7 +500,8 @@ base::unique_fd InputChannel::dupFd() const {
 
 // --- InputPublisher ---
 
-InputPublisher::InputPublisher(const std::shared_ptr<InputChannel>& channel) : mChannel(channel) {}
+InputPublisher::InputPublisher(const std::shared_ptr<InputChannel>& channel)
+      : mChannel(channel), mInputVerifier(channel->getName()) {}
 
 InputPublisher::~InputPublisher() {
 }
@@ -554,6 +563,10 @@ status_t InputPublisher::publishMotionEvent(
                 "publishMotionEvent(inputChannel=%s, action=%" PRId32 ")",
                 mChannel->getName().c_str(), action);
         ATRACE_NAME(message.c_str());
+    }
+    if (verifyEvents()) {
+        mInputVerifier.processMovement(deviceId, action, pointerCount, pointerProperties,
+                                       pointerCoords, flags);
     }
     if (DEBUG_TRANSPORT_ACTIONS) {
         std::string transformString;

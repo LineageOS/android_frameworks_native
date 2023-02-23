@@ -109,8 +109,7 @@ void SchedulerFuzzer::fuzzEventThread() {
     thread->setDuration((std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>(),
                         (std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>());
     thread->registerDisplayEventConnection(connection);
-    thread->onScreenAcquired();
-    thread->onScreenReleased();
+    thread->enableSyntheticVsync(mFdp.ConsumeBool());
     dump<android::impl::EventThread>(thread.get(), &mFdp);
 }
 

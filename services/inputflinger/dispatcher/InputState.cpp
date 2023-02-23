@@ -247,10 +247,19 @@ void InputState::addMotionMemento(const MotionEntry& entry, int32_t flags, bool 
 }
 
 void InputState::MotionMemento::setPointers(const MotionEntry& entry) {
-    pointerCount = entry.pointerCount;
+    pointerCount = 0;
     for (uint32_t i = 0; i < entry.pointerCount; i++) {
-        pointerProperties[i].copyFrom(entry.pointerProperties[i]);
-        pointerCoords[i].copyFrom(entry.pointerCoords[i]);
+        if (MotionEvent::getActionMasked(entry.action) == AMOTION_EVENT_ACTION_POINTER_UP) {
+            // In POINTER_UP events, the pointer is leaving. Since the action is not stored,
+            // this departing pointer should not be recorded.
+            const uint8_t actionIndex = MotionEvent::getActionIndex(entry.action);
+            if (i == actionIndex) {
+                continue;
+            }
+        }
+        pointerProperties[pointerCount].copyFrom(entry.pointerProperties[i]);
+        pointerCoords[pointerCount].copyFrom(entry.pointerCoords[i]);
+        pointerCount++;
     }
 }
 

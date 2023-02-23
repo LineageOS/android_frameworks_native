@@ -265,24 +265,16 @@ void Scheduler::onHotplugReceived(ConnectionHandle handle, PhysicalDisplayId dis
     thread->onHotplugReceived(displayId, connected);
 }
 
-void Scheduler::onScreenAcquired(ConnectionHandle handle) {
+void Scheduler::enableSyntheticVsync(bool enable) {
+    // TODO(b/241285945): Remove connection handles.
+    const ConnectionHandle handle = mAppConnectionHandle;
     android::EventThread* thread;
     {
         std::lock_guard<std::mutex> lock(mConnectionsLock);
         RETURN_IF_INVALID_HANDLE(handle);
         thread = mConnections[handle].thread.get();
     }
-    thread->onScreenAcquired();
-}
-
-void Scheduler::onScreenReleased(ConnectionHandle handle) {
-    android::EventThread* thread;
-    {
-        std::lock_guard<std::mutex> lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle);
-        thread = mConnections[handle].thread.get();
-    }
-    thread->onScreenReleased();
+    thread->enableSyntheticVsync(enable);
 }
 
 void Scheduler::onFrameRateOverridesChanged(ConnectionHandle handle, PhysicalDisplayId displayId) {
