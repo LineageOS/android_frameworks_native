@@ -138,7 +138,6 @@ cc_test {
 
 aidl_interface {
     name: "binderRpcTestIface",
-    vendor_available: true,
     host_supported: true,
     unstable: true,
     srcs: [
@@ -159,7 +158,6 @@ aidl_interface {
 
 cc_library_static {
     name: "libbinder_tls_test_utils",
-    vendor_available: true,
     host_supported: true,
     target: {
         darwin: {
@@ -213,7 +211,6 @@ cc_defaults {
     defaults: [
         "binderRpcTest_common_defaults",
     ],
-    vendor_available: true,
     gtest: false,
     auto_gen_config: false,
     srcs: [
@@ -224,17 +221,9 @@ cc_defaults {
 
 cc_defaults {
     name: "binderRpcTest_defaults",
-    vendor_available: true,
     target: {
         android: {
             test_suites: ["vts"],
-        },
-
-        vendor: {
-            shared_libs: [
-                "libbinder_trusty",
-                "libtrusty",
-            ],
         },
     },
     defaults: [
@@ -397,11 +386,6 @@ cc_binary {
 
 cc_test {
     name: "binderRpcTest",
-    // TODO(b/269799024)
-    test_options: {
-        unit_test: false,
-    },
-
     defaults: [
         "binderRpcTest_defaults",
         "binderRpcTest_shared_defaults",
