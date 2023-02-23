@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <binder/Parcel.h>
 #include <cutils/properties.h>
@@ -48,12 +49,27 @@ const bool DEBUG_CHANNEL_LIFECYCLE =
 const bool DEBUG_TRANSPORT_CONSUMER =
         __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Consumer", ANDROID_LOG_INFO);
 
+const bool IS_DEBUGGABLE_BUILD =
+#if defined(__ANDROID__)
+        android::base::GetBoolProperty("ro.debuggable", false);
+#else
+        true;
+#endif
+
 /**
  * Log debug messages relating to the producer end of the transport channel.
- * Enable this via "adb shell setprop log.tag.InputTransportPublisher DEBUG" (requires restart)
+ * Enable this via "adb shell setprop log.tag.InputTransportPublisher DEBUG".
+ * This requires a restart on non-debuggable (e.g. user) builds, but should take effect immediately
+ * on debuggable builds (e.g. userdebug).
  */
-const bool DEBUG_TRANSPORT_PUBLISHER =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Publisher", ANDROID_LOG_INFO);
+bool debugTransportPublisher() {
+    if (!IS_DEBUGGABLE_BUILD) {
+        static const bool DEBUG_TRANSPORT_PUBLISHER =
+                __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Publisher", ANDROID_LOG_INFO);
+        return DEBUG_TRANSPORT_PUBLISHER;
+    }
+    return __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Publisher", ANDROID_LOG_INFO);
+}
 
 /**
  * Log debug messages about touch event resampling.
@@ -538,7 +554,7 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t eventId, int32_t 
                              KeyEvent::getLabel(keyCode));
         ATRACE_NAME(message.c_str());
     }
-    ALOGD_IF(DEBUG_TRANSPORT_PUBLISHER,
+    ALOGD_IF(debugTransportPublisher(),
              "channel '%s' publisher ~ %s: seq=%u, deviceId=%d, source=%s, "
              "action=%s, flags=0x%x, keyCode=%s, scanCode=%d, metaState=0x%x, repeatCount=%d,"
              "downTime=%" PRId64 ", eventTime=%" PRId64,
@@ -589,7 +605,7 @@ status_t InputPublisher::publishMotionEvent(
         mInputVerifier.processMovement(deviceId, action, pointerCount, pointerProperties,
                                        pointerCoords, flags);
     }
-    if (DEBUG_TRANSPORT_PUBLISHER) {
+    if (debugTransportPublisher()) {
         std::string transformString;
         transform.dump(transformString, "transform", "        ");
         ALOGD("channel '%s' publisher ~ %s: seq=%u, deviceId=%d, source=%s, "
@@ -664,7 +680,7 @@ status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool h
                                            mChannel->getName().c_str(), toString(hasFocus));
         ATRACE_NAME(message.c_str());
     }
-    ALOGD_IF(DEBUG_TRANSPORT_PUBLISHER, "channel '%s' publisher ~ %s: seq=%u, hasFocus=%s",
+    ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s: seq=%u, hasFocus=%s",
              mChannel->getName().c_str(), __func__, seq, toString(hasFocus));
 
     InputMessage msg;
@@ -683,7 +699,7 @@ status_t InputPublisher::publishCaptureEvent(uint32_t seq, int32_t eventId,
                              mChannel->getName().c_str(), toString(pointerCaptureEnabled));
         ATRACE_NAME(message.c_str());
     }
-    ALOGD_IF(DEBUG_TRANSPORT_PUBLISHER,
+    ALOGD_IF(debugTransportPublisher(),
              "channel '%s' publisher ~ %s: seq=%u, pointerCaptureEnabled=%s",
              mChannel->getName().c_str(), __func__, seq, toString(pointerCaptureEnabled));
 
@@ -703,7 +719,7 @@ status_t InputPublisher::publishDragEvent(uint32_t seq, int32_t eventId, float x
                              mChannel->getName().c_str(), x, y, toString(isExiting));
         ATRACE_NAME(message.c_str());
     }
-    ALOGD_IF(DEBUG_TRANSPORT_PUBLISHER,
+    ALOGD_IF(debugTransportPublisher(),
              "channel '%s' publisher ~ %s: seq=%u, x=%f, y=%f, isExiting=%s",
              mChannel->getName().c_str(), __func__, seq, x, y, toString(isExiting));
 
@@ -724,7 +740,7 @@ status_t InputPublisher::publishTouchModeEvent(uint32_t seq, int32_t eventId, bo
                              mChannel->getName().c_str(), toString(isInTouchMode));
         ATRACE_NAME(message.c_str());
     }
-    ALOGD_IF(DEBUG_TRANSPORT_PUBLISHER, "channel '%s' publisher ~ %s: seq=%u, isInTouchMode=%s",
+    ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s: seq=%u, isInTouchMode=%s",
              mChannel->getName().c_str(), __func__, seq, toString(isInTouchMode));
 
     InputMessage msg;
@@ -736,7 +752,7 @@ status_t InputPublisher::publishTouchModeEvent(uint32_t seq, int32_t eventId, bo
 }
 
 android::base::Result<InputPublisher::ConsumerResponse> InputPublisher::receiveConsumerResponse() {
-    ALOGD_IF(DEBUG_TRANSPORT_PUBLISHER, "channel '%s' publisher ~ %s", mChannel->getName().c_str(),
+    ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s", mChannel->getName().c_str(),
              __func__);
 
     InputMessage msg;
