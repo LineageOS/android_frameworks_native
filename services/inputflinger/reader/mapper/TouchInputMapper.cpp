@@ -1450,7 +1450,7 @@ std::list<NotifyArgs> TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
         assignPointerIds(last, next);
     }
 
-    ALOGD_IF(DEBUG_RAW_EVENTS,
+    ALOGD_IF(debugRawEvents(),
              "syncTouch: pointerCount %d -> %d, touching ids 0x%08x -> 0x%08x, "
              "hovering ids 0x%08x -> 0x%08x, canceled ids 0x%08x",
              last.rawPointerData.pointerCount, next.rawPointerData.pointerCount,
