@@ -162,7 +162,8 @@ enum {
     eDisplayTransactionNeeded = 0x04,
     eTransformHintUpdateNeeded = 0x08,
     eTransactionFlushNeeded = 0x10,
-    eTransactionMask = 0x1f,
+    eInputInfoUpdateNeeded = 0x20,
+    eTransactionMask = 0x3f,
 };
 
 // Latch Unsignaled buffer behaviours
@@ -618,7 +619,7 @@ private:
 
     status_t getMaxAcquiredBufferCount(int* buffers) const;
 
-    status_t addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener) const;
+    status_t addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
     status_t removeWindowInfosListener(
             const sp<gui::IWindowInfosListener>& windowInfosListener) const;
 
