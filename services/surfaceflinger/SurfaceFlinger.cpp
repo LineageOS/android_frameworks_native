@@ -3863,7 +3863,7 @@ void SurfaceFlinger::commitOffscreenLayers() {
     for (Layer* offscreenLayer : mOffscreenLayers) {
         offscreenLayer->traverse(LayerVector::StateSet::Drawing, [](Layer* layer) {
             if (layer->clearTransactionFlags(eTransactionNeeded)) {
-                layer->doTransaction(0, 0);
+                layer->doTransaction(0);
                 layer->commitChildList();
             }
         });
@@ -3899,7 +3899,7 @@ bool SurfaceFlinger::latchBuffers() {
     // second frame. But layer 0's second frame could be waiting on display.
     mDrawingState.traverse([&](Layer* layer) {
         if (layer->clearTransactionFlags(eTransactionNeeded) || mForceTransactionDisplayChange) {
-            const uint32_t flags = layer->doTransaction(0, latchTime);
+            const uint32_t flags = layer->doTransaction(0);
             if (flags & Layer::eVisibleRegion) {
                 mVisibleRegionsDirty = true;
             }
@@ -3910,6 +3910,8 @@ bool SurfaceFlinger::latchBuffers() {
             mLayersWithQueuedFrames.emplace(sp<Layer>::fromExisting(layer));
         } else {
             layer->useEmptyDamage();
+            // If the layer has frames we will update the latch time when latching the buffer.
+            layer->updateLastLatchTime(latchTime);
         }
     });
     mForceTransactionDisplayChange = false;
