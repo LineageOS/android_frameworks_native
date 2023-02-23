@@ -824,11 +824,24 @@ status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  int pos = 0;
+  const string nameSpace = "http://ns.adobe.com/xap/1.0/";
+  const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
 
-  const string xmp_primary = generateXmpForPrimaryImage(compressed_recovery_map->length);
+  // calculate secondary image length first, because the length will be written into the primary
+  // image xmp
   const string xmp_secondary = generateXmpForSecondaryImage(*metadata);
+  const int xmp_secondary_length = 2 /* 2 bytes representing the length of the package */
+                                 + nameSpaceLength /* 29 bytes length of name space including \0 */
+                                 + xmp_secondary.size(); /* length of xmp packet */
+  const int secondary_image_size = 2 /* 2 bytes length of APP1 sign */
+                                 + xmp_secondary_length
+                                 + compressed_recovery_map->length;
+  // primary image
+  const string xmp_primary = generateXmpForPrimaryImage(secondary_image_size);
+  // same as primary
+  const int xmp_primary_length = 2 + nameSpaceLength + xmp_primary.size();
 
+  int pos = 0;
   // Begin primary image
   // Write SOI
   JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
@@ -848,12 +861,7 @@ status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
 
   // Prepare and write XMP
   {
-    const string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
-    const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
-    // 2 bytes: representing the length of the package
-    // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0",
-    // x bytes: length of xmp packet
-    const int length = 2 + nameSpaceLength + xmp_primary.size();
+    const int length = xmp_primary_length;
     const uint8_t lengthH = ((length >> 8) & 0xff);
     const uint8_t lengthL = (length & 0xff);
     JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
@@ -870,12 +878,15 @@ status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
       const uint8_t lengthH = ((length >> 8) & 0xff);
       const uint8_t lengthL = (length & 0xff);
       int primary_image_size = pos + length + compressed_jpeg_image->length;
-      int secondary_image_offset = primary_image_size;
-      int secondary_image_size = xmp_secondary.size() + compressed_recovery_map->length;
-      sp<DataStruct> mpf = generateMpf(0, /* primary_image_offset */
-                                       primary_image_size,
-                                       secondary_image_offset,
-                                       secondary_image_size);
+      // between APP2 + package size + signature
+      // ff e2 00 58 4d 50 46 00
+      // 2 + 2 + 4 = 8 (bytes)
+      // and ff d8 sign of the secondary image
+      int secondary_image_offset = primary_image_size - pos - 8;
+      sp<DataStruct> mpf = generateMpf(primary_image_size,
+                                       0, /* primary_image_offset */
+                                       secondary_image_size,
+                                       secondary_image_offset);
       JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
       JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP2, 1, pos));
       JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
@@ -895,12 +906,7 @@ status_t JpegR::appendRecoveryMap(jr_compressed_ptr compressed_jpeg_image,
 
   // Prepare and write XMP
   {
-    const string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
-    const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
-    // 2 bytes: representing the length of the package
-    // 29 bytes: length of name space "http://ns.adobe.com/xap/1.0/\0",
-    // x bytes: length of xmp packet
-    const int length = 2 + nameSpaceLength + xmp_secondary.size();
+    const int length = xmp_secondary_length;
     const uint8_t lengthH = ((length >> 8) & 0xff);
     const uint8_t lengthL = (length & 0xff);
     JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
