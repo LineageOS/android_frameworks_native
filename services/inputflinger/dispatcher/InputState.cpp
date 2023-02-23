@@ -28,10 +28,6 @@ InputState::InputState(const IdGenerator& idGenerator) : mIdGenerator(idGenerato
 
 InputState::~InputState() {}
 
-bool InputState::isNeutral() const {
-    return mKeyMementos.empty() && mMotionMementos.empty();
-}
-
 bool InputState::isHovering(int32_t deviceId, uint32_t source, int32_t displayId) const {
     for (const MotionMemento& memento : mMotionMementos) {
         if (memento.deviceId == deviceId && memento.source == source &&

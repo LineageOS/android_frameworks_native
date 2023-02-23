@@ -2191,7 +2191,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             ALOGI("Dropping event because a pointer for a different device is already down "
                   "in display %" PRId32,
                   displayId);
-            // TODO: test multiple simultaneous input streams.
+            // TODO(b/211379801): test multiple simultaneous input streams.
             outInjectionResult = InputEventInjectionResult::FAILED;
             return {}; // wrong device
         }
@@ -2203,7 +2203,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         ALOGI("Dropping move event because a pointer for a different device is already active "
               "in display %" PRId32,
               displayId);
-        // TODO: test multiple simultaneous input streams.
+        // TODO(b/211379801): test multiple simultaneous input streams.
         outInjectionResult = InputEventInjectionResult::FAILED;
         return {}; // wrong device
     }
@@ -3048,9 +3048,13 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
 
         const MotionEntry& originalMotionEntry = static_cast<const MotionEntry&>(*eventEntry);
         if (inputTarget.pointerIds.count() != originalMotionEntry.pointerCount) {
-            LOG_ALWAYS_FATAL_IF(!inputTarget.firstDownTimeInTarget.has_value(),
-                                "Splitting motion events requires a down time to be set for the "
-                                "target");
+            if (!inputTarget.firstDownTimeInTarget.has_value()) {
+                logDispatchStateLocked();
+                LOG(FATAL) << "Splitting motion events requires a down time to be set for the "
+                              "target on connection "
+                           << connection->getInputChannelName() << " for "
+                           << originalMotionEntry.getDescription();
+            }
             std::unique_ptr<MotionEntry> splitMotionEntry =
                     splitMotionEvent(originalMotionEntry, inputTarget.pointerIds,
                                      inputTarget.firstDownTimeInTarget.value());
@@ -3931,8 +3935,8 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
         // in this way.
         ALOGW("Dropping split motion event because the pointer count is %d but "
               "we expected there to be %zu pointers.  This probably means we received "
-              "a broken sequence of pointer ids from the input device.",
-              splitPointerCount, pointerIds.count());
+              "a broken sequence of pointer ids from the input device: %s",
+              splitPointerCount, pointerIds.count(), originalMotionEntry.getDescription().c_str());
         return nullptr;
     }
 
