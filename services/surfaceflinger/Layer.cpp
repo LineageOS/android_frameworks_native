@@ -790,7 +790,7 @@ void Layer::transferAvailableJankData(const std::deque<sp<CallbackHandle>>& hand
 // transaction
 // ----------------------------------------------------------------------------
 
-uint32_t Layer::doTransaction(uint32_t flags, nsecs_t latchTime) {
+uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
     // TODO: This is unfortunate.
@@ -818,12 +818,12 @@ uint32_t Layer::doTransaction(uint32_t flags, nsecs_t latchTime) {
         mFlinger->mUpdateInputInfo = true;
     }
 
-    commitTransaction(mDrawingState, latchTime);
+    commitTransaction(mDrawingState);
 
     return flags;
 }
 
-void Layer::commitTransaction(State&, nsecs_t currentLatchTime) {
+void Layer::commitTransaction(State&) {
     // Set the present state for all bufferlessSurfaceFramesTX to Presented. The
     // bufferSurfaceFrameTX will be presented in latchBuffer.
     for (auto& [token, surfaceFrame] : mDrawingState.bufferlessSurfaceFramesTX) {
@@ -835,7 +835,6 @@ void Layer::commitTransaction(State&, nsecs_t currentLatchTime) {
         }
     }
     mDrawingState.bufferlessSurfaceFramesTX.clear();
-    mLastLatchTime = currentLatchTime;
 }
 
 uint32_t Layer::clearTransactionFlags(uint32_t mask) {
@@ -1381,7 +1380,7 @@ void Layer::addSurfaceFramePresentedForBuffer(
     surfaceFrame->setAcquireFenceTime(acquireFenceTime);
     surfaceFrame->setPresentState(PresentState::Presented, mLastLatchTime);
     mFlinger->mFrameTimeline->addSurfaceFrame(surfaceFrame);
-    mLastLatchTime = currentLatchTime;
+    updateLastLatchTime(currentLatchTime);
 }
 
 std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransaction(
@@ -4075,6 +4074,10 @@ void Layer::setTrustedPresentationInfo(TrustedPresentationThresholds const& thre
     } else if (hadTrustedPresentationListener && !haveTrustedPresentationListener) {
         mFlinger->mNumTrustedPresentationListeners--;
     }
+}
+
+void Layer::updateLastLatchTime(nsecs_t latchTime) {
+    mLastLatchTime = latchTime;
 }
 
 // ---------------------------------------------------------------------------
