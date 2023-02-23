@@ -92,6 +92,8 @@ void SurfaceFlingerPowerHintTest::SetUp() {
                     .setDisplaySurface(mDisplaySurface)
                     .setNativeWindow(mNativeWindow)
                     .setPowerMode(hal::PowerMode::ON)
+                    .setRefreshRateSelector(mFlinger.scheduler()->refreshRateSelector())
+                    .skipRegisterDisplay()
                     .inject();
 }
 
