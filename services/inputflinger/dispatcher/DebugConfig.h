@@ -22,12 +22,20 @@
 #include <log/log_event_list.h>
 
 namespace android::inputdispatcher {
+
+/**
+ * Signals whether this is a debuggable Android build.
+ * This is populated by reading the value of the "ro.debuggable" property.
+ */
+extern const bool IS_DEBUGGABLE_BUILD;
+
 /**
  * Log detailed debug messages about each inbound event notification to the dispatcher.
- * Enable this via "adb shell setprop log.tag.InputDispatcherInboundEvent DEBUG" (requires restart)
+ * Enable this via "adb shell setprop log.tag.InputDispatcherInboundEvent DEBUG".
+ * This requires a restart on non-debuggable (e.g. user) builds, but should take effect immediately
+ * on debuggable builds (e.g. userdebug).
  */
-const bool DEBUG_INBOUND_EVENT_DETAILS =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "InboundEvent", ANDROID_LOG_INFO);
+bool debugInboundEventDetails();
 
 /**
  * Log detailed debug messages about each outbound event processed by the dispatcher.
@@ -90,4 +98,5 @@ const bool DEBUG_APP_SWITCH =
  */
 const bool DEBUG_HOVER =
         __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Hover", ANDROID_LOG_INFO);
+
 } // namespace android::inputdispatcher
