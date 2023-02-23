@@ -91,6 +91,8 @@ struct LayerInfo {
     uint64_t curr_frame;
     float x;
     float y;
+    uint32_t bufferWidth;
+    uint32_t bufferHeight;
 };
 
 bool operator==(const LayerInfo& lh, const LayerInfo& rh) {
@@ -105,7 +107,8 @@ bool compareById(const LayerInfo& a, const LayerInfo& b) {
 inline void PrintTo(const LayerInfo& info, ::std::ostream* os) {
     *os << "Layer [" << info.id << "] name=" << info.name << " parent=" << info.parent
         << " z=" << info.z << " curr_frame=" << info.curr_frame << " x=" << info.x
-        << " y=" << info.y;
+        << " y=" << info.y << " bufferWidth=" << info.bufferWidth
+        << " bufferHeight=" << info.bufferHeight;
 }
 
 struct find_id : std::unary_function<LayerInfo, bool> {
@@ -113,6 +116,18 @@ struct find_id : std::unary_function<LayerInfo, bool> {
     find_id(int id) : id(id) {}
     bool operator()(LayerInfo const& m) const { return m.id == id; }
 };
+
+static LayerInfo getLayerInfoFromProto(::android::surfaceflinger::LayerProto& proto) {
+    return {proto.id(),
+            proto.name(),
+            proto.parent(),
+            proto.z(),
+            proto.curr_frame(),
+            proto.has_position() ? proto.position().x() : -1,
+            proto.has_position() ? proto.position().y() : -1,
+            proto.has_active_buffer() ? proto.active_buffer().width() : 0,
+            proto.has_active_buffer() ? proto.active_buffer().height() : 0};
+}
 
 TEST_P(TransactionTraceTestSuite, validateEndState) {
     ASSERT_GT(mActualLayersTraceProto.entry_size(), 0);
@@ -128,10 +143,7 @@ TEST_P(TransactionTraceTestSuite, validateEndState) {
     expectedLayers.reserve(static_cast<size_t>(expectedLastEntry.layers().layers_size()));
     for (int i = 0; i < expectedLastEntry.layers().layers_size(); i++) {
         auto layer = expectedLastEntry.layers().layers(i);
-        expectedLayers.push_back({layer.id(), layer.name(), layer.parent(), layer.z(),
-                                  layer.curr_frame(),
-                                  layer.has_position() ? layer.position().x() : -1,
-                                  layer.has_position() ? layer.position().y() : -1});
+        expectedLayers.push_back(getLayerInfoFromProto(layer));
     }
     std::sort(expectedLayers.begin(), expectedLayers.end(), compareById);
 
@@ -139,10 +151,7 @@ TEST_P(TransactionTraceTestSuite, validateEndState) {
     actualLayers.reserve(static_cast<size_t>(actualLastEntry.layers().layers_size()));
     for (int i = 0; i < actualLastEntry.layers().layers_size(); i++) {
         auto layer = actualLastEntry.layers().layers(i);
-        actualLayers.push_back({layer.id(), layer.name(), layer.parent(), layer.z(),
-                                layer.curr_frame(),
-                                layer.has_position() ? layer.position().x() : -1,
-                                layer.has_position() ? layer.position().y() : -1});
+        actualLayers.push_back(getLayerInfoFromProto(layer));
     }
     std::sort(actualLayers.begin(), actualLayers.end(), compareById);
 
