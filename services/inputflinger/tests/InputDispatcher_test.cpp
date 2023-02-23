@@ -2052,8 +2052,17 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
     wallpaperWindow->consumeMotionPointerUp(0, ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
-                             {100, 100}))
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
+                                                   AINPUT_SOURCE_TOUCHSCREEN)
+                                        .displayId(ADISPLAY_ID_DEFAULT)
+                                        .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
+                                        .pointer(PointerBuilder(/* id */ 1,
+                                                                AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                         .x(100)
+                                                         .y(100))
+                                        .build(),
+                                INJECT_EVENT_TIMEOUT, InputEventInjectionSync::WAIT_FOR_RESULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     foregroundWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
     wallpaperWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
@@ -3007,8 +3016,8 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
     window1->assertNoEvents();
 
     // Now move the pointer on the first window
-    mDispatcher->notifyMotion(
-            &(args = generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{51, 51}, {151, 51}})));
+    mDispatcher->notifyMotion(&(
+            args = generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{51, 51}, {151, 51}, {150, 50}})));
     mDispatcher->waitForIdle();
     window1->consumeMotionEvent(WithDownTime(downTimeForWindow1));
 
@@ -5464,6 +5473,13 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, MonitorMotionEvent_MultiDisplay) {
     monitorInPrimary.assertNoEvents();
     windowInSecondary->consumeMotionDown(SECOND_DISPLAY_ID);
     monitorInSecondary.consumeMotionDown(SECOND_DISPLAY_ID);
+
+    // Lift up the touch from the second display
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    windowInSecondary->consumeMotionUp(SECOND_DISPLAY_ID);
+    monitorInSecondary.consumeMotionUp(SECOND_DISPLAY_ID);
 
     // Test inject a non-pointer motion event.
     // If specific a display, it will dispatch to the focused window of particular display,
