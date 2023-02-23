@@ -2197,14 +2197,17 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, LifecycleUpdate& upda
 
     {
         ATRACE_NAME("LayerSnapshotBuilder:update");
-        frontend::LayerSnapshotBuilder::Args args{.root = mLayerHierarchyBuilder.getHierarchy(),
-                                                  .layerLifecycleManager = mLayerLifecycleManager,
-                                                  .displays = mFrontEndDisplayInfos,
-                                                  .displayChanges = mFrontEndDisplayInfosChanged,
-                                                  .globalShadowSettings =
-                                                          mDrawingState.globalShadowSettings,
-                                                  .supportsBlur = mSupportsBlur,
-                                                  .forceFullDamage = mForceFullDamage};
+        frontend::LayerSnapshotBuilder::Args
+                args{.root = mLayerHierarchyBuilder.getHierarchy(),
+                     .layerLifecycleManager = mLayerLifecycleManager,
+                     .displays = mFrontEndDisplayInfos,
+                     .displayChanges = mFrontEndDisplayInfosChanged,
+                     .globalShadowSettings = mDrawingState.globalShadowSettings,
+                     .supportsBlur = mSupportsBlur,
+                     .forceFullDamage = mForceFullDamage,
+                     .supportedLayerGenericMetadata =
+                             getHwComposer().getSupportedLayerGenericMetadata(),
+                     .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap()};
         mLayerSnapshotBuilder.update(args);
     }
 
@@ -7779,6 +7782,7 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
         compositionengine::CompositionRefreshArgs& refreshArgs, bool cursorOnly, int64_t vsyncId) {
     std::vector<std::pair<Layer*, LayerFE*>> layers;
     if (mLayerLifecycleManagerEnabled) {
+        nsecs_t currentTime = systemTime();
         mLayerSnapshotBuilder.forEachVisibleSnapshot(
                 [&](std::unique_ptr<frontend::LayerSnapshot>& snapshot) {
                     if (cursorOnly &&
@@ -7797,6 +7801,7 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
                                         snapshot->getDebugString().c_str());
                     auto& legacyLayer = it->second;
                     sp<LayerFE> layerFE = legacyLayer->getCompositionEngineLayerFE(snapshot->path);
+                    snapshot->fps = getLayerFramerate(currentTime, snapshot->sequence);
                     layerFE->mSnapshot = std::move(snapshot);
                     refreshArgs.layers.push_back(layerFE);
                     layers.emplace_back(legacyLayer.get(), layerFE.get());
@@ -7868,7 +7873,10 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(uint32_t rootLayerId, uint32_t u
                      .supportsBlur = mSupportsBlur,
                      .forceFullDamage = mForceFullDamage,
                      .parentCrop = {parentCrop},
-                     .excludeLayerIds = std::move(excludeLayerIds)};
+                     .excludeLayerIds = std::move(excludeLayerIds),
+                     .supportedLayerGenericMetadata =
+                             getHwComposer().getSupportedLayerGenericMetadata(),
+                     .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap()};
         mLayerSnapshotBuilder.update(args);
 
         auto getLayerSnapshotsFn = getLayerSnapshotsForScreenshots({}, uid);

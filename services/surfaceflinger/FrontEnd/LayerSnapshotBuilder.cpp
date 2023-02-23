@@ -296,6 +296,26 @@ bool needsInputInfo(const LayerSnapshot& snapshot, const RequestedLayerState& re
                     gui::WindowInfo::InputConfig::NO_INPUT_CHANNEL);
 }
 
+void updateMetadata(LayerSnapshot& snapshot, const RequestedLayerState& requested,
+                    const LayerSnapshotBuilder::Args& args) {
+    snapshot.metadata.clear();
+    for (const auto& [key, mandatory] : args.supportedLayerGenericMetadata) {
+        auto compatIter = args.genericLayerMetadataKeyMap.find(key);
+        if (compatIter == std::end(args.genericLayerMetadataKeyMap)) {
+            continue;
+        }
+        const uint32_t id = compatIter->second;
+        auto it = requested.metadata.mMap.find(id);
+        if (it == std::end(requested.metadata.mMap)) {
+            continue;
+        }
+
+        snapshot.metadata.emplace(key,
+                                  compositionengine::GenericLayerMetadataEntry{mandatory,
+                                                                               it->second});
+    }
+}
+
 void clearChanges(LayerSnapshot& snapshot) {
     snapshot.changes.clear();
     snapshot.contentDirty = false;
@@ -744,6 +764,10 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                 : parentSnapshot.frameRate;
     }
 
+    if (forceUpdate || requested.what & layer_state_t::eMetadataChanged) {
+        updateMetadata(snapshot, requested, args);
+    }
+
     if (forceUpdate || requested.changes.get() != 0) {
         snapshot.compositionType = requested.getCompositionType();
         snapshot.dimmingEnabled = requested.dimmingEnabled;
@@ -787,12 +811,10 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     }
     snapshot.forceClientComposition = snapshot.isHdrY410 || snapshot.shadowSettings.length > 0 ||
             requested.blurRegions.size() > 0 || snapshot.stretchEffect.hasEffect();
-    snapshot.isOpaque = snapshot.isContentOpaque() && !snapshot.roundedCorner.hasRoundedCorners() &&
+    snapshot.contentOpaque = snapshot.isContentOpaque();
+    snapshot.isOpaque = snapshot.contentOpaque && !snapshot.roundedCorner.hasRoundedCorners() &&
             snapshot.color.a == 1.f;
     snapshot.blendMode = getBlendMode(snapshot, requested);
-    // TODO(b/238781169) pass this from flinger
-    // snapshot.fps;
-    // snapshot.metadata;
     LLOGV(snapshot.sequence,
           "%supdated [%d]%s changes parent:%s global:%s local:%s requested:%s %s from parent %s",
           args.forceUpdate == ForceUpdateFlags::ALL ? "Force " : "", requested.id,

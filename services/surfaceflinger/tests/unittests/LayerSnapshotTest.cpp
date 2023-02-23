@@ -75,14 +75,14 @@ protected:
             mHierarchyBuilder.update(mLifecycleManager.getLayers(),
                                      mLifecycleManager.getDestroyedLayers());
         }
-        LayerSnapshotBuilder::Args args{
-                .root = mHierarchyBuilder.getHierarchy(),
-                .layerLifecycleManager = mLifecycleManager,
-                .includeMetadata = false,
-                .displays = mFrontEndDisplayInfos,
-                .displayChanges = hasDisplayChanges,
-                .globalShadowSettings = globalShadowSettings,
-        };
+        LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                        .layerLifecycleManager = mLifecycleManager,
+                                        .includeMetadata = false,
+                                        .displays = mFrontEndDisplayInfos,
+                                        .displayChanges = hasDisplayChanges,
+                                        .globalShadowSettings = globalShadowSettings,
+                                        .supportedLayerGenericMetadata = {},
+                                        .genericLayerMetadataKeyMap = {}};
         actualBuilder.update(args);
 
         // rebuild layer snapshots from scratch and verify that it matches the updated state.
@@ -111,23 +111,25 @@ const std::vector<uint32_t> LayerSnapshotTest::STARTING_ZORDER = {1,   11,   111
                                                                   122, 1221, 13,  2};
 
 TEST_F(LayerSnapshotTest, buildSnapshot) {
-    LayerSnapshotBuilder::Args args{
-            .root = mHierarchyBuilder.getHierarchy(),
-            .layerLifecycleManager = mLifecycleManager,
-            .includeMetadata = false,
-            .displays = mFrontEndDisplayInfos,
-            .globalShadowSettings = globalShadowSettings,
-    };
+    LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                    .layerLifecycleManager = mLifecycleManager,
+                                    .includeMetadata = false,
+                                    .displays = mFrontEndDisplayInfos,
+                                    .globalShadowSettings = globalShadowSettings,
+                                    .supportedLayerGenericMetadata = {},
+                                    .genericLayerMetadataKeyMap = {}};
     LayerSnapshotBuilder builder(args);
 }
 
 TEST_F(LayerSnapshotTest, updateSnapshot) {
-    LayerSnapshotBuilder::Args args{
-            .root = mHierarchyBuilder.getHierarchy(),
-            .layerLifecycleManager = mLifecycleManager,
-            .includeMetadata = false,
-            .displays = mFrontEndDisplayInfos,
-            .globalShadowSettings = globalShadowSettings,
+    LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                    .layerLifecycleManager = mLifecycleManager,
+                                    .includeMetadata = false,
+                                    .displays = mFrontEndDisplayInfos,
+                                    .globalShadowSettings = globalShadowSettings,
+                                    .supportedLayerGenericMetadata = {},
+                                    .genericLayerMetadataKeyMap = {}
+
     };
 
     LayerSnapshotBuilder builder;

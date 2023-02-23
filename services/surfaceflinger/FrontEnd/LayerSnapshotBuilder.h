@@ -53,6 +53,8 @@ public:
         bool forceFullDamage = false;
         std::optional<FloatRect> parentCrop = std::nullopt;
         std::unordered_set<uint32_t> excludeLayerIds;
+        const std::unordered_map<std::string, bool>& supportedLayerGenericMetadata;
+        const std::unordered_map<std::string, uint32_t>& genericLayerMetadataKeyMap;
     };
     LayerSnapshotBuilder();
 
