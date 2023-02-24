@@ -191,6 +191,68 @@ TEST_F(HardwareStateConverterTest, TwoFingers) {
     EXPECT_EQ(0u, finger2.flags);
 }
 
+TEST_F(HardwareStateConverterTest, OnePalm) {
+    const nsecs_t time = ARBITRARY_TIME;
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    HardwareStateConverter conv(deviceContext);
+
+    processAxis(conv, time, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, time, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+    processAxis(conv, time, EV_ABS, ABS_MT_TRACKING_ID, 123);
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 100);
+
+    processAxis(conv, time, EV_KEY, BTN_TOUCH, 1);
+    std::optional<SelfContainedHardwareState> schs = processSync(conv, time);
+    ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(0, schs->state.finger_cnt);
+}
+
+TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
+    const nsecs_t time = ARBITRARY_TIME;
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    HardwareStateConverter conv(deviceContext);
+
+    processAxis(conv, time, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, time, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+    processAxis(conv, time, EV_ABS, ABS_MT_TRACKING_ID, 123);
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 100);
+
+    processAxis(conv, time, EV_KEY, BTN_TOUCH, 1);
+
+    std::optional<SelfContainedHardwareState> schs = processSync(conv, time);
+    ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.finger_cnt);
+
+    processAxis(conv, time, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 51);
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 99);
+
+    schs = processSync(conv, time);
+    ASSERT_TRUE(schs.has_value());
+    ASSERT_EQ(1, schs->state.finger_cnt);
+    EXPECT_EQ(-1, schs->state.fingers[0].tracking_id);
+
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 53);
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 97);
+
+    schs = processSync(conv, time);
+    ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(0, schs->state.finger_cnt);
+
+    processAxis(conv, time, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 55);
+    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 95);
+    schs = processSync(conv, time);
+    ASSERT_TRUE(schs.has_value());
+    ASSERT_EQ(1, schs->state.finger_cnt);
+    const FingerState& newFinger = schs->state.fingers[0];
+    EXPECT_EQ(123, newFinger.tracking_id);
+    EXPECT_NEAR(55, newFinger.position_x, EPSILON);
+    EXPECT_NEAR(95, newFinger.position_y, EPSILON);
+}
+
 TEST_F(HardwareStateConverterTest, ButtonPressed) {
     const nsecs_t time = ARBITRARY_TIME;
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
