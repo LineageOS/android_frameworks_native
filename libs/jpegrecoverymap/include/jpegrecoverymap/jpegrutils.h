@@ -18,6 +18,7 @@
 #define ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H
 
 #include <jpegrecoverymap/jpegr.h>
+#include <utils/RefBase.h>
 
 #include <sstream>
 #include <stdint.h>
@@ -27,6 +28,26 @@
 namespace android::jpegrecoverymap {
 
 struct jpegr_metadata;
+/*
+ * Mutable data structure. Holds information for metadata.
+ */
+class DataStruct : public RefBase {
+private:
+    void* data;
+    int writePos;
+    int length;
+    ~DataStruct();
+
+public:
+    DataStruct(int s);
+    void* getData();
+    int getLength();
+    int getBytesWritten();
+    bool write8(uint8_t value);
+    bool write16(uint16_t value);
+    bool write32(uint32_t value);
+    bool write(const void* src, int size);
+};
 
 /*
  * Helper function used for writing data to destination.
@@ -51,12 +72,10 @@ status_t Write(jr_compressed_ptr destination, const void* source, size_t length,
 bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* metadata);
 
 /*
- * This method generates XMP metadata.
+ * This method generates XMP metadata for the primary image.
  *
  * below is an example of the XMP metadata that this function generates where
  * secondary_image_length = 1000
- * max_content_boost = 8.0
- * min_content_boost = 0.5
  *
  * <x:xmpmeta
  *   xmlns:x="adobe:ns:meta/"
@@ -65,8 +84,7 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  *     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
  *     <rdf:Description
  *       xmlns:Container="http://ns.google.com/photos/1.0/container/"
- *       xmlns:Item="http://ns.google.com/photos/1.0/container/item/"
- *       xmlns:RecoveryMap="http://ns.google.com/photos/1.0/recoverymap/">
+ *       xmlns:Item="http://ns.google.com/photos/1.0/container/item/">
  *       <Container:Directory>
  *         <rdf:Seq>
  *           <rdf:li>
@@ -78,10 +96,7 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  *             <Container:Item
  *               Item:Semantic="RecoveryMap"
  *               Item:Mime="image/jpeg"
- *               Item:Length="1000"
- *               RecoveryMap:Version="1"
- *               RecoveryMap:MaxContentBoost="8.0"
- *               RecoveryMap:MinContentBoost="0.5"/>
+ *               Item:Length="1000"/>
  *           </rdf:li>
  *         </rdf:Seq>
  *       </Container:Directory>
@@ -90,10 +105,40 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* meta
  * </x:xmpmeta>
  *
  * @param secondary_image_length length of secondary image
+ * @return XMP metadata in type of string
+ */
+std::string generateXmpForPrimaryImage(int secondary_image_length);
+
+/*
+ * This method generates XMP metadata for the recovery map image.
+ *
+ * below is an example of the XMP metadata that this function generates where
+ * max_content_boost = 8.0
+ * min_content_boost = 0.5
+ *
+ * <x:xmpmeta
+ *   xmlns:x="adobe:ns:meta/"
+ *   x:xmptk="Adobe XMP Core 5.1.2">
+ *   <rdf:RDF
+ *     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ *     <rdf:Description
+ *       xmlns:hdrgm="http://ns.adobe.com/hdr-gain-map/1.0/"
+ *       hdrgm:Version="1"
+ *       hdrgm:GainMapMin="0.5"
+ *       hdrgm:GainMapMax="8.5"
+ *       hdrgm:Gamma="1"
+ *       hdrgm:OffsetSDR="0"
+ *       hdrgm:OffsetHDR="0"
+ *       hdrgm:HDRCapacityMin="0.5"
+ *       hdrgm:HDRCapacityMax="8.5"
+ *       hdrgm:BaseRendition="SDR"/>
+ *   </rdf:RDF>
+ * </x:xmpmeta>
+ *
  * @param metadata JPEG/R metadata to encode as XMP
  * @return XMP metadata in type of string
  */
-std::string generateXmp(int secondary_image_length, jpegr_metadata& metadata);
+ std::string generateXmpForSecondaryImage(jpegr_metadata& metadata);
 }  // namespace android::jpegrecoverymap
 
 #endif //ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H
