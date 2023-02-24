@@ -35,6 +35,10 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
     inputInfo.id = static_cast<int32_t>(state.id);
     inputInfo.ownerUid = static_cast<int32_t>(state.ownerUid);
     inputInfo.ownerPid = state.ownerPid;
+    changes = RequestedLayerState::Changes::Created;
+    mirrorRootPath = path.variant == LayerHierarchy::Variant::Mirror
+            ? path
+            : LayerHierarchy::TraversalPath::ROOT;
 }
 
 // As documented in libhardware header, formats in the range
@@ -165,7 +169,8 @@ bool LayerSnapshot::hasInputInfo() const {
 std::string LayerSnapshot::getDebugString() const {
     std::stringstream debug;
     debug << "Snapshot{" << path.toString() << name << " isVisible=" << isVisible << " {"
-          << getIsVisibleReason() << "} changes=" << changes.string() << "}";
+          << getIsVisibleReason() << "} changes=" << changes.string()
+          << " layerStack=" << outputFilter.layerStack.id << "}";
     return debug.str();
 }
 

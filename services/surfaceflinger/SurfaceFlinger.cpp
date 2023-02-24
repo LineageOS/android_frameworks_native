@@ -5097,7 +5097,7 @@ status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationA
                                           args.name, args.flags, -1 /* parentId */);
     }
 
-    {
+    if (mLegacyFrontEndEnabled) {
         std::scoped_lock<std::mutex> lock(mMirrorDisplayLock);
         mMirrorDisplays.emplace_back(layerStack, outResult.handle, args.client);
     }

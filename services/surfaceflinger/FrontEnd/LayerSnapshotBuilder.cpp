@@ -328,6 +328,7 @@ void clearChanges(LayerSnapshot& snapshot) {
 
 LayerSnapshot LayerSnapshotBuilder::getRootSnapshot() {
     LayerSnapshot snapshot;
+    snapshot.path = LayerHierarchy::TraversalPath::ROOT;
     snapshot.changes = ftl::Flags<RequestedLayerState::Changes>();
     snapshot.isHiddenByPolicyFromParent = false;
     snapshot.isHiddenByPolicyFromRelativeParent = false;
@@ -368,10 +369,6 @@ bool LayerSnapshotBuilder::tryFastUpdate(const Args& args) {
     }
 
     if (args.layerLifecycleManager.getGlobalChanges().get() == 0) {
-        // there are no changes, so just clear the change flags from before.
-        for (auto& snapshot : mSnapshots) {
-            clearChanges(*snapshot);
-        }
         return true;
     }
 
@@ -396,14 +393,12 @@ bool LayerSnapshotBuilder::tryFastUpdate(const Args& args) {
     // Walk through the snapshots, clearing previous change flags and updating the snapshots
     // if needed.
     for (auto& snapshot : mSnapshots) {
-        clearChanges(*snapshot);
         auto it = layersWithChanges.find(snapshot->path.id);
         if (it != layersWithChanges.end()) {
             ALOGV("%s fast path snapshot changes = %s", __func__,
                   mRootSnapshot.changes.string().c_str());
             LayerHierarchy::TraversalPath root = LayerHierarchy::TraversalPath::ROOT;
-            updateSnapshot(*snapshot, args, *it->second, mRootSnapshot, root,
-                           /*newSnapshot=*/false);
+            updateSnapshot(*snapshot, args, *it->second, mRootSnapshot, root);
         }
     }
     return true;
@@ -468,6 +463,10 @@ void LayerSnapshotBuilder::updateSnapshots(const Args& args) {
 }
 
 void LayerSnapshotBuilder::update(const Args& args) {
+    for (auto& snapshot : mSnapshots) {
+        clearChanges(*snapshot);
+    }
+
     if (tryFastUpdate(args)) {
         return;
     }
@@ -481,7 +480,7 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
     LayerSnapshot* snapshot = getSnapshot(traversalPath);
     const bool newSnapshot = snapshot == nullptr;
     if (newSnapshot) {
-        snapshot = createSnapshot(traversalPath, *layer);
+        snapshot = createSnapshot(traversalPath, *layer, parentSnapshot);
     }
     scheduler::LayerInfo::FrameRate oldFrameRate = snapshot->frameRate;
     if (traversalPath.isRelative()) {
@@ -491,7 +490,7 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
         if (traversalPath.isAttached()) {
             resetRelativeState(*snapshot);
         }
-        updateSnapshot(*snapshot, args, *layer, parentSnapshot, traversalPath, newSnapshot);
+        updateSnapshot(*snapshot, args, *layer, parentSnapshot, traversalPath);
     }
 
     for (auto& [childHierarchy, variant] : hierarchy.mChildren) {
@@ -522,12 +521,16 @@ LayerSnapshot* LayerSnapshotBuilder::getSnapshot(const LayerHierarchy::Traversal
     return it == mIdToSnapshot.end() ? nullptr : it->second;
 }
 
-LayerSnapshot* LayerSnapshotBuilder::createSnapshot(const LayerHierarchy::TraversalPath& id,
-                                                    const RequestedLayerState& layer) {
-    mSnapshots.emplace_back(std::make_unique<LayerSnapshot>(layer, id));
+LayerSnapshot* LayerSnapshotBuilder::createSnapshot(const LayerHierarchy::TraversalPath& path,
+                                                    const RequestedLayerState& layer,
+                                                    const LayerSnapshot& parentSnapshot) {
+    mSnapshots.emplace_back(std::make_unique<LayerSnapshot>(layer, path));
     LayerSnapshot* snapshot = mSnapshots.back().get();
     snapshot->globalZ = static_cast<size_t>(mSnapshots.size()) - 1;
-    mIdToSnapshot[id] = snapshot;
+    if (path.isClone() && path.variant != LayerHierarchy::Variant::Mirror) {
+        snapshot->mirrorRootPath = parentSnapshot.mirrorRootPath;
+    }
+    mIdToSnapshot[path] = snapshot;
     return snapshot;
 }
 
@@ -650,15 +653,14 @@ uint32_t getDisplayRotationFlags(
 void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& args,
                                           const RequestedLayerState& requested,
                                           const LayerSnapshot& parentSnapshot,
-                                          const LayerHierarchy::TraversalPath& path,
-                                          bool newSnapshot) {
+                                          const LayerHierarchy::TraversalPath& path) {
     // Always update flags and visibility
     ftl::Flags<RequestedLayerState::Changes> parentChanges = parentSnapshot.changes &
             (RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::Geometry |
              RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Metadata |
              RequestedLayerState::Changes::AffectsChildren |
              RequestedLayerState::Changes::FrameRate);
-    snapshot.changes = parentChanges | requested.changes;
+    snapshot.changes |= parentChanges | requested.changes;
     snapshot.isHiddenByPolicyFromParent = parentSnapshot.isHiddenByPolicyFromParent ||
             parentSnapshot.invalidTransform || requested.isHiddenByPolicy() ||
             (args.excludeLayerIds.find(path.id) != args.excludeLayerIds.end());
@@ -668,16 +670,15 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     snapshot.sidebandStreamHasFrame = requested.hasSidebandStreamFrame();
     updateSurfaceDamage(requested, snapshot.hasReadyFrame, args.forceFullDamage,
                         snapshot.surfaceDamage);
-
-    const bool forceUpdate = newSnapshot || args.forceUpdate == ForceUpdateFlags::ALL ||
-            snapshot.changes.any(RequestedLayerState::Changes::Visibility |
-                                 RequestedLayerState::Changes::Created);
-    snapshot.outputFilter.layerStack = requested.parentId != UNASSIGNED_LAYER_ID
-            ? parentSnapshot.outputFilter.layerStack
-            : requested.layerStack;
+    snapshot.outputFilter.layerStack = parentSnapshot.path == LayerHierarchy::TraversalPath::ROOT
+            ? requested.layerStack
+            : parentSnapshot.outputFilter.layerStack;
 
     uint32_t displayRotationFlags =
             getDisplayRotationFlags(args.displays, snapshot.outputFilter.layerStack);
+    const bool forceUpdate = args.forceUpdate == ForceUpdateFlags::ALL ||
+            snapshot.changes.any(RequestedLayerState::Changes::Visibility |
+                                 RequestedLayerState::Changes::Created);
 
     // always update the buffer regardless of visibility
     if (forceUpdate || requested.what & layer_state_t::BUFFER_CHANGES || args.displayChanges) {
@@ -710,7 +711,8 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         snapshot.desiredSdrHdrRatio = requested.desiredSdrHdrRatio;
     }
 
-    if (snapshot.isHiddenByPolicyFromParent && !newSnapshot) {
+    if (snapshot.isHiddenByPolicyFromParent &&
+        !snapshot.changes.test(RequestedLayerState::Changes::Created)) {
         if (forceUpdate ||
             snapshot.changes.any(RequestedLayerState::Changes::Hierarchy |
                                  RequestedLayerState::Changes::Geometry |
@@ -727,9 +729,6 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         snapshot.isSecure =
                 parentSnapshot.isSecure || (requested.flags & layer_state_t::eLayerSecure);
         snapshot.isTrustedOverlay = parentSnapshot.isTrustedOverlay || requested.isTrustedOverlay;
-        snapshot.outputFilter.layerStack = requested.parentId != UNASSIGNED_LAYER_ID
-                ? parentSnapshot.outputFilter.layerStack
-                : requested.layerStack;
         snapshot.outputFilter.toInternalDisplay = parentSnapshot.outputFilter.toInternalDisplay ||
                 (requested.flags & layer_state_t::eLayerSkipScreenshot);
         snapshot.stretchEffect = (requested.stretchEffect.hasEffect())
@@ -816,12 +815,11 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
             snapshot.color.a == 1.f;
     snapshot.blendMode = getBlendMode(snapshot, requested);
     LLOGV(snapshot.sequence,
-          "%supdated [%d]%s changes parent:%s global:%s local:%s requested:%s %s from parent %s",
-          args.forceUpdate == ForceUpdateFlags::ALL ? "Force " : "", requested.id,
-          requested.name.c_str(), parentSnapshot.changes.string().c_str(),
-          snapshot.changes.string().c_str(), requested.changes.string().c_str(),
-          std::to_string(requested.what).c_str(), snapshot.getDebugString().c_str(),
-          parentSnapshot.getDebugString().c_str());
+          "%supdated %s changes:%s parent:%s requested:%s requested:%s from parent %s",
+          args.forceUpdate == ForceUpdateFlags::ALL ? "Force " : "",
+          snapshot.getDebugString().c_str(), snapshot.changes.string().c_str(),
+          parentSnapshot.changes.string().c_str(), requested.changes.string().c_str(),
+          std::to_string(requested.what).c_str(), parentSnapshot.getDebugString().c_str());
 }
 
 void LayerSnapshotBuilder::updateRoundedCorner(LayerSnapshot& snapshot,
@@ -1024,7 +1022,7 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     // touches from going outside the cloned area.
     if (path.isClone()) {
         snapshot.inputInfo.inputConfig |= gui::WindowInfo::InputConfig::CLONE;
-        auto clonedRootSnapshot = getSnapshot(path.getMirrorRoot());
+        auto clonedRootSnapshot = getSnapshot(snapshot.mirrorRootPath);
         if (clonedRootSnapshot) {
             const Rect rect =
                     displayInfo.transform.transform(Rect{clonedRootSnapshot->transformedBounds});

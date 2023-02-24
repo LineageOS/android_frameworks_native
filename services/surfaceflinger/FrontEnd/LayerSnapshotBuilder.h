@@ -99,8 +99,7 @@ private:
                                                     LayerHierarchy::TraversalPath& traversalPath,
                                                     const LayerSnapshot& parentSnapshot);
     void updateSnapshot(LayerSnapshot&, const Args&, const RequestedLayerState&,
-                        const LayerSnapshot& parentSnapshot, const LayerHierarchy::TraversalPath&,
-                        bool newSnapshot);
+                        const LayerSnapshot& parentSnapshot, const LayerHierarchy::TraversalPath&);
     static void updateRelativeState(LayerSnapshot& snapshot, const LayerSnapshot& parentSnapshot,
                                     bool parentIsRelative, const Args& args);
     static void resetRelativeState(LayerSnapshot& snapshot);
@@ -115,7 +114,8 @@ private:
                      const Args& args);
     void sortSnapshotsByZ(const Args& args);
     LayerSnapshot* createSnapshot(const LayerHierarchy::TraversalPath& id,
-                                  const RequestedLayerState& layer);
+                                  const RequestedLayerState& layer,
+                                  const LayerSnapshot& parentSnapshot);
     void updateChildState(LayerSnapshot& snapshot, const LayerSnapshot& childSnapshot,
                           const Args& args);
 

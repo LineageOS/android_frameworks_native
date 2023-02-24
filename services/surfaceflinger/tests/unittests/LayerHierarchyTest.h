@@ -274,6 +274,22 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setTouchableRegion(uint32_t id, Region region) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eInputInfoChanged;
+        transactions.back().states.front().state.surface = mHandles[id];
+        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().state.windowInfoHandle =
+                sp<gui::WindowInfoHandle>::make();
+        auto inputInfo = transactions.back().states.front().state.windowInfoHandle->editInfo();
+        inputInfo->touchableRegion = region;
+        inputInfo->token = sp<BBinder>::make();
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     LayerLifecycleManager mLifecycleManager;
     std::unordered_map<uint32_t, sp<LayerHandle>> mHandles;
 };
