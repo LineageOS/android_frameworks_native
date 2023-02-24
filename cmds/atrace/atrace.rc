@@ -307,6 +307,13 @@ on late-init
 on late-init && property:ro.boot.fastboot.boottrace=enabled
     setprop debug.atrace.tags.enableflags 802922
     setprop persist.traced.enable 0
+    write /sys/kernel/tracing/events/binder/binder_transaction/enable 1
+    write /sys/kernel/tracing/events/binder/binder_transaction_received/enable 1
+    write /sys/kernel/tracing/events/binder/binder_transaction_alloc_buf/enable 1
+    write /sys/kernel/tracing/events/binder/binder_set_priority/enable 1
+    write /sys/kernel/tracing/events/binder/binder_lock/enable 1
+    write /sys/kernel/tracing/events/binder/binder_locked/enable 1
+    write /sys/kernel/tracing/events/binder/binder_unlock/enable 1
     write /sys/kernel/debug/tracing/tracing_on 1
     write /sys/kernel/tracing/tracing_on 1
 
@@ -415,6 +422,13 @@ service boottrace /system/bin/atrace --async_start -f /data/misc/boottrace/categ
 on property:sys.boot_completed=1 && property:ro.boot.fastboot.boottrace=enabled
     setprop debug.atrace.tags.enableflags 0
     setprop persist.traced.enable 1
+    write /sys/kernel/tracing/events/binder/binder_transaction/enable 0
+    write /sys/kernel/tracing/events/binder/binder_transaction_received/enable 0
+    write /sys/kernel/tracing/events/binder/binder_transaction_alloc_buf/enable 0
+    write /sys/kernel/tracing/events/binder/binder_set_priority/enable 0
+    write /sys/kernel/tracing/events/binder/binder_lock/enable 0
+    write /sys/kernel/tracing/events/binder/binder_locked/enable 0
+    write /sys/kernel/tracing/events/binder/binder_unlock/enable 0
     write /sys/kernel/debug/tracing/tracing_on 0
     write /sys/kernel/tracing/tracing_on 0
 
