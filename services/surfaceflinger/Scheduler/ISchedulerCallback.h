@@ -18,12 +18,14 @@
 
 #include <vector>
 
+#include <ui/DisplayId.h>
+
 #include "Display/DisplayModeRequest.h"
 
 namespace android::scheduler {
 
 struct ISchedulerCallback {
-    virtual void setVsyncEnabled(bool) = 0;
+    virtual void setVsyncEnabled(PhysicalDisplayId, bool) = 0;
     virtual void requestDisplayModes(std::vector<display::DisplayModeRequest>) = 0;
     virtual void kernelTimerChanged(bool expired) = 0;
     virtual void triggerOnFrameRateOverridesChanged() = 0;
