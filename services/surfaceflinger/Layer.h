@@ -758,7 +758,7 @@ public:
     std::shared_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForBuffer(
             const FrameTimelineInfo& info, nsecs_t queueTime, std::string debugName);
 
-    void setTrustedPresentationInfo(TrustedPresentationThresholds const& thresholds,
+    bool setTrustedPresentationInfo(TrustedPresentationThresholds const& thresholds,
                                     TrustedPresentationListener const& listener);
 
     // Creates a new handle each time, so we only expect
