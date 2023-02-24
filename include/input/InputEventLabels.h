@@ -30,6 +30,12 @@ struct InputEventLabel {
     int value;
 };
 
+struct EvdevEventLabel {
+    std::string type;
+    std::string code;
+    std::string value;
+};
+
 //   NOTE: If you want a new key code, axis code, led code or flag code in keylayout file,
 //   then you must add it to InputEventLabels.cpp.
 
@@ -51,6 +57,8 @@ public:
     static const char* getAxisLabel(int32_t axisId);
 
     static std::optional<int> getLedByLabel(const char* label);
+
+    static EvdevEventLabel getLinuxEvdevLabel(int32_t type, int32_t code, int32_t value);
 
 private:
     static const std::unordered_map<std::string, int> KEYCODES;
