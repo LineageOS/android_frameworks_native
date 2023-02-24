@@ -63,8 +63,9 @@ public:
      * itself. The controller will end the period transition internally.
      *
      * \param [in] period   The period that the system is changing into.
+     * \param [in] force    True to recalibrate even if period matches the existing period.
      */
-    virtual void startPeriodTransition(nsecs_t period) = 0;
+    virtual void startPeriodTransition(nsecs_t period, bool force) = 0;
 
     /*
      * Tells the tracker to stop using present fences to get a vsync signal.

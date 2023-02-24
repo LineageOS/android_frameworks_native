@@ -61,7 +61,7 @@ struct DozeNotSupportedVariant {
 struct EventThreadBaseSupportedVariant {
     static void setupVsyncNoCallExpectations(DisplayTransactionTest* test) {
         // Expect no change to hardware nor synthetic VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_)).Times(0);
+        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, _)).Times(0);
         EXPECT_CALL(*test->mEventThread, enableSyntheticVsync(_)).Times(0);
     }
 };
@@ -79,21 +79,25 @@ struct EventThreadNotSupportedVariant : public EventThreadBaseSupportedVariant {
 struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
     static void setupEnableVsyncCallExpectations(DisplayTransactionTest* test) {
         // Expect to enable hardware VSYNC and disable synthetic VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(true)).Times(1);
+        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, true)).Times(1);
         EXPECT_CALL(*test->mEventThread, enableSyntheticVsync(false)).Times(1);
     }
 
     static void setupDisableVsyncCallExpectations(DisplayTransactionTest* test) {
         // Expect to disable hardware VSYNC and enable synthetic VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(false)).Times(1);
+        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, false)).Times(1);
         EXPECT_CALL(*test->mEventThread, enableSyntheticVsync(true)).Times(1);
     }
 };
 
 struct DispSyncIsSupportedVariant {
     static void setupResetModelCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mVsyncController, startPeriodTransition(DEFAULT_VSYNC_PERIOD)).Times(1);
-        EXPECT_CALL(*test->mVSyncTracker, resetModel()).Times(1);
+        auto vsyncSchedule = test->mFlinger.scheduler()->getVsyncSchedule();
+        EXPECT_CALL(static_cast<mock::VsyncController&>(vsyncSchedule->getController()),
+                    startPeriodTransition(DEFAULT_VSYNC_PERIOD, false))
+                .Times(1);
+        EXPECT_CALL(static_cast<mock::VSyncTracker&>(vsyncSchedule->getTracker()), resetModel())
+                .Times(1);
     }
 };
 
@@ -249,8 +253,9 @@ struct DisplayPowerCase {
         return display;
     }
 
-    static void setInitialHwVsyncEnabled(DisplayTransactionTest* test, bool enabled) {
-        test->mFlinger.scheduler()->setInitialHwVsyncEnabled(enabled);
+    static void setInitialHwVsyncEnabled(DisplayTransactionTest* test, PhysicalDisplayId id,
+                                         bool enabled) {
+        test->mFlinger.scheduler()->setInitialHwVsyncEnabled(id, enabled);
     }
 
     static void setupRepaintEverythingCallExpectations(DisplayTransactionTest* test) {
@@ -316,9 +321,12 @@ void SetPowerModeInternalTest::transitionDisplayCommon() {
     Case::Doze::setupComposerCallExpectations(this);
     auto display =
             Case::injectDisplayWithInitialPowerMode(this, Case::Transition::INITIAL_POWER_MODE);
-    Case::setInitialHwVsyncEnabled(this,
-                                   PowerModeInitialVSyncEnabled<
-                                           Case::Transition::INITIAL_POWER_MODE>::value);
+    auto displayId = display->getId();
+    if (auto physicalDisplayId = PhysicalDisplayId::tryCast(displayId)) {
+        Case::setInitialHwVsyncEnabled(this, *physicalDisplayId,
+                                       PowerModeInitialVSyncEnabled<
+                                               Case::Transition::INITIAL_POWER_MODE>::value);
+    }
 
     // --------------------------------------------------------------------
     // Call Expectations
