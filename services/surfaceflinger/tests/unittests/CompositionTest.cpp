@@ -284,13 +284,16 @@ struct BaseDisplayVariant {
         constexpr auto kDisplayConnectionType = ui::DisplayConnectionType::Internal;
         constexpr bool kIsPrimary = true;
 
-        test->mDisplay = FakeDisplayDeviceInjector(test->mFlinger, compositionDisplay,
-                                                   kDisplayConnectionType, HWC_DISPLAY, kIsPrimary)
-                                 .setDisplaySurface(test->mDisplaySurface)
-                                 .setNativeWindow(test->mNativeWindow)
-                                 .setSecure(Derived::IS_SECURE)
-                                 .setPowerMode(Derived::INIT_POWER_MODE)
-                                 .inject();
+        test->mDisplay =
+                FakeDisplayDeviceInjector(test->mFlinger, compositionDisplay,
+                                          kDisplayConnectionType, HWC_DISPLAY, kIsPrimary)
+                        .setDisplaySurface(test->mDisplaySurface)
+                        .setNativeWindow(test->mNativeWindow)
+                        .setSecure(Derived::IS_SECURE)
+                        .setPowerMode(Derived::INIT_POWER_MODE)
+                        .setRefreshRateSelector(test->mFlinger.scheduler()->refreshRateSelector())
+                        .skipRegisterDisplay()
+                        .inject();
         Mock::VerifyAndClear(test->mNativeWindow.get());
 
         constexpr bool kIsInternal = kDisplayConnectionType == ui::DisplayConnectionType::Internal;

@@ -855,6 +855,11 @@ public:
             return *this;
         }
 
+        auto& skipRegisterDisplay() {
+            mRegisterDisplay = false;
+            return *this;
+        }
+
         sp<DisplayDevice> inject() NO_THREAD_SAFETY_ANALYSIS {
             const auto displayId = mCreationArgs.compositionDisplay->getDisplayId();
 
@@ -918,7 +923,7 @@ public:
                                                                       ui::ColorModes(),
                                                                       std::nullopt);
 
-                if (mFlinger.scheduler()) {
+                if (mFlinger.scheduler() && mRegisterDisplay) {
                     mFlinger.scheduler()->registerDisplay(physicalId,
                                                           display->holdRefreshRateSelector());
                 }
@@ -937,6 +942,7 @@ public:
         sp<BBinder> mDisplayToken = sp<BBinder>::make();
         DisplayDeviceCreationArgs mCreationArgs;
         DisplayModes mDisplayModes;
+        bool mRegisterDisplay = true;
         const std::optional<ui::DisplayConnectionType> mConnectionType;
         const std::optional<hal::HWDisplayId> mHwcDisplayId;
     };
