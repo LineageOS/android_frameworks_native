@@ -22,6 +22,8 @@
 #include <aidlcommonsupport/NativeHandle.h>
 #include <android/binder_enums.h>
 #include <android/binder_manager.h>
+#include <cutils/android_filesystem_config.h>
+#include <cutils/multiuser.h>
 #include <gralloctypes/Gralloc4.h>
 #include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
@@ -1195,8 +1197,15 @@ Gralloc4Allocator::Gralloc4Allocator(const Gralloc4Mapper& mapper) : mMapper(map
     mAllocator = IAllocator::getService();
     if (__builtin_available(android 31, *)) {
         if (hasIAllocatorAidl()) {
-            mAidlAllocator = AidlIAllocator::fromBinder(ndk::SpAIBinder(
-                    AServiceManager_waitForService(kAidlAllocatorServiceName.c_str())));
+            // TODO(b/269517338): Perform the isolated checking for this in service manager instead.
+            uid_t aid = multiuser_get_app_id(getuid());
+            if (aid >= AID_ISOLATED_START && aid <= AID_ISOLATED_END) {
+                mAidlAllocator = AidlIAllocator::fromBinder(ndk::SpAIBinder(
+                        AServiceManager_getService(kAidlAllocatorServiceName.c_str())));
+            } else {
+                mAidlAllocator = AidlIAllocator::fromBinder(ndk::SpAIBinder(
+                        AServiceManager_waitForService(kAidlAllocatorServiceName.c_str())));
+            }
             ALOGE_IF(!mAidlAllocator, "AIDL IAllocator declared but failed to get service");
         }
     }
