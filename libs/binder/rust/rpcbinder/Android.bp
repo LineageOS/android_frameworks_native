@@ -26,6 +26,7 @@ rust_library {
     visibility: [
         "//device/google/cuttlefish/shared/minidroid/sample",
         "//packages/modules/Virtualization:__subpackages__",
+        "//system/software_defined_vehicle:__subpackages__",
     ],
     apex_available: [
         "//apex_available:platform",
