@@ -203,7 +203,7 @@ public:
     using DisplayModesVariant = std::variant<DefaultDisplayMode, RefreshRateSelectorPtr>;
 
     void setupScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
-                        std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
+                        std::shared_ptr<scheduler::VSyncTracker> vsyncTracker,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
                         DisplayModesVariant modesVariant,
@@ -250,7 +250,7 @@ public:
                                                           std::move(modulatorPtr), callback);
         }
 
-        mScheduler->initVsync(mScheduler->getVsyncSchedule().getDispatch(), *mTokenManager, 0ms);
+        mScheduler->initVsync(mScheduler->getVsyncSchedule()->getDispatch(), *mTokenManager, 0ms);
 
         mScheduler->mutableAppConnectionHandle() =
                 mScheduler->createConnection(std::move(appEventThread));
@@ -280,7 +280,7 @@ public:
                                                                  ResyncCallback())));
 
         auto vsyncController = makeMock<mock::VsyncController>(options.useNiceMock);
-        auto vsyncTracker = makeMock<mock::VSyncTracker>(options.useNiceMock);
+        auto vsyncTracker = makeSharedMock<mock::VSyncTracker>(options.useNiceMock);
 
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
         EXPECT_CALL(*vsyncTracker, currentPeriod())
@@ -951,6 +951,11 @@ private:
     template <typename T>
     static std::unique_ptr<T> makeMock(bool useNiceMock) {
         return useNiceMock ? std::make_unique<testing::NiceMock<T>>() : std::make_unique<T>();
+    }
+
+    template <typename T>
+    static std::shared_ptr<T> makeSharedMock(bool useNiceMock) {
+        return useNiceMock ? std::make_shared<testing::NiceMock<T>>() : std::make_shared<T>();
     }
 
     static constexpr VsyncId kVsyncId{123};
