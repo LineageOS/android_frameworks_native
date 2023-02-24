@@ -69,7 +69,7 @@ public:
 
 protected:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
-    void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
+    void unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) override;
     bool canSkipPostRenderCleanup() const override;
     void drawLayersInternal(const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                             const DisplaySettings& display,

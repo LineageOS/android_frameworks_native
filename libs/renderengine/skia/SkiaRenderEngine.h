@@ -130,7 +130,7 @@ protected:
 private:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
                                   bool isRenderable) override final;
-    void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override final;
+    void unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) override final;
     bool canSkipPostRenderCleanup() const override final;
 
     void initCanvas(SkCanvas* canvas, const DisplaySettings& display);
