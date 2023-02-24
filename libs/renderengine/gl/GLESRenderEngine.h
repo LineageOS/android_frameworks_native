@@ -101,7 +101,7 @@ protected:
     size_t getMaxViewportDims() const override;
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable)
             EXCLUDES(mRenderingMutex);
-    void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
+    void unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) EXCLUDES(mRenderingMutex);
     bool canSkipPostRenderCleanup() const override;
     void drawLayersInternal(const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                             const DisplaySettings& display,
