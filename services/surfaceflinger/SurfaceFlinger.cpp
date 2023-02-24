@@ -4853,8 +4853,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
 
     if (what & layer_state_t::eTrustedPresentationInfoChanged) {
-        layer->setTrustedPresentationInfo(s.trustedPresentationThresholds,
-                                          s.trustedPresentationListener);
+        if (layer->setTrustedPresentationInfo(s.trustedPresentationThresholds,
+                                              s.trustedPresentationListener)) {
+            flags |= eTraversalNeeded;
+        }
     }
 
     if (what & layer_state_t::eFlushJankData) {
@@ -4956,8 +4958,10 @@ uint32_t SurfaceFlinger::updateLayerCallbacksAndStats(const FrameTimelineInfo& f
     }
 
     if (what & layer_state_t::eTrustedPresentationInfoChanged) {
-        layer->setTrustedPresentationInfo(s.trustedPresentationThresholds,
-                                          s.trustedPresentationListener);
+        if (layer->setTrustedPresentationInfo(s.trustedPresentationThresholds,
+                                              s.trustedPresentationListener)) {
+            flags |= eTraversalNeeded;
+        }
     }
 
     const auto& snapshot = mLayerSnapshotBuilder.getSnapshot(layer->getSequence());
