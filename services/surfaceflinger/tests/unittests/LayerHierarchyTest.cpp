@@ -263,6 +263,37 @@ TEST_F(LayerHierarchyTest, relativeChildMovesOffscreenIsNotTraversable) {
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expectedTraversalPath);
 }
 
+TEST_F(LayerHierarchyTest, reparentRelativeLayer) {
+    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    reparentRelativeLayer(11, 2);
+    UPDATE_AND_VERIFY(hierarchyBuilder);
+
+    std::vector<uint32_t> expectedTraversalPath = {1, 11, 111, 12, 121, 122, 1221, 13, 2, 11, 111};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    expectedTraversalPath = {1, 12, 121, 122, 1221, 13, 2, 11, 111};
+    EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    expectedTraversalPath = {};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expectedTraversalPath);
+
+    reparentLayer(11, 1);
+    UPDATE_AND_VERIFY(hierarchyBuilder);
+    expectedTraversalPath = {1, 11, 111, 12, 121, 122, 1221, 13, 2, 11, 111};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    expectedTraversalPath = {1, 12, 121, 122, 1221, 13, 2, 11, 111};
+    EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    expectedTraversalPath = {};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expectedTraversalPath);
+
+    setZ(11, 0);
+    UPDATE_AND_VERIFY(hierarchyBuilder);
+    expectedTraversalPath = {1, 11, 111, 12, 121, 122, 1221, 13, 2};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    expectedTraversalPath = {1, 11, 111, 12, 121, 122, 1221, 13, 2};
+    EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    expectedTraversalPath = {};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expectedTraversalPath);
+}
+
 // mirror tests
 TEST_F(LayerHierarchyTest, canTraverseMirrorLayer) {
     LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());

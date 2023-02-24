@@ -85,6 +85,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     ui::Transform::RotationFlags fixedTransformHint;
     bool handleSkipScreenshotFlag = false;
     LayerHierarchy::TraversalPath mirrorRootPath;
+    bool unreachable = true;
     ChildState childState;
 
     static bool isOpaqueFormat(PixelFormat format);

@@ -435,22 +435,18 @@ void LayerSnapshotBuilder::updateSnapshots(const Args& args) {
         }
     }
 
-    sortSnapshotsByZ(args);
+    const bool hasUnreachableSnapshots = sortSnapshotsByZ(args);
     clearChanges(mRootSnapshot);
 
     // Destroy unreachable snapshots
-    if (args.layerLifecycleManager.getDestroyedLayers().empty()) {
+    if (!hasUnreachableSnapshots) {
         return;
     }
 
-    std::unordered_set<uint32_t> destroyedLayerIds;
-    for (auto& destroyedLayer : args.layerLifecycleManager.getDestroyedLayers()) {
-        destroyedLayerIds.emplace(destroyedLayer->id);
-    }
     auto it = mSnapshots.begin();
     while (it < mSnapshots.end()) {
         auto& traversalPath = it->get()->path;
-        if (destroyedLayerIds.find(traversalPath.id) == destroyedLayerIds.end()) {
+        if (!it->get()->unreachable) {
             it++;
             continue;
         }
@@ -534,17 +530,20 @@ LayerSnapshot* LayerSnapshotBuilder::createSnapshot(const LayerHierarchy::Traver
     return snapshot;
 }
 
-void LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
+bool LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
     if (!mResortSnapshots && args.forceUpdate == ForceUpdateFlags::NONE &&
         !args.layerLifecycleManager.getGlobalChanges().any(
                 RequestedLayerState::Changes::Hierarchy |
                 RequestedLayerState::Changes::Visibility)) {
         // We are not force updating and there are no hierarchy or visibility changes. Avoid sorting
         // the snapshots.
-        return;
+        return false;
     }
-
     mResortSnapshots = false;
+
+    for (auto& snapshot : mSnapshots) {
+        snapshot->unreachable = true;
+    }
 
     size_t globalZ = 0;
     args.root.traverseInZOrder(
@@ -555,11 +554,7 @@ void LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
                     return false;
                 }
 
-                if (snapshot->isHiddenByPolicy() &&
-                    !snapshot->changes.test(RequestedLayerState::Changes::Visibility)) {
-                    return false;
-                }
-
+                snapshot->unreachable = false;
                 if (snapshot->getIsVisible() || snapshot->hasInputInfo()) {
                     updateVisibility(*snapshot, snapshot->getIsVisible());
                     size_t oldZ = snapshot->globalZ;
@@ -577,12 +572,17 @@ void LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
                 return true;
             });
     mNumInterestingSnapshots = (int)globalZ;
+    bool hasUnreachableSnapshots = false;
     while (globalZ < mSnapshots.size()) {
         mSnapshots[globalZ]->globalZ = globalZ;
         /* mark unreachable snapshots as explicitly invisible */
         updateVisibility(*mSnapshots[globalZ], false);
+        if (mSnapshots[globalZ]->unreachable) {
+            hasUnreachableSnapshots = true;
+        }
         globalZ++;
     }
+    return hasUnreachableSnapshots;
 }
 
 void LayerSnapshotBuilder::updateRelativeState(LayerSnapshot& snapshot,

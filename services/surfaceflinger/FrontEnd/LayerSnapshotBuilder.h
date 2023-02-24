@@ -112,7 +112,8 @@ private:
     void updateInput(LayerSnapshot& snapshot, const RequestedLayerState& requested,
                      const LayerSnapshot& parentSnapshot, const LayerHierarchy::TraversalPath& path,
                      const Args& args);
-    void sortSnapshotsByZ(const Args& args);
+    // Return true if there are unreachable snapshots
+    bool sortSnapshotsByZ(const Args& args);
     LayerSnapshot* createSnapshot(const LayerHierarchy::TraversalPath& id,
                                   const RequestedLayerState& layer,
                                   const LayerSnapshot& parentSnapshot);
