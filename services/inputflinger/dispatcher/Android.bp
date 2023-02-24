@@ -34,6 +34,7 @@ filegroup {
     srcs: [
         "AnrTracker.cpp",
         "Connection.cpp",
+        "DebugConfig.cpp",
         "DragState.cpp",
         "Entry.cpp",
         "FocusResolver.cpp",

@@ -15,6 +15,7 @@
  */
 
 #include <gui/SurfaceComposerClient.h>
+#include <renderengine/mock/FakeExternalTexture.h>
 #include <ui/Fence.h>
 #include <ui/Rect.h>
 
@@ -313,6 +314,14 @@ TransactionState TransactionProtoParser::fromProto(const proto::TransactionState
         ResolvedComposerState s;
         s.state.what = 0;
         fromProto(proto.layer_changes(i), s.state);
+        if (s.state.bufferData) {
+            s.externalTexture = std::make_shared<
+                    renderengine::mock::FakeExternalTexture>(s.state.bufferData->getWidth(),
+                                                             s.state.bufferData->getHeight(),
+                                                             s.state.bufferData->getId(),
+                                                             s.state.bufferData->getPixelFormat(),
+                                                             s.state.bufferData->getUsage());
+        }
         t.states.emplace_back(s);
     }
 

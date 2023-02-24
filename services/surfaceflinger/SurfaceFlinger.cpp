@@ -2031,15 +2031,9 @@ nsecs_t SurfaceFlinger::getVsyncPeriodFromHWC() const {
 
 void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp,
                                         std::optional<hal::VsyncPeriodNanos> vsyncPeriod) {
-    const std::string tracePeriod = [vsyncPeriod]() {
-        if (ATRACE_ENABLED() && vsyncPeriod) {
-            std::stringstream ss;
-            ss << "(" << *vsyncPeriod << ")";
-            return ss.str();
-        }
-        return std::string();
-    }();
-    ATRACE_FORMAT("onComposerHalVsync%s", tracePeriod.c_str());
+    ATRACE_NAME(vsyncPeriod
+                        ? ftl::Concat(__func__, ' ', hwcDisplayId, ' ', *vsyncPeriod, "ns").c_str()
+                        : ftl::Concat(__func__, ' ', hwcDisplayId).c_str());
 
     Mutex::Autolock lock(mStateLock);
 
@@ -3574,6 +3568,10 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
                 invalidateLayerStack(layer->getOutputFilter(), visibleReg);
             }
         });
+    }
+
+    if (transactionFlags & eInputInfoUpdateNeeded) {
+        mUpdateInputInfo = true;
     }
 
     doCommitTransactions();
@@ -7567,8 +7565,9 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(
-        const sp<IWindowInfosListener>& windowInfosListener) const {
+        const sp<IWindowInfosListener>& windowInfosListener) {
     mWindowInfosListenerInvoker->addWindowInfosListener(windowInfosListener);
+    setTransactionFlags(eInputInfoUpdateNeeded);
     return NO_ERROR;
 }
 
@@ -8560,8 +8559,12 @@ binder::Status SurfaceComposerAIDL::getMaxAcquiredBufferCount(int32_t* buffers) 
 binder::Status SurfaceComposerAIDL::addWindowInfosListener(
         const sp<gui::IWindowInfosListener>& windowInfosListener) {
     status_t status;
+    const int pid = IPCThreadState::self()->getCallingPid();
     const int uid = IPCThreadState::self()->getCallingUid();
-    if (uid == AID_SYSTEM || uid == AID_GRAPHICS) {
+    // TODO(b/270566761) update permissions check so that only system_server and shell can add
+    // WindowInfosListeners
+    if (uid == AID_SYSTEM || uid == AID_GRAPHICS ||
+        checkPermission(sAccessSurfaceFlinger, pid, uid)) {
         status = mFlinger->addWindowInfosListener(windowInfosListener);
     } else {
         status = PERMISSION_DENIED;
@@ -8572,8 +8575,10 @@ binder::Status SurfaceComposerAIDL::addWindowInfosListener(
 binder::Status SurfaceComposerAIDL::removeWindowInfosListener(
         const sp<gui::IWindowInfosListener>& windowInfosListener) {
     status_t status;
+    const int pid = IPCThreadState::self()->getCallingPid();
     const int uid = IPCThreadState::self()->getCallingUid();
-    if (uid == AID_SYSTEM || uid == AID_GRAPHICS) {
+    if (uid == AID_SYSTEM || uid == AID_GRAPHICS ||
+        checkPermission(sAccessSurfaceFlinger, pid, uid)) {
         status = mFlinger->removeWindowInfosListener(windowInfosListener);
     } else {
         status = PERMISSION_DENIED;
