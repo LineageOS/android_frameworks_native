@@ -8559,8 +8559,12 @@ binder::Status SurfaceComposerAIDL::getMaxAcquiredBufferCount(int32_t* buffers) 
 binder::Status SurfaceComposerAIDL::addWindowInfosListener(
         const sp<gui::IWindowInfosListener>& windowInfosListener) {
     status_t status;
+    const int pid = IPCThreadState::self()->getCallingPid();
     const int uid = IPCThreadState::self()->getCallingUid();
-    if (uid == AID_SYSTEM || uid == AID_GRAPHICS) {
+    // TODO(b/270566761) update permissions check so that only system_server and shell can add
+    // WindowInfosListeners
+    if (uid == AID_SYSTEM || uid == AID_GRAPHICS ||
+        checkPermission(sAccessSurfaceFlinger, pid, uid)) {
         status = mFlinger->addWindowInfosListener(windowInfosListener);
     } else {
         status = PERMISSION_DENIED;
@@ -8571,8 +8575,10 @@ binder::Status SurfaceComposerAIDL::addWindowInfosListener(
 binder::Status SurfaceComposerAIDL::removeWindowInfosListener(
         const sp<gui::IWindowInfosListener>& windowInfosListener) {
     status_t status;
+    const int pid = IPCThreadState::self()->getCallingPid();
     const int uid = IPCThreadState::self()->getCallingUid();
-    if (uid == AID_SYSTEM || uid == AID_GRAPHICS) {
+    if (uid == AID_SYSTEM || uid == AID_GRAPHICS ||
+        checkPermission(sAccessSurfaceFlinger, pid, uid)) {
         status = mFlinger->removeWindowInfosListener(windowInfosListener);
     } else {
         status = PERMISSION_DENIED;
