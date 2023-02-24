@@ -524,6 +524,8 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
  * Sets the desired extended range brightness for the layer. This only applies for layers whose
  * dataspace has RANGE_EXTENDED set on it.
  *
+ * Available since API level 34.
+ *
  * @param surface_control The layer whose extended range brightness is being specified
  * @param currentBufferRatio The current hdr/sdr ratio of the current buffer as represented as
  *                           peakHdrBrightnessInNits / targetSdrWhitePointInNits. For example if the
@@ -653,6 +655,8 @@ void ASurfaceTransaction_clearFrameRate(ASurfaceTransaction* transaction,
  * and pushing buffers earlier for server side queuing will be advantageous
  * in such cases.
  *
+ * Available since API level 31.
+ *
  * \param transaction The transaction in which to make the change.
  * \param surface_control The ASurfaceControl on which to control buffer backpressure behavior.
  * \param enableBackPressure Whether to enable back pressure.
@@ -673,6 +677,8 @@ void ASurfaceTransaction_setEnableBackPressure(ASurfaceTransaction* transaction,
  * To receive frame timelines, a callback must be posted to Choreographer using
  * AChoreographer_postVsyncCallback(). The \c vsyncId can then be extracted from the
  * callback payload using AChoreographerFrameCallbackData_getFrameTimelineVsyncId().
+ *
+ * Available since API level 33.
  *
  * \param vsyncId The vsync ID received from AChoreographer, setting the frame's presentation target
  * to the corresponding expected presentation time and deadline from the frame to be rendered. A
