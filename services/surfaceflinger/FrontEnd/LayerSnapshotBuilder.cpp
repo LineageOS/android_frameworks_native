@@ -337,12 +337,12 @@ LayerSnapshot LayerSnapshotBuilder::getRootSnapshot() {
 LayerSnapshotBuilder::LayerSnapshotBuilder() : mRootSnapshot(getRootSnapshot()) {}
 
 LayerSnapshotBuilder::LayerSnapshotBuilder(Args args) : LayerSnapshotBuilder() {
-    args.forceUpdate = true;
+    args.forceUpdate = ForceUpdateFlags::ALL;
     updateSnapshots(args);
 }
 
 bool LayerSnapshotBuilder::tryFastUpdate(const Args& args) {
-    if (args.forceUpdate || args.displayChanges) {
+    if (args.forceUpdate != ForceUpdateFlags::NONE || args.displayChanges) {
         // force update requested, or we have display changes, so skip the fast path
         return false;
     }
@@ -393,19 +393,31 @@ void LayerSnapshotBuilder::updateSnapshots(const Args& args) {
     ATRACE_NAME("UpdateSnapshots");
     if (args.parentCrop) {
         mRootSnapshot.geomLayerBounds = *args.parentCrop;
-    } else if (args.forceUpdate || args.displayChanges) {
+    } else if (args.forceUpdate == ForceUpdateFlags::ALL || args.displayChanges) {
         mRootSnapshot.geomLayerBounds = getMaxDisplayBounds(args.displays);
     }
     if (args.displayChanges) {
         mRootSnapshot.changes = RequestedLayerState::Changes::AffectsChildren |
                 RequestedLayerState::Changes::Geometry;
     }
+    if (args.forceUpdate == ForceUpdateFlags::HIERARCHY) {
+        mRootSnapshot.changes |=
+                RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::Visibility;
+    }
     LayerHierarchy::TraversalPath root = LayerHierarchy::TraversalPath::ROOT;
-    for (auto& [childHierarchy, variant] : args.root.mChildren) {
-        LayerHierarchy::ScopedAddToTraversalPath addChildToPath(root,
-                                                                childHierarchy->getLayer()->id,
-                                                                variant);
-        updateSnapshotsInHierarchy(args, *childHierarchy, root, mRootSnapshot);
+    if (args.root.getLayer()) {
+        // The hierarchy can have a root layer when used for screenshots otherwise, it will have
+        // multiple children.
+        LayerHierarchy::ScopedAddToTraversalPath addChildToPath(root, args.root.getLayer()->id,
+                                                                LayerHierarchy::Variant::Attached);
+        updateSnapshotsInHierarchy(args, args.root, root, mRootSnapshot);
+    } else {
+        for (auto& [childHierarchy, variant] : args.root.mChildren) {
+            LayerHierarchy::ScopedAddToTraversalPath addChildToPath(root,
+                                                                    childHierarchy->getLayer()->id,
+                                                                    variant);
+            updateSnapshotsInHierarchy(args, *childHierarchy, root, mRootSnapshot);
+        }
     }
 
     sortSnapshotsByZ(args);
@@ -451,6 +463,7 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
     if (newSnapshot) {
         snapshot = createSnapshot(traversalPath, *layer);
     }
+    scheduler::LayerInfo::FrameRate oldFrameRate = snapshot->frameRate;
     if (traversalPath.isRelative()) {
         bool parentIsRelative = traversalPath.variant == LayerHierarchy::Variant::Relative;
         updateRelativeState(*snapshot, parentSnapshot, parentIsRelative, args);
@@ -468,6 +481,10 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
         const LayerSnapshot& childSnapshot =
                 updateSnapshotsInHierarchy(args, *childHierarchy, traversalPath, *snapshot);
         updateChildState(*snapshot, childSnapshot, args);
+    }
+
+    if (oldFrameRate == snapshot->frameRate) {
+        snapshot->changes.clear(RequestedLayerState::Changes::FrameRate);
     }
     return *snapshot;
 }
@@ -495,7 +512,7 @@ LayerSnapshot* LayerSnapshotBuilder::createSnapshot(const LayerHierarchy::Traver
 }
 
 void LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
-    if (!mResortSnapshots && !args.forceUpdate &&
+    if (!mResortSnapshots && args.forceUpdate == ForceUpdateFlags::NONE &&
         !args.layerLifecycleManager.getGlobalChanges().any(
                 RequestedLayerState::Changes::Hierarchy |
                 RequestedLayerState::Changes::Visibility)) {
@@ -569,7 +586,8 @@ void LayerSnapshotBuilder::updateChildState(LayerSnapshot& snapshot,
     if (snapshot.childState.hasValidFrameRate) {
         return;
     }
-    if (args.forceUpdate || childSnapshot.changes.test(RequestedLayerState::Changes::FrameRate)) {
+    if (args.forceUpdate == ForceUpdateFlags::ALL ||
+        childSnapshot.changes.test(RequestedLayerState::Changes::FrameRate)) {
         // We return whether this layer ot its children has a vote. We ignore ExactOrMultiple votes
         // for the same reason we are allowing touch boost for those layers. See
         // RefreshRateSelector::rankFrameRates for details.
@@ -618,21 +636,20 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     ftl::Flags<RequestedLayerState::Changes> parentChanges = parentSnapshot.changes &
             (RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::Geometry |
              RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Metadata |
-             RequestedLayerState::Changes::AffectsChildren);
+             RequestedLayerState::Changes::AffectsChildren |
+             RequestedLayerState::Changes::FrameRate);
     snapshot.changes = parentChanges | requested.changes;
     snapshot.isHiddenByPolicyFromParent = parentSnapshot.isHiddenByPolicyFromParent ||
             parentSnapshot.invalidTransform || requested.isHiddenByPolicy() ||
             (args.excludeLayerIds.find(path.id) != args.excludeLayerIds.end());
     snapshot.contentDirty = requested.what & layer_state_t::CONTENT_DIRTY;
     // TODO(b/238781169) scope down the changes to only buffer updates.
-    snapshot.hasReadyFrame =
-            (snapshot.contentDirty || requested.autoRefresh) && (requested.externalTexture);
-    // TODO(b/238781169) how is this used? ag/15523870
-    snapshot.sidebandStreamHasFrame = false;
+    snapshot.hasReadyFrame = requested.hasReadyFrame();
+    snapshot.sidebandStreamHasFrame = requested.hasSidebandStreamFrame();
     updateSurfaceDamage(requested, snapshot.hasReadyFrame, args.forceFullDamage,
                         snapshot.surfaceDamage);
 
-    const bool forceUpdate = newSnapshot || args.forceUpdate ||
+    const bool forceUpdate = newSnapshot || args.forceUpdate == ForceUpdateFlags::ALL ||
             snapshot.changes.any(RequestedLayerState::Changes::Visibility |
                                  RequestedLayerState::Changes::Created);
     snapshot.outputFilter.layerStack = requested.parentId != UNASSIGNED_LAYER_ID
@@ -708,11 +725,6 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         snapshot.gameMode = requested.metadata.has(gui::METADATA_GAME_MODE)
                 ? requested.gameMode
                 : parentSnapshot.gameMode;
-        snapshot.frameRate = (requested.requestedFrameRate.rate.isValid() ||
-                              (requested.requestedFrameRate.type ==
-                               scheduler::LayerInfo::FrameRateCompatibility::NoVote))
-                ? requested.requestedFrameRate
-                : parentSnapshot.frameRate;
         snapshot.fixedTransformHint = requested.fixedTransformHint != ui::Transform::ROT_INVALID
                 ? requested.fixedTransformHint
                 : parentSnapshot.fixedTransformHint;
@@ -720,6 +732,16 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         // marked as skip capture
         snapshot.handleSkipScreenshotFlag = parentSnapshot.handleSkipScreenshotFlag ||
                 (requested.layerStackToMirror != ui::INVALID_LAYER_STACK);
+    }
+
+    if (forceUpdate ||
+        snapshot.changes.any(RequestedLayerState::Changes::FrameRate |
+                             RequestedLayerState::Changes::Hierarchy)) {
+        snapshot.frameRate = (requested.requestedFrameRate.rate.isValid() ||
+                              (requested.requestedFrameRate.type ==
+                               scheduler::LayerInfo::FrameRateCompatibility::NoVote))
+                ? requested.requestedFrameRate
+                : parentSnapshot.frameRate;
     }
 
     if (forceUpdate || requested.changes.get() != 0) {
@@ -773,10 +795,11 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     // snapshot.metadata;
     LLOGV(snapshot.sequence,
           "%supdated [%d]%s changes parent:%s global:%s local:%s requested:%s %s from parent %s",
-          args.forceUpdate ? "Force " : "", requested.id, requested.name.c_str(),
-          parentSnapshot.changes.string().c_str(), snapshot.changes.string().c_str(),
-          requested.changes.string().c_str(), std::to_string(requested.what).c_str(),
-          snapshot.getDebugString().c_str(), parentSnapshot.getDebugString().c_str());
+          args.forceUpdate == ForceUpdateFlags::ALL ? "Force " : "", requested.id,
+          requested.name.c_str(), parentSnapshot.changes.string().c_str(),
+          snapshot.changes.string().c_str(), requested.changes.string().c_str(),
+          std::to_string(requested.what).c_str(), snapshot.getDebugString().c_str(),
+          parentSnapshot.getDebugString().c_str());
 }
 
 void LayerSnapshotBuilder::updateRoundedCorner(LayerSnapshot& snapshot,
@@ -912,8 +935,12 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     } else {
         snapshot.inputInfo = {};
     }
-    snapshot.inputInfo.displayId = static_cast<int32_t>(snapshot.outputFilter.layerStack.id);
 
+    snapshot.inputInfo.name = requested.name;
+    snapshot.inputInfo.id = static_cast<int32_t>(requested.id);
+    snapshot.inputInfo.ownerUid = static_cast<int32_t>(requested.ownerUid);
+    snapshot.inputInfo.ownerPid = requested.ownerPid;
+    snapshot.inputInfo.displayId = static_cast<int32_t>(snapshot.outputFilter.layerStack.id);
     if (!needsInputInfo(snapshot, requested)) {
         return;
     }

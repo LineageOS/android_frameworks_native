@@ -538,8 +538,8 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
         return;
     }
 
-    bool computeAboveCoveredExcludingOverlays =
-            coverage.aboveCoveredLayersExcludingOverlays && !layerFEState->isInternalDisplayOverlay;
+    bool computeAboveCoveredExcludingOverlays = coverage.aboveCoveredLayersExcludingOverlays &&
+            !layerFEState->outputFilter.toInternalDisplay;
 
     /*
      * opaqueRegion: area of a surface that is fully opaque.

@@ -427,6 +427,9 @@ public:
      */
     bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/);
 
+    bool latchBufferImpl(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
+                         bool bgColorOnly);
+
     /*
      * Calls latchBuffer if the buffer has a frame queued and then releases the buffer.
      * This is used if the buffer is just latched and releases to free up the buffer
@@ -846,6 +849,7 @@ public:
     void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
                                    const sp<GraphicBuffer>& buffer, uint64_t framenumber,
                                    const sp<Fence>& releaseFence);
+    bool setFrameRateForLayerTree(FrameRate);
 
 protected:
     // For unit tests
@@ -1018,7 +1022,6 @@ private:
 
     void updateTreeHasFrameRateVote();
     bool propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* transactionNeeded);
-    bool setFrameRateForLayerTree(FrameRate);
     void setZOrderRelativeOf(const wp<Layer>& relativeOf);
     bool isTrustedOverlay() const;
     gui::DropInputMode getDropInputMode() const;
@@ -1046,7 +1049,7 @@ private:
 
     bool hasFrameUpdate() const;
 
-    void updateTexImage(nsecs_t latchTime);
+    void updateTexImage(nsecs_t latchTime, bool bgColorOnly = false);
 
     // Crop that applies to the buffer
     Rect computeBufferCrop(const State& s);

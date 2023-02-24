@@ -192,35 +192,38 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
             layer->merge(resolvedComposerState);
 
             if (layer->what & layer_state_t::eBackgroundColorChanged) {
-                if (layer->bgColorLayerId == UNASSIGNED_LAYER_ID && layer->bgColorAlpha != 0) {
+                if (layer->bgColorLayerId == UNASSIGNED_LAYER_ID && layer->bgColor.a != 0) {
                     LayerCreationArgs backgroundLayerArgs{nullptr,
                                                           nullptr,
                                                           layer->name + "BackgroundColorLayer",
                                                           ISurfaceComposerClient::eFXSurfaceEffect,
-                                                          {}};
+                                                          {},
+                                                          layer->id,
+                                                          /*internalLayer=*/true};
                     std::vector<std::unique_ptr<RequestedLayerState>> newLayers;
                     newLayers.emplace_back(
                             std::make_unique<RequestedLayerState>(backgroundLayerArgs));
                     RequestedLayerState* backgroundLayer = newLayers.back().get();
+                    backgroundLayer->bgColorLayer = true;
                     backgroundLayer->handleAlive = false;
                     backgroundLayer->parentId = layer->id;
                     backgroundLayer->z = std::numeric_limits<int32_t>::min();
-                    backgroundLayer->color.rgb = layer->color.rgb;
-                    backgroundLayer->color.a = layer->bgColorAlpha;
+                    backgroundLayer->color = layer->bgColor;
                     backgroundLayer->dataspace = layer->bgColorDataspace;
-
                     layer->bgColorLayerId = backgroundLayer->id;
                     addLayers({std::move(newLayers)});
-                } else if (layer->bgColorLayerId != UNASSIGNED_LAYER_ID &&
-                           layer->bgColorAlpha == 0) {
+                } else if (layer->bgColorLayerId != UNASSIGNED_LAYER_ID && layer->bgColor.a == 0) {
                     RequestedLayerState* bgColorLayer = getLayerFromId(layer->bgColorLayerId);
-                    bgColorLayer->parentId = UNASSIGNED_LAYER_ID;
-                    onHandlesDestroyed({layer->bgColorLayerId});
+                    layer->bgColorLayerId = UNASSIGNED_LAYER_ID;
+                    bgColorLayer->parentId = unlinkLayer(bgColorLayer->parentId, bgColorLayer->id);
+                    onHandlesDestroyed({bgColorLayer->id});
                 } else if (layer->bgColorLayerId != UNASSIGNED_LAYER_ID) {
                     RequestedLayerState* bgColorLayer = getLayerFromId(layer->bgColorLayerId);
-                    bgColorLayer->color.rgb = layer->color.rgb;
-                    bgColorLayer->color.a = layer->bgColorAlpha;
+                    bgColorLayer->color = layer->bgColor;
                     bgColorLayer->dataspace = layer->bgColorDataspace;
+                    bgColorLayer->what |= layer_state_t::eColorChanged |
+                            layer_state_t::eDataspaceChanged | layer_state_t::eAlphaChanged;
+                    bgColorLayer->changes |= RequestedLayerState::Changes::Content;
                     mGlobalChanges |= RequestedLayerState::Changes::Content;
                 }
             }
@@ -256,8 +259,7 @@ void LayerLifecycleManager::commitChanges() {
                 listener->onLayerAdded(*layer);
             }
         }
-        layer->what = 0;
-        layer->changes.clear();
+        layer->clearChanges();
     }
 
     for (auto& destroyedLayer : mDestroyedLayers) {

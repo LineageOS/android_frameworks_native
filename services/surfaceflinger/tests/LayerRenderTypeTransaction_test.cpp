@@ -544,6 +544,7 @@ void LayerRenderTypeTransactionTest::setBackgroundColorHelper(uint32_t layerType
             .apply();
 
     {
+        SCOPED_TRACE("final color");
         auto shot = screenshot();
         shot->expectColor(Rect(0, 0, width, height), finalColor);
         shot->expectBorder(Rect(0, 0, width, height), Color::BLACK);

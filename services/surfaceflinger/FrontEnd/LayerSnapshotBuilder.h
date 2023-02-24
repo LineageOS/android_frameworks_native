@@ -35,10 +35,15 @@ namespace android::surfaceflinger::frontend {
 // snapshots when there are only buffer updates.
 class LayerSnapshotBuilder {
 public:
+    enum class ForceUpdateFlags {
+        NONE,
+        ALL,
+        HIERARCHY,
+    };
     struct Args {
         LayerHierarchy root;
         const LayerLifecycleManager& layerLifecycleManager;
-        bool forceUpdate = false;
+        ForceUpdateFlags forceUpdate = ForceUpdateFlags::NONE;
         bool includeMetadata = false;
         const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displays;
         // Set to true if there were display changes since last update.

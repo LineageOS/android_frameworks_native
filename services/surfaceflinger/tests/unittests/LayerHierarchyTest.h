@@ -172,7 +172,7 @@ protected:
         transactions.emplace_back();
         transactions.back().states.push_back({});
         transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
-        transactions.back().states.front().state.bgColorAlpha = alpha;
+        transactions.back().states.front().state.bgColor.a = alpha;
         transactions.back().states.front().state.surface = mHandles[id];
         mLifecycleManager.applyTransactions(transactions);
     }
