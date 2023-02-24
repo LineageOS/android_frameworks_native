@@ -117,7 +117,10 @@ public:
 
     // clear flushes out all contents of the cache then the BlobCache, leaving
     // it in an empty state.
-    void clear() { mCacheEntries.clear(); }
+    void clear() {
+        mCacheEntries.clear();
+        mTotalSize = 0;
+    }
 
 protected:
     // mMaxTotalSize is the maximum size that all cache entries can occupy. This
