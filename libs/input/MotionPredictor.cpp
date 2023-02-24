@@ -68,11 +68,20 @@ MotionPredictor::MotionPredictor(nsecs_t predictionTimestampOffsetNanos, const c
         mModelPath(modelPath == nullptr ? DEFAULT_MODEL_PATH : modelPath),
         mCheckMotionPredictionEnabled(std::move(checkMotionPredictionEnabled)) {}
 
-void MotionPredictor::record(const MotionEvent& event) {
+android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
+    if (mLastEvent && mLastEvent->getDeviceId() != event.getDeviceId()) {
+        // We still have an active gesture for another device. The provided MotionEvent is not
+        // consistent the previous gesture.
+        LOG(ERROR) << "Inconsistent event stream: last event is " << *mLastEvent << ", but "
+                   << __func__ << " is called with " << event;
+        return android::base::Error()
+                << "Inconsistent event stream: still have an active gesture from device "
+                << mLastEvent->getDeviceId() << ", but received " << event;
+    }
     if (!isPredictionAvailable(event.getDeviceId(), event.getSource())) {
         ALOGE("Prediction not supported for device %d's %s source", event.getDeviceId(),
               inputEventSourceToString(event.getSource()).c_str());
-        return;
+        return {};
     }
 
     // Initialise the model now that it's likely to be used.
@@ -80,30 +89,32 @@ void MotionPredictor::record(const MotionEvent& event) {
         mModel = TfLiteMotionPredictorModel::create(mModelPath.c_str());
     }
 
-    TfLiteMotionPredictorBuffers& buffers =
-            mDeviceBuffers.try_emplace(event.getDeviceId(), mModel->inputLength()).first->second;
+    if (mBuffers == nullptr) {
+        mBuffers = std::make_unique<TfLiteMotionPredictorBuffers>(mModel->inputLength());
+    }
 
     const int32_t action = event.getActionMasked();
-    if (action == AMOTION_EVENT_ACTION_UP) {
+    if (action == AMOTION_EVENT_ACTION_UP || action == AMOTION_EVENT_ACTION_CANCEL) {
         ALOGD_IF(isDebug(), "End of event stream");
-        buffers.reset();
-        return;
+        mBuffers->reset();
+        mLastEvent.reset();
+        return {};
     } else if (action != AMOTION_EVENT_ACTION_DOWN && action != AMOTION_EVENT_ACTION_MOVE) {
         ALOGD_IF(isDebug(), "Skipping unsupported %s action",
                  MotionEvent::actionToString(action).c_str());
-        return;
+        return {};
     }
 
     if (event.getPointerCount() != 1) {
         ALOGD_IF(isDebug(), "Prediction not supported for multiple pointers");
-        return;
+        return {};
     }
 
     const int32_t toolType = event.getPointerProperties(0)->toolType;
     if (toolType != AMOTION_EVENT_TOOL_TYPE_STYLUS) {
         ALOGD_IF(isDebug(), "Prediction not supported for non-stylus tool: %s",
                  motionToolTypeToString(toolType));
-        return;
+        return {};
     }
 
     for (size_t i = 0; i <= event.getHistorySize(); ++i) {
@@ -111,100 +122,98 @@ void MotionPredictor::record(const MotionEvent& event) {
             continue;
         }
         const PointerCoords* coords = event.getHistoricalRawPointerCoords(0, i);
-        buffers.pushSample(event.getHistoricalEventTime(i),
-                           {
-                                   .position.x = coords->getAxisValue(AMOTION_EVENT_AXIS_X),
-                                   .position.y = coords->getAxisValue(AMOTION_EVENT_AXIS_Y),
-                                   .pressure = event.getHistoricalPressure(0, i),
-                                   .tilt = event.getHistoricalAxisValue(AMOTION_EVENT_AXIS_TILT, 0,
-                                                                        i),
-                                   .orientation = event.getHistoricalOrientation(0, i),
-                           });
+        mBuffers->pushSample(event.getHistoricalEventTime(i),
+                             {
+                                     .position.x = coords->getAxisValue(AMOTION_EVENT_AXIS_X),
+                                     .position.y = coords->getAxisValue(AMOTION_EVENT_AXIS_Y),
+                                     .pressure = event.getHistoricalPressure(0, i),
+                                     .tilt = event.getHistoricalAxisValue(AMOTION_EVENT_AXIS_TILT,
+                                                                          0, i),
+                                     .orientation = event.getHistoricalOrientation(0, i),
+                             });
     }
 
-    mLastEvents.try_emplace(event.getDeviceId())
-            .first->second.copyFrom(&event, /*keepHistory=*/false);
+    if (!mLastEvent) {
+        mLastEvent = MotionEvent();
+    }
+    mLastEvent->copyFrom(&event, /*keepHistory=*/false);
+    return {};
 }
 
-std::vector<std::unique_ptr<MotionEvent>> MotionPredictor::predict(nsecs_t timestamp) {
-    std::vector<std::unique_ptr<MotionEvent>> predictions;
-
-    for (const auto& [deviceId, buffer] : mDeviceBuffers) {
-        if (!buffer.isReady()) {
-            continue;
-        }
-
-        LOG_ALWAYS_FATAL_IF(!mModel);
-        buffer.copyTo(*mModel);
-        LOG_ALWAYS_FATAL_IF(!mModel->invoke());
-
-        // Read out the predictions.
-        const std::span<const float> predictedR = mModel->outputR();
-        const std::span<const float> predictedPhi = mModel->outputPhi();
-        const std::span<const float> predictedPressure = mModel->outputPressure();
-
-        TfLiteMotionPredictorSample::Point axisFrom = buffer.axisFrom().position;
-        TfLiteMotionPredictorSample::Point axisTo = buffer.axisTo().position;
-
-        if (isDebug()) {
-            ALOGD("deviceId: %d", deviceId);
-            ALOGD("axisFrom: %f, %f", axisFrom.x, axisFrom.y);
-            ALOGD("axisTo: %f, %f", axisTo.x, axisTo.y);
-            ALOGD("mInputR: %s", base::Join(mModel->inputR(), ", ").c_str());
-            ALOGD("mInputPhi: %s", base::Join(mModel->inputPhi(), ", ").c_str());
-            ALOGD("mInputPressure: %s", base::Join(mModel->inputPressure(), ", ").c_str());
-            ALOGD("mInputTilt: %s", base::Join(mModel->inputTilt(), ", ").c_str());
-            ALOGD("mInputOrientation: %s", base::Join(mModel->inputOrientation(), ", ").c_str());
-            ALOGD("predictedR: %s", base::Join(predictedR, ", ").c_str());
-            ALOGD("predictedPhi: %s", base::Join(predictedPhi, ", ").c_str());
-            ALOGD("predictedPressure: %s", base::Join(predictedPressure, ", ").c_str());
-        }
-
-        const MotionEvent& event = mLastEvents[deviceId];
-        bool hasPredictions = false;
-        std::unique_ptr<MotionEvent> prediction = std::make_unique<MotionEvent>();
-        int64_t predictionTime = buffer.lastTimestamp();
-        const int64_t futureTime = timestamp + mPredictionTimestampOffsetNanos;
-
-        for (int i = 0; i < predictedR.size() && predictionTime <= futureTime; ++i) {
-            const TfLiteMotionPredictorSample::Point point =
-                    convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
-            // TODO(b/266747654): Stop predictions if confidence is < some threshold.
-
-            ALOGD_IF(isDebug(), "prediction %d: %f, %f", i, point.x, point.y);
-            PointerCoords coords;
-            coords.clear();
-            coords.setAxisValue(AMOTION_EVENT_AXIS_X, point.x);
-            coords.setAxisValue(AMOTION_EVENT_AXIS_Y, point.y);
-            // TODO(b/266747654): Stop predictions if predicted pressure is < some threshold.
-            coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, predictedPressure[i]);
-
-            predictionTime += PREDICTION_INTERVAL_NANOS;
-            if (i == 0) {
-                hasPredictions = true;
-                prediction->initialize(InputEvent::nextId(), event.getDeviceId(), event.getSource(),
-                                       event.getDisplayId(), INVALID_HMAC,
-                                       AMOTION_EVENT_ACTION_MOVE, event.getActionButton(),
-                                       event.getFlags(), event.getEdgeFlags(), event.getMetaState(),
-                                       event.getButtonState(), event.getClassification(),
-                                       event.getTransform(), event.getXPrecision(),
-                                       event.getYPrecision(), event.getRawXCursorPosition(),
-                                       event.getRawYCursorPosition(), event.getRawTransform(),
-                                       event.getDownTime(), predictionTime, event.getPointerCount(),
-                                       event.getPointerProperties(), &coords);
-            } else {
-                prediction->addSample(predictionTime, &coords);
-            }
-
-            axisFrom = axisTo;
-            axisTo = point;
-        }
-        // TODO(b/266747511): Interpolate to futureTime?
-        if (hasPredictions) {
-            predictions.push_back(std::move(prediction));
-        }
+std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
+    if (mBuffers == nullptr || !mBuffers->isReady()) {
+        return nullptr;
     }
-    return predictions;
+
+    LOG_ALWAYS_FATAL_IF(!mModel);
+    mBuffers->copyTo(*mModel);
+    LOG_ALWAYS_FATAL_IF(!mModel->invoke());
+
+    // Read out the predictions.
+    const std::span<const float> predictedR = mModel->outputR();
+    const std::span<const float> predictedPhi = mModel->outputPhi();
+    const std::span<const float> predictedPressure = mModel->outputPressure();
+
+    TfLiteMotionPredictorSample::Point axisFrom = mBuffers->axisFrom().position;
+    TfLiteMotionPredictorSample::Point axisTo = mBuffers->axisTo().position;
+
+    if (isDebug()) {
+        ALOGD("axisFrom: %f, %f", axisFrom.x, axisFrom.y);
+        ALOGD("axisTo: %f, %f", axisTo.x, axisTo.y);
+        ALOGD("mInputR: %s", base::Join(mModel->inputR(), ", ").c_str());
+        ALOGD("mInputPhi: %s", base::Join(mModel->inputPhi(), ", ").c_str());
+        ALOGD("mInputPressure: %s", base::Join(mModel->inputPressure(), ", ").c_str());
+        ALOGD("mInputTilt: %s", base::Join(mModel->inputTilt(), ", ").c_str());
+        ALOGD("mInputOrientation: %s", base::Join(mModel->inputOrientation(), ", ").c_str());
+        ALOGD("predictedR: %s", base::Join(predictedR, ", ").c_str());
+        ALOGD("predictedPhi: %s", base::Join(predictedPhi, ", ").c_str());
+        ALOGD("predictedPressure: %s", base::Join(predictedPressure, ", ").c_str());
+    }
+
+    LOG_ALWAYS_FATAL_IF(!mLastEvent);
+    const MotionEvent& event = *mLastEvent;
+    bool hasPredictions = false;
+    std::unique_ptr<MotionEvent> prediction = std::make_unique<MotionEvent>();
+    int64_t predictionTime = mBuffers->lastTimestamp();
+    const int64_t futureTime = timestamp + mPredictionTimestampOffsetNanos;
+
+    for (int i = 0; i < predictedR.size() && predictionTime <= futureTime; ++i) {
+        const TfLiteMotionPredictorSample::Point point =
+                convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
+        // TODO(b/266747654): Stop predictions if confidence is < some threshold.
+
+        ALOGD_IF(isDebug(), "prediction %d: %f, %f", i, point.x, point.y);
+        PointerCoords coords;
+        coords.clear();
+        coords.setAxisValue(AMOTION_EVENT_AXIS_X, point.x);
+        coords.setAxisValue(AMOTION_EVENT_AXIS_Y, point.y);
+        // TODO(b/266747654): Stop predictions if predicted pressure is < some threshold.
+        coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, predictedPressure[i]);
+
+        predictionTime += PREDICTION_INTERVAL_NANOS;
+        if (i == 0) {
+            hasPredictions = true;
+            prediction->initialize(InputEvent::nextId(), event.getDeviceId(), event.getSource(),
+                                   event.getDisplayId(), INVALID_HMAC, AMOTION_EVENT_ACTION_MOVE,
+                                   event.getActionButton(), event.getFlags(), event.getEdgeFlags(),
+                                   event.getMetaState(), event.getButtonState(),
+                                   event.getClassification(), event.getTransform(),
+                                   event.getXPrecision(), event.getYPrecision(),
+                                   event.getRawXCursorPosition(), event.getRawYCursorPosition(),
+                                   event.getRawTransform(), event.getDownTime(), predictionTime,
+                                   event.getPointerCount(), event.getPointerProperties(), &coords);
+        } else {
+            prediction->addSample(predictionTime, &coords);
+        }
+
+        axisFrom = axisTo;
+        axisTo = point;
+    }
+    // TODO(b/266747511): Interpolate to futureTime?
+    if (!hasPredictions) {
+        return nullptr;
+    }
+    return prediction;
 }
 
 bool MotionPredictor::isPredictionAvailable(int32_t /*deviceId*/, int32_t source) {
