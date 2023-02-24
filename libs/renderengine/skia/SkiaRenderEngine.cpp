@@ -423,7 +423,7 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
     }
 }
 
-void SkiaRenderEngine::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+void SkiaRenderEngine::unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) {
     ATRACE_CALL();
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     if (const auto& iter = mGraphicBufferExternalRefs.find(buffer->getId());

@@ -231,7 +231,7 @@ protected:
     // asynchronously, but the caller can expect that map/unmap calls are performed in a manner
     // that's conflict serializable, i.e. unmap a buffer should never occur before binding the
     // buffer if the caller called mapExternalTextureBuffer before calling unmap.
-    virtual void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) = 0;
+    virtual void unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) = 0;
 
     // A thread safe query to determine if any post rendering cleanup is necessary.  Returning true
     // is a signal that calling the postRenderCleanup method would be a no-op and that callers can

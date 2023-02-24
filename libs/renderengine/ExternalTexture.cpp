@@ -39,7 +39,7 @@ ExternalTexture::ExternalTexture(const sp<GraphicBuffer>& buffer,
 }
 
 ExternalTexture::~ExternalTexture() {
-    mRenderEngine.unmapExternalTextureBuffer(mBuffer);
+    mRenderEngine.unmapExternalTextureBuffer(std::move(mBuffer));
 }
 
 } // namespace android::renderengine::impl

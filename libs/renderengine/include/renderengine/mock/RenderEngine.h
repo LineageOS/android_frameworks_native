@@ -63,7 +63,7 @@ public:
 protected:
     // mock renderengine still needs to implement these, but callers should never need to call them.
     void mapExternalTextureBuffer(const sp<GraphicBuffer>&, bool) {}
-    void unmapExternalTextureBuffer(const sp<GraphicBuffer>&) {}
+    void unmapExternalTextureBuffer(sp<GraphicBuffer>&&) {}
 };
 
 } // namespace mock
