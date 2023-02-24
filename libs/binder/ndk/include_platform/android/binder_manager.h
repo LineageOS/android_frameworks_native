@@ -22,6 +22,16 @@
 
 __BEGIN_DECLS
 
+enum AServiceManager_AddServiceFlag : uint32_t {
+    /**
+     * This allows processes with AID_ISOLATED to get the binder of the service added.
+     *
+     * Services with methods that perform file IO, web socket creation or ways to egress data must
+     * not be added with this flag for privacy concerns.
+     */
+    ADD_SERVICE_ALLOW_ISOLATED = 1,
+};
+
 /**
  * This registers the service with the default service manager under this instance name. This does
  * not take ownership of binder.
@@ -46,12 +56,13 @@ __attribute__((warn_unused_result)) binder_exception_t AServiceManager_addServic
  *
  * \param binder object to register globally with the service manager.
  * \param instance identifier of the service. This will be used to lookup the service.
- * \param allowIsolated allows if this service can be isolated.
+ * \param flag an AServiceManager_AddServiceFlag enum to denote how the service should be added.
  *
  * \return EX_NONE on success.
  */
-__attribute__((warn_unused_result)) binder_exception_t AServiceManager_addServiceWithAllowIsolated(
-        AIBinder* binder, const char* instance, bool allowIsolated) __INTRODUCED_IN(34);
+__attribute__((warn_unused_result)) binder_exception_t AServiceManager_addServiceWithFlag(
+        AIBinder* binder, const char* instance, const AServiceManager_AddServiceFlag flag)
+        __INTRODUCED_IN(34);
 
 /**
  * Gets a binder object with this specific instance name. Will return nullptr immediately if the
