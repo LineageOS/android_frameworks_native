@@ -231,7 +231,7 @@ int BlobCache::flatten(void* buffer, size_t size) const {
 
 int BlobCache::unflatten(void const* buffer, size_t size) {
     // All errors should result in the BlobCache being in an empty state.
-    mCacheEntries.clear();
+    clear();
 
     // Read the cache header
     if (size < sizeof(Header)) {
@@ -258,7 +258,7 @@ int BlobCache::unflatten(void const* buffer, size_t size) {
     size_t numEntries = header->mNumEntries;
     for (size_t i = 0; i < numEntries; i++) {
         if (byteOffset + sizeof(EntryHeader) > size) {
-            mCacheEntries.clear();
+            clear();
             ALOGE("unflatten: not enough room for cache entry headers");
             return -EINVAL;
         }
@@ -270,7 +270,7 @@ int BlobCache::unflatten(void const* buffer, size_t size) {
 
         size_t totalSize = align4(entrySize);
         if (byteOffset + totalSize > size) {
-            mCacheEntries.clear();
+            clear();
             ALOGE("unflatten: not enough room for cache entry headers");
             return -EINVAL;
         }
