@@ -412,22 +412,21 @@ std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t cou
     // in the order received.
     std::list<NotifyArgs> out;
     for (const RawEvent* rawEvent = rawEvents; count != 0; rawEvent++) {
-        if (DEBUG_RAW_EVENTS) {
-            ALOGD("Input event: device=%d type=0x%04x code=0x%04x value=0x%08x when=%" PRId64,
-                  rawEvent->deviceId, rawEvent->type, rawEvent->code, rawEvent->value,
-                  rawEvent->when);
+        if (debugRawEvents()) {
+            const auto [type, code, value] =
+                    InputEventLookup::getLinuxEvdevLabel(rawEvent->type, rawEvent->code,
+                                                         rawEvent->value);
+            ALOGD("Input event: eventHubDevice=%d type=%s code=%s value=%s when=%" PRId64,
+                  rawEvent->deviceId, type.c_str(), code.c_str(), value.c_str(), rawEvent->when);
         }
 
         if (mDropUntilNextSync) {
             if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
                 mDropUntilNextSync = false;
-                if (DEBUG_RAW_EVENTS) {
-                    ALOGD("Recovered from input event buffer overrun.");
-                }
+                ALOGD_IF(debugRawEvents(), "Recovered from input event buffer overrun.");
             } else {
-                if (DEBUG_RAW_EVENTS) {
-                    ALOGD("Dropped input event while waiting for next input sync.");
-                }
+                ALOGD_IF(debugRawEvents(),
+                         "Dropped input event while waiting for next input sync.");
             }
         } else if (rawEvent->type == EV_SYN && rawEvent->code == SYN_DROPPED) {
             ALOGI("Detected input event buffer overrun for device %s.", getName().c_str());

@@ -69,6 +69,10 @@ cc_library {
     ],
     export_header_lib_headers: ["jni_headers"],
 
+    generated_headers: [
+        "toolbox_input_labels",
+    ],
+
     shared_libs: [
         "libbase",
         "libcutils",

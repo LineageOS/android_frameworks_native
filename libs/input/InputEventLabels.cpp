@@ -16,6 +16,9 @@
 
 #include <input/InputEventLabels.h>
 
+#include <linux/input-event-codes.h>
+#include <linux/input.h>
+
 #define DEFINE_KEYCODE(key) { #key, AKEYCODE_##key }
 #define DEFINE_AXIS(axis) { #axis, AMOTION_EVENT_AXIS_##axis }
 #define DEFINE_LED(led) { #led, ALED_##led }
@@ -478,6 +481,87 @@ const char* InputEventLookup::getAxisLabel(int32_t axisId) {
 
 std::optional<int> InputEventLookup::getLedByLabel(const char* label) {
     return lookupValueByLabel(LEDS, label);
+}
+
+namespace {
+
+struct label {
+    const char* name;
+    int value;
+};
+
+#define LABEL(constant) \
+    { #constant, constant }
+#define LABEL_END \
+    { nullptr, -1 }
+
+static struct label ev_key_value_labels[] = {
+        {"UP", 0},
+        {"DOWN", 1},
+        {"REPEAT", 2},
+        LABEL_END,
+};
+
+#include "input.h-labels.h"
+
+#undef LABEL
+#undef LABEL_END
+
+std::string getLabel(const label* labels, int value) {
+    if (labels == nullptr) return std::to_string(value);
+    while (labels->name != nullptr && value != labels->value) {
+        labels++;
+    }
+    return labels->name != nullptr ? labels->name : std::to_string(value);
+}
+
+const label* getCodeLabelsForType(int32_t type) {
+    switch (type) {
+        case EV_SYN:
+            return syn_labels;
+        case EV_KEY:
+            return key_labels;
+        case EV_REL:
+            return rel_labels;
+        case EV_ABS:
+            return abs_labels;
+        case EV_SW:
+            return sw_labels;
+        case EV_MSC:
+            return msc_labels;
+        case EV_LED:
+            return led_labels;
+        case EV_REP:
+            return rep_labels;
+        case EV_SND:
+            return snd_labels;
+        case EV_FF:
+            return ff_labels;
+        case EV_FF_STATUS:
+            return ff_status_labels;
+        default:
+            return nullptr;
+    }
+}
+
+const label* getValueLabelsForTypeAndCode(int32_t type, int32_t code) {
+    if (type == EV_KEY) {
+        return ev_key_value_labels;
+    }
+    if (type == EV_MSC && code == ABS_MT_TOOL_TYPE) {
+        return mt_tool_labels;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+EvdevEventLabel InputEventLookup::getLinuxEvdevLabel(int32_t type, int32_t code, int32_t value) {
+    return {
+            .type = getLabel(ev_labels, type),
+            .code = getLabel(getCodeLabelsForType(type), code),
+            .value = getLabel(getValueLabelsForTypeAndCode(type, code), value),
+    };
 }
 
 } // namespace android

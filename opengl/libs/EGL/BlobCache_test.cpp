@@ -466,4 +466,31 @@ TEST_F(BlobCacheFlattenTest, UnflattenCatchesBufferTooSmall) {
     ASSERT_EQ(size_t(0), mBC2->get("abcd", 4, buf, 4));
 }
 
+// Test for a divide by zero bug (b/239862516). Before the fix, unflatten() would not reset
+// mTotalSize when it encountered an error, which would trigger division by 0 in clean() in the
+// right conditions.
+TEST_F(BlobCacheFlattenTest, SetAfterFailedUnflatten) {
+    // isCleanable() must be true, so mTotalSize must be > mMaxTotalSize / 2 after unflattening
+    // after one entry is lost. To make this the case, MaxTotalSize is 30 and three 10 sized
+    // entries are used. One of those entries is lost, resulting in mTotalSize=20
+    const size_t kMaxKeySize = 10;
+    const size_t kMaxValueSize = 10;
+    const size_t kMaxTotalSize = 30;
+    mBC.reset(new BlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize));
+    mBC2.reset(new BlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize));
+    mBC->set("aaaaa", 5, "aaaaa", 5);
+    mBC->set("bbbbb", 5, "bbbbb", 5);
+    mBC->set("ccccc", 5, "ccccc", 5);
+
+    size_t size = mBC->getFlattenedSize();
+    uint8_t* flat = new uint8_t[size];
+    ASSERT_EQ(OK, mBC->flatten(flat, size));
+
+    ASSERT_EQ(BAD_VALUE, mBC2->unflatten(flat, size - 10));
+    delete[] flat;
+
+    // This line will trigger clean() which caused a crash.
+    mBC2->set("dddddddddd", 10, "dddddddddd", 10);
+}
+
 } // namespace android

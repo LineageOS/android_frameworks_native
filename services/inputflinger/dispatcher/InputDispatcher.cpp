@@ -1207,7 +1207,7 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
     const char* reason;
     switch (dropReason) {
         case DropReason::POLICY:
-            if (DEBUG_INBOUND_EVENT_DETAILS) {
+            if (debugInboundEventDetails()) {
                 ALOGD("Dropped event because policy consumed it.");
             }
             reason = "inbound event was dropped because the policy consumed it";
@@ -1596,7 +1596,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<Key
         } else if (entry->action == AKEY_EVENT_ACTION_UP && mKeyRepeatState.lastKeyEntry &&
                    mKeyRepeatState.lastKeyEntry->deviceId != entry->deviceId) {
             // The key on device 'deviceId' is still down, do not stop key repeat
-            if (DEBUG_INBOUND_EVENT_DETAILS) {
+            if (debugInboundEventDetails()) {
                 ALOGD("deviceId=%d got KEY_UP as stale", entry->deviceId);
             }
         } else if (!entry->syntheticRepeat) {
@@ -4016,7 +4016,7 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
 }
 
 void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
-    if (DEBUG_INBOUND_EVENT_DETAILS) {
+    if (debugInboundEventDetails()) {
         ALOGD("notifyConfigurationChanged - eventTime=%" PRId64, args->eventTime);
     }
 
@@ -4072,7 +4072,7 @@ void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int3
 }
 
 void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
-    if (DEBUG_INBOUND_EVENT_DETAILS) {
+    if (debugInboundEventDetails()) {
         ALOGD("notifyKey - eventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
               "policyFlags=0x%x, action=0x%x, "
               "flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, downTime=%" PRId64,
@@ -4150,7 +4150,7 @@ bool InputDispatcher::shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args
 }
 
 void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
-    if (DEBUG_INBOUND_EVENT_DETAILS) {
+    if (debugInboundEventDetails()) {
         ALOGD("notifyMotion - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=0x%x, "
               "displayId=%" PRId32 ", policyFlags=0x%x, "
               "action=%s, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x, "
@@ -4261,7 +4261,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 }
 
 void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
-    if (DEBUG_INBOUND_EVENT_DETAILS) {
+    if (debugInboundEventDetails()) {
         ALOGD("notifySensor - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=0x%x, "
               " sensorType=%s",
               args->id, args->eventTime, args->deviceId, args->source,
@@ -4289,7 +4289,7 @@ void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
 }
 
 void InputDispatcher::notifyVibratorState(const NotifyVibratorStateArgs* args) {
-    if (DEBUG_INBOUND_EVENT_DETAILS) {
+    if (debugInboundEventDetails()) {
         ALOGD("notifyVibratorState - eventTime=%" PRId64 ", device=%d,  isOn=%d", args->eventTime,
               args->deviceId, args->isOn);
     }
@@ -4301,7 +4301,7 @@ bool InputDispatcher::shouldSendMotionToInputFilterLocked(const NotifyMotionArgs
 }
 
 void InputDispatcher::notifySwitch(const NotifySwitchArgs* args) {
-    if (DEBUG_INBOUND_EVENT_DETAILS) {
+    if (debugInboundEventDetails()) {
         ALOGD("notifySwitch - eventTime=%" PRId64 ", policyFlags=0x%x, switchValues=0x%08x, "
               "switchMask=0x%08x",
               args->eventTime, args->policyFlags, args->switchValues, args->switchMask);
@@ -4313,7 +4313,7 @@ void InputDispatcher::notifySwitch(const NotifySwitchArgs* args) {
 }
 
 void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
-    if (DEBUG_INBOUND_EVENT_DETAILS) {
+    if (debugInboundEventDetails()) {
         ALOGD("notifyDeviceReset - eventTime=%" PRId64 ", deviceId=%d", args->eventTime,
               args->deviceId);
     }
@@ -4333,7 +4333,7 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
 }
 
 void InputDispatcher::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
-    if (DEBUG_INBOUND_EVENT_DETAILS) {
+    if (debugInboundEventDetails()) {
         ALOGD("notifyPointerCaptureChanged - eventTime=%" PRId64 ", enabled=%s", args->eventTime,
               args->request.enable ? "true" : "false");
     }
@@ -4356,7 +4356,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                             InputEventInjectionSync syncMode,
                                                             std::chrono::milliseconds timeout,
                                                             uint32_t policyFlags) {
-    if (DEBUG_INBOUND_EVENT_DETAILS) {
+    if (debugInboundEventDetails()) {
         ALOGD("injectInputEvent - eventType=%d, targetUid=%s, syncMode=%d, timeout=%lld, "
               "policyFlags=0x%08x",
               event->getType(), targetUid ? std::to_string(*targetUid).c_str() : "none", syncMode,
