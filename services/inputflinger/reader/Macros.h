@@ -25,12 +25,14 @@
 #include <unordered_map>
 
 namespace android {
+
 /**
  * Log debug messages for each raw event received from the EventHub.
- * Enable this via "adb shell setprop log.tag.InputReaderRawEvents DEBUG" (requires restart)
+ * Enable this via "adb shell setprop log.tag.InputReaderRawEvents DEBUG".
+ * This requires a restart on non-debuggable (e.g. user) builds, but should take effect immediately
+ * on debuggable builds (e.g. userdebug).
  */
-const bool DEBUG_RAW_EVENTS =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "RawEvents", ANDROID_LOG_INFO);
+bool debugRawEvents();
 
 /**
  * Log debug messages about virtual key processing.
@@ -52,6 +54,7 @@ const bool DEBUG_POINTERS =
  */
 const bool DEBUG_POINTER_ASSIGNMENT =
         __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "PointerAssignment", ANDROID_LOG_INFO);
+
 /**
  * Log debug messages about gesture detection.
  * Enable this via "adb shell setprop log.tag.InputReaderGestures DEBUG" (requires restart)
@@ -79,6 +82,7 @@ const bool DEBUG_STYLUS_FUSION =
  */
 const bool DEBUG_LIGHT_DETAILS =
         __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "LightDetails", ANDROID_LOG_INFO);
+
 } // namespace android
 
 #define INDENT "  "
