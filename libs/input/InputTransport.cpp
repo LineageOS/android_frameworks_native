@@ -555,10 +555,10 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t eventId, int32_t 
         ATRACE_NAME(message.c_str());
     }
     ALOGD_IF(debugTransportPublisher(),
-             "channel '%s' publisher ~ %s: seq=%u, deviceId=%d, source=%s, "
+             "channel '%s' publisher ~ %s: seq=%u, id=%d, deviceId=%d, source=%s, "
              "action=%s, flags=0x%x, keyCode=%s, scanCode=%d, metaState=0x%x, repeatCount=%d,"
              "downTime=%" PRId64 ", eventTime=%" PRId64,
-             mChannel->getName().c_str(), __func__, seq, deviceId,
+             mChannel->getName().c_str(), __func__, seq, eventId, deviceId,
              inputEventSourceToString(source).c_str(), KeyEvent::actionToString(action), flags,
              KeyEvent::getLabel(keyCode), scanCode, metaState, repeatCount, downTime, eventTime);
 
@@ -608,13 +608,13 @@ status_t InputPublisher::publishMotionEvent(
     if (debugTransportPublisher()) {
         std::string transformString;
         transform.dump(transformString, "transform", "        ");
-        ALOGD("channel '%s' publisher ~ %s: seq=%u, deviceId=%d, source=%s, "
+        ALOGD("channel '%s' publisher ~ %s: seq=%u, id=%d, deviceId=%d, source=%s, "
               "displayId=%" PRId32 ", "
               "action=%s, actionButton=0x%08x, flags=0x%x, edgeFlags=0x%x, "
               "metaState=0x%x, buttonState=0x%x, classification=%s,"
               "xPrecision=%f, yPrecision=%f, downTime=%" PRId64 ", eventTime=%" PRId64 ", "
               "pointerCount=%" PRIu32 " \n%s",
-              mChannel->getName().c_str(), __func__, seq, deviceId,
+              mChannel->getName().c_str(), __func__, seq, eventId, deviceId,
               inputEventSourceToString(source).c_str(), displayId,
               MotionEvent::actionToString(action).c_str(), actionButton, flags, edgeFlags,
               metaState, buttonState, motionClassificationToString(classification), xPrecision,
@@ -680,8 +680,8 @@ status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool h
                                            mChannel->getName().c_str(), toString(hasFocus));
         ATRACE_NAME(message.c_str());
     }
-    ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s: seq=%u, hasFocus=%s",
-             mChannel->getName().c_str(), __func__, seq, toString(hasFocus));
+    ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s: seq=%u, id=%d, hasFocus=%s",
+             mChannel->getName().c_str(), __func__, seq, eventId, toString(hasFocus));
 
     InputMessage msg;
     msg.header.type = InputMessage::Type::FOCUS;
@@ -700,8 +700,8 @@ status_t InputPublisher::publishCaptureEvent(uint32_t seq, int32_t eventId,
         ATRACE_NAME(message.c_str());
     }
     ALOGD_IF(debugTransportPublisher(),
-             "channel '%s' publisher ~ %s: seq=%u, pointerCaptureEnabled=%s",
-             mChannel->getName().c_str(), __func__, seq, toString(pointerCaptureEnabled));
+             "channel '%s' publisher ~ %s: seq=%u, id=%d, pointerCaptureEnabled=%s",
+             mChannel->getName().c_str(), __func__, seq, eventId, toString(pointerCaptureEnabled));
 
     InputMessage msg;
     msg.header.type = InputMessage::Type::CAPTURE;
@@ -720,8 +720,8 @@ status_t InputPublisher::publishDragEvent(uint32_t seq, int32_t eventId, float x
         ATRACE_NAME(message.c_str());
     }
     ALOGD_IF(debugTransportPublisher(),
-             "channel '%s' publisher ~ %s: seq=%u, x=%f, y=%f, isExiting=%s",
-             mChannel->getName().c_str(), __func__, seq, x, y, toString(isExiting));
+             "channel '%s' publisher ~ %s: seq=%u, id=%d, x=%f, y=%f, isExiting=%s",
+             mChannel->getName().c_str(), __func__, seq, eventId, x, y, toString(isExiting));
 
     InputMessage msg;
     msg.header.type = InputMessage::Type::DRAG;
@@ -740,8 +740,9 @@ status_t InputPublisher::publishTouchModeEvent(uint32_t seq, int32_t eventId, bo
                              mChannel->getName().c_str(), toString(isInTouchMode));
         ATRACE_NAME(message.c_str());
     }
-    ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s: seq=%u, isInTouchMode=%s",
-             mChannel->getName().c_str(), __func__, seq, toString(isInTouchMode));
+    ALOGD_IF(debugTransportPublisher(),
+             "channel '%s' publisher ~ %s: seq=%u, id=%d, isInTouchMode=%s",
+             mChannel->getName().c_str(), __func__, seq, eventId, toString(isInTouchMode));
 
     InputMessage msg;
     msg.header.type = InputMessage::Type::TOUCH_MODE;
@@ -752,15 +753,18 @@ status_t InputPublisher::publishTouchModeEvent(uint32_t seq, int32_t eventId, bo
 }
 
 android::base::Result<InputPublisher::ConsumerResponse> InputPublisher::receiveConsumerResponse() {
-    ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s", mChannel->getName().c_str(),
-             __func__);
-
     InputMessage msg;
     status_t result = mChannel->receiveMessage(&msg);
     if (result) {
+        ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s: %s",
+                 mChannel->getName().c_str(), __func__, strerror(result));
         return android::base::Error(result);
     }
     if (msg.header.type == InputMessage::Type::FINISHED) {
+        ALOGD_IF(debugTransportPublisher(),
+                 "channel '%s' publisher ~ %s: finished: seq=%u, handled=%s",
+                 mChannel->getName().c_str(), __func__, msg.header.seq,
+                 toString(msg.body.finished.handled));
         return Finished{
                 .seq = msg.header.seq,
                 .handled = msg.body.finished.handled,
@@ -769,6 +773,8 @@ android::base::Result<InputPublisher::ConsumerResponse> InputPublisher::receiveC
     }
 
     if (msg.header.type == InputMessage::Type::TIMELINE) {
+        ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s: timeline: id=%d",
+                 mChannel->getName().c_str(), __func__, msg.body.timeline.eventId);
         return Timeline{
                 .inputEventId = msg.body.timeline.eventId,
                 .graphicsTimeline = msg.body.timeline.graphicsTimeline,
