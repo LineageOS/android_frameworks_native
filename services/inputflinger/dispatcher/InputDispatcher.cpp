@@ -4072,14 +4072,15 @@ void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int3
 }
 
 void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
-    if (debugInboundEventDetails()) {
-        ALOGD("notifyKey - eventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
-              "policyFlags=0x%x, action=0x%x, "
-              "flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, downTime=%" PRId64,
-              args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
-              args->action, args->flags, args->keyCode, args->scanCode, args->metaState,
-              args->downTime);
-    }
+    ALOGD_IF(debugInboundEventDetails(),
+             "notifyKey - id=%" PRIx32 ", eventTime=%" PRId64
+             ", deviceId=%d, source=%s, displayId=%" PRId32
+             "policyFlags=0x%x, action=%s, flags=0x%x, keyCode=%s, scanCode=0x%x, metaState=0x%x, "
+             "downTime=%" PRId64,
+             args->id, args->eventTime, args->deviceId,
+             inputEventSourceToString(args->source).c_str(), args->displayId, args->policyFlags,
+             KeyEvent::actionToString(args->action), args->flags, KeyEvent::getLabel(args->keyCode),
+             args->scanCode, args->metaState, args->downTime);
     if (!validateKeyEvent(args->action)) {
         return;
     }
@@ -4151,22 +4152,21 @@ bool InputDispatcher::shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args
 
 void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
     if (debugInboundEventDetails()) {
-        ALOGD("notifyMotion - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=0x%x, "
+        ALOGD("notifyMotion - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=%s, "
               "displayId=%" PRId32 ", policyFlags=0x%x, "
               "action=%s, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x, "
               "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, xCursorPosition=%f, "
               "yCursorPosition=%f, downTime=%" PRId64,
-              args->id, args->eventTime, args->deviceId, args->source, args->displayId,
-              args->policyFlags, MotionEvent::actionToString(args->action).c_str(),
-              args->actionButton, args->flags, args->metaState, args->buttonState, args->edgeFlags,
-              args->xPrecision, args->yPrecision, args->xCursorPosition, args->yCursorPosition,
-              args->downTime);
+              args->id, args->eventTime, args->deviceId,
+              inputEventSourceToString(args->source).c_str(), args->displayId, args->policyFlags,
+              MotionEvent::actionToString(args->action).c_str(), args->actionButton, args->flags,
+              args->metaState, args->buttonState, args->edgeFlags, args->xPrecision,
+              args->yPrecision, args->xCursorPosition, args->yCursorPosition, args->downTime);
         for (uint32_t i = 0; i < args->pointerCount; i++) {
-            ALOGD("  Pointer %d: id=%d, toolType=%d, "
-                  "x=%f, y=%f, pressure=%f, size=%f, "
-                  "touchMajor=%f, touchMinor=%f, toolMajor=%f, toolMinor=%f, "
-                  "orientation=%f",
-                  i, args->pointerProperties[i].id, args->pointerProperties[i].toolType,
+            ALOGD("  Pointer %d: id=%d, toolType=%s, x=%f, y=%f, pressure=%f, size=%f, "
+                  "touchMajor=%f, touchMinor=%f, toolMajor=%f, toolMinor=%f, orientation=%f",
+                  i, args->pointerProperties[i].id,
+                  motionToolTypeToString(args->pointerProperties[i].toolType),
                   args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X),
                   args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y),
                   args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE),

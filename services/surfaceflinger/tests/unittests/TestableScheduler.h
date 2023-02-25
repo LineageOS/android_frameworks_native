@@ -37,19 +37,16 @@ class TestableScheduler : public Scheduler, private ICompositor {
 public:
     TestableScheduler(RefreshRateSelectorPtr selectorPtr, ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
-                              std::make_unique<mock::VSyncTracker>(), std::move(selectorPtr),
+                              std::make_shared<mock::VSyncTracker>(), std::move(selectorPtr),
                               /* modulatorPtr */ nullptr, callback) {}
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
-                      std::unique_ptr<VSyncTracker> tracker, RefreshRateSelectorPtr selectorPtr,
+                      std::shared_ptr<VSyncTracker> tracker, RefreshRateSelectorPtr selectorPtr,
                       sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
           : Scheduler(*this, callback, Feature::kContentDetection, std::move(modulatorPtr)) {
-        mVsyncSchedule = std::unique_ptr<VsyncSchedule>(
-                new VsyncSchedule(std::move(tracker), std::make_unique<mock::VSyncDispatch>(),
-                                  std::move(controller)));
-
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
-        registerDisplay(displayId, std::move(selectorPtr));
+        registerDisplay(displayId, std::move(selectorPtr), std::move(controller),
+                        std::move(tracker));
 
         ON_CALL(*this, postMessage).WillByDefault([](sp<MessageHandler>&& handler) {
             // Execute task to prevent broken promise exception on destruction.
@@ -73,8 +70,21 @@ public:
     }
 
     void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
+        registerDisplay(displayId, std::move(selectorPtr),
+                        std::make_unique<mock::VsyncController>(),
+                        std::make_shared<mock::VSyncTracker>());
+    }
+
+    void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr,
+                         std::unique_ptr<VsyncController> controller,
+                         std::shared_ptr<VSyncTracker> tracker) {
         ftl::FakeGuard guard(kMainThreadContext);
-        Scheduler::registerDisplay(displayId, std::move(selectorPtr));
+        Scheduler::registerDisplayInternal(displayId, std::move(selectorPtr),
+                                           std::shared_ptr<VsyncSchedule>(
+                                                   new VsyncSchedule(displayId, std::move(tracker),
+                                                                     std::make_shared<
+                                                                             mock::VSyncDispatch>(),
+                                                                     std::move(controller))));
     }
 
     void unregisterDisplay(PhysicalDisplayId displayId) {
@@ -151,10 +161,11 @@ public:
         Scheduler::onNonPrimaryDisplayModeChanged(handle, mode);
     }
 
-    void setInitialHwVsyncEnabled(bool enabled) {
-        std::lock_guard<std::mutex> lock(mVsyncSchedule->mHwVsyncLock);
-        mVsyncSchedule->mHwVsyncState = enabled ? VsyncSchedule::HwVsyncState::Enabled
-                                                : VsyncSchedule::HwVsyncState::Disabled;
+    void setInitialHwVsyncEnabled(PhysicalDisplayId id, bool enabled) {
+        auto schedule = getVsyncSchedule(id);
+        std::lock_guard<std::mutex> lock(schedule->mHwVsyncLock);
+        schedule->mHwVsyncState = enabled ? VsyncSchedule::HwVsyncState::Enabled
+                                          : VsyncSchedule::HwVsyncState::Disabled;
     }
 
 private:

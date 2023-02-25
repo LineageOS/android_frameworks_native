@@ -177,11 +177,10 @@ TEST_F(JpegRTest, writeXmpThenRead) {
   jpegr_metadata metadata_expected;
   metadata_expected.maxContentBoost = 1.25;
   metadata_expected.minContentBoost = 0.75;
-  int length_expected = 1000;
   const std::string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
   const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
 
-  std::string xmp = generateXmp(1000, metadata_expected);
+  std::string xmp = generateXmpForSecondaryImage(metadata_expected);
 
   std::vector<uint8_t> xmpData;
   xmpData.reserve(nameSpaceLength + xmp.size());
@@ -220,7 +219,7 @@ TEST_F(JpegRTest, encodeFromP010ThenDecode) {
   }
   if (SAVE_ENCODING_RESULT) {
     // Output image data to file
-    std::string filePath = "/sdcard/Documents/encoded_from_jpeg_input.jpgr";
+    std::string filePath = "/sdcard/Documents/encoded_from_p010_input.jpgr";
     std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
     if (!imageFile.is_open()) {
       ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
@@ -237,7 +236,7 @@ TEST_F(JpegRTest, encodeFromP010ThenDecode) {
   }
   if (SAVE_DECODING_RESULT) {
     // Output image data to file
-    std::string filePath = "/sdcard/Documents/decoded_from_jpeg_input.rgb10";
+    std::string filePath = "/sdcard/Documents/decoded_from_p010_input.rgb10";
     std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
     if (!imageFile.is_open()) {
       ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
@@ -281,7 +280,7 @@ TEST_F(JpegRTest, encodeFromRawHdrAndSdrThenDecode) {
   }
   if (SAVE_ENCODING_RESULT) {
     // Output image data to file
-    std::string filePath = "/sdcard/Documents/encoded_from_jpeg_input.jpgr";
+    std::string filePath = "/sdcard/Documents/encoded_from_p010_yuv420p_input.jpgr";
     std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
     if (!imageFile.is_open()) {
       ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
@@ -298,7 +297,7 @@ TEST_F(JpegRTest, encodeFromRawHdrAndSdrThenDecode) {
   }
   if (SAVE_DECODING_RESULT) {
     // Output image data to file
-    std::string filePath = "/sdcard/Documents/decoded_from_jpeg_input.rgb10";
+    std::string filePath = "/sdcard/Documents/decoded_from_p010_yuv420p_input.rgb10";
     std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
     if (!imageFile.is_open()) {
       ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
@@ -346,7 +345,7 @@ TEST_F(JpegRTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
   }
   if (SAVE_ENCODING_RESULT) {
     // Output image data to file
-    std::string filePath = "/sdcard/Documents/encoded_from_jpeg_input.jpgr";
+    std::string filePath = "/sdcard/Documents/encoded_from_p010_yuv420p_jpeg_input.jpgr";
     std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
     if (!imageFile.is_open()) {
       ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
@@ -363,7 +362,7 @@ TEST_F(JpegRTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
   }
   if (SAVE_DECODING_RESULT) {
     // Output image data to file
-    std::string filePath = "/sdcard/Documents/decoded_from_jpeg_input.rgb10";
+    std::string filePath = "/sdcard/Documents/decoded_from_p010_yuv420p_jpeg_input.rgb10";
     std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
     if (!imageFile.is_open()) {
       ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
@@ -427,7 +426,7 @@ TEST_F(JpegRTest, encodeFromJpegThenDecode) {
   }
   if (SAVE_ENCODING_RESULT) {
     // Output image data to file
-    std::string filePath = "/sdcard/Documents/encoded_from_jpeg_input.jpgr";
+    std::string filePath = "/sdcard/Documents/encoded_from_p010_jpeg_input.jpgr";
     std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
     if (!imageFile.is_open()) {
       ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
@@ -444,7 +443,7 @@ TEST_F(JpegRTest, encodeFromJpegThenDecode) {
   }
   if (SAVE_DECODING_RESULT) {
     // Output image data to file
-    std::string filePath = "/sdcard/Documents/decoded_from_jpeg_input.rgb10";
+    std::string filePath = "/sdcard/Documents/decoded_from_p010_jpeg_input.rgb10";
     std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
     if (!imageFile.is_open()) {
       ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());

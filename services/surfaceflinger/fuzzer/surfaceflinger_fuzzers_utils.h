@@ -226,19 +226,19 @@ public:
     TestableScheduler(const std::shared_ptr<scheduler::RefreshRateSelector>& selectorPtr,
                       sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<android::mock::VsyncController>(),
-                              std::make_unique<android::mock::VSyncTracker>(), selectorPtr,
+                              std::make_shared<android::mock::VSyncTracker>(), selectorPtr,
                               std::move(modulatorPtr), callback) {}
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
-                      std::unique_ptr<VSyncTracker> tracker,
+                      VsyncSchedule::TrackerPtr tracker,
                       std::shared_ptr<RefreshRateSelector> selectorPtr,
                       sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
           : Scheduler(*this, callback, Feature::kContentDetection, std::move(modulatorPtr)) {
-        mVsyncSchedule = std::unique_ptr<VsyncSchedule>(
-                new VsyncSchedule(std::move(tracker), nullptr, std::move(controller)));
-
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
-        registerDisplay(displayId, std::move(selectorPtr));
+        registerDisplayInternal(displayId, std::move(selectorPtr),
+                                std::shared_ptr<VsyncSchedule>(
+                                        new VsyncSchedule(displayId, std::move(tracker), nullptr,
+                                                          std::move(controller))));
     }
 
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
@@ -647,10 +647,10 @@ public:
 
     // The ISchedulerCallback argument can be nullptr for a no-op implementation.
     void setupScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
-                        std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
+                        std::shared_ptr<scheduler::VSyncTracker> vsyncTracker,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
-                        scheduler::ISchedulerCallback *callback = nullptr,
+                        scheduler::ISchedulerCallback* callback = nullptr,
                         bool hasMultipleModes = false) {
         constexpr DisplayModeId kModeId60{0};
         DisplayModes modes = makeModes(mock::createDisplayMode(kModeId60, 60_Hz));
@@ -789,7 +789,7 @@ public:
     }
 
 private:
-    void setVsyncEnabled(bool) override {}
+    void setVsyncEnabled(PhysicalDisplayId, bool) override {}
     void requestDisplayModes(std::vector<display::DisplayModeRequest>) override {}
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() override {}

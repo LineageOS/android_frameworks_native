@@ -4063,7 +4063,7 @@ void Layer::updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMet
     }
 }
 
-void Layer::setTrustedPresentationInfo(TrustedPresentationThresholds const& thresholds,
+bool Layer::setTrustedPresentationInfo(TrustedPresentationThresholds const& thresholds,
                                        TrustedPresentationListener const& listener) {
     bool hadTrustedPresentationListener = hasTrustedPresentationListener();
     mTrustedPresentationListener = listener;
@@ -4074,6 +4074,16 @@ void Layer::setTrustedPresentationInfo(TrustedPresentationThresholds const& thre
     } else if (hadTrustedPresentationListener && !haveTrustedPresentationListener) {
         mFlinger->mNumTrustedPresentationListeners--;
     }
+
+    // Reset trusted presentation states to ensure we start the time again.
+    mEnteredTrustedPresentationStateTime = -1;
+    mLastReportedTrustedPresentationState = false;
+    mLastComputedTrustedPresentationState = false;
+
+    // If there's a new trusted presentation listener, the code needs to go through the composite
+    // path to ensure it recomutes the current state and invokes the TrustedPresentationListener if
+    // we're already in the requested state.
+    return haveTrustedPresentationListener;
 }
 
 void Layer::updateLastLatchTime(nsecs_t latchTime) {
