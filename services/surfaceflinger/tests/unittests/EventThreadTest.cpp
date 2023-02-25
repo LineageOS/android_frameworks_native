@@ -125,7 +125,7 @@ protected:
     ConnectionEventRecorder mConnectionEventCallRecorder{0};
     ConnectionEventRecorder mThrottledConnectionEventCallRecorder{0};
 
-    std::unique_ptr<scheduler::VsyncSchedule> mVsyncSchedule;
+    std::shared_ptr<scheduler::VsyncSchedule> mVsyncSchedule;
     std::unique_ptr<impl::EventThread> mThread;
     sp<MockEventThreadConnection> mConnection;
     sp<MockEventThreadConnection> mThrottledConnection;
@@ -140,12 +140,12 @@ EventThreadTest::EventThreadTest() {
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-    mVsyncSchedule = std::unique_ptr<scheduler::VsyncSchedule>(
-            new scheduler::VsyncSchedule(std::make_unique<mock::VSyncTracker>(),
-                                         std::make_unique<mock::VSyncDispatch>(), nullptr));
-
-    mock::VSyncDispatch& mockDispatch =
-            *static_cast<mock::VSyncDispatch*>(&mVsyncSchedule->getDispatch());
+    auto mockDispatchPtr = std::make_shared<mock::VSyncDispatch>();
+    mVsyncSchedule = std::shared_ptr<scheduler::VsyncSchedule>(
+            new scheduler::VsyncSchedule(INTERNAL_DISPLAY_ID,
+                                         std::make_shared<mock::VSyncTracker>(), mockDispatchPtr,
+                                         nullptr));
+    mock::VSyncDispatch& mockDispatch = *mockDispatchPtr;
     EXPECT_CALL(mockDispatch, registerCallback(_, _))
             .WillRepeatedly(Invoke(mVSyncCallbackRegisterRecorder.getInvocable()));
     EXPECT_CALL(mockDispatch, schedule(_, _))
@@ -189,10 +189,9 @@ void EventThreadTest::createThread() {
     };
 
     mTokenManager = std::make_unique<frametimeline::impl::TokenManager>();
-    mThread =
-            std::make_unique<impl::EventThread>(/*std::move(source), */ "EventThreadTest",
-                                                *mVsyncSchedule, mTokenManager.get(), throttleVsync,
-                                                getVsyncPeriod, kWorkDuration, kReadyDuration);
+    mThread = std::make_unique<impl::EventThread>("EventThreadTest", mVsyncSchedule,
+                                                  mTokenManager.get(), throttleVsync,
+                                                  getVsyncPeriod, kWorkDuration, kReadyDuration);
 
     // EventThread should register itself as VSyncSource callback.
     EXPECT_TRUE(mVSyncCallbackRegisterRecorder.waitForCall().has_value());

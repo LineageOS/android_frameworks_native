@@ -161,7 +161,8 @@ protected:
  */
 class VSyncCallbackRegistration {
 public:
-    VSyncCallbackRegistration(VSyncDispatch&, VSyncDispatch::Callback, std::string callbackName);
+    VSyncCallbackRegistration(std::shared_ptr<VSyncDispatch>, VSyncDispatch::Callback,
+                              std::string callbackName);
     ~VSyncCallbackRegistration();
 
     VSyncCallbackRegistration(VSyncCallbackRegistration&&);
@@ -177,7 +178,7 @@ public:
     CancelResult cancel();
 
 private:
-    std::reference_wrapper<VSyncDispatch> mDispatch;
+    std::shared_ptr<VSyncDispatch> mDispatch;
     VSyncDispatch::CallbackToken mToken;
     bool mValidToken;
 };

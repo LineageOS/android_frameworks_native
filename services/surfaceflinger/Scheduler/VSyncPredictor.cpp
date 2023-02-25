@@ -31,6 +31,7 @@
 #include <android-base/stringprintf.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
+#include <ftl/concat.h>
 #include <gui/TraceUtils.h>
 #include <utils/Log.h>
 
@@ -45,9 +46,10 @@ static auto constexpr kMaxPercent = 100u;
 
 VSyncPredictor::~VSyncPredictor() = default;
 
-VSyncPredictor::VSyncPredictor(nsecs_t idealPeriod, size_t historySize,
+VSyncPredictor::VSyncPredictor(PhysicalDisplayId id, nsecs_t idealPeriod, size_t historySize,
                                size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent)
-      : mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
+      : mId(id),
+        mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
         kHistorySize(historySize),
         kMinimumSamplesForPrediction(minimumSamplesForPrediction),
         kOutlierTolerancePercent(std::min(outlierTolerancePercent, kMaxPercent)),
@@ -57,12 +59,12 @@ VSyncPredictor::VSyncPredictor(nsecs_t idealPeriod, size_t historySize,
 
 inline void VSyncPredictor::traceInt64If(const char* name, int64_t value) const {
     if (CC_UNLIKELY(mTraceOn)) {
-        ATRACE_INT64(name, value);
+        traceInt64(name, value);
     }
 }
 
 inline void VSyncPredictor::traceInt64(const char* name, int64_t value) const {
-    ATRACE_INT64(name, value);
+    ATRACE_INT64(ftl::Concat(ftl::truncated<14>(name), " ", mId.value).c_str(), value);
 }
 
 inline size_t VSyncPredictor::next(size_t i) const {
@@ -214,8 +216,8 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
 
     it->second = {anticipatedPeriod, intercept};
 
-    ALOGV("model update ts: %" PRId64 " slope: %" PRId64 " intercept: %" PRId64, timestamp,
-          anticipatedPeriod, intercept);
+    ALOGV("model update ts %" PRIu64 ": %" PRId64 " slope: %" PRId64 " intercept: %" PRId64,
+          mId.value, timestamp, anticipatedPeriod, intercept);
     return true;
 }
 
@@ -331,7 +333,7 @@ bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) c
 }
 
 void VSyncPredictor::setRenderRate(Fps fps) {
-    ALOGV("%s: %s", __func__, to_string(fps).c_str());
+    ALOGV("%s %s: %s", __func__, to_string(mId).c_str(), to_string(fps).c_str());
     std::lock_guard lock(mMutex);
     mRenderRate = fps;
 }
@@ -347,7 +349,7 @@ VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModelLocked() const {
 }
 
 void VSyncPredictor::setPeriod(nsecs_t period) {
-    ATRACE_CALL();
+    ATRACE_FORMAT("%s %s", __func__, to_string(mId).c_str());
     traceInt64("VSP-setPeriod", period);
 
     std::lock_guard lock(mMutex);

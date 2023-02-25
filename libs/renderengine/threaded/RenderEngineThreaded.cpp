@@ -230,16 +230,17 @@ void RenderEngineThreaded::mapExternalTextureBuffer(const sp<GraphicBuffer>& buf
     mCondition.notify_one();
 }
 
-void RenderEngineThreaded::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+void RenderEngineThreaded::unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) {
     ATRACE_CALL();
     // This function is designed so it can run asynchronously, so we do not need to wait
     // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([=](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::unmapExternalTextureBuffer");
-            instance.unmapExternalTextureBuffer(buffer);
-        });
+        mFunctionCalls.push(
+                [=, buffer = std::move(buffer)](renderengine::RenderEngine& instance) mutable {
+                    ATRACE_NAME("REThreaded::unmapExternalTextureBuffer");
+                    instance.unmapExternalTextureBuffer(std::move(buffer));
+                });
     }
     mCondition.notify_one();
 }

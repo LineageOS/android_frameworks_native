@@ -800,7 +800,7 @@ status_t GLESRenderEngine::cacheExternalTextureBufferInternal(const sp<GraphicBu
     return NO_ERROR;
 }
 
-void GLESRenderEngine::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+void GLESRenderEngine::unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) {
     mImageManager->releaseAsync(buffer->getId(), nullptr);
 }
 
@@ -1262,7 +1262,7 @@ void GLESRenderEngine::drawLayersInternal(
 
             // Do not cache protected EGLImage, protected memory is limited.
             if (gBuf->getUsage() & GRALLOC_USAGE_PROTECTED) {
-                unmapExternalTextureBuffer(gBuf);
+                unmapExternalTextureBuffer(std::move(gBuf));
             }
         }
 

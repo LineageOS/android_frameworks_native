@@ -44,7 +44,10 @@ TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // We expect a scheduled commit for the display transaction.
     EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
-    EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+    EXPECT_CALL(static_cast<mock::VSyncTracker&>(
+                        mFlinger.scheduler()->getVsyncSchedule()->getTracker()),
+                nextAnticipatedVSyncTimeFrom(_))
+            .WillRepeatedly(Return(0));
 
     // --------------------------------------------------------------------
     // Invocation
