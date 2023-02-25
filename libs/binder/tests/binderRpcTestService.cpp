@@ -85,7 +85,9 @@ public:
     }
 };
 
-int main(int argc, const char* argv[]) {
+int main(int argc, char* argv[]) {
+    android::base::InitLogging(argv, android::base::StderrLogger, android::base::DefaultAborter);
+
     LOG_ALWAYS_FATAL_IF(argc != 3, "Invalid number of arguments: %d", argc);
     base::unique_fd writeEnd(atoi(argv[1]));
     base::unique_fd readEnd(atoi(argv[2]));
