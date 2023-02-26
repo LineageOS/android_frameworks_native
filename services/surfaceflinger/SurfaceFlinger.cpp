@@ -2268,12 +2268,13 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, LifecycleUpdate& upda
             mLayerLifecycleManager.commitChanges();
         }
 
+        commitTransactions();
+
         // enter boot animation on first buffer latch
         if (CC_UNLIKELY(mBootStage == BootStage::BOOTLOADER && newDataLatched)) {
             ALOGI("Enter boot animation");
             mBootStage = BootStage::BOOTANIMATION;
         }
-        commitTransactions();
     }
     mustComposite |= (getTransactionFlags() & ~eTransactionFlushNeeded) || newDataLatched;
     return mustComposite;
@@ -5207,8 +5208,18 @@ void SurfaceFlinger::onInitializeDisplays() {
     const sp<IBinder> token = display->getDisplayToken().promote();
     LOG_ALWAYS_FATAL_IF(token == nullptr);
 
+    TransactionState state;
+    state.inputWindowCommands = mInputWindowCommands;
+    nsecs_t now = systemTime();
+    state.desiredPresentTime = now;
+    state.postTime = now;
+    state.permissions = layer_state_t::ACCESS_SURFACE_FLINGER;
+    state.originPid = mPid;
+    state.originUid = static_cast<int>(getuid());
+    uint64_t transactionId = (((uint64_t)mPid) << 32) | mUniqueTransactionId++;
+    state.id = transactionId;
+
     // reset screen orientation and use primary layer stack
-    std::vector<ResolvedComposerState> state;
     Vector<DisplayState> displays;
     DisplayState d;
     d.what = DisplayState::eDisplayProjectionChanged |
@@ -5220,15 +5231,17 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.layerStackSpaceRect.makeInvalid();
     d.width = 0;
     d.height = 0;
-    displays.add(d);
+    state.displays.add(d);
 
-    nsecs_t now = systemTime();
+    std::vector<TransactionState> transactions;
+    transactions.emplace_back(state);
 
-    int64_t transactionId = (((int64_t)mPid) << 32) | mUniqueTransactionId++;
     // It should be on the main thread, apply it directly.
-    applyTransactionState(FrameTimelineInfo{}, state, displays, 0, mInputWindowCommands,
-                          /* desiredPresentTime */ now, true, {}, /* postTime */ now, true, false,
-                          {}, mPid, getuid(), transactionId);
+    if (mLegacyFrontEndEnabled) {
+        applyTransactionsLocked(transactions, /*vsyncId=*/{0});
+    } else {
+        applyAndCommitDisplayTransactionStates(transactions);
+    }
 
     setPowerModeInternal(display, hal::PowerMode::ON);
 }
