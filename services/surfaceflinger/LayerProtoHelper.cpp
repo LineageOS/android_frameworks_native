@@ -260,6 +260,7 @@ void LayerProtoHelper::writeHierarchyToProto(
     frontend::LayerSnapshot* snapshot = snapshotBuilder.getSnapshot(layer.id);
 
     if (!snapshot) {
+        defaultSnapshot.uniqueSequence = layer.id;
         snapshot = &defaultSnapshot;
     }
     writeSnapshotToProto(layerProto, layer, *snapshot, traceFlags);
@@ -343,7 +344,7 @@ void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
                                    [&]() { return layerInfo->mutable_corner_radius_crop(); });
     layerInfo->set_shadow_radius(snapshot.shadowRadius);
 
-    layerInfo->set_id(requestedState.id);
+    layerInfo->set_id(snapshot.uniqueSequence);
     layerInfo->set_name(requestedState.name);
     layerInfo->set_type("Layer");
 
