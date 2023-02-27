@@ -2097,15 +2097,7 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) {
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
 
     if (traceFlags & LayerTracing::TRACE_COMPOSITION) {
-        ftl::FakeGuard guard(mFlinger->mStateLock); // Called from the main thread.
-
-        // Only populate for the primary display.
-        if (const auto display = mFlinger->getDefaultDisplayDeviceLocked()) {
-            const auto compositionType = getCompositionType(*display);
-            layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
-            LayerProtoHelper::writeToProto(getVisibleRegion(display.get()),
-                                           [&]() { return layerProto->mutable_visible_region(); });
-        }
+        writeCompositionStateToProto(layerProto);
     }
 
     for (const sp<Layer>& layer : mDrawingChildren) {
@@ -2113,6 +2105,18 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) {
     }
 
     return layerProto;
+}
+
+void Layer::writeCompositionStateToProto(LayerProto* layerProto) {
+    ftl::FakeGuard guard(mFlinger->mStateLock); // Called from the main thread.
+
+    // Only populate for the primary display.
+    if (const auto display = mFlinger->getDefaultDisplayDeviceLocked()) {
+        const auto compositionType = getCompositionType(*display);
+        layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
+        LayerProtoHelper::writeToProto(getVisibleRegion(display.get()),
+                                       [&]() { return layerProto->mutable_visible_region(); });
+    }
 }
 
 void Layer::writeToProtoDrawingState(LayerProto* layerInfo) {

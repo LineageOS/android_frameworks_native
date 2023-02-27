@@ -5680,14 +5680,27 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
         }
     }
 
-    LayersProto layersProto;
-    for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
-        if (stackIdsToSkip.find(layer->getLayerStack().id) != stackIdsToSkip.end()) {
-            continue;
+    if (mLegacyFrontEndEnabled) {
+        LayersProto layersProto;
+        for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
+            if (stackIdsToSkip.find(layer->getLayerStack().id) != stackIdsToSkip.end()) {
+                continue;
+            }
+            layer->writeToProto(layersProto, traceFlags);
         }
-        layer->writeToProto(layersProto, traceFlags);
+        return layersProto;
     }
 
+    const frontend::LayerHierarchy& root = mLayerHierarchyBuilder.getHierarchy();
+    LayersProto layersProto;
+    for (auto& [child, variant] : root.mChildren) {
+        if (variant != frontend::LayerHierarchy::Variant::Attached ||
+            stackIdsToSkip.find(child->getLayer()->layerStack.id) != stackIdsToSkip.end()) {
+            continue;
+        }
+        LayerProtoHelper::writeHierarchyToProto(layersProto, *child, mLayerSnapshotBuilder,
+                                                mLegacyLayers, traceFlags);
+    }
     return layersProto;
 }
 
