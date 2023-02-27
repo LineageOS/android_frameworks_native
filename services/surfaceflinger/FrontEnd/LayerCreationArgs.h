@@ -25,6 +25,7 @@
 #include <optional>
 
 constexpr uint32_t UNASSIGNED_LAYER_ID = std::numeric_limits<uint32_t>::max();
+constexpr uint32_t INTERNAL_LAYER_PREFIX = 1u << 31;
 
 namespace android {
 class SurfaceFlinger;
@@ -35,10 +36,11 @@ namespace android::surfaceflinger {
 
 struct LayerCreationArgs {
     static std::atomic<uint32_t> sSequence;
+    static uint32_t getInternalLayerId(uint32_t id);
 
     LayerCreationArgs(android::SurfaceFlinger*, sp<android::Client>, std::string name,
-                      uint32_t flags, gui::LayerMetadata,
-                      std::optional<uint32_t> id = std::nullopt);
+                      uint32_t flags, gui::LayerMetadata, std::optional<uint32_t> id = std::nullopt,
+                      bool internalLayer = false);
     LayerCreationArgs(const LayerCreationArgs&);
 
     android::SurfaceFlinger* flinger;

@@ -75,14 +75,14 @@ protected:
             mHierarchyBuilder.update(mLifecycleManager.getLayers(),
                                      mLifecycleManager.getDestroyedLayers());
         }
-        LayerSnapshotBuilder::Args args{
-                .root = mHierarchyBuilder.getHierarchy(),
-                .layerLifecycleManager = mLifecycleManager,
-                .includeMetadata = false,
-                .displays = mFrontEndDisplayInfos,
-                .displayChanges = hasDisplayChanges,
-                .globalShadowSettings = globalShadowSettings,
-        };
+        LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                        .layerLifecycleManager = mLifecycleManager,
+                                        .includeMetadata = false,
+                                        .displays = mFrontEndDisplayInfos,
+                                        .displayChanges = hasDisplayChanges,
+                                        .globalShadowSettings = globalShadowSettings,
+                                        .supportedLayerGenericMetadata = {},
+                                        .genericLayerMetadataKeyMap = {}};
         actualBuilder.update(args);
 
         // rebuild layer snapshots from scratch and verify that it matches the updated state.
@@ -100,6 +100,9 @@ protected:
     }
 
     LayerSnapshot* getSnapshot(uint32_t layerId) { return mSnapshotBuilder.getSnapshot(layerId); }
+    LayerSnapshot* getSnapshot(const LayerHierarchy::TraversalPath path) {
+        return mSnapshotBuilder.getSnapshot(path);
+    }
 
     LayerHierarchyBuilder mHierarchyBuilder{{}};
     LayerSnapshotBuilder mSnapshotBuilder;
@@ -111,23 +114,25 @@ const std::vector<uint32_t> LayerSnapshotTest::STARTING_ZORDER = {1,   11,   111
                                                                   122, 1221, 13,  2};
 
 TEST_F(LayerSnapshotTest, buildSnapshot) {
-    LayerSnapshotBuilder::Args args{
-            .root = mHierarchyBuilder.getHierarchy(),
-            .layerLifecycleManager = mLifecycleManager,
-            .includeMetadata = false,
-            .displays = mFrontEndDisplayInfos,
-            .globalShadowSettings = globalShadowSettings,
-    };
+    LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                    .layerLifecycleManager = mLifecycleManager,
+                                    .includeMetadata = false,
+                                    .displays = mFrontEndDisplayInfos,
+                                    .globalShadowSettings = globalShadowSettings,
+                                    .supportedLayerGenericMetadata = {},
+                                    .genericLayerMetadataKeyMap = {}};
     LayerSnapshotBuilder builder(args);
 }
 
 TEST_F(LayerSnapshotTest, updateSnapshot) {
-    LayerSnapshotBuilder::Args args{
-            .root = mHierarchyBuilder.getHierarchy(),
-            .layerLifecycleManager = mLifecycleManager,
-            .includeMetadata = false,
-            .displays = mFrontEndDisplayInfos,
-            .globalShadowSettings = globalShadowSettings,
+    LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                    .layerLifecycleManager = mLifecycleManager,
+                                    .includeMetadata = false,
+                                    .displays = mFrontEndDisplayInfos,
+                                    .globalShadowSettings = globalShadowSettings,
+                                    .supportedLayerGenericMetadata = {},
+                                    .genericLayerMetadataKeyMap = {}
+
     };
 
     LayerSnapshotBuilder builder;
@@ -320,13 +325,105 @@ TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
 // └── 2
 // ROOT (DISPLAY 1)
 // └── 3 (mirrors display 0)
-TEST_F(LayerSnapshotTest, displayMirrorRespects) {
+TEST_F(LayerSnapshotTest, displayMirrorRespectsLayerSkipScreenshotFlag) {
     setFlags(12, layer_state_t::eLayerSkipScreenshot, layer_state_t::eLayerSkipScreenshot);
     createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
     setLayerStack(3, 1);
 
     std::vector<uint32_t> expected = {3, 1, 11, 111, 13, 2, 1, 11, 111, 12, 121, 122, 1221, 13, 2};
     UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+}
+
+// ROOT (DISPLAY 0)
+// ├── 1
+// │   ├── 11
+// │   │   └── 111
+// │   └── 13
+// └── 2
+// ROOT (DISPLAY 3)
+// └── 3 (mirrors display 0)
+TEST_F(LayerSnapshotTest, mirrorLayerGetsCorrectLayerStack) {
+    reparentLayer(12, UNASSIGNED_LAYER_ID);
+    createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
+    setLayerStack(3, 3);
+    createDisplayMirrorLayer(4, ui::LayerStack::fromValue(0));
+    setLayerStack(4, 4);
+
+    std::vector<uint32_t> expected = {4,   1,  11, 111, 13, 2,   3,  1, 11,
+                                      111, 13, 2,  1,   11, 111, 13, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootId = 3})->outputFilter.layerStack.id, 3u);
+    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootId = 4})->outputFilter.layerStack.id, 4u);
+}
+
+// ROOT (DISPLAY 0)
+// ├── 1 (crop 50x50)
+// │   ├── 11
+// │   │   └── 111
+// │   └── 13
+// └── 2
+// ROOT (DISPLAY 3)
+// └── 3 (mirrors display 0) (crop 100x100)
+TEST_F(LayerSnapshotTest, mirrorLayerTouchIsCroppedByMirrorRoot) {
+    reparentLayer(12, UNASSIGNED_LAYER_ID);
+    createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
+    setLayerStack(3, 3);
+    setCrop(1, Rect{50, 50});
+    setCrop(3, Rect{100, 100});
+    setCrop(111, Rect{200, 200});
+    Region touch{Rect{0, 0, 1000, 1000}};
+    setTouchableRegion(111, touch);
+    std::vector<uint32_t> expected = {3, 1, 11, 111, 13, 2, 1, 11, 111, 13, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+    EXPECT_TRUE(getSnapshot({.id = 111})->inputInfo.touchableRegion.hasSameRects(touch));
+    Region touchCroppedByMirrorRoot{Rect{0, 0, 50, 50}};
+    EXPECT_TRUE(getSnapshot({.id = 111, .mirrorRootId = 3})
+                        ->inputInfo.touchableRegion.hasSameRects(touchCroppedByMirrorRoot));
+}
+
+TEST_F(LayerSnapshotTest, canRemoveDisplayMirror) {
+    setFlags(12, layer_state_t::eLayerSkipScreenshot, layer_state_t::eLayerSkipScreenshot);
+    createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
+    setLayerStack(3, 1);
+    std::vector<uint32_t> expected = {3, 1, 11, 111, 13, 2, 1, 11, 111, 12, 121, 122, 1221, 13, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+    destroyLayerHandle(3);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+}
+
+TEST_F(LayerSnapshotTest, cleanUpUnreachableSnapshotsAfterMirroring) {
+    size_t startingNumSnapshots = mSnapshotBuilder.getSnapshots().size();
+    createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
+    setLayerStack(3, 1);
+    std::vector<uint32_t> expected = {3, 1,  11,  111, 12,  121, 122,  1221, 13, 2,
+                                      1, 11, 111, 12,  121, 122, 1221, 13,   2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+    destroyLayerHandle(3);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    EXPECT_EQ(startingNumSnapshots, mSnapshotBuilder.getSnapshots().size());
+}
+
+// Rel z doesn't create duplicate snapshots but this is for completeness
+TEST_F(LayerSnapshotTest, cleanUpUnreachableSnapshotsAfterRelZ) {
+    size_t startingNumSnapshots = mSnapshotBuilder.getSnapshots().size();
+    reparentRelativeLayer(13, 11);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, {1, 11, 13, 111, 12, 121, 122, 1221, 2});
+    setZ(13, 0);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    EXPECT_EQ(startingNumSnapshots, mSnapshotBuilder.getSnapshots().size());
+}
+
+TEST_F(LayerSnapshotTest, cleanUpUnreachableSnapshotsAfterLayerDestruction) {
+    size_t startingNumSnapshots = mSnapshotBuilder.getSnapshots().size();
+    destroyLayerHandle(2);
+    destroyLayerHandle(122);
+
+    std::vector<uint32_t> expected = {1, 11, 111, 12, 121, 122, 1221, 13};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+
+    EXPECT_LE(startingNumSnapshots - 2, mSnapshotBuilder.getSnapshots().size());
 }
 
 } // namespace android::surfaceflinger::frontend

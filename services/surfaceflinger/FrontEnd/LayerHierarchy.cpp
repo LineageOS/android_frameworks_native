@@ -449,7 +449,7 @@ LayerHierarchy::ScopedAddToTraversalPath::ScopedAddToTraversalPath(TraversalPath
     traversalPath.id = layerId;
     traversalPath.variant = variant;
     if (variant == LayerHierarchy::Variant::Mirror) {
-        traversalPath.mirrorRootId = layerId;
+        traversalPath.mirrorRootId = mParentPath.id;
     } else if (variant == LayerHierarchy::Variant::Relative) {
         if (std::find(traversalPath.relativeRootIds.begin(), traversalPath.relativeRootIds.end(),
                       layerId) != traversalPath.relativeRootIds.end()) {
