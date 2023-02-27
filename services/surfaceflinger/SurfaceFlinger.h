@@ -1127,6 +1127,7 @@ private:
 
     ui::Rotation getPhysicalDisplayOrientation(DisplayId, bool isPrimary) const
             REQUIRES(mStateLock);
+    void traverseLegacyLayers(const LayerVector::Visitor& visitor) const;
 
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
