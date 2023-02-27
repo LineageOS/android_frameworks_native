@@ -444,8 +444,11 @@ VulkanInterface initVulkanInterface(bool protectedContent = false) {
     ALOGD("Trying to create Vk device with protectedContent=%d (success)", protectedContent);
 
     VkQueue graphicsQueue;
-    VK_GET_DEV_PROC(device, GetDeviceQueue);
-    vkGetDeviceQueue(device, graphicsQueueIndex, 0, &graphicsQueue);
+    VK_GET_DEV_PROC(device, GetDeviceQueue2);
+    const VkDeviceQueueInfo2 deviceQueueInfo2 = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2, nullptr,
+                                                 deviceQueueCreateFlags,
+                                                 (uint32_t)graphicsQueueIndex, 0};
+    vkGetDeviceQueue2(device, &deviceQueueInfo2, &graphicsQueue);
 
     VK_GET_DEV_PROC(device, DeviceWaitIdle);
     VK_GET_DEV_PROC(device, DestroyDevice);
