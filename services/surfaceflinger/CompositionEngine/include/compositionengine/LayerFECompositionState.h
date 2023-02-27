@@ -213,9 +213,7 @@ struct LayerFECompositionState {
     float currentSdrHdrRatio = 1.f;
     float desiredSdrHdrRatio = 1.f;
 
-    bool isInternalDisplayOverlay = false;
     gui::CachingHint cachingHint = gui::CachingHint::Enabled;
-
     virtual ~LayerFECompositionState();
 
     // Debugging

@@ -128,12 +128,18 @@ public:
     // Traverse the hierarchy and visit all child variants.
     void traverse(const Visitor& visitor) const {
         TraversalPath root = TraversalPath::ROOT;
+        if (mLayer) {
+            root.id = mLayer->id;
+        }
         traverse(visitor, root);
     }
 
     // Traverse the hierarchy in z-order, skipping children that have relative parents.
     void traverseInZOrder(const Visitor& visitor) const {
         TraversalPath root = TraversalPath::ROOT;
+        if (mLayer) {
+            root.id = mLayer->id;
+        }
         traverseInZOrder(visitor, root);
     }
 

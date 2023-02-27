@@ -74,7 +74,7 @@ layer_state_t::layer_state_t()
         surfaceDamageRegion(),
         api(-1),
         colorTransform(mat4()),
-        bgColorAlpha(0),
+        bgColor(0),
         bgColorDataspace(ui::Dataspace::UNKNOWN),
         colorSpaceAgnostic(false),
         shadowRadius(0.0f),
@@ -140,7 +140,10 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, cornerRadius);
     SAFE_PARCEL(output.writeUint32, backgroundBlurRadius);
     SAFE_PARCEL(output.writeParcelable, metadata);
-    SAFE_PARCEL(output.writeFloat, bgColorAlpha);
+    SAFE_PARCEL(output.writeFloat, bgColor.r);
+    SAFE_PARCEL(output.writeFloat, bgColor.g);
+    SAFE_PARCEL(output.writeFloat, bgColor.b);
+    SAFE_PARCEL(output.writeFloat, bgColor.a);
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(bgColorDataspace));
     SAFE_PARCEL(output.writeBool, colorSpaceAgnostic);
     SAFE_PARCEL(output.writeVectorSize, listeners);
@@ -259,7 +262,14 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &backgroundBlurRadius);
     SAFE_PARCEL(input.readParcelable, &metadata);
 
-    SAFE_PARCEL(input.readFloat, &bgColorAlpha);
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    bgColor.r = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    bgColor.g = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    bgColor.b = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    bgColor.a = tmpFloat;
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     bgColorDataspace = static_cast<ui::Dataspace>(tmpUint32);
     SAFE_PARCEL(input.readBool, &colorSpaceAgnostic);
@@ -618,8 +628,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eBackgroundColorChanged) {
         what |= eBackgroundColorChanged;
-        color.rgb = other.color.rgb;
-        bgColorAlpha = other.bgColorAlpha;
+        bgColor = other.bgColor;
         bgColorDataspace = other.bgColorDataspace;
     }
     if (other.what & eMetadataChanged) {
@@ -752,7 +761,7 @@ uint64_t layer_state_t::diff(const layer_state_t& other) const {
     CHECK_DIFF(diff, eColorTransformChanged, other, colorTransform);
     if (other.what & eHasListenerCallbacksChanged) diff |= eHasListenerCallbacksChanged;
     if (other.what & eInputInfoChanged) diff |= eInputInfoChanged;
-    CHECK_DIFF3(diff, eBackgroundColorChanged, other, color.rgb, bgColorAlpha, bgColorDataspace);
+    CHECK_DIFF2(diff, eBackgroundColorChanged, other, bgColor, bgColorDataspace);
     if (other.what & eMetadataChanged) diff |= eMetadataChanged;
     CHECK_DIFF(diff, eShadowRadiusChanged, other, shadowRadius);
     CHECK_DIFF3(diff, eRenderBorderChanged, other, borderEnabled, borderWidth, borderColor);

@@ -25,3 +25,5 @@
 #else
 #define LLOGV(LAYER_ID, x, ...) ALOGV("[%d] %s " x, (LAYER_ID), __func__, ##__VA_ARGS__);
 #endif
+
+#define LLOGD(LAYER_ID, x, ...) ALOGD("[%d] %s " x, (LAYER_ID), __func__, ##__VA_ARGS__);

@@ -52,10 +52,13 @@ struct RequestedLayerState : layer_state_t {
         FrameRate = 1u << 13,
         VisibleRegion = 1u << 14,
         Buffer = 1u << 15,
+        SidebandStream = 1u << 16,
     };
     static Rect reduce(const Rect& win, const Region& exclude);
     RequestedLayerState(const LayerCreationArgs&);
     void merge(const ResolvedComposerState&);
+    void clearChanges();
+
     // Currently we only care about the primary display
     ui::Transform getTransform(uint32_t displayRotationFlags) const;
     ui::Size getUnrotatedBufferSize(uint32_t displayRotationFlags) const;
@@ -72,6 +75,9 @@ struct RequestedLayerState : layer_state_t {
     bool hasValidRelativeParent() const;
     bool hasInputInfo() const;
     bool hasBlur() const;
+    bool hasFrameUpdate() const;
+    bool hasReadyFrame() const;
+    bool hasSidebandStreamFrame() const;
 
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
@@ -110,6 +116,7 @@ struct RequestedLayerState : layer_state_t {
     uint32_t touchCropId = UNASSIGNED_LAYER_ID;
     uint32_t bgColorLayerId = UNASSIGNED_LAYER_ID;
     ftl::Flags<RequestedLayerState::Changes> changes;
+    bool bgColorLayer = false;
 };
 
 } // namespace android::surfaceflinger::frontend
