@@ -372,7 +372,7 @@ TEST_F(LayerLifecycleManagerTest, canAddBackgroundLayer) {
     std::vector<TransactionState> transactions;
     transactions.emplace_back();
     transactions.back().states.push_back({});
-    transactions.back().states.front().state.bgColorAlpha = 0.5;
+    transactions.back().states.front().state.bgColor.a = 0.5;
     transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
     sp<LayerHandle> handle = sp<LayerHandle>::make(1u);
     transactions.back().states.front().state.surface = handle;
@@ -383,9 +383,10 @@ TEST_F(LayerLifecycleManagerTest, canAddBackgroundLayer) {
 
     EXPECT_TRUE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     lifecycleManager.commitChanges();
-    listener->expectLayersAdded({1, 2});
+    auto bgLayerId = LayerCreationArgs::getInternalLayerId(1);
+    listener->expectLayersAdded({1, bgLayerId});
     listener->expectLayersDestroyed({});
-    EXPECT_EQ(getRequestedLayerState(lifecycleManager, 2)->color.a, 0.5_hf);
+    EXPECT_EQ(getRequestedLayerState(lifecycleManager, bgLayerId)->color.a, 0.5_hf);
 }
 
 TEST_F(LayerLifecycleManagerTest, canDestroyBackgroundLayer) {
@@ -400,13 +401,13 @@ TEST_F(LayerLifecycleManagerTest, canDestroyBackgroundLayer) {
     std::vector<TransactionState> transactions;
     transactions.emplace_back();
     transactions.back().states.push_back({});
-    transactions.back().states.front().state.bgColorAlpha = 0.5;
+    transactions.back().states.front().state.bgColor.a = 0.5;
     transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
     sp<LayerHandle> handle = sp<LayerHandle>::make(1u);
     transactions.back().states.front().state.surface = handle;
     transactions.emplace_back();
     transactions.back().states.push_back({});
-    transactions.back().states.front().state.bgColorAlpha = 0;
+    transactions.back().states.front().state.bgColor.a = 0;
     transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
     transactions.back().states.front().state.surface = handle;
 
@@ -417,8 +418,9 @@ TEST_F(LayerLifecycleManagerTest, canDestroyBackgroundLayer) {
 
     EXPECT_TRUE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     lifecycleManager.commitChanges();
-    listener->expectLayersAdded({1, 2});
-    listener->expectLayersDestroyed({2});
+    auto bgLayerId = LayerCreationArgs::getInternalLayerId(1);
+    listener->expectLayersAdded({1, bgLayerId});
+    listener->expectLayersDestroyed({bgLayerId});
 }
 
 TEST_F(LayerLifecycleManagerTest, onParentDestroyDestroysBackgroundLayer) {
@@ -433,7 +435,7 @@ TEST_F(LayerLifecycleManagerTest, onParentDestroyDestroysBackgroundLayer) {
     std::vector<TransactionState> transactions;
     transactions.emplace_back();
     transactions.back().states.push_back({});
-    transactions.back().states.front().state.bgColorAlpha = 0.5;
+    transactions.back().states.front().state.bgColor.a = 0.5;
     transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
     sp<LayerHandle> handle = sp<LayerHandle>::make(1u);
     transactions.back().states.front().state.surface = handle;
@@ -446,8 +448,9 @@ TEST_F(LayerLifecycleManagerTest, onParentDestroyDestroysBackgroundLayer) {
 
     EXPECT_TRUE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     lifecycleManager.commitChanges();
-    listener->expectLayersAdded({1, 2});
-    listener->expectLayersDestroyed({1, 2});
+    auto bgLayerId = LayerCreationArgs::getInternalLayerId(1);
+    listener->expectLayersAdded({1, bgLayerId});
+    listener->expectLayersDestroyed({1, bgLayerId});
 }
 
 } // namespace android::surfaceflinger::frontend

@@ -221,12 +221,12 @@ proto::LayerState TransactionProtoParser::toProto(const layer_state_t& layer) {
         }
     }
     if (layer.what & layer_state_t::eBackgroundColorChanged) {
-        proto.set_bg_color_alpha(layer.bgColorAlpha);
+        proto.set_bg_color_alpha(layer.bgColor.a);
         proto.set_bg_color_dataspace(static_cast<int32_t>(layer.bgColorDataspace));
         proto::LayerState_Color3* colorProto = proto.mutable_color();
-        colorProto->set_r(layer.color.r);
-        colorProto->set_g(layer.color.g);
-        colorProto->set_b(layer.color.b);
+        colorProto->set_r(layer.bgColor.r);
+        colorProto->set_g(layer.bgColor.g);
+        colorProto->set_b(layer.bgColor.b);
     }
     if (layer.what & layer_state_t::eColorSpaceAgnosticChanged) {
         proto.set_color_space_agnostic(layer.colorSpaceAgnostic);
@@ -510,12 +510,12 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto, layer_sta
         layer.windowInfoHandle = sp<gui::WindowInfoHandle>::make(inputInfo);
     }
     if (proto.what() & layer_state_t::eBackgroundColorChanged) {
-        layer.bgColorAlpha = proto.bg_color_alpha();
+        layer.bgColor.a = proto.bg_color_alpha();
         layer.bgColorDataspace = static_cast<ui::Dataspace>(proto.bg_color_dataspace());
         const proto::LayerState_Color3& colorProto = proto.color();
-        layer.color.r = colorProto.r();
-        layer.color.g = colorProto.g();
-        layer.color.b = colorProto.b();
+        layer.bgColor.r = colorProto.r();
+        layer.bgColor.g = colorProto.g();
+        layer.bgColor.b = colorProto.b();
     }
     if (proto.what() & layer_state_t::eColorSpaceAgnosticChanged) {
         layer.colorSpaceAgnostic = proto.color_space_agnostic();
