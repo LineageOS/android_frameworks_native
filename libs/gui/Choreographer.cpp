@@ -15,8 +15,10 @@
  */
 
 // #define LOG_NDEBUG 0
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <gui/Choreographer.h>
+#include <gui/TraceUtils.h>
 #include <jni.h>
 
 #undef LOG_TAG
@@ -297,6 +299,8 @@ void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t
     mLastVsyncEventData = vsyncEventData;
     for (const auto& cb : callbacks) {
         if (cb.vsyncCallback != nullptr) {
+            ATRACE_FORMAT("AChoreographer_vsyncCallback %" PRId64,
+                          vsyncEventData.preferredVsyncId());
             const ChoreographerFrameCallbackDataImpl frameCallbackData =
                     createFrameCallbackData(timestamp);
             registerStartTime();
@@ -306,8 +310,10 @@ void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t
                              cb.data);
             mInCallback = false;
         } else if (cb.callback64 != nullptr) {
+            ATRACE_FORMAT("AChoreographer_frameCallback64");
             cb.callback64(timestamp, cb.data);
         } else if (cb.callback != nullptr) {
+            ATRACE_FORMAT("AChoreographer_frameCallback");
             cb.callback(timestamp, cb.data);
         }
     }
