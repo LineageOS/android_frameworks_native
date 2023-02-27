@@ -260,6 +260,7 @@ std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
 
 std::list<NotifyArgs> TouchpadInputMapper::sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                              SelfContainedHardwareState schs) {
+    ALOGD_IF(DEBUG_TOUCHPAD_GESTURES, "New hardware state: %s", schs.state.String().c_str());
     mProcessing = true;
     mGestureInterpreter->PushHardwareState(&schs.state);
     mProcessing = false;
