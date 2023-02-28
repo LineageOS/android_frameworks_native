@@ -15,7 +15,7 @@
  */
 
 #define LOG_TAG "EGL_test"
-//#define LOG_NDEBUG 0
+// #define LOG_NDEBUG 0
 
 #include <gtest/gtest.h>
 
@@ -27,6 +27,7 @@
 #include "MultifileBlobCache.h"
 #include "egl_display.h"
 
+#include <fstream>
 #include <memory>
 
 using namespace std::literals;
@@ -144,7 +145,7 @@ std::string EGLCacheTest::getCachefileName() {
     return cachefileName;
 }
 
-TEST_P(EGLCacheTest, ModifiedCacheMisses) {
+TEST_P(EGLCacheTest, ModifiedCacheBeginMisses) {
     // Skip if not in multifile mode
     if (mCacheMode == egl_cache_t::EGLCacheMode::Monolithic) {
         GTEST_SKIP() << "Skipping test designed for multifile";
@@ -168,17 +169,68 @@ TEST_P(EGLCacheTest, ModifiedCacheMisses) {
     ASSERT_TRUE(cachefileName.length() > 0);
 
     // Stomp on the beginning of the cache file, breaking the key match
-    const long stomp = 0xbadf00d;
-    FILE *file = fopen(cachefileName.c_str(), "w");
-    fprintf(file, "%ld", stomp);
-    fflush(file);
-    fclose(file);
+    const char* stomp = "BADF00D";
+    std::fstream fs(cachefileName);
+    fs.seekp(0, std::ios_base::beg);
+    fs.write(stomp, strlen(stomp));
+    fs.flush();
+    fs.close();
 
     // Ensure no cache hit
     mCache->initialize(egl_display_t::get(EGL_DEFAULT_DISPLAY));
     uint8_t buf2[4] = { 0xee, 0xee, 0xee, 0xee };
     // getBlob may return junk for required size, but should not return a cache hit
     mCache->getBlob("abcd", 4, buf2, 4);
+    ASSERT_EQ(0xee, buf2[0]);
+    ASSERT_EQ(0xee, buf2[1]);
+    ASSERT_EQ(0xee, buf2[2]);
+    ASSERT_EQ(0xee, buf2[3]);
+}
+
+TEST_P(EGLCacheTest, ModifiedCacheEndMisses) {
+    // Skip if not in multifile mode
+    if (mCacheMode == egl_cache_t::EGLCacheMode::Monolithic) {
+        GTEST_SKIP() << "Skipping test designed for multifile";
+    }
+
+    uint8_t buf[16] = { 0xee, 0xee, 0xee, 0xee,
+                        0xee, 0xee, 0xee, 0xee,
+                        0xee, 0xee, 0xee, 0xee,
+                        0xee, 0xee, 0xee, 0xee };
+
+    mCache->initialize(egl_display_t::get(EGL_DEFAULT_DISPLAY));
+
+    mCache->setBlob("abcdefghij", 10, "klmnopqrstuvwxyz", 16);
+    ASSERT_EQ(16, mCache->getBlob("abcdefghij", 10, buf, 16));
+    ASSERT_EQ('w', buf[12]);
+    ASSERT_EQ('x', buf[13]);
+    ASSERT_EQ('y', buf[14]);
+    ASSERT_EQ('z', buf[15]);
+
+    // Ensure the cache file is written to disk
+    mCache->terminate();
+
+    // Depending on the cache mode, the file will be in different locations
+    std::string cachefileName = getCachefileName();
+    ASSERT_TRUE(cachefileName.length() > 0);
+
+    // Stomp on the END of the cache file, modifying its contents
+    const char* stomp = "BADF00D";
+    std::fstream fs(cachefileName);
+    fs.seekp(-strlen(stomp), std::ios_base::end);
+    fs.write(stomp, strlen(stomp));
+    fs.flush();
+    fs.close();
+
+    // Ensure no cache hit
+    mCache->initialize(egl_display_t::get(EGL_DEFAULT_DISPLAY));
+    uint8_t buf2[16] = { 0xee, 0xee, 0xee, 0xee,
+                         0xee, 0xee, 0xee, 0xee,
+                         0xee, 0xee, 0xee, 0xee,
+                         0xee, 0xee, 0xee, 0xee };
+
+    // getBlob may return junk for required size, but should not return a cache hit
+    mCache->getBlob("abcdefghij", 10, buf2, 16);
     ASSERT_EQ(0xee, buf2[0]);
     ASSERT_EQ(0xee, buf2[1]);
     ASSERT_EQ(0xee, buf2[2]);

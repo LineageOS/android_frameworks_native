@@ -39,21 +39,10 @@
 
 using namespace std::literals;
 
+constexpr uint32_t kMultifileMagic = 'MFB$';
+constexpr uint32_t kCrcPlaceholder = 0;
+
 namespace {
-
-// Open the file and determine the size of the value it contains
-size_t getValueSizeFromFile(int fd, const std::string& entryPath) {
-    // Read the beginning of the file to get header
-    android::MultifileHeader header;
-    size_t result = read(fd, static_cast<void*>(&header), sizeof(android::MultifileHeader));
-    if (result != sizeof(android::MultifileHeader)) {
-        ALOGE("Error reading MultifileHeader from cache entry (%s): %s", entryPath.c_str(),
-              std::strerror(errno));
-        return 0;
-    }
-
-    return header.valueSize;
-}
 
 // Helper function to close entries or free them
 void freeHotCacheEntry(android::MultifileHotCache& entry) {
@@ -129,6 +118,15 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
                     return;
                 }
 
+                // If the cache entry is damaged or no good, remove it
+                if (st.st_size <= 0 || st.st_atime <= 0) {
+                    ALOGE("INIT: Entry %u has invalid stats! Removing.", entryHash);
+                    if (remove(fullPath.c_str()) != 0) {
+                        ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+                    }
+                    continue;
+                }
+
                 // Open the file so we can read its header
                 int fd = open(fullPath.c_str(), O_RDONLY);
                 if (fd == -1) {
@@ -137,13 +135,51 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
                     return;
                 }
 
-                // Look up the details we track about each file
-                size_t valueSize = getValueSizeFromFile(fd, fullPath);
+                // Read the beginning of the file to get header
+                MultifileHeader header;
+                size_t result = read(fd, static_cast<void*>(&header), sizeof(MultifileHeader));
+                if (result != sizeof(MultifileHeader)) {
+                    ALOGE("Error reading MultifileHeader from cache entry (%s): %s",
+                          fullPath.c_str(), std::strerror(errno));
+                    return;
+                }
+
+                // Verify header magic
+                if (header.magic != kMultifileMagic) {
+                    ALOGE("INIT: Entry %u has bad magic (%u)! Removing.", entryHash, header.magic);
+                    if (remove(fullPath.c_str()) != 0) {
+                        ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+                    }
+                    continue;
+                }
+
+                // Note: Converting from off_t (signed) to size_t (unsigned)
+                size_t fileSize = static_cast<size_t>(st.st_size);
+
+                // Memory map the file
+                uint8_t* mappedEntry = reinterpret_cast<uint8_t*>(
+                        mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0));
+                if (mappedEntry == MAP_FAILED) {
+                    ALOGE("Failed to mmap cacheEntry, error: %s", std::strerror(errno));
+                    return;
+                }
+
+                // Ensure we have a good CRC
+                if (header.crc !=
+                    crc32c(mappedEntry + sizeof(MultifileHeader),
+                           fileSize - sizeof(MultifileHeader))) {
+                    ALOGE("INIT: Entry %u failed CRC check! Removing.", entryHash);
+                    if (remove(fullPath.c_str()) != 0) {
+                        ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+                    }
+                    continue;
+                }
 
                 // If the cache entry is damaged or no good, remove it
-                // TODO: Perform any other checks
-                if (valueSize <= 0 || st.st_size <= 0 || st.st_atime <= 0) {
-                    ALOGV("INIT: Entry %u has a problem! Removing.", entryHash);
+                if (header.keySize <= 0 || header.valueSize <= 0) {
+                    ALOGE("INIT: Entry %u has a bad header keySize (%lu) or valueSize (%lu), "
+                          "removing.",
+                          entryHash, header.keySize, header.valueSize);
                     if (remove(fullPath.c_str()) != 0) {
                         ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
                     }
@@ -152,25 +188,14 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
 
                 ALOGV("INIT: Entry %u is good, tracking it now.", entryHash);
 
-                // Note: Converting from off_t (signed) to size_t (unsigned)
-                size_t fileSize = static_cast<size_t>(st.st_size);
-                time_t accessTime = st.st_atime;
-
                 // Track details for rapid lookup later
-                trackEntry(entryHash, valueSize, fileSize, accessTime);
+                trackEntry(entryHash, header.valueSize, fileSize, st.st_atime);
 
                 // Track the total size
                 increaseTotalCacheSize(fileSize);
 
                 // Preload the entry for fast retrieval
                 if ((mHotCacheSize + fileSize) < mHotCacheLimit) {
-                    // Memory map the file
-                    uint8_t* mappedEntry = reinterpret_cast<uint8_t*>(
-                            mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0));
-                    if (mappedEntry == MAP_FAILED) {
-                        ALOGE("Failed to mmap cacheEntry, error: %s", std::strerror(errno));
-                    }
-
                     ALOGV("INIT: Populating hot cache with fd = %i, cacheEntry = %p for "
                           "entryHash %u",
                           fd, mappedEntry, entryHash);
@@ -183,6 +208,8 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
                         return;
                     }
                 } else {
+                    // If we're not keeping it in hot cache, unmap it now
+                    munmap(mappedEntry, fileSize);
                     close(fd);
                 }
             }
@@ -247,10 +274,12 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
 
     uint8_t* buffer = new uint8_t[fileSize];
 
-    // Write the key and value after the header
-    android::MultifileHeader header = {keySize, valueSize};
+    // Write placeholders for magic and CRC until deferred thread complets the write
+    android::MultifileHeader header = {kMultifileMagic, kCrcPlaceholder, keySize, valueSize};
     memcpy(static_cast<void*>(buffer), static_cast<const void*>(&header),
            sizeof(android::MultifileHeader));
+
+    // Write the key and value after the header
     memcpy(static_cast<void*>(buffer + sizeof(MultifileHeader)), static_cast<const void*>(key),
            keySize);
     memcpy(static_cast<void*>(buffer + sizeof(MultifileHeader) + keySize),
@@ -599,6 +628,11 @@ void MultifileBlobCache::processTask(DeferredTask& task) {
             }
 
             ALOGV("DEFERRED: Opened fd %i from %s", fd, fullPath.c_str());
+
+            // Add CRC check to the header (always do this last!)
+            MultifileHeader* header = reinterpret_cast<MultifileHeader*>(buffer);
+            header->crc =
+                    crc32c(buffer + sizeof(MultifileHeader), bufferSize - sizeof(MultifileHeader));
 
             ssize_t result = write(fd, buffer, bufferSize);
             if (result != bufferSize) {

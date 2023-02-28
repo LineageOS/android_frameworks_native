@@ -28,9 +28,13 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "FileBlobCache.h"
+
 namespace android {
 
 struct MultifileHeader {
+    uint32_t magic;
+    uint32_t crc;
     EGLsizeiANDROID keySize;
     EGLsizeiANDROID valueSize;
 };
