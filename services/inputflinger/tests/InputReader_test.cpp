@@ -6724,6 +6724,29 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenConfigDisabled_ShouldNotShowDirec
     ASSERT_FALSE(fakePointerController->isPointerShown());
 }
 
+TEST_F(SingleTouchInputMapperTest, WhenDeviceTypeIsChangedToTouchNavigation_updatesDeviceType) {
+    // Initialize the device without setting device source to touch navigation.
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(ui::ROTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    // Ensure that the device is created as a touchscreen, not touch navigation.
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, mapper.getSources());
+
+    // Add device type association after the device was created.
+    mFakePolicy->addDeviceTypeAssociation(DEVICE_LOCATION, "touchNavigation");
+
+    // Send update to the mapper.
+    std::list<NotifyArgs> unused2 =
+            mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                               InputReaderConfiguration::CHANGE_DEVICE_TYPE /*changes*/);
+
+    // Check whether device type update was successful.
+    ASSERT_EQ(AINPUT_SOURCE_TOUCH_NAVIGATION, mDevice->getSources());
+}
+
 // --- TouchDisplayProjectionTest ---
 
 class TouchDisplayProjectionTest : public SingleTouchInputMapperTest {
