@@ -58,6 +58,15 @@ public:
     static void readFromProto(const ColorTransformProto& colorTransformProto, mat4& matrix);
     static void writeToProto(const android::BlurRegion region, BlurRegion*);
     static void readFromProto(const BlurRegion& proto, android::BlurRegion& outRegion);
+    static void writeHierarchyToProto(LayersProto& layersProto,
+                                      const frontend::LayerHierarchy& root,
+                                      const frontend::LayerSnapshotBuilder& snapshotBuilder,
+                                      const std::unordered_map<uint32_t, sp<Layer>>& mLegacyLayers,
+                                      uint32_t traceFlags);
+
+    static void writeSnapshotToProto(LayerProto* outProto,
+                                     const frontend::RequestedLayerState& requestedState,
+                                     const frontend::LayerSnapshot& snapshot, uint32_t traceFlags);
 };
 
 } // namespace surfaceflinger

@@ -130,6 +130,14 @@ const RequestedLayerState* LayerHierarchy::getLayer() const {
     return mLayer;
 }
 
+const LayerHierarchy* LayerHierarchy::getRelativeParent() const {
+    return mRelativeParent;
+}
+
+const LayerHierarchy* LayerHierarchy::getParent() const {
+    return mParent;
+}
+
 std::string LayerHierarchy::getDebugStringShort() const {
     std::string debug = "LayerHierarchy{";
     debug += ((mLayer) ? mLayer->getDebugString() : "root") + " ";
