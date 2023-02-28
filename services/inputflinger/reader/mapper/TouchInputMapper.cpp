@@ -2692,8 +2692,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
         // the pointer is hovering again even if the user is not currently touching
         // the touch pad.  This ensures that a view will receive a fresh hover enter
         // event after a tap.
-        float x, y;
-        mPointerController->getPosition(&x, &y);
+        const auto [x, y] = mPointerController->getPosition();
 
         PointerProperties pointerProperties;
         pointerProperties.clear();
@@ -2899,8 +2898,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             mPointerVelocityControl.reset();
         }
 
-        float x, y;
-        mPointerController->getPosition(&x, &y);
+        const auto [x, y] = mPointerController->getPosition();
 
         mPointerGesture.currentGestureMode = PointerGesture::Mode::BUTTON_CLICK_OR_DRAG;
         mPointerGesture.currentGestureIdBits.clear();
@@ -2926,8 +2924,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
              mPointerGesture.lastGestureMode == PointerGesture::Mode::TAP_DRAG) &&
             lastFingerCount == 1) {
             if (when <= mPointerGesture.tapDownTime + mConfig.pointerGestureTapInterval) {
-                float x, y;
-                mPointerController->getPosition(&x, &y);
+                const auto [x, y] = mPointerController->getPosition();
                 if (fabs(x - mPointerGesture.tapX) <= mConfig.pointerGestureTapSlop &&
                     fabs(y - mPointerGesture.tapY) <= mConfig.pointerGestureTapSlop) {
                     ALOGD_IF(DEBUG_GESTURES, "Gestures: TAP");
@@ -2989,8 +2986,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         mPointerGesture.currentGestureMode = PointerGesture::Mode::HOVER;
         if (mPointerGesture.lastGestureMode == PointerGesture::Mode::TAP) {
             if (when <= mPointerGesture.tapUpTime + mConfig.pointerGestureTapDragInterval) {
-                float x, y;
-                mPointerController->getPosition(&x, &y);
+                const auto [x, y] = mPointerController->getPosition();
                 if (fabs(x - mPointerGesture.tapX) <= mConfig.pointerGestureTapSlop &&
                     fabs(y - mPointerGesture.tapY) <= mConfig.pointerGestureTapSlop) {
                     mPointerGesture.currentGestureMode = PointerGesture::Mode::TAP_DRAG;
@@ -3026,8 +3022,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             down = false;
         }
 
-        float x, y;
-        mPointerController->getPosition(&x, &y);
+        const auto [x, y] = mPointerController->getPosition();
 
         mPointerGesture.currentGestureIdBits.clear();
         mPointerGesture.currentGestureIdBits.markBit(mPointerGesture.activeGestureId);
@@ -3194,8 +3189,8 @@ void TouchInputMapper::prepareMultiFingerPointerGestures(nsecs_t when, bool* can
         mCurrentRawState.rawPointerData
                 .getCentroidOfTouchingPointers(&mPointerGesture.referenceTouchX,
                                                &mPointerGesture.referenceTouchY);
-        mPointerController->getPosition(&mPointerGesture.referenceGestureX,
-                                        &mPointerGesture.referenceGestureY);
+        std::tie(mPointerGesture.referenceGestureX, mPointerGesture.referenceGestureY) =
+                mPointerController->getPosition();
     }
 
     // Clear the reference deltas for fingers not yet included in the reference calculation.
@@ -3510,8 +3505,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerStylus(nsecs_t when, nsec
         hovering = mCurrentCookedState.cookedPointerData.hoveringIdBits.hasBit(id);
         down = !hovering;
 
-        float x, y;
-        mPointerController->getPosition(&x, &y);
+        const auto [x, y] = mPointerController->getPosition();
         mPointerSimple.currentCoords.copyFrom(
                 mCurrentCookedState.cookedPointerData.pointerCoords[index]);
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
@@ -3549,9 +3543,8 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerMouse(nsecs_t when, nsecs
         down = isPointerDown(mCurrentRawState.buttonState);
         hovering = !down;
 
-        float x, y;
-        mPointerController->getPosition(&x, &y);
-        uint32_t currentIndex = mCurrentRawState.rawPointerData.idToIndex[id];
+        const auto [x, y] = mPointerController->getPosition();
+        const uint32_t currentIndex = mCurrentRawState.rawPointerData.idToIndex[id];
         mPointerSimple.currentCoords.copyFrom(
                 mCurrentCookedState.cookedPointerData.pointerCoords[currentIndex]);
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
@@ -3598,8 +3591,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
     }
     int32_t displayId = mPointerController->getDisplayId();
 
-    float xCursorPosition, yCursorPosition;
-    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
 
     if (mPointerSimple.down && !down) {
         mPointerSimple.down = false;
@@ -3820,7 +3812,7 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
     float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     if (mDeviceMode == DeviceMode::POINTER) {
-        mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+        std::tie(xCursorPosition, yCursorPosition) = mPointerController->getPosition();
     }
     const int32_t deviceId = getDeviceId();
     std::vector<TouchVideoFrame> frames = getDeviceContext().getVideoFrames();
