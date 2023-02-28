@@ -1560,8 +1560,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBackg
     }
 
     s->what |= layer_state_t::eBackgroundColorChanged;
-    s->color.rgb = color;
-    s->bgColorAlpha = alpha;
+    s->bgColor.rgb = color;
+    s->bgColor.a = alpha;
     s->bgColorDataspace = dataspace;
 
     registerSurfaceControlForCallback(sc);
