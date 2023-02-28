@@ -144,6 +144,8 @@ public:
     }
 
     const RequestedLayerState* getLayer() const;
+    const LayerHierarchy* getRelativeParent() const;
+    const LayerHierarchy* getParent() const;
     std::string getDebugString(const char* prefix = "") const;
     std::string getDebugStringShort() const;
     // Traverse the hierarchy and return true if loops are found. The outInvalidRelativeRoot

@@ -27,12 +27,16 @@ using namespace ftl::flag_operators;
 LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
                              const LayerHierarchy::TraversalPath& path)
       : path(path) {
+    static uint32_t sUniqueSequenceId = 0;
+    // Provide a unique id for clones otherwise keeping using the sequence id.
+    // The seq id can still be useful for debugging if its available.
+    uniqueSequence = (path.isClone()) ? sUniqueSequenceId++ : state.id;
     sequence = static_cast<int32_t>(state.id);
     name = state.name;
     textureName = state.textureName;
     premultipliedAlpha = state.premultipliedAlpha;
     inputInfo.name = state.name;
-    inputInfo.id = static_cast<int32_t>(state.id);
+    inputInfo.id = static_cast<int32_t>(uniqueSequence);
     inputInfo.ownerUid = static_cast<int32_t>(state.ownerUid);
     inputInfo.ownerPid = state.ownerPid;
     changes = RequestedLayerState::Changes::Created;
