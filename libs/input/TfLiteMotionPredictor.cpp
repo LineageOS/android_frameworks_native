@@ -30,6 +30,7 @@
 #include <type_traits>
 #include <utility>
 
+#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/mapped_file.h>
 #define ATRACE_TAG ATRACE_TAG_INPUT
@@ -59,6 +60,14 @@ constexpr char INPUT_ORIENTATION[] = "orientation";
 constexpr char OUTPUT_R[] = "r";
 constexpr char OUTPUT_PHI[] = "phi";
 constexpr char OUTPUT_PRESSURE[] = "pressure";
+
+std::string getModelPath() {
+#if defined(__ANDROID__)
+    return "/system/etc/motion_predictor_model.fb";
+#else
+    return base::GetExecutableDirectory() + "/motion_predictor_model.fb";
+#endif
+}
 
 // A TFLite ErrorReporter that logs to logcat.
 class LoggingErrorReporter : public tflite::ErrorReporter {
@@ -206,9 +215,9 @@ void TfLiteMotionPredictorBuffers::pushSample(int64_t timestamp,
     mInputOrientation.pushBack(orientation);
 }
 
-std::unique_ptr<TfLiteMotionPredictorModel> TfLiteMotionPredictorModel::create(
-        const char* modelPath) {
-    const int fd = open(modelPath, O_RDONLY);
+std::unique_ptr<TfLiteMotionPredictorModel> TfLiteMotionPredictorModel::create() {
+    const std::string modelPath = getModelPath();
+    const int fd = open(modelPath.c_str(), O_RDONLY);
     if (fd == -1) {
         PLOG(FATAL) << "Could not read model from " << modelPath;
     }
