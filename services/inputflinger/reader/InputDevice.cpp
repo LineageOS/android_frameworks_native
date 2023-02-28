@@ -277,7 +277,11 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
     mHasMic = mClasses.test(InputDeviceClass::MIC);
 
     if (!isIgnored()) {
-        if (!changes) { // first time only
+        // Full configuration should happen the first time configure is called
+        // and when the device type is changed. Changing a device type can
+        // affect various other parameters so should result in a
+        // reconfiguration.
+        if (!changes || (changes & InputReaderConfiguration::CHANGE_DEVICE_TYPE)) {
             mConfiguration.clear();
             for_each_subdevice([this](InputDeviceContext& context) {
                 PropertyMap configuration;
