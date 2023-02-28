@@ -274,7 +274,8 @@ private:
 
     // An adjustable safety margin which pads the "actual" value sent to PowerHAL,
     // encouraging more aggressive boosting to give SurfaceFlinger a larger margin for error
-    static constexpr const Duration kTargetSafetyMargin{1ms};
+    static const Duration sTargetSafetyMargin;
+    static constexpr const Duration kDefaultTargetSafetyMargin{1ms};
 
     // How long we expect hwc to run after the present call until it waits for the fence
     static constexpr const Duration kFenceWaitStartDelayValidated{150us};
