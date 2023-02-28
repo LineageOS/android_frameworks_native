@@ -139,10 +139,12 @@ public:
     }
 
     virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
-            uint32_t size, int32_t type, int32_t format, const native_handle_t *resource) {
+            int deviceId, uint32_t size, int32_t type, int32_t format,
+            const native_handle_t *resource) {
         Parcel data, reply;
         data.writeInterfaceToken(ISensorServer::getInterfaceDescriptor());
         data.writeString16(opPackageName);
+        data.writeInt32(deviceId);
         data.writeUint32(size);
         data.writeInt32(type);
         data.writeInt32(format);
@@ -237,6 +239,7 @@ status_t BnSensorServer::onTransact(
         case CREATE_SENSOR_DIRECT_CONNECTION: {
             CHECK_INTERFACE(ISensorServer, data, reply);
             const String16& opPackageName = data.readString16();
+            const int deviceId = data.readInt32();
             uint32_t size = data.readUint32();
             int32_t type = data.readInt32();
             int32_t format = data.readInt32();
@@ -246,8 +249,8 @@ status_t BnSensorServer::onTransact(
                 return BAD_VALUE;
             }
             native_handle_set_fdsan_tag(resource);
-            sp<ISensorEventConnection> ch =
-                    createSensorDirectConnection(opPackageName, size, type, format, resource);
+            sp<ISensorEventConnection> ch = createSensorDirectConnection(
+                    opPackageName, deviceId, size, type, format, resource);
             native_handle_close_with_tag(resource);
             native_handle_delete(resource);
             reply->writeStrongBinder(IInterface::asBinder(ch));
