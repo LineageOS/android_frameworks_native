@@ -2275,12 +2275,13 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, LifecycleUpdate& upda
             mLayerLifecycleManager.commitChanges();
         }
 
+        commitTransactions();
+
         // enter boot animation on first buffer latch
         if (CC_UNLIKELY(mBootStage == BootStage::BOOTLOADER && newDataLatched)) {
             ALOGI("Enter boot animation");
             mBootStage = BootStage::BOOTANIMATION;
         }
-        commitTransactions();
     }
     mustComposite |= (getTransactionFlags() & ~eTransactionFlushNeeded) || newDataLatched;
     return mustComposite;
@@ -5227,8 +5228,18 @@ void SurfaceFlinger::onInitializeDisplays() {
     const sp<IBinder> token = display->getDisplayToken().promote();
     LOG_ALWAYS_FATAL_IF(token == nullptr);
 
+    TransactionState state;
+    state.inputWindowCommands = mInputWindowCommands;
+    nsecs_t now = systemTime();
+    state.desiredPresentTime = now;
+    state.postTime = now;
+    state.permissions = layer_state_t::ACCESS_SURFACE_FLINGER;
+    state.originPid = mPid;
+    state.originUid = static_cast<int>(getuid());
+    uint64_t transactionId = (((uint64_t)mPid) << 32) | mUniqueTransactionId++;
+    state.id = transactionId;
+
     // reset screen orientation and use primary layer stack
-    std::vector<ResolvedComposerState> state;
     Vector<DisplayState> displays;
     DisplayState d;
     d.what = DisplayState::eDisplayProjectionChanged |
@@ -5240,15 +5251,17 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.layerStackSpaceRect.makeInvalid();
     d.width = 0;
     d.height = 0;
-    displays.add(d);
+    state.displays.add(d);
 
-    nsecs_t now = systemTime();
+    std::vector<TransactionState> transactions;
+    transactions.emplace_back(state);
 
-    int64_t transactionId = (((int64_t)mPid) << 32) | mUniqueTransactionId++;
     // It should be on the main thread, apply it directly.
-    applyTransactionState(FrameTimelineInfo{}, state, displays, 0, mInputWindowCommands,
-                          /* desiredPresentTime */ now, true, {}, /* postTime */ now, true, false,
-                          {}, mPid, getuid(), transactionId);
+    if (mLegacyFrontEndEnabled) {
+        applyTransactionsLocked(transactions, /*vsyncId=*/{0});
+    } else {
+        applyAndCommitDisplayTransactionStates(transactions);
+    }
 
     setPowerModeInternal(display, hal::PowerMode::ON);
 }
@@ -5687,14 +5700,27 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
         }
     }
 
-    LayersProto layersProto;
-    for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
-        if (stackIdsToSkip.find(layer->getLayerStack().id) != stackIdsToSkip.end()) {
-            continue;
+    if (mLegacyFrontEndEnabled) {
+        LayersProto layersProto;
+        for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
+            if (stackIdsToSkip.find(layer->getLayerStack().id) != stackIdsToSkip.end()) {
+                continue;
+            }
+            layer->writeToProto(layersProto, traceFlags);
         }
-        layer->writeToProto(layersProto, traceFlags);
+        return layersProto;
     }
 
+    const frontend::LayerHierarchy& root = mLayerHierarchyBuilder.getHierarchy();
+    LayersProto layersProto;
+    for (auto& [child, variant] : root.mChildren) {
+        if (variant != frontend::LayerHierarchy::Variant::Attached ||
+            stackIdsToSkip.find(child->getLayer()->layerStack.id) != stackIdsToSkip.end()) {
+            continue;
+        }
+        LayerProtoHelper::writeHierarchyToProto(layersProto, *child, mLayerSnapshotBuilder,
+                                                mLegacyLayers, traceFlags);
+    }
     return layersProto;
 }
 
@@ -6776,7 +6802,8 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
 
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
-        getLayerSnapshots = getLayerSnapshotsForScreenshots(layerStack, args.uid);
+        getLayerSnapshots =
+                getLayerSnapshotsForScreenshots(layerStack, args.uid, /*snapshotFilterFn=*/nullptr);
     } else {
         auto traverseLayers = [this, args, layerStack](const LayerVector::Visitor& visitor) {
             traverseLayersInLayerStack(layerStack, args.uid, visitor);
@@ -6818,7 +6845,8 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
 
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
-        getLayerSnapshots = getLayerSnapshotsForScreenshots(layerStack, CaptureArgs::UNSET_UID);
+        getLayerSnapshots = getLayerSnapshotsForScreenshots(layerStack, CaptureArgs::UNSET_UID,
+                                                            /*snapshotFilterFn=*/nullptr);
     } else {
         auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
             traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, visitor);
@@ -7847,12 +7875,18 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
 }
 
 std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()>
-SurfaceFlinger::getLayerSnapshotsForScreenshots(std::optional<ui::LayerStack> layerStack,
-                                                uint32_t uid) {
+SurfaceFlinger::getLayerSnapshotsForScreenshots(
+        std::optional<ui::LayerStack> layerStack, uint32_t uid,
+        std::function<bool(const frontend::LayerSnapshot&, bool& outStopTraversal)>
+                snapshotFilterFn) {
     return [&, layerStack, uid]() {
         std::vector<std::pair<Layer*, sp<LayerFE>>> layers;
+        bool stopTraversal = false;
         mLayerSnapshotBuilder.forEachVisibleSnapshot(
                 [&](std::unique_ptr<frontend::LayerSnapshot>& snapshot) {
+                    if (stopTraversal) {
+                        return;
+                    }
                     if (layerStack && snapshot->outputFilter.layerStack != *layerStack) {
                         return;
                     }
@@ -7860,6 +7894,9 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(std::optional<ui::LayerStack> la
                         return;
                     }
                     if (!snapshot->hasSomethingToDraw()) {
+                        return;
+                    }
+                    if (snapshotFilterFn && !snapshotFilterFn(*snapshot, stopTraversal)) {
                         return;
                     }
 
@@ -7900,7 +7937,8 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(uint32_t rootLayerId, uint32_t u
                      .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap()};
         mLayerSnapshotBuilder.update(args);
 
-        auto getLayerSnapshotsFn = getLayerSnapshotsForScreenshots({}, uid);
+        auto getLayerSnapshotsFn =
+                getLayerSnapshotsForScreenshots({}, uid, /*snapshotFilterFn=*/nullptr);
         std::vector<std::pair<Layer*, sp<LayerFE>>> layers = getLayerSnapshotsFn();
         args.root = mLayerHierarchyBuilder.getHierarchy();
         args.parentCrop.reset();
