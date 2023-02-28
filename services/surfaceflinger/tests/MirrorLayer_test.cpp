@@ -18,6 +18,7 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
+#include <android-base/properties.h>
 #include <private/android_filesystem_config.h>
 #include "LayerTransactionTest.h"
 #include "utils/TransactionUtils.h"
@@ -119,15 +120,20 @@ TEST_F(MirrorLayerTest, MirrorColorLayer) {
         shot->expectColor(Rect(750, 750, 950, 950), Color::BLACK);
     }
 
-    // Remove child layer
+    if (base::GetBoolProperty("debug.sf.enable_legacy_frontend", true)) {
+        GTEST_SKIP() << "Skipping test because mirroring behavior changes with legacy frontend";
+    }
+
+    // Remove child layer and verify we can still mirror the layer when
+    // its offscreen.
     Transaction().reparent(mChildLayer, nullptr).apply();
     {
         SCOPED_TRACE("Removed Child Layer");
         auto shot = screenshot();
         // Grandchild mirror
-        shot->expectColor(Rect(550, 550, 750, 750), Color::RED);
+        shot->expectColor(Rect(550, 550, 750, 750), Color::BLACK);
         // Child mirror
-        shot->expectColor(Rect(750, 750, 950, 950), Color::RED);
+        shot->expectColor(Rect(750, 750, 950, 950), Color::BLACK);
     }
 
     // Add grandchild layer to offscreen layer
@@ -136,9 +142,9 @@ TEST_F(MirrorLayerTest, MirrorColorLayer) {
         SCOPED_TRACE("Added Grandchild Layer");
         auto shot = screenshot();
         // Grandchild mirror
-        shot->expectColor(Rect(550, 550, 750, 750), Color::RED);
+        shot->expectColor(Rect(550, 550, 750, 750), Color::WHITE);
         // Child mirror
-        shot->expectColor(Rect(750, 750, 950, 950), Color::RED);
+        shot->expectColor(Rect(750, 750, 950, 950), Color::BLACK);
     }
 
     // Add child layer

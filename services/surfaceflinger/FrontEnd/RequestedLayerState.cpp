@@ -165,8 +165,13 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         if (hadBufferOrSideStream != hasBufferOrSideStream) {
             changes |= RequestedLayerState::Changes::Geometry |
                     RequestedLayerState::Changes::VisibleRegion |
-                    RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Input |
-                    RequestedLayerState::Changes::Buffer;
+                    RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Input;
+        }
+        if (clientState.what & layer_state_t::eBufferChanged) {
+            changes |= RequestedLayerState::Changes::Buffer;
+        }
+        if (clientState.what & layer_state_t::eSidebandStreamChanged) {
+            changes |= RequestedLayerState::Changes::SidebandStream;
         }
     }
     if (what & (layer_state_t::eAlphaChanged)) {
@@ -197,7 +202,9 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         static const mat4 identityMatrix = mat4();
         hasColorTransform = colorTransform != identityMatrix;
     }
-    if (clientState.what & (layer_state_t::eLayerChanged | layer_state_t::eRelativeLayerChanged)) {
+    if (clientState.what &
+        (layer_state_t::eLayerChanged | layer_state_t::eRelativeLayerChanged |
+         layer_state_t::eLayerStackChanged)) {
         changes |= RequestedLayerState::Changes::Z;
     }
     if (clientState.what & layer_state_t::eReparent) {
@@ -451,6 +458,24 @@ bool RequestedLayerState::hasInputInfo() const {
 
 bool RequestedLayerState::hasBlur() const {
     return backgroundBlurRadius > 0 || blurRegions.size() > 0;
+}
+
+bool RequestedLayerState::hasFrameUpdate() const {
+    return what & layer_state_t::CONTENT_DIRTY &&
+            (externalTexture || bgColorLayerId != UNASSIGNED_LAYER_ID);
+}
+
+bool RequestedLayerState::hasReadyFrame() const {
+    return hasFrameUpdate() || changes.test(Changes::SidebandStream) || autoRefresh;
+}
+
+bool RequestedLayerState::hasSidebandStreamFrame() const {
+    return hasFrameUpdate() && sidebandStream.get();
+}
+
+void RequestedLayerState::clearChanges() {
+    what = 0;
+    changes.clear();
 }
 
 } // namespace android::surfaceflinger::frontend

@@ -172,7 +172,7 @@ protected:
         transactions.emplace_back();
         transactions.back().states.push_back({});
         transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
-        transactions.back().states.front().state.bgColorAlpha = alpha;
+        transactions.back().states.front().state.bgColor.a = alpha;
         transactions.back().states.front().state.surface = mHandles[id];
         mLifecycleManager.applyTransactions(transactions);
     }
@@ -271,6 +271,22 @@ protected:
         transactions.back().states.front().state.surface = mHandles[id];
         transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
         transactions.back().states.front().state.layerStack = ui::LayerStack::fromValue(layerStack);
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setTouchableRegion(uint32_t id, Region region) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eInputInfoChanged;
+        transactions.back().states.front().state.surface = mHandles[id];
+        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().state.windowInfoHandle =
+                sp<gui::WindowInfoHandle>::make();
+        auto inputInfo = transactions.back().states.front().state.windowInfoHandle->editInfo();
+        inputInfo->touchableRegion = region;
+        inputInfo->token = sp<BBinder>::make();
         mLifecycleManager.applyTransactions(transactions);
     }
 
