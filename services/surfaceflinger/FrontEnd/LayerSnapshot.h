@@ -57,6 +57,12 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     bool isHiddenByPolicyFromParent = false;
     bool isHiddenByPolicyFromRelativeParent = false;
     ftl::Flags<RequestedLayerState::Changes> changes;
+    // Some consumers of this snapshot (input, layer traces) rely on each snapshot to be unique.
+    // For mirrored layers, snapshots will have the same sequence so this unique id provides
+    // an alternative identifier when needed.
+    uint32_t uniqueSequence;
+    // Layer id used to create this snapshot. Multiple snapshots will have the same sequence if they
+    // generated from the same layer, for example when mirroring.
     int32_t sequence;
     std::string name;
     uint32_t textureName;

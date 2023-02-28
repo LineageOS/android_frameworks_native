@@ -957,7 +957,7 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     }
 
     snapshot.inputInfo.name = requested.name;
-    snapshot.inputInfo.id = static_cast<int32_t>(requested.id);
+    snapshot.inputInfo.id = static_cast<int32_t>(snapshot.uniqueSequence);
     snapshot.inputInfo.ownerUid = static_cast<int32_t>(requested.ownerUid);
     snapshot.inputInfo.ownerPid = requested.ownerPid;
     snapshot.inputInfo.displayId = static_cast<int32_t>(snapshot.outputFilter.layerStack.id);
