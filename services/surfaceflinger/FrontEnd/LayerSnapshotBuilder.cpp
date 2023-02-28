@@ -773,6 +773,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         snapshot.layerOpaqueFlagSet =
                 (requested.flags & layer_state_t::eLayerOpaque) == layer_state_t::eLayerOpaque;
         snapshot.cachingHint = requested.cachingHint;
+        snapshot.frameRateSelectionPriority = requested.frameRateSelectionPriority;
     }
 
     if (forceUpdate || snapshot.changes.any(RequestedLayerState::Changes::Content)) {

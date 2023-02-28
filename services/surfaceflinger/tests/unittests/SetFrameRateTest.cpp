@@ -380,8 +380,10 @@ TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
     commitTransaction();
 
     auto& history = mFlinger.mutableScheduler().mutableLayerHistory();
-    history.record(parent.get(), 0, 0, LayerHistory::LayerUpdateType::Buffer);
-    history.record(child.get(), 0, 0, LayerHistory::LayerUpdateType::Buffer);
+    history.record(parent->getSequence(), parent->getLayerProps(), 0, 0,
+                   LayerHistory::LayerUpdateType::Buffer);
+    history.record(child->getSequence(), child->getLayerProps(), 0, 0,
+                   LayerHistory::LayerUpdateType::Buffer);
 
     const auto selectorPtr = mFlinger.mutableScheduler().refreshRateSelector();
     const auto summary = history.summarize(*selectorPtr, 0);

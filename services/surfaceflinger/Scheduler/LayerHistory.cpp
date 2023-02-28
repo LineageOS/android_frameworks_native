@@ -118,27 +118,17 @@ void LayerHistory::deregisterLayer(Layer* layer) {
     }
 }
 
-void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
-                          LayerUpdateType updateType) {
+void LayerHistory::record(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
+                          nsecs_t now, LayerUpdateType updateType) {
     std::lock_guard lock(mLock);
-    auto id = layer->getSequence();
-
     auto [found, layerPair] = findLayer(id);
     if (found == LayerStatus::NotFound) {
         // Offscreen layer
-        ALOGV("%s: %s not registered", __func__, layer->getName().c_str());
+        ALOGV("%s: %d not registered", __func__, id);
         return;
     }
 
     const auto& info = layerPair->second;
-    const auto layerProps = LayerInfo::LayerProps{
-            .visible = layer->isVisible(),
-            .bounds = layer->getBounds(),
-            .transform = layer->getTransform(),
-            .setFrameRateVote = layer->getFrameRateForLayerTree(),
-            .frameRateSelectionPriority = layer->getFrameRateSelectionPriority(),
-    };
-
     info->setLastPresentTime(presentTime, now, updateType, mModeChangePending, layerProps);
 
     // Set frame rate to attached choreographer.
@@ -149,7 +139,7 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
         while (it != range.second) {
             sp<EventThreadConnection> choreographerConnection = it->second.promote();
             if (choreographerConnection) {
-                choreographerConnection->frameRate = layer->getFrameRateForLayerTree().rate;
+                choreographerConnection->frameRate = layerProps.setFrameRateVote.rate;
                 it++;
             } else {
                 it = mAttachedChoreographers.erase(it);

@@ -2178,6 +2178,38 @@ bool SurfaceFlinger::updateLayerSnapshotsLegacy(VsyncId vsyncId, LifecycleUpdate
     return mustComposite;
 }
 
+void SurfaceFlinger::updateLayerHistory(const frontend::LayerSnapshot& snapshot) {
+    using Changes = frontend::RequestedLayerState::Changes;
+    if (snapshot.path.isClone() ||
+        !snapshot.changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation)) {
+        return;
+    }
+
+    const auto layerProps = scheduler::LayerProps{
+            .visible = snapshot.isVisible,
+            .bounds = snapshot.geomLayerBounds,
+            .transform = snapshot.geomLayerTransform,
+            .setFrameRateVote = snapshot.frameRate,
+            .frameRateSelectionPriority = snapshot.frameRateSelectionPriority,
+    };
+
+    auto it = mLegacyLayers.find(snapshot.sequence);
+    LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
+                        snapshot.getDebugString().c_str());
+
+    if (snapshot.changes.test(Changes::Animation)) {
+        it->second->recordLayerHistoryAnimationTx(layerProps);
+    }
+
+    if (snapshot.changes.test(Changes::FrameRate)) {
+        it->second->setFrameRateForLayerTree(snapshot.frameRate, layerProps);
+    }
+
+    if (snapshot.changes.test(Changes::Buffer)) {
+        it->second->recordLayerHistoryBufferUpdate(layerProps);
+    }
+}
+
 bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, LifecycleUpdate& update,
                                           bool transactionsFlushed, bool& outTransactionsAreEmpty) {
     using Changes = frontend::RequestedLayerState::Changes;
@@ -2257,6 +2289,7 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, LifecycleUpdate& upda
         }
 
         for (auto& snapshot : mLayerSnapshotBuilder.getSnapshots()) {
+            updateLayerHistory(*snapshot);
             if (!snapshot->hasReadyFrame) continue;
             newDataLatched = true;
             if (!snapshot->isVisible) break;
@@ -4441,10 +4474,14 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
         }
         if ((flags & eAnimation) && resolvedState.state.surface) {
             if (const auto layer = LayerHandle::getLayer(resolvedState.state.surface)) {
-                using LayerUpdateType = scheduler::LayerHistory::LayerUpdateType;
-                mScheduler->recordLayerHistory(layer.get(),
-                                               isAutoTimestamp ? 0 : desiredPresentTime,
-                                               LayerUpdateType::AnimationTX);
+                const auto layerProps = scheduler::LayerProps{
+                        .visible = layer->isVisible(),
+                        .bounds = layer->getBounds(),
+                        .transform = layer->getTransform(),
+                        .setFrameRateVote = layer->getFrameRateForLayerTree(),
+                        .frameRateSelectionPriority = layer->getFrameRateSelectionPriority(),
+                };
+                layer->recordLayerHistoryAnimationTx(layerProps);
             }
         }
     }
@@ -4905,6 +4942,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         layer->setFrameTimelineVsyncForBufferlessTransaction(frameTimelineInfo, postTime);
     }
 
+    if ((what & layer_state_t::eBufferChanged) == 0) {
+        layer->setDesiredPresentTime(desiredPresentTime, isAutoTimestamp);
+    }
+
     if (what & layer_state_t::eTrustedPresentationInfoChanged) {
         if (layer->setTrustedPresentationInfo(s.trustedPresentationThresholds,
                                               s.trustedPresentationListener)) {
@@ -5013,6 +5054,10 @@ uint32_t SurfaceFlinger::updateLayerCallbacksAndStats(const FrameTimelineInfo& f
         layer->setFrameTimelineVsyncForBufferlessTransaction(frameTimelineInfo, postTime);
     }
 
+    if ((what & layer_state_t::eBufferChanged) == 0) {
+        layer->setDesiredPresentTime(desiredPresentTime, isAutoTimestamp);
+    }
+
     if (what & layer_state_t::eTrustedPresentationInfoChanged) {
         if (layer->setTrustedPresentationInfo(s.trustedPresentationThresholds,
                                               s.trustedPresentationListener)) {
@@ -5025,16 +5070,6 @@ uint32_t SurfaceFlinger::updateLayerCallbacksAndStats(const FrameTimelineInfo& f
             requestedLayerState && requestedLayerState->hasReadyFrame();
     if (layer->setTransactionCompletedListeners(callbackHandles, willPresentCurrentTransaction))
         flags |= eTraversalNeeded;
-
-    for (auto& snapshot : mLayerSnapshotBuilder.getSnapshots()) {
-        if (snapshot->path.isClone() ||
-            !snapshot->changes.test(frontend::RequestedLayerState::Changes::FrameRate))
-            continue;
-        auto it = mLegacyLayers.find(snapshot->sequence);
-        LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
-                            snapshot->getDebugString().c_str());
-        it->second->setFrameRateForLayerTree(snapshot->frameRate);
-    }
 
     return flags;
 }

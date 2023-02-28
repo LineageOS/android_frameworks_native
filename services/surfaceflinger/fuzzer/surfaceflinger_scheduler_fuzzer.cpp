@@ -220,9 +220,9 @@ void SchedulerFuzzer::fuzzLayerHistory() {
     sp<FuzzImplLayer> layer2 = sp<FuzzImplLayer>::make(flinger.flinger());
 
     for (int i = 0; i < historySize; ++i) {
-        historyV1.record(layer1.get(), time1, time1,
+        historyV1.record(layer1->getSequence(), layer1->getLayerProps(), time1, time1,
                          scheduler::LayerHistory::LayerUpdateType::Buffer);
-        historyV1.record(layer2.get(), time2, time2,
+        historyV1.record(layer2->getSequence(), layer2->getLayerProps(), time2, time2,
                          scheduler::LayerHistory::LayerUpdateType::Buffer);
         time1 += mFdp.PickValueInArray(kVsyncPeriods);
         time2 += mFdp.PickValueInArray(kVsyncPeriods);

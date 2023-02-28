@@ -726,6 +726,7 @@ private:
             REQUIRES(kMainThreadContext);
     bool updateLayerSnapshots(VsyncId vsyncId, LifecycleUpdate& update, bool transactionsFlushed,
                               bool& out) REQUIRES(kMainThreadContext);
+    void updateLayerHistory(const frontend::LayerSnapshot& snapshot);
     LifecycleUpdate flushLifecycleUpdates() REQUIRES(kMainThreadContext);
 
     void updateInputFlinger();
