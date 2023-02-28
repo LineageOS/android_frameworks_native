@@ -285,46 +285,72 @@ void RegionSamplingThread::captureSample() {
 
     std::unordered_set<sp<IRegionSamplingListener>, SpHash<IRegionSamplingListener>> listeners;
 
-    auto traverseLayers = [&](const LayerVector::Visitor& visitor) {
-        bool stopLayerFound = false;
-        auto filterVisitor = [&](Layer* layer) {
-            // We don't want to capture any layers beyond the stop layer
-            if (stopLayerFound) return;
+    auto layerFilterFn = [&](const char* layerName, uint32_t layerId, const Rect& bounds,
+                             const ui::Transform transform, bool& outStopTraversal) -> bool {
+        // Likewise if we just found a stop layer, set the flag and abort
+        for (const auto& [area, stopLayerId, listener] : descriptors) {
+            if (stopLayerId != UNASSIGNED_LAYER_ID && layerId == stopLayerId) {
+                outStopTraversal = true;
+                return false;
+            }
+        }
 
-            // Likewise if we just found a stop layer, set the flag and abort
-            for (const auto& [area, stopLayerId, listener] : descriptors) {
-                if (stopLayerId != UNASSIGNED_LAYER_ID && layer->getSequence() == stopLayerId) {
-                    stopLayerFound = true;
+        // Compute the layer's position on the screen
+        constexpr bool roundOutwards = true;
+        Rect transformed = transform.transform(bounds, roundOutwards);
+
+        // If this layer doesn't intersect with the larger sampledBounds, skip capturing it
+        Rect ignore;
+        if (!transformed.intersect(sampledBounds, &ignore)) return false;
+
+        // If the layer doesn't intersect a sampling area, skip capturing it
+        bool intersectsAnyArea = false;
+        for (const auto& [area, stopLayer, listener] : descriptors) {
+            if (transformed.intersect(area, &ignore)) {
+                intersectsAnyArea = true;
+                listeners.insert(listener);
+            }
+        }
+        if (!intersectsAnyArea) return false;
+
+        ALOGV("Traversing [%s] [%d, %d, %d, %d]", layerName, bounds.left, bounds.top, bounds.right,
+              bounds.bottom);
+
+        return true;
+    };
+
+    std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshots;
+    if (mFlinger.mLayerLifecycleManagerEnabled) {
+        auto filterFn = [&](const frontend::LayerSnapshot& snapshot,
+                            bool& outStopTraversal) -> bool {
+            const Rect bounds =
+                    frontend::RequestedLayerState::reduce(Rect(snapshot.geomLayerBounds),
+                                                          snapshot.transparentRegionHint);
+            const ui::Transform transform = snapshot.geomLayerTransform;
+            return layerFilterFn(snapshot.name.c_str(), snapshot.path.id, bounds, transform,
+                                 outStopTraversal);
+        };
+        getLayerSnapshots =
+                mFlinger.getLayerSnapshotsForScreenshots(layerStack, CaptureArgs::UNSET_UID,
+                                                         filterFn);
+    } else {
+        auto traverseLayers = [&](const LayerVector::Visitor& visitor) {
+            bool stopLayerFound = false;
+            auto filterVisitor = [&](Layer* layer) {
+                // We don't want to capture any layers beyond the stop layer
+                if (stopLayerFound) return;
+
+                if (!layerFilterFn(layer->getDebugName(), layer->getSequence(),
+                                   Rect(layer->getBounds()), layer->getTransform(),
+                                   stopLayerFound)) {
                     return;
                 }
-            }
-
-            // Compute the layer's position on the screen
-            const Rect bounds = Rect(layer->getBounds());
-            const ui::Transform transform = layer->getTransform();
-            constexpr bool roundOutwards = true;
-            Rect transformed = transform.transform(bounds, roundOutwards);
-
-            // If this layer doesn't intersect with the larger sampledBounds, skip capturing it
-            Rect ignore;
-            if (!transformed.intersect(sampledBounds, &ignore)) return;
-
-            // If the layer doesn't intersect a sampling area, skip capturing it
-            bool intersectsAnyArea = false;
-            for (const auto& [area, stopLayer, listener] : descriptors) {
-                if (transformed.intersect(area, &ignore)) {
-                    intersectsAnyArea = true;
-                    listeners.insert(listener);
-                }
-            }
-            if (!intersectsAnyArea) return;
-
-            ALOGV("Traversing [%s] [%d, %d, %d, %d]", layer->getDebugName(), bounds.left,
-                  bounds.top, bounds.right, bounds.bottom);
-            visitor(layer);
+                visitor(layer);
+            };
+            mFlinger.traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, filterVisitor);
         };
-        mFlinger.traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, filterVisitor);
-    };
+        getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
+    }
 
     std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;
     if (mCachedBuffer && mCachedBuffer->getBuffer()->getWidth() == sampledBounds.getWidth() &&
@@ -344,7 +370,6 @@ void RegionSamplingThread::captureSample() {
                                                      renderengine::impl::ExternalTexture::Usage::
                                                              WRITEABLE);
     }
-    auto getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
 
     constexpr bool kRegionSampling = true;
     constexpr bool kGrayscale = false;

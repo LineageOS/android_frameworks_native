@@ -6782,7 +6782,8 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
 
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
-        getLayerSnapshots = getLayerSnapshotsForScreenshots(layerStack, args.uid);
+        getLayerSnapshots =
+                getLayerSnapshotsForScreenshots(layerStack, args.uid, /*snapshotFilterFn=*/nullptr);
     } else {
         auto traverseLayers = [this, args, layerStack](const LayerVector::Visitor& visitor) {
             traverseLayersInLayerStack(layerStack, args.uid, visitor);
@@ -6824,7 +6825,8 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
 
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
-        getLayerSnapshots = getLayerSnapshotsForScreenshots(layerStack, CaptureArgs::UNSET_UID);
+        getLayerSnapshots = getLayerSnapshotsForScreenshots(layerStack, CaptureArgs::UNSET_UID,
+                                                            /*snapshotFilterFn=*/nullptr);
     } else {
         auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
             traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, visitor);
@@ -7852,12 +7854,18 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
 }
 
 std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()>
-SurfaceFlinger::getLayerSnapshotsForScreenshots(std::optional<ui::LayerStack> layerStack,
-                                                uint32_t uid) {
+SurfaceFlinger::getLayerSnapshotsForScreenshots(
+        std::optional<ui::LayerStack> layerStack, uint32_t uid,
+        std::function<bool(const frontend::LayerSnapshot&, bool& outStopTraversal)>
+                snapshotFilterFn) {
     return [&, layerStack, uid]() {
         std::vector<std::pair<Layer*, sp<LayerFE>>> layers;
+        bool stopTraversal = false;
         mLayerSnapshotBuilder.forEachVisibleSnapshot(
                 [&](std::unique_ptr<frontend::LayerSnapshot>& snapshot) {
+                    if (stopTraversal) {
+                        return;
+                    }
                     if (layerStack && snapshot->outputFilter.layerStack != *layerStack) {
                         return;
                     }
@@ -7865,6 +7873,9 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(std::optional<ui::LayerStack> la
                         return;
                     }
                     if (!snapshot->hasSomethingToDraw()) {
+                        return;
+                    }
+                    if (snapshotFilterFn && !snapshotFilterFn(*snapshot, stopTraversal)) {
                         return;
                     }
 
@@ -7905,7 +7916,8 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(uint32_t rootLayerId, uint32_t u
                      .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap()};
         mLayerSnapshotBuilder.update(args);
 
-        auto getLayerSnapshotsFn = getLayerSnapshotsForScreenshots({}, uid);
+        auto getLayerSnapshotsFn =
+                getLayerSnapshotsForScreenshots({}, uid, /*snapshotFilterFn=*/nullptr);
         std::vector<std::pair<Layer*, sp<LayerFE>>> layers = getLayerSnapshotsFn();
         args.root = mLayerHierarchyBuilder.getHierarchy();
         args.parentCrop.reset();

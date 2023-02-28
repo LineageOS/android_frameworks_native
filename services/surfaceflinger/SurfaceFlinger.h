@@ -1387,7 +1387,9 @@ private:
                 [](const auto& display) { return display.isRefreshRateOverlayEnabled(); });
     }
     std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshotsForScreenshots(
-            std::optional<ui::LayerStack> layerStack, uint32_t uid);
+            std::optional<ui::LayerStack> layerStack, uint32_t uid,
+            std::function<bool(const frontend::LayerSnapshot&, bool& outStopTraversal)>
+                    snapshotFilterFn);
     std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshotsForScreenshots(
             uint32_t rootLayerId, uint32_t uid, std::unordered_set<uint32_t> excludeLayerIds,
             bool childrenOnly, const FloatRect& parentCrop);
