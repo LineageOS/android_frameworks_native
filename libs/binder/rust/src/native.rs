@@ -209,8 +209,8 @@ impl<T: Remotable> Binder<T> {
     }
 
     /// Mark this binder object with local stability, which is vendor if we are
-    /// building for the VNDK and system otherwise.
-    #[cfg(any(vendor_ndk, android_vndk))]
+    /// building for android_vendor and system otherwise.
+    #[cfg(android_vendor)]
     fn mark_local_stability(&mut self) {
         unsafe {
             // Safety: Self always contains a valid `AIBinder` pointer, so
@@ -220,8 +220,8 @@ impl<T: Remotable> Binder<T> {
     }
 
     /// Mark this binder object with local stability, which is vendor if we are
-    /// building for the VNDK and system otherwise.
-    #[cfg(not(any(vendor_ndk, android_vndk)))]
+    /// building for android_vendor and system otherwise.
+    #[cfg(not(android_vendor))]
     fn mark_local_stability(&mut self) {
         unsafe {
             // Safety: Self always contains a valid `AIBinder` pointer, so
