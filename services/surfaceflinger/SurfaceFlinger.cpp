@@ -2251,7 +2251,7 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, LifecycleUpdate& upda
     }
 
     if (mLayerLifecycleManager.getGlobalChanges().any(Changes::Geometry | Changes::Input |
-                                                      Changes::Hierarchy)) {
+                                                      Changes::Hierarchy | Changes::Visibility)) {
         mUpdateInputInfo = true;
     }
     if (mLayerLifecycleManager.getGlobalChanges().any(Changes::VisibleRegion | Changes::Hierarchy |
