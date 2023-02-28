@@ -104,3 +104,42 @@ cc_fuzz {
     defaults: ["binder_fuzz_defaults"],
     srcs: ["MemoryDealerFuzz.cpp"],
 }
+
+cc_fuzz {
+    name: "binder_recordedTransactionFileFuzz",
+    defaults: ["binder_fuzz_defaults"],
+    srcs: ["RecordedTransactionFileFuzz.cpp"],
+    corpus: [
+        "recorded_transaction_corpus/*",
+    ],
+}
+
+cc_fuzz {
+    name: "binder_recordedTransactionFuzz",
+    defaults: ["binder_fuzz_defaults"],
+    srcs: ["RecordedTransactionFuzz.cpp"],
+    target: {
+        android: {
+            shared_libs: [
+                "libcutils",
+                "libutils",
+                "libbase",
+                "libbinder",
+            ],
+            static_libs: ["libbinder_random_parcel"],
+        },
+        host: {
+            static_libs: [
+                "libcutils",
+                "liblog",
+                "libutils",
+                "libbase",
+                "libbinder",
+                "libbinder_random_parcel",
+            ],
+        },
+        darwin: {
+            enabled: false,
+        },
+    },
+}
