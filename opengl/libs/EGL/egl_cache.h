@@ -88,6 +88,9 @@ private:
     egl_cache_t(const egl_cache_t&); // not implemented
     void operator=(const egl_cache_t&); // not implemented
 
+    // Check system properties to determine which blobcache mode should be used
+    void updateMode();
+
     // getBlobCacheLocked returns the BlobCache object being used to store the
     // key/value blob pairs.  If the BlobCache object has not yet been created,
     // this will do so, loading the serialized cache contents from disk if
