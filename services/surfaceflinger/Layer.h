@@ -608,6 +608,7 @@ public:
     bool isRemovedFromCurrentState() const;
 
     LayerProto* writeToProto(LayersProto& layersProto, uint32_t traceFlags);
+    void writeCompositionStateToProto(LayerProto* layerProto);
 
     // Write states that are modified by the main thread. This includes drawing
     // state as well as buffer data. This should be called in the main or tracing

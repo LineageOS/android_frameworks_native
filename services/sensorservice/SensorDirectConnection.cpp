@@ -28,10 +28,10 @@ using util::ProtoOutputStream;
 
 SensorService::SensorDirectConnection::SensorDirectConnection(const sp<SensorService>& service,
         uid_t uid, const sensors_direct_mem_t *mem, int32_t halChannelHandle,
-        const String16& opPackageName)
+        const String16& opPackageName, int deviceId)
         : mService(service), mUid(uid), mMem(*mem),
         mHalChannelHandle(halChannelHandle),
-        mOpPackageName(opPackageName), mDestroyed(false) {
+        mOpPackageName(opPackageName), mDeviceId(deviceId), mDestroyed(false) {
     mUserId = multiuser_get_user_id(mUid);
     ALOGD_IF(DEBUG_CONNECTIONS, "Created SensorDirectConnection");
 }
@@ -180,8 +180,7 @@ int32_t SensorService::SensorDirectConnection::configureChannel(int handle, int 
     };
 
     Mutex::Autolock _l(mConnectionLock);
-    SensorDevice& dev(SensorDevice::getInstance());
-    int ret = dev.configureDirectChannel(handle, getHalChannelHandle(), &config);
+    int ret = configure(handle, &config);
 
     if (rateLevel == SENSOR_DIRECT_RATE_STOP) {
         if (ret == NO_ERROR) {
@@ -224,7 +223,6 @@ void SensorService::SensorDirectConnection::capRates() {
     std::unordered_map<int, int>& existingConnections =
                     (!temporarilyStopped) ? mActivated : mActivatedBackup;
 
-    SensorDevice& dev(SensorDevice::getInstance());
     for (auto &i : existingConnections) {
         int handle = i.first;
         int rateLevel = i.second;
@@ -239,8 +237,8 @@ void SensorService::SensorDirectConnection::capRates() {
                 // Only reconfigure the channel if it's ongoing
                 if (!temporarilyStopped) {
                     // Stopping before reconfiguring is the well-tested path in CTS
-                    dev.configureDirectChannel(handle, getHalChannelHandle(), &stopConfig);
-                    dev.configureDirectChannel(handle, getHalChannelHandle(), &capConfig);
+                    configure(handle, &stopConfig);
+                    configure(handle, &capConfig);
                 }
             }
         }
@@ -258,7 +256,6 @@ void SensorService::SensorDirectConnection::uncapRates() {
     const struct sensors_direct_cfg_t stopConfig = {
         .rate_level = SENSOR_DIRECT_RATE_STOP
     };
-    SensorDevice& dev(SensorDevice::getInstance());
     for (auto &i : mMicRateBackup) {
         int handle = i.first;
         int rateLevel = i.second;
@@ -273,11 +270,21 @@ void SensorService::SensorDirectConnection::uncapRates() {
         // Only reconfigure the channel if it's ongoing
         if (!temporarilyStopped) {
             // Stopping before reconfiguring is the well-tested path in CTS
-            dev.configureDirectChannel(handle, getHalChannelHandle(), &stopConfig);
-            dev.configureDirectChannel(handle, getHalChannelHandle(), &config);
+            configure(handle, &stopConfig);
+            configure(handle, &config);
         }
     }
     mMicRateBackup.clear();
+}
+
+int SensorService::SensorDirectConnection::configure(
+        int handle, const sensors_direct_cfg_t* config) {
+    if (mDeviceId == RuntimeSensor::DEFAULT_DEVICE_ID) {
+        SensorDevice& dev(SensorDevice::getInstance());
+        return dev.configureDirectChannel(handle, getHalChannelHandle(), config);
+    } else {
+        return mService->configureRuntimeSensorDirectChannel(handle, this, config);
+    }
 }
 
 void SensorService::SensorDirectConnection::stopAll(bool backupRecord) {
@@ -290,9 +297,8 @@ void SensorService::SensorDirectConnection::stopAllLocked(bool backupRecord) {
         .rate_level = SENSOR_DIRECT_RATE_STOP
     };
 
-    SensorDevice& dev(SensorDevice::getInstance());
     for (auto &i : mActivated) {
-        dev.configureDirectChannel(i.first, getHalChannelHandle(), &config);
+        configure(i.first, &config);
     }
 
     if (backupRecord && mActivatedBackup.empty()) {
@@ -306,8 +312,6 @@ void SensorService::SensorDirectConnection::recoverAll() {
     if (!mActivatedBackup.empty()) {
         stopAllLocked(false);
 
-        SensorDevice& dev(SensorDevice::getInstance());
-
         // recover list of report from backup
         ALOG_ASSERT(mActivated.empty(),
                     "mActivated must be empty if mActivatedBackup was non-empty");
@@ -319,7 +323,7 @@ void SensorService::SensorDirectConnection::recoverAll() {
             struct sensors_direct_cfg_t config = {
                 .rate_level = i.second
             };
-            dev.configureDirectChannel(i.first, getHalChannelHandle(), &config);
+            configure(i.first, &config);
         }
     }
 }

@@ -31,6 +31,15 @@ namespace android {
 
 namespace {
 
+/**
+ * Log details of each gesture output by the gestures library.
+ * Enable this via "adb shell setprop log.tag.TouchpadInputMapperGestures DEBUG" (requires
+ * restarting the shell)
+ */
+const bool DEBUG_TOUCHPAD_GESTURES =
+        __android_log_is_loggable(ANDROID_LOG_DEBUG, "TouchpadInputMapperGestures",
+                                  ANDROID_LOG_INFO);
+
 // Describes a segment of the acceleration curve.
 struct CurveSegment {
     // The maximum pointer speed which this segment should apply. The last segment in a curve should
@@ -251,6 +260,7 @@ std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
 
 std::list<NotifyArgs> TouchpadInputMapper::sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                              SelfContainedHardwareState schs) {
+    ALOGD_IF(DEBUG_TOUCHPAD_GESTURES, "New hardware state: %s", schs.state.String().c_str());
     mProcessing = true;
     mGestureInterpreter->PushHardwareState(&schs.state);
     mProcessing = false;
@@ -259,7 +269,7 @@ std::list<NotifyArgs> TouchpadInputMapper::sendHardwareState(nsecs_t when, nsecs
 }
 
 void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
-    ALOGD("Gesture ready: %s", gesture->String().c_str());
+    ALOGD_IF(DEBUG_TOUCHPAD_GESTURES, "Gesture ready: %s", gesture->String().c_str());
     if (!mProcessing) {
         ALOGE("Received gesture outside of the normal processing flow; ignoring it.");
         return;
