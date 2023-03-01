@@ -268,12 +268,8 @@ void VelocityTracker::addMovement(nsecs_t eventTime, int32_t pointerId, int32_t 
               ", activePointerId=%s",
               eventTime, pointerId, toString(mActivePointerId).c_str());
 
-        std::optional<Estimator> estimator = getEstimator(axis, pointerId);
-        ALOGD("  %d: axis=%d, position=%0.3f, "
-              "estimator (degree=%d, coeff=%s, confidence=%f)",
-              pointerId, axis, position, int((*estimator).degree),
-              vectorToString((*estimator).coeff.data(), (*estimator).degree + 1).c_str(),
-              (*estimator).confidence);
+        ALOGD("  %d: axis=%d, position=%0.3f, velocity=%s", pointerId, axis, position,
+              toString(getVelocity(axis, pointerId)).c_str());
     }
 }
 
@@ -349,9 +345,9 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
 }
 
 std::optional<float> VelocityTracker::getVelocity(int32_t axis, int32_t pointerId) const {
-    std::optional<Estimator> estimator = getEstimator(axis, pointerId);
-    if (estimator && (*estimator).degree >= 1) {
-        return (*estimator).coeff[1];
+    const auto& it = mConfiguredStrategies.find(axis);
+    if (it != mConfiguredStrategies.end()) {
+        return it->second->getVelocity(pointerId);
     }
     return {};
 }
@@ -372,15 +368,6 @@ VelocityTracker::ComputedVelocity VelocityTracker::getComputedVelocity(int32_t u
         }
     }
     return computedVelocity;
-}
-
-std::optional<VelocityTracker::Estimator> VelocityTracker::getEstimator(int32_t axis,
-                                                                        int32_t pointerId) const {
-    const auto& it = mConfiguredStrategies.find(axis);
-    if (it == mConfiguredStrategies.end()) {
-        return std::nullopt;
-    }
-    return it->second->getEstimator(pointerId);
 }
 
 // --- LeastSquaresVelocityTrackerStrategy ---
@@ -474,10 +461,9 @@ void LeastSquaresVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t
  * http://en.wikipedia.org/wiki/Numerical_methods_for_linear_least_squares
  * http://en.wikipedia.org/wiki/Gram-Schmidt
  */
-static bool solveLeastSquares(const std::vector<float>& x, const std::vector<float>& y,
-                              const std::vector<float>& w, uint32_t n,
-                              std::array<float, VelocityTracker::Estimator::MAX_DEGREE + 1>& outB,
-                              float* outDet) {
+static std::optional<float> solveLeastSquares(const std::vector<float>& x,
+                                              const std::vector<float>& y,
+                                              const std::vector<float>& w, uint32_t n) {
     const size_t m = x.size();
 
     ALOGD_IF(DEBUG_STRATEGY, "solveLeastSquares: m=%d, n=%d, x=%s, y=%s, w=%s", int(m), int(n),
@@ -515,7 +501,7 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
         if (norm < 0.000001f) {
             // vectors are linearly dependent or zero so no solution
             ALOGD_IF(DEBUG_STRATEGY, "  - no solution, norm=%f", norm);
-            return false;
+            return {};
         }
 
         float invNorm = 1.0f / norm;
@@ -549,6 +535,7 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
     for (uint32_t h = 0; h < m; h++) {
         wy[h] = y[h] * w[h];
     }
+    std::array<float, VelocityTracker::MAX_DEGREE + 1> outB;
     for (uint32_t i = n; i != 0; ) {
         i--;
         outB[i] = vectorDot(&q[i][0], wy, m);
@@ -570,34 +557,33 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
     }
     ymean /= m;
 
-    float sserr = 0;
-    float sstot = 0;
-    for (uint32_t h = 0; h < m; h++) {
-        float err = y[h] - outB[0];
-        float term = 1;
-        for (uint32_t i = 1; i < n; i++) {
-            term *= x[h];
-            err -= term * outB[i];
+    if (DEBUG_STRATEGY) {
+        float sserr = 0;
+        float sstot = 0;
+        for (uint32_t h = 0; h < m; h++) {
+            float err = y[h] - outB[0];
+            float term = 1;
+            for (uint32_t i = 1; i < n; i++) {
+                term *= x[h];
+                err -= term * outB[i];
+            }
+            sserr += w[h] * w[h] * err * err;
+            float var = y[h] - ymean;
+            sstot += w[h] * w[h] * var * var;
         }
-        sserr += w[h] * w[h] * err * err;
-        float var = y[h] - ymean;
-        sstot += w[h] * w[h] * var * var;
+        ALOGD("  - sserr=%f", sserr);
+        ALOGD("  - sstot=%f", sstot);
     }
-    *outDet = sstot > 0.000001f ? 1.0f - (sserr / sstot) : 1;
 
-    ALOGD_IF(DEBUG_STRATEGY, "  - sserr=%f", sserr);
-    ALOGD_IF(DEBUG_STRATEGY, "  - sstot=%f", sstot);
-    ALOGD_IF(DEBUG_STRATEGY, "  - det=%f", *outDet);
-
-    return true;
+    return outB[1];
 }
 
 /*
  * Optimized unweighted second-order least squares fit. About 2x speed improvement compared to
  * the default implementation
  */
-static std::optional<std::array<float, 3>> solveUnweightedLeastSquaresDeg2(
-        const std::vector<float>& x, const std::vector<float>& y) {
+static std::optional<float> solveUnweightedLeastSquaresDeg2(const std::vector<float>& x,
+                                                            const std::vector<float>& y) {
     const size_t count = x.size();
     LOG_ALWAYS_FATAL_IF(count != y.size(), "Mismatching array sizes");
     // Solving y = a*x^2 + b*x + c
@@ -632,22 +618,11 @@ static std::optional<std::array<float, 3>> solveUnweightedLeastSquaresDeg2(
         ALOGW("division by 0 when computing velocity, Sxx=%f, Sx2x2=%f, Sxx2=%f", Sxx, Sx2x2, Sxx2);
         return std::nullopt;
     }
-    // Compute a
-    float numerator = Sx2y*Sxx - Sxy*Sxx2;
-    float a = numerator / denominator;
 
-    // Compute b
-    numerator = Sxy*Sx2x2 - Sx2y*Sxx2;
-    float b = numerator / denominator;
-
-    // Compute c
-    float c = syi/count - b * sxi/count - a * sxi2/count;
-
-    return std::make_optional(std::array<float, 3>({c, b, a}));
+    return (Sxy * Sx2x2 - Sx2y * Sxx2) / denominator;
 }
 
-std::optional<VelocityTracker::Estimator> LeastSquaresVelocityTrackerStrategy::getEstimator(
-        int32_t pointerId) const {
+std::optional<float> LeastSquaresVelocityTrackerStrategy::getVelocity(int32_t pointerId) const {
     const auto movementIt = mMovements.find(pointerId);
     if (movementIt == mMovements.end()) {
         return std::nullopt; // no data
@@ -695,45 +670,15 @@ std::optional<VelocityTracker::Estimator> LeastSquaresVelocityTrackerStrategy::g
         degree = m - 1;
     }
 
+    if (degree <= 0) {
+        return std::nullopt;
+    }
     if (degree == 2 && mWeighting == Weighting::NONE) {
         // Optimize unweighted, quadratic polynomial fit
-        std::optional<std::array<float, 3>> coeff =
-                solveUnweightedLeastSquaresDeg2(time, positions);
-        if (coeff) {
-            VelocityTracker::Estimator estimator;
-            estimator.time = newestMovement.eventTime;
-            estimator.degree = 2;
-            estimator.confidence = 1;
-            for (size_t i = 0; i <= estimator.degree; i++) {
-                estimator.coeff[i] = (*coeff)[i];
-            }
-            return estimator;
-        }
-    } else if (degree >= 1) {
-        // General case for an Nth degree polynomial fit
-        float det;
-        uint32_t n = degree + 1;
-        VelocityTracker::Estimator estimator;
-        if (solveLeastSquares(time, positions, w, n, estimator.coeff, &det)) {
-            estimator.time = newestMovement.eventTime;
-            estimator.degree = degree;
-            estimator.confidence = det;
-
-            ALOGD_IF(DEBUG_STRATEGY, "estimate: degree=%d, coeff=%s, confidence=%f",
-                     int(estimator.degree), vectorToString(estimator.coeff.data(), n).c_str(),
-                     estimator.confidence);
-
-            return estimator;
-        }
+        return solveUnweightedLeastSquaresDeg2(time, positions);
     }
-
-    // No velocity data available for this pointer, but we do have its current position.
-    VelocityTracker::Estimator estimator;
-    estimator.coeff[0] = positions[0];
-    estimator.time = newestMovement.eventTime;
-    estimator.degree = 0;
-    estimator.confidence = 1;
-    return estimator;
+    // General case for an Nth degree polynomial fit
+    return solveLeastSquares(time, positions, w, degree + 1);
 }
 
 float LeastSquaresVelocityTrackerStrategy::chooseWeight(int32_t pointerId, uint32_t index) const {
@@ -830,13 +775,9 @@ void IntegratingVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t 
     mPointerIdBits.markBit(pointerId);
 }
 
-std::optional<VelocityTracker::Estimator> IntegratingVelocityTrackerStrategy::getEstimator(
-        int32_t pointerId) const {
+std::optional<float> IntegratingVelocityTrackerStrategy::getVelocity(int32_t pointerId) const {
     if (mPointerIdBits.hasBit(pointerId)) {
-        const State& state = mPointerState[pointerId];
-        VelocityTracker::Estimator estimator;
-        populateEstimator(state, &estimator);
-        return estimator;
+        return mPointerState[pointerId].vel;
     }
 
     return std::nullopt;
@@ -886,17 +827,6 @@ void IntegratingVelocityTrackerStrategy::updateState(State& state, nsecs_t event
     state.pos = pos;
 }
 
-void IntegratingVelocityTrackerStrategy::populateEstimator(const State& state,
-        VelocityTracker::Estimator* outEstimator) const {
-    outEstimator->time = state.updateTime;
-    outEstimator->confidence = 1.0f;
-    outEstimator->degree = state.degree;
-    outEstimator->coeff[0] = state.pos;
-    outEstimator->coeff[1] = state.vel;
-    outEstimator->coeff[2] = state.accel / 2;
-}
-
-
 // --- LegacyVelocityTrackerStrategy ---
 
 LegacyVelocityTrackerStrategy::LegacyVelocityTrackerStrategy() {}
@@ -937,8 +867,7 @@ void LegacyVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t point
     movement.position = position;
 }
 
-std::optional<VelocityTracker::Estimator> LegacyVelocityTrackerStrategy::getEstimator(
-        int32_t pointerId) const {
+std::optional<float> LegacyVelocityTrackerStrategy::getVelocity(int32_t pointerId) const {
     const auto movementIt = mMovements.find(pointerId);
     if (movementIt == mMovements.end()) {
         return std::nullopt; // no data
@@ -996,19 +925,10 @@ std::optional<VelocityTracker::Estimator> LegacyVelocityTrackerStrategy::getEsti
         }
     }
 
-    // Report velocity.
-    float newestPosition = newestMovement.position;
-    VelocityTracker::Estimator estimator;
-    estimator.time = newestMovement.eventTime;
-    estimator.confidence = 1;
-    estimator.coeff[0] = newestPosition;
     if (samplesUsed) {
-        estimator.coeff[1] = accumV;
-        estimator.degree = 1;
-    } else {
-        estimator.degree = 0;
+        return accumV;
     }
-    return estimator;
+    return std::nullopt;
 }
 
 // --- ImpulseVelocityTrackerStrategy ---
@@ -1177,8 +1097,7 @@ static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t c
     return kineticEnergyToVelocity(work);
 }
 
-std::optional<VelocityTracker::Estimator> ImpulseVelocityTrackerStrategy::getEstimator(
-        int32_t pointerId) const {
+std::optional<float> ImpulseVelocityTrackerStrategy::getVelocity(int32_t pointerId) const {
     const auto movementIt = mMovements.find(pointerId);
     if (movementIt == mMovements.end()) {
         return std::nullopt; // no data
@@ -1214,16 +1133,9 @@ std::optional<VelocityTracker::Estimator> ImpulseVelocityTrackerStrategy::getEst
     if (m == 0) {
         return std::nullopt; // no data
     }
-    VelocityTracker::Estimator estimator;
-    estimator.coeff[0] = 0;
-    estimator.coeff[1] = calculateImpulseVelocity(time, positions, m, mDeltaValues);
-    estimator.coeff[2] = 0;
 
-    estimator.time = newestMovement.eventTime;
-    estimator.degree = 2; // similar results to 2nd degree fit
-    estimator.confidence = 1;
-
-    ALOGD_IF(DEBUG_STRATEGY, "velocity: %.1f", estimator.coeff[1]);
+    const float velocity = calculateImpulseVelocity(time, positions, m, mDeltaValues);
+    ALOGD_IF(DEBUG_STRATEGY, "velocity: %.1f", velocity);
 
     if (DEBUG_IMPULSE) {
         // TODO(b/134179997): delete this block once the switch to 'impulse' is complete.
@@ -1240,7 +1152,7 @@ std::optional<VelocityTracker::Estimator> ImpulseVelocityTrackerStrategy::getEst
             ALOGD("lsq2 velocity: could not compute velocity");
         }
     }
-    return estimator;
+    return velocity;
 }
 
 } // namespace android

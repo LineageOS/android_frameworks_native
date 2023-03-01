@@ -31,6 +31,8 @@ class VelocityTrackerStrategy;
  */
 class VelocityTracker {
 public:
+    static const size_t MAX_DEGREE = 4;
+
     enum class Strategy : int32_t {
         DEFAULT = -1,
         MIN = 0,
@@ -45,23 +47,6 @@ public:
         INT2 = 8,
         LEGACY = 9,
         MAX = LEGACY,
-    };
-
-    struct Estimator {
-        static const size_t MAX_DEGREE = 4;
-
-        // Estimator time base.
-        nsecs_t time = 0;
-
-        // Polynomial coefficients describing motion.
-        std::array<float, MAX_DEGREE + 1> coeff{};
-
-        // Polynomial degree (number of coefficients), or zero if no information is
-        // available.
-        uint32_t degree = 0;
-
-        // Confidence (coefficient of determination), between 0 (no fit) and 1 (perfect fit).
-        float confidence = 0;
     };
 
     /*
@@ -124,11 +109,6 @@ public:
     // [-maxVelocity, maxVelocity], inclusive.
     ComputedVelocity getComputedVelocity(int32_t units, float maxVelocity);
 
-    // Gets an estimator for the recent movements of the specified pointer id for the given axis.
-    // Returns false and clears the estimator if there is no information available
-    // about the pointer.
-    std::optional<Estimator> getEstimator(int32_t axis, int32_t pointerId) const;
-
     // Gets the active pointer id, or -1 if none.
     inline int32_t getActivePointerId() const { return mActivePointerId.value_or(-1); }
 
@@ -169,7 +149,7 @@ public:
 
     virtual void clearPointer(int32_t pointerId) = 0;
     virtual void addMovement(nsecs_t eventTime, int32_t pointerId, float position) = 0;
-    virtual std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const = 0;
+    virtual std::optional<float> getVelocity(int32_t pointerId) const = 0;
 };
 
 
@@ -193,13 +173,13 @@ public:
         RECENT,
     };
 
-    // Degree must be no greater than Estimator::MAX_DEGREE.
+    // Degree must be no greater than VelocityTracker::MAX_DEGREE.
     LeastSquaresVelocityTrackerStrategy(uint32_t degree, Weighting weighting = Weighting::NONE);
     ~LeastSquaresVelocityTrackerStrategy() override;
 
     void clearPointer(int32_t pointerId) override;
     void addMovement(nsecs_t eventTime, int32_t pointerId, float position) override;
-    std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
+    std::optional<float> getVelocity(int32_t pointerId) const override;
 
 private:
     // Sample horizon.
@@ -235,7 +215,7 @@ public:
 
     void clearPointer(int32_t pointerId) override;
     void addMovement(nsecs_t eventTime, int32_t pointerId, float positions) override;
-    std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
+    std::optional<float> getVelocity(int32_t pointerId) const override;
 
 private:
     // Current state estimate for a particular pointer.
@@ -252,7 +232,6 @@ private:
 
     void initState(State& state, nsecs_t eventTime, float pos) const;
     void updateState(State& state, nsecs_t eventTime, float pos) const;
-    void populateEstimator(const State& state, VelocityTracker::Estimator* outEstimator) const;
 };
 
 
@@ -266,7 +245,7 @@ public:
 
     void clearPointer(int32_t pointerId) override;
     void addMovement(nsecs_t eventTime, int32_t pointerId, float position) override;
-    std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
+    std::optional<float> getVelocity(int32_t pointerId) const override;
 
 private:
     // Oldest sample to consider when calculating the velocity.
@@ -294,7 +273,7 @@ public:
 
     void clearPointer(int32_t pointerId) override;
     void addMovement(nsecs_t eventTime, int32_t pointerId, float position) override;
-    std::optional<VelocityTracker::Estimator> getEstimator(int32_t pointerId) const override;
+    std::optional<float> getVelocity(int32_t pointerId) const override;
 
 private:
     // Sample horizon.
