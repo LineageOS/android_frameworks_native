@@ -7115,6 +7115,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         captureResults.capturedHdrLayers |= isHdrLayer(*snapshot);
         layerFE->mSnapshot->geomLayerTransform =
                 renderArea->getTransform() * layerFE->mSnapshot->geomLayerTransform;
+        layerFE->mSnapshot->geomInverseLayerTransform =
+                layerFE->mSnapshot->geomLayerTransform.inverse();
     }
 
     // We allow the system server to take screenshots of secure layers for
