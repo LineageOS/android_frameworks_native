@@ -75,11 +75,14 @@ impl RpcSessionRef {
         };
     }
 
-    /// Sets the maximum number of outgoing threads.
-    pub fn set_max_outgoing_threads(&self, threads: usize) {
+    /// Sets the maximum number of outgoing connections.
+    pub fn set_max_outgoing_connections(&self, connections: usize) {
         // SAFETY - Only passes the 'self' pointer as an opaque handle.
         unsafe {
-            binder_rpc_unstable_bindgen::ARpcSession_setMaxOutgoingThreads(self.as_ptr(), threads)
+            binder_rpc_unstable_bindgen::ARpcSession_setMaxOutgoingConnections(
+                self.as_ptr(),
+                connections,
+            )
         };
     }
 

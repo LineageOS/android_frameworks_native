@@ -224,12 +224,12 @@ bool checkPermission(const String16& permission, pid_t pid, uid_t uid,
 //    }
 // Resources are cleaned up when the object is destroyed.
 //
-// For each returned binder object, at most |maxOutgoingThreads| outgoing threads are instantiated.
-// Hence, only |maxOutgoingThreads| calls can be made simultaneously. Additional calls are blocked
-// if there are |maxOutgoingThreads| ongoing calls. See RpcSession::setMaxOutgoingThreads.
-// If |maxOutgoingThreads| is not set, default is |RpcSession::kDefaultMaxOutgoingThreads|.
+// For each returned binder object, at most |maxOutgoingConnections| outgoing connections are
+// instantiated, depending on how many the service on the device is configured with.
+// Hence, only |maxOutgoingConnections| calls can be made simultaneously.
+// See also RpcSession::setMaxOutgoingConnections.
 struct RpcDelegateServiceManagerOptions {
-    std::optional<size_t> maxOutgoingThreads;
+    std::optional<size_t> maxOutgoingConnections;
 };
 sp<IServiceManager> createRpcDelegateServiceManager(
         const RpcDelegateServiceManagerOptions& options);
