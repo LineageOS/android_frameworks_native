@@ -350,7 +350,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
     for (const auto& session : sessions) {
         CHECK(session->setProtocolVersion(clientVersion));
         session->setMaxIncomingThreads(options.numIncomingConnections);
-        session->setMaxOutgoingThreads(options.numOutgoingConnections);
+        session->setMaxOutgoingConnections(options.numOutgoingConnections);
         session->setFileDescriptorTransportMode(options.clientFileDescriptorTransportMode);
 
         switch (socketType) {

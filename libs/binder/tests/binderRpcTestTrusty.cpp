@@ -71,7 +71,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
         auto session = android::RpcSession::make(std::move(factory));
 
         EXPECT_TRUE(session->setProtocolVersion(clientVersion));
-        session->setMaxOutgoingThreads(options.numOutgoingConnections);
+        session->setMaxOutgoingConnections(options.numOutgoingConnections);
         session->setFileDescriptorTransportMode(options.clientFileDescriptorTransportMode);
 
         status = session->setupPreconnectedClient({}, [&]() {

@@ -265,8 +265,8 @@ void ARpcSession_setMaxIncomingThreads(ARpcSession* handle, size_t threads) {
     session->setMaxIncomingThreads(threads);
 }
 
-void ARpcSession_setMaxOutgoingThreads(ARpcSession* handle, size_t threads) {
+void ARpcSession_setMaxOutgoingConnections(ARpcSession* handle, size_t threads) {
     auto session = handleToStrongPointer<RpcSession>(handle);
-    session->setMaxOutgoingThreads(threads);
+    session->setMaxOutgoingConnections(threads);
 }
 }
