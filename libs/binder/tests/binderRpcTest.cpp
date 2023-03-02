@@ -544,6 +544,8 @@ TEST_P(BinderRpc, OnewayCallQueueingWithFds) {
         GTEST_SKIP() << "This test requires multiple threads";
     }
 
+    constexpr size_t kNumServerThreads = 3;
+
     // This test forces a oneway transaction to be queued by issuing two
     // `blockingSendFdOneway` calls, then drains the queue by issuing two
     // `blockingRecvFd` calls.
@@ -552,7 +554,7 @@ TEST_P(BinderRpc, OnewayCallQueueingWithFds) {
     // https://developer.android.com/reference/android/os/IBinder#FLAG_ONEWAY
 
     auto proc = createRpcTestSocketServerProcess({
-            .numThreads = 3,
+            .numThreads = kNumServerThreads,
             .clientFileDescriptorTransportMode = RpcSession::FileDescriptorTransportMode::UNIX,
             .serverSupportedFileDescriptorTransportModes =
                     {RpcSession::FileDescriptorTransportMode::UNIX},
@@ -573,6 +575,8 @@ TEST_P(BinderRpc, OnewayCallQueueingWithFds) {
     EXPECT_OK(proc.rootIface->blockingRecvFd(&fdB));
     CHECK(android::base::ReadFdToString(fdB.get(), &result));
     EXPECT_EQ(result, "b");
+
+    saturateThreadPool(kNumServerThreads, proc.rootIface);
 }
 
 TEST_P(BinderRpc, OnewayCallQueueing) {
