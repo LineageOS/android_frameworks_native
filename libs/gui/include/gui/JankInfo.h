@@ -46,6 +46,8 @@ enum JankType {
     // where the previous frame was presented in the current frame's expected vsync. This pushes the
     // current frame to the next vsync. The behavior is similar to BufferStuffing.
     SurfaceFlingerStuffing = 0x100,
+    // Frame was dropped, as a newer frame was ready and replaced this frame.
+    Dropped = 0x200,
 };
 
 } // namespace android

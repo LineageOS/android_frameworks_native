@@ -1198,7 +1198,7 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_predictionExpiredDoesNotTraceExpecte
 TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     auto tracingSession = getTracingSessionForTest();
     // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(_));
+    EXPECT_CALL(*mTimeStats, incrementJankyFrames(_)).Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -1234,8 +1234,8 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     auto protoDroppedSurfaceFrameActualStart =
             createProtoActualSurfaceFrameStart(traceCookie + 2, surfaceFrameToken,
                                                displayFrameToken1, sPidOne, sLayerNameOne,
-                                               FrameTimelineEvent::PRESENT_DROPPED, false, false,
-                                               FrameTimelineEvent::JANK_NONE,
+                                               FrameTimelineEvent::PRESENT_DROPPED, true, false,
+                                               FrameTimelineEvent::JANK_DROPPED,
                                                FrameTimelineEvent::PREDICTION_VALID, true);
     auto protoDroppedSurfaceFrameActualEnd = createProtoFrameEnd(traceCookie + 2);
 
@@ -1470,7 +1470,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDroppedFramesTraced
             createProtoActualSurfaceFrameStart(traceCookie + 1, surfaceFrameToken,
                                                displayFrameToken, sPidOne, sLayerNameOne,
                                                FrameTimelineEvent::PRESENT_DROPPED, false, false,
-                                               FrameTimelineEvent::JANK_NONE,
+                                               FrameTimelineEvent::JANK_DROPPED,
                                                FrameTimelineEvent::PREDICTION_EXPIRED, true);
     auto protoActualSurfaceFrameEnd = createProtoFrameEnd(traceCookie + 1);
 

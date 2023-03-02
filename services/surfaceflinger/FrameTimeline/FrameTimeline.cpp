@@ -140,6 +140,10 @@ std::string jankTypeBitmaskToString(int32_t jankType) {
         janks.emplace_back("SurfaceFlinger Stuffing");
         jankType &= ~JankType::SurfaceFlingerStuffing;
     }
+    if (jankType & JankType::Dropped) {
+        janks.emplace_back("Dropped Frame");
+        jankType &= ~JankType::Dropped;
+    }
 
     // jankType should be 0 if all types of jank were checked for.
     LOG_ALWAYS_FATAL_IF(jankType != 0, "Unrecognized jank type value 0x%x", jankType);
@@ -264,6 +268,11 @@ int32_t jankTypeBitmaskToProto(int32_t jankType) {
         protoJank |= FrameTimelineEvent::JANK_SF_STUFFING;
         jankType &= ~JankType::SurfaceFlingerStuffing;
     }
+    if (jankType & JankType::Dropped) {
+        // Jank dropped does not append to other janks, it fully overrides.
+        protoJank |= FrameTimelineEvent::JANK_DROPPED;
+        jankType &= ~JankType::Dropped;
+    }
 
     // jankType should be 0 if all types of jank were checked for.
     LOG_ALWAYS_FATAL_IF(jankType != 0, "Unrecognized jank type value 0x%x", jankType);
@@ -365,8 +374,7 @@ void SurfaceFrame::setGpuComposition() {
 std::optional<int32_t> SurfaceFrame::getJankType() const {
     std::scoped_lock lock(mMutex);
     if (mPresentState == PresentState::Dropped) {
-        // Return no jank if it's a dropped frame since we cannot attribute a jank to a it.
-        return JankType::None;
+        return JankType::Dropped;
     }
     if (mActuals.presentTime == 0) {
         // Frame hasn't been presented yet.
@@ -503,7 +511,8 @@ void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& r
         // We classify prediction expired as AppDeadlineMissed as the
         // TokenManager::kMaxTokens we store is large enough to account for a
         // reasonable app, so prediction expire would mean a huge scheduling delay.
-        mJankType = JankType::AppDeadlineMissed;
+        mJankType = mPresentState != PresentState::Presented ? JankType::Dropped
+                                                             : JankType::AppDeadlineMissed;
         deadlineDelta = -1;
         return;
     }
@@ -594,16 +603,16 @@ void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& r
             mJankType |= displayFrameJankType;
         }
     }
+    if (mPresentState != PresentState::Presented) {
+        mJankType = JankType::Dropped;
+        // Since frame was not presented, lets drop any present value
+        mActuals.presentTime = 0;
+    }
 }
 
 void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate,
                              nsecs_t displayDeadlineDelta, nsecs_t displayPresentDelta) {
     std::scoped_lock lock(mMutex);
-
-    if (mPresentState != PresentState::Presented) {
-        // No need to update dropped buffers
-        return;
-    }
 
     mActuals.presentTime = presentTime;
     nsecs_t deadlineDelta = 0;
