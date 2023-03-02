@@ -110,38 +110,6 @@ void egl_cache_t::initialize(egl_display_t* display) {
         }
     }
 
-    // Check the device config to decide whether multifile should be used
-    if (base::GetBoolProperty("ro.egl.blobcache.multifile", false)) {
-        mMultifileMode = true;
-        ALOGV("Using multifile EGL blobcache");
-    }
-
-    // Allow forcing the mode for debug purposes
-    std::string mode = base::GetProperty("debug.egl.blobcache.multifile", "");
-    if (mode == "true") {
-        ALOGV("Forcing multifile cache due to debug.egl.blobcache.multifile == %s", mode.c_str());
-        mMultifileMode = true;
-    } else if (mode == "false") {
-        ALOGV("Forcing monolithic cache due to debug.egl.blobcache.multifile == %s", mode.c_str());
-        mMultifileMode = false;
-    }
-
-    if (mMultifileMode) {
-        mCacheByteLimit = static_cast<size_t>(
-                base::GetUintProperty<uint32_t>("ro.egl.blobcache.multifile_limit",
-                                                kMultifileCacheByteLimit));
-
-        // Check for a debug value
-        int debugCacheSize = base::GetIntProperty("debug.egl.blobcache.multifile_limit", -1);
-        if (debugCacheSize >= 0) {
-            ALOGV("Overriding cache limit %zu with %i from debug.egl.blobcache.multifile_limit",
-                  mCacheByteLimit, debugCacheSize);
-            mCacheByteLimit = debugCacheSize;
-        }
-
-        ALOGV("Using multifile EGL blobcache limit of %zu bytes", mCacheByteLimit);
-    }
-
     mInitialized = true;
 }
 
@@ -166,6 +134,8 @@ void egl_cache_t::setBlob(const void* key, EGLsizeiANDROID keySize, const void* 
         ALOGW("EGL_ANDROID_blob_cache set: negative sizes are not allowed");
         return;
     }
+
+    updateMode();
 
     if (mInitialized) {
         if (mMultifileMode) {
@@ -199,6 +169,8 @@ EGLsizeiANDROID egl_cache_t::getBlob(const void* key, EGLsizeiANDROID keySize, v
         ALOGW("EGL_ANDROID_blob_cache get: negative sizes are not allowed");
         return 0;
     }
+
+    updateMode();
 
     if (mInitialized) {
         if (mMultifileMode) {
@@ -245,6 +217,51 @@ size_t egl_cache_t::getCacheSize() {
         return mBlobCache->getSize();
     }
     return 0;
+}
+
+void egl_cache_t::updateMode() {
+    // We don't set the mode in the constructor because these checks have
+    // a non-trivial cost, and not all processes that instantiate egl_cache_t
+    // will use it.
+
+    // If we've already set the mode, skip these checks
+    static bool checked = false;
+    if (checked) {
+        return;
+    }
+    checked = true;
+
+    // Check the device config to decide whether multifile should be used
+    if (base::GetBoolProperty("ro.egl.blobcache.multifile", false)) {
+        mMultifileMode = true;
+        ALOGV("Using multifile EGL blobcache");
+    }
+
+    // Allow forcing the mode for debug purposes
+    std::string mode = base::GetProperty("debug.egl.blobcache.multifile", "");
+    if (mode == "true") {
+        ALOGV("Forcing multifile cache due to debug.egl.blobcache.multifile == %s", mode.c_str());
+        mMultifileMode = true;
+    } else if (mode == "false") {
+        ALOGV("Forcing monolithic cache due to debug.egl.blobcache.multifile == %s", mode.c_str());
+        mMultifileMode = false;
+    }
+
+    if (mMultifileMode) {
+        mCacheByteLimit = static_cast<size_t>(
+                base::GetUintProperty<uint32_t>("ro.egl.blobcache.multifile_limit",
+                                                kMultifileCacheByteLimit));
+
+        // Check for a debug value
+        int debugCacheSize = base::GetIntProperty("debug.egl.blobcache.multifile_limit", -1);
+        if (debugCacheSize >= 0) {
+            ALOGV("Overriding cache limit %zu with %i from debug.egl.blobcache.multifile_limit",
+                  mCacheByteLimit, debugCacheSize);
+            mCacheByteLimit = debugCacheSize;
+        }
+
+        ALOGV("Using multifile EGL blobcache limit of %zu bytes", mCacheByteLimit);
+    }
 }
 
 BlobCache* egl_cache_t::getBlobCacheLocked() {

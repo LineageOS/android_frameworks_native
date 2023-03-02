@@ -4178,9 +4178,12 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                   args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION));
         }
     }
-    LOG_ALWAYS_FATAL_IF(!validateMotionEvent(args->action, args->actionButton, args->pointerCount,
-                                             args->pointerProperties),
-                        "Invalid event: %s", args->dump().c_str());
+
+    if (!validateMotionEvent(args->action, args->actionButton, args->pointerCount,
+                             args->pointerProperties)) {
+        LOG(ERROR) << "Invalid event: " << args->dump();
+        return;
+    }
 
     uint32_t policyFlags = args->policyFlags;
     policyFlags |= POLICY_FLAG_TRUSTED;
