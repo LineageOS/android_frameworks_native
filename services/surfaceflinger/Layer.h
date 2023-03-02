@@ -852,6 +852,7 @@ public:
                                    const sp<GraphicBuffer>& buffer, uint64_t framenumber,
                                    const sp<Fence>& releaseFence);
     bool setFrameRateForLayerTree(FrameRate);
+    bool hasBuffer() const { return mBufferInfo.mBuffer != nullptr; }
 
 protected:
     // For unit tests
