@@ -507,7 +507,13 @@ TEST_F(BinderLibTest, Freeze) {
     }
 
     EXPECT_EQ(-EAGAIN, IPCThreadState::self()->freeze(pid, true, 0));
-    EXPECT_EQ(-EAGAIN, IPCThreadState::self()->freeze(pid, true, 0));
+
+    // b/268232063 - succeeds ~0.08% of the time
+    {
+        auto ret = IPCThreadState::self()->freeze(pid, true, 0);
+        EXPECT_TRUE(ret == -EAGAIN || ret == OK);
+    }
+
     EXPECT_EQ(NO_ERROR, IPCThreadState::self()->freeze(pid, true, 1000));
     EXPECT_EQ(FAILED_TRANSACTION, m_server->transact(BINDER_LIB_TEST_NOP_TRANSACTION, data, &reply));
 
