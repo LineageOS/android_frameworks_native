@@ -317,12 +317,6 @@ on late-init && property:ro.boot.fastboot.boottrace=enabled
     write /sys/kernel/debug/tracing/tracing_on 1
     write /sys/kernel/tracing/tracing_on 1
 
-on late-init && property:ro.boot.fastboot.boottrace=enabled
-    setprop debug.atrace.tags.enableflags 802922
-    setprop persist.traced.enable 0
-    write /sys/kernel/debug/tracing/tracing_on 1
-    write /sys/kernel/tracing/tracing_on 1
-
 # Only create the tracing instance if persist.mm_events.enabled
 # Attempting to remove the tracing instance after it has been created
 # will likely fail with EBUSY as it would be in use by traced_probes.
