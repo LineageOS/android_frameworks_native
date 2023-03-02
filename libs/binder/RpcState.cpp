@@ -557,13 +557,12 @@ status_t RpcState::transactAddress(const sp<RpcSession::RpcConnection>& connecti
             .parcelDataSize = static_cast<uint32_t>(data.dataSize()),
     };
 
-    constexpr size_t kWaitMaxUs = 1000000;
-    constexpr size_t kWaitLogUs = 10000;
-    size_t waitUs = 0;
-
     // Oneway calls have no sync point, so if many are sent before, whether this
     // is a twoway or oneway transaction, they may have filled up the socket.
     // So, make sure we drain them before polling
+    constexpr size_t kWaitMaxUs = 1000000;
+    constexpr size_t kWaitLogUs = 10000;
+    size_t waitUs = 0;
 
     iovec iovs[]{
             {&command, sizeof(RpcWireHeader)},
@@ -591,8 +590,9 @@ status_t RpcState::transactAddress(const sp<RpcSession::RpcConnection>& connecti
                 },
                 rpcFields->mFds.get());
         status != OK) {
-        // TODO(b/167966510): need to undo onBinderLeaving - we know the
-        // refcount isn't successfully transferred.
+        // rpcSend calls shutdownAndWait, so all refcounts should be reset. If we ever tolerate
+        // errors here, then we may need to undo the binder-sent counts for the transaction as
+        // well as for the binder objects in the Parcel
         return status;
     }
 
