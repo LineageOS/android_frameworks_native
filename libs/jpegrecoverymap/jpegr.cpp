@@ -351,14 +351,14 @@ status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image, jr_info_p
 status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                             jr_uncompressed_ptr dest,
                             jr_exif_ptr exif,
-                            bool request_sdr) {
+                            jpegr_output_format output_format) {
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
   // TODO: fill EXIF data
   (void) exif;
 
-  if (request_sdr) {
+  if (output_format == JPEGR_OUTPUT_SDR) {
     JpegDecoderHelper jpeg_decoder;
     if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length,
                                       true)) {
@@ -404,7 +404,7 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
     return ERROR_JPEGR_DECODE_ERROR;
   }
 
-  JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &metadata, dest));
+  JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &metadata, output_format, dest));
   return NO_ERROR;
 }
 
@@ -639,6 +639,7 @@ status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_ima
 status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                  jr_uncompressed_ptr uncompressed_recovery_map,
                                  jr_metadata_ptr metadata,
+                                 jpegr_output_format output_format,
                                  jr_uncompressed_ptr dest) {
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_recovery_map == nullptr
@@ -654,17 +655,11 @@ status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
 
   JobQueue jobQueue;
   std::function<void()> applyRecMap = [uncompressed_yuv_420_image, uncompressed_recovery_map,
-                                       metadata, dest, &jobQueue, &idwTable,
+                                       metadata, dest, &jobQueue, &idwTable, output_format,
                                        &recoveryLUT]() -> void {
     const float hdr_ratio = metadata->maxContentBoost;
     size_t width = uncompressed_yuv_420_image->width;
     size_t height = uncompressed_yuv_420_image->height;
-
-#if USE_HLG_OETF_LUT
-    ColorTransformFn hdrOetf = hlgOetfLUT;
-#else
-    ColorTransformFn hdrOetf = hlgOetf;
-#endif
 
     size_t rowStart, rowEnd;
     while (jobQueue.dequeueJob(rowStart, rowEnd)) {
@@ -693,11 +688,44 @@ status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
 #else
           Color rgb_hdr = applyRecovery(rgb_sdr, recovery, metadata);
 #endif
-          Color rgb_gamma_hdr = hdrOetf(rgb_hdr / metadata->maxContentBoost);
-          uint32_t rgba1010102 = colorToRgba1010102(rgb_gamma_hdr);
-
+          rgb_hdr = rgb_hdr / metadata->maxContentBoost;
           size_t pixel_idx = x + y * width;
-          reinterpret_cast<uint32_t*>(dest->data)[pixel_idx] = rgba1010102;
+
+          switch (output_format) {
+            case JPEGR_OUTPUT_HDR_LINEAR:
+            {
+              uint64_t rgba_f16 = colorToRgbaF16(rgb_hdr);
+              reinterpret_cast<uint64_t*>(dest->data)[pixel_idx] = rgba_f16;
+              break;
+            }
+            case JPEGR_OUTPUT_HDR_HLG:
+            {
+#if USE_HLG_OETF_LUT
+              ColorTransformFn hdrOetf = hlgOetfLUT;
+#else
+              ColorTransformFn hdrOetf = hlgOetf;
+#endif
+              Color rgb_gamma_hdr = hdrOetf(rgb_hdr);
+              uint32_t rgba_1010102 = colorToRgba1010102(rgb_gamma_hdr);
+              reinterpret_cast<uint32_t*>(dest->data)[pixel_idx] = rgba_1010102;
+              break;
+            }
+            case JPEGR_OUTPUT_HDR_PQ:
+            {
+#if USE_HLG_OETF_LUT
+              ColorTransformFn hdrOetf = pqOetfLUT;
+#else
+              ColorTransformFn hdrOetf = pqOetf;
+#endif
+              Color rgb_gamma_hdr = hdrOetf(rgb_hdr);
+              uint32_t rgba_1010102 = colorToRgba1010102(rgb_gamma_hdr);
+              reinterpret_cast<uint32_t*>(dest->data)[pixel_idx] = rgba_1010102;
+              break;
+            }
+            default:
+            {}
+              // Should be impossible to hit after input validation.
+          }
         }
       }
     }
