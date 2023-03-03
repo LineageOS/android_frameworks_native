@@ -115,6 +115,14 @@ inline Color operator/(const Color& lhs, const float rhs) {
   return temp /= rhs;
 }
 
+inline uint16_t floatToHalf(float f) {
+  uint32_t x = *((uint32_t*)&f);
+  uint16_t h = ((x >> 16) & 0x8000)
+             | ((((x & 0x7f800000) - 0x38000000) >> 13) & 0x7c00)
+             | ((x >> 13) & 0x03ff);
+  return h;
+}
+
 constexpr size_t kRecoveryFactorPrecision = 10;
 constexpr size_t kRecoveryFactorNumEntries = 1 << kRecoveryFactorPrecision;
 struct RecoveryLUT {
@@ -391,6 +399,13 @@ float sampleMap(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size
  * Alpha always set to 1.0.
  */
 uint32_t colorToRgba1010102(Color e_gamma);
+
+/*
+ * Convert from Color to F16.
+ *
+ * Alpha always set to 1.0.
+ */
+uint64_t colorToRgbaF16(Color e_gamma);
 
 } // namespace android::jpegrecoverymap
 

@@ -38,6 +38,14 @@ typedef enum {
   JPEGR_TF_SRGB = 3,
 } jpegr_transfer_function;
 
+// Target output formats for decoder
+typedef enum {
+  JPEGR_OUTPUT_SDR,          // SDR in RGBA_8888 color format
+  JPEGR_OUTPUT_HDR_LINEAR,   // HDR in F16 color format (linear)
+  JPEGR_OUTPUT_HDR_PQ,       // HDR in RGBA_1010102 color format (PQ transfer function)
+  JPEGR_OUTPUT_HDR_HLG,      // HDR in RGBA_1010102 color format (HLG transfer function)
+} jpegr_output_format;
+
 struct jpegr_info_struct {
     size_t width;
     size_t height;
@@ -195,20 +203,15 @@ public:
      * @param compressed_jpegr_image compressed JPEGR image
      * @param dest destination of the uncompressed JPEGR image
      * @param exif destination of the decoded EXIF metadata.
-     * @param request_sdr flag that request SDR output. If set to true, decoder will only decode
-     *                    the primary image which is SDR. Setting of request_sdr and input source
-     *                    (HDR or SDR) can be found in the table below:
-     *                    |  input source  |  request_sdr  |  output of decoding  |
-     *                    |       HDR      |     true      |          SDR         |
-     *                    |       HDR      |     false     |          HDR         |
-     *                    |       SDR      |     true      |          SDR         |
-     *                    |       SDR      |     false     |          SDR         |
+     * @param output_format flag for setting output color format. if set to
+     *                      {@code JPEGR_OUTPUT_SDR}, decoder will only decode the primary image
+     *                      which is SDR. Default value is JPEGR_OUTPUT_HDR_LINEAR.
      * @return NO_ERROR if decoding succeeds, error code if error occurs.
      */
     status_t decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                          jr_uncompressed_ptr dest,
                          jr_exif_ptr exif = nullptr,
-                         bool request_sdr = false);
+                         jpegr_output_format output_format = JPEGR_OUTPUT_HDR_LINEAR);
 
     /*
     * Gets Info from JPEGR file without decoding it.
@@ -249,12 +252,16 @@ protected:
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param uncompressed_recovery_map uncompressed recovery map
      * @param metadata JPEG/R metadata extracted from XMP.
+     * @param output_format flag for setting output color format. if set to
+     *                      {@code JPEGR_OUTPUT_SDR}, decoder will only decode the primary image
+     *                      which is SDR. Default value is JPEGR_OUTPUT_HDR_LINEAR.
      * @param dest reconstructed HDR image
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                               jr_uncompressed_ptr uncompressed_recovery_map,
                               jr_metadata_ptr metadata,
+                              jpegr_output_format output_format,
                               jr_uncompressed_ptr dest);
 
 private:
