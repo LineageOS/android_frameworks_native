@@ -1376,7 +1376,7 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
         }));
     }
 
-    data.writeInt32(100);
+    data.writeInt32(500);
     // Give a chance for all threads to be used
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_UNLOCK_AFTER_MS, data, &reply), NO_ERROR);
 
