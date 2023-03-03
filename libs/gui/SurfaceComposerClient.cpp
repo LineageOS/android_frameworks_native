@@ -1363,7 +1363,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFlags
         (mask & layer_state_t::eLayerSecure) || (mask & layer_state_t::eLayerSkipScreenshot) ||
         (mask & layer_state_t::eEnableBackpressure) ||
         (mask & layer_state_t::eIgnoreDestinationFrame) ||
-        (mask & layer_state_t::eLayerIsDisplayDecoration)) {
+        (mask & layer_state_t::eLayerIsDisplayDecoration) ||
+        (mask & layer_state_t::eLayerIsRefreshRateIndicator)) {
         s->what |= layer_state_t::eFlagsChanged;
     }
     s->flags &= ~mask;

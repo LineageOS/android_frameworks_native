@@ -408,8 +408,8 @@ HdrCapabilities DisplayDevice::getHdrCapabilities() const {
                            capabilities.getDesiredMinLuminance());
 }
 
-void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinner, bool showRenderRate,
-                                             bool showInMiddle) {
+void DisplayDevice::enableRefreshRateOverlay(bool enable, bool setByHwc, bool showSpinner,
+                                             bool showRenderRate, bool showInMiddle) {
     if (!enable) {
         mRefreshRateOverlay.reset();
         return;
@@ -428,11 +428,22 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool showSpinner, bool
         features |= RefreshRateOverlay::Features::ShowInMiddle;
     }
 
+    if (setByHwc) {
+        features |= RefreshRateOverlay::Features::SetByHwc;
+    }
+
     const auto fpsRange = mRefreshRateSelector->getSupportedRefreshRateRange();
     mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(fpsRange, features);
     mRefreshRateOverlay->setLayerStack(getLayerStack());
     mRefreshRateOverlay->setViewport(getSize());
-    mRefreshRateOverlay->changeRefreshRate(getActiveMode().modePtr->getFps(), getActiveMode().fps);
+    updateRefreshRateOverlayRate(getActiveMode().modePtr->getFps(), getActiveMode().fps);
+}
+
+void DisplayDevice::updateRefreshRateOverlayRate(Fps displayFps, Fps renderFps, bool setByHwc) {
+    ATRACE_CALL();
+    if (mRefreshRateOverlay && (!mRefreshRateOverlay->isSetByHwc() || setByHwc)) {
+        mRefreshRateOverlay->changeRefreshRate(displayFps, renderFps);
+    }
 }
 
 bool DisplayDevice::onKernelTimerChanged(std::optional<DisplayModeId> desiredModeId,
@@ -441,7 +452,7 @@ bool DisplayDevice::onKernelTimerChanged(std::optional<DisplayModeId> desiredMod
         const auto newMode =
                 mRefreshRateSelector->onKernelTimerChanged(desiredModeId, timerExpired);
         if (newMode) {
-            mRefreshRateOverlay->changeRefreshRate(newMode->modePtr->getFps(), newMode->fps);
+            updateRefreshRateOverlayRate(newMode->modePtr->getFps(), newMode->fps);
             return true;
         }
     }

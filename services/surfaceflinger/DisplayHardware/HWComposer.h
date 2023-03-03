@@ -297,6 +297,7 @@ public:
     virtual status_t setHdrConversionStrategy(
             aidl::android::hardware::graphics::common::HdrConversionStrategy,
             aidl::android::hardware::graphics::common::Hdr*) = 0;
+    virtual status_t setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId, bool enabled) = 0;
 };
 
 static inline bool operator==(const android::HWComposer::DeviceRequestedChanges& lhs,
@@ -453,6 +454,7 @@ public:
     status_t setHdrConversionStrategy(
             aidl::android::hardware::graphics::common::HdrConversionStrategy,
             aidl::android::hardware::graphics::common::Hdr*) override;
+    status_t setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId, bool enabled) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
