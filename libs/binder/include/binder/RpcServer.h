@@ -119,7 +119,10 @@ public:
     [[nodiscard]] status_t setupExternalServer(base::unique_fd serverFd);
 
     /**
-     * This must be called before adding a client session.
+     * This must be called before adding a client session. This corresponds
+     * to the number of incoming connections to RpcSession objects in the
+     * server, which will correspond to the number of outgoing connections
+     * in client RpcSession objects.
      *
      * If this is not specified, this will be a single-threaded server.
      *
