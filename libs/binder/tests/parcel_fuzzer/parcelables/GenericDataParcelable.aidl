@@ -22,4 +22,7 @@ parcelable GenericDataParcelable {
     IBinder binder;
     ParcelFileDescriptor fileDescriptor;
     int[] array;
+    String greatString;
+    @utf8InCpp
+    String greaterString;
 }
