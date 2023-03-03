@@ -16,7 +16,7 @@
 #include <fuzzbinder/libbinder_ndk_driver.h>
 #include <fuzzer/FuzzedDataProvider.h>
 
-#include <ServiceManager.h>
+#include <fakeservicemanager/FakeServiceManager.h>
 #include <android-base/logging.h>
 #include <android/binder_interface_utils.h>
 #include <fuzzbinder/random_binder.h>
@@ -29,7 +29,7 @@ using ndk::SharedRefBase;
 [[clang::no_destroy]] static std::once_flag gSmOnce;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    static android::sp<android::ServiceManager> fakeServiceManager = new android::ServiceManager();
+    static android::sp<android::FakeServiceManager> fakeServiceManager = new android::FakeServiceManager();
     std::call_once(gSmOnce, [&] { setDefaultServiceManager(fakeServiceManager); });
     fakeServiceManager->clear();
 
