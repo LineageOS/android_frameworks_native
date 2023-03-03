@@ -28,9 +28,9 @@ namespace android {
  * A local host simple implementation of IServiceManager, that does not
  * communicate over binder.
 */
-class ServiceManager : public IServiceManager {
+class FakeServiceManager : public IServiceManager {
 public:
-    ServiceManager();
+    FakeServiceManager();
 
     sp<IBinder> getService( const String16& name) const override;
 

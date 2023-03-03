@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-#include "ServiceManager.h"
+#include "fakeservicemanager/FakeServiceManager.h"
 
 namespace android {
 
-ServiceManager::ServiceManager() {}
+FakeServiceManager::FakeServiceManager() {}
 
-sp<IBinder> ServiceManager::getService( const String16& name) const {
+sp<IBinder> FakeServiceManager::getService( const String16& name) const {
     // Servicemanager is single-threaded and cannot block. This method exists for legacy reasons.
     return checkService(name);
 }
 
-sp<IBinder> ServiceManager::checkService( const String16& name) const {
+sp<IBinder> FakeServiceManager::checkService( const String16& name) const {
     auto it = mNameToService.find(name);
     if (it == mNameToService.end()) {
         return nullptr;
@@ -33,7 +33,7 @@ sp<IBinder> ServiceManager::checkService( const String16& name) const {
     return it->second;
 }
 
-status_t ServiceManager::addService(const String16& name, const sp<IBinder>& service,
+status_t FakeServiceManager::addService(const String16& name, const sp<IBinder>& service,
                                 bool /*allowIsolated*/,
                                 int /*dumpsysFlags*/) {
     if (service == nullptr) {
@@ -43,7 +43,7 @@ status_t ServiceManager::addService(const String16& name, const sp<IBinder>& ser
     return NO_ERROR;
 }
 
-Vector<String16> ServiceManager::listServices(int /*dumpsysFlags*/) {
+Vector<String16> FakeServiceManager::listServices(int /*dumpsysFlags*/) {
     Vector<String16> services;
     for (auto const& [name, service] : mNameToService) {
         (void) service;
@@ -52,19 +52,19 @@ Vector<String16> ServiceManager::listServices(int /*dumpsysFlags*/) {
   return services;
 }
 
-IBinder* ServiceManager::onAsBinder() {
+IBinder* FakeServiceManager::onAsBinder() {
     return nullptr;
 }
 
-sp<IBinder> ServiceManager::waitForService(const String16& name) {
+sp<IBinder> FakeServiceManager::waitForService(const String16& name) {
     return checkService(name);
 }
 
-bool ServiceManager::isDeclared(const String16& name) {
+bool FakeServiceManager::isDeclared(const String16& name) {
     return mNameToService.find(name) != mNameToService.end();
 }
 
-Vector<String16> ServiceManager::getDeclaredInstances(const String16& name) {
+Vector<String16> FakeServiceManager::getDeclaredInstances(const String16& name) {
     Vector<String16> out;
     const String16 prefix = name + String16("/");
     for (const auto& [registeredName, service] : mNameToService) {
@@ -76,38 +76,38 @@ Vector<String16> ServiceManager::getDeclaredInstances(const String16& name) {
     return out;
 }
 
-std::optional<String16> ServiceManager::updatableViaApex(const String16& name) {
+std::optional<String16> FakeServiceManager::updatableViaApex(const String16& name) {
     (void)name;
     return std::nullopt;
 }
 
-Vector<String16> ServiceManager::getUpdatableNames(const String16& apexName) {
+Vector<String16> FakeServiceManager::getUpdatableNames(const String16& apexName) {
     (void)apexName;
     return {};
 }
 
-std::optional<IServiceManager::ConnectionInfo> ServiceManager::getConnectionInfo(
+std::optional<IServiceManager::ConnectionInfo> FakeServiceManager::getConnectionInfo(
         const String16& name) {
     (void)name;
     return std::nullopt;
 }
 
-status_t ServiceManager::registerForNotifications(const String16&,
+status_t FakeServiceManager::registerForNotifications(const String16&,
                                                   const sp<LocalRegistrationCallback>&) {
     return INVALID_OPERATION;
 }
 
-status_t ServiceManager::unregisterForNotifications(const String16&,
+status_t FakeServiceManager::unregisterForNotifications(const String16&,
                                                 const sp<LocalRegistrationCallback>&) {
     return INVALID_OPERATION;
 }
 
-std::vector<IServiceManager::ServiceDebugInfo> ServiceManager::getServiceDebugInfo() {
+std::vector<IServiceManager::ServiceDebugInfo> FakeServiceManager::getServiceDebugInfo() {
     std::vector<IServiceManager::ServiceDebugInfo> ret;
     return ret;
 }
 
-void ServiceManager::clear() {
+void FakeServiceManager::clear() {
     mNameToService.clear();
 }
 }  // namespace android
