@@ -31,18 +31,18 @@ extern const GesturesPropProvider gesturePropProvider;
 // Implementation of a gestures library property provider, which provides configuration parameters.
 class PropertyProvider {
 public:
-    bool hasProperty(const std::string name) const;
-    GesturesProp& getProperty(const std::string name);
+    bool hasProperty(const std::string& name) const;
+    GesturesProp& getProperty(const std::string& name);
     std::string dump() const;
 
     // Methods to be called by the gestures library:
-    GesturesProp* createIntArrayProperty(const std::string name, int* loc, size_t count,
+    GesturesProp* createIntArrayProperty(const std::string& name, int* loc, size_t count,
                                          const int* init);
-    GesturesProp* createBoolArrayProperty(const std::string name, GesturesPropBool* loc,
+    GesturesProp* createBoolArrayProperty(const std::string& name, GesturesPropBool* loc,
                                           size_t count, const GesturesPropBool* init);
-    GesturesProp* createRealArrayProperty(const std::string name, double* loc, size_t count,
+    GesturesProp* createRealArrayProperty(const std::string& name, double* loc, size_t count,
                                           const double* init);
-    GesturesProp* createStringProperty(const std::string name, const char** loc,
+    GesturesProp* createStringProperty(const std::string& name, const char** loc,
                                        const char* const init);
 
     void freeProperty(GesturesProp* prop);
