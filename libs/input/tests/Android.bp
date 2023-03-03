@@ -43,6 +43,13 @@ cc_test {
         "-Werror",
         "-Wno-unused-parameter",
     ],
+    sanitize: {
+        undefined: true,
+        all_undefined: true,
+        diag: {
+            undefined: true,
+        },
+    },
     shared_libs: [
         "libbase",
         "libbinder",
