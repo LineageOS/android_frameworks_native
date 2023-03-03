@@ -187,8 +187,6 @@ TEST_F(TextureFilteringTest, LayerCaptureWithCropNoFiltering) {
 
 // Expect no filtering because the output source crop and output buffer are the same size.
 TEST_F(TextureFilteringTest, OutputSourceCropDisplayFrameMatchNoFiltering) {
-    // Transaction().setCrop(mLayer, Rect{25, 25, 75, 75}).apply();
-
     gui::DisplayCaptureArgs captureArgs;
     captureArgs.displayToken = mDisplay;
     captureArgs.width = 50;
@@ -222,6 +220,19 @@ TEST_F(TextureFilteringTest, ParentCropNoFiltering) {
 
     mCapture->expectColor(Rect{25, 25, 50, 75}, Color::RED);
     mCapture->expectColor(Rect{50, 25, 75, 75}, Color::BLUE);
+}
+
+// Expect no filtering because parent's position transform shouldn't scale the layer.
+TEST_F(TextureFilteringTest, ParentHasTransformNoFiltering) {
+    Transaction().setPosition(mParent, 100, 100).apply();
+
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = mParent->getHandle();
+    captureArgs.sourceCrop = Rect{0, 0, 100, 100};
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+
+    mCapture->expectColor(Rect{0, 0, 50, 100}, Color::RED);
+    mCapture->expectColor(Rect{50, 0, 100, 100}, Color::BLUE);
 }
 
 } // namespace android

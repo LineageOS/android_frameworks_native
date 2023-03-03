@@ -235,7 +235,7 @@ private:
     KeyedVector<int32_t, Key*> mKeys;
     KeyboardType mType;
     std::string mLoadFileName;
-    bool mLayoutOverlayApplied;
+    bool mLayoutOverlayApplied = false;
 
     std::map<int32_t /* fromAndroidKeyCode */, int32_t /* toAndroidKeyCode */> mKeyRemapping;
     std::map<int32_t /* fromScanCode */, int32_t /* toAndroidKeyCode */> mKeysByScanCode;

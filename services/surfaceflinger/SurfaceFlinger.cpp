@@ -3954,8 +3954,14 @@ bool SurfaceFlinger::latchBuffers() {
             mLayersWithQueuedFrames.emplace(sp<Layer>::fromExisting(layer));
         } else {
             layer->useEmptyDamage();
-            // If the layer has frames we will update the latch time when latching the buffer.
-            layer->updateLastLatchTime(latchTime);
+            if (!layer->hasBuffer()) {
+                // The last latch time is used to classify a missed frame as buffer stuffing
+                // instead of a missed frame. This is used to identify scenarios where we
+                // could not latch a buffer or apply a transaction due to backpressure.
+                // We only update the latch time for buffer less layers here, the latch time
+                // is updated for buffer layers when the buffer is latched.
+                layer->updateLastLatchTime(latchTime);
+            }
         }
     });
     mForceTransactionDisplayChange = false;
@@ -7115,6 +7121,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         captureResults.capturedHdrLayers |= isHdrLayer(*snapshot);
         layerFE->mSnapshot->geomLayerTransform =
                 renderArea->getTransform() * layerFE->mSnapshot->geomLayerTransform;
+        layerFE->mSnapshot->geomInverseLayerTransform =
+                layerFE->mSnapshot->geomLayerTransform.inverse();
     }
 
     // We allow the system server to take screenshots of secure layers for

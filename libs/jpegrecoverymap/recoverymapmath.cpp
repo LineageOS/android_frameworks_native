@@ -631,4 +631,11 @@ uint32_t colorToRgba1010102(Color e_gamma) {
        | (0x3 << 30);  // Set alpha to 1.0
 }
 
+uint64_t colorToRgbaF16(Color e_gamma) {
+  return (uint64_t) floatToHalf(e_gamma.r)
+       | (((uint64_t) floatToHalf(e_gamma.g)) << 16)
+       | (((uint64_t) floatToHalf(e_gamma.b)) << 32)
+       | (((uint64_t) floatToHalf(1.0f)) << 48);
+}
+
 } // namespace android::jpegrecoverymap
