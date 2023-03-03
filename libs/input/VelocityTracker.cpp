@@ -370,21 +370,12 @@ VelocityTracker::ComputedVelocity VelocityTracker::getComputedVelocity(int32_t u
     return computedVelocity;
 }
 
-// --- LeastSquaresVelocityTrackerStrategy ---
-
-LeastSquaresVelocityTrackerStrategy::LeastSquaresVelocityTrackerStrategy(uint32_t degree,
-                                                                         Weighting weighting)
-      : mDegree(degree), mWeighting(weighting) {}
-
-LeastSquaresVelocityTrackerStrategy::~LeastSquaresVelocityTrackerStrategy() {
-}
-
-void LeastSquaresVelocityTrackerStrategy::clearPointer(int32_t pointerId) {
+void AccumulatingVelocityTrackerStrategy::clearPointer(int32_t pointerId) {
     mIndex.erase(pointerId);
     mMovements.erase(pointerId);
 }
 
-void LeastSquaresVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t pointerId,
+void AccumulatingVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t pointerId,
                                                       float position) {
     // If data for this pointer already exists, we have a valid entry at the position of
     // mIndex[pointerId] and mMovements[pointerId]. In that case, we need to advance the index
@@ -411,6 +402,14 @@ void LeastSquaresVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t
     movement.eventTime = eventTime;
     movement.position = position;
 }
+
+// --- LeastSquaresVelocityTrackerStrategy ---
+
+LeastSquaresVelocityTrackerStrategy::LeastSquaresVelocityTrackerStrategy(uint32_t degree,
+                                                                         Weighting weighting)
+      : mDegree(degree), mWeighting(weighting) {}
+
+LeastSquaresVelocityTrackerStrategy::~LeastSquaresVelocityTrackerStrategy() {}
 
 /**
  * Solves a linear least squares problem to obtain a N degree polynomial that fits
@@ -834,39 +833,6 @@ LegacyVelocityTrackerStrategy::LegacyVelocityTrackerStrategy() {}
 LegacyVelocityTrackerStrategy::~LegacyVelocityTrackerStrategy() {
 }
 
-void LegacyVelocityTrackerStrategy::clearPointer(int32_t pointerId) {
-    mIndex.erase(pointerId);
-    mMovements.erase(pointerId);
-}
-
-void LegacyVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t pointerId,
-                                                float position) {
-    // If data for this pointer already exists, we have a valid entry at the position of
-    // mIndex[pointerId] and mMovements[pointerId]. In that case, we need to advance the index
-    // to the next position in the circular buffer and write the new Movement there. Otherwise,
-    // if this is a first movement for this pointer, we initialize the maps mIndex and mMovements
-    // for this pointer and write to the first position.
-    auto [movementIt, inserted] = mMovements.insert({pointerId, {}});
-    auto [indexIt, _] = mIndex.insert({pointerId, 0});
-    size_t& index = indexIt->second;
-    if (!inserted && movementIt->second[index].eventTime != eventTime) {
-        // When ACTION_POINTER_DOWN happens, we will first receive ACTION_MOVE with the coordinates
-        // of the existing pointers, and then ACTION_POINTER_DOWN with the coordinates that include
-        // the new pointer. If the eventtimes for both events are identical, just update the data
-        // for this time.
-        // We only compare against the last value, as it is likely that addMovement is called
-        // in chronological order as events occur.
-        index++;
-    }
-    if (index == HISTORY_SIZE) {
-        index = 0;
-    }
-
-    Movement& movement = movementIt->second[index];
-    movement.eventTime = eventTime;
-    movement.position = position;
-}
-
 std::optional<float> LegacyVelocityTrackerStrategy::getVelocity(int32_t pointerId) const {
     const auto movementIt = mMovements.find(pointerId);
     if (movementIt == mMovements.end()) {
@@ -937,39 +903,6 @@ ImpulseVelocityTrackerStrategy::ImpulseVelocityTrackerStrategy(bool deltaValues)
       : mDeltaValues(deltaValues) {}
 
 ImpulseVelocityTrackerStrategy::~ImpulseVelocityTrackerStrategy() {
-}
-
-void ImpulseVelocityTrackerStrategy::clearPointer(int32_t pointerId) {
-    mIndex.erase(pointerId);
-    mMovements.erase(pointerId);
-}
-
-void ImpulseVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t pointerId,
-                                                 float position) {
-    // If data for this pointer already exists, we have a valid entry at the position of
-    // mIndex[pointerId] and mMovements[pointerId]. In that case, we need to advance the index
-    // to the next position in the circular buffer and write the new Movement there. Otherwise,
-    // if this is a first movement for this pointer, we initialize the maps mIndex and mMovements
-    // for this pointer and write to the first position.
-    auto [movementIt, inserted] = mMovements.insert({pointerId, {}});
-    auto [indexIt, _] = mIndex.insert({pointerId, 0});
-    size_t& index = indexIt->second;
-    if (!inserted && movementIt->second[index].eventTime != eventTime) {
-        // When ACTION_POINTER_DOWN happens, we will first receive ACTION_MOVE with the coordinates
-        // of the existing pointers, and then ACTION_POINTER_DOWN with the coordinates that include
-        // the new pointer. If the eventtimes for both events are identical, just update the data
-        // for this time.
-        // We only compare against the last value, as it is likely that addMovement is called
-        // in chronological order as events occur.
-        index++;
-    }
-    if (index == HISTORY_SIZE) {
-        index = 0;
-    }
-
-    Movement& movement = movementIt->second[index];
-    movement.eventTime = eventTime;
-    movement.position = position;
 }
 
 /**
