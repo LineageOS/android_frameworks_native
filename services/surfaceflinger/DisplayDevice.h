@@ -247,9 +247,9 @@ public:
 
     Fps getAdjustedRefreshRate() const { return mAdjustedRefreshRate; }
 
-    // Round the requested refresh rate to match a divisor of the leader
+    // Round the requested refresh rate to match a divisor of the pacesetter
     // display's refresh rate. Only supported for virtual displays.
-    void adjustRefreshRate(Fps leaderDisplayRefreshRate);
+    void adjustRefreshRate(Fps pacesetterDisplayRefreshRate);
 
     // release HWC resources (if any) for removable displays
     void disconnect();
@@ -290,7 +290,7 @@ private:
     // for virtual displays to match this requested refresh rate.
     const Fps mRequestedRefreshRate;
 
-    // Adjusted refresh rate, rounded to match a divisor of the leader
+    // Adjusted refresh rate, rounded to match a divisor of the pacesetter
     // display's refresh rate. Only supported for virtual displays.
     Fps mAdjustedRefreshRate = 0_Hz;
 

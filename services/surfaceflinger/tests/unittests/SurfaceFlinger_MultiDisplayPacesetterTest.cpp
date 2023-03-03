@@ -25,12 +25,12 @@
 namespace android {
 namespace {
 
-struct MultiDisplayLeaderTest : DisplayTransactionTest {
+struct MultiDisplayPacesetterTest : DisplayTransactionTest {
     static constexpr bool kWithMockScheduler = false;
-    MultiDisplayLeaderTest() : DisplayTransactionTest(kWithMockScheduler) {}
+    MultiDisplayPacesetterTest() : DisplayTransactionTest(kWithMockScheduler) {}
 };
 
-TEST_F(MultiDisplayLeaderTest, foldable) {
+TEST_F(MultiDisplayPacesetterTest, foldable) {
     injectMockScheduler(InnerDisplayVariant::DISPLAY_ID::get());
 
     // Inject inner and outer displays with uninitialized power modes.
@@ -50,31 +50,31 @@ TEST_F(MultiDisplayLeaderTest, foldable) {
         outerDisplay = injector.inject();
     }
 
-    // When the device boots, the inner display should be the leader.
-    ASSERT_EQ(mFlinger.scheduler()->leaderDisplayId(), innerDisplay->getPhysicalId());
+    // When the device boots, the inner display should be the pacesetter.
+    ASSERT_EQ(mFlinger.scheduler()->pacesetterDisplayId(), innerDisplay->getPhysicalId());
 
     // ...and should still be after powering on.
     mFlinger.setPowerModeInternal(innerDisplay, PowerMode::ON);
-    ASSERT_EQ(mFlinger.scheduler()->leaderDisplayId(), innerDisplay->getPhysicalId());
+    ASSERT_EQ(mFlinger.scheduler()->pacesetterDisplayId(), innerDisplay->getPhysicalId());
 
-    // The outer display should become the leader after folding.
+    // The outer display should become the pacesetter after folding.
     mFlinger.setPowerModeInternal(innerDisplay, PowerMode::OFF);
     mFlinger.setPowerModeInternal(outerDisplay, PowerMode::ON);
-    ASSERT_EQ(mFlinger.scheduler()->leaderDisplayId(), outerDisplay->getPhysicalId());
+    ASSERT_EQ(mFlinger.scheduler()->pacesetterDisplayId(), outerDisplay->getPhysicalId());
 
-    // The inner display should become the leader after unfolding.
+    // The inner display should become the pacesetter after unfolding.
     mFlinger.setPowerModeInternal(outerDisplay, PowerMode::OFF);
     mFlinger.setPowerModeInternal(innerDisplay, PowerMode::ON);
-    ASSERT_EQ(mFlinger.scheduler()->leaderDisplayId(), innerDisplay->getPhysicalId());
+    ASSERT_EQ(mFlinger.scheduler()->pacesetterDisplayId(), innerDisplay->getPhysicalId());
 
-    // The inner display should stay the leader if both are powered on.
-    // TODO(b/256196556): The leader should depend on the displays' VSYNC phases.
+    // The inner display should stay the pacesetter if both are powered on.
+    // TODO(b/255635821): The pacesetter should depend on the displays' refresh rates.
     mFlinger.setPowerModeInternal(outerDisplay, PowerMode::ON);
-    ASSERT_EQ(mFlinger.scheduler()->leaderDisplayId(), innerDisplay->getPhysicalId());
+    ASSERT_EQ(mFlinger.scheduler()->pacesetterDisplayId(), innerDisplay->getPhysicalId());
 
-    // The outer display should become the leader if designated.
-    mFlinger.scheduler()->setLeaderDisplay(outerDisplay->getPhysicalId());
-    ASSERT_EQ(mFlinger.scheduler()->leaderDisplayId(), outerDisplay->getPhysicalId());
+    // The outer display should become the pacesetter if designated.
+    mFlinger.scheduler()->setPacesetterDisplay(outerDisplay->getPhysicalId());
+    ASSERT_EQ(mFlinger.scheduler()->pacesetterDisplayId(), outerDisplay->getPhysicalId());
 }
 
 } // namespace

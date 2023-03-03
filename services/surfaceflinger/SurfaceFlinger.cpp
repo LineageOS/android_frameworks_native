@@ -3366,7 +3366,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     }
 
     if (display->isVirtual()) {
-        display->adjustRefreshRate(mScheduler->getLeaderRefreshRate());
+        display->adjustRefreshRate(mScheduler->getPacesetterRefreshRate());
     }
 
     mDisplays.try_emplace(displayToken, std::move(display));
@@ -7662,15 +7662,15 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
 
     updateActiveDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
-    mScheduler->setLeaderDisplay(mActiveDisplayId);
+    mScheduler->setPacesetterDisplay(mActiveDisplayId);
 
     onActiveDisplaySizeChanged(activeDisplay);
     mActiveDisplayTransformHint = activeDisplay.getTransformHint();
 
-    // The policy of the new active/leader display may have changed while it was inactive. In that
-    // case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In either
-    // case, the Scheduler's cachedModeChangedParams must be initialized to the newly active mode,
-    // and the kernel idle timer of the newly active display must be toggled.
+    // The policy of the new active/pacesetter display may have changed while it was inactive. In
+    // that case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In
+    // either case, the Scheduler's cachedModeChangedParams must be initialized to the newly active
+    // mode, and the kernel idle timer of the newly active display must be toggled.
     constexpr bool kForce = true;
     applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector(), kForce);
 }
