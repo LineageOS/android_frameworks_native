@@ -473,7 +473,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
             {.late = base::GetBoolProperty("debug.sf.send_late_power_session_hint"s, true),
              .early = base::GetBoolProperty("debug.sf.send_early_power_session_hint"s, false)};
     mLayerLifecycleManagerEnabled =
-            base::GetBoolProperty("debug.sf.enable_layer_lifecycle_manager"s, false);
+            base::GetBoolProperty("persist.debug.sf.enable_layer_lifecycle_manager"s, false);
     mLegacyFrontEndEnabled = !mLayerLifecycleManagerEnabled ||
             base::GetBoolProperty("debug.sf.enable_legacy_frontend"s, true);
 }
