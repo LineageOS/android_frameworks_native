@@ -1312,6 +1312,18 @@ TEST_F(OutputLayerWriteStateToHWCTest, setBlockingRegion) {
                                  false);
 }
 
+TEST_F(OutputLayerWriteStateToHWCTest, setCompositionTypeRefreshRateIndicator) {
+    mLayerFEState.compositionType = Composition::REFRESH_RATE_INDICATOR;
+
+    expectGeometryCommonCalls();
+    expectPerFrameCommonCalls();
+    expectSetHdrMetadataAndBufferCalls();
+    expectSetCompositionTypeCall(Composition::REFRESH_RATE_INDICATOR);
+
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
+}
+
 /*
  * OutputLayer::uncacheBuffers
  */
