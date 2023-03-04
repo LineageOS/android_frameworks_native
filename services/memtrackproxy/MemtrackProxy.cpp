@@ -97,9 +97,14 @@ bool MemtrackProxy::CheckPid(pid_t calling_pid, pid_t request_pid) {
     return calling_pid == request_pid;
 }
 
-MemtrackProxy::MemtrackProxy()
-      : memtrack_hidl_instance_(MemtrackProxy::MemtrackHidlInstance()),
-        memtrack_aidl_instance_(MemtrackProxy::MemtrackAidlInstance()) {}
+MemtrackProxy::MemtrackProxy() {
+    memtrack_aidl_instance_ = MemtrackProxy::MemtrackAidlInstance();
+
+    // Only check for a HIDL implementation if we failed to get the AIDL service
+    if (!memtrack_aidl_instance_) {
+        memtrack_hidl_instance_ = MemtrackProxy::MemtrackHidlInstance();
+    }
+}
 
 ndk::ScopedAStatus MemtrackProxy::getMemory(int pid, MemtrackType type,
                                             std::vector<MemtrackRecord>* _aidl_return) {
