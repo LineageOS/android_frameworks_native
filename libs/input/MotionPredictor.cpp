@@ -25,9 +25,9 @@
 #include <string>
 #include <vector>
 
+#include <android-base/logging.h>
 #include <android-base/strings.h>
 #include <android/input.h>
-#include <log/log.h>
 
 #include <attestation/HmacKeyManager.h>
 #include <input/TfLiteMotionPredictor.h>

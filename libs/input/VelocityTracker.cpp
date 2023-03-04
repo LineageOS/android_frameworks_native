@@ -22,7 +22,6 @@
 #include <math.h>
 #include <optional>
 
-#include <android-base/stringprintf.h>
 #include <input/PrintTools.h>
 #include <input/VelocityTracker.h>
 #include <utils/BitSet.h>
@@ -371,36 +370,26 @@ VelocityTracker::ComputedVelocity VelocityTracker::getComputedVelocity(int32_t u
 }
 
 void AccumulatingVelocityTrackerStrategy::clearPointer(int32_t pointerId) {
-    mIndex.erase(pointerId);
     mMovements.erase(pointerId);
 }
 
 void AccumulatingVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t pointerId,
                                                       float position) {
-    // If data for this pointer already exists, we have a valid entry at the position of
-    // mIndex[pointerId] and mMovements[pointerId]. In that case, we need to advance the index
-    // to the next position in the circular buffer and write the new Movement there. Otherwise,
-    // if this is a first movement for this pointer, we initialize the maps mIndex and mMovements
-    // for this pointer and write to the first position.
-    auto [movementIt, inserted] = mMovements.insert({pointerId, {}});
-    auto [indexIt, _] = mIndex.insert({pointerId, 0});
-    size_t& index = indexIt->second;
-    if (!inserted && movementIt->second[index].eventTime != eventTime) {
+    auto [movementIt, _] = mMovements.insert({pointerId, RingBuffer<Movement>(HISTORY_SIZE)});
+    RingBuffer<Movement>& movements = movementIt->second;
+    const size_t size = movements.size();
+
+    if (size != 0 && movements[size - 1].eventTime == eventTime) {
         // When ACTION_POINTER_DOWN happens, we will first receive ACTION_MOVE with the coordinates
         // of the existing pointers, and then ACTION_POINTER_DOWN with the coordinates that include
         // the new pointer. If the eventtimes for both events are identical, just update the data
-        // for this time.
+        // for this time (i.e. pop out the last element, and insert the updated movement).
         // We only compare against the last value, as it is likely that addMovement is called
         // in chronological order as events occur.
-        index++;
-    }
-    if (index == HISTORY_SIZE) {
-        index = 0;
+        movements.popBack();
     }
 
-    Movement& movement = movementIt->second[index];
-    movement.eventTime = eventTime;
-    movement.position = position;
+    movements.pushBack({eventTime, position});
 }
 
 // --- LeastSquaresVelocityTrackerStrategy ---
@@ -626,37 +615,30 @@ std::optional<float> LeastSquaresVelocityTrackerStrategy::getVelocity(int32_t po
     if (movementIt == mMovements.end()) {
         return std::nullopt; // no data
     }
+
+    const RingBuffer<Movement>& movements = movementIt->second;
+    const size_t size = movements.size();
+    if (size == 0) {
+        return std::nullopt; // no data
+    }
+
     // Iterate over movement samples in reverse time order and collect samples.
     std::vector<float> positions;
     std::vector<float> w;
     std::vector<float> time;
 
-    uint32_t index = mIndex.at(pointerId);
-    const Movement& newestMovement = movementIt->second[index];
-    do {
-        const Movement& movement = movementIt->second[index];
+    const Movement& newestMovement = movements[size - 1];
+    for (ssize_t i = size - 1; i >= 0; i--) {
+        const Movement& movement = movements[i];
 
         nsecs_t age = newestMovement.eventTime - movement.eventTime;
         if (age > HORIZON) {
             break;
         }
-        if (movement.eventTime == 0 && index != 0) {
-            // All eventTime's are initialized to 0. In this fixed-width circular buffer, it's
-            // possible that not all entries are valid. We use a time=0 as a signal for those
-            // uninitialized values. If we encounter a time of 0 in a position
-            // that's > 0, it means that we hit the block where the data wasn't initialized.
-            // We still don't know whether the value at index=0, with eventTime=0 is valid.
-            // However, that's only possible when the value is by itself. So there's no hard in
-            // processing it anyways, since the velocity for a single point is zero, and this
-            // situation will only be encountered in artificial circumstances (in tests).
-            // In practice, time will never be 0.
-            break;
-        }
         positions.push_back(movement.position);
-        w.push_back(chooseWeight(pointerId, index));
+        w.push_back(chooseWeight(pointerId, i));
         time.push_back(-age * 0.000000001f);
-        index = (index == 0 ? HISTORY_SIZE : index) - 1;
-    } while (positions.size() < HISTORY_SIZE);
+    }
 
     const size_t m = positions.size();
     if (m == 0) {
@@ -681,19 +663,19 @@ std::optional<float> LeastSquaresVelocityTrackerStrategy::getVelocity(int32_t po
 }
 
 float LeastSquaresVelocityTrackerStrategy::chooseWeight(int32_t pointerId, uint32_t index) const {
-    const std::array<Movement, HISTORY_SIZE>& movements = mMovements.at(pointerId);
+    const RingBuffer<Movement>& movements = mMovements.at(pointerId);
+    const size_t size = movements.size();
     switch (mWeighting) {
         case Weighting::DELTA: {
             // Weight points based on how much time elapsed between them and the next
             // point so that points that "cover" a shorter time span are weighed less.
             //   delta  0ms: 0.5
             //   delta 10ms: 1.0
-            if (index == mIndex.at(pointerId)) {
+            if (index == size - 1) {
                 return 1.0f;
             }
-            uint32_t nextIndex = (index + 1) % HISTORY_SIZE;
             float deltaMillis =
-                    (movements[nextIndex].eventTime - movements[index].eventTime) * 0.000001f;
+                    (movements[index + 1].eventTime - movements[index].eventTime) * 0.000001f;
             if (deltaMillis < 0) {
                 return 0.5f;
             }
@@ -710,8 +692,7 @@ float LeastSquaresVelocityTrackerStrategy::chooseWeight(int32_t pointerId, uint3
             //   age 50ms: 1.0
             //   age 60ms: 0.5
             float ageMillis =
-                    (movements[mIndex.at(pointerId)].eventTime - movements[index].eventTime) *
-                    0.000001f;
+                    (movements[size - 1].eventTime - movements[index].eventTime) * 0.000001f;
             if (ageMillis < 0) {
                 return 0.5f;
             }
@@ -733,8 +714,7 @@ float LeastSquaresVelocityTrackerStrategy::chooseWeight(int32_t pointerId, uint3
             //   age  50ms: 1.0
             //   age 100ms: 0.5
             float ageMillis =
-                    (movements[mIndex.at(pointerId)].eventTime - movements[index].eventTime) *
-                    0.000001f;
+                    (movements[size - 1].eventTime - movements[index].eventTime) * 0.000001f;
             if (ageMillis < 50) {
                 return 1.0f;
             }
@@ -838,20 +818,25 @@ std::optional<float> LegacyVelocityTrackerStrategy::getVelocity(int32_t pointerI
     if (movementIt == mMovements.end()) {
         return std::nullopt; // no data
     }
-    const Movement& newestMovement = movementIt->second[mIndex.at(pointerId)];
+
+    const RingBuffer<Movement>& movements = movementIt->second;
+    const size_t size = movements.size();
+    if (size == 0) {
+        return std::nullopt; // no data
+    }
+
+    const Movement& newestMovement = movements[size - 1];
 
     // Find the oldest sample that contains the pointer and that is not older than HORIZON.
     nsecs_t minTime = newestMovement.eventTime - HORIZON;
-    uint32_t oldestIndex = mIndex.at(pointerId);
-    uint32_t numTouches = 1;
-    do {
-        uint32_t nextOldestIndex = (oldestIndex == 0 ? HISTORY_SIZE : oldestIndex) - 1;
-        const Movement& nextOldestMovement = mMovements.at(pointerId)[nextOldestIndex];
+    uint32_t oldestIndex = size - 1;
+    for (ssize_t i = size - 1; i >= 0; i--) {
+        const Movement& nextOldestMovement = movements[i];
         if (nextOldestMovement.eventTime < minTime) {
             break;
         }
-        oldestIndex = nextOldestIndex;
-    } while (++numTouches < HISTORY_SIZE);
+        oldestIndex = i;
+    }
 
     // Calculate an exponentially weighted moving average of the velocity estimate
     // at different points in time measured relative to the oldest sample.
@@ -865,17 +850,13 @@ std::optional<float> LegacyVelocityTrackerStrategy::getVelocity(int32_t pointerI
     // 16ms apart but some consecutive samples could be only 0.5sm apart because
     // the hardware or driver reports them irregularly or in bursts.
     float accumV = 0;
-    uint32_t index = oldestIndex;
     uint32_t samplesUsed = 0;
-    const Movement& oldestMovement = mMovements.at(pointerId)[oldestIndex];
+    const Movement& oldestMovement = movements[oldestIndex];
     float oldestPosition = oldestMovement.position;
     nsecs_t lastDuration = 0;
 
-    while (numTouches-- > 1) {
-        if (++index == HISTORY_SIZE) {
-            index = 0;
-        }
-        const Movement& movement = mMovements.at(pointerId)[index];
+    for (size_t i = oldestIndex; i < size; i++) {
+        const Movement& movement = movements[i];
         nsecs_t duration = movement.eventTime - oldestMovement.eventTime;
 
         // If the duration between samples is small, we may significantly overestimate
@@ -1036,32 +1017,29 @@ std::optional<float> ImpulseVelocityTrackerStrategy::getVelocity(int32_t pointer
         return std::nullopt; // no data
     }
 
+    const RingBuffer<Movement>& movements = movementIt->second;
+    const size_t size = movements.size();
+    if (size == 0) {
+        return std::nullopt; // no data
+    }
+
     // Iterate over movement samples in reverse time order and collect samples.
     float positions[HISTORY_SIZE];
     nsecs_t time[HISTORY_SIZE];
     size_t m = 0; // number of points that will be used for fitting
-    size_t index = mIndex.at(pointerId);
-    const Movement& newestMovement = movementIt->second[index];
-    do {
-        const Movement& movement = movementIt->second[index];
+    const Movement& newestMovement = movements[size - 1];
+    for (ssize_t i = size - 1; i >= 0; i--) {
+        const Movement& movement = movements[i];
 
         nsecs_t age = newestMovement.eventTime - movement.eventTime;
         if (age > HORIZON) {
             break;
         }
-        if (movement.eventTime == 0 && index != 0) {
-            // All eventTime's are initialized to 0. If we encounter a time of 0 in a position
-            // that's >0, it means that we hit the block where the data wasn't initialized.
-            // It's also possible that the sample at 0 would be invalid, but there's no harm in
-            // processing it, since it would be just a single point, and will only be encountered
-            // in artificial circumstances (in tests).
-            break;
-        }
 
         positions[m] = movement.position;
         time[m] = movement.eventTime;
-        index = (index == 0 ? HISTORY_SIZE : index) - 1;
-    } while (++m < HISTORY_SIZE);
+        m++;
+    }
 
     if (m == 0) {
         return std::nullopt; // no data
