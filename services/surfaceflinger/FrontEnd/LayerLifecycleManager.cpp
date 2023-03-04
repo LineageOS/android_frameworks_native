@@ -187,6 +187,10 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
                 continue;
             }
 
+            if (transaction.flags & ISurfaceComposer::eAnimation) {
+                layer->changes |= RequestedLayerState::Changes::Animation;
+            }
+
             uint32_t oldParentId = layer->parentId;
             uint32_t oldRelativeParentId = layer->relativeParentId;
             uint32_t oldTouchCropId = layer->touchCropId;
