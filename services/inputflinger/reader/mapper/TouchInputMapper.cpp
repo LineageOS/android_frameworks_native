@@ -1679,7 +1679,8 @@ void TouchInputMapper::updateTouchSpots() {
     mPointerController->setButtonState(mCurrentRawState.buttonState);
     mPointerController->setSpots(mCurrentCookedState.cookedPointerData.pointerCoords.cbegin(),
                                  mCurrentCookedState.cookedPointerData.idToIndex.cbegin(),
-                                 mCurrentCookedState.cookedPointerData.touchingIdBits,
+                                 mCurrentCookedState.cookedPointerData.touchingIdBits |
+                                         mCurrentCookedState.cookedPointerData.hoveringIdBits,
                                  mViewport.displayId);
 }
 
