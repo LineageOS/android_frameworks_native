@@ -161,7 +161,8 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
 
     // recordLayerHistory should be a noop
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
-    mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
+    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0,
+                                   LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
 
     constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
@@ -185,7 +186,8 @@ TEST_F(SchedulerTest, updateDisplayModes) {
                                                                       kDisplay1Mode60->getId()));
 
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
-    mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
+    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0,
+                                   LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(1u, mScheduler->getNumActiveLayers());
 }
 
@@ -234,7 +236,8 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
     EXPECT_CALL(*layer, isVisible()).WillOnce(Return(true));
 
-    mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
+    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0,
+                                   LayerHistory::LayerUpdateType::Buffer);
 
     constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
     FTL_FAKE_GUARD(kMainThreadContext, mScheduler->setDisplayPowerMode(kDisplayId1, kPowerModeOn));

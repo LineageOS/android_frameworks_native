@@ -90,6 +90,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     scheduler::LayerInfo::FrameRate frameRate;
     ui::Transform::RotationFlags fixedTransformHint;
     bool handleSkipScreenshotFlag = false;
+    int32_t frameRateSelectionPriority;
     LayerHierarchy::TraversalPath mirrorRootPath;
     bool unreachable = true;
     ChildState childState;
