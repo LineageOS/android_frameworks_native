@@ -54,8 +54,6 @@ constexpr uint32_t RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_
  */
 class RpcSession final : public virtual RefBase {
 public:
-    static constexpr size_t kDefaultMaxOutgoingConnections = 10;
-
     // Create an RpcSession with default configuration (raw sockets).
     static sp<RpcSession> make();
 
@@ -222,6 +220,8 @@ private:
     friend RpcServerTrusty;
     friend RpcState;
     explicit RpcSession(std::unique_ptr<RpcTransportCtx> ctx);
+
+    static constexpr size_t kDefaultMaxOutgoingConnections = 10;
 
     // internal version of setProtocolVersion that
     // optionally skips the mStartedSetup check
