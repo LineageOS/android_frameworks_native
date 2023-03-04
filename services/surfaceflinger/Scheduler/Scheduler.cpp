@@ -50,8 +50,9 @@
 #include "FrontEnd/LayerHandle.h"
 #include "OneShotTimer.h"
 #include "SurfaceFlingerProperties.h"
-#include "VSyncPredictor.h"
-#include "VSyncReactor.h"
+#include "VSyncTracker.h"
+#include "VsyncController.h"
+#include "VsyncSchedule.h"
 
 #define RETURN_IF_INVALID_HANDLE(handle, ...)                        \
     do {                                                             \
@@ -119,14 +120,13 @@ void Scheduler::registerDisplay(PhysicalDisplayId displayId, RefreshRateSelector
 
 void Scheduler::registerDisplayInternal(PhysicalDisplayId displayId,
                                         RefreshRateSelectorPtr selectorPtr,
-                                        std::shared_ptr<VsyncSchedule> vsyncSchedule) {
+                                        VsyncSchedulePtr schedulePtr) {
     demotePacesetterDisplay();
 
     std::shared_ptr<VsyncSchedule> pacesetterVsyncSchedule;
     {
         std::scoped_lock lock(mDisplayLock);
-        mRefreshRateSelectors.emplace_or_replace(displayId, std::move(selectorPtr));
-        mVsyncSchedules.emplace_or_replace(displayId, std::move(vsyncSchedule));
+        mDisplays.emplace_or_replace(displayId, std::move(selectorPtr), std::move(schedulePtr));
 
         pacesetterVsyncSchedule = promotePacesetterDisplayLocked();
     }
@@ -139,13 +139,12 @@ void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
     std::shared_ptr<VsyncSchedule> pacesetterVsyncSchedule;
     {
         std::scoped_lock lock(mDisplayLock);
-        mRefreshRateSelectors.erase(displayId);
-        mVsyncSchedules.erase(displayId);
+        mDisplays.erase(displayId);
 
         // Do not allow removing the final display. Code in the scheduler expects
         // there to be at least one display. (This may be relaxed in the future with
         // headless virtual display.)
-        LOG_ALWAYS_FATAL_IF(mRefreshRateSelectors.empty(), "Cannot unregister all displays!");
+        LOG_ALWAYS_FATAL_IF(mDisplays.empty(), "Cannot unregister all displays!");
 
         pacesetterVsyncSchedule = promotePacesetterDisplayLocked();
     }
@@ -199,20 +198,27 @@ impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() 
 
 impl::EventThread::GetVsyncPeriodFunction Scheduler::makeGetVsyncPeriodFunction() const {
     return [this](uid_t uid) {
-        const Fps refreshRate = pacesetterSelectorPtr()->getActiveMode().fps;
-        const nsecs_t currentPeriod =
-                getVsyncSchedule()->period().ns() ?: refreshRate.getPeriodNsecs();
+        const auto [refreshRate, period] = [this] {
+            std::scoped_lock lock(mDisplayLock);
+            const auto pacesetterOpt = pacesetterDisplayLocked();
+            LOG_ALWAYS_FATAL_IF(!pacesetterOpt);
+            const Display& pacesetter = *pacesetterOpt;
+            return std::make_pair(pacesetter.selectorPtr->getActiveMode().fps,
+                                  pacesetter.schedulePtr->period());
+        }();
+
+        const Period currentPeriod = period != Period::zero() ? period : refreshRate.getPeriod();
 
         const auto frameRate = getFrameRateOverride(uid);
         if (!frameRate.has_value()) {
-            return currentPeriod;
+            return currentPeriod.ns();
         }
 
         const auto divisor = RefreshRateSelector::getFrameRateDivisor(refreshRate, *frameRate);
         if (divisor <= 1) {
-            return currentPeriod;
+            return currentPeriod.ns();
         }
-        return currentPeriod * divisor;
+        return currentPeriod.ns() * divisor;
     };
 }
 
@@ -413,23 +419,24 @@ void Scheduler::resyncAllToHardwareVsync(bool allowToEnable) {
     std::scoped_lock lock(mDisplayLock);
     ftl::FakeGuard guard(kMainThreadContext);
 
-    for (const auto& [id, _] : mRefreshRateSelectors) {
+    for (const auto& [id, _] : mDisplays) {
         resyncToHardwareVsyncLocked(id, allowToEnable);
     }
 }
 
 void Scheduler::resyncToHardwareVsyncLocked(PhysicalDisplayId id, bool allowToEnable,
                                             std::optional<Fps> refreshRate) {
-    auto schedule = getVsyncScheduleLocked(id);
-    if (schedule->isHardwareVsyncAllowed(allowToEnable)) {
+    const auto displayOpt = mDisplays.get(id);
+    LOG_ALWAYS_FATAL_IF(!displayOpt);
+    const Display& display = *displayOpt;
+
+    if (display.schedulePtr->isHardwareVsyncAllowed(allowToEnable)) {
         if (!refreshRate) {
-            auto selectorPtr = mRefreshRateSelectors.get(id);
-            LOG_ALWAYS_FATAL_IF(!selectorPtr);
-            refreshRate = selectorPtr->get()->getActiveMode().modePtr->getFps();
+            refreshRate = display.selectorPtr->getActiveMode().modePtr->getFps();
         }
         if (refreshRate->isValid()) {
-            schedule->startPeriodTransition(mSchedulerCallback, refreshRate->getPeriod(),
-                                            false /* force */);
+            display.schedulePtr->startPeriodTransition(mSchedulerCallback, refreshRate->getPeriod(),
+                                                       false /* force */);
         }
     }
 }
@@ -438,9 +445,10 @@ void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
     std::scoped_lock lock(mDisplayLock);
     ftl::FakeGuard guard(kMainThreadContext);
 
-    auto selectorPtr = mRefreshRateSelectors.get(id);
-    LOG_ALWAYS_FATAL_IF(!selectorPtr);
-    const auto mode = selectorPtr->get()->getActiveMode();
+    const auto displayOpt = mDisplays.get(id);
+    LOG_ALWAYS_FATAL_IF(!displayOpt);
+    const Display& display = *displayOpt;
+    const auto mode = display.selectorPtr->getActiveMode();
 
     using fps_approx_ops::operator!=;
     LOG_ALWAYS_FATAL_IF(renderFrameRate != mode.fps,
@@ -451,7 +459,7 @@ void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
     ALOGV("%s %s (%s)", __func__, to_string(mode.fps).c_str(),
           to_string(mode.modePtr->getFps()).c_str());
 
-    getVsyncScheduleLocked(id)->getTracker().setRenderRate(renderFrameRate);
+    display.schedulePtr->getTracker().setRenderRate(renderFrameRate);
 }
 
 void Scheduler::resync() {
@@ -558,22 +566,24 @@ void Scheduler::setDisplayPowerMode(PhysicalDisplayId id, hal::PowerMode powerMo
     mLayerHistory.clear();
 }
 
-std::shared_ptr<const VsyncSchedule> Scheduler::getVsyncSchedule(
-        std::optional<PhysicalDisplayId> idOpt) const {
+auto Scheduler::getVsyncSchedule(std::optional<PhysicalDisplayId> idOpt) const
+        -> ConstVsyncSchedulePtr {
     std::scoped_lock lock(mDisplayLock);
     return getVsyncScheduleLocked(idOpt);
 }
 
-std::shared_ptr<const VsyncSchedule> Scheduler::getVsyncScheduleLocked(
-        std::optional<PhysicalDisplayId> idOpt) const {
+auto Scheduler::getVsyncScheduleLocked(std::optional<PhysicalDisplayId> idOpt) const
+        -> ConstVsyncSchedulePtr {
     ftl::FakeGuard guard(kMainThreadContext);
+
     if (!idOpt) {
         LOG_ALWAYS_FATAL_IF(!mPacesetterDisplayId, "Missing a pacesetter!");
         idOpt = mPacesetterDisplayId;
     }
-    auto scheduleOpt = mVsyncSchedules.get(*idOpt);
-    LOG_ALWAYS_FATAL_IF(!scheduleOpt);
-    return std::const_pointer_cast<const VsyncSchedule>(scheduleOpt->get());
+
+    const auto displayOpt = mDisplays.get(*idOpt);
+    LOG_ALWAYS_FATAL_IF(!displayOpt);
+    return displayOpt->get().schedulePtr;
 }
 
 void Scheduler::kernelIdleTimerCallback(TimerState state) {
@@ -597,9 +607,9 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
         // need to update the VsyncController model anyway.
         std::scoped_lock lock(mDisplayLock);
         ftl::FakeGuard guard(kMainThreadContext);
-        constexpr bool disallow = false;
-        for (auto& [_, schedule] : mVsyncSchedules) {
-            schedule->disableHardwareVsync(mSchedulerCallback, disallow);
+        for (const auto& [_, display] : mDisplays) {
+            constexpr bool kDisallow = false;
+            display.schedulePtr->disableHardwareVsync(mSchedulerCallback, kDisallow);
         }
     }
 
@@ -664,12 +674,12 @@ void Scheduler::dumpVsync(std::string& out) const {
                             to_string(*mPacesetterDisplayId).c_str());
         getVsyncScheduleLocked()->dump(out);
     }
-    for (auto& [id, vsyncSchedule] : mVsyncSchedules) {
+    for (auto& [id, display] : mDisplays) {
         if (id == mPacesetterDisplayId) {
             continue;
         }
         base::StringAppendF(&out, "VsyncSchedule for follower %s:\n", to_string(id).c_str());
-        vsyncSchedule->dump(out);
+        display.schedulePtr->dump(out);
     }
 }
 
@@ -699,25 +709,29 @@ void Scheduler::promotePacesetterDisplay(std::optional<PhysicalDisplayId> pacese
 std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
         std::optional<PhysicalDisplayId> pacesetterIdOpt) {
     // TODO(b/241286431): Choose the pacesetter display.
-    mPacesetterDisplayId = pacesetterIdOpt.value_or(mRefreshRateSelectors.begin()->first);
+    mPacesetterDisplayId = pacesetterIdOpt.value_or(mDisplays.begin()->first);
     ALOGI("Display %s is the pacesetter", to_string(*mPacesetterDisplayId).c_str());
 
-    auto vsyncSchedule = getVsyncScheduleLocked(*mPacesetterDisplayId);
-    if (const auto pacesetterPtr = pacesetterSelectorPtrLocked()) {
-        pacesetterPtr->setIdleTimerCallbacks(
+    std::shared_ptr<VsyncSchedule> newVsyncSchedulePtr;
+    if (const auto pacesetterOpt = pacesetterDisplayLocked()) {
+        const Display& pacesetter = *pacesetterOpt;
+
+        pacesetter.selectorPtr->setIdleTimerCallbacks(
                 {.platform = {.onReset = [this] { idleTimerCallback(TimerState::Reset); },
                               .onExpired = [this] { idleTimerCallback(TimerState::Expired); }},
                  .kernel = {.onReset = [this] { kernelIdleTimerCallback(TimerState::Reset); },
                             .onExpired =
                                     [this] { kernelIdleTimerCallback(TimerState::Expired); }}});
 
-        pacesetterPtr->startIdleTimer();
+        pacesetter.selectorPtr->startIdleTimer();
 
-        const Fps refreshRate = pacesetterPtr->getActiveMode().modePtr->getFps();
-        vsyncSchedule->startPeriodTransition(mSchedulerCallback, refreshRate.getPeriod(),
-                                             true /* force */);
+        newVsyncSchedulePtr = pacesetter.schedulePtr;
+
+        const Fps refreshRate = pacesetter.selectorPtr->getActiveMode().modePtr->getFps();
+        newVsyncSchedulePtr->startPeriodTransition(mSchedulerCallback, refreshRate.getPeriod(),
+                                                   true /* force */);
     }
-    return vsyncSchedule;
+    return newVsyncSchedulePtr;
 }
 
 void Scheduler::applyNewVsyncSchedule(std::shared_ptr<VsyncSchedule> vsyncSchedule) {
@@ -831,9 +845,10 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
 
     const auto globalSignals = makeGlobalSignals();
 
-    for (const auto& [id, selectorPtr] : mRefreshRateSelectors) {
+    for (const auto& [id, display] : mDisplays) {
         auto rankedFrameRates =
-                selectorPtr->getRankedFrameRates(mPolicy.contentRequirements, globalSignals);
+                display.selectorPtr->getRankedFrameRates(mPolicy.contentRequirements,
+                                                         globalSignals);
 
         for (const auto& [frameRateMode, score] : rankedFrameRates.ranking) {
             const auto [it, inserted] = refreshRateTallies.try_emplace(frameRateMode.fps, score);
@@ -852,7 +867,7 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
 
     // Find the first refresh rate common to all displays.
     while (maxScoreIt != refreshRateTallies.cend() &&
-           maxScoreIt->second.displayCount != mRefreshRateSelectors.size()) {
+           maxScoreIt->second.displayCount != mDisplays.size()) {
         ++maxScoreIt;
     }
 
@@ -861,8 +876,7 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
         for (auto it = maxScoreIt + 1; it != refreshRateTallies.cend(); ++it) {
             const auto [fps, tally] = *it;
 
-            if (tally.displayCount == mRefreshRateSelectors.size() &&
-                tally.score > maxScoreIt->second.score) {
+            if (tally.displayCount == mDisplays.size() && tally.score > maxScoreIt->second.score) {
                 maxScoreIt = it;
             }
         }

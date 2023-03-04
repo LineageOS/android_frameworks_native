@@ -65,10 +65,6 @@ public:
 
     auto refreshRateSelector() { return pacesetterSelectorPtr(); }
 
-    const auto& refreshRateSelectors() const NO_THREAD_SAFETY_ANALYSIS {
-        return mRefreshRateSelectors;
-    }
-
     void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
         registerDisplay(displayId, std::move(selectorPtr),
                         std::make_unique<mock::VsyncController>(),
