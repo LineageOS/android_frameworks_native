@@ -176,4 +176,10 @@ MATCHER_P(WithDownTime, downTime, "InputEvent with specified downTime") {
     return arg.downTime == downTime;
 }
 
+MATCHER_P2(WithPrecision, xPrecision, yPrecision, "MotionEvent with specified precision") {
+    *result_listener << "expected x-precision " << xPrecision << " and y-precision " << yPrecision
+                     << ", but got " << arg.xPrecision << " and " << arg.yPrecision;
+    return arg.xPrecision == xPrecision && arg.yPrecision == yPrecision;
+}
+
 } // namespace android
