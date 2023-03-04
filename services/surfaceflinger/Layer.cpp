@@ -3037,6 +3037,10 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
                                       mLastClientCompositionFence);
             mLastClientCompositionFence = nullptr;
         }
+    } else {
+        // if we are latching a buffer for the first time then clear the mLastLatchTime since
+        // we don't want to incorrectly classify a frame if we miss the desired present time.
+        updateLastLatchTime(0);
     }
 
     mDrawingState.producerId = bufferData.producerId;
