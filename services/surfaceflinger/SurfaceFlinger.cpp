@@ -456,6 +456,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         android::hardware::details::setTrebleTestingOverride(true);
     }
 
+    // TODO (b/270966065) Update the HWC based refresh rate overlay to support spinner
     mRefreshRateOverlaySpinner = property_get_bool("debug.sf.show_refresh_rate_overlay_spinner", 0);
     mRefreshRateOverlayRenderRate =
             property_get_bool("debug.sf.show_refresh_rate_overlay_render_rate", 0);
@@ -2098,8 +2099,24 @@ void SurfaceFlinger::onComposerHalVsyncIdle(hal::HWDisplayId) {
     mScheduler->forceNextResync();
 }
 
-void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData&) {
-    // TODO(b/202734676) update refresh rate value on the RefreshRateOverlay
+void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData& data) {
+    ATRACE_CALL();
+    if (const auto displayId = getHwComposer().toPhysicalDisplayId(data.display); displayId) {
+        const Fps fps = Fps::fromPeriodNsecs(data.vsyncPeriodNanos);
+        ATRACE_FORMAT("%s Fps %d", __func__, fps.getIntValue());
+        static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
+            {
+                {
+                    const auto display = getDisplayDeviceLocked(*displayId);
+                    FTL_FAKE_GUARD(kMainThreadContext,
+                                   display->updateRefreshRateOverlayRate(fps,
+                                                                         display->getActiveMode()
+                                                                                 .fps,
+                                                                         /* setByHwc */ true));
+                }
+            }
+        }));
+    }
 }
 
 void SurfaceFlinger::setVsyncEnabled(PhysicalDisplayId id, bool enabled) {
@@ -7531,10 +7548,20 @@ status_t SurfaceFlinger::setOverrideFrameRate(uid_t uid, float frameRate) {
 }
 
 void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
+    bool setByHwc = getHwComposer().hasCapability(Capability::REFRESH_RATE_CHANGED_CALLBACK_DEBUG);
     for (const auto& [id, display] : mPhysicalDisplays) {
         if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal) {
+            if (setByHwc) {
+                const auto status =
+                        getHwComposer().setRefreshRateChangedCallbackDebugEnabled(id, enable);
+                if (status != NO_ERROR) {
+                    ALOGE("Error updating the refresh rate changed callback debug enabled");
+                    return;
+                }
+            }
+
             if (const auto device = getDisplayDeviceLocked(id)) {
-                device->enableRefreshRateOverlay(enable, mRefreshRateOverlaySpinner,
+                device->enableRefreshRateOverlay(enable, setByHwc, mRefreshRateOverlaySpinner,
                                                  mRefreshRateOverlayRenderRate,
                                                  mRefreshRateOverlayShowInMiddle);
             }
