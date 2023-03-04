@@ -6754,28 +6754,30 @@ public:
     // The values inside DisplayViewport are expected to be pre-rotated. This updates the current
     // DisplayViewport to pre-rotate the values. The viewport's physical display will be set to the
     // rotated equivalent of the given un-rotated physical display bounds.
-    void configurePhysicalDisplay(ui::Rotation orientation, Rect naturalPhysicalDisplay) {
+    void configurePhysicalDisplay(ui::Rotation orientation, Rect naturalPhysicalDisplay,
+                                  int32_t naturalDisplayWidth = DISPLAY_WIDTH,
+                                  int32_t naturalDisplayHeight = DISPLAY_HEIGHT) {
         uint32_t inverseRotationFlags;
-        auto width = DISPLAY_WIDTH;
-        auto height = DISPLAY_HEIGHT;
+        auto rotatedWidth = naturalDisplayWidth;
+        auto rotatedHeight = naturalDisplayHeight;
         switch (orientation) {
             case ui::ROTATION_90:
                 inverseRotationFlags = ui::Transform::ROT_270;
-                std::swap(width, height);
+                std::swap(rotatedWidth, rotatedHeight);
                 break;
             case ui::ROTATION_180:
                 inverseRotationFlags = ui::Transform::ROT_180;
                 break;
             case ui::ROTATION_270:
                 inverseRotationFlags = ui::Transform::ROT_90;
-                std::swap(width, height);
+                std::swap(rotatedWidth, rotatedHeight);
                 break;
             case ui::ROTATION_0:
                 inverseRotationFlags = ui::Transform::ROT_0;
                 break;
         }
 
-        const ui::Transform rotation(inverseRotationFlags, width, height);
+        const ui::Transform rotation(inverseRotationFlags, rotatedWidth, rotatedHeight);
         const Rect rotatedPhysicalDisplay = rotation.transform(naturalPhysicalDisplay);
 
         std::optional<DisplayViewport> internalViewport =
@@ -6794,8 +6796,8 @@ public:
         v.physicalRight = rotatedPhysicalDisplay.right;
         v.physicalBottom = rotatedPhysicalDisplay.bottom;
 
-        v.deviceWidth = width;
-        v.deviceHeight = height;
+        v.deviceWidth = rotatedWidth;
+        v.deviceHeight = rotatedHeight;
 
         v.isActive = true;
         v.uniqueId = UNIQUE_ID;
@@ -6908,6 +6910,197 @@ TEST_F(TouchDisplayProjectionTest, EmitsTouchDownAfterEnteringPhysicalDisplay) {
         ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
     }
 }
+
+// --- TouchscreenPrecisionTests ---
+
+// This test suite is used to ensure that touchscreen devices are scaled and configured correctly
+// in various orientations and with different display rotations. We configure the touchscreen to
+// have a higher resolution than that of the display by an integer scale factor in each axis so that
+// we can enforce that coordinates match precisely as expected.
+class TouchscreenPrecisionTestsFixture : public TouchDisplayProjectionTest,
+                                         public ::testing::WithParamInterface<ui::Rotation> {
+public:
+    void SetUp() override {
+        SingleTouchInputMapperTest::SetUp();
+
+        // Prepare the raw axes to have twice the resolution of the display in the X axis and
+        // four times the resolution of the display in the Y axis.
+        prepareButtons();
+        mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_X, PRECISION_RAW_X_MIN, PRECISION_RAW_X_MAX,
+                                       0, 0);
+        mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_Y, PRECISION_RAW_Y_MIN, PRECISION_RAW_Y_MAX,
+                                       0, 0);
+    }
+
+    static const int32_t PRECISION_RAW_X_MIN = TouchInputMapperTest::RAW_X_MIN;
+    static const int32_t PRECISION_RAW_X_MAX = PRECISION_RAW_X_MIN + DISPLAY_WIDTH * 2 - 1;
+    static const int32_t PRECISION_RAW_Y_MIN = TouchInputMapperTest::RAW_Y_MIN;
+    static const int32_t PRECISION_RAW_Y_MAX = PRECISION_RAW_Y_MIN + DISPLAY_HEIGHT * 4 - 1;
+
+    static const std::array<Point, 4> kRawCorners;
+};
+
+const std::array<Point, 4> TouchscreenPrecisionTestsFixture::kRawCorners = {{
+        {PRECISION_RAW_X_MIN, PRECISION_RAW_Y_MIN}, // left-top
+        {PRECISION_RAW_X_MAX, PRECISION_RAW_Y_MIN}, // right-top
+        {PRECISION_RAW_X_MAX, PRECISION_RAW_Y_MAX}, // right-bottom
+        {PRECISION_RAW_X_MIN, PRECISION_RAW_Y_MAX}, // left-bottom
+}};
+
+// Tests for how the touchscreen is oriented relative to the natural orientation of the display.
+// For example, if a touchscreen is configured with an orientation of 90 degrees, it is a portrait
+// touchscreen panel that is used on a device whose natural display orientation is in landscape.
+TEST_P(TouchscreenPrecisionTestsFixture, OrientationPrecision) {
+    enum class Orientation {
+        ORIENTATION_0 = ui::toRotationInt(ui::ROTATION_0),
+        ORIENTATION_90 = ui::toRotationInt(ui::ROTATION_90),
+        ORIENTATION_180 = ui::toRotationInt(ui::ROTATION_180),
+        ORIENTATION_270 = ui::toRotationInt(ui::ROTATION_270),
+        ftl_last = ORIENTATION_270,
+    };
+    using Orientation::ORIENTATION_0, Orientation::ORIENTATION_90, Orientation::ORIENTATION_180,
+            Orientation::ORIENTATION_270;
+    static const std::map<Orientation, std::array<vec2, 4> /*mappedCorners*/> kMappedCorners = {
+            {ORIENTATION_0, {{{0, 0}, {479.5, 0}, {479.5, 799.75}, {0, 799.75}}}},
+            {ORIENTATION_90, {{{0, 479.5}, {0, 0}, {799.75, 0}, {799.75, 479.5}}}},
+            {ORIENTATION_180, {{{479.5, 799.75}, {0, 799.75}, {0, 0}, {479.5, 0}}}},
+            {ORIENTATION_270, {{{799.75, 0}, {799.75, 479.5}, {0, 479.5}, {0, 0}}}},
+    };
+
+    const auto touchscreenOrientation = static_cast<Orientation>(ui::toRotationInt(GetParam()));
+
+    // Configure the touchscreen as being installed in the one of the four different orientations
+    // relative to the display.
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    addConfigurationProperty("touch.orientation", ftl::enum_string(touchscreenOrientation).c_str());
+    prepareDisplay(ui::ROTATION_0);
+
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    // If the touchscreen is installed in a rotated orientation relative to the display (i.e. in
+    // orientations of either 90 or 270) this means the display's natural resolution will be
+    // flipped.
+    const bool displayRotated =
+            touchscreenOrientation == ORIENTATION_90 || touchscreenOrientation == ORIENTATION_270;
+    const int32_t width = displayRotated ? DISPLAY_HEIGHT : DISPLAY_WIDTH;
+    const int32_t height = displayRotated ? DISPLAY_WIDTH : DISPLAY_HEIGHT;
+    const Rect physicalFrame{0, 0, width, height};
+    configurePhysicalDisplay(ui::ROTATION_0, physicalFrame, width, height);
+
+    const auto& expectedPoints = kMappedCorners.at(touchscreenOrientation);
+    const float expectedPrecisionX = displayRotated ? 4 : 2;
+    const float expectedPrecisionY = displayRotated ? 2 : 4;
+
+    // Test all four corners.
+    for (int i = 0; i < 4; i++) {
+        const auto& raw = kRawCorners[i];
+        processDown(mapper, raw.x, raw.y);
+        processSync(mapper);
+        const auto& expected = expectedPoints[i];
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                      WithCoords(expected.x, expected.y),
+                      WithPrecision(expectedPrecisionX, expectedPrecisionY))))
+                << "Failed to process raw point (" << raw.x << ", " << raw.y << ") "
+                << "with touchscreen orientation "
+                << ftl::enum_string(touchscreenOrientation).c_str() << ", expected point ("
+                << expected.x << ", " << expected.y << ").";
+        processUp(mapper);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                      WithCoords(expected.x, expected.y))));
+    }
+}
+
+TEST_P(TouchscreenPrecisionTestsFixture, RotationPrecisionWhenOrientationAware) {
+    static const std::map<ui::Rotation /*rotation*/, std::array<vec2, 4> /*mappedCorners*/>
+            kMappedCorners = {
+                    {ui::ROTATION_0, {{{0, 0}, {479.5, 0}, {479.5, 799.75}, {0, 799.75}}}},
+                    {ui::ROTATION_90, {{{0.5, 0}, {480, 0}, {480, 799.75}, {0.5, 799.75}}}},
+                    {ui::ROTATION_180, {{{0.5, 0.25}, {480, 0.25}, {480, 800}, {0.5, 800}}}},
+                    {ui::ROTATION_270, {{{0, 0.25}, {479.5, 0.25}, {479.5, 800}, {0, 800}}}},
+            };
+
+    const ui::Rotation displayRotation = GetParam();
+
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(displayRotation);
+
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    const auto& expectedPoints = kMappedCorners.at(displayRotation);
+
+    // Test all four corners.
+    for (int i = 0; i < 4; i++) {
+        const auto& expected = expectedPoints[i];
+        const auto& raw = kRawCorners[i];
+        processDown(mapper, raw.x, raw.y);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                      WithCoords(expected.x, expected.y), WithPrecision(2, 4))))
+                << "Failed to process raw point (" << raw.x << ", " << raw.y << ") "
+                << "with display rotation " << ui::toCString(displayRotation)
+                << ", expected point (" << expected.x << ", " << expected.y << ").";
+        processUp(mapper);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                      WithCoords(expected.x, expected.y))));
+    }
+}
+
+TEST_P(TouchscreenPrecisionTestsFixture, RotationPrecisionOrientationAwareInOri270) {
+    static const std::map<ui::Rotation /*orientation*/, std::array<vec2, 4> /*mappedCorners*/>
+            kMappedCorners = {
+                    {ui::ROTATION_0, {{{799.75, 0}, {799.75, 479.5}, {0, 479.5}, {0, 0}}}},
+                    {ui::ROTATION_90, {{{800, 0}, {800, 479.5}, {0.25, 479.5}, {0.25, 0}}}},
+                    {ui::ROTATION_180, {{{800, 0.5}, {800, 480}, {0.25, 480}, {0.25, 0.5}}}},
+                    {ui::ROTATION_270, {{{799.75, 0.5}, {799.75, 480}, {0, 480}, {0, 0.5}}}},
+            };
+
+    const ui::Rotation displayRotation = GetParam();
+
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    addConfigurationProperty("touch.orientation", "ORIENTATION_270");
+
+    SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
+
+    // Ori 270, so width and height swapped
+    const Rect physicalFrame{0, 0, DISPLAY_HEIGHT, DISPLAY_WIDTH};
+    prepareDisplay(displayRotation);
+    configurePhysicalDisplay(displayRotation, physicalFrame, DISPLAY_HEIGHT, DISPLAY_WIDTH);
+
+    const auto& expectedPoints = kMappedCorners.at(displayRotation);
+
+    // Test all four corners.
+    for (int i = 0; i < 4; i++) {
+        const auto& expected = expectedPoints[i];
+        const auto& raw = kRawCorners[i];
+        processDown(mapper, raw.x, raw.y);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                      WithCoords(expected.x, expected.y), WithPrecision(4, 2))))
+                << "Failed to process raw point (" << raw.x << ", " << raw.y << ") "
+                << "with display rotation " << ui::toCString(displayRotation)
+                << ", expected point (" << expected.x << ", " << expected.y << ").";
+        processUp(mapper);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                      WithCoords(expected.x, expected.y))));
+    }
+}
+
+// Run the precision tests for all rotations.
+INSTANTIATE_TEST_SUITE_P(TouchscreenPrecisionTests, TouchscreenPrecisionTestsFixture,
+                         ::testing::Values(ui::ROTATION_0, ui::ROTATION_90, ui::ROTATION_180,
+                                           ui::ROTATION_270),
+                         [](const testing::TestParamInfo<ui::Rotation>& testParamInfo) {
+                             return ftl::enum_string(testParamInfo.param);
+                         });
 
 // --- ExternalStylusFusionTest ---
 
