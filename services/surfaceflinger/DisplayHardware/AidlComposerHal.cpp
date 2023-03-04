@@ -1428,6 +1428,19 @@ Error AidlComposer::setHdrConversionStrategy(AidlHdrConversionStrategy hdrConver
     return Error::NONE;
 }
 
+Error AidlComposer::setRefreshRateChangedCallbackDebugEnabled(Display displayId, bool enabled) {
+    const auto status =
+            mAidlComposerClient->setRefreshRateChangedCallbackDebugEnabled(translate<int64_t>(
+                                                                                   displayId),
+                                                                           enabled);
+    if (!status.isOk()) {
+        ALOGE("setRefreshRateChangedCallbackDebugEnabled failed %s",
+              status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
 Error AidlComposer::getClientTargetProperty(
         Display display, ClientTargetPropertyWithBrightness* outClientTargetProperty) {
     Error error = Error::NONE;
