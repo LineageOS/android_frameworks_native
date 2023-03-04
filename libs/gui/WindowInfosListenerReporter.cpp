@@ -62,6 +62,10 @@ status_t WindowInfosListenerReporter::removeWindowInfosListener(
     status_t status = OK;
     {
         std::scoped_lock lock(mListenersMutex);
+        if (mWindowInfosListeners.find(windowInfosListener) == mWindowInfosListeners.end()) {
+            return status;
+        }
+
         if (mWindowInfosListeners.size() == 1) {
             binder::Status s = surfaceComposer->removeWindowInfosListener(this);
             status = statusTFromBinderStatus(s);

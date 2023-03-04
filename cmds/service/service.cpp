@@ -75,7 +75,7 @@ int main(int argc, char* const argv[])
     ProcessState::initWithDriver("/dev/vndbinder");
 #endif
 #ifndef __ANDROID__
-    setDefaultServiceManager(createRpcDelegateServiceManager({.maxOutgoingThreads = 1}));
+    setDefaultServiceManager(createRpcDelegateServiceManager({.maxOutgoingConnections = 1}));
 #endif
     sp<IServiceManager> sm = defaultServiceManager();
     fflush(stdout);

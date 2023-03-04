@@ -29,7 +29,6 @@
 #include <SkBlendMode.h>
 #include <SkRect.h>
 #include <SkSurface.h>
-#include <gui/SurfaceComposerClient.h>
 #include <gui/SurfaceControl.h>
 
 #undef LOG_TAG
@@ -45,15 +44,6 @@ constexpr int kDigitSpace = 16;
 constexpr int kMaxDigits = /*displayFps*/ 3 + /*renderFps*/ 3 + /*spinner*/ 1;
 constexpr int kBufferWidth = kMaxDigits * kDigitWidth + (kMaxDigits - 1) * kDigitSpace;
 constexpr int kBufferHeight = kDigitHeight;
-
-SurfaceComposerClient::Transaction createTransaction(const sp<SurfaceControl>& surface) {
-    constexpr float kFrameRate = 0.f;
-    constexpr int8_t kCompatibility = ANATIVEWINDOW_FRAME_RATE_NO_VOTE;
-    constexpr int8_t kSeamlessness = ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS;
-
-    return SurfaceComposerClient::Transaction().setFrameRate(surface, kFrameRate, kCompatibility,
-                                                             kSeamlessness);
-}
 
 } // namespace
 
@@ -242,7 +232,7 @@ RefreshRateOverlay::RefreshRateOverlay(FpsRange fpsRange, ftl::Flags<Features> f
         return;
     }
 
-    createTransaction(mSurfaceControl->get())
+    createTransaction()
             .setLayer(mSurfaceControl->get(), INT32_MAX - 2)
             .setTrustedOverlay(mSurfaceControl->get(), true)
             .apply();
@@ -272,14 +262,14 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps displayFps, Fps renderFps) -> co
         }
     }();
 
-    createTransaction(mSurfaceControl->get())
-            .setTransform(mSurfaceControl->get(), transform)
-            .apply();
+    createTransaction().setTransform(mSurfaceControl->get(), transform).apply();
 
     BufferCache::const_iterator it =
             mBufferCache.find({displayFps.getIntValue(), renderFps.getIntValue(), transformHint});
     if (it == mBufferCache.end()) {
-        const int minFps = mFpsRange.min.getIntValue();
+        // HWC minFps is not known by the framework in order
+        // to consider lower rates we set minFps to 0.
+        const int minFps = isSetByHwc() ? 0 : mFpsRange.min.getIntValue();
         const int maxFps = mFpsRange.max.getIntValue();
 
         // Clamp to the range. The current displayFps may be outside of this range if the display
@@ -327,7 +317,7 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
         frame.offsetBy(width >> 1, height >> 4);
     }
 
-    createTransaction(mSurfaceControl->get())
+    createTransaction()
             .setMatrix(mSurfaceControl->get(), frame.getWidth() / static_cast<float>(kBufferWidth),
                        0, 0, frame.getHeight() / static_cast<float>(kBufferHeight))
             .setPosition(mSurfaceControl->get(), frame.left, frame.top)
@@ -335,14 +325,14 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
 }
 
 void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
-    createTransaction(mSurfaceControl->get()).setLayerStack(mSurfaceControl->get(), stack).apply();
+    createTransaction().setLayerStack(mSurfaceControl->get(), stack).apply();
 }
 
 void RefreshRateOverlay::changeRefreshRate(Fps displayFps, Fps renderFps) {
     mDisplayFps = displayFps;
     mRenderFps = renderFps;
     const auto buffer = getOrCreateBuffers(displayFps, renderFps)[mFrame];
-    createTransaction(mSurfaceControl->get()).setBuffer(mSurfaceControl->get(), buffer).apply();
+    createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
 void RefreshRateOverlay::animate() {
@@ -351,7 +341,23 @@ void RefreshRateOverlay::animate() {
     const auto& buffers = getOrCreateBuffers(*mDisplayFps, *mRenderFps);
     mFrame = (mFrame + 1) % buffers.size();
     const auto buffer = buffers[mFrame];
-    createTransaction(mSurfaceControl->get()).setBuffer(mSurfaceControl->get(), buffer).apply();
+    createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
+}
+
+SurfaceComposerClient::Transaction RefreshRateOverlay::createTransaction() const {
+    constexpr float kFrameRate = 0.f;
+    constexpr int8_t kCompatibility = ANATIVEWINDOW_FRAME_RATE_NO_VOTE;
+    constexpr int8_t kSeamlessness = ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS;
+
+    const sp<SurfaceControl>& surface = mSurfaceControl->get();
+
+    SurfaceComposerClient::Transaction transaction;
+    if (isSetByHwc()) {
+        transaction.setFlags(surface, layer_state_t::eLayerIsRefreshRateIndicator,
+                             layer_state_t::eLayerIsRefreshRateIndicator);
+    }
+    transaction.setFrameRate(surface, kFrameRate, kCompatibility, kSeamlessness);
+    return transaction;
 }
 
 } // namespace android

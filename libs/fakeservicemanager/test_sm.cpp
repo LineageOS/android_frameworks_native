@@ -21,14 +21,14 @@
 #include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
 
-#include "ServiceManager.h"
+#include "fakeservicemanager/FakeServiceManager.h"
 
 using android::sp;
 using android::BBinder;
 using android::IBinder;
 using android::OK;
 using android::status_t;
-using android::ServiceManager;
+using android::FakeServiceManager;
 using android::String16;
 using android::IServiceManager;
 using testing::ElementsAre;
@@ -45,19 +45,19 @@ static sp<IBinder> getBinder() {
 }
 
 TEST(AddService, HappyHappy) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
     EXPECT_EQ(sm->addService(String16("foo"), getBinder(), false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
 }
 
 TEST(AddService, SadNullBinder) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
     EXPECT_EQ(sm->addService(String16("foo"), nullptr, false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), android::UNEXPECTED_NULL);
 }
 
 TEST(AddService, HappyOverExistingService) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
     EXPECT_EQ(sm->addService(String16("foo"), getBinder(), false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
     EXPECT_EQ(sm->addService(String16("foo"), getBinder(), false /*allowIsolated*/,
@@ -65,7 +65,7 @@ TEST(AddService, HappyOverExistingService) {
 }
 
 TEST(AddService, HappyClearAddedService) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
     EXPECT_EQ(sm->addService(String16("foo"), getBinder(), false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
     EXPECT_NE(sm->getService(String16("foo")), nullptr);
@@ -74,7 +74,7 @@ TEST(AddService, HappyClearAddedService) {
 }
 
 TEST(GetService, HappyHappy) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
     sp<IBinder> service = getBinder();
 
     EXPECT_EQ(sm->addService(String16("foo"), service, false /*allowIsolated*/,
@@ -84,13 +84,13 @@ TEST(GetService, HappyHappy) {
 }
 
 TEST(GetService, NonExistant) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
 
     EXPECT_EQ(sm->getService(String16("foo")), nullptr);
 }
 
 TEST(ListServices, AllServices) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
 
     EXPECT_EQ(sm->addService(String16("sd"), getBinder(), false /*allowIsolated*/,
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
@@ -109,13 +109,13 @@ TEST(ListServices, AllServices) {
 }
 
 TEST(WaitForService, NonExistant) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
 
     EXPECT_EQ(sm->waitForService(String16("foo")), nullptr);
 }
 
 TEST(WaitForService, HappyHappy) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
     sp<IBinder> service = getBinder();
 
     EXPECT_EQ(sm->addService(String16("foo"), service, false /*allowIsolated*/,
@@ -125,13 +125,13 @@ TEST(WaitForService, HappyHappy) {
 }
 
 TEST(IsDeclared, NonExistant) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
 
     EXPECT_FALSE(sm->isDeclared(String16("foo")));
 }
 
 TEST(IsDeclared, HappyHappy) {
-    auto sm = new ServiceManager();
+    auto sm = new FakeServiceManager();
     sp<IBinder> service = getBinder();
 
     EXPECT_EQ(sm->addService(String16("foo"), service, false /*allowIsolated*/,

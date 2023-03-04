@@ -67,26 +67,30 @@ public:
     /**
      * Set the maximum number of incoming threads allowed to be made (for things like callbacks).
      * By default, this is 0. This must be called before setting up this connection as a client.
-     * Server sessions will inherits this value from RpcServer.
+     * Server sessions will inherits this value from RpcServer. Each thread will serve a
+     * connection to the remote RpcSession.
      *
      * If this is called, 'shutdown' on this session must also be called.
      * Otherwise, a threadpool will leak.
      *
-     * TODO(b/189955605): start these dynamically
+     * TODO(b/189955605): start these lazily - currently all are started
      */
     void setMaxIncomingThreads(size_t threads);
     size_t getMaxIncomingThreads();
 
     /**
-     * Set the maximum number of outgoing threads allowed to be made.
+     * Set the maximum number of outgoing connections allowed to be made.
      * By default, this is |kDefaultMaxOutgoingThreads|. This must be called before setting up this
      * connection as a client.
      *
-     * This limits the number of outgoing threads on top of the remote peer setting. This RpcSession
-     * will only instantiate |min(maxOutgoingThreads, remoteMaxThreads)| outgoing threads, where
-     * |remoteMaxThreads| can be retrieved from the remote peer via |getRemoteMaxThreads()|.
+     * For an RpcSession client, if you are connecting to a server which starts N threads,
+     * then this must be set to >= N. If you set the maximum number of outgoing connections
+     * to 1, but the server requests 10, then it would be considered an error. If you set a
+     * maximum number of connections to 10, and the server requests 1, then only 1 will be
+     * created. This API is used to limit the amount of resources a server can request you
+     * create.
      */
-    void setMaxOutgoingThreads(size_t threads);
+    void setMaxOutgoingConnections(size_t threads);
     size_t getMaxOutgoingThreads();
 
     /**

@@ -90,7 +90,7 @@ size_t RpcSession::getMaxIncomingThreads() {
     return mMaxIncomingThreads;
 }
 
-void RpcSession::setMaxOutgoingThreads(size_t threads) {
+void RpcSession::setMaxOutgoingConnections(size_t threads) {
     RpcMutexLockGuard _l(mMutex);
     LOG_ALWAYS_FATAL_IF(mStartedSetup,
                         "Must set max outgoing threads before setting up connections");
@@ -932,7 +932,8 @@ status_t RpcSession::ExclusiveConnection::find(const sp<RpcSession>& session, Co
                   (session->server()
                            ? "This is a server session, so see RpcSession::setMaxIncomingThreads "
                              "for the corresponding client"
-                           : "This is a client session, so see RpcSession::setMaxOutgoingThreads "
+                           : "This is a client session, so see "
+                             "RpcSession::setMaxOutgoingConnections "
                              "for this client or RpcServer::setMaxThreads for the corresponding "
                              "server"));
             return WOULD_BLOCK;

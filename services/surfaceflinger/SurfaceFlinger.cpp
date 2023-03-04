@@ -456,6 +456,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         android::hardware::details::setTrebleTestingOverride(true);
     }
 
+    // TODO (b/270966065) Update the HWC based refresh rate overlay to support spinner
     mRefreshRateOverlaySpinner = property_get_bool("debug.sf.show_refresh_rate_overlay_spinner", 0);
     mRefreshRateOverlayRenderRate =
             property_get_bool("debug.sf.show_refresh_rate_overlay_render_rate", 0);
@@ -473,7 +474,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
             {.late = base::GetBoolProperty("debug.sf.send_late_power_session_hint"s, true),
              .early = base::GetBoolProperty("debug.sf.send_early_power_session_hint"s, false)};
     mLayerLifecycleManagerEnabled =
-            base::GetBoolProperty("debug.sf.enable_layer_lifecycle_manager"s, false);
+            base::GetBoolProperty("persist.debug.sf.enable_layer_lifecycle_manager"s, false);
     mLegacyFrontEndEnabled = !mLayerLifecycleManagerEnabled ||
             base::GetBoolProperty("debug.sf.enable_legacy_frontend"s, true);
 }
@@ -2098,8 +2099,24 @@ void SurfaceFlinger::onComposerHalVsyncIdle(hal::HWDisplayId) {
     mScheduler->forceNextResync();
 }
 
-void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData&) {
-    // TODO(b/202734676) update refresh rate value on the RefreshRateOverlay
+void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData& data) {
+    ATRACE_CALL();
+    if (const auto displayId = getHwComposer().toPhysicalDisplayId(data.display); displayId) {
+        const Fps fps = Fps::fromPeriodNsecs(data.vsyncPeriodNanos);
+        ATRACE_FORMAT("%s Fps %d", __func__, fps.getIntValue());
+        static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
+            {
+                {
+                    const auto display = getDisplayDeviceLocked(*displayId);
+                    FTL_FAKE_GUARD(kMainThreadContext,
+                                   display->updateRefreshRateOverlayRate(fps,
+                                                                         display->getActiveMode()
+                                                                                 .fps,
+                                                                         /* setByHwc */ true));
+                }
+            }
+        }));
+    }
 }
 
 void SurfaceFlinger::setVsyncEnabled(PhysicalDisplayId id, bool enabled) {
@@ -3366,7 +3383,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     }
 
     if (display->isVirtual()) {
-        display->adjustRefreshRate(mScheduler->getLeaderRefreshRate());
+        display->adjustRefreshRate(mScheduler->getPacesetterRefreshRate());
     }
 
     mDisplays.try_emplace(displayToken, std::move(display));
@@ -7531,10 +7548,20 @@ status_t SurfaceFlinger::setOverrideFrameRate(uid_t uid, float frameRate) {
 }
 
 void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
+    bool setByHwc = getHwComposer().hasCapability(Capability::REFRESH_RATE_CHANGED_CALLBACK_DEBUG);
     for (const auto& [id, display] : mPhysicalDisplays) {
         if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal) {
+            if (setByHwc) {
+                const auto status =
+                        getHwComposer().setRefreshRateChangedCallbackDebugEnabled(id, enable);
+                if (status != NO_ERROR) {
+                    ALOGE("Error updating the refresh rate changed callback debug enabled");
+                    return;
+                }
+            }
+
             if (const auto device = getDisplayDeviceLocked(id)) {
-                device->enableRefreshRateOverlay(enable, mRefreshRateOverlaySpinner,
+                device->enableRefreshRateOverlay(enable, setByHwc, mRefreshRateOverlaySpinner,
                                                  mRefreshRateOverlayRenderRate,
                                                  mRefreshRateOverlayShowInMiddle);
             }
@@ -7662,15 +7689,15 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
 
     updateActiveDisplayVsyncLocked(activeDisplay);
     mScheduler->setModeChangePending(false);
-    mScheduler->setLeaderDisplay(mActiveDisplayId);
+    mScheduler->setPacesetterDisplay(mActiveDisplayId);
 
     onActiveDisplaySizeChanged(activeDisplay);
     mActiveDisplayTransformHint = activeDisplay.getTransformHint();
 
-    // The policy of the new active/leader display may have changed while it was inactive. In that
-    // case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In either
-    // case, the Scheduler's cachedModeChangedParams must be initialized to the newly active mode,
-    // and the kernel idle timer of the newly active display must be toggled.
+    // The policy of the new active/pacesetter display may have changed while it was inactive. In
+    // that case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In
+    // either case, the Scheduler's cachedModeChangedParams must be initialized to the newly active
+    // mode, and the kernel idle timer of the newly active display must be toggled.
     constexpr bool kForce = true;
     applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector(), kForce);
 }

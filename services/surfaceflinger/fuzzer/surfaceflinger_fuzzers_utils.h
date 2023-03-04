@@ -247,7 +247,7 @@ public:
 
     auto &mutableLayerHistory() { return mLayerHistory; }
 
-    auto refreshRateSelector() { return leaderSelectorPtr(); }
+    auto refreshRateSelector() { return pacesetterSelectorPtr(); }
 
     void replaceTouchTimer(int64_t millis) {
         if (mTouchTimer) {
