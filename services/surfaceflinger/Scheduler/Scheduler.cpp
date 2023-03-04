@@ -487,10 +487,10 @@ void Scheduler::deregisterLayer(Layer* layer) {
     mLayerHistory.deregisterLayer(layer);
 }
 
-void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime,
+void Scheduler::recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
                                    LayerHistory::LayerUpdateType updateType) {
     if (pacesetterSelectorPtr()->canSwitch()) {
-        mLayerHistory.record(layer, presentTime, systemTime(), updateType);
+        mLayerHistory.record(id, layerProps, presentTime, systemTime(), updateType);
     }
 }
 

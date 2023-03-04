@@ -219,8 +219,8 @@ public:
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
-    void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType)
-            EXCLUDES(mDisplayLock);
+    void recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
+                            LayerHistory::LayerUpdateType) EXCLUDES(mDisplayLock);
     void setModeChangePending(bool pending);
     void setDefaultFrameRateCompatibility(Layer*);
     void deregisterLayer(Layer*);
