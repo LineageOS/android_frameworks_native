@@ -67,7 +67,7 @@ public:
      * checkEnableMotionPredition: the function to check whether the prediction should run. Used to
      * provide an additional way of turning prediction on and off. Can be toggled at runtime.
      */
-    MotionPredictor(nsecs_t predictionTimestampOffsetNanos, const char* modelPath = nullptr,
+    MotionPredictor(nsecs_t predictionTimestampOffsetNanos,
                     std::function<bool()> checkEnableMotionPrediction = isMotionPredictionEnabled);
     /**
      * Record the actual motion received by the view. This event will be used for calculating the
@@ -82,7 +82,6 @@ public:
 
 private:
     const nsecs_t mPredictionTimestampOffsetNanos;
-    const std::string mModelPath;
     const std::function<bool()> mCheckMotionPredictionEnabled;
 
     std::unique_ptr<TfLiteMotionPredictorModel> mModel;
