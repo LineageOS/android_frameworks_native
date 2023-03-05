@@ -442,6 +442,16 @@ static unique_fd open_current_profile(uid_t uid, userid_t user, const std::strin
 static unique_fd open_reference_profile(uid_t uid, const std::string& package_name,
         const std::string& location, bool read_write, bool is_secondary_dex) {
     std::string profile = create_reference_profile_path(package_name, location, is_secondary_dex);
+    if (read_write && GetBoolProperty("dalvik.vm.useartservice", false)) {
+        // ART Service doesn't use flock and instead assumes profile files are
+        // immutable, so ensure we don't open a file for writing when it's
+        // active.
+        // TODO(b/251921228): Normally installd isn't called at all in that
+        // case, but OTA is still an exception that uses the legacy code.
+        LOG(ERROR) << "Opening ref profile " << profile
+                   << " for writing is unsafe when ART Service is enabled.";
+        return invalid_unique_fd();
+    }
     return open_profile(
         uid,
         profile,
@@ -450,14 +460,13 @@ static unique_fd open_reference_profile(uid_t uid, const std::string& package_na
 }
 
 static UniqueFile open_reference_profile_as_unique_file(uid_t uid, const std::string& package_name,
-        const std::string& location, bool read_write, bool is_secondary_dex) {
+                                                        const std::string& location,
+                                                        bool is_secondary_dex) {
     std::string profile_path = create_reference_profile_path(package_name, location,
                                                              is_secondary_dex);
-    unique_fd ufd = open_profile(
-        uid,
-        profile_path,
-        read_write ? (O_CREAT | O_RDWR) : O_RDONLY,
-        S_IRUSR | S_IWUSR | S_IRGRP);  // so that ART can also read it when apps run.
+    unique_fd ufd = open_profile(uid, profile_path, O_RDONLY,
+                                 S_IRUSR | S_IWUSR |
+                                         S_IRGRP); // so that ART can also read it when apps run.
 
     return UniqueFile(ufd.release(), profile_path, [](const std::string& path) {
         clear_profile(path);
@@ -1104,8 +1113,7 @@ UniqueFile maybe_open_reference_profile(const std::string& pkgname,
             location = profile_name;
         }
     }
-    return open_reference_profile_as_unique_file(uid, pkgname, location, /*read_write*/false,
-                                                 is_secondary_dex);
+    return open_reference_profile_as_unique_file(uid, pkgname, location, is_secondary_dex);
 }
 
 // Opens the vdex files and assigns the input fd to in_vdex_wrapper and the output fd to

@@ -228,6 +228,7 @@ public:
         float currentSdrHdrRatio = 1.f;
         float desiredSdrHdrRatio = 1.f;
         gui::CachingHint cachingHint = gui::CachingHint::Enabled;
+        int64_t latchedVsyncId = 0;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -305,6 +306,7 @@ public:
                    const BufferData& /* bufferData */, nsecs_t /* postTime */,
                    nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
                    std::optional<nsecs_t> /* dequeueTime */, const FrameTimelineInfo& /*info*/);
+    void setDesiredPresentTime(nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/);
     bool setDataspace(ui::Dataspace /*dataspace*/);
     bool setExtendedRangeBrightness(float currentBufferRatio, float desiredRatio);
     bool setCachingHint(gui::CachingHint cachingHint);
@@ -851,7 +853,19 @@ public:
     void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
                                    const sp<GraphicBuffer>& buffer, uint64_t framenumber,
                                    const sp<Fence>& releaseFence);
-    bool setFrameRateForLayerTree(FrameRate);
+    bool setFrameRateForLayerTreeLegacy(FrameRate);
+    bool setFrameRateForLayerTree(FrameRate, const scheduler::LayerProps&);
+    void recordLayerHistoryBufferUpdate(const scheduler::LayerProps&);
+    void recordLayerHistoryAnimationTx(const scheduler::LayerProps&);
+    auto getLayerProps() const {
+        return scheduler::LayerProps{
+                .visible = isVisible(),
+                .bounds = getBounds(),
+                .transform = getTransform(),
+                .setFrameRateVote = getFrameRateForLayerTree(),
+                .frameRateSelectionPriority = getFrameRateSelectionPriority(),
+        };
+    };
     bool hasBuffer() const { return mBufferInfo.mBuffer != nullptr; }
 
 protected:

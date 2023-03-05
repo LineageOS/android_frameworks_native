@@ -102,8 +102,8 @@ public:
 
     void startTimers();
 
-    // TODO(b/241285191): Remove this API by promoting leader in onScreen{Acquired,Released}.
-    void setLeaderDisplay(std::optional<PhysicalDisplayId>) REQUIRES(kMainThreadContext)
+    // TODO(b/241285191): Remove this API by promoting pacesetter in onScreen{Acquired,Released}.
+    void setPacesetterDisplay(std::optional<PhysicalDisplayId>) REQUIRES(kMainThreadContext)
             EXCLUDES(mDisplayLock);
 
     using RefreshRateSelectorPtr = std::shared_ptr<RefreshRateSelector>;
@@ -167,9 +167,9 @@ public:
 
     const VsyncModulator& vsyncModulator() const { return *mVsyncModulator; }
 
-    // In some cases, we should only modulate for the leader display. In those
+    // In some cases, we should only modulate for the pacesetter display. In those
     // cases, the caller should pass in the relevant display, and the method
-    // will no-op if it's not the leader. Other cases are not specific to a
+    // will no-op if it's not the pacesetter. Other cases are not specific to a
     // display.
     template <typename... Args,
               typename Handler = std::optional<VsyncConfig> (VsyncModulator::*)(Args...)>
@@ -177,13 +177,13 @@ public:
         if (id) {
             std::scoped_lock lock(mDisplayLock);
             ftl::FakeGuard guard(kMainThreadContext);
-            if (id != mLeaderDisplayId) {
+            if (id != mPacesetterDisplayId) {
                 return;
             }
         }
 
         if (const auto config = (*mVsyncModulator.*handler)(args...)) {
-            setVsyncConfig(*config, getLeaderVsyncPeriod());
+            setVsyncConfig(*config, getPacesetterVsyncPeriod());
         }
     }
 
@@ -219,8 +219,8 @@ public:
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
-    void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType)
-            EXCLUDES(mDisplayLock);
+    void recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
+                            LayerHistory::LayerUpdateType) EXCLUDES(mDisplayLock);
     void setModeChangePending(bool pending);
     void setDefaultFrameRateCompatibility(Layer*);
     void deregisterLayer(Layer*);
@@ -254,7 +254,7 @@ public:
     void dump(ConnectionHandle, std::string&) const;
     void dumpVsync(std::string&) const EXCLUDES(mDisplayLock);
 
-    // Returns the preferred refresh rate and frame rate for the leader display.
+    // Returns the preferred refresh rate and frame rate for the pacesetter display.
     FrameRateMode getPreferredDisplayMode();
 
     // Notifies the scheduler about a refresh rate timeline change.
@@ -277,12 +277,12 @@ public:
     // Retrieves the overridden refresh rate for a given uid.
     std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);
 
-    Period getLeaderVsyncPeriod() const EXCLUDES(mDisplayLock) {
-        return leaderSelectorPtr()->getActiveMode().fps.getPeriod();
+    Period getPacesetterVsyncPeriod() const EXCLUDES(mDisplayLock) {
+        return pacesetterSelectorPtr()->getActiveMode().fps.getPeriod();
     }
 
-    Fps getLeaderRefreshRate() const EXCLUDES(mDisplayLock) {
-        return leaderSelectorPtr()->getActiveMode().fps;
+    Fps getPacesetterRefreshRate() const EXCLUDES(mDisplayLock) {
+        return pacesetterSelectorPtr()->getActiveMode().fps;
     }
 
     // Returns the framerate of the layer with the given sequence ID
@@ -318,14 +318,14 @@ private:
     void resyncAllToHardwareVsync(bool allowToEnable) EXCLUDES(mDisplayLock);
     void setVsyncConfig(const VsyncConfig&, Period vsyncPeriod);
 
-    // Chooses a leader among the registered displays, unless `leaderIdOpt` is specified. The new
-    // `mLeaderDisplayId` is never `std::nullopt`.
-    void promoteLeaderDisplay(std::optional<PhysicalDisplayId> leaderIdOpt = std::nullopt)
+    // Chooses a pacesetter among the registered displays, unless `pacesetterIdOpt` is specified.
+    // The new `mPacesetterDisplayId` is never `std::nullopt`.
+    void promotePacesetterDisplay(std::optional<PhysicalDisplayId> pacesetterIdOpt = std::nullopt)
             REQUIRES(kMainThreadContext, mDisplayLock);
 
-    // Blocks until the leader's idle timer thread exits. `mDisplayLock` must not be locked by the
-    // caller on the main thread to avoid deadlock, since the timer thread locks it before exit.
-    void demoteLeaderDisplay() REQUIRES(kMainThreadContext) EXCLUDES(mDisplayLock, mPolicyLock);
+    // Blocks until the pacesetter's idle timer thread exits. `mDisplayLock` must not be locked by
+    // the caller on the main thread to avoid deadlock, since the timer thread locks it before exit.
+    void demotePacesetterDisplay() REQUIRES(kMainThreadContext) EXCLUDES(mDisplayLock, mPolicyLock);
 
     void registerDisplayInternal(PhysicalDisplayId, RefreshRateSelectorPtr,
                                  std::shared_ptr<VsyncSchedule>) REQUIRES(kMainThreadContext)
@@ -415,23 +415,23 @@ private:
     display::PhysicalDisplayMap<PhysicalDisplayId, std::shared_ptr<VsyncSchedule>> mVsyncSchedules
             GUARDED_BY(mDisplayLock) GUARDED_BY(kMainThreadContext);
 
-    ftl::Optional<PhysicalDisplayId> mLeaderDisplayId GUARDED_BY(mDisplayLock)
+    ftl::Optional<PhysicalDisplayId> mPacesetterDisplayId GUARDED_BY(mDisplayLock)
             GUARDED_BY(kMainThreadContext);
 
-    RefreshRateSelectorPtr leaderSelectorPtr() const EXCLUDES(mDisplayLock) {
+    RefreshRateSelectorPtr pacesetterSelectorPtr() const EXCLUDES(mDisplayLock) {
         std::scoped_lock lock(mDisplayLock);
-        return leaderSelectorPtrLocked();
+        return pacesetterSelectorPtrLocked();
     }
 
-    RefreshRateSelectorPtr leaderSelectorPtrLocked() const REQUIRES(mDisplayLock) {
+    RefreshRateSelectorPtr pacesetterSelectorPtrLocked() const REQUIRES(mDisplayLock) {
         ftl::FakeGuard guard(kMainThreadContext);
-        const RefreshRateSelectorPtr noLeader;
-        return mLeaderDisplayId
-                .and_then([this](PhysicalDisplayId leaderId)
+        const RefreshRateSelectorPtr noPacesetter;
+        return mPacesetterDisplayId
+                .and_then([this](PhysicalDisplayId pacesetterId)
                                   REQUIRES(mDisplayLock, kMainThreadContext) {
-                                      return mRefreshRateSelectors.get(leaderId);
+                                      return mRefreshRateSelectors.get(pacesetterId);
                                   })
-                .value_or(std::cref(noLeader));
+                .value_or(std::cref(noPacesetter));
     }
 
     std::shared_ptr<const VsyncSchedule> getVsyncScheduleLocked(

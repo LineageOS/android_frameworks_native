@@ -808,6 +808,21 @@ status_t HWComposer::setHdrConversionStrategy(
     return NO_ERROR;
 }
 
+status_t HWComposer::setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId displayId,
+                                                               bool enabled) {
+    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
+    const auto error =
+            mComposer->setRefreshRateChangedCallbackDebugEnabled(mDisplayData[displayId]
+                                                                         .hwcDisplay->getId(),
+                                                                 enabled);
+    if (error != hal::Error::NONE) {
+        ALOGE("Error in setting refresh refresh rate change callback debug enabled %s",
+              to_string(error).c_str());
+        return INVALID_OPERATION;
+    }
+    return NO_ERROR;
+}
+
 status_t HWComposer::getDisplayDecorationSupport(
         PhysicalDisplayId displayId,
         std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*

@@ -126,11 +126,11 @@ AIBinder* ARpcSession_setupPreconnectedClient(ARpcSession* session,
 void ARpcSession_setFileDescriptorTransportMode(ARpcSession* session,
                                                 ARpcSession_FileDescriptorTransportMode mode);
 
-// Sets the maximum number of incoming threads.
+// Sets the maximum number of incoming threads, to service connections.
 void ARpcSession_setMaxIncomingThreads(ARpcSession* session, size_t threads);
 
-// Sets the maximum number of outgoing threads.
-void ARpcSession_setMaxOutgoingThreads(ARpcSession* session, size_t threads);
+// Sets the maximum number of outgoing connections.
+void ARpcSession_setMaxOutgoingConnections(ARpcSession* session, size_t threads);
 
 // Decrements the refcount of the underlying RpcSession object.
 void ARpcSession_free(ARpcSession* session);

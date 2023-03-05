@@ -21,6 +21,7 @@
 
 #include <ftl/flags.h>
 #include <ftl/small_map.h>
+#include <gui/SurfaceComposerClient.h>
 #include <ui/LayerStack.h>
 #include <ui/Size.h>
 #include <ui/Transform.h>
@@ -55,6 +56,7 @@ public:
         Spinner = 1 << 0,
         RenderRate = 1 << 1,
         ShowInMiddle = 1 << 2,
+        SetByHwc = 1 << 3,
     };
 
     RefreshRateOverlay(FpsRange, ftl::Flags<Features>);
@@ -63,6 +65,7 @@ public:
     void setViewport(ui::Size);
     void changeRefreshRate(Fps, Fps);
     void animate();
+    bool isSetByHwc() const { return mFeatures.test(RefreshRateOverlay::Features::SetByHwc); }
 
 private:
     using Buffers = std::vector<sp<GraphicBuffer>>;
@@ -81,6 +84,8 @@ private:
     };
 
     const Buffers& getOrCreateBuffers(Fps, Fps);
+
+    SurfaceComposerClient::Transaction createTransaction() const;
 
     struct Key {
         int displayFps;

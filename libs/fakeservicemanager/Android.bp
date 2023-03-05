@@ -11,7 +11,7 @@ cc_defaults {
     name: "fakeservicemanager_defaults",
     host_supported: true,
     srcs: [
-        "ServiceManager.cpp",
+        "FakeServiceManager.cpp",
     ],
 
     shared_libs: [
@@ -28,7 +28,7 @@ cc_defaults {
 cc_library {
     name: "libfakeservicemanager",
     defaults: ["fakeservicemanager_defaults"],
-    export_include_dirs: ["include/fakeservicemanager"],
+    export_include_dirs: ["include"],
 }
 
 cc_test_host {
@@ -38,5 +38,5 @@ cc_test_host {
         "test_sm.cpp",
     ],
     static_libs: ["libgmock"],
-    local_include_dirs: ["include/fakeservicemanager"],
+    local_include_dirs: ["include"],
 }
