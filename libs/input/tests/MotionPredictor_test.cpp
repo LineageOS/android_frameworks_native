@@ -84,9 +84,9 @@ TEST(MotionPredictorTest, Offset) {
                               []() { return true /*enable prediction*/; });
     predictor.record(getMotionEvent(DOWN, 0, 1, 30ms));
     predictor.record(getMotionEvent(MOVE, 0, 2, 35ms));
-    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict(40 * NSEC_PER_MSEC);
-    ASSERT_EQ(1u, predicted.size());
-    ASSERT_GE(predicted[0]->getEventTime(), 41);
+    std::unique_ptr<MotionEvent> predicted = predictor.predict(40 * NSEC_PER_MSEC);
+    ASSERT_NE(nullptr, predicted);
+    ASSERT_GE(predicted->getEventTime(), 41);
 }
 
 TEST(MotionPredictorTest, FollowsGesture) {
@@ -95,52 +95,43 @@ TEST(MotionPredictorTest, FollowsGesture) {
 
     // MOVE without a DOWN is ignored.
     predictor.record(getMotionEvent(MOVE, 1, 3, 10ms));
-    EXPECT_THAT(predictor.predict(20 * NSEC_PER_MSEC), IsEmpty());
+    EXPECT_EQ(nullptr, predictor.predict(20 * NSEC_PER_MSEC));
 
     predictor.record(getMotionEvent(DOWN, 2, 5, 20ms));
     predictor.record(getMotionEvent(MOVE, 2, 7, 30ms));
     predictor.record(getMotionEvent(MOVE, 3, 9, 40ms));
-    EXPECT_THAT(predictor.predict(50 * NSEC_PER_MSEC), SizeIs(1));
+    EXPECT_NE(nullptr, predictor.predict(50 * NSEC_PER_MSEC));
 
     predictor.record(getMotionEvent(UP, 4, 11, 50ms));
-    EXPECT_THAT(predictor.predict(20 * NSEC_PER_MSEC), IsEmpty());
+    EXPECT_EQ(nullptr, predictor.predict(20 * NSEC_PER_MSEC));
 }
 
-TEST(MotionPredictorTest, MultipleDevicesTracked) {
+TEST(MotionPredictorTest, MultipleDevicesNotSupported) {
     MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0, MODEL_PATH,
                               []() { return true /*enable prediction*/; });
 
-    predictor.record(getMotionEvent(DOWN, 1, 3, 0ms, /*deviceId=*/0));
-    predictor.record(getMotionEvent(MOVE, 1, 3, 10ms, /*deviceId=*/0));
-    predictor.record(getMotionEvent(MOVE, 2, 5, 20ms, /*deviceId=*/0));
-    predictor.record(getMotionEvent(MOVE, 3, 7, 30ms, /*deviceId=*/0));
+    ASSERT_TRUE(predictor.record(getMotionEvent(DOWN, 1, 3, 0ms, /*deviceId=*/0)).ok());
+    ASSERT_TRUE(predictor.record(getMotionEvent(MOVE, 1, 3, 10ms, /*deviceId=*/0)).ok());
+    ASSERT_TRUE(predictor.record(getMotionEvent(MOVE, 2, 5, 20ms, /*deviceId=*/0)).ok());
+    ASSERT_TRUE(predictor.record(getMotionEvent(MOVE, 3, 7, 30ms, /*deviceId=*/0)).ok());
 
-    predictor.record(getMotionEvent(DOWN, 100, 300, 0ms, /*deviceId=*/1));
-    predictor.record(getMotionEvent(MOVE, 100, 300, 10ms, /*deviceId=*/1));
-    predictor.record(getMotionEvent(MOVE, 200, 500, 20ms, /*deviceId=*/1));
-    predictor.record(getMotionEvent(MOVE, 300, 700, 30ms, /*deviceId=*/1));
+    ASSERT_FALSE(predictor.record(getMotionEvent(DOWN, 100, 300, 40ms, /*deviceId=*/1)).ok());
+    ASSERT_FALSE(predictor.record(getMotionEvent(MOVE, 100, 300, 50ms, /*deviceId=*/1)).ok());
+}
 
-    {
-        std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict(40 * NSEC_PER_MSEC);
-        ASSERT_EQ(2u, predicted.size());
+TEST(MotionPredictorTest, IndividualGesturesFromDifferentDevicesAreSupported) {
+    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0, MODEL_PATH,
+                              []() { return true /*enable prediction*/; });
 
-        // Order of the returned vector is not guaranteed.
-        std::vector<int32_t> seenDeviceIds;
-        for (const auto& prediction : predicted) {
-            seenDeviceIds.push_back(prediction->getDeviceId());
-        }
-        EXPECT_THAT(seenDeviceIds, UnorderedElementsAre(0, 1));
-    }
+    ASSERT_TRUE(predictor.record(getMotionEvent(DOWN, 1, 3, 0ms, /*deviceId=*/0)).ok());
+    ASSERT_TRUE(predictor.record(getMotionEvent(MOVE, 1, 3, 10ms, /*deviceId=*/0)).ok());
+    ASSERT_TRUE(predictor.record(getMotionEvent(MOVE, 2, 5, 20ms, /*deviceId=*/0)).ok());
+    ASSERT_TRUE(predictor.record(getMotionEvent(UP, 2, 5, 30ms, /*deviceId=*/0)).ok());
 
-    // End the gesture for device 0.
-    predictor.record(getMotionEvent(UP, 4, 9, 40ms, /*deviceId=*/0));
-    predictor.record(getMotionEvent(MOVE, 400, 900, 40ms, /*deviceId=*/1));
-
-    {
-        std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict(40 * NSEC_PER_MSEC);
-        ASSERT_EQ(1u, predicted.size());
-        ASSERT_EQ(predicted[0]->getDeviceId(), 1);
-    }
+    // Now, send a gesture from a different device. Since we have no active gesture, the new gesture
+    // should be processed correctly.
+    ASSERT_TRUE(predictor.record(getMotionEvent(DOWN, 100, 300, 40ms, /*deviceId=*/1)).ok());
+    ASSERT_TRUE(predictor.record(getMotionEvent(MOVE, 100, 300, 50ms, /*deviceId=*/1)).ok());
 }
 
 TEST(MotionPredictorTest, FlagDisablesPrediction) {
@@ -148,8 +139,8 @@ TEST(MotionPredictorTest, FlagDisablesPrediction) {
                               []() { return false /*disable prediction*/; });
     predictor.record(getMotionEvent(DOWN, 0, 1, 30ms));
     predictor.record(getMotionEvent(MOVE, 0, 1, 35ms));
-    std::vector<std::unique_ptr<MotionEvent>> predicted = predictor.predict(40 * NSEC_PER_MSEC);
-    ASSERT_EQ(0u, predicted.size());
+    std::unique_ptr<MotionEvent> predicted = predictor.predict(40 * NSEC_PER_MSEC);
+    ASSERT_EQ(nullptr, predicted);
     ASSERT_FALSE(predictor.isPredictionAvailable(/*deviceId=*/1, AINPUT_SOURCE_STYLUS));
     ASSERT_FALSE(predictor.isPredictionAvailable(/*deviceId=*/1, AINPUT_SOURCE_TOUCHSCREEN));
 }

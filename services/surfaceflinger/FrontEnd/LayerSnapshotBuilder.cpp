@@ -274,7 +274,7 @@ void updateVisibility(LayerSnapshot& snapshot, bool visible) {
     // InputDispatcher, and obviously if they aren't visible they can't occlude
     // anything.
     const bool visibleForInput =
-            (snapshot.inputInfo.token != nullptr) ? snapshot.canReceiveInput() : snapshot.isVisible;
+            snapshot.hasInputInfo() ? snapshot.canReceiveInput() : snapshot.isVisible;
     snapshot.inputInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_VISIBLE, !visibleForInput);
 }
 
@@ -773,6 +773,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         snapshot.layerOpaqueFlagSet =
                 (requested.flags & layer_state_t::eLayerOpaque) == layer_state_t::eLayerOpaque;
         snapshot.cachingHint = requested.cachingHint;
+        snapshot.frameRateSelectionPriority = requested.frameRateSelectionPriority;
     }
 
     if (forceUpdate || snapshot.changes.any(RequestedLayerState::Changes::Content)) {
@@ -954,12 +955,13 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
         snapshot.inputInfo = *requested.windowInfoHandle->getInfo();
     } else {
         snapshot.inputInfo = {};
+        // b/271132344 revisit this and see if we can always use the layers uid/pid
+        snapshot.inputInfo.name = requested.name;
+        snapshot.inputInfo.ownerUid = static_cast<int32_t>(requested.ownerUid);
+        snapshot.inputInfo.ownerPid = requested.ownerPid;
     }
 
-    snapshot.inputInfo.name = requested.name;
     snapshot.inputInfo.id = static_cast<int32_t>(snapshot.uniqueSequence);
-    snapshot.inputInfo.ownerUid = static_cast<int32_t>(requested.ownerUid);
-    snapshot.inputInfo.ownerPid = requested.ownerPid;
     snapshot.inputInfo.displayId = static_cast<int32_t>(snapshot.outputFilter.layerStack.id);
     if (!needsInputInfo(snapshot, requested)) {
         return;
@@ -983,7 +985,9 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     }
 
     snapshot.inputInfo.alpha = snapshot.color.a;
-    snapshot.inputInfo.touchOcclusionMode = parentSnapshot.inputInfo.touchOcclusionMode;
+    snapshot.inputInfo.touchOcclusionMode = requested.hasInputInfo()
+            ? requested.windowInfoHandle->getInfo()->touchOcclusionMode
+            : parentSnapshot.inputInfo.touchOcclusionMode;
     if (requested.dropInputMode == gui::DropInputMode::ALL ||
         parentSnapshot.dropInputMode == gui::DropInputMode::ALL) {
         snapshot.dropInputMode = gui::DropInputMode::ALL;

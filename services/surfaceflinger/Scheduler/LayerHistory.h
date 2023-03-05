@@ -38,6 +38,7 @@ class Layer;
 namespace scheduler {
 
 class LayerInfo;
+struct LayerProps;
 
 class LayerHistory {
 public:
@@ -63,7 +64,8 @@ public:
     };
 
     // Marks the layer as active, and records the given state to its history.
-    void record(Layer*, nsecs_t presentTime, nsecs_t now, LayerUpdateType updateType);
+    void record(int32_t id, const LayerProps& props, nsecs_t presentTime, nsecs_t now,
+                LayerUpdateType updateType);
 
     // Updates the default frame rate compatibility which takes effect when the app
     // does not set a preference for refresh rate.

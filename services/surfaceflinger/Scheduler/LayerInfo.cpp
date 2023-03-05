@@ -44,14 +44,17 @@ LayerInfo::LayerInfo(const std::string& name, uid_t ownerUid,
         mOwnerUid(ownerUid),
         mDefaultVote(defaultVote),
         mLayerVote({defaultVote, Fps()}),
-        mRefreshRateHistory(name) {}
+        mLayerProps(std::make_unique<LayerProps>()),
+        mRefreshRateHistory(name) {
+    ;
+}
 
 void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUpdateType updateType,
-                                   bool pendingModeChange, LayerProps props) {
+                                   bool pendingModeChange, const LayerProps& props) {
     lastPresentTime = std::max(lastPresentTime, static_cast<nsecs_t>(0));
 
     mLastUpdatedTime = std::max(lastPresentTime, now);
-    mLayerProps = props;
+    *mLayerProps = props;
     switch (updateType) {
         case LayerUpdateType::AnimationTX:
             mLastAnimationTime = std::max(lastPresentTime, now);
@@ -303,6 +306,26 @@ const char* LayerInfo::getTraceTag(LayerHistory::LayerVoteType type) const {
     }
 
     return mTraceTags.at(type).c_str();
+}
+
+LayerInfo::FrameRate LayerInfo::getSetFrameRateVote() const {
+    return mLayerProps->setFrameRateVote;
+}
+
+bool LayerInfo::isVisible() const {
+    return mLayerProps->visible;
+}
+
+int32_t LayerInfo::getFrameRateSelectionPriority() const {
+    return mLayerProps->frameRateSelectionPriority;
+}
+
+FloatRect LayerInfo::getBounds() const {
+    return mLayerProps->bounds;
+}
+
+ui::Transform LayerInfo::getTransform() const {
+    return mLayerProps->transform;
 }
 
 LayerInfo::RefreshRateHistory::HeuristicTraceTagData

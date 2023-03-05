@@ -22,6 +22,7 @@
 #include <string>
 #include <unordered_map>
 
+#include <android-base/result.h>
 #include <android-base/thread_annotations.h>
 #include <android/sysprop/InputProperties.sysprop.h>
 #include <input/Input.h>
@@ -68,8 +69,15 @@ public:
      */
     MotionPredictor(nsecs_t predictionTimestampOffsetNanos, const char* modelPath = nullptr,
                     std::function<bool()> checkEnableMotionPrediction = isMotionPredictionEnabled);
-    void record(const MotionEvent& event);
-    std::vector<std::unique_ptr<MotionEvent>> predict(nsecs_t timestamp);
+    /**
+     * Record the actual motion received by the view. This event will be used for calculating the
+     * predictions.
+     *
+     * @return empty result if the event was processed correctly, error if the event is not
+     * consistent with the previously recorded events.
+     */
+    android::base::Result<void> record(const MotionEvent& event);
+    std::unique_ptr<MotionEvent> predict(nsecs_t timestamp);
     bool isPredictionAvailable(int32_t deviceId, int32_t source);
 
 private:
@@ -78,9 +86,9 @@ private:
     const std::function<bool()> mCheckMotionPredictionEnabled;
 
     std::unique_ptr<TfLiteMotionPredictorModel> mModel;
-    // Buffers/events for each device seen by record().
-    std::unordered_map</*deviceId*/ int32_t, TfLiteMotionPredictorBuffers> mDeviceBuffers;
-    std::unordered_map</*deviceId*/ int32_t, MotionEvent> mLastEvents;
+
+    std::unique_ptr<TfLiteMotionPredictorBuffers> mBuffers;
+    std::optional<MotionEvent> mLastEvent;
 };
 
 } // namespace android

@@ -37,7 +37,7 @@ class Layer;
 namespace scheduler {
 
 using namespace std::chrono_literals;
-
+struct LayerProps;
 // Maximum period between presents for a layer to be considered active.
 constexpr std::chrono::nanoseconds MAX_ACTIVE_LAYER_PERIOD_NS = 1200ms;
 
@@ -132,19 +132,11 @@ public:
     LayerInfo(const LayerInfo&) = delete;
     LayerInfo& operator=(const LayerInfo&) = delete;
 
-    struct LayerProps {
-        bool visible = false;
-        FloatRect bounds;
-        ui::Transform transform;
-        FrameRate setFrameRateVote;
-        int32_t frameRateSelectionPriority = -1;
-    };
-
     // Records the last requested present time. It also stores information about when
     // the layer was last updated. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
     void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUpdateType updateType,
-                            bool pendingModeChange, LayerProps props);
+                            bool pendingModeChange, const LayerProps& props);
 
     // Sets an explicit layer vote. This usually comes directly from the application via
     // ANativeWindow_setFrameRate API
@@ -168,13 +160,11 @@ public:
     // updated time, the updated time is the present time.
     nsecs_t getLastUpdatedTime() const { return mLastUpdatedTime; }
 
-    FrameRate getSetFrameRateVote() const { return mLayerProps.setFrameRateVote; }
-    bool isVisible() const { return mLayerProps.visible; }
-    int32_t getFrameRateSelectionPriority() const { return mLayerProps.frameRateSelectionPriority; }
-
-    FloatRect getBounds() const { return mLayerProps.bounds; }
-
-    ui::Transform getTransform() const { return mLayerProps.transform; }
+    FrameRate getSetFrameRateVote() const;
+    bool isVisible() const;
+    int32_t getFrameRateSelectionPriority() const;
+    FloatRect getBounds() const;
+    ui::Transform getTransform() const;
 
     // Returns a C string for tracing a vote
     const char* getTraceTag(LayerHistory::LayerVoteType type) const;
@@ -294,7 +284,7 @@ private:
     static constexpr size_t HISTORY_SIZE = RefreshRateHistory::HISTORY_SIZE;
     static constexpr std::chrono::nanoseconds HISTORY_DURATION = 1s;
 
-    LayerProps mLayerProps;
+    std::unique_ptr<LayerProps> mLayerProps;
 
     RefreshRateHistory mRefreshRateHistory;
 
@@ -302,6 +292,14 @@ private:
 
     // Shared for all LayerInfo instances
     static bool sTraceEnabled;
+};
+
+struct LayerProps {
+    bool visible = false;
+    FloatRect bounds;
+    ui::Transform transform;
+    LayerInfo::FrameRate setFrameRateVote;
+    int32_t frameRateSelectionPriority = -1;
 };
 
 } // namespace scheduler

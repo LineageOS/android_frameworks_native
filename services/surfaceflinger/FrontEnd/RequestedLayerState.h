@@ -53,6 +53,7 @@ struct RequestedLayerState : layer_state_t {
         VisibleRegion = 1u << 14,
         Buffer = 1u << 15,
         SidebandStream = 1u << 16,
+        Animation = 1u << 17,
     };
     static Rect reduce(const Rect& win, const Region& exclude);
     RequestedLayerState(const LayerCreationArgs&);

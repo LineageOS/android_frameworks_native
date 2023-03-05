@@ -112,7 +112,8 @@ protected:
                                Fps desiredRefreshRate, int numFrames) {
         LayerHistory::Summary summary;
         for (int i = 0; i < numFrames; i++) {
-            history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+            history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                             LayerHistory::LayerUpdateType::Buffer);
             time += frameRate.getPeriodNsecs();
 
             summary = summarizeLayerHistory(time);
@@ -155,7 +156,8 @@ TEST_F(LayerHistoryTest, singleLayerNoVoteDefaultCompatibility) {
     EXPECT_TRUE(summarizeLayerHistory(time).empty());
     EXPECT_EQ(0, activeLayerCount());
 
-    history().record(layer.get(), 0, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), 0, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     history().setDefaultFrameRateCompatibility(layer.get(), true /* contentDetectionEnabled */);
 
     EXPECT_TRUE(summarizeLayerHistory(time).empty());
@@ -177,7 +179,8 @@ TEST_F(LayerHistoryTest, singleLayerMinVoteDefaultCompatibility) {
     EXPECT_TRUE(summarizeLayerHistory(time).empty());
     EXPECT_EQ(0, activeLayerCount());
 
-    history().record(layer.get(), 0, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), 0, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     history().setDefaultFrameRateCompatibility(layer.get(), true /* contentDetectionEnabled */);
 
     auto summary = summarizeLayerHistory(time);
@@ -205,7 +208,8 @@ TEST_F(LayerHistoryTest, oneLayer) {
 
     // Max returned if active layers have insufficient history.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
-        history().record(layer.get(), 0, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), 0, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         ASSERT_EQ(1, summarizeLayerHistory(time).size());
         EXPECT_EQ(LayerHistory::LayerVoteType::Max, summarizeLayerHistory(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
@@ -214,7 +218,8 @@ TEST_F(LayerHistoryTest, oneLayer) {
 
     // Max is returned since we have enough history but there is no timestamp votes.
     for (int i = 0; i < 10; i++) {
-        history().record(layer.get(), 0, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), 0, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         ASSERT_EQ(1, summarizeLayerHistory(time).size());
         EXPECT_EQ(LayerHistory::LayerVoteType::Max, summarizeLayerHistory(time)[0].vote);
         EXPECT_EQ(1, activeLayerCount());
@@ -232,7 +237,8 @@ TEST_F(LayerHistoryTest, oneInvisibleLayer) {
 
     nsecs_t time = systemTime();
 
-    history().record(layer.get(), 0, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), 0, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     auto summary = summarizeLayerHistory(time);
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
     // Layer is still considered inactive so we expect to get Min
@@ -240,7 +246,8 @@ TEST_F(LayerHistoryTest, oneInvisibleLayer) {
     EXPECT_EQ(1, activeLayerCount());
 
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(false));
-    history().record(layer.get(), 0, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), 0, time,
+                     LayerHistory::LayerUpdateType::Buffer);
 
     summary = summarizeLayerHistory(time);
     EXPECT_TRUE(summarizeLayerHistory(time).empty());
@@ -257,7 +264,8 @@ TEST_F(LayerHistoryTest, explicitTimestamp) {
 
     nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += LO_FPS_PERIOD;
     }
 
@@ -280,7 +288,8 @@ TEST_F(LayerHistoryTest, oneLayerNoVote) {
 
     nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
     }
 
@@ -307,7 +316,8 @@ TEST_F(LayerHistoryTest, oneLayerMinVote) {
 
     nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
     }
 
@@ -335,7 +345,8 @@ TEST_F(LayerHistoryTest, oneLayerMaxVote) {
 
     nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += LO_FPS_PERIOD;
     }
 
@@ -363,7 +374,8 @@ TEST_F(LayerHistoryTest, oneLayerExplicitVote) {
 
     nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
     }
 
@@ -395,7 +407,8 @@ TEST_F(LayerHistoryTest, oneLayerExplicitExactVote) {
 
     nsecs_t time = systemTime();
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
     }
 
@@ -441,7 +454,8 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     // layer1 is active but infrequent.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer1.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer1->getSequence(), layer1->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
         summary = summarizeLayerHistory(time);
     }
@@ -453,13 +467,15 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     // layer2 is frequent and has high refresh rate.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer2->getSequence(), layer2->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
         summary = summarizeLayerHistory(time);
     }
 
     // layer1 is still active but infrequent.
-    history().record(layer1.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer1->getSequence(), layer1->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
 
     ASSERT_EQ(2, summary.size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Min, summary[0].vote);
@@ -472,7 +488,8 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     // layer1 is no longer active.
     // layer2 is frequent and has low refresh rate.
     for (int i = 0; i < 2 * PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer2->getSequence(), layer2->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += LO_FPS_PERIOD;
         summary = summarizeLayerHistory(time);
     }
@@ -488,10 +505,12 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     constexpr int RATIO = LO_FPS_PERIOD / HI_FPS_PERIOD;
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE - 1; i++) {
         if (i % RATIO == 0) {
-            history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+            history().record(layer2->getSequence(), layer2->getLayerProps(), time, time,
+                             LayerHistory::LayerUpdateType::Buffer);
         }
 
-        history().record(layer3.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer3->getSequence(), layer3->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
         summary = summarizeLayerHistory(time);
     }
@@ -504,7 +523,8 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     EXPECT_EQ(2, frequentLayerCount(time));
 
     // layer3 becomes recently active.
-    history().record(layer3.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer3->getSequence(), layer3->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     summary = summarizeLayerHistory(time);
     ASSERT_EQ(2, summary.size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
@@ -530,7 +550,8 @@ TEST_F(LayerHistoryTest, multipleLayers) {
     // layer2 still has low refresh rate.
     // layer3 becomes inactive.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer2.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer2->getSequence(), layer2->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += LO_FPS_PERIOD;
         summary = summarizeLayerHistory(time);
     }
@@ -551,7 +572,8 @@ TEST_F(LayerHistoryTest, multipleLayers) {
 
     // layer3 becomes active and has high refresh rate.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE + FREQUENT_LAYER_WINDOW_SIZE + 1; i++) {
-        history().record(layer3.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer3->getSequence(), layer3->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
         summary = summarizeLayerHistory(time);
     }
@@ -582,7 +604,8 @@ TEST_F(LayerHistoryTest, inactiveLayers) {
 
     // the very first updates makes the layer frequent
     for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
 
         EXPECT_EQ(1, layerCount());
@@ -593,7 +616,8 @@ TEST_F(LayerHistoryTest, inactiveLayers) {
     }
 
     // the next update with the MAX_FREQUENT_LAYER_PERIOD_NS will get us to infrequent
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
 
     EXPECT_EQ(1, layerCount());
@@ -607,7 +631,8 @@ TEST_F(LayerHistoryTest, inactiveLayers) {
 
     // Now even if we post a quick few frame we should stay infrequent
     for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE - 1; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += HI_FPS_PERIOD;
 
         EXPECT_EQ(1, layerCount());
@@ -618,7 +643,8 @@ TEST_F(LayerHistoryTest, inactiveLayers) {
     }
 
     // More quick frames will get us to frequent again
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     time += HI_FPS_PERIOD;
 
     EXPECT_EQ(1, layerCount());
@@ -645,9 +671,10 @@ TEST_F(LayerHistoryTest, invisibleExplicitLayer) {
     nsecs_t time = systemTime();
 
     // Post a buffer to the layers to make them active
-    history().record(explicitVisiblelayer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
-    history().record(explicitInvisiblelayer.get(), time, time,
-                     LayerHistory::LayerUpdateType::Buffer);
+    history().record(explicitVisiblelayer->getSequence(), explicitVisiblelayer->getLayerProps(),
+                     time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(explicitInvisiblelayer->getSequence(), explicitInvisiblelayer->getLayerProps(),
+                     time, time, LayerHistory::LayerUpdateType::Buffer);
 
     EXPECT_EQ(2, layerCount());
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
@@ -673,7 +700,8 @@ TEST_F(LayerHistoryTest, infrequentAnimatingLayer) {
 
     // layer is active but infrequent.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
     }
 
@@ -684,7 +712,8 @@ TEST_F(LayerHistoryTest, infrequentAnimatingLayer) {
     EXPECT_EQ(0, animatingLayerCount(time));
 
     // another update with the same cadence keep in infrequent
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
 
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
@@ -694,7 +723,8 @@ TEST_F(LayerHistoryTest, infrequentAnimatingLayer) {
     EXPECT_EQ(0, animatingLayerCount(time));
 
     // an update as animation will immediately vote for Max
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::AnimationTX);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::AnimationTX);
     time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
 
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
@@ -719,7 +749,8 @@ TEST_F(LayerHistoryTest, frequentLayerBecomingInfrequentAndBack) {
 
     // Fill up the window with frequent updates
     for (int i = 0; i < FREQUENT_LAYER_WINDOW_SIZE; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += (60_Hz).getPeriodNsecs();
 
         EXPECT_EQ(1, layerCount());
@@ -731,7 +762,8 @@ TEST_F(LayerHistoryTest, frequentLayerBecomingInfrequentAndBack) {
 
     // posting a buffer after long inactivity should retain the layer as active
     time += std::chrono::nanoseconds(3s).count();
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Heuristic, summarizeLayerHistory(time)[0].vote);
     EXPECT_EQ(60_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
@@ -741,9 +773,11 @@ TEST_F(LayerHistoryTest, frequentLayerBecomingInfrequentAndBack) {
 
     // posting more infrequent buffer should make the layer infrequent
     time += (MAX_FREQUENT_LAYER_PERIOD_NS + 1ms).count();
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     time += (MAX_FREQUENT_LAYER_PERIOD_NS + 1ms).count();
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Min, summarizeLayerHistory(time)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
@@ -751,7 +785,8 @@ TEST_F(LayerHistoryTest, frequentLayerBecomingInfrequentAndBack) {
     EXPECT_EQ(0, animatingLayerCount(time));
 
     // posting another buffer should keep the layer infrequent
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Min, summarizeLayerHistory(time)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
@@ -759,8 +794,10 @@ TEST_F(LayerHistoryTest, frequentLayerBecomingInfrequentAndBack) {
     EXPECT_EQ(0, animatingLayerCount(time));
 
     // posting more buffers would mean starting of an animation, so making the layer frequent
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Max, summarizeLayerHistory(time)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
@@ -769,7 +806,8 @@ TEST_F(LayerHistoryTest, frequentLayerBecomingInfrequentAndBack) {
 
     // posting a buffer after long inactivity should retain the layer as active
     time += std::chrono::nanoseconds(3s).count();
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Max, summarizeLayerHistory(time)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
@@ -778,7 +816,8 @@ TEST_F(LayerHistoryTest, frequentLayerBecomingInfrequentAndBack) {
 
     // posting another buffer should keep the layer frequent
     time += (60_Hz).getPeriodNsecs();
-    history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                     LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Max, summarizeLayerHistory(time)[0].vote);
     EXPECT_EQ(1, activeLayerCount());
@@ -801,7 +840,8 @@ TEST_F(LayerHistoryTest, getFramerate) {
 
     // layer is active but infrequent.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
-        history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
         time += MAX_FREQUENT_LAYER_PERIOD_NS.count();
     }
 
@@ -869,10 +909,10 @@ TEST_P(LayerHistoryTestParameterized, HeuristicLayerWithInfrequentLayer) {
     const nsecs_t startTime = systemTime();
 
     const std::chrono::nanoseconds heuristicUpdateDelta = 41'666'667ns;
-    history().record(heuristicLayer.get(), startTime, startTime,
-                     LayerHistory::LayerUpdateType::Buffer);
-    history().record(infrequentLayer.get(), startTime, startTime,
-                     LayerHistory::LayerUpdateType::Buffer);
+    history().record(heuristicLayer->getSequence(), heuristicLayer->getLayerProps(), startTime,
+                     startTime, LayerHistory::LayerUpdateType::Buffer);
+    history().record(infrequentLayer->getSequence(), heuristicLayer->getLayerProps(), startTime,
+                     startTime, LayerHistory::LayerUpdateType::Buffer);
 
     nsecs_t time = startTime;
     nsecs_t lastInfrequentUpdate = startTime;
@@ -880,14 +920,15 @@ TEST_P(LayerHistoryTestParameterized, HeuristicLayerWithInfrequentLayer) {
     int infrequentLayerUpdates = 0;
     while (infrequentLayerUpdates <= totalInfrequentLayerUpdates) {
         time += heuristicUpdateDelta.count();
-        history().record(heuristicLayer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
+        history().record(heuristicLayer->getSequence(), heuristicLayer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
 
         if (time - lastInfrequentUpdate >= infrequentUpdateDelta.count()) {
             ALOGI("submitting infrequent frame [%d/%d]", infrequentLayerUpdates,
                   totalInfrequentLayerUpdates);
             lastInfrequentUpdate = time;
-            history().record(infrequentLayer.get(), time, time,
-                             LayerHistory::LayerUpdateType::Buffer);
+            history().record(infrequentLayer->getSequence(), infrequentLayer->getLayerProps(), time,
+                             time, LayerHistory::LayerUpdateType::Buffer);
             infrequentLayerUpdates++;
         }
 
