@@ -86,6 +86,12 @@ TEST_F(VsyncScheduleTest, DisableDoesNothingWhenDisallowed) {
     mVsyncSchedule->disableHardwareVsync(mCallback, false /* disallow */);
 }
 
+TEST_F(VsyncScheduleTest, DisableDoesNothingWhenDisallowed2) {
+    EXPECT_CALL(mCallback, setVsyncEnabled(_, _)).Times(0);
+
+    mVsyncSchedule->disableHardwareVsync(mCallback, true /* disallow */);
+}
+
 TEST_F(VsyncScheduleTest, MakeAllowed) {
     ASSERT_TRUE(mVsyncSchedule->isHardwareVsyncAllowed(true /* makeAllowed */));
 }
@@ -95,6 +101,13 @@ TEST_F(VsyncScheduleTest, DisableDoesNothingWhenDisabled) {
     EXPECT_CALL(mCallback, setVsyncEnabled(_, _)).Times(0);
 
     mVsyncSchedule->disableHardwareVsync(mCallback, false /* disallow */);
+}
+
+TEST_F(VsyncScheduleTest, DisableDoesNothingWhenDisabled2) {
+    ASSERT_TRUE(mVsyncSchedule->isHardwareVsyncAllowed(true /* makeAllowed */));
+    EXPECT_CALL(mCallback, setVsyncEnabled(_, _)).Times(0);
+
+    mVsyncSchedule->disableHardwareVsync(mCallback, true /* disallow */);
 }
 
 TEST_F(VsyncScheduleTest, EnableWorksWhenDisabled) {
@@ -127,6 +140,16 @@ TEST_F(VsyncScheduleTest, EnableDisable) {
 
     EXPECT_CALL(mCallback, setVsyncEnabled(DEFAULT_DISPLAY_ID, false));
     mVsyncSchedule->disableHardwareVsync(mCallback, false /* disallow */);
+}
+
+TEST_F(VsyncScheduleTest, EnableDisable2) {
+    ASSERT_TRUE(mVsyncSchedule->isHardwareVsyncAllowed(true /* makeAllowed */));
+    EXPECT_CALL(mCallback, setVsyncEnabled(DEFAULT_DISPLAY_ID, true));
+
+    mVsyncSchedule->enableHardwareVsync(mCallback);
+
+    EXPECT_CALL(mCallback, setVsyncEnabled(DEFAULT_DISPLAY_ID, false));
+    mVsyncSchedule->disableHardwareVsync(mCallback, true /* disallow */);
 }
 
 TEST_F(VsyncScheduleTest, StartPeriodTransition) {
@@ -223,6 +246,24 @@ TEST_F(VsyncScheduleTest, PendingState) FTL_FAKE_GUARD(kMainThreadContext) {
 
     mVsyncSchedule->setPendingHardwareVsyncState(false);
     ASSERT_FALSE(mVsyncSchedule->getPendingHardwareVsyncState());
+}
+
+TEST_F(VsyncScheduleTest, DisableDoesNotMakeAllowed) {
+    ASSERT_FALSE(mVsyncSchedule->isHardwareVsyncAllowed(false /* makeAllowed */));
+    mVsyncSchedule->disableHardwareVsync(mCallback, false /* disallow */);
+    ASSERT_FALSE(mVsyncSchedule->isHardwareVsyncAllowed(false /* makeAllowed */));
+}
+
+TEST_F(VsyncScheduleTest, DisallowMakesNotAllowed) {
+    ASSERT_TRUE(mVsyncSchedule->isHardwareVsyncAllowed(true /* makeAllowed */));
+    mVsyncSchedule->disableHardwareVsync(mCallback, true /* disallow */);
+    ASSERT_FALSE(mVsyncSchedule->isHardwareVsyncAllowed(false /* makeAllowed */));
+}
+
+TEST_F(VsyncScheduleTest, StillAllowedAfterDisable) {
+    ASSERT_TRUE(mVsyncSchedule->isHardwareVsyncAllowed(true /* makeAllowed */));
+    mVsyncSchedule->disableHardwareVsync(mCallback, false /* disallow */);
+    ASSERT_TRUE(mVsyncSchedule->isHardwareVsyncAllowed(false /* makeAllowed */));
 }
 
 } // namespace
