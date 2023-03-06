@@ -35,7 +35,6 @@
 namespace android {
 namespace {
 
-const char DEFAULT_MODEL_PATH[] = "/system/etc/motion_predictor_model.fb";
 const int64_t PREDICTION_INTERVAL_NANOS =
         12500000 / 3; // TODO(b/266747937): Get this from the model.
 
@@ -62,10 +61,9 @@ TfLiteMotionPredictorSample::Point convertPrediction(
 
 // --- MotionPredictor ---
 
-MotionPredictor::MotionPredictor(nsecs_t predictionTimestampOffsetNanos, const char* modelPath,
+MotionPredictor::MotionPredictor(nsecs_t predictionTimestampOffsetNanos,
                                  std::function<bool()> checkMotionPredictionEnabled)
       : mPredictionTimestampOffsetNanos(predictionTimestampOffsetNanos),
-        mModelPath(modelPath == nullptr ? DEFAULT_MODEL_PATH : modelPath),
         mCheckMotionPredictionEnabled(std::move(checkMotionPredictionEnabled)) {}
 
 android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
@@ -86,7 +84,7 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
 
     // Initialise the model now that it's likely to be used.
     if (!mModel) {
-        mModel = TfLiteMotionPredictorModel::create(mModelPath.c_str());
+        mModel = TfLiteMotionPredictorModel::create();
     }
 
     if (mBuffers == nullptr) {

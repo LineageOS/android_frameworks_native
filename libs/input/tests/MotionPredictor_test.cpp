@@ -30,13 +30,6 @@ using ::testing::IsEmpty;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
-const char MODEL_PATH[] =
-#if defined(__ANDROID__)
-        "/system/etc/motion_predictor_model.fb";
-#else
-        "motion_predictor_model.fb";
-#endif
-
 constexpr int32_t DOWN = AMOTION_EVENT_ACTION_DOWN;
 constexpr int32_t MOVE = AMOTION_EVENT_ACTION_MOVE;
 constexpr int32_t UP = AMOTION_EVENT_ACTION_UP;
@@ -73,14 +66,14 @@ static MotionEvent getMotionEvent(int32_t action, float x, float y,
 }
 
 TEST(MotionPredictorTest, IsPredictionAvailable) {
-    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0, MODEL_PATH,
+    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0,
                               []() { return true /*enable prediction*/; });
     ASSERT_TRUE(predictor.isPredictionAvailable(/*deviceId=*/1, AINPUT_SOURCE_STYLUS));
     ASSERT_FALSE(predictor.isPredictionAvailable(/*deviceId=*/1, AINPUT_SOURCE_TOUCHSCREEN));
 }
 
 TEST(MotionPredictorTest, Offset) {
-    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/1, MODEL_PATH,
+    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/1,
                               []() { return true /*enable prediction*/; });
     predictor.record(getMotionEvent(DOWN, 0, 1, 30ms));
     predictor.record(getMotionEvent(MOVE, 0, 2, 35ms));
@@ -90,7 +83,7 @@ TEST(MotionPredictorTest, Offset) {
 }
 
 TEST(MotionPredictorTest, FollowsGesture) {
-    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0, MODEL_PATH,
+    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0,
                               []() { return true /*enable prediction*/; });
 
     // MOVE without a DOWN is ignored.
@@ -107,7 +100,7 @@ TEST(MotionPredictorTest, FollowsGesture) {
 }
 
 TEST(MotionPredictorTest, MultipleDevicesNotSupported) {
-    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0, MODEL_PATH,
+    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0,
                               []() { return true /*enable prediction*/; });
 
     ASSERT_TRUE(predictor.record(getMotionEvent(DOWN, 1, 3, 0ms, /*deviceId=*/0)).ok());
@@ -120,7 +113,7 @@ TEST(MotionPredictorTest, MultipleDevicesNotSupported) {
 }
 
 TEST(MotionPredictorTest, IndividualGesturesFromDifferentDevicesAreSupported) {
-    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0, MODEL_PATH,
+    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0,
                               []() { return true /*enable prediction*/; });
 
     ASSERT_TRUE(predictor.record(getMotionEvent(DOWN, 1, 3, 0ms, /*deviceId=*/0)).ok());
@@ -135,7 +128,7 @@ TEST(MotionPredictorTest, IndividualGesturesFromDifferentDevicesAreSupported) {
 }
 
 TEST(MotionPredictorTest, FlagDisablesPrediction) {
-    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0, MODEL_PATH,
+    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0,
                               []() { return false /*disable prediction*/; });
     predictor.record(getMotionEvent(DOWN, 0, 1, 30ms));
     predictor.record(getMotionEvent(MOVE, 0, 1, 35ms));

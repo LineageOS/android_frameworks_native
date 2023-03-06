@@ -21,7 +21,6 @@
 #include <iterator>
 #include <string>
 
-#include <android-base/file.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <input/TfLiteMotionPredictor.h>
@@ -32,14 +31,6 @@ namespace {
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::FloatNear;
-
-std::string getModelPath() {
-#if defined(__ANDROID__)
-    return "/system/etc/motion_predictor_model.fb";
-#else
-    return base::GetExecutableDirectory() + "/motion_predictor_model.fb";
-#endif
-}
 
 TEST(TfLiteMotionPredictorTest, BuffersReadiness) {
     TfLiteMotionPredictorBuffers buffers(/*inputLength=*/5);
@@ -92,8 +83,7 @@ TEST(TfLiteMotionPredictorTest, BuffersRecentData) {
 }
 
 TEST(TfLiteMotionPredictorTest, BuffersCopyTo) {
-    std::unique_ptr<TfLiteMotionPredictorModel> model =
-            TfLiteMotionPredictorModel::create(getModelPath().c_str());
+    std::unique_ptr<TfLiteMotionPredictorModel> model = TfLiteMotionPredictorModel::create();
     TfLiteMotionPredictorBuffers buffers(model->inputLength());
 
     buffers.pushSample(/*timestamp=*/1,
@@ -137,8 +127,7 @@ TEST(TfLiteMotionPredictorTest, BuffersCopyTo) {
 }
 
 TEST(TfLiteMotionPredictorTest, ModelInputOutputLength) {
-    std::unique_ptr<TfLiteMotionPredictorModel> model =
-            TfLiteMotionPredictorModel::create(getModelPath().c_str());
+    std::unique_ptr<TfLiteMotionPredictorModel> model = TfLiteMotionPredictorModel::create();
     ASSERT_GT(model->inputLength(), 0u);
 
     const int inputLength = model->inputLength();
@@ -155,8 +144,7 @@ TEST(TfLiteMotionPredictorTest, ModelInputOutputLength) {
 }
 
 TEST(TfLiteMotionPredictorTest, ModelOutput) {
-    std::unique_ptr<TfLiteMotionPredictorModel> model =
-            TfLiteMotionPredictorModel::create(getModelPath().c_str());
+    std::unique_ptr<TfLiteMotionPredictorModel> model = TfLiteMotionPredictorModel::create();
     TfLiteMotionPredictorBuffers buffers(model->inputLength());
 
     buffers.pushSample(/*timestamp=*/1, {.position = {.x = 100, .y = 200}, .pressure = 0.2});
