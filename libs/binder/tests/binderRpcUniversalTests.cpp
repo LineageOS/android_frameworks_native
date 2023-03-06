@@ -463,7 +463,7 @@ TEST_P(BinderRpc, Callbacks) {
                 auto proc = createRpcTestSocketServerProcess(
                         {.numThreads = 1,
                          .numSessions = 1,
-                         .numIncomingConnections = numIncomingConnections});
+                         .numIncomingConnectionsBySession = {numIncomingConnections}});
                 auto cb = sp<MyBinderRpcCallback>::make();
 
                 if (callIsOneway) {
@@ -491,16 +491,7 @@ TEST_P(BinderRpc, Callbacks) {
                         << "callIsOneway: " << callIsOneway
                         << " callbackIsOneway: " << callbackIsOneway << " delayed: " << delayed;
 
-                // since we are severing the connection, we need to go ahead and
-                // tell the server to shutdown and exit so that waitpid won't hang
-                if (auto status = proc.rootIface->scheduleShutdown(); !status.isOk()) {
-                    EXPECT_EQ(DEAD_OBJECT, status.transactionError()) << status;
-                }
-
-                // since this session has an incoming connection w/ a threadpool, we
-                // need to manually shut it down
-                EXPECT_TRUE(proc.proc->sessions.at(0).session->shutdownAndWait(true));
-                proc.expectAlreadyShutdown = true;
+                proc.forceShutdown();
             }
         }
     }
