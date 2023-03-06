@@ -223,8 +223,13 @@ static bool meetsDeclarationRequirements(const sp<IBinder>& binder, const std::s
 #endif  // !VENDORSERVICEMANAGER
 
 ServiceManager::Service::~Service() {
-    if (!hasClients) {
-        // only expected to happen on process death
+    if (hasClients) {
+        // only expected to happen on process death, we don't store the service
+        // name this late (it's in the map that holds this service), but if it
+        // is happening, we might want to change 'unlinkToDeath' to explicitly
+        // clear this bit so that we can abort in other cases, where it would
+        // mean inconsistent logic in servicemanager (unexpected and tested, but
+        // the original lazy service impl here had that bug).
         LOG(WARNING) << "a service was removed when there are clients";
     }
 }
