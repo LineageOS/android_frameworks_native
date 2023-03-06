@@ -3658,8 +3658,8 @@ protected:
 };
 
 TEST_F(KeyboardInputMapperTest_ExternalDevice, WakeBehavior) {
-    // For external devices, non-media keys will trigger wake on key down. Media keys need to be
-    // marked as WAKE in the keylayout file to trigger wake.
+    // For external devices, keys will trigger wake on key down. Media keys should also trigger
+    // wake if triggered from external devices.
 
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, 0);
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_PLAY, 0, AKEYCODE_MEDIA_PLAY, 0);
@@ -3681,7 +3681,7 @@ TEST_F(KeyboardInputMapperTest_ExternalDevice, WakeBehavior) {
 
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_PLAY, 1);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
 
     process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_PLAY, 0);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
