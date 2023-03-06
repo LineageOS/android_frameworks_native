@@ -99,7 +99,7 @@ private:
 class TfLiteMotionPredictorModel {
 public:
     // Creates a model from an encoded Flatbuffer model.
-    static std::unique_ptr<TfLiteMotionPredictorModel> create(const char* modelPath);
+    static std::unique_ptr<TfLiteMotionPredictorModel> create();
 
     ~TfLiteMotionPredictorModel();
 
