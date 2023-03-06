@@ -54,8 +54,6 @@ constexpr uint32_t RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_
  */
 class RpcSession final : public virtual RefBase {
 public:
-    static constexpr size_t kDefaultMaxOutgoingThreads = 10;
-
     // Create an RpcSession with default configuration (raw sockets).
     static sp<RpcSession> make();
 
@@ -80,8 +78,8 @@ public:
 
     /**
      * Set the maximum number of outgoing connections allowed to be made.
-     * By default, this is |kDefaultMaxOutgoingThreads|. This must be called before setting up this
-     * connection as a client.
+     * By default, this is |kDefaultMaxOutgoingConnections|. This must be called before setting up
+     * this connection as a client.
      *
      * For an RpcSession client, if you are connecting to a server which starts N threads,
      * then this must be set to >= N. If you set the maximum number of outgoing connections
@@ -90,7 +88,7 @@ public:
      * created. This API is used to limit the amount of resources a server can request you
      * create.
      */
-    void setMaxOutgoingConnections(size_t threads);
+    void setMaxOutgoingConnections(size_t connections);
     size_t getMaxOutgoingThreads();
 
     /**
@@ -222,6 +220,8 @@ private:
     friend RpcServerTrusty;
     friend RpcState;
     explicit RpcSession(std::unique_ptr<RpcTransportCtx> ctx);
+
+    static constexpr size_t kDefaultMaxOutgoingConnections = 10;
 
     // internal version of setProtocolVersion that
     // optionally skips the mStartedSetup check
@@ -372,7 +372,7 @@ private:
 
     bool mStartedSetup = false;
     size_t mMaxIncomingThreads = 0;
-    size_t mMaxOutgoingThreads = kDefaultMaxOutgoingThreads;
+    size_t mMaxOutgoingConnections = kDefaultMaxOutgoingConnections;
     std::optional<uint32_t> mProtocolVersion;
     FileDescriptorTransportMode mFileDescriptorTransportMode = FileDescriptorTransportMode::NONE;
 
