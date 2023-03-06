@@ -17,11 +17,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "FrontEnd/LayerHandle.h"
 #include "FrontEnd/LayerHierarchy.h"
 #include "FrontEnd/LayerLifecycleManager.h"
 #include "FrontEnd/LayerSnapshotBuilder.h"
-#include "Layer.h"
 #include "LayerHierarchyTest.h"
 
 #define UPDATE_AND_VERIFY(BUILDER, ...)                                    \
@@ -268,7 +266,7 @@ TEST_F(LayerSnapshotTest, GameMode) {
     transactions.back().states.front().state.what = layer_state_t::eMetadataChanged;
     transactions.back().states.front().state.metadata = LayerMetadata();
     transactions.back().states.front().state.metadata.setInt32(METADATA_GAME_MODE, 42);
-    transactions.back().states.front().state.surface = mHandles[1];
+    transactions.back().states.front().layerId = 1;
     transactions.back().states.front().state.layerId = static_cast<int32_t>(1);
     mLifecycleManager.applyTransactions(transactions);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
@@ -297,8 +295,7 @@ TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
             ANATIVEWINDOW_FRAME_RATE_EXACT;
     transactions.back().states.front().state.changeFrameRateStrategy =
             ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS;
-    transactions.back().states.front().state.surface = mHandles[11];
-    transactions.back().states.front().state.layerId = static_cast<int32_t>(11);
+    transactions.back().states.front().layerId = 11;
     mLifecycleManager.applyTransactions(transactions);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
 
