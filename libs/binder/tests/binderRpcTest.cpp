@@ -584,30 +584,22 @@ TEST_P(BinderRpc, OnewayCallQueueing) {
         GTEST_SKIP() << "This test requires multiple threads";
     }
 
-    constexpr size_t kNumSleeps = 10;
+    constexpr size_t kNumQueued = 10;
     constexpr size_t kNumExtraServerThreads = 4;
-    constexpr size_t kSleepMs = 50;
 
     // make sure calls to the same object happen on the same thread
     auto proc = createRpcTestSocketServerProcess({.numThreads = 1 + kNumExtraServerThreads});
 
-    EXPECT_OK(proc.rootIface->lock());
-
-    size_t epochMsBefore = epochMillis();
-
-    // all these *Async commands should be queued on the server sequentially,
+    // all these *Oneway commands should be queued on the server sequentially,
     // even though there are multiple threads.
-    for (size_t i = 0; i + 1 < kNumSleeps; i++) {
-        proc.rootIface->sleepMsAsync(kSleepMs);
+    for (size_t i = 0; i + 1 < kNumQueued; i++) {
+        proc.rootIface->blockingSendIntOneway(i);
     }
-    EXPECT_OK(proc.rootIface->unlockInMsAsync(kSleepMs));
-
-    // this can only return once the final async call has unlocked
-    EXPECT_OK(proc.rootIface->lockUnlock());
-
-    size_t epochMsAfter = epochMillis();
-
-    EXPECT_GE(epochMsAfter, epochMsBefore + kSleepMs * kNumSleeps);
+    for (size_t i = 0; i + 1 < kNumQueued; i++) {
+        int n;
+        proc.rootIface->blockingRecvInt(&n);
+        EXPECT_EQ(n, i);
+    }
 
     saturateThreadPool(1 + kNumExtraServerThreads, proc.rootIface);
 }

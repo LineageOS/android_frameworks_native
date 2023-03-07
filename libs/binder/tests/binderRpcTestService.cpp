@@ -83,6 +83,18 @@ public:
         fd->reset(mFdChannel.read());
         return Status::ok();
     }
+
+    HandoffChannel<int> mIntChannel;
+
+    Status blockingSendIntOneway(int n) override {
+        mIntChannel.write(n);
+        return Status::ok();
+    }
+
+    Status blockingRecvInt(int* n) override {
+        *n = mIntChannel.read();
+        return Status::ok();
+    }
 };
 
 int main(int argc, char* argv[]) {
