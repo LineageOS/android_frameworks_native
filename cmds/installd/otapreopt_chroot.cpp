@@ -45,6 +45,10 @@ using android::base::StringPrintf;
 namespace android {
 namespace installd {
 
+// We don't know the filesystem types of the partitions in the update package,
+// so just try the possibilities one by one.
+static constexpr std::array kTryMountFsTypes = {"ext4", "erofs"};
+
 static void CloseDescriptor(int fd) {
     if (fd >= 0) {
         int result = close(fd);
@@ -82,6 +86,27 @@ static void DeactivateApexPackages() {
     }
 }
 
+static bool TryMountWithFstypes(const char* block_device, const char* target) {
+    for (int i = 0; i < kTryMountFsTypes.size(); ++i) {
+        const char* fstype = kTryMountFsTypes[i];
+        int mount_result = mount(block_device, target, fstype, MS_RDONLY, /* data */ nullptr);
+        if (mount_result == 0) {
+            return true;
+        }
+        if (errno == EINVAL && i < kTryMountFsTypes.size() - 1) {
+            // Only try the next fstype if mounting failed due to the current one
+            // being invalid.
+            LOG(WARNING) << "Failed to mount " << block_device << " on " << target << " with "
+                         << fstype << " - trying " << kTryMountFsTypes[i + 1];
+        } else {
+            PLOG(ERROR) << "Failed to mount " << block_device << " on " << target << " with "
+                        << fstype;
+            return false;
+        }
+    }
+    __builtin_unreachable();
+}
+
 static void TryExtraMount(const char* name, const char* slot, const char* target) {
     std::string partition_name = StringPrintf("%s%s", name, slot);
 
@@ -91,12 +116,7 @@ static void TryExtraMount(const char* name, const char* slot, const char* target
         if (dm.GetState(partition_name) != dm::DmDeviceState::INVALID) {
             std::string path;
             if (dm.GetDmDevicePathByName(partition_name, &path)) {
-                int mount_result = mount(path.c_str(),
-                                         target,
-                                         "ext4",
-                                         MS_RDONLY,
-                                         /* data */ nullptr);
-                if (mount_result == 0) {
+                if (TryMountWithFstypes(path.c_str(), target)) {
                     return;
                 }
             }
@@ -105,12 +125,7 @@ static void TryExtraMount(const char* name, const char* slot, const char* target
 
     // Fall back and attempt a direct mount.
     std::string block_device = StringPrintf("/dev/block/by-name/%s", partition_name.c_str());
-    int mount_result = mount(block_device.c_str(),
-                             target,
-                             "ext4",
-                             MS_RDONLY,
-                             /* data */ nullptr);
-    UNUSED(mount_result);
+    (void)TryMountWithFstypes(block_device.c_str(), target);
 }
 
 // Entry for otapreopt_chroot. Expected parameters are:
