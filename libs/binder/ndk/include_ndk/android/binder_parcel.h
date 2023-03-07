@@ -26,11 +26,11 @@
 
 #pragma once
 
+#include <android/binder_status.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <sys/cdefs.h>
-
-#include <android/binder_status.h>
+#include <uchar.h>
 
 struct AIBinder;
 typedef struct AIBinder AIBinder;
