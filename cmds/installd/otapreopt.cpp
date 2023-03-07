@@ -308,7 +308,7 @@ private:
         // This is different from the normal installd. We only do the base
         // directory, the rest will be created on demand when each app is compiled.
         if (access(GetOtaDirectoryPrefix().c_str(), R_OK) < 0) {
-            LOG(ERROR) << "Could not access " << GetOtaDirectoryPrefix();
+            PLOG(ERROR) << "Could not access " << GetOtaDirectoryPrefix();
             return false;
         }
 
@@ -460,7 +460,7 @@ private:
         // this tool will wipe the OTA artifact cache and try again (for robustness after
         // a failed OTA with remaining cache artifacts).
         if (access(apk_path, F_OK) != 0) {
-            LOG(WARNING) << "Skipping A/B OTA preopt of non-existing package " << apk_path;
+            PLOG(WARNING) << "Skipping A/B OTA preopt of non-existing package " << apk_path;
             return true;
         }
 
