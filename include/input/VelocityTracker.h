@@ -17,6 +17,7 @@
 #pragma once
 
 #include <input/Input.h>
+#include <input/RingBuffer.h>
 #include <utils/BitSet.h>
 #include <utils/Timers.h>
 #include <map>
@@ -172,8 +173,7 @@ protected:
     // protected const field.
     static constexpr uint32_t HISTORY_SIZE = 20;
 
-    std::map<int32_t /*pointerId*/, size_t /*positionInArray*/> mIndex;
-    std::map<int32_t /*pointerId*/, std::array<Movement, HISTORY_SIZE>> mMovements;
+    std::map<int32_t /*pointerId*/, RingBuffer<Movement>> mMovements;
 };
 
 /*
