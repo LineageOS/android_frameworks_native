@@ -221,6 +221,13 @@ private:
     static const nsecs_t HORIZON = 100 * 1000000; // 100 ms
 
     float chooseWeight(int32_t pointerId, uint32_t index) const;
+    /**
+     * An optimized least-squares solver for degree 2 and no weight (i.e. `Weighting.NONE`).
+     * The provided container of movements shall NOT be empty, and shall have the movements in
+     * chronological order.
+     */
+    std::optional<float> solveUnweightedLeastSquaresDeg2(
+            const RingBuffer<Movement>& movements) const;
 
     const uint32_t mDegree;
     const Weighting mWeighting;

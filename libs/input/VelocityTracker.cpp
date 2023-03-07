@@ -413,7 +413,7 @@ void AccumulatingVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t
 LeastSquaresVelocityTrackerStrategy::LeastSquaresVelocityTrackerStrategy(uint32_t degree,
                                                                          Weighting weighting)
       : AccumulatingVelocityTrackerStrategy(HORIZON /*horizonNanos*/,
-                                            false /*maintainHorizonDuringAdd*/),
+                                            true /*maintainHorizonDuringAdd*/),
         mDegree(degree),
         mWeighting(weighting) {}
 
@@ -589,16 +589,21 @@ static std::optional<float> solveLeastSquares(const std::vector<float>& x,
  * Optimized unweighted second-order least squares fit. About 2x speed improvement compared to
  * the default implementation
  */
-static std::optional<float> solveUnweightedLeastSquaresDeg2(const std::vector<float>& x,
-                                                            const std::vector<float>& y) {
-    const size_t count = x.size();
-    LOG_ALWAYS_FATAL_IF(count != y.size(), "Mismatching array sizes");
-    // Solving y = a*x^2 + b*x + c
+std::optional<float> LeastSquaresVelocityTrackerStrategy::solveUnweightedLeastSquaresDeg2(
+        const RingBuffer<Movement>& movements) const {
+    // Solving y = a*x^2 + b*x + c, where
+    //      - "x" is age (i.e. duration since latest movement) of the movemnets
+    //      - "y" is positions of the movements.
     float sxi = 0, sxiyi = 0, syi = 0, sxi2 = 0, sxi3 = 0, sxi2yi = 0, sxi4 = 0;
 
+    const size_t count = movements.size();
+    const Movement& newestMovement = movements[count - 1];
     for (size_t i = 0; i < count; i++) {
-        float xi = x[i];
-        float yi = y[i];
+        const Movement& movement = movements[i];
+        nsecs_t age = newestMovement.eventTime - movement.eventTime;
+        float xi = -age * SECONDS_PER_NANO;
+        float yi = movement.position;
+
         float xi2 = xi*xi;
         float xi3 = xi2*xi;
         float xi4 = xi3*xi;
@@ -641,6 +646,20 @@ std::optional<float> LeastSquaresVelocityTrackerStrategy::getVelocity(int32_t po
         return std::nullopt; // no data
     }
 
+    uint32_t degree = mDegree;
+    if (degree > size - 1) {
+        degree = size - 1;
+    }
+
+    if (degree <= 0) {
+        return std::nullopt;
+    }
+
+    if (degree == 2 && mWeighting == Weighting::NONE) {
+        // Optimize unweighted, quadratic polynomial fit
+        return solveUnweightedLeastSquaresDeg2(movements);
+    }
+
     // Iterate over movement samples in reverse time order and collect samples.
     std::vector<float> positions;
     std::vector<float> w;
@@ -649,34 +668,12 @@ std::optional<float> LeastSquaresVelocityTrackerStrategy::getVelocity(int32_t po
     const Movement& newestMovement = movements[size - 1];
     for (ssize_t i = size - 1; i >= 0; i--) {
         const Movement& movement = movements[i];
-
         nsecs_t age = newestMovement.eventTime - movement.eventTime;
-        if (age > HORIZON) {
-            break;
-        }
         positions.push_back(movement.position);
         w.push_back(chooseWeight(pointerId, i));
         time.push_back(-age * 0.000000001f);
     }
 
-    const size_t m = positions.size();
-    if (m == 0) {
-        return std::nullopt; // no data
-    }
-
-    // Calculate a least squares polynomial fit.
-    uint32_t degree = mDegree;
-    if (degree > m - 1) {
-        degree = m - 1;
-    }
-
-    if (degree <= 0) {
-        return std::nullopt;
-    }
-    if (degree == 2 && mWeighting == Weighting::NONE) {
-        // Optimize unweighted, quadratic polynomial fit
-        return solveUnweightedLeastSquaresDeg2(time, positions);
-    }
     // General case for an Nth degree polynomial fit
     return solveLeastSquares(time, positions, w, degree + 1);
 }
