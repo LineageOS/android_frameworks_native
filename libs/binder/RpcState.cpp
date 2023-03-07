@@ -1036,8 +1036,8 @@ processTransactInternalTailCall:
                 return DEAD_OBJECT;
             }
 
-            if (it->second.asyncTodo.size() == 0) return OK;
-            if (it->second.asyncTodo.top().asyncNumber == it->second.asyncNumber) {
+            if (it->second.asyncTodo.size() != 0 &&
+                it->second.asyncTodo.top().asyncNumber == it->second.asyncNumber) {
                 LOG_RPC_DETAIL("Found next async transaction %" PRIu64 " on %" PRIu64,
                                it->second.asyncNumber, addr);
 
