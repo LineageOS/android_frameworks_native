@@ -176,10 +176,16 @@ void VsyncSchedule::enableHardwareVsyncLocked(ISchedulerCallback& callback) {
 
 void VsyncSchedule::disableHardwareVsync(ISchedulerCallback& callback, bool disallow) {
     std::lock_guard<std::mutex> lock(mHwVsyncLock);
-    if (mHwVsyncState == HwVsyncState::Enabled) {
-        callback.setVsyncEnabled(mId, false);
+    switch (mHwVsyncState) {
+        case HwVsyncState::Enabled:
+            callback.setVsyncEnabled(mId, false);
+            [[fallthrough]];
+        case HwVsyncState::Disabled:
+            mHwVsyncState = disallow ? HwVsyncState::Disallowed : HwVsyncState::Disabled;
+            break;
+        case HwVsyncState::Disallowed:
+            break;
     }
-    mHwVsyncState = disallow ? HwVsyncState::Disallowed : HwVsyncState::Disabled;
 }
 
 bool VsyncSchedule::isHardwareVsyncAllowed(bool makeAllowed) {

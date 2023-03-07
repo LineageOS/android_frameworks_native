@@ -68,11 +68,11 @@ const GesturesPropProvider gesturePropProvider = {
         .free_fn = freeProperty,
 };
 
-bool PropertyProvider::hasProperty(const std::string name) const {
+bool PropertyProvider::hasProperty(const std::string& name) const {
     return mProperties.find(name) != mProperties.end();
 }
 
-GesturesProp& PropertyProvider::getProperty(const std::string name) {
+GesturesProp& PropertyProvider::getProperty(const std::string& name) {
     return mProperties.at(name);
 }
 
@@ -84,7 +84,7 @@ std::string PropertyProvider::dump() const {
     return dump;
 }
 
-GesturesProp* PropertyProvider::createIntArrayProperty(const std::string name, int* loc,
+GesturesProp* PropertyProvider::createIntArrayProperty(const std::string& name, int* loc,
                                                        size_t count, const int* init) {
     const auto [it, inserted] =
             mProperties.insert(std::pair{name, GesturesProp(name, loc, count, init)});
@@ -92,7 +92,7 @@ GesturesProp* PropertyProvider::createIntArrayProperty(const std::string name, i
     return &it->second;
 }
 
-GesturesProp* PropertyProvider::createBoolArrayProperty(const std::string name,
+GesturesProp* PropertyProvider::createBoolArrayProperty(const std::string& name,
                                                         GesturesPropBool* loc, size_t count,
                                                         const GesturesPropBool* init) {
     const auto [it, inserted] =
@@ -101,7 +101,7 @@ GesturesProp* PropertyProvider::createBoolArrayProperty(const std::string name,
     return &it->second;
 }
 
-GesturesProp* PropertyProvider::createRealArrayProperty(const std::string name, double* loc,
+GesturesProp* PropertyProvider::createRealArrayProperty(const std::string& name, double* loc,
                                                         size_t count, const double* init) {
     const auto [it, inserted] =
             mProperties.insert(std::pair{name, GesturesProp(name, loc, count, init)});
@@ -109,7 +109,7 @@ GesturesProp* PropertyProvider::createRealArrayProperty(const std::string name, 
     return &it->second;
 }
 
-GesturesProp* PropertyProvider::createStringProperty(const std::string name, const char** loc,
+GesturesProp* PropertyProvider::createStringProperty(const std::string& name, const char** loc,
                                                      const char* const init) {
     const auto [it, inserted] = mProperties.insert(std::pair{name, GesturesProp(name, loc, init)});
     LOG_ALWAYS_FATAL_IF(!inserted, "Gesture property \"%s\" already exists.", name.c_str());
