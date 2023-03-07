@@ -4162,7 +4162,12 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
         const TransactionHandler::TransactionFlushState& flushState) {
     using TransactionReadiness = TransactionHandler::TransactionReadiness;
     auto ready = TransactionReadiness::Ready;
-    flushState.transaction->traverseStatesWithBuffersWhileTrue([&](const layer_state_t& s) -> bool {
+    flushState.transaction->traverseStatesWithBuffersWhileTrue([&](const layer_state_t& s,
+                                                                   const std::shared_ptr<
+                                                                           renderengine::
+                                                                                   ExternalTexture>&
+                                                                           externalTexture)
+                                                                       -> bool {
         sp<Layer> layer = LayerHandle::getLayer(s.surface);
         const auto& transaction = *flushState.transaction;
         // check for barrier frames
@@ -4172,7 +4177,8 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
             // don't wait on the barrier since we know that's stale information.
             if (layer->getDrawingState().producerId > s.bufferData->producerId) {
                 layer->callReleaseBufferCallback(s.bufferData->releaseBufferListener,
-                                                 s.bufferData->buffer, s.bufferData->frameNumber,
+                                                 externalTexture->getBuffer(),
+                                                 s.bufferData->frameNumber,
                                                  s.bufferData->acquireFence);
                 // Delete the entire state at this point and not just release the buffer because
                 // everything associated with the Layer in this Transaction is now out of date.
