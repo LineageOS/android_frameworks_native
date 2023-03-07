@@ -60,6 +60,11 @@ print -u${STATUS_FD} "global_progress $PROGRESS"
 
 i=0
 while ((i<MAXIMUM_PACKAGES)) ; do
+  DONE=$(cmd otadexopt done)
+  if [ "$DONE" = "OTA complete." ] ; then
+    break
+  fi
+
   DEXOPT_PARAMS=$(cmd otadexopt next)
 
   /system/bin/otapreopt_chroot $STATUS_FD $TARGET_SLOT_SUFFIX $DEXOPT_PARAMS >&- 2>&-
@@ -67,13 +72,8 @@ while ((i<MAXIMUM_PACKAGES)) ; do
   PROGRESS=$(cmd otadexopt progress)
   print -u${STATUS_FD} "global_progress $PROGRESS"
 
-  DONE=$(cmd otadexopt done)
-  if [ "$DONE" = "OTA incomplete." ] ; then
-    sleep 1
-    i=$((i+1))
-    continue
-  fi
-  break
+  sleep 1
+  i=$((i+1))
 done
 
 DONE=$(cmd otadexopt done)
