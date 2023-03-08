@@ -394,6 +394,22 @@ void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
                                    [&]() { return layerInfo->mutable_destination_frame(); });
 }
 
+google::protobuf::RepeatedPtrField<DisplayProto> LayerProtoHelper::writeDisplayInfoToProto(
+        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos) {
+    google::protobuf::RepeatedPtrField<DisplayProto> displays;
+    displays.Reserve(displayInfos.size());
+    for (const auto& [layerStack, displayInfo] : displayInfos) {
+        auto displayProto = displays.Add();
+        displayProto->set_id(displayInfo.info.displayId);
+        displayProto->set_layer_stack(layerStack.id);
+        displayProto->mutable_size()->set_w(displayInfo.info.logicalWidth);
+        displayProto->mutable_size()->set_h(displayInfo.info.logicalHeight);
+        writeTransformToProto(displayInfo.transform, displayProto->mutable_transform());
+        displayProto->set_is_virtual(displayInfo.isVirtual);
+    }
+    return displays;
+}
+
 } // namespace surfaceflinger
 } // namespace android
 

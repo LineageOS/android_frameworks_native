@@ -455,26 +455,6 @@ private:
         FINISHED,
     };
 
-    struct LayerCreatedState {
-        LayerCreatedState(const wp<Layer>& layer, const wp<Layer>& parent, bool addToRoot)
-              : layer(layer), initialParent(parent), addToRoot(addToRoot) {}
-        wp<Layer> layer;
-        // Indicates the initial parent of the created layer, only used for creating layer in
-        // SurfaceFlinger. If nullptr, it may add the created layer into the current root layers.
-        wp<Layer> initialParent;
-        // Indicates whether the layer getting created should be added at root if there's no parent
-        // and has permission ACCESS_SURFACE_FLINGER. If set to false and no parent, the layer will
-        // be added offscreen.
-        bool addToRoot;
-    };
-
-    struct LifecycleUpdate {
-        std::vector<TransactionState> transactions;
-        std::vector<LayerCreatedState> layerCreatedStates;
-        std::vector<std::unique_ptr<frontend::RequestedLayerState>> newLayers;
-        std::vector<uint32_t> destroyedHandles;
-    };
-
     template <typename F, std::enable_if_t<!std::is_member_function_pointer_v<F>>* = nullptr>
     static Dumper dumper(F&& dump) {
         using namespace std::placeholders;
@@ -721,13 +701,13 @@ private:
             int64_t vsyncId);
     void moveSnapshotsFromCompositionArgs(compositionengine::CompositionRefreshArgs& refreshArgs,
                                           std::vector<std::pair<Layer*, LayerFE*>>& layers);
-    bool updateLayerSnapshotsLegacy(VsyncId vsyncId, LifecycleUpdate& update,
+    bool updateLayerSnapshotsLegacy(VsyncId vsyncId, frontend::Update& update,
                                     bool transactionsFlushed, bool& out)
             REQUIRES(kMainThreadContext);
-    bool updateLayerSnapshots(VsyncId vsyncId, LifecycleUpdate& update, bool transactionsFlushed,
+    bool updateLayerSnapshots(VsyncId vsyncId, frontend::Update& update, bool transactionsFlushed,
                               bool& out) REQUIRES(kMainThreadContext);
     void updateLayerHistory(const frontend::LayerSnapshot& snapshot);
-    LifecycleUpdate flushLifecycleUpdates() REQUIRES(kMainThreadContext);
+    frontend::Update flushLifecycleUpdates() REQUIRES(kMainThreadContext);
 
     void updateInputFlinger();
     void persistDisplayBrightness(bool needsComposite) REQUIRES(kMainThreadContext);
@@ -1085,7 +1065,9 @@ private:
     LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
     void dumpOffscreenLayersProto(LayersProto& layersProto,
                                   uint32_t traceFlags = LayerTracing::TRACE_ALL) const;
-    void dumpDisplayProto(LayersTraceProto& layersTraceProto) const;
+    google::protobuf::RepeatedPtrField<DisplayProto> dumpDisplayProto() const;
+    void addToLayerTracing(bool visibleRegionDirty, int64_t time, int64_t vsyncId)
+            REQUIRES(kMainThreadContext);
 
     // Dumps state from HW Composer
     void dumpHwc(std::string& result) const;
@@ -1242,7 +1224,7 @@ private:
     bool mLayerCachingEnabled = false;
     bool mBackpressureGpuComposition = false;
 
-    LayerTracing mLayerTracing{*this};
+    LayerTracing mLayerTracing;
     bool mLayerTracingEnabled = false;
 
     std::optional<TransactionTracing> mTransactionTracing;
@@ -1424,6 +1406,7 @@ private:
 
     std::vector<uint32_t> mDestroyedHandles;
     std::vector<std::unique_ptr<frontend::RequestedLayerState>> mNewLayers;
+    std::vector<LayerCreationArgs> mNewLayerArgs;
     // These classes do not store any client state but help with managing transaction callbacks
     // and stats.
     std::unordered_map<uint32_t, sp<Layer>> mLegacyLayers;

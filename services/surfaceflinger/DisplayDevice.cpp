@@ -167,6 +167,7 @@ auto DisplayDevice::getFrontEndInfo() const -> frontend::DisplayInfo {
             .receivesInput = receivesInput(),
             .isSecure = isSecure(),
             .isPrimary = isPrimary(),
+            .isVirtual = isVirtual(),
             .rotationFlags = ui::Transform::toRotationFlags(mOrientation),
             .transformHint = getTransformHint()};
 }

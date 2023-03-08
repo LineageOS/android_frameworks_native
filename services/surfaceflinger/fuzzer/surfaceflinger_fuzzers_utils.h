@@ -453,8 +453,7 @@ public:
 
         LayersProto layersProto = mFlinger->dumpDrawingStateProto(fdp->ConsumeIntegral<uint32_t>());
         mFlinger->dumpOffscreenLayersProto(layersProto);
-        LayersTraceProto layersTraceProto{};
-        mFlinger->dumpDisplayProto(layersTraceProto);
+        mFlinger->dumpDisplayProto();
 
         result = fdp->ConsumeRandomLengthString().c_str();
         mFlinger->dumpHwc(result);

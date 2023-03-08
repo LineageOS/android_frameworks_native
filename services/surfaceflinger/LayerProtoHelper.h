@@ -63,10 +63,11 @@ public:
                                       const frontend::LayerSnapshotBuilder& snapshotBuilder,
                                       const std::unordered_map<uint32_t, sp<Layer>>& mLegacyLayers,
                                       uint32_t traceFlags);
-
     static void writeSnapshotToProto(LayerProto* outProto,
                                      const frontend::RequestedLayerState& requestedState,
                                      const frontend::LayerSnapshot& snapshot, uint32_t traceFlags);
+    static google::protobuf::RepeatedPtrField<DisplayProto> writeDisplayInfoToProto(
+            const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos);
 };
 
 } // namespace surfaceflinger
