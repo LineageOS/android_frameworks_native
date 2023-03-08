@@ -269,9 +269,6 @@ public:
     inline int32_t getDeviceControllerNumber() const {
         return mEventHub->getDeviceControllerNumber(mId);
     }
-    inline void getConfiguration(PropertyMap* outConfiguration) const {
-        return mEventHub->getConfiguration(mId, outConfiguration);
-    }
     inline status_t getAbsoluteAxisInfo(int32_t code, RawAbsoluteAxisInfo* axisInfo) const {
         return mEventHub->getAbsoluteAxisInfo(mId, code, axisInfo);
     }
