@@ -159,7 +159,7 @@ private:
     ftl::Flags<InputDeviceClass> getDeviceClasses(int32_t deviceId) const override;
     InputDeviceIdentifier getDeviceIdentifier(int32_t deviceId) const override;
     int32_t getDeviceControllerNumber(int32_t) const override;
-    void getConfiguration(int32_t deviceId, PropertyMap* outConfiguration) const override;
+    std::optional<PropertyMap> getConfiguration(int32_t deviceId) const override;
     status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                  RawAbsoluteAxisInfo* outAxisInfo) const override;
     bool hasRelativeAxis(int32_t deviceId, int axis) const override;

@@ -255,11 +255,12 @@ int32_t FakeEventHub::getDeviceControllerNumber(int32_t) const {
     return 0;
 }
 
-void FakeEventHub::getConfiguration(int32_t deviceId, PropertyMap* outConfiguration) const {
+std::optional<PropertyMap> FakeEventHub::getConfiguration(int32_t deviceId) const {
     Device* device = getDevice(deviceId);
-    if (device) {
-        *outConfiguration = device->configuration;
+    if (device == nullptr) {
+        return {};
     }
+    return device->configuration;
 }
 
 status_t FakeEventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
