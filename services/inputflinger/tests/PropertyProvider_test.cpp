@@ -18,6 +18,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "TestConstants.h"
 #include "include/gestures.h"
 
 namespace android {
@@ -281,6 +282,70 @@ TEST_F(PropertyProviderTest, Free) {
     gesturePropProvider.free_fn(&mProvider, propPtr);
 
     EXPECT_FALSE(mProvider.hasProperty("Foo"));
+}
+
+class PropertyProviderIdcLoadingTest : public testing::Test {
+protected:
+    void SetUp() override {
+        int initialInt = 0;
+        GesturesPropBool initialBool = false;
+        double initialReal = 0.0;
+        gesturePropProvider.create_int_fn(&mProvider, "An Integer", &mIntData, 1, &initialInt);
+        gesturePropProvider.create_bool_fn(&mProvider, "A Boolean", &mBoolData, 1, &initialBool);
+        gesturePropProvider.create_real_fn(&mProvider, "A Real", &mRealData, 1, &initialReal);
+    }
+
+    PropertyProvider mProvider;
+
+    int mIntData;
+    GesturesPropBool mBoolData;
+    double mRealData;
+};
+
+TEST_F(PropertyProviderIdcLoadingTest, AllCorrect) {
+    PropertyMap idcProps;
+    idcProps.addProperty("gestureProp.An_Integer", "42");
+    idcProps.addProperty("gestureProp.A_Boolean", "1");
+    idcProps.addProperty("gestureProp.A_Real", "3.14159");
+
+    mProvider.loadPropertiesFromIdcFile(idcProps);
+    EXPECT_THAT(mProvider.getProperty("An Integer").getIntValues(), ElementsAre(42));
+    EXPECT_THAT(mProvider.getProperty("A Boolean").getBoolValues(), ElementsAre(true));
+    EXPECT_NEAR(mProvider.getProperty("A Real").getRealValues()[0], 3.14159, EPSILON);
+}
+
+TEST_F(PropertyProviderIdcLoadingTest, InvalidPropsIgnored) {
+    int intArrayData[2];
+    int initialInts[2] = {0, 1};
+    gesturePropProvider.create_int_fn(&mProvider, "Two Integers", intArrayData, 2, initialInts);
+
+    PropertyMap idcProps;
+    // Wrong type
+    idcProps.addProperty("gestureProp.An_Integer", "37.25");
+    // Wrong size
+    idcProps.addProperty("gestureProp.Two_Integers", "42");
+    // Doesn't exist
+    idcProps.addProperty("gestureProp.Some_Nonexistent_Property", "1");
+    // A valid assignment that should still be applied despite the others being invalid
+    idcProps.addProperty("gestureProp.A_Real", "3.14159");
+
+    mProvider.loadPropertiesFromIdcFile(idcProps);
+    EXPECT_THAT(mProvider.getProperty("An Integer").getIntValues(), ElementsAre(0));
+    EXPECT_THAT(mProvider.getProperty("Two Integers").getIntValues(), ElementsAre(0, 1));
+    EXPECT_FALSE(mProvider.hasProperty("Some Nonexistent Property"));
+    EXPECT_NEAR(mProvider.getProperty("A Real").getRealValues()[0], 3.14159, EPSILON);
+}
+
+TEST_F(PropertyProviderIdcLoadingTest, FunkyName) {
+    int data;
+    int initialData = 0;
+    gesturePropProvider.create_int_fn(&mProvider, "  I lOvE sNAKes ", &data, 1, &initialData);
+
+    PropertyMap idcProps;
+    idcProps.addProperty("gestureProp.__I_lOvE_sNAKes_", "42");
+
+    mProvider.loadPropertiesFromIdcFile(idcProps);
+    EXPECT_THAT(mProvider.getProperty("  I lOvE sNAKes ").getIntValues(), ElementsAre(42));
 }
 
 } // namespace android
