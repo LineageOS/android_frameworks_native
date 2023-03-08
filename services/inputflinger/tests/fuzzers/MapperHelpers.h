@@ -86,8 +86,8 @@ public:
     int32_t getDeviceControllerNumber(int32_t deviceId) const override {
         return mFdp->ConsumeIntegral<int32_t>();
     }
-    void getConfiguration(int32_t deviceId, PropertyMap* outConfiguration) const override {
-        *outConfiguration = mFuzzConfig;
+    std::optional<PropertyMap> getConfiguration(int32_t deviceId) const override {
+        return mFuzzConfig;
     }
     status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                  RawAbsoluteAxisInfo* outAxisInfo) const override {
