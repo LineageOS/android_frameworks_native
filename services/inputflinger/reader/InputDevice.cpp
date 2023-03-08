@@ -284,9 +284,11 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
         if (!changes || (changes & InputReaderConfiguration::CHANGE_DEVICE_TYPE)) {
             mConfiguration.clear();
             for_each_subdevice([this](InputDeviceContext& context) {
-                PropertyMap configuration;
-                context.getConfiguration(&configuration);
-                mConfiguration.addAll(&configuration);
+                std::optional<PropertyMap> configuration =
+                        getEventHub()->getConfiguration(context.getEventHubId());
+                if (configuration) {
+                    mConfiguration.addAll(&(*configuration));
+                }
             });
 
             mAssociatedDeviceType =

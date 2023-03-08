@@ -263,7 +263,13 @@ public:
 
     virtual int32_t getDeviceControllerNumber(int32_t deviceId) const = 0;
 
-    virtual void getConfiguration(int32_t deviceId, PropertyMap* outConfiguration) const = 0;
+    /**
+     * Get the PropertyMap for the provided EventHub device, if available.
+     * This acquires the device lock, so a copy is returned rather than the raw pointer
+     * to the device's PropertyMap. A std::nullopt may be returned if the device could
+     * not be found, or if it doesn't have any configuration.
+     */
+    virtual std::optional<PropertyMap> getConfiguration(int32_t deviceId) const = 0;
 
     virtual status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                          RawAbsoluteAxisInfo* outAxisInfo) const = 0;
@@ -464,7 +470,7 @@ public:
 
     int32_t getDeviceControllerNumber(int32_t deviceId) const override final;
 
-    void getConfiguration(int32_t deviceId, PropertyMap* outConfiguration) const override final;
+    std::optional<PropertyMap> getConfiguration(int32_t deviceId) const override final;
 
     status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                  RawAbsoluteAxisInfo* outAxisInfo) const override final;
