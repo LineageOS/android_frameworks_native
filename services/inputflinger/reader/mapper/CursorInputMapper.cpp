@@ -20,6 +20,8 @@
 
 #include "CursorInputMapper.h"
 
+#include <optional>
+
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
 #include "PointerControllerInterface.h"
@@ -250,18 +252,17 @@ std::list<NotifyArgs> CursorInputMapper::configure(nsecs_t when,
 
 void CursorInputMapper::configureParameters() {
     mParameters.mode = Parameters::Mode::POINTER;
-    std::string cursorModeString;
-    if (getDeviceContext().getConfiguration().tryGetProperty("cursor.mode", cursorModeString)) {
-        if (cursorModeString == "navigation") {
+    const PropertyMap& config = getDeviceContext().getConfiguration();
+    std::optional<std::string> cursorModeString = config.getString("cursor.mode");
+    if (cursorModeString.has_value()) {
+        if (*cursorModeString == "navigation") {
             mParameters.mode = Parameters::Mode::NAVIGATION;
-        } else if (cursorModeString != "pointer" && cursorModeString != "default") {
-            ALOGW("Invalid value for cursor.mode: '%s'", cursorModeString.c_str());
+        } else if (*cursorModeString != "pointer" && *cursorModeString != "default") {
+            ALOGW("Invalid value for cursor.mode: '%s'", cursorModeString->c_str());
         }
     }
 
-    mParameters.orientationAware = false;
-    getDeviceContext().getConfiguration().tryGetProperty("cursor.orientationAware",
-                                                         mParameters.orientationAware);
+    mParameters.orientationAware = config.getBool("cursor.orientationAware").value_or(false);
 
     mParameters.hasAssociatedDisplay = false;
     if (mParameters.mode == Parameters::Mode::POINTER || mParameters.orientationAware) {

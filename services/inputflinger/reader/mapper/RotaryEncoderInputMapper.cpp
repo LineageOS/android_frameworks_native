@@ -20,6 +20,8 @@
 
 #include "RotaryEncoderInputMapper.h"
 
+#include <optional>
+
 #include "CursorScrollAccumulator.h"
 
 namespace android {
@@ -39,18 +41,19 @@ void RotaryEncoderInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     InputMapper::populateDeviceInfo(info);
 
     if (mRotaryEncoderScrollAccumulator.haveRelativeVWheel()) {
-        float res = 0.0f;
-        if (!getDeviceContext().getConfiguration().tryGetProperty("device.res", res)) {
+        const PropertyMap& config = getDeviceContext().getConfiguration();
+        std::optional<float> res = config.getFloat("device.res");
+        if (!res.has_value()) {
             ALOGW("Rotary Encoder device configuration file didn't specify resolution!\n");
         }
-        if (!getDeviceContext().getConfiguration().tryGetProperty("device.scalingFactor",
-                                                                  mScalingFactor)) {
+        std::optional<float> scalingFactor = config.getFloat("device.scalingFactor");
+        if (!scalingFactor.has_value()) {
             ALOGW("Rotary Encoder device configuration file didn't specify scaling factor,"
                   "default to 1.0!\n");
-            mScalingFactor = 1.0f;
         }
+        mScalingFactor = scalingFactor.value_or(1.0f);
         info->addMotionRange(AMOTION_EVENT_AXIS_SCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f,
-                             res * mScalingFactor);
+                             res.value_or(0.0f) * mScalingFactor);
     }
 }
 

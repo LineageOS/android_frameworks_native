@@ -61,12 +61,6 @@ uint32_t SensorInputMapper::getSources() const {
     return AINPUT_SOURCE_SENSOR;
 }
 
-template <typename T>
-bool SensorInputMapper::tryGetProperty(std::string keyName, T& outValue) {
-    const auto& config = getDeviceContext().getConfiguration();
-    return config.tryGetProperty(keyName, outValue);
-}
-
 void SensorInputMapper::parseSensorConfiguration(InputDeviceSensorType sensorType, int32_t absCode,
                                                  int32_t sensorDataIndex, const Axis& axis) {
     auto it = mSensors.find(sensorType);
@@ -201,6 +195,17 @@ std::list<NotifyArgs> SensorInputMapper::reset(nsecs_t when) {
 SensorInputMapper::Sensor SensorInputMapper::createSensor(InputDeviceSensorType sensorType,
                                                           const Axis& axis) {
     InputDeviceIdentifier identifier = getDeviceContext().getDeviceIdentifier();
+    const auto& config = getDeviceContext().getConfiguration();
+
+    std::string prefix = "sensor." + ftl::enum_string(sensorType);
+    transform(prefix.begin(), prefix.end(), prefix.begin(), ::tolower);
+
+    int32_t flags = 0;
+    std::optional<int32_t> reportingMode = config.getInt(prefix + ".reportingMode");
+    if (reportingMode.has_value()) {
+        flags |= (*reportingMode & REPORTING_MODE_MASK) << REPORTING_MODE_SHIFT;
+    }
+
     // Sensor Id will be assigned to device Id to distinguish same sensor from multiple input
     // devices, in such a way that the sensor Id will be same as input device Id.
     // The sensorType is to distinguish different sensors within one device.
@@ -209,28 +214,15 @@ SensorInputMapper::Sensor SensorInputMapper::createSensor(InputDeviceSensorType 
                                      identifier.version, sensorType,
                                      InputDeviceSensorAccuracy::ACCURACY_HIGH,
                                      /*maxRange=*/axis.max, /*resolution=*/axis.scale,
-                                     /*power=*/0.0f, /*minDelay=*/0,
-                                     /*fifoReservedEventCount=*/0, /*fifoMaxEventCount=*/0,
-                                     ftl::enum_string(sensorType), /*maxDelay=*/0, /*flags=*/0,
-                                     getDeviceId());
-
-    std::string prefix = "sensor." + ftl::enum_string(sensorType);
-    transform(prefix.begin(), prefix.end(), prefix.begin(), ::tolower);
-
-    int32_t reportingMode = 0;
-    if (tryGetProperty(prefix + ".reportingMode", reportingMode)) {
-        sensorInfo.flags |= (reportingMode & REPORTING_MODE_MASK) << REPORTING_MODE_SHIFT;
-    }
-
-    tryGetProperty(prefix + ".maxDelay", sensorInfo.maxDelay);
-
-    tryGetProperty(prefix + ".minDelay", sensorInfo.minDelay);
-
-    tryGetProperty(prefix + ".power", sensorInfo.power);
-
-    tryGetProperty(prefix + ".fifoReservedEventCount", sensorInfo.fifoReservedEventCount);
-
-    tryGetProperty(prefix + ".fifoMaxEventCount", sensorInfo.fifoMaxEventCount);
+                                     /*power=*/config.getFloat(prefix + ".power").value_or(0.0f),
+                                     /*minDelay=*/config.getInt(prefix + ".minDelay").value_or(0),
+                                     /*fifoReservedEventCount=*/
+                                     config.getInt(prefix + ".fifoReservedEventCount").value_or(0),
+                                     /*fifoMaxEventCount=*/
+                                     config.getInt(prefix + ".fifoMaxEventCount").value_or(0),
+                                     ftl::enum_string(sensorType),
+                                     /*maxDelay=*/config.getInt(prefix + ".maxDelay").value_or(0),
+                                     /*flags=*/flags, getDeviceId());
 
     return Sensor(sensorInfo);
 }
