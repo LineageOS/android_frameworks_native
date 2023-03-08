@@ -725,12 +725,7 @@ status_t unflatten(HGraphicBufferProducer::FrameEventsDelta* t,
     // These were written as uint8_t for alignment.
     uint8_t temp = 0;
     FlattenableUtils::read(buffer, size, temp);
-    size_t index = static_cast<size_t>(temp);
-    if (index >= ::android::FrameEventHistory::MAX_FRAME_HISTORY) {
-        return BAD_VALUE;
-    }
-    t->index = static_cast<uint32_t>(index);
-
+    t->index = static_cast<uint32_t>(temp);
     FlattenableUtils::read(buffer, size, temp);
     t->addPostCompositeCalled = static_cast<bool>(temp);
     FlattenableUtils::read(buffer, size, temp);
@@ -786,8 +781,7 @@ status_t unflatten(HGraphicBufferProducer::FrameEventsDelta* t,
 status_t flatten(HGraphicBufferProducer::FrameEventsDelta const& t,
         void*& buffer, size_t& size, int*& fds, size_t numFds) {
     // Check that t.index is within a valid range.
-    if (t.index >= static_cast<uint32_t>(FrameEventHistory::MAX_FRAME_HISTORY)
-            || t.index > std::numeric_limits<uint8_t>::max()) {
+    if (t.index > UINT8_MAX || t.index < 0) {
         return BAD_VALUE;
     }
 
@@ -887,8 +881,7 @@ status_t unflatten(
 
     uint32_t deltaCount = 0;
     FlattenableUtils::read(buffer, size, deltaCount);
-    if (static_cast<size_t>(deltaCount) >
-            ::android::FrameEventHistory::MAX_FRAME_HISTORY) {
+    if (deltaCount > UINT8_MAX) {
         return BAD_VALUE;
     }
     t->deltas.resize(deltaCount);
@@ -919,7 +912,7 @@ status_t unflatten(
 status_t flatten(
         HGraphicBufferProducer::FrameEventHistoryDelta const& t,
         void*& buffer, size_t& size, int*& fds, size_t& numFds) {
-    if (t.deltas.size() > ::android::FrameEventHistory::MAX_FRAME_HISTORY) {
+    if (t.deltas.size() > UINT8_MAX) {
         return BAD_VALUE;
     }
     if (size < getFlattenedSize(t)) {
