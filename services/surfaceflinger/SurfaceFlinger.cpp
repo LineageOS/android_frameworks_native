@@ -1589,8 +1589,8 @@ status_t SurfaceFlinger::getHdrConversionCapabilities(
     const auto aidlConversionCapability = getHwComposer().getHdrConversionCapabilities();
     for (auto capability : aidlConversionCapability) {
         gui::HdrConversionCapability tempCapability;
-        tempCapability.sourceType = static_cast<int>(capability.sourceType.hdr);
-        tempCapability.outputType = static_cast<int>(capability.outputType->hdr);
+        tempCapability.sourceType = static_cast<int>(capability.sourceType);
+        tempCapability.outputType = static_cast<int>(capability.outputType);
         tempCapability.addsLatency = capability.addsLatency;
         hdrConversionCapabilities->push_back(tempCapability);
     }
