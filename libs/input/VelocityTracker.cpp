@@ -382,8 +382,8 @@ void AccumulatingVelocityTrackerStrategy::clearPointer(int32_t pointerId) {
 
 void AccumulatingVelocityTrackerStrategy::addMovement(nsecs_t eventTime, int32_t pointerId,
                                                       float position) {
-    auto [movementIt, _] = mMovements.insert({pointerId, RingBuffer<Movement>(HISTORY_SIZE)});
-    RingBuffer<Movement>& movements = movementIt->second;
+    auto [ringBufferIt, _] = mMovements.try_emplace(pointerId, HISTORY_SIZE);
+    RingBuffer<Movement>& movements = ringBufferIt->second;
     const size_t size = movements.size();
 
     if (size != 0 && movements[size - 1].eventTime == eventTime) {
