@@ -335,8 +335,6 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
-  // TODO: fill EXIF data
-  (void) exif;
 
   if (output_format == JPEGR_OUTPUT_SDR) {
     JpegDecoderHelper jpeg_decoder;
@@ -362,6 +360,17 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   JpegDecoderHelper jpeg_decoder;
   if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length)) {
     return ERROR_JPEGR_DECODE_ERROR;
+  }
+
+  if (exif != nullptr) {
+    if (exif->data == nullptr) {
+      return ERROR_JPEGR_INVALID_NULL_PTR;
+    }
+    if (exif->length < jpeg_decoder.getEXIFSize()) {
+      return ERROR_JPEGR_BUFFER_TOO_SMALL;
+    }
+    memcpy(exif->data, jpeg_decoder.getEXIFPtr(), jpeg_decoder.getEXIFSize());
+    exif->length = jpeg_decoder.getEXIFSize();
   }
 
   JpegDecoderHelper recovery_map_decoder;
