@@ -882,14 +882,13 @@ int32_t EventHub::getDeviceControllerNumber(int32_t deviceId) const {
     return device != nullptr ? device->controllerNumber : 0;
 }
 
-void EventHub::getConfiguration(int32_t deviceId, PropertyMap* outConfiguration) const {
+std::optional<PropertyMap> EventHub::getConfiguration(int32_t deviceId) const {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device != nullptr && device->configuration) {
-        *outConfiguration = *device->configuration;
-    } else {
-        outConfiguration->clear();
+    if (device == nullptr || device->configuration == nullptr) {
+        return {};
     }
+    return *device->configuration;
 }
 
 status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,

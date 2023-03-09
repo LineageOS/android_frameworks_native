@@ -20,6 +20,7 @@
 #include <optional>
 
 #include <android/input.h>
+#include <ftl/enum.h>
 #include <input/PrintTools.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
@@ -216,6 +217,11 @@ void TouchpadInputMapper::dump(std::string& dump) {
 std::list<NotifyArgs> TouchpadInputMapper::configure(nsecs_t when,
                                                      const InputReaderConfiguration* config,
                                                      uint32_t changes) {
+    if (!changes) {
+        // First time configuration
+        mPropertyProvider.loadPropertiesFromIdcFile(getDeviceContext().getConfiguration());
+    }
+
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         std::optional<int32_t> displayId = mPointerController->getDisplayId();
         ui::Rotation orientation = ui::ROTATION_0;
