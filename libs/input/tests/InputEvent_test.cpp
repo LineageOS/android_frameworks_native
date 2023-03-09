@@ -29,6 +29,8 @@ namespace android {
 // Default display id.
 static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
 
+static constexpr float EPSILON = MotionEvent::ROUNDING_PRECISION;
+
 class BaseTest : public testing::Test {
 protected:
     static constexpr std::array<uint8_t, 32> HMAC = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
@@ -231,95 +233,107 @@ protected:
     static constexpr float RAW_X_OFFSET = 12;
     static constexpr float RAW_Y_OFFSET = -41.1;
 
+    void SetUp() override;
+
     int32_t mId;
     ui::Transform mTransform;
     ui::Transform mRawTransform;
+    PointerProperties mPointerProperties[2];
+    struct Sample {
+        PointerCoords pointerCoords[2];
+    };
+    std::array<Sample, 3> mSamples{};
 
     void initializeEventWithHistory(MotionEvent* event);
     void assertEqualsEventWithHistory(const MotionEvent* event);
 };
 
-void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
+void MotionEventTest::SetUp() {
     mId = InputEvent::nextId();
     mTransform.set({X_SCALE, 0, X_OFFSET, 0, Y_SCALE, Y_OFFSET, 0, 0, 1});
     mRawTransform.set({RAW_X_SCALE, 0, RAW_X_OFFSET, 0, RAW_Y_SCALE, RAW_Y_OFFSET, 0, 0, 1});
 
-    PointerProperties pointerProperties[2];
-    pointerProperties[0].clear();
-    pointerProperties[0].id = 1;
-    pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
-    pointerProperties[1].clear();
-    pointerProperties[1].id = 2;
-    pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mPointerProperties[0].clear();
+    mPointerProperties[0].id = 1;
+    mPointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    mPointerProperties[1].clear();
+    mPointerProperties[1].id = 2;
+    mPointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
 
-    PointerCoords pointerCoords[2];
-    pointerCoords[0].clear();
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 10);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 11);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 12);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 13);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 14);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 15);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 16);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 17);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 18);
-    pointerCoords[1].clear();
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 20);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 21);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 22);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 23);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 24);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 25);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 26);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 27);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 28);
+    mSamples[0].pointerCoords[0].clear();
+    mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 10);
+    mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 11);
+    mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 12);
+    mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 13);
+    mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 14);
+    mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 15);
+    mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 16);
+    mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 17);
+    mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 18);
+    mSamples[0].pointerCoords[1].clear();
+    mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 20);
+    mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 21);
+    mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 22);
+    mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 23);
+    mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 24);
+    mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 25);
+    mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 26);
+    mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 27);
+    mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 28);
+
+    mSamples[1].pointerCoords[0].clear();
+    mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 110);
+    mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 111);
+    mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 112);
+    mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 113);
+    mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 114);
+    mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 115);
+    mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 116);
+    mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 117);
+    mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 118);
+    mSamples[1].pointerCoords[1].clear();
+    mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 120);
+    mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 121);
+    mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 122);
+    mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 123);
+    mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 124);
+    mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 125);
+    mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 126);
+    mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 127);
+    mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 128);
+
+    mSamples[2].pointerCoords[0].clear();
+    mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 210);
+    mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 211);
+    mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 212);
+    mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 213);
+    mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 214);
+    mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 215);
+    mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 216);
+    mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 217);
+    mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 218);
+    mSamples[2].pointerCoords[1].clear();
+    mSamples[2].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 220);
+    mSamples[2].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 221);
+    mSamples[2].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 222);
+    mSamples[2].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 223);
+    mSamples[2].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 224);
+    mSamples[2].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 225);
+    mSamples[2].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 226);
+    mSamples[2].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 227);
+    mSamples[2].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 228);
+}
+
+void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     event->initialize(mId, 2, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID, HMAC,
                       AMOTION_EVENT_ACTION_MOVE, 0, AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED,
                       AMOTION_EVENT_EDGE_FLAG_TOP, AMETA_ALT_ON, AMOTION_EVENT_BUTTON_PRIMARY,
                       MotionClassification::NONE, mTransform, 2.0f, 2.1f,
                       AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                       mRawTransform, ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME, 2,
-                      pointerProperties, pointerCoords);
-
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 110);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 111);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 112);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 113);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 114);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 115);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 116);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 117);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 118);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 120);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 121);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 122);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 123);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 124);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 125);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 126);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 127);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 128);
-    event->addSample(ARBITRARY_EVENT_TIME + 1, pointerCoords);
-
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 210);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 211);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 212);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 213);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 214);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 215);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 216);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 217);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 218);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 220);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 221);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 222);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 223);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 224);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 225);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 226);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 227);
-    pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 228);
-    event->addSample(ARBITRARY_EVENT_TIME + 2, pointerCoords);
+                      mPointerProperties, mSamples[0].pointerCoords);
+    event->addSample(ARBITRARY_EVENT_TIME + 1, mSamples[1].pointerCoords);
+    event->addSample(ARBITRARY_EVENT_TIME + 2, mSamples[2].pointerCoords);
 }
 
 void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
@@ -356,51 +370,65 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     ASSERT_EQ(ARBITRARY_EVENT_TIME + 1, event->getHistoricalEventTime(1));
     ASSERT_EQ(ARBITRARY_EVENT_TIME + 2, event->getEventTime());
 
-    ASSERT_EQ(11, event->getHistoricalRawPointerCoords(0, 0)->getAxisValue(AMOTION_EVENT_AXIS_Y));
-    ASSERT_EQ(21, event->getHistoricalRawPointerCoords(1, 0)->getAxisValue(AMOTION_EVENT_AXIS_Y));
-    ASSERT_EQ(111, event->getHistoricalRawPointerCoords(0, 1)->getAxisValue(AMOTION_EVENT_AXIS_Y));
-    ASSERT_EQ(121, event->getHistoricalRawPointerCoords(1, 1)->getAxisValue(AMOTION_EVENT_AXIS_Y));
-    ASSERT_EQ(211, event->getRawPointerCoords(0)->getAxisValue(AMOTION_EVENT_AXIS_Y));
-    ASSERT_EQ(221, event->getRawPointerCoords(1)->getAxisValue(AMOTION_EVENT_AXIS_Y));
+    // Ensure the underlying PointerCoords are identical.
+    for (int sampleIdx = 0; sampleIdx < 3; sampleIdx++) {
+        for (int pointerIdx = 0; pointerIdx < 2; pointerIdx++) {
+            ASSERT_EQ(mSamples[sampleIdx].pointerCoords[pointerIdx],
+                      event->getSamplePointerCoords()[sampleIdx * 2 + pointerIdx]);
+        }
+    }
 
-    ASSERT_EQ(RAW_Y_OFFSET + 11 * RAW_Y_SCALE,
-              event->getHistoricalRawAxisValue(AMOTION_EVENT_AXIS_Y, 0, 0));
-    ASSERT_EQ(RAW_Y_OFFSET + 21 * RAW_Y_SCALE,
-              event->getHistoricalRawAxisValue(AMOTION_EVENT_AXIS_Y, 1, 0));
-    ASSERT_EQ(RAW_Y_OFFSET + 111 * RAW_Y_SCALE,
-              event->getHistoricalRawAxisValue(AMOTION_EVENT_AXIS_Y, 0, 1));
-    ASSERT_EQ(RAW_Y_OFFSET + 121 * RAW_Y_SCALE,
-              event->getHistoricalRawAxisValue(AMOTION_EVENT_AXIS_Y, 1, 1));
-    ASSERT_EQ(RAW_Y_OFFSET + 211 * RAW_Y_SCALE, event->getRawAxisValue(AMOTION_EVENT_AXIS_Y, 0));
-    ASSERT_EQ(RAW_Y_OFFSET + 221 * RAW_Y_SCALE, event->getRawAxisValue(AMOTION_EVENT_AXIS_Y, 1));
+    ASSERT_NEAR(11, event->getHistoricalRawPointerCoords(0, 0)->getAxisValue(AMOTION_EVENT_AXIS_Y),
+                EPSILON);
+    ASSERT_NEAR(21, event->getHistoricalRawPointerCoords(1, 0)->getAxisValue(AMOTION_EVENT_AXIS_Y),
+                EPSILON);
+    ASSERT_NEAR(111, event->getHistoricalRawPointerCoords(0, 1)->getAxisValue(AMOTION_EVENT_AXIS_Y),
+                EPSILON);
+    ASSERT_NEAR(121, event->getHistoricalRawPointerCoords(1, 1)->getAxisValue(AMOTION_EVENT_AXIS_Y),
+                EPSILON);
+    ASSERT_NEAR(211, event->getRawPointerCoords(0)->getAxisValue(AMOTION_EVENT_AXIS_Y), EPSILON);
+    ASSERT_NEAR(221, event->getRawPointerCoords(1)->getAxisValue(AMOTION_EVENT_AXIS_Y), EPSILON);
 
-    ASSERT_EQ(RAW_X_OFFSET + 10 * RAW_X_SCALE, event->getHistoricalRawX(0, 0));
-    ASSERT_EQ(RAW_X_OFFSET + 20 * RAW_X_SCALE, event->getHistoricalRawX(1, 0));
-    ASSERT_EQ(RAW_X_OFFSET + 110 * RAW_X_SCALE, event->getHistoricalRawX(0, 1));
-    ASSERT_EQ(RAW_X_OFFSET + 120 * RAW_X_SCALE, event->getHistoricalRawX(1, 1));
-    ASSERT_EQ(RAW_X_OFFSET + 210 * RAW_X_SCALE, event->getRawX(0));
-    ASSERT_EQ(RAW_X_OFFSET + 220 * RAW_X_SCALE, event->getRawX(1));
+    ASSERT_NEAR(RAW_Y_OFFSET + 11 * RAW_Y_SCALE,
+                event->getHistoricalRawAxisValue(AMOTION_EVENT_AXIS_Y, 0, 0), EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 21 * RAW_Y_SCALE,
+                event->getHistoricalRawAxisValue(AMOTION_EVENT_AXIS_Y, 1, 0), EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 111 * RAW_Y_SCALE,
+                event->getHistoricalRawAxisValue(AMOTION_EVENT_AXIS_Y, 0, 1), EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 121 * RAW_Y_SCALE,
+                event->getHistoricalRawAxisValue(AMOTION_EVENT_AXIS_Y, 1, 1), EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 211 * RAW_Y_SCALE, event->getRawAxisValue(AMOTION_EVENT_AXIS_Y, 0),
+                EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 221 * RAW_Y_SCALE, event->getRawAxisValue(AMOTION_EVENT_AXIS_Y, 1),
+                EPSILON);
 
-    ASSERT_EQ(RAW_Y_OFFSET + 11 * RAW_Y_SCALE, event->getHistoricalRawY(0, 0));
-    ASSERT_EQ(RAW_Y_OFFSET + 21 * RAW_Y_SCALE, event->getHistoricalRawY(1, 0));
-    ASSERT_EQ(RAW_Y_OFFSET + 111 * RAW_Y_SCALE, event->getHistoricalRawY(0, 1));
-    ASSERT_EQ(RAW_Y_OFFSET + 121 * RAW_Y_SCALE, event->getHistoricalRawY(1, 1));
-    ASSERT_EQ(RAW_Y_OFFSET + 211 * RAW_Y_SCALE, event->getRawY(0));
-    ASSERT_EQ(RAW_Y_OFFSET + 221 * RAW_Y_SCALE, event->getRawY(1));
+    ASSERT_NEAR(RAW_X_OFFSET + 10 * RAW_X_SCALE, event->getHistoricalRawX(0, 0), EPSILON);
+    ASSERT_NEAR(RAW_X_OFFSET + 20 * RAW_X_SCALE, event->getHistoricalRawX(1, 0), EPSILON);
+    ASSERT_NEAR(RAW_X_OFFSET + 110 * RAW_X_SCALE, event->getHistoricalRawX(0, 1), EPSILON);
+    ASSERT_NEAR(RAW_X_OFFSET + 120 * RAW_X_SCALE, event->getHistoricalRawX(1, 1), EPSILON);
+    ASSERT_NEAR(RAW_X_OFFSET + 210 * RAW_X_SCALE, event->getRawX(0), EPSILON);
+    ASSERT_NEAR(RAW_X_OFFSET + 220 * RAW_X_SCALE, event->getRawX(1), EPSILON);
 
-    ASSERT_EQ(X_OFFSET + 10 * X_SCALE, event->getHistoricalX(0, 0));
-    ASSERT_EQ(X_OFFSET + 20 * X_SCALE, event->getHistoricalX(1, 0));
-    ASSERT_EQ(X_OFFSET + 110 * X_SCALE, event->getHistoricalX(0, 1));
-    ASSERT_EQ(X_OFFSET + 120 * X_SCALE, event->getHistoricalX(1, 1));
-    ASSERT_EQ(X_OFFSET + 210 * X_SCALE, event->getX(0));
-    ASSERT_EQ(X_OFFSET + 220 * X_SCALE, event->getX(1));
+    ASSERT_NEAR(RAW_Y_OFFSET + 11 * RAW_Y_SCALE, event->getHistoricalRawY(0, 0), EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 21 * RAW_Y_SCALE, event->getHistoricalRawY(1, 0), EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 111 * RAW_Y_SCALE, event->getHistoricalRawY(0, 1), EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 121 * RAW_Y_SCALE, event->getHistoricalRawY(1, 1), EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 211 * RAW_Y_SCALE, event->getRawY(0), EPSILON);
+    ASSERT_NEAR(RAW_Y_OFFSET + 221 * RAW_Y_SCALE, event->getRawY(1), EPSILON);
 
-    ASSERT_EQ(Y_OFFSET + 11 * Y_SCALE, event->getHistoricalY(0, 0));
-    ASSERT_EQ(Y_OFFSET + 21 * Y_SCALE, event->getHistoricalY(1, 0));
-    ASSERT_EQ(Y_OFFSET + 111 * Y_SCALE, event->getHistoricalY(0, 1));
-    ASSERT_EQ(Y_OFFSET + 121 * Y_SCALE, event->getHistoricalY(1, 1));
-    ASSERT_EQ(Y_OFFSET + 211 * Y_SCALE, event->getY(0));
-    ASSERT_EQ(Y_OFFSET + 221 * Y_SCALE, event->getY(1));
+    ASSERT_NEAR(X_OFFSET + 10 * X_SCALE, event->getHistoricalX(0, 0), EPSILON);
+    ASSERT_NEAR(X_OFFSET + 20 * X_SCALE, event->getHistoricalX(1, 0), EPSILON);
+    ASSERT_NEAR(X_OFFSET + 110 * X_SCALE, event->getHistoricalX(0, 1), EPSILON);
+    ASSERT_NEAR(X_OFFSET + 120 * X_SCALE, event->getHistoricalX(1, 1), EPSILON);
+    ASSERT_NEAR(X_OFFSET + 210 * X_SCALE, event->getX(0), EPSILON);
+    ASSERT_NEAR(X_OFFSET + 220 * X_SCALE, event->getX(1), EPSILON);
+
+    ASSERT_NEAR(Y_OFFSET + 11 * Y_SCALE, event->getHistoricalY(0, 0), EPSILON);
+    ASSERT_NEAR(Y_OFFSET + 21 * Y_SCALE, event->getHistoricalY(1, 0), EPSILON);
+    ASSERT_NEAR(Y_OFFSET + 111 * Y_SCALE, event->getHistoricalY(0, 1), EPSILON);
+    ASSERT_NEAR(Y_OFFSET + 121 * Y_SCALE, event->getHistoricalY(1, 1), EPSILON);
+    ASSERT_NEAR(Y_OFFSET + 211 * Y_SCALE, event->getY(0), EPSILON);
+    ASSERT_NEAR(Y_OFFSET + 221 * Y_SCALE, event->getY(1), EPSILON);
 
     ASSERT_EQ(12, event->getHistoricalPressure(0, 0));
     ASSERT_EQ(22, event->getHistoricalPressure(1, 0));
@@ -532,10 +560,10 @@ TEST_F(MotionEventTest, Scale) {
     ASSERT_EQ(X_OFFSET * 2, event.getXOffset());
     ASSERT_EQ(Y_OFFSET * 2, event.getYOffset());
 
-    ASSERT_EQ((RAW_X_OFFSET + 210 * RAW_X_SCALE) * 2, event.getRawX(0));
-    ASSERT_EQ((RAW_Y_OFFSET + 211 * RAW_Y_SCALE) * 2, event.getRawY(0));
-    ASSERT_EQ((X_OFFSET + 210 * X_SCALE) * 2, event.getX(0));
-    ASSERT_EQ((Y_OFFSET + 211 * Y_SCALE) * 2, event.getY(0));
+    ASSERT_NEAR((RAW_X_OFFSET + 210 * RAW_X_SCALE) * 2, event.getRawX(0), EPSILON);
+    ASSERT_NEAR((RAW_Y_OFFSET + 211 * RAW_Y_SCALE) * 2, event.getRawY(0), EPSILON);
+    ASSERT_NEAR((X_OFFSET + 210 * X_SCALE) * 2, event.getX(0), EPSILON);
+    ASSERT_NEAR((Y_OFFSET + 211 * Y_SCALE) * 2, event.getY(0), EPSILON);
     ASSERT_EQ(212, event.getPressure(0));
     ASSERT_EQ(213, event.getSize(0));
     ASSERT_EQ(214 * 2, event.getTouchMajor(0));
@@ -773,18 +801,18 @@ TEST_F(MotionEventTest, AxesAreCorrectlyTransformed) {
 
     // The x and y axes should have the window transform applied.
     const auto newPoint = transform.transform(60, 100);
-    ASSERT_EQ(newPoint.x, event.getX(0));
-    ASSERT_EQ(newPoint.y, event.getY(0));
+    ASSERT_NEAR(newPoint.x, event.getX(0), EPSILON);
+    ASSERT_NEAR(newPoint.y, event.getY(0), EPSILON);
 
     // The raw values should have the display transform applied.
     const auto raw = rawTransform.transform(60, 100);
-    ASSERT_EQ(raw.x, event.getRawX(0));
-    ASSERT_EQ(raw.y, event.getRawY(0));
+    ASSERT_NEAR(raw.x, event.getRawX(0), EPSILON);
+    ASSERT_NEAR(raw.y, event.getRawY(0), EPSILON);
 
     // Relative values should have the window transform applied without any translation.
     const auto rel = transformWithoutTranslation(transform, 42, 96);
-    ASSERT_EQ(rel.x, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0));
-    ASSERT_EQ(rel.y, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0));
+    ASSERT_NEAR(rel.x, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0), EPSILON);
+    ASSERT_NEAR(rel.y, event.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0), EPSILON);
 }
 
 TEST_F(MotionEventTest, Initialize_SetsClassification) {
@@ -849,6 +877,44 @@ TEST_F(MotionEventTest, SetCursorPosition) {
     event.setCursorPosition(3, 4);
     ASSERT_EQ(3, event.getXCursorPosition());
     ASSERT_EQ(4, event.getYCursorPosition());
+}
+
+TEST_F(MotionEventTest, CoordinatesAreRoundedAppropriately) {
+    // These are specifically integral values, since we are testing for rounding.
+    const vec2 EXPECTED{400.f, 700.f};
+
+    // Pick a transform such that transforming the point with its inverse and bringing that
+    // back to the original coordinate space results in a non-zero error amount due to the
+    // nature of floating point arithmetics. This can happen when the display is scaled.
+    // For example, the 'adb shell wm size' command can be used to set an override for the
+    // logical display size, which could result in the display being scaled.
+    constexpr float scale = 720.f / 1080.f;
+    ui::Transform transform;
+    transform.set(scale, 0, 0, scale);
+    ASSERT_NE(EXPECTED, transform.transform(transform.inverse().transform(EXPECTED)));
+
+    // Store the inverse-transformed values in the motion event.
+    const vec2 rawCoords = transform.inverse().transform(EXPECTED);
+    PointerCoords pc{};
+    pc.setAxisValue(AMOTION_EVENT_AXIS_X, rawCoords.x);
+    pc.setAxisValue(AMOTION_EVENT_AXIS_Y, rawCoords.y);
+    PointerProperties pp{};
+    MotionEvent event;
+    event.initialize(InputEvent::nextId(), 2, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID, HMAC,
+                     AMOTION_EVENT_ACTION_MOVE, 0, AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED,
+                     AMOTION_EVENT_EDGE_FLAG_TOP, AMETA_ALT_ON, AMOTION_EVENT_BUTTON_PRIMARY,
+                     MotionClassification::NONE, transform, 2.0f, 2.1f, rawCoords.x, rawCoords.y,
+                     transform, ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME, 1, &pp, &pc);
+
+    // When using the getters from the MotionEvent to obtain the coordinates, the transformed
+    // values should be rounded by an appropriate amount so that they now precisely equal the
+    // original coordinates.
+    ASSERT_EQ(EXPECTED.x, event.getX(0));
+    ASSERT_EQ(EXPECTED.y, event.getY(0));
+    ASSERT_EQ(EXPECTED.x, event.getRawX(0));
+    ASSERT_EQ(EXPECTED.y, event.getRawY(0));
+    ASSERT_EQ(EXPECTED.x, event.getXCursorPosition());
+    ASSERT_EQ(EXPECTED.y, event.getYCursorPosition());
 }
 
 } // namespace android
