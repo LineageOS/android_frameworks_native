@@ -805,40 +805,39 @@ void TouchInputMapper::initializeOrientedRanges() {
         };
     }
 
-    // Compute oriented precision, scales and ranges.
-    // Note that the maximum value reported is an inclusive maximum value so it is one
-    // unit less than the total width or height of the display.
-    // TODO(b/20508709): Calculate the oriented ranges using the input device's raw frame.
-    switch (mInputDeviceOrientation) {
-        case ui::ROTATION_90:
-        case ui::ROTATION_270:
-            mOrientedRanges.x.min = 0;
-            mOrientedRanges.x.max = mDisplayBounds.height - 1;
-            mOrientedRanges.x.flat = 0;
-            mOrientedRanges.x.fuzz = 0;
-            mOrientedRanges.x.resolution = mRawPointerAxes.y.resolution * mRawToDisplay.getScaleY();
+    // Oriented X/Y range (in the rotated display's orientation)
+    const FloatRect rawFrame = Rect{mRawPointerAxes.x.minValue, mRawPointerAxes.y.minValue,
+                                    mRawPointerAxes.x.maxValue, mRawPointerAxes.y.maxValue}
+                                       .toFloatRect();
+    const auto orientedRangeRect = mRawToRotatedDisplay.transform(rawFrame);
+    mOrientedRanges.x.min = orientedRangeRect.left;
+    mOrientedRanges.y.min = orientedRangeRect.top;
+    mOrientedRanges.x.max = orientedRangeRect.right;
+    mOrientedRanges.y.max = orientedRangeRect.bottom;
 
-            mOrientedRanges.y.min = 0;
-            mOrientedRanges.y.max = mDisplayBounds.width - 1;
-            mOrientedRanges.y.flat = 0;
-            mOrientedRanges.y.fuzz = 0;
-            mOrientedRanges.y.resolution = mRawPointerAxes.x.resolution * mRawToDisplay.getScaleX();
-            break;
+    // Oriented flat (in the rotated display's orientation)
+    const auto orientedFlat =
+            transformWithoutTranslation(mRawToRotatedDisplay,
+                                        {static_cast<float>(mRawPointerAxes.x.flat),
+                                         static_cast<float>(mRawPointerAxes.y.flat)});
+    mOrientedRanges.x.flat = std::abs(orientedFlat.x);
+    mOrientedRanges.y.flat = std::abs(orientedFlat.y);
 
-        default:
-            mOrientedRanges.x.min = 0;
-            mOrientedRanges.x.max = mDisplayBounds.width - 1;
-            mOrientedRanges.x.flat = 0;
-            mOrientedRanges.x.fuzz = 0;
-            mOrientedRanges.x.resolution = mRawPointerAxes.x.resolution * mRawToDisplay.getScaleX();
+    // Oriented fuzz (in the rotated display's orientation)
+    const auto orientedFuzz =
+            transformWithoutTranslation(mRawToRotatedDisplay,
+                                        {static_cast<float>(mRawPointerAxes.x.fuzz),
+                                         static_cast<float>(mRawPointerAxes.y.fuzz)});
+    mOrientedRanges.x.fuzz = std::abs(orientedFuzz.x);
+    mOrientedRanges.y.fuzz = std::abs(orientedFuzz.y);
 
-            mOrientedRanges.y.min = 0;
-            mOrientedRanges.y.max = mDisplayBounds.height - 1;
-            mOrientedRanges.y.flat = 0;
-            mOrientedRanges.y.fuzz = 0;
-            mOrientedRanges.y.resolution = mRawPointerAxes.y.resolution * mRawToDisplay.getScaleY();
-            break;
-    }
+    // Oriented resolution (in the rotated display's orientation)
+    const auto orientedRes =
+            transformWithoutTranslation(mRawToRotatedDisplay,
+                                        {static_cast<float>(mRawPointerAxes.x.resolution),
+                                         static_cast<float>(mRawPointerAxes.y.resolution)});
+    mOrientedRanges.x.resolution = std::abs(orientedRes.x);
+    mOrientedRanges.y.resolution = std::abs(orientedRes.y);
 }
 
 void TouchInputMapper::computeInputTransforms() {
