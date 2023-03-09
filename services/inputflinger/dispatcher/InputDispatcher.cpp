@@ -475,7 +475,7 @@ bool isUserActivityEvent(const EventEntry& eventEntry) {
 }
 
 // Returns true if the given window can accept pointer events at the given display location.
-bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, int32_t x, int32_t y,
+bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, float x, float y,
                           bool isStylus) {
     const auto inputConfig = windowInfo.inputConfig;
     if (windowInfo.displayId != displayId ||
@@ -540,19 +540,16 @@ std::optional<std::string> verifyTargetedInjection(const sp<WindowInfoHandle>& w
     return {};
 }
 
-Point resolveTouchedPosition(const MotionEntry& entry) {
+std::pair<float, float> resolveTouchedPosition(const MotionEntry& entry) {
     const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
     // Always dispatch mouse events to cursor position.
     if (isFromMouse) {
-        return Point(static_cast<int32_t>(entry.xCursorPosition),
-                     static_cast<int32_t>(entry.yCursorPosition));
+        return {entry.xCursorPosition, entry.yCursorPosition};
     }
 
     const int32_t pointerIndex = getMotionEventActionPointerIndex(entry.action);
-    return Point(static_cast<int32_t>(
-                         entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_X)),
-                 static_cast<int32_t>(
-                         entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_Y)));
+    return {entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_X),
+            entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_Y)};
 }
 
 std::optional<nsecs_t> getDownTime(const EventEntry& eventEntry) {
@@ -1159,7 +1156,7 @@ void InputDispatcher::addRecentEventLocked(std::shared_ptr<EventEntry> entry) {
 }
 
 std::pair<sp<WindowInfoHandle>, std::vector<InputTarget>>
-InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y, bool isStylus,
+InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, float x, float y, bool isStylus,
                                            bool ignoreDragWindow) const {
     // Traverse windows from front to back to find touched window.
     std::vector<InputTarget> outsideTargets;
@@ -1184,7 +1181,7 @@ InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t
 }
 
 std::vector<sp<WindowInfoHandle>> InputDispatcher::findTouchedSpyWindowsAtLocked(
-        int32_t displayId, int32_t x, int32_t y, bool isStylus) const {
+        int32_t displayId, float x, float y, bool isStylus) const {
     // Traverse windows from front to back and gather the touched spy windows.
     std::vector<sp<WindowInfoHandle>> spyWindows;
     const auto& windowHandles = getWindowHandlesLocked(displayId);
@@ -2231,8 +2228,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         }
         // Handle the case where we did not find a window.
         if (newTouchedWindowHandle == nullptr) {
-            ALOGD("No new touched window at (%" PRId32 ", %" PRId32 ") in display %" PRId32, x, y,
-                  displayId);
+            ALOGD("No new touched window at (%.1f, %.1f) in display %" PRId32, x, y, displayId);
             // Try to assign the pointer to the first foreground window we find, if there is one.
             newTouchedWindowHandle = tempTouchState.getFirstForegroundWindowHandle();
         }
@@ -2270,7 +2266,8 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         }
 
         if (newTouchedWindows.empty()) {
-            ALOGI("Dropping event because there is no touchable window at (%d, %d) on display %d.",
+            ALOGI("Dropping event because there is no touchable window at (%.1f, %.1f) on display "
+                  "%d.",
                   x, y, displayId);
             outInjectionResult = InputEventInjectionResult::FAILED;
             return {};
@@ -4801,7 +4798,7 @@ bool InputDispatcher::canWindowReceiveMotionLocked(const sp<WindowInfoHandle>& w
     TouchOcclusionInfo occlusionInfo = computeTouchOcclusionInfoLocked(window, x, y);
     if (!isTouchTrustedLocked(occlusionInfo)) {
         if (DEBUG_TOUCH_OCCLUSION) {
-            ALOGD("Stack of obscuring windows during untrusted touch (%d, %d):", x, y);
+            ALOGD("Stack of obscuring windows during untrusted touch (%.1f, %.1f):", x, y);
             for (const auto& log : occlusionInfo.debugInfo) {
                 ALOGD("%s", log.c_str());
             }
