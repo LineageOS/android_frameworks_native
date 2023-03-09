@@ -1917,10 +1917,11 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     // Open the reference profile if needed.
     UniqueFile reference_profile = maybe_open_reference_profile(
             pkgname, dex_path, profile_name, profile_guided, is_public, uid, is_secondary_dex);
-
-    if (reference_profile.fd() == -1) {
-        // We don't create an app image without reference profile since there is no speedup from
-        // loading it in that case and instead will be a small overhead.
+    struct stat sbuf;
+    if (reference_profile.fd() == -1 ||
+        (fstat(reference_profile.fd(), &sbuf) != -1 && sbuf.st_size == 0)) {
+        // We don't create an app image with empty or non existing reference profile since there
+        // is no speedup from loading it in that case and instead will be a small overhead.
         generate_app_image = false;
     }
 
