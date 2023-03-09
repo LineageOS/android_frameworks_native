@@ -164,6 +164,46 @@ TEST(Optional, AndThen) {
                      }));
 }
 
+TEST(Optional, OrElse) {
+  // Non-empty.
+  {
+    const Optional opt = false;
+    EXPECT_EQ(false, opt.or_else([] { return Optional(true); }));
+    EXPECT_EQ('x', Optional('x').or_else([] { return std::make_optional('y'); }));
+  }
+
+  // Empty.
+  {
+    const Optional<int> opt;
+    EXPECT_EQ(123, opt.or_else([]() -> Optional<int> { return 123; }));
+    EXPECT_EQ("abc"s, Optional<std::string>().or_else([] { return Optional("abc"s); }));
+  }
+  {
+    bool empty = false;
+    EXPECT_EQ(Optional<float>(), Optional<float>().or_else([&empty]() -> Optional<float> {
+      empty = true;
+      return std::nullopt;
+    }));
+    EXPECT_TRUE(empty);
+  }
+
+  // Chaining.
+  using StringVector = StaticVector<std::string, 3>;
+  EXPECT_EQ(999, Optional(StaticVector{"1"s, "0"s, "0"s})
+                     .and_then([](StringVector&& v) -> Optional<StringVector> {
+                       if (v.push_back("0"s)) return v;
+                       return {};
+                     })
+                     .or_else([] {
+                       return Optional(StaticVector{"9"s, "9"s, "9"s});
+                     })
+                     .transform([](const StringVector& v) {
+                       return std::accumulate(v.begin(), v.end(), std::string());
+                     })
+                     .and_then(parse_int)
+                     .or_else([] { return Optional(-1); }));
+}
+
 // Comparison.
 namespace {
 
