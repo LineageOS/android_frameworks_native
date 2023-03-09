@@ -27,6 +27,24 @@
 
 namespace android::jpegrecoverymap {
 
+static constexpr uint32_t EndianSwap32(uint32_t value) {
+    return ((value & 0xFF) << 24) |
+           ((value & 0xFF00) << 8) |
+           ((value & 0xFF0000) >> 8) |
+           (value >> 24);
+}
+static inline uint16_t EndianSwap16(uint16_t value) {
+    return static_cast<uint16_t>((value >> 8) | ((value & 0xFF) << 8));
+}
+
+#if USE_BIG_ENDIAN
+    #define Endian_SwapBE32(n) EndianSwap32(n)
+    #define Endian_SwapBE16(n) EndianSwap16(n)
+#else
+    #define Endian_SwapBE32(n) (n)
+    #define Endian_SwapBE16(n) (n)
+#endif
+
 struct jpegr_metadata;
 /*
  * Mutable data structure. Holds information for metadata.
