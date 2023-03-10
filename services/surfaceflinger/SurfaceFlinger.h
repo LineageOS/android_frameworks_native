@@ -818,7 +818,7 @@ private:
     void markLayerPendingRemovalLocked(const sp<Layer>& layer);
 
     // add a layer to SurfaceFlinger
-    status_t addClientLayer(const LayerCreationArgs& args, const sp<IBinder>& handle,
+    status_t addClientLayer(LayerCreationArgs& args, const sp<IBinder>& handle,
                             const sp<Layer>& layer, const wp<Layer>& parentLayer,
                             uint32_t* outTransformHint);
 

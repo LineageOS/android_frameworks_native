@@ -105,17 +105,17 @@ struct RequestedLayerState : layer_state_t {
     std::shared_ptr<renderengine::ExternalTexture> externalTexture;
     gui::GameMode gameMode;
     scheduler::LayerInfo::FrameRate requestedFrameRate;
-    ui::LayerStack layerStackToMirror = ui::INVALID_LAYER_STACK;
+    uint32_t parentId = UNASSIGNED_LAYER_ID;
+    uint32_t relativeParentId = UNASSIGNED_LAYER_ID;
     uint32_t layerIdToMirror = UNASSIGNED_LAYER_ID;
+    ui::LayerStack layerStackToMirror = ui::INVALID_LAYER_STACK;
+    uint32_t touchCropId = UNASSIGNED_LAYER_ID;
+    uint32_t bgColorLayerId = UNASSIGNED_LAYER_ID;
 
     // book keeping states
     bool handleAlive = true;
     bool isRelativeOf = false;
-    uint32_t parentId = UNASSIGNED_LAYER_ID;
-    uint32_t relativeParentId = UNASSIGNED_LAYER_ID;
     std::vector<uint32_t> mirrorIds{};
-    uint32_t touchCropId = UNASSIGNED_LAYER_ID;
-    uint32_t bgColorLayerId = UNASSIGNED_LAYER_ID;
     ftl::Flags<RequestedLayerState::Changes> changes;
     bool bgColorLayer = false;
 };

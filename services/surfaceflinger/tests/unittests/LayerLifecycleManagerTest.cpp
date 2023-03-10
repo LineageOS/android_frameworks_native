@@ -17,24 +17,13 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "FrontEnd/LayerHandle.h"
 #include "FrontEnd/LayerLifecycleManager.h"
-#include "Layer.h"
-#include "gui/SurfaceComposerClient.h"
+#include "LayerHierarchyTest.h"
+#include "TransactionState.h"
 
 using namespace android::surfaceflinger;
 
 namespace android::surfaceflinger::frontend {
-
-namespace {
-LayerCreationArgs createArgs(uint32_t id, bool canBeRoot, wp<IBinder> parent, wp<IBinder> mirror) {
-    LayerCreationArgs args(nullptr, nullptr, "testlayer", 0, {}, std::make_optional(id));
-    args.addToRoot = canBeRoot;
-    args.parentHandle = parent;
-    args.mirrorLayerHandle = mirror;
-    return args;
-}
-} // namespace
 
 // To run test:
 /**
@@ -66,69 +55,24 @@ public:
     std::unordered_set<uint32_t> mActualLayersDestroyed;
 };
 
-class LayerLifecycleManagerTest : public testing::Test {
+class LayerLifecycleManagerTest : public LayerHierarchyTestBase {
 protected:
     std::unique_ptr<RequestedLayerState> rootLayer(uint32_t id) {
-        return std::make_unique<RequestedLayerState>(
-                createArgs(/*id=*/id, /*canBeRoot=*/true, /*parent=*/nullptr, /*mirror=*/nullptr));
+        return std::make_unique<RequestedLayerState>(createArgs(/*id=*/id, /*canBeRoot=*/true,
+                                                                /*parent=*/UNASSIGNED_LAYER_ID,
+                                                                /*mirror=*/UNASSIGNED_LAYER_ID));
     }
 
     std::unique_ptr<RequestedLayerState> childLayer(uint32_t id, uint32_t parentId) {
-        mHandles[parentId] = sp<LayerHandle>::make(parentId);
         return std::make_unique<RequestedLayerState>(createArgs(/*id=*/id, /*canBeRoot=*/false,
-                                                                /*parent=*/mHandles[parentId],
-                                                                /*mirror=*/nullptr));
-    }
-
-    TransactionState reparentLayer(uint32_t id, uint32_t newParentId) {
-        TransactionState transaction;
-        transaction.states.push_back({});
-
-        if (newParentId == UNASSIGNED_LAYER_ID) {
-            transaction.states.front().state.parentSurfaceControlForChild = nullptr;
-        } else {
-            transaction.states.front().state.parentSurfaceControlForChild =
-                    sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(),
-                                             sp<LayerHandle>::make(newParentId),
-                                             static_cast<int32_t>(newParentId), "Test");
-        }
-        transaction.states.front().state.what = layer_state_t::eReparent;
-        transaction.states.front().state.surface = sp<LayerHandle>::make(id);
-        return transaction;
-    }
-
-    TransactionState setLayer(uint32_t id, int32_t z) {
-        TransactionState transaction;
-        transaction.states.push_back({});
-        transaction.states.front().state.z = z;
-        transaction.states.front().state.what = layer_state_t::eLayerChanged;
-        transaction.states.front().state.surface = sp<LayerHandle>::make(id);
-        return transaction;
-    }
-
-    TransactionState makeRelative(uint32_t id, uint32_t relativeParentId) {
-        TransactionState transaction;
-        transaction.states.push_back({});
-
-        if (relativeParentId == UNASSIGNED_LAYER_ID) {
-            transaction.states.front().state.relativeLayerSurfaceControl = nullptr;
-        } else {
-            transaction.states.front().state.relativeLayerSurfaceControl =
-                    sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(),
-                                             sp<LayerHandle>::make(relativeParentId),
-                                             static_cast<int32_t>(relativeParentId), "Test");
-        }
-        transaction.states.front().state.what = layer_state_t::eRelativeLayerChanged;
-        transaction.states.front().state.surface = sp<LayerHandle>::make(id);
-        return transaction;
+                                                                parentId,
+                                                                /*mirror=*/UNASSIGNED_LAYER_ID));
     }
 
     RequestedLayerState* getRequestedLayerState(LayerLifecycleManager& lifecycleManager,
                                                 uint32_t layerId) {
         return lifecycleManager.getLayerFromId(layerId);
     }
-
-    std::unordered_map<uint32_t, sp<LayerHandle>> mHandles;
 };
 
 TEST_F(LayerLifecycleManagerTest, addLayers) {
@@ -153,16 +97,7 @@ TEST_F(LayerLifecycleManagerTest, updateLayerStates) {
     std::vector<std::unique_ptr<RequestedLayerState>> layers;
     layers.emplace_back(rootLayer(1));
     lifecycleManager.addLayers(std::move(layers));
-
-    std::vector<TransactionState> transactions;
-    transactions.emplace_back();
-    transactions.back().states.push_back({});
-    transactions.back().states.front().state.z = 2;
-    transactions.back().states.front().state.what = layer_state_t::eLayerChanged;
-    sp<LayerHandle> handle = sp<LayerHandle>::make(1u);
-    transactions.back().states.front().state.surface = handle;
-    lifecycleManager.applyTransactions(transactions);
-    transactions.clear();
+    lifecycleManager.applyTransactions(setZTransaction(1, 2));
 
     auto& managedLayers = lifecycleManager.getLayers();
     ASSERT_EQ(managedLayers.size(), 1u);
@@ -177,11 +112,12 @@ TEST_F(LayerLifecycleManagerTest, updateLayerStates) {
     EXPECT_FALSE(managedLayers.front()->changes.test(RequestedLayerState::Changes::Z));
 
     // apply transactions that do not affect the hierarchy
+    std::vector<TransactionState> transactions;
     transactions.emplace_back();
     transactions.back().states.push_back({});
     transactions.back().states.front().state.backgroundBlurRadius = 22;
     transactions.back().states.front().state.what = layer_state_t::eBackgroundBlurRadiusChanged;
-    transactions.back().states.front().state.surface = handle;
+    transactions.back().states.front().layerId = 1;
     lifecycleManager.applyTransactions(transactions);
     EXPECT_FALSE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     lifecycleManager.commitChanges();
@@ -232,7 +168,7 @@ TEST_F(LayerLifecycleManagerTest, offscreenLayerIsDestroyed) {
     listener->expectLayersAdded({1, 2, 3});
     listener->expectLayersDestroyed({});
 
-    lifecycleManager.applyTransactions({reparentLayer(3, UNASSIGNED_LAYER_ID)});
+    lifecycleManager.applyTransactions(reparentLayerTransaction(3, UNASSIGNED_LAYER_ID));
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({});
     listener->expectLayersDestroyed({});
@@ -257,7 +193,7 @@ TEST_F(LayerLifecycleManagerTest, offscreenChildLayerWithHandleIsNotDestroyed) {
     listener->expectLayersAdded({1, 2, 3, 4});
     listener->expectLayersDestroyed({});
 
-    lifecycleManager.applyTransactions({reparentLayer(3, UNASSIGNED_LAYER_ID)});
+    lifecycleManager.applyTransactions(reparentLayerTransaction(3, UNASSIGNED_LAYER_ID));
     lifecycleManager.onHandlesDestroyed({3});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({});
@@ -278,7 +214,7 @@ TEST_F(LayerLifecycleManagerTest, offscreenChildLayerWithoutHandleIsDestroyed) {
     listener->expectLayersAdded({1, 2, 3, 4});
     listener->expectLayersDestroyed({});
 
-    lifecycleManager.applyTransactions({reparentLayer(3, UNASSIGNED_LAYER_ID)});
+    lifecycleManager.applyTransactions(reparentLayerTransaction(3, UNASSIGNED_LAYER_ID));
     lifecycleManager.onHandlesDestroyed({3, 4});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({});
@@ -300,9 +236,9 @@ TEST_F(LayerLifecycleManagerTest, reparentingDoesNotAffectRelativeZ) {
     listener->expectLayersAdded({1, 2, 3, 4});
     listener->expectLayersDestroyed({});
 
-    lifecycleManager.applyTransactions({makeRelative(4, 1)});
+    lifecycleManager.applyTransactions(relativeLayerTransaction(4, 1));
     EXPECT_TRUE(getRequestedLayerState(lifecycleManager, 4)->isRelativeOf);
-    lifecycleManager.applyTransactions({reparentLayer(4, 2)});
+    lifecycleManager.applyTransactions(reparentLayerTransaction(4, 2));
     EXPECT_TRUE(getRequestedLayerState(lifecycleManager, 4)->isRelativeOf);
 
     lifecycleManager.commitChanges();
@@ -325,9 +261,9 @@ TEST_F(LayerLifecycleManagerTest, reparentingToNullRemovesRelativeZ) {
     listener->expectLayersAdded({1, 2, 3, 4});
     listener->expectLayersDestroyed({});
 
-    lifecycleManager.applyTransactions({makeRelative(4, 1)});
+    lifecycleManager.applyTransactions(relativeLayerTransaction(4, 1));
     EXPECT_TRUE(getRequestedLayerState(lifecycleManager, 4)->isRelativeOf);
-    lifecycleManager.applyTransactions({reparentLayer(4, UNASSIGNED_LAYER_ID)});
+    lifecycleManager.applyTransactions(reparentLayerTransaction(4, UNASSIGNED_LAYER_ID));
     EXPECT_FALSE(getRequestedLayerState(lifecycleManager, 4)->isRelativeOf);
 
     lifecycleManager.commitChanges();
@@ -350,9 +286,9 @@ TEST_F(LayerLifecycleManagerTest, setZRemovesRelativeZ) {
     listener->expectLayersAdded({1, 2, 3, 4});
     listener->expectLayersDestroyed({});
 
-    lifecycleManager.applyTransactions({makeRelative(4, 1)});
+    lifecycleManager.applyTransactions(relativeLayerTransaction(4, 1));
     EXPECT_TRUE(getRequestedLayerState(lifecycleManager, 4)->isRelativeOf);
-    lifecycleManager.applyTransactions({setLayer(4, 1)});
+    lifecycleManager.applyTransactions(setZTransaction(4, 1));
     EXPECT_FALSE(getRequestedLayerState(lifecycleManager, 4)->isRelativeOf);
 
     lifecycleManager.commitChanges();
@@ -374,8 +310,7 @@ TEST_F(LayerLifecycleManagerTest, canAddBackgroundLayer) {
     transactions.back().states.push_back({});
     transactions.back().states.front().state.bgColor.a = 0.5;
     transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
-    sp<LayerHandle> handle = sp<LayerHandle>::make(1u);
-    transactions.back().states.front().state.surface = handle;
+    transactions.back().states.front().layerId = 1;
     lifecycleManager.applyTransactions(transactions);
 
     auto& managedLayers = lifecycleManager.getLayers();
@@ -403,13 +338,12 @@ TEST_F(LayerLifecycleManagerTest, canDestroyBackgroundLayer) {
     transactions.back().states.push_back({});
     transactions.back().states.front().state.bgColor.a = 0.5;
     transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
-    sp<LayerHandle> handle = sp<LayerHandle>::make(1u);
-    transactions.back().states.front().state.surface = handle;
+    transactions.back().states.front().layerId = 1;
     transactions.emplace_back();
     transactions.back().states.push_back({});
     transactions.back().states.front().state.bgColor.a = 0;
     transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
-    transactions.back().states.front().state.surface = handle;
+    transactions.back().states.front().layerId = 1;
 
     lifecycleManager.applyTransactions(transactions);
 
@@ -437,8 +371,7 @@ TEST_F(LayerLifecycleManagerTest, onParentDestroyDestroysBackgroundLayer) {
     transactions.back().states.push_back({});
     transactions.back().states.front().state.bgColor.a = 0.5;
     transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
-    sp<LayerHandle> handle = sp<LayerHandle>::make(1u);
-    transactions.back().states.front().state.surface = handle;
+    transactions.back().states.front().layerId = 1;
     transactions.emplace_back();
     lifecycleManager.applyTransactions(transactions);
     lifecycleManager.onHandlesDestroyed({1});

@@ -24,7 +24,6 @@
 
 #include "Layer.h"
 #include "LayerCreationArgs.h"
-#include "LayerHandle.h"
 #include "LayerLog.h"
 #include "RequestedLayerState.h"
 
@@ -33,14 +32,6 @@ using ftl::Flags;
 using namespace ftl::flag_operators;
 
 namespace {
-uint32_t getLayerIdFromSurfaceControl(sp<SurfaceControl> surfaceControl) {
-    if (!surfaceControl) {
-        return UNASSIGNED_LAYER_ID;
-    }
-
-    return LayerHandle::getLayerId(surfaceControl->getHandle());
-}
-
 std::string layerIdToString(uint32_t layerId) {
     return layerId == UNASSIGNED_LAYER_ID ? "none" : std::to_string(layerId);
 }
@@ -64,17 +55,17 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
         layerCreationFlags(args.flags),
         textureName(args.textureName),
         ownerUid(args.ownerUid),
-        ownerPid(args.ownerPid) {
+        ownerPid(args.ownerPid),
+        parentId(args.parentId),
+        layerIdToMirror(args.layerIdToMirror) {
     layerId = static_cast<int32_t>(args.sequence);
     changes |= RequestedLayerState::Changes::Created;
     metadata.merge(args.metadata);
     changes |= RequestedLayerState::Changes::Metadata;
     handleAlive = true;
-    parentId = LayerHandle::getLayerId(args.parentHandle.promote());
-    if (args.parentHandle != nullptr) {
+    if (parentId != UNASSIGNED_LAYER_ID) {
         canBeRoot = false;
     }
-    layerIdToMirror = LayerHandle::getLayerId(args.mirrorLayerHandle.promote());
     if (layerIdToMirror != UNASSIGNED_LAYER_ID) {
         changes |= RequestedLayerState::Changes::Mirror;
     } else if (args.layerStackToMirror != ui::INVALID_LAYER_STACK) {
@@ -209,7 +200,7 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     }
     if (clientState.what & layer_state_t::eReparent) {
         changes |= RequestedLayerState::Changes::Parent;
-        parentId = getLayerIdFromSurfaceControl(clientState.parentSurfaceControlForChild);
+        parentId = resolvedComposerState.parentId;
         parentSurfaceControlForChild = nullptr;
         // Once a layer has be reparented, it cannot be placed at the root. It sounds odd
         // but thats the existing logic and until we make this behavior more explicit, we need
@@ -218,7 +209,7 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     }
     if (clientState.what & layer_state_t::eRelativeLayerChanged) {
         changes |= RequestedLayerState::Changes::RelativeParent;
-        relativeParentId = getLayerIdFromSurfaceControl(clientState.relativeLayerSurfaceControl);
+        relativeParentId = resolvedComposerState.relativeParentId;
         isRelativeOf = true;
         relativeLayerSurfaceControl = nullptr;
     }
@@ -235,10 +226,8 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         changes |= RequestedLayerState::Changes::RelativeParent;
     }
     if (clientState.what & layer_state_t::eInputInfoChanged) {
-        wp<IBinder>& touchableRegionCropHandle =
-                windowInfoHandle->editInfo()->touchableRegionCropHandle;
-        touchCropId = LayerHandle::getLayerId(touchableRegionCropHandle.promote());
-        touchableRegionCropHandle.clear();
+        touchCropId = resolvedComposerState.touchCropId;
+        windowInfoHandle->editInfo()->touchableRegionCropHandle.clear();
     }
     if (clientState.what & layer_state_t::eStretchChanged) {
         stretchEffect.sanitize();
