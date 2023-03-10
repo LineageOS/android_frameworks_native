@@ -18,10 +18,7 @@
 
 #include <android-base/result.h>
 #include <utils/Tokenizer.h>
-
-#include <string>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace android {
 
@@ -60,9 +57,6 @@ public:
      */
     void addProperty(const std::string& key, const std::string& value);
 
-    /* Returns a set of all property keys starting with the given prefix. */
-    std::unordered_set<std::string> getKeysWithPrefix(const std::string& prefix) const;
-
     /* Gets the value of a property and parses it.
      * Returns true and sets outValue if the key was found and its value was parsed successfully.
      * Otherwise returns false and does not modify outValue.  (Also logs a warning.)
@@ -71,7 +65,6 @@ public:
     bool tryGetProperty(const std::string& key, bool& outValue) const;
     bool tryGetProperty(const std::string& key, int32_t& outValue) const;
     bool tryGetProperty(const std::string& key, float& outValue) const;
-    bool tryGetProperty(const std::string& key, double& outValue) const;
 
     /* Adds all values from the specified property map. */
     void addAll(const PropertyMap* map);

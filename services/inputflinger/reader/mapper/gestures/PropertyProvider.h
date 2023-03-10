@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "include/gestures.h"
-#include "input/PropertyMap.h"
 
 namespace android {
 
@@ -35,8 +34,6 @@ public:
     bool hasProperty(const std::string& name) const;
     GesturesProp& getProperty(const std::string& name);
     std::string dump() const;
-
-    void loadPropertiesFromIdcFile(const PropertyMap& idcProperties);
 
     // Methods to be called by the gestures library:
     GesturesProp* createIntArrayProperty(const std::string& name, int* loc, size_t count,
@@ -85,9 +82,6 @@ public:
     void setRealValues(const std::vector<double>& values);
     // Setting string values isn't supported since we don't have a use case yet and the memory
     // management adds additional complexity.
-
-    void trySetFromIdcProperty(const android::PropertyMap& idcProperties,
-                               const std::string& propertyName);
 
 private:
     // Two type parameters are required for these methods, rather than one, due to the gestures

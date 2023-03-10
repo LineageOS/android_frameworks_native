@@ -16,8 +16,6 @@
 
 #define LOG_TAG "PropertyMap"
 
-#include <cstdlib>
-
 #include <input/PropertyMap.h>
 #include <log/log.h>
 
@@ -44,16 +42,6 @@ void PropertyMap::clear() {
 
 void PropertyMap::addProperty(const std::string& key, const std::string& value) {
     mProperties.emplace(key, value);
-}
-
-std::unordered_set<std::string> PropertyMap::getKeysWithPrefix(const std::string& prefix) const {
-    std::unordered_set<std::string> keys;
-    for (const auto& [key, _] : mProperties) {
-        if (key.starts_with(prefix)) {
-            keys.insert(key);
-        }
-    }
-    return keys;
 }
 
 bool PropertyMap::hasProperty(const std::string& key) const {
@@ -107,23 +95,6 @@ bool PropertyMap::tryGetProperty(const std::string& key, float& outValue) const 
     float value = strtof(stringValue.c_str(), &end);
     if (*end != '\0') {
         ALOGW("Property key '%s' has invalid value '%s'.  Expected a float.", key.c_str(),
-              stringValue.c_str());
-        return false;
-    }
-    outValue = value;
-    return true;
-}
-
-bool PropertyMap::tryGetProperty(const std::string& key, double& outValue) const {
-    std::string stringValue;
-    if (!tryGetProperty(key, stringValue) || stringValue.length() == 0) {
-        return false;
-    }
-
-    char* end;
-    double value = strtod(stringValue.c_str(), &end);
-    if (*end != '\0') {
-        ALOGW("Property key '%s' has invalid value '%s'.  Expected a double.", key.c_str(),
               stringValue.c_str());
         return false;
     }
