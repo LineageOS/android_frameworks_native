@@ -1895,6 +1895,9 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     }
     ds.AddDir(PREREBOOT_DATA_DIR, false);
     add_mountinfo();
+    for (const char* path : {"/proc/cpuinfo", "/proc/meminfo"}) {
+        ds.AddZipEntry(ZIP_ROOT_DIR + path, path);
+    }
     DumpIpTablesAsRoot();
     DumpDynamicPartitionInfo();
     ds.AddDir(OTA_METADATA_DIR, true);
