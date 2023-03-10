@@ -419,10 +419,7 @@ public:
         return mFlinger->setDisplayStateLocked(s);
     }
 
-    // Allow reading display state without locking, as if called on the SF main thread.
-    auto onInitializeDisplays() NO_THREAD_SAFETY_ANALYSIS {
-        return mFlinger->onInitializeDisplays();
-    }
+    void initializeDisplays() FTL_FAKE_GUARD(kMainThreadContext) { mFlinger->initializeDisplays(); }
 
     auto notifyPowerBoost(int32_t boostId) { return mFlinger->notifyPowerBoost(boostId); }
 
@@ -505,10 +502,11 @@ public:
         return mFlinger->setDesiredDisplayModeSpecs(displayToken, specs);
     }
 
-    void onActiveDisplayChanged(const DisplayDevice& activeDisplay) {
+    void onActiveDisplayChanged(const DisplayDevice* inactiveDisplayPtr,
+                                const DisplayDevice& activeDisplay) {
         Mutex::Autolock lock(mFlinger->mStateLock);
         ftl::FakeGuard guard(kMainThreadContext);
-        mFlinger->onActiveDisplayChangedLocked(nullptr, activeDisplay);
+        mFlinger->onActiveDisplayChangedLocked(inactiveDisplayPtr, activeDisplay);
     }
 
     auto createLayer(LayerCreationArgs& args, const sp<IBinder>& parentHandle,
