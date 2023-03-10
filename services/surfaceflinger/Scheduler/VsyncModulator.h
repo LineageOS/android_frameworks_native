@@ -53,7 +53,11 @@ public:
 
     explicit VsyncModulator(const VsyncConfigSet&, Now = Clock::now);
 
+    bool isVsyncConfigEarly() const EXCLUDES(mMutex);
+
     VsyncConfig getVsyncConfig() const EXCLUDES(mMutex);
+
+    void cancelRefreshRateChange() { mRefreshRateChangePending = false; }
 
     [[nodiscard]] VsyncConfig setVsyncConfigSet(const VsyncConfigSet&) EXCLUDES(mMutex);
 
@@ -71,8 +75,6 @@ public:
     [[nodiscard]] VsyncConfigOpt onRefreshRateChangeCompleted();
 
     [[nodiscard]] VsyncConfigOpt onDisplayRefresh(bool usedGpuComposition);
-
-    [[nodiscard]] bool isVsyncConfigDefault() const;
 
 protected:
     // Called from unit tests as well

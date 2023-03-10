@@ -22,9 +22,9 @@
 namespace android {
 namespace {
 
-class OnInitializeDisplaysTest : public DisplayTransactionTest {};
+class InitializeDisplaysTest : public DisplayTransactionTest {};
 
-TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
+TEST_F(InitializeDisplaysTest, commitsPrimaryDisplay) {
     using Case = SimplePrimaryDisplayCase;
 
     // --------------------------------------------------------------------
@@ -52,7 +52,7 @@ TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.onInitializeDisplays();
+    FTL_FAKE_GUARD(kMainThreadContext, mFlinger.initializeDisplays());
 
     // --------------------------------------------------------------------
     // Postconditions

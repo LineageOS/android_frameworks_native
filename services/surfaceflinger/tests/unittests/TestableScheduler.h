@@ -102,7 +102,6 @@ public:
     }
 
     auto& mutableAppConnectionHandle() { return mAppConnectionHandle; }
-    auto& mutableVsyncModulator() { return *mVsyncModulator; }
     auto& mutableLayerHistory() { return mLayerHistory; }
 
     size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {

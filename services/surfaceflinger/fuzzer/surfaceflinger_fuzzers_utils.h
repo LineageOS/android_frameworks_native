@@ -402,9 +402,8 @@ public:
     SurfaceFlinger *flinger() { return mFlinger.get(); }
     scheduler::TestableScheduler *scheduler() { return mScheduler; }
 
-    // Allow reading display state without locking, as if called on the SF main thread.
-    auto onInitializeDisplays() NO_THREAD_SAFETY_ANALYSIS {
-        return mFlinger->onInitializeDisplays();
+    void initializeDisplays() {
+        FTL_FAKE_GUARD(kMainThreadContext, mFlinger->initializeDisplays());
     }
 
     void setGlobalShadowSettings(FuzzedDataProvider *fdp) {
@@ -542,7 +541,7 @@ public:
                 mFlinger->createDisplay(String8(fdp->ConsumeRandomLengthString().c_str()),
                                         fdp->ConsumeBool());
 
-        onInitializeDisplays();
+        initializeDisplays();
         mFlinger->getPhysicalDisplayToken(physicalDisplayId);
 
         mFlinger->mStartPropertySetThread =
