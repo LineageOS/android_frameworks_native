@@ -65,6 +65,10 @@ LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client,
     }
 }
 
+LayerCreationArgs::LayerCreationArgs(std::optional<uint32_t> id, bool internalLayer)
+      : LayerCreationArgs(nullptr, nullptr, /*name=*/"", /*flags=*/0, /*metadata=*/{}, id,
+                          internalLayer) {}
+
 LayerCreationArgs::LayerCreationArgs(const LayerCreationArgs& args)
       : LayerCreationArgs(args.flinger, args.client, args.name, args.flags, args.metadata) {}
 

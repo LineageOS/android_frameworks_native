@@ -292,6 +292,13 @@ HdrCapabilities filterOut4k30(const HdrCapabilities& displayHdrCapabilities) {
             displayHdrCapabilities.getDesiredMinLuminance()};
 }
 
+uint32_t getLayerIdFromSurfaceControl(sp<SurfaceControl> surfaceControl) {
+    if (!surfaceControl) {
+        return UNASSIGNED_LAYER_ID;
+    }
+    return LayerHandle::getLayerId(surfaceControl->getHandle());
+}
+
 }  // namespace anonymous
 
 // ---------------------------------------------------------------------------
@@ -4061,7 +4068,7 @@ bool SurfaceFlinger::latchBuffers() {
     return !mLayersWithQueuedFrames.empty() && newDataLatched;
 }
 
-status_t SurfaceFlinger::addClientLayer(const LayerCreationArgs& args, const sp<IBinder>& handle,
+status_t SurfaceFlinger::addClientLayer(LayerCreationArgs& args, const sp<IBinder>& handle,
                                         const sp<Layer>& layer, const wp<Layer>& parent,
                                         uint32_t* outTransformHint) {
     if (mNumLayers >= MAX_LAYERS) {
@@ -4091,7 +4098,8 @@ status_t SurfaceFlinger::addClientLayer(const LayerCreationArgs& args, const sp<
     if (outTransformHint) {
         *outTransformHint = mActiveDisplayTransformHint;
     }
-
+    args.parentId = LayerHandle::getLayerId(args.parentHandle.promote());
+    args.layerIdToMirror = LayerHandle::getLayerId(args.mirrorLayerHandle.promote());
     {
         std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
         mCreatedLayers.emplace_back(layer, parent, args.addToRoot);
@@ -4423,6 +4431,21 @@ status_t SurfaceFlinger::setTransactionState(
                     getExternalTextureFromBufferData(*resolvedState.state.bufferData,
                                                      layerName.c_str(), transactionId);
             mBufferCountTracker.increment(resolvedState.state.surface->localBinder());
+        }
+        resolvedState.layerId = LayerHandle::getLayerId(resolvedState.state.surface);
+        if (resolvedState.state.what & layer_state_t::eReparent) {
+            resolvedState.parentId =
+                    getLayerIdFromSurfaceControl(resolvedState.state.parentSurfaceControlForChild);
+        }
+        if (resolvedState.state.what & layer_state_t::eRelativeLayerChanged) {
+            resolvedState.relativeParentId =
+                    getLayerIdFromSurfaceControl(resolvedState.state.relativeLayerSurfaceControl);
+        }
+        if (resolvedState.state.what & layer_state_t::eInputInfoChanged) {
+            wp<IBinder>& touchableRegionCropHandle =
+                    resolvedState.state.windowInfoHandle->editInfo()->touchableRegionCropHandle;
+            resolvedState.touchCropId =
+                    LayerHandle::getLayerId(touchableRegionCropHandle.promote());
         }
     }
 
