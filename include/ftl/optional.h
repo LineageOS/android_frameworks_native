@@ -96,13 +96,25 @@ struct Optional final : std::optional<T> {
     return R();
   }
 
+  // Returns this Optional<T> if not nullopt, or else the Optional<T> returned by the function F.
+  template <typename F>
+  constexpr auto or_else(F&& f) const& -> details::or_else_result_t<F, T> {
+    if (has_value()) return *this;
+    return std::forward<F>(f)();
+  }
+
+  template <typename F>
+  constexpr auto or_else(F&& f) && -> details::or_else_result_t<F, T> {
+    if (has_value()) return std::move(*this);
+    return std::forward<F>(f)();
+  }
+
   // Delete new for this class. Its base doesn't have a virtual destructor, and
   // if it got deleted via base class pointer, it would cause undefined
   // behavior. There's not a good reason to allocate this object on the heap
   // anyway.
   static void* operator new(size_t) = delete;
   static void* operator new[](size_t) = delete;
-
 };
 
 template <typename T, typename U>
