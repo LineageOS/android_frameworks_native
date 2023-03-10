@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/android_filesystem_config.h>
+#include <cstdint>
 #include <future>
 
 namespace android {
@@ -24,7 +25,8 @@ using Transaction = SurfaceComposerClient::Transaction;
 using gui::DisplayInfo;
 using gui::WindowInfo;
 
-using WindowInfosPredicate = std::function<bool(const std::vector<WindowInfo>&)>;
+using WindowInfosPredicate =
+        std::function<bool(const std::vector<WindowInfo>&, const std::vector<DisplayInfo>&)>;
 
 class WindowInfosListenerTest : public ::testing::Test {
 protected:
@@ -41,8 +43,8 @@ protected:
               : mPredicate(std::move(predicate)), mPromise(promise) {}
 
         void onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos,
-                                  const std::vector<DisplayInfo>&) override {
-            if (mPredicate(windowInfos)) {
+                                  const std::vector<DisplayInfo>& displayInfos) override {
+            if (mPredicate(windowInfos, displayInfos)) {
                 mPromise.set_value();
             }
         }
@@ -65,14 +67,24 @@ protected:
     }
 };
 
-std::optional<WindowInfo> findMatchingWindowInfo(WindowInfo targetWindowInfo,
-                                                 std::vector<WindowInfo> windowInfos) {
-    for (WindowInfo windowInfo : windowInfos) {
+const WindowInfo* findMatchingWindowInfo(const WindowInfo& targetWindowInfo,
+                                         const std::vector<WindowInfo>& windowInfos) {
+    for (const WindowInfo& windowInfo : windowInfos) {
         if (windowInfo.token == targetWindowInfo.token) {
-            return windowInfo;
+            return &windowInfo;
         }
     }
-    return std::nullopt;
+    return nullptr;
+}
+
+const DisplayInfo* findMatchingDisplayInfo(int32_t displayId,
+                                           const std::vector<DisplayInfo>& displayInfos) {
+    for (const DisplayInfo& displayInfo : displayInfos) {
+        if (displayInfo.displayId == displayId) {
+            return &displayInfo;
+        }
+    }
+    return nullptr;
 }
 
 TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
@@ -92,15 +104,17 @@ TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
             .setInputWindowInfo(surfaceControl, windowInfo)
             .apply();
 
-    auto windowPresent = [&](const std::vector<WindowInfo>& windowInfos) {
-        return findMatchingWindowInfo(windowInfo, windowInfos).has_value();
+    auto windowPresent = [&](const std::vector<WindowInfo>& windowInfos,
+                             const std::vector<DisplayInfo>&) {
+        return findMatchingWindowInfo(windowInfo, windowInfos);
     };
     ASSERT_TRUE(waitForWindowInfosPredicate(windowPresent));
 
     Transaction().reparent(surfaceControl, nullptr).apply();
 
-    auto windowNotPresent = [&](const std::vector<WindowInfo>& windowInfos) {
-        return !findMatchingWindowInfo(windowInfo, windowInfos).has_value();
+    auto windowNotPresent = [&](const std::vector<WindowInfo>& windowInfos,
+                                const std::vector<DisplayInfo>&) {
+        return !findMatchingWindowInfo(windowInfo, windowInfos);
     };
     ASSERT_TRUE(waitForWindowInfosPredicate(windowNotPresent));
 }
@@ -123,7 +137,8 @@ TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
             .setInputWindowInfo(surfaceControl, windowInfo)
             .apply();
 
-    auto windowIsPresentAndTouchableRegionEmpty = [&](const std::vector<WindowInfo>& windowInfos) {
+    auto windowIsPresentAndTouchableRegionEmpty = [&](const std::vector<WindowInfo>& windowInfos,
+                                                      const std::vector<DisplayInfo>&) {
         auto foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
         if (!foundWindowInfo) {
             return false;
@@ -132,17 +147,26 @@ TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
     };
     ASSERT_TRUE(waitForWindowInfosPredicate(windowIsPresentAndTouchableRegionEmpty));
 
-    Rect touchableRegions(0, 0, 50, 50);
-    windowInfo.addTouchableRegion(Rect(0, 0, 50, 50));
+    windowInfo.addTouchableRegion({0, 0, 50, 50});
     Transaction().setInputWindowInfo(surfaceControl, windowInfo).apply();
 
     auto windowIsPresentAndTouchableRegionMatches =
-            [&](const std::vector<WindowInfo>& windowInfos) {
+            [&](const std::vector<WindowInfo>& windowInfos,
+                const std::vector<DisplayInfo>& displayInfos) {
                 auto foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
                 if (!foundWindowInfo) {
                     return false;
                 }
-                return foundWindowInfo->touchableRegion.hasSameRects(windowInfo.touchableRegion);
+
+                auto displayInfo =
+                        findMatchingDisplayInfo(foundWindowInfo->displayId, displayInfos);
+                if (!displayInfo) {
+                    return false;
+                }
+
+                auto touchableRegion =
+                        displayInfo->transform.transform(foundWindowInfo->touchableRegion);
+                return touchableRegion.hasSameRects(windowInfo.touchableRegion);
             };
     ASSERT_TRUE(waitForWindowInfosPredicate(windowIsPresentAndTouchableRegionMatches));
 }
