@@ -17,11 +17,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "FrontEnd/LayerHandle.h"
+#include "Client.h" // temporarily needed for LayerCreationArgs
+#include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/LayerHierarchy.h"
 #include "FrontEnd/LayerLifecycleManager.h"
-#include "Layer.h"
-#include "gui/SurfaceComposerClient.h"
 
 namespace android::surfaceflinger::frontend {
 
@@ -51,20 +50,21 @@ protected:
         createLayer(1221, 122);
     }
 
-    LayerCreationArgs createArgs(uint32_t id, bool canBeRoot, wp<IBinder> parent,
-                                 wp<IBinder> mirror) {
-        LayerCreationArgs args(nullptr, nullptr, "testlayer", 0, {}, std::make_optional(id));
+    LayerCreationArgs createArgs(uint32_t id, bool canBeRoot, uint32_t parentId,
+                                 uint32_t layerIdToMirror) {
+        LayerCreationArgs args(std::make_optional(id));
+        args.name = "testlayer";
         args.addToRoot = canBeRoot;
-        args.parentHandle = parent;
-        args.mirrorLayerHandle = mirror;
+        args.parentId = parentId;
+        args.layerIdToMirror = layerIdToMirror;
         return args;
     }
 
-    LayerCreationArgs createDisplayMirrorArgs(uint32_t id, ui::LayerStack layerStack) {
-        LayerCreationArgs args(nullptr, nullptr, "testlayer", 0, {}, std::make_optional(id));
+    LayerCreationArgs createDisplayMirrorArgs(uint32_t id, ui::LayerStack layerStackToMirror) {
+        LayerCreationArgs args(std::make_optional(id));
+        args.name = "testlayer";
         args.addToRoot = true;
-        args.parentHandle.clear();
-        args.layerStackToMirror = layerStack;
+        args.layerStackToMirror = layerStackToMirror;
         return args;
     }
 
@@ -90,17 +90,14 @@ protected:
     }
 
     virtual void createRootLayer(uint32_t id) {
-        sp<LayerHandle> handle = sp<LayerHandle>::make(id);
-        mHandles[id] = handle;
         std::vector<std::unique_ptr<RequestedLayerState>> layers;
         layers.emplace_back(std::make_unique<RequestedLayerState>(
-                createArgs(/*id=*/id, /*canBeRoot=*/true, /*parent=*/nullptr, /*mirror=*/nullptr)));
+                createArgs(/*id=*/id, /*canBeRoot=*/true, /*parent=*/UNASSIGNED_LAYER_ID,
+                           /*mirror=*/UNASSIGNED_LAYER_ID)));
         mLifecycleManager.addLayers(std::move(layers));
     }
 
     void createDisplayMirrorLayer(uint32_t id, ui::LayerStack layerStack) {
-        sp<LayerHandle> handle = sp<LayerHandle>::make(id);
-        mHandles[id] = handle;
         std::vector<std::unique_ptr<RequestedLayerState>> layers;
         layers.emplace_back(std::make_unique<RequestedLayerState>(
                 createDisplayMirrorArgs(/*id=*/id, layerStack)));
@@ -108,62 +105,56 @@ protected:
     }
 
     virtual void createLayer(uint32_t id, uint32_t parentId) {
-        sp<LayerHandle> handle = sp<LayerHandle>::make(id);
-        mHandles[id] = handle;
         std::vector<std::unique_ptr<RequestedLayerState>> layers;
         layers.emplace_back(std::make_unique<RequestedLayerState>(
-                createArgs(/*id=*/id, /*canBeRoot=*/false, /*parent=*/mHandles[parentId],
-                           /*mirror=*/nullptr)));
+                createArgs(/*id=*/id, /*canBeRoot=*/false, /*parent=*/parentId,
+                           /*mirror=*/UNASSIGNED_LAYER_ID)));
         mLifecycleManager.addLayers(std::move(layers));
     }
 
-    void reparentLayer(uint32_t id, uint32_t newParentId) {
+    std::vector<TransactionState> reparentLayerTransaction(uint32_t id, uint32_t newParentId) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();
         transactions.back().states.push_back({});
-
-        if (newParentId == UNASSIGNED_LAYER_ID) {
-            transactions.back().states.front().state.parentSurfaceControlForChild = nullptr;
-        } else {
-            auto parentHandle = mHandles[newParentId];
-            transactions.back().states.front().state.parentSurfaceControlForChild =
-                    sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(), parentHandle,
-                                             static_cast<int32_t>(newParentId), "Test");
-        }
+        transactions.back().states.front().parentId = newParentId;
         transactions.back().states.front().state.what = layer_state_t::eReparent;
-        transactions.back().states.front().state.surface = mHandles[id];
-        mLifecycleManager.applyTransactions(transactions);
+        transactions.back().states.front().relativeParentId = UNASSIGNED_LAYER_ID;
+        transactions.back().states.front().layerId = id;
+        return transactions;
+    }
+
+    void reparentLayer(uint32_t id, uint32_t newParentId) {
+        mLifecycleManager.applyTransactions(reparentLayerTransaction(id, newParentId));
+    }
+
+    std::vector<TransactionState> relativeLayerTransaction(uint32_t id, uint32_t relativeParentId) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+        transactions.back().states.front().relativeParentId = relativeParentId;
+        transactions.back().states.front().state.what = layer_state_t::eRelativeLayerChanged;
+        transactions.back().states.front().layerId = id;
+        return transactions;
     }
 
     void reparentRelativeLayer(uint32_t id, uint32_t relativeParentId) {
+        mLifecycleManager.applyTransactions(relativeLayerTransaction(id, relativeParentId));
+    }
+
+    void removeRelativeZ(uint32_t id) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();
         transactions.back().states.push_back({});
-
-        if (relativeParentId == UNASSIGNED_LAYER_ID) {
-            transactions.back().states.front().state.what = layer_state_t::eLayerChanged;
-        } else {
-            auto parentHandle = mHandles[relativeParentId];
-            transactions.back().states.front().state.relativeLayerSurfaceControl =
-                    sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(), parentHandle,
-                                             static_cast<int32_t>(relativeParentId), "test");
-            transactions.back().states.front().state.what = layer_state_t::eRelativeLayerChanged;
-        }
-        transactions.back().states.front().state.surface = mHandles[id];
+        transactions.back().states.front().state.what = layer_state_t::eLayerChanged;
+        transactions.back().states.front().layerId = id;
         mLifecycleManager.applyTransactions(transactions);
     }
 
-    virtual void mirrorLayer(uint32_t id, uint32_t parent, uint32_t layerToMirror) {
-        auto parentHandle = (parent == UNASSIGNED_LAYER_ID) ? nullptr : mHandles[parent];
-        auto mirrorHandle =
-                (layerToMirror == UNASSIGNED_LAYER_ID) ? nullptr : mHandles[layerToMirror];
-
-        sp<LayerHandle> handle = sp<LayerHandle>::make(id);
-        mHandles[id] = handle;
+    virtual void mirrorLayer(uint32_t id, uint32_t parentId, uint32_t layerIdToMirror) {
         std::vector<std::unique_ptr<RequestedLayerState>> layers;
         layers.emplace_back(std::make_unique<RequestedLayerState>(
-                createArgs(/*id=*/id, /*canBeRoot=*/false, /*parent=*/parentHandle,
-                           /*mirror=*/mHandles[layerToMirror])));
+                createArgs(/*id=*/id, /*canBeRoot=*/false, /*parent=*/parentId,
+                           /*mirror=*/layerIdToMirror)));
         mLifecycleManager.addLayers(std::move(layers));
     }
 
@@ -173,7 +164,7 @@ protected:
         transactions.back().states.push_back({});
         transactions.back().states.front().state.what = layer_state_t::eBackgroundColorChanged;
         transactions.back().states.front().state.bgColor.a = alpha;
-        transactions.back().states.front().state.surface = mHandles[id];
+        transactions.back().states.front().layerId = id;
         mLifecycleManager.applyTransactions(transactions);
     }
 
@@ -196,16 +187,19 @@ protected:
                 mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     }
 
-    void setZ(uint32_t id, int32_t z) {
+    std::vector<TransactionState> setZTransaction(uint32_t id, int32_t z) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();
         transactions.back().states.push_back({});
 
         transactions.back().states.front().state.what = layer_state_t::eLayerChanged;
-        transactions.back().states.front().state.surface = mHandles[id];
-        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().layerId = id;
         transactions.back().states.front().state.z = z;
-        mLifecycleManager.applyTransactions(transactions);
+        return transactions;
+    }
+
+    void setZ(uint32_t id, int32_t z) {
+        mLifecycleManager.applyTransactions(setZTransaction(id, z));
     }
 
     void setCrop(uint32_t id, const Rect& crop) {
@@ -214,8 +208,7 @@ protected:
         transactions.back().states.push_back({});
 
         transactions.back().states.front().state.what = layer_state_t::eCropChanged;
-        transactions.back().states.front().state.surface = mHandles[id];
-        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().layerId = id;
         transactions.back().states.front().state.crop = crop;
         mLifecycleManager.applyTransactions(transactions);
     }
@@ -228,8 +221,7 @@ protected:
         transactions.back().states.front().state.what = layer_state_t::eFlagsChanged;
         transactions.back().states.front().state.flags = flags;
         transactions.back().states.front().state.mask = mask;
-        transactions.back().states.front().state.surface = mHandles[id];
-        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().layerId = id;
         mLifecycleManager.applyTransactions(transactions);
     }
 
@@ -239,8 +231,7 @@ protected:
         transactions.back().states.push_back({});
 
         transactions.back().states.front().state.what = layer_state_t::eAlphaChanged;
-        transactions.back().states.front().state.surface = mHandles[id];
-        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().layerId = id;
         transactions.back().states.front().state.color.a = static_cast<half>(alpha);
         mLifecycleManager.applyTransactions(transactions);
     }
@@ -257,8 +248,7 @@ protected:
         transactions.back().states.push_back({});
         transactions.back().states.front().state.what = layer_state_t::eColorChanged;
         transactions.back().states.front().state.color.rgb = rgb;
-        transactions.back().states.front().state.surface = mHandles[id];
-        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().layerId = id;
         mLifecycleManager.applyTransactions(transactions);
     }
 
@@ -268,8 +258,7 @@ protected:
         transactions.back().states.push_back({});
 
         transactions.back().states.front().state.what = layer_state_t::eLayerStackChanged;
-        transactions.back().states.front().state.surface = mHandles[id];
-        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().layerId = id;
         transactions.back().states.front().state.layerStack = ui::LayerStack::fromValue(layerStack);
         mLifecycleManager.applyTransactions(transactions);
     }
@@ -280,8 +269,7 @@ protected:
         transactions.back().states.push_back({});
 
         transactions.back().states.front().state.what = layer_state_t::eInputInfoChanged;
-        transactions.back().states.front().state.surface = mHandles[id];
-        transactions.back().states.front().state.layerId = static_cast<int32_t>(id);
+        transactions.back().states.front().layerId = id;
         transactions.back().states.front().state.windowInfoHandle =
                 sp<gui::WindowInfoHandle>::make();
         auto inputInfo = transactions.back().states.front().state.windowInfoHandle->editInfo();
@@ -291,7 +279,6 @@ protected:
     }
 
     LayerLifecycleManager mLifecycleManager;
-    std::unordered_map<uint32_t, sp<LayerHandle>> mHandles;
 };
 
 } // namespace android::surfaceflinger::frontend
