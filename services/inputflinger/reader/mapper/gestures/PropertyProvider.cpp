@@ -84,29 +84,6 @@ std::string PropertyProvider::dump() const {
     return dump;
 }
 
-void PropertyProvider::loadPropertiesFromIdcFile(const PropertyMap& idcProperties) {
-    // For compatibility with the configuration file syntax, gesture property names in IDC files are
-    // prefixed with "gestureProp." and have spaces replaced by underscores. So, for example, the
-    // configuration key "gestureProp.Palm_Width" refers to the "Palm Width" property.
-    const std::string gesturePropPrefix = "gestureProp.";
-    for (const std::string key : idcProperties.getKeysWithPrefix(gesturePropPrefix)) {
-        std::string propertyName = key.substr(gesturePropPrefix.length());
-        for (size_t i = 0; i < propertyName.length(); i++) {
-            if (propertyName[i] == '_') {
-                propertyName[i] = ' ';
-            }
-        }
-
-        auto it = mProperties.find(propertyName);
-        if (it != mProperties.end()) {
-            it->second.trySetFromIdcProperty(idcProperties, key);
-        } else {
-            ALOGE("Gesture property \"%s\" specified in IDC file does not exist for this device.",
-                  propertyName.c_str());
-        }
-    }
-}
-
 GesturesProp* PropertyProvider::createIntArrayProperty(const std::string& name, int* loc,
                                                        size_t count, const int* init) {
     const auto [it, inserted] =
@@ -232,59 +209,6 @@ void GesturesProp::setRealValues(const std::vector<double>& values) {
     LOG_ALWAYS_FATAL_IF(!std::holds_alternative<double*>(mDataPointer),
                         "Attempt to write reals to \"%s\" gesture property.", mName.c_str());
     setValues(std::get<double*>(mDataPointer), values);
-}
-
-namespace {
-
-// Helper to std::visit with lambdas.
-template <typename... V>
-struct Visitor : V... {};
-// explicit deduction guide (not needed as of C++20)
-template <typename... V>
-Visitor(V...) -> Visitor<V...>;
-
-} // namespace
-
-void GesturesProp::trySetFromIdcProperty(const android::PropertyMap& idcProperties,
-                                         const std::string& propertyName) {
-    if (mCount != 1) {
-        ALOGE("Gesture property \"%s\" is an array, and so cannot be set in an IDC file.",
-              mName.c_str());
-        return;
-    }
-    bool parsedSuccessfully = false;
-    Visitor setVisitor{
-            [&](int*) {
-                int32_t value;
-                parsedSuccessfully = idcProperties.tryGetProperty(propertyName, value);
-                if (parsedSuccessfully) {
-                    setIntValues({value});
-                }
-            },
-            [&](GesturesPropBool*) {
-                bool value;
-                parsedSuccessfully = idcProperties.tryGetProperty(propertyName, value);
-                if (parsedSuccessfully) {
-                    setBoolValues({value});
-                }
-            },
-            [&](double*) {
-                double value;
-                parsedSuccessfully = idcProperties.tryGetProperty(propertyName, value);
-                if (parsedSuccessfully) {
-                    setRealValues({value});
-                }
-            },
-            [&](const char**) {
-                ALOGE("Gesture property \"%s\" is a string, and so cannot be set in an IDC file.",
-                      mName.c_str());
-            },
-    };
-    std::visit(setVisitor, mDataPointer);
-
-    ALOGE_IF(!parsedSuccessfully, "Gesture property \"%s\" could set due to a type mismatch.",
-             mName.c_str());
-    return;
 }
 
 template <typename T, typename U>
