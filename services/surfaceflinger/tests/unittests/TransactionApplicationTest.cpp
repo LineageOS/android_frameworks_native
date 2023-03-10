@@ -199,7 +199,7 @@ public:
 
     void modulateVsync() {
         static_cast<void>(
-                mFlinger.mutableScheduler().mutableVsyncModulator().onRefreshRateChangeInitiated());
+                mFlinger.mutableScheduler().vsyncModulator().onRefreshRateChangeInitiated());
     }
 
     bool mHasListenerCallbacks = false;

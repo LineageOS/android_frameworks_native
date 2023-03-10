@@ -165,7 +165,7 @@ public:
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
 
-    const VsyncModulator& vsyncModulator() const { return *mVsyncModulator; }
+    VsyncModulator& vsyncModulator() { return *mVsyncModulator; }
 
     // In some cases, we should only modulate for the pacesetter display. In those
     // cases, the caller should pass in the relevant display, and the method
