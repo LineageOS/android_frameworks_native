@@ -370,6 +370,7 @@ private:
             int32_t displayId) const REQUIRES(mLock);
     sp<android::gui::WindowInfoHandle> getWindowHandleLocked(
             const sp<IBinder>& windowHandleToken) const REQUIRES(mLock);
+    ui::Transform getTransformLocked(int32_t displayId) const REQUIRES(mLock);
 
     // Same function as above, but faster. Since displayId is provided, this avoids the need
     // to loop through all displays.
