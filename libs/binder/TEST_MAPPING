@@ -119,5 +119,10 @@
     {
       "name": "memunreachable_binder_test"
     }
+  ],
+  "imports": [
+    {
+      "path": "packages/modules/Virtualization"
+    }
   ]
 }
