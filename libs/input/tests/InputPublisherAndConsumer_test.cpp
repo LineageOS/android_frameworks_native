@@ -90,7 +90,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq, &event);
     ASSERT_EQ(OK, status)
             << "consumer consume should return OK";
 
@@ -199,7 +199,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq, &event);
     ASSERT_EQ(OK, status)
             << "consumer consume should return OK";
 
@@ -290,7 +290,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq, &event);
     ASSERT_EQ(OK, status) << "consumer consume should return OK";
 
     ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
@@ -331,7 +331,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeCaptureEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq, &event);
     ASSERT_EQ(OK, status) << "consumer consume should return OK";
 
     ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
@@ -373,7 +373,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeDragEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq, &event);
     ASSERT_EQ(OK, status) << "consumer consume should return OK";
 
     ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
@@ -415,7 +415,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeTouchModeEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq, &event);
     ASSERT_EQ(OK, status) << "consumer consume should return OK";
 
     ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";

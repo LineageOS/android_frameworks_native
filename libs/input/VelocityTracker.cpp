@@ -157,10 +157,10 @@ void VelocityTracker::configureStrategy(int32_t axis) {
 
     std::unique_ptr<VelocityTrackerStrategy> createdStrategy;
     if (mOverrideStrategy != VelocityTracker::Strategy::DEFAULT) {
-        createdStrategy = createStrategy(mOverrideStrategy, isDifferentialAxis /* deltaValues */);
+        createdStrategy = createStrategy(mOverrideStrategy, /*deltaValues=*/isDifferentialAxis);
     } else {
         createdStrategy = createStrategy(DEFAULT_STRATEGY_BY_AXIS.at(axis),
-                                         isDifferentialAxis /* deltaValues */);
+                                         /*deltaValues=*/isDifferentialAxis);
     }
 
     LOG_ALWAYS_FATAL_IF(createdStrategy == nullptr,
@@ -495,7 +495,7 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
     }
 
     ALOGD_IF(DEBUG_STRATEGY, "  - a=%s",
-             matrixToString(&a[0][0], m, n, false /*rowMajor*/).c_str());
+             matrixToString(&a[0][0], m, n, /*rowMajor=*/false).c_str());
 
     // Apply the Gram-Schmidt process to A to obtain its QR decomposition.
     float q[n][m]; // orthonormal basis, column-major order
@@ -527,8 +527,8 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
         }
     }
     if (DEBUG_STRATEGY) {
-        ALOGD("  - q=%s", matrixToString(&q[0][0], m, n, false /*rowMajor*/).c_str());
-        ALOGD("  - r=%s", matrixToString(&r[0][0], n, n, true /*rowMajor*/).c_str());
+        ALOGD("  - q=%s", matrixToString(&q[0][0], m, n, /*rowMajor=*/false).c_str());
+        ALOGD("  - r=%s", matrixToString(&r[0][0], n, n, /*rowMajor=*/true).c_str());
 
         // calculate QR, if we factored A correctly then QR should equal A
         float qr[n][m];
@@ -540,7 +540,7 @@ static bool solveLeastSquares(const std::vector<float>& x, const std::vector<flo
                 }
             }
         }
-        ALOGD("  - qr=%s", matrixToString(&qr[0][0], m, n, false /*rowMajor*/).c_str());
+        ALOGD("  - qr=%s", matrixToString(&qr[0][0], m, n, /*rowMajor=*/false).c_str());
     }
 
     // Solve R B = Qt W Y to find B.  This is easy because R is upper triangular.

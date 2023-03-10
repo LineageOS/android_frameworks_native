@@ -507,7 +507,7 @@ TEST_F(MotionEventTest, CopyFrom_KeepHistory) {
     initializeEventWithHistory(&event);
 
     MotionEvent copy;
-    copy.copyFrom(&event, true /*keepHistory*/);
+    copy.copyFrom(&event, /*keepHistory=*/true);
 
     ASSERT_NO_FATAL_FAILURE(assertEqualsEventWithHistory(&event));
 }
@@ -517,7 +517,7 @@ TEST_F(MotionEventTest, CopyFrom_DoNotKeepHistory) {
     initializeEventWithHistory(&event);
 
     MotionEvent copy;
-    copy.copyFrom(&event, false /*keepHistory*/);
+    copy.copyFrom(&event, /*keepHistory=*/false);
 
     ASSERT_EQ(event.getPointerCount(), copy.getPointerCount());
     ASSERT_EQ(0U, copy.getHistorySize());
@@ -618,12 +618,12 @@ TEST_F(MotionEventTest, Transform) {
     }
     MotionEvent event;
     ui::Transform identityTransform;
-    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
-                     INVALID_HMAC, AMOTION_EVENT_ACTION_MOVE, 0 /*actionButton*/, 0 /*flags*/,
-                     AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
-                     MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
-                     0 /*yPrecision*/, 3 + RADIUS /*xCursorPosition*/, 2 /*yCursorPosition*/,
-                     identityTransform, 0 /*downTime*/, 0 /*eventTime*/, pointerCount,
+    event.initialize(InputEvent::nextId(), /*deviceId=*/0, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
+                     INVALID_HMAC, AMOTION_EVENT_ACTION_MOVE, /*actionButton=*/0, /*flags=*/0,
+                     AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, /*buttonState=*/0,
+                     MotionClassification::NONE, identityTransform, /*xPrecision=*/0,
+                     /*yPrecision=*/0, /*xCursorPosition=*/3 + RADIUS, /*yCursorPosition=*/2,
+                     identityTransform, /*downTime=*/0, /*eventTime=*/0, pointerCount,
                      pointerProperties, pointerCoords);
     float originalRawX = 0 + 3;
     float originalRawY = -RADIUS + 2;
@@ -824,12 +824,12 @@ TEST_F(MotionEventTest, Initialize_SetsClassification) {
 
     ui::Transform identityTransform;
     for (MotionClassification classification : classifications) {
-        event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN,
+        event.initialize(InputEvent::nextId(), /*deviceId=*/0, AINPUT_SOURCE_TOUCHSCREEN,
                          DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
                          AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0, classification,
                          identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                         AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, 0 /*downTime*/,
-                         0 /*eventTime*/, pointerCount, pointerProperties, pointerCoords);
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, /*downTime=*/0,
+                         /*eventTime=*/0, pointerCount, pointerProperties, pointerCoords);
         ASSERT_EQ(classification, event.getClassification());
     }
 }
@@ -846,11 +846,11 @@ TEST_F(MotionEventTest, Initialize_SetsCursorPosition) {
     }
 
     ui::Transform identityTransform;
-    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_MOUSE, DISPLAY_ID,
+    event.initialize(InputEvent::nextId(), /*deviceId=*/0, AINPUT_SOURCE_MOUSE, DISPLAY_ID,
                      INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0, AMOTION_EVENT_EDGE_FLAG_NONE,
                      AMETA_NONE, 0, MotionClassification::NONE, identityTransform, 0, 0,
-                     280 /*xCursorPosition*/, 540 /*yCursorPosition*/, identityTransform,
-                     0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties,
+                     /*xCursorPosition=*/280, /*yCursorPosition=*/540, identityTransform,
+                     /*downTime=*/0, /*eventTime=*/0, pointerCount, pointerProperties,
                      pointerCoords);
     event.offsetLocation(20, 60);
     ASSERT_EQ(280, event.getRawXCursorPosition());
