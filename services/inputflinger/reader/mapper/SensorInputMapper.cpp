@@ -218,7 +218,7 @@ SensorInputMapper::Sensor SensorInputMapper::createSensor(InputDeviceSensorType 
     transform(prefix.begin(), prefix.end(), prefix.begin(), ::tolower);
 
     int32_t reportingMode = 0;
-    if (!tryGetProperty(prefix + ".reportingMode", reportingMode)) {
+    if (tryGetProperty(prefix + ".reportingMode", reportingMode)) {
         sensorInfo.flags |= (reportingMode & REPORTING_MODE_MASK) << REPORTING_MODE_SHIFT;
     }
 
