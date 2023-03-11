@@ -128,10 +128,10 @@ public:
             const auto& motionEvent = static_cast<const MotionEvent&>(event);
             EXPECT_EQ(motionEvent.getEventTime(), args.eventTime);
             EXPECT_EQ(motionEvent.getAction(), args.action);
-            EXPECT_EQ(motionEvent.getX(0), point.x);
-            EXPECT_EQ(motionEvent.getY(0), point.y);
-            EXPECT_EQ(motionEvent.getRawX(0), point.x);
-            EXPECT_EQ(motionEvent.getRawY(0), point.y);
+            EXPECT_NEAR(motionEvent.getX(0), point.x, MotionEvent::ROUNDING_PRECISION);
+            EXPECT_NEAR(motionEvent.getY(0), point.y, MotionEvent::ROUNDING_PRECISION);
+            EXPECT_NEAR(motionEvent.getRawX(0), point.x, MotionEvent::ROUNDING_PRECISION);
+            EXPECT_NEAR(motionEvent.getRawY(0), point.y, MotionEvent::ROUNDING_PRECISION);
         });
     }
 

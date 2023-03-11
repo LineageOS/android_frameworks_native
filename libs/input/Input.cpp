@@ -137,10 +137,23 @@ int32_t IdGenerator::nextId() const {
 
 // --- InputEvent ---
 
+// Due to precision limitations when working with floating points, transforming - namely
+// scaling - floating points can lead to minute errors. We round transformed values to approximately
+// three decimal places so that values like 0.99997 show up as 1.0.
+inline float roundTransformedCoords(float val) {
+    // Use a power to two to approximate three decimal places to potentially reduce some cycles.
+    // This should be at least as precise as MotionEvent::ROUNDING_PRECISION.
+    return std::round(val * 1024.f) / 1024.f;
+}
+
+inline vec2 roundTransformedCoords(vec2 p) {
+    return {roundTransformedCoords(p.x), roundTransformedCoords(p.y)};
+}
+
 vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy) {
     const vec2 transformedXy = transform.transform(xy);
     const vec2 transformedOrigin = transform.transform(0, 0);
-    return transformedXy - transformedOrigin;
+    return roundTransformedCoords(transformedXy - transformedOrigin);
 }
 
 const char* inputEventTypeToString(int32_t type) {
@@ -548,12 +561,12 @@ int MotionEvent::getSurfaceRotation() const {
 
 float MotionEvent::getXCursorPosition() const {
     vec2 vals = mTransform.transform(getRawXCursorPosition(), getRawYCursorPosition());
-    return vals.x;
+    return roundTransformedCoords(vals.x);
 }
 
 float MotionEvent::getYCursorPosition() const {
     vec2 vals = mTransform.transform(getRawXCursorPosition(), getRawYCursorPosition());
-    return vals.y;
+    return roundTransformedCoords(vals.y);
 }
 
 void MotionEvent::setCursorPosition(float x, float y) {
@@ -875,7 +888,7 @@ std::string MotionEvent::actionToString(int32_t action) {
 static inline vec2 calculateTransformedXYUnchecked(uint32_t source, const ui::Transform& transform,
                                                    const vec2& xy) {
     return shouldDisregardOffset(source) ? transformWithoutTranslation(transform, xy)
-                                         : transform.transform(xy);
+                                         : roundTransformedCoords(transform.transform(xy));
 }
 
 vec2 MotionEvent::calculateTransformedXY(uint32_t source, const ui::Transform& transform,
