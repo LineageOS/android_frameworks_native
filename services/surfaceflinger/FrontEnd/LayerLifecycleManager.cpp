@@ -71,12 +71,14 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
     }
 }
 
-void LayerLifecycleManager::onHandlesDestroyed(const std::vector<uint32_t>& destroyedHandles) {
+void LayerLifecycleManager::onHandlesDestroyed(const std::vector<uint32_t>& destroyedHandles,
+                                               bool ignoreUnknownHandles) {
     std::vector<uint32_t> layersToBeDestroyed;
     for (const auto& layerId : destroyedHandles) {
         auto it = mIdToLayer.find(layerId);
         if (it == mIdToLayer.end()) {
-            LOG_ALWAYS_FATAL("%s Layerid not found %d", __func__, layerId);
+            LOG_ALWAYS_FATAL_IF(!ignoreUnknownHandles, "%s Layerid not found %d", __func__,
+                                layerId);
             continue;
         }
         RequestedLayerState& layer = it->second.owner;

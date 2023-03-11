@@ -105,7 +105,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
         // apply updates
         lifecycleManager.addLayers(std::move(addedLayers));
         lifecycleManager.applyTransactions(transactions);
-        lifecycleManager.onHandlesDestroyed(destroyedHandles);
+        lifecycleManager.onHandlesDestroyed(destroyedHandles, /*ignoreUnknownHandles=*/true);
 
         if (lifecycleManager.getGlobalChanges().test(
                     frontend::RequestedLayerState::Changes::Hierarchy)) {
