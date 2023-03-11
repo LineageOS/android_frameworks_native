@@ -292,6 +292,13 @@ HdrCapabilities filterOut4k30(const HdrCapabilities& displayHdrCapabilities) {
             displayHdrCapabilities.getDesiredMinLuminance()};
 }
 
+uint32_t getLayerIdFromSurfaceControl(sp<SurfaceControl> surfaceControl) {
+    if (!surfaceControl) {
+        return UNASSIGNED_LAYER_ID;
+    }
+    return LayerHandle::getLayerId(surfaceControl->getHandle());
+}
+
 }  // namespace anonymous
 
 // ---------------------------------------------------------------------------
@@ -497,14 +504,13 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
     // the window manager died on us. prepare its eulogy.
     mBootFinished = false;
 
-    // Sever the link to inputflinger since it's gone as well.
-    static_cast<void>(mScheduler->schedule(
-            [this] { mInputFlinger.clear(); }));
+    static_cast<void>(mScheduler->schedule([this]() FTL_FAKE_GUARD(kMainThreadContext) {
+        // Sever the link to inputflinger since it's gone as well.
+        mInputFlinger.clear();
 
-    // restore initial conditions (default device unblank, etc)
-    initializeDisplays();
+        initializeDisplays();
+    }));
 
-    // restart the boot-animation
     startBootAnim();
 }
 
@@ -873,7 +879,9 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     mDrawingState = mCurrentState;
 
     onActiveDisplayChangedLocked(nullptr, *display);
-    initializeDisplays();
+
+    static_cast<void>(mScheduler->schedule(
+            [this]() FTL_FAKE_GUARD(kMainThreadContext) { initializeDisplays(); }));
 
     mPowerAdvisor->init();
 
@@ -3485,7 +3493,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
 
             // TODO(b/175678251) Call a listener instead.
             if (currentState.physical->hwcDisplayId == getHwComposer().getPrimaryHwcDisplayId()) {
-                updateActiveDisplayVsyncLocked(*display);
+                resetPhaseConfiguration(display->getActiveMode().fps);
             }
         }
         return;
@@ -3519,9 +3527,11 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
     }
 }
 
-void SurfaceFlinger::updateActiveDisplayVsyncLocked(const DisplayDevice& activeDisplay) {
+void SurfaceFlinger::resetPhaseConfiguration(Fps refreshRate) {
+    // Cancel the pending refresh rate change, if any, before updating the phase configuration.
+    mScheduler->vsyncModulator().cancelRefreshRateChange();
+
     mVsyncConfiguration->reset();
-    const Fps refreshRate = activeDisplay.getActiveMode().fps;
     updatePhaseConfiguration(refreshRate);
     mRefreshRateStats->setRefreshRate(refreshRate);
 }
@@ -4061,7 +4071,7 @@ bool SurfaceFlinger::latchBuffers() {
     return !mLayersWithQueuedFrames.empty() && newDataLatched;
 }
 
-status_t SurfaceFlinger::addClientLayer(const LayerCreationArgs& args, const sp<IBinder>& handle,
+status_t SurfaceFlinger::addClientLayer(LayerCreationArgs& args, const sp<IBinder>& handle,
                                         const sp<Layer>& layer, const wp<Layer>& parent,
                                         uint32_t* outTransformHint) {
     if (mNumLayers >= MAX_LAYERS) {
@@ -4091,7 +4101,8 @@ status_t SurfaceFlinger::addClientLayer(const LayerCreationArgs& args, const sp<
     if (outTransformHint) {
         *outTransformHint = mActiveDisplayTransformHint;
     }
-
+    args.parentId = LayerHandle::getLayerId(args.parentHandle.promote());
+    args.layerIdToMirror = LayerHandle::getLayerId(args.mirrorLayerHandle.promote());
     {
         std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
         mCreatedLayers.emplace_back(layer, parent, args.addToRoot);
@@ -4119,6 +4130,7 @@ void SurfaceFlinger::setTransactionFlags(uint32_t mask, TransactionSchedule sche
     ATRACE_INT("mTransactionFlags", transactionFlags);
 
     if (const bool scheduled = transactionFlags & mask; !scheduled) {
+        mScheduler->resync();
         scheduleCommit(frameHint);
     } else if (frameHint == FrameHint::kActive) {
         // Even if the next frame is already scheduled, we should reset the idle timer
@@ -4261,7 +4273,7 @@ bool SurfaceFlinger::flushTransactionQueues(VsyncId vsyncId) {
 
 bool SurfaceFlinger::applyTransactions(std::vector<TransactionState>& transactions,
                                        VsyncId vsyncId) {
-    Mutex::Autolock _l(mStateLock);
+    Mutex::Autolock lock(mStateLock);
     return applyTransactionsLocked(transactions, vsyncId);
 }
 
@@ -4342,9 +4354,8 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
         // We don't want to latch unsignaled if are in early / client composition
         // as it leads to jank due to RenderEngine waiting for unsignaled buffer
         // or window animations being slow.
-        const auto isDefaultVsyncConfig = mScheduler->vsyncModulator().isVsyncConfigDefault();
-        if (!isDefaultVsyncConfig) {
-            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; !isDefaultVsyncConfig)",
+        if (mScheduler->vsyncModulator().isVsyncConfigEarly()) {
+            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; isVsyncConfigEarly)",
                   __func__);
             return false;
         }
@@ -4422,6 +4433,21 @@ status_t SurfaceFlinger::setTransactionState(
                     getExternalTextureFromBufferData(*resolvedState.state.bufferData,
                                                      layerName.c_str(), transactionId);
             mBufferCountTracker.increment(resolvedState.state.surface->localBinder());
+        }
+        resolvedState.layerId = LayerHandle::getLayerId(resolvedState.state.surface);
+        if (resolvedState.state.what & layer_state_t::eReparent) {
+            resolvedState.parentId =
+                    getLayerIdFromSurfaceControl(resolvedState.state.parentSurfaceControlForChild);
+        }
+        if (resolvedState.state.what & layer_state_t::eRelativeLayerChanged) {
+            resolvedState.relativeParentId =
+                    getLayerIdFromSurfaceControl(resolvedState.state.relativeLayerSurfaceControl);
+        }
+        if (resolvedState.state.what & layer_state_t::eInputInfoChanged) {
+            wp<IBinder>& touchableRegionCropHandle =
+                    resolvedState.state.windowInfoHandle->editInfo()->touchableRegionCropHandle;
+            resolvedState.touchCropId =
+                    LayerHandle::getLayerId(touchableRegionCropHandle.promote());
         }
     }
 
@@ -4547,7 +4573,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
 
 bool SurfaceFlinger::applyAndCommitDisplayTransactionStates(
         std::vector<TransactionState>& transactions) {
-    Mutex::Autolock _l(mStateLock);
+    Mutex::Autolock lock(mStateLock);
     bool needsTraversal = false;
     uint32_t transactionFlags = 0;
     for (auto& transaction : transactions) {
@@ -5285,8 +5311,8 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32
     setTransactionFlags(eTransactionFlushNeeded);
 }
 
-void SurfaceFlinger::onInitializeDisplays() {
-    const auto display = getDefaultDisplayDeviceLocked();
+void SurfaceFlinger::initializeDisplays() {
+    const auto display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
     if (!display) return;
 
     const sp<IBinder> token = display->getDisplayToken().promote();
@@ -5294,13 +5320,13 @@ void SurfaceFlinger::onInitializeDisplays() {
 
     TransactionState state;
     state.inputWindowCommands = mInputWindowCommands;
-    nsecs_t now = systemTime();
+    const nsecs_t now = systemTime();
     state.desiredPresentTime = now;
     state.postTime = now;
     state.permissions = layer_state_t::ACCESS_SURFACE_FLINGER;
     state.originPid = mPid;
     state.originUid = static_cast<int>(getuid());
-    uint64_t transactionId = (((uint64_t)mPid) << 32) | mUniqueTransactionId++;
+    const uint64_t transactionId = (static_cast<uint64_t>(mPid) << 32) | mUniqueTransactionId++;
     state.id = transactionId;
 
     // reset screen orientation and use primary layer stack
@@ -5320,21 +5346,16 @@ void SurfaceFlinger::onInitializeDisplays() {
     std::vector<TransactionState> transactions;
     transactions.emplace_back(state);
 
-    // It should be on the main thread, apply it directly.
     if (mLegacyFrontEndEnabled) {
-        applyTransactionsLocked(transactions, /*vsyncId=*/{0});
+        applyTransactions(transactions, VsyncId{0});
     } else {
         applyAndCommitDisplayTransactionStates(transactions);
     }
 
-    setPowerModeInternal(display, hal::PowerMode::ON);
-}
-
-void SurfaceFlinger::initializeDisplays() {
-    // Async since we may be called from the main thread.
-    static_cast<void>(mScheduler->schedule(
-            [this]() FTL_FAKE_GUARD(mStateLock)
-                    FTL_FAKE_GUARD(kMainThreadContext) { onInitializeDisplays(); }));
+    {
+        ftl::FakeGuard guard(mStateLock);
+        setPowerModeInternal(display, hal::PowerMode::ON);
+    }
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {
@@ -7721,14 +7742,20 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
                                                   const DisplayDevice& activeDisplay) {
     ATRACE_CALL();
 
+    // For the first display activated during boot, there is no need to force setDesiredActiveMode,
+    // because DM is about to send its policy via setDesiredDisplayModeSpecs.
+    bool forceApplyPolicy = false;
+
     if (inactiveDisplayPtr) {
         inactiveDisplayPtr->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
+        forceApplyPolicy = true;
     }
 
     mActiveDisplayId = activeDisplay.getPhysicalId();
     activeDisplay.getCompositionDisplay()->setLayerCachingTexturePoolEnabled(true);
 
-    updateActiveDisplayVsyncLocked(activeDisplay);
+    resetPhaseConfiguration(activeDisplay.getActiveMode().fps);
+
     mScheduler->setModeChangePending(false);
     mScheduler->setPacesetterDisplay(mActiveDisplayId);
 
@@ -7739,8 +7766,8 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
     // that case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In
     // either case, the Scheduler's cachedModeChangedParams must be initialized to the newly active
     // mode, and the kernel idle timer of the newly active display must be toggled.
-    constexpr bool kForce = true;
-    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector(), kForce);
+    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector(),
+                                   forceApplyPolicy);
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(

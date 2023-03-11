@@ -187,9 +187,9 @@ void VsyncModulator::binderDied(const wp<IBinder>& who) {
     static_cast<void>(updateVsyncConfigLocked());
 }
 
-bool VsyncModulator::isVsyncConfigDefault() const {
+bool VsyncModulator::isVsyncConfigEarly() const {
     std::lock_guard<std::mutex> lock(mMutex);
-    return getNextVsyncConfigType() == VsyncConfigType::Late;
+    return getNextVsyncConfigType() != VsyncConfigType::Late;
 }
 
 } // namespace android::scheduler

@@ -20,6 +20,7 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include "FrontEnd/LayerCreationArgs.h"
 #include "renderengine/ExternalTexture.h"
 
 #include <gui/LayerState.h>
@@ -39,6 +40,10 @@ public:
     ResolvedComposerState() = default;
     ResolvedComposerState(ComposerState&& source) { state = std::move(source.state); }
     std::shared_ptr<renderengine::ExternalTexture> externalTexture;
+    uint32_t layerId = UNASSIGNED_LAYER_ID;
+    uint32_t parentId = UNASSIGNED_LAYER_ID;
+    uint32_t relativeParentId = UNASSIGNED_LAYER_ID;
+    uint32_t touchCropId = UNASSIGNED_LAYER_ID;
 };
 
 struct TransactionState {

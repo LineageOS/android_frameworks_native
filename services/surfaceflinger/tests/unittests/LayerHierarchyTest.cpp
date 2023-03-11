@@ -17,12 +17,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "FrontEnd/LayerHandle.h"
 #include "FrontEnd/LayerHierarchy.h"
 #include "FrontEnd/LayerLifecycleManager.h"
-#include "Layer.h"
 #include "LayerHierarchyTest.h"
-#include "gui/SurfaceComposerClient.h"
 
 #define UPDATE_AND_VERIFY(HIERARCHY)  \
     ({                                \
@@ -207,7 +204,8 @@ TEST_F(LayerHierarchyTest, reparentFromRelativeParentWithSetLayer) {
     reparentRelativeLayer(11, 2);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
-    reparentRelativeLayer(11, UNASSIGNED_LAYER_ID);
+    // This calls setLayer
+    removeRelativeZ(11);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
     std::vector<uint32_t> expectedTraversalPath = {1, 11, 111, 12, 121, 122, 1221, 13, 2};
@@ -418,7 +416,7 @@ TEST_F(LayerHierarchyTest, childMovesOffscreenWhenRelativeParentDies) {
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expectedTraversalPath);
 
     // remove relative parent so layer becomes onscreen again
-    reparentRelativeLayer(11, UNASSIGNED_LAYER_ID);
+    removeRelativeZ(11);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
     expectedTraversalPath = {1, 11, 111, 12, 121, 122, 1221, 13};

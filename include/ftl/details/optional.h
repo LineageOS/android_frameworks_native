@@ -54,5 +54,15 @@ struct and_then_result {
 template <typename F, typename T>
 using and_then_result_t = typename and_then_result<F, T>::type;
 
+template <typename F, typename T>
+struct or_else_result {
+  using type = remove_cvref_t<std::invoke_result_t<F>>;
+  static_assert(std::is_same_v<type, std::optional<T>> || std::is_same_v<type, Optional<T>>,
+                "or_else function must return an optional T");
+};
+
+template <typename F, typename T>
+using or_else_result_t = typename or_else_result<F, T>::type;
+
 }  // namespace details
 }  // namespace android::ftl
