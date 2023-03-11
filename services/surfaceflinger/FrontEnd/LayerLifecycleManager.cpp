@@ -20,8 +20,7 @@
 #define LOG_TAG "LayerLifecycleManager"
 
 #include "LayerLifecycleManager.h"
-#include "Layer.h" // temporarily needed for LayerHandle
-#include "LayerHandle.h"
+#include "Client.h" // temporarily needed for LayerCreationArgs
 #include "LayerLog.h"
 #include "SwapErase.h"
 
@@ -167,7 +166,7 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
     for (const auto& transaction : transactions) {
         for (const auto& resolvedComposerState : transaction.states) {
             const auto& clientState = resolvedComposerState.state;
-            uint32_t layerId = LayerHandle::getLayerId(clientState.surface);
+            uint32_t layerId = resolvedComposerState.layerId;
             if (layerId == UNASSIGNED_LAYER_ID) {
                 ALOGW("%s Handle %p is not valid", __func__, clientState.surface.get());
                 continue;
@@ -175,15 +174,14 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
 
             RequestedLayerState* layer = getLayerFromId(layerId);
             if (layer == nullptr) {
-                LOG_ALWAYS_FATAL("%s Layer with handle %p (layerid=%d) not found", __func__,
-                                 clientState.surface.get(), layerId);
+                LOG_ALWAYS_FATAL("%s Layer with layerid=%d not found", __func__, layerId);
                 continue;
             }
 
             if (!layer->handleAlive) {
-                LOG_ALWAYS_FATAL("%s Layer's handle %p (layerid=%d) is not alive. Possible out of "
+                LOG_ALWAYS_FATAL("%s Layer's with layerid=%d) is not alive. Possible out of "
                                  "order LayerLifecycleManager updates",
-                                 __func__, clientState.surface.get(), layerId);
+                                 __func__, layerId);
                 continue;
             }
 
@@ -198,13 +196,11 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
 
             if (layer->what & layer_state_t::eBackgroundColorChanged) {
                 if (layer->bgColorLayerId == UNASSIGNED_LAYER_ID && layer->bgColor.a != 0) {
-                    LayerCreationArgs backgroundLayerArgs{nullptr,
-                                                          nullptr,
-                                                          layer->name + "BackgroundColorLayer",
-                                                          ISurfaceComposerClient::eFXSurfaceEffect,
-                                                          {},
-                                                          layer->id,
-                                                          /*internalLayer=*/true};
+                    LayerCreationArgs backgroundLayerArgs(layer->id,
+                                                          /*internalLayer=*/true);
+                    backgroundLayerArgs.parentId = layer->id;
+                    backgroundLayerArgs.name = layer->name + "BackgroundColorLayer";
+                    backgroundLayerArgs.flags = ISurfaceComposerClient::eFXSurfaceEffect;
                     std::vector<std::unique_ptr<RequestedLayerState>> newLayers;
                     newLayers.emplace_back(
                             std::make_unique<RequestedLayerState>(backgroundLayerArgs));

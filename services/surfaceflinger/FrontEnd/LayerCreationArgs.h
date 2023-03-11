@@ -41,6 +41,8 @@ struct LayerCreationArgs {
     LayerCreationArgs(android::SurfaceFlinger*, sp<android::Client>, std::string name,
                       uint32_t flags, gui::LayerMetadata, std::optional<uint32_t> id = std::nullopt,
                       bool internalLayer = false);
+    LayerCreationArgs(std::optional<uint32_t> id, bool internalLayer = false);
+
     LayerCreationArgs(const LayerCreationArgs&);
 
     android::SurfaceFlinger* flinger;
@@ -56,6 +58,8 @@ struct LayerCreationArgs {
     wp<IBinder> parentHandle = nullptr;
     wp<IBinder> mirrorLayerHandle = nullptr;
     ui::LayerStack layerStackToMirror = ui::INVALID_LAYER_STACK;
+    uint32_t parentId = UNASSIGNED_LAYER_ID;
+    uint32_t layerIdToMirror = UNASSIGNED_LAYER_ID;
 };
 
 } // namespace android::surfaceflinger
