@@ -2999,6 +2999,12 @@ TEST_P(RefreshRateSelectorTest, noLowerFrameRateOnMinVote) {
     layers[0].name = "Test layer";
     layers[0].vote = LayerVoteType::Min;
     EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
+
+    constexpr FpsRanges kCappedAt60 = {{30_Hz, 90_Hz}, {30_Hz, 60_Hz}};
+    EXPECT_EQ(SetPolicyResult::Changed,
+              selector.setDisplayManagerPolicy(
+                      {DisplayModeId(kModeId60), kCappedAt60, kCappedAt60}));
+    EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
 }
 
 TEST_P(RefreshRateSelectorTest, frameRateIsCappedByPolicy) {
