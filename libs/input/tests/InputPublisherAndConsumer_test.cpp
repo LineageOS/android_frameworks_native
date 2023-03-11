@@ -32,6 +32,8 @@ using android::base::Result;
 
 namespace android {
 
+constexpr static float EPSILON = MotionEvent::ROUNDING_PRECISION;
+
 class InputPublisherAndConsumerTest : public testing::Test {
 protected:
     std::shared_ptr<InputChannel> mServerChannel, mClientChannel;
@@ -233,10 +235,10 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(yOffset, motionEvent->getYOffset());
     EXPECT_EQ(xPrecision, motionEvent->getXPrecision());
     EXPECT_EQ(yPrecision, motionEvent->getYPrecision());
-    EXPECT_EQ(xCursorPosition, motionEvent->getRawXCursorPosition());
-    EXPECT_EQ(yCursorPosition, motionEvent->getRawYCursorPosition());
-    EXPECT_EQ(xCursorPosition * xScale + xOffset, motionEvent->getXCursorPosition());
-    EXPECT_EQ(yCursorPosition * yScale + yOffset, motionEvent->getYCursorPosition());
+    EXPECT_NEAR(xCursorPosition, motionEvent->getRawXCursorPosition(), EPSILON);
+    EXPECT_NEAR(yCursorPosition, motionEvent->getRawYCursorPosition(), EPSILON);
+    EXPECT_NEAR(xCursorPosition * xScale + xOffset, motionEvent->getXCursorPosition(), EPSILON);
+    EXPECT_NEAR(yCursorPosition * yScale + yOffset, motionEvent->getYCursorPosition(), EPSILON);
     EXPECT_EQ(rawTransform, motionEvent->getRawTransform());
     EXPECT_EQ(downTime, motionEvent->getDownTime());
     EXPECT_EQ(eventTime, motionEvent->getEventTime());
@@ -249,10 +251,12 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         EXPECT_EQ(pointerProperties[i].toolType, motionEvent->getToolType(i));
 
         const auto& pc = pointerCoords[i];
-        EXPECT_EQ(pc.getX() * rawXScale + rawXOffset, motionEvent->getRawX(i));
-        EXPECT_EQ(pc.getY() * rawYScale + rawYOffset, motionEvent->getRawY(i));
-        EXPECT_EQ(pc.getX() * xScale + xOffset, motionEvent->getX(i));
-        EXPECT_EQ(pc.getY() * yScale + yOffset, motionEvent->getY(i));
+        EXPECT_EQ(pc, motionEvent->getSamplePointerCoords()[i]);
+
+        EXPECT_NEAR(pc.getX() * rawXScale + rawXOffset, motionEvent->getRawX(i), EPSILON);
+        EXPECT_NEAR(pc.getY() * rawYScale + rawYOffset, motionEvent->getRawY(i), EPSILON);
+        EXPECT_NEAR(pc.getX() * xScale + xOffset, motionEvent->getX(i), EPSILON);
+        EXPECT_NEAR(pc.getY() * yScale + yOffset, motionEvent->getY(i), EPSILON);
         EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE), motionEvent->getPressure(i));
         EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_SIZE), motionEvent->getSize(i));
         EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR), motionEvent->getTouchMajor(i));
