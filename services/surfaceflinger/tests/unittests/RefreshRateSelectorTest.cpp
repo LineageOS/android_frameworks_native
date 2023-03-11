@@ -1455,6 +1455,24 @@ TEST_P(RefreshRateSelectorTest,
         lr.name = "ExplicitExactOrMultiple 29.97 Hz";
         EXPECT_EQ(kModeId60Frac, selector.getBestFrameRateMode(layers)->getId());
     }
+
+    // Test that 29.97 will choose 30 if 59.94 is not supported
+    {
+        auto selector = createSelector(makeModes(kMode30, kMode60), kModeId60);
+
+        lr.desiredRefreshRate = 29.97_Hz;
+        lr.name = "ExplicitExactOrMultiple 29.97 Hz";
+        EXPECT_EQ(kModeId30, selector.getBestFrameRateMode(layers)->getId());
+    }
+
+    // Test that 59.94 will choose 60 if 59.94 is not supported
+    {
+        auto selector = createSelector(makeModes(kMode60, kMode30Frac, kMode30), kModeId60);
+
+        lr.desiredRefreshRate = 59.94_Hz;
+        lr.name = "ExplicitExactOrMultiple 59.94 Hz";
+        EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
+    }
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_ExplicitExact_WithFractionalRefreshRates) {

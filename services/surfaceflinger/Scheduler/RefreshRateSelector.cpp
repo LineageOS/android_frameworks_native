@@ -308,7 +308,7 @@ float RefreshRateSelector::calculateNonExactMatchingLayerScoreLocked(const Layer
         // significantly faster than the display rate, at it would cause a significant frame drop.
         // It is more appropriate to choose a higher display rate even if
         // a pull-down will be required.
-        constexpr float kMinMultiplier = 0.25f;
+        constexpr float kMinMultiplier = 0.75f;
         if (multiplier >= kMinMultiplier &&
             isFractionalPairOrMultiple(refreshRate, layer.desiredRefreshRate)) {
             return kScoreForFractionalPairs;
