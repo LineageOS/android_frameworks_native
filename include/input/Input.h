@@ -818,6 +818,8 @@ public:
                                                const PointerCoords&);
     static PointerCoords calculateTransformedCoords(uint32_t source, const ui::Transform&,
                                                     const PointerCoords&);
+    // The rounding precision for transformed motion events.
+    static constexpr float ROUNDING_PRECISION = 0.001f;
 
 protected:
     int32_t mAction;
