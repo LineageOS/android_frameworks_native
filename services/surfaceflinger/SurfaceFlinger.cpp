@@ -2890,7 +2890,12 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
                         const auto* outputLayer =
                             compositionDisplay->getOutputLayerForLayer(layerFe);
                         if (outputLayer) {
-                            info.mergeDesiredRatio(snapshot.desiredSdrHdrRatio);
+                            // TODO(b/267350616): Rename SdrHdrRatio -> HdrSdrRatio
+                            // everywhere
+                            const float desiredHdrSdrRatio = snapshot.desiredSdrHdrRatio <= 1.f
+                                    ? std::numeric_limits<float>::infinity()
+                                    : snapshot.desiredSdrHdrRatio;
+                            info.mergeDesiredRatio(desiredHdrSdrRatio);
                             info.numberOfHdrLayers++;
                             const auto displayFrame = outputLayer->getState().displayFrame;
                             const int32_t area = displayFrame.width() * displayFrame.height();
