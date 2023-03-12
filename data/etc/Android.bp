@@ -167,12 +167,6 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
-    name: "android.hardware.telephony.satellite.prebuilt.xml",
-    src: "android.hardware.telephony.satellite.xml",
-    defaults: ["frameworks_native_data_etc_defaults"],
-}
-
-prebuilt_etc {
     name: "android.hardware.usb.accessory.prebuilt.xml",
     src: "android.hardware.usb.accessory.xml",
     defaults: ["frameworks_native_data_etc_defaults"],

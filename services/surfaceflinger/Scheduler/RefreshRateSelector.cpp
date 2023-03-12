@@ -308,7 +308,7 @@ float RefreshRateSelector::calculateNonExactMatchingLayerScoreLocked(const Layer
         // significantly faster than the display rate, at it would cause a significant frame drop.
         // It is more appropriate to choose a higher display rate even if
         // a pull-down will be required.
-        constexpr float kMinMultiplier = 0.25f;
+        constexpr float kMinMultiplier = 0.75f;
         if (multiplier >= kMinMultiplier &&
             isFractionalPairOrMultiple(refreshRate, layer.desiredRefreshRate)) {
             return kScoreForFractionalPairs;
@@ -958,7 +958,7 @@ auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
         }
 
         const bool ascending = (refreshRateOrder == RefreshRateOrder::Ascending);
-        const auto id = frameRateMode.modePtr->getId();
+        const auto id = modePtr->getId();
         if (ascending && frameRateMode.fps < *maxRenderRateForMode.get(id)) {
             // TODO(b/266481656): Once this bug is fixed, we can remove this workaround and actually
             //  use a lower frame rate when we want Ascending frame rates.
@@ -970,14 +970,20 @@ auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
         if (ascending) {
             score = 1.0f / score;
         }
+
+        constexpr float kScore = std::numeric_limits<float>::max();
         if (preferredDisplayModeOpt) {
             if (*preferredDisplayModeOpt == modePtr->getId()) {
-                constexpr float kScore = std::numeric_limits<float>::max();
                 ranking.emplace_front(ScoredFrameRate{frameRateMode, kScore});
                 return;
             }
             constexpr float kNonPreferredModePenalty = 0.95f;
             score *= kNonPreferredModePenalty;
+        } else if (ascending && id == getMinRefreshRateByPolicyLocked()->getId()) {
+            // TODO(b/266481656): Once this bug is fixed, we can remove this workaround
+            //  and actually use a lower frame rate when we want Ascending frame rates.
+            ranking.emplace_front(ScoredFrameRate{frameRateMode, kScore});
+            return;
         }
 
         ALOGV("%s(%s) %s (%s) scored %.2f", whence, ftl::enum_string(refreshRateOrder).c_str(),

@@ -206,12 +206,14 @@ public:
      * @param output_format flag for setting output color format. if set to
      *                      {@code JPEGR_OUTPUT_SDR}, decoder will only decode the primary image
      *                      which is SDR. Default value is JPEGR_OUTPUT_HDR_LINEAR.
+     * @param recovery_map destination of the decoded recovery map.
      * @return NO_ERROR if decoding succeeds, error code if error occurs.
      */
     status_t decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                          jr_uncompressed_ptr dest,
                          jr_exif_ptr exif = nullptr,
-                         jpegr_output_format output_format = JPEGR_OUTPUT_HDR_LINEAR);
+                         jpegr_output_format output_format = JPEGR_OUTPUT_HDR_LINEAR,
+                         jr_uncompressed_ptr recovery_map = nullptr);
 
     /*
     * Gets Info from JPEGR file without decoding it.
