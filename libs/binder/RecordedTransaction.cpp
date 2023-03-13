@@ -127,8 +127,7 @@ std::optional<RecordedTransaction> RecordedTransaction::fromDetails(
     t.mData.mInterfaceName = std::string(String8(interfaceName).string());
     if (interfaceName.size() != t.mData.mInterfaceName.size()) {
         LOG(ERROR) << "Interface Name is not valid. Contains characters that aren't single byte "
-                      "utf-8: "
-                   << interfaceName;
+                      "utf-8.";
         return std::nullopt;
     }
 
