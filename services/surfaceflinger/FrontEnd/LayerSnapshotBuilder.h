@@ -68,6 +68,7 @@ public:
     void update(const Args&);
     std::vector<std::unique_ptr<LayerSnapshot>>& getSnapshots();
     LayerSnapshot* getSnapshot(uint32_t layerId) const;
+    LayerSnapshot* getSnapshot(const LayerHierarchy::TraversalPath& id) const;
 
     typedef std::function<void(const LayerSnapshot& snapshot)> ConstVisitor;
 
@@ -86,7 +87,6 @@ public:
 
 private:
     friend class LayerSnapshotTest;
-    LayerSnapshot* getSnapshot(const LayerHierarchy::TraversalPath& id) const;
     static LayerSnapshot getRootSnapshot();
 
     // return true if we were able to successfully update the snapshots via
@@ -120,16 +120,8 @@ private:
     void updateChildState(LayerSnapshot& snapshot, const LayerSnapshot& childSnapshot,
                           const Args& args);
 
-    struct TraversalPathHash {
-        std::size_t operator()(const LayerHierarchy::TraversalPath& key) const {
-            uint32_t hashCode = key.id * 31;
-            if (key.mirrorRootId != UNASSIGNED_LAYER_ID) {
-                hashCode += key.mirrorRootId * 31;
-            }
-            return std::hash<size_t>{}(hashCode);
-        }
-    };
-    std::unordered_map<LayerHierarchy::TraversalPath, LayerSnapshot*, TraversalPathHash>
+    std::unordered_map<LayerHierarchy::TraversalPath, LayerSnapshot*,
+                       LayerHierarchy::TraversalPathHash>
             mIdToSnapshot;
     std::vector<std::unique_ptr<LayerSnapshot>> mSnapshots;
     LayerSnapshot mRootSnapshot;
