@@ -64,6 +64,21 @@ struct BinderRpcTestProcessSession {
     // whether session should be invalidated by end of run
     bool expectAlreadyShutdown = false;
 
+    // TODO(b/271830568): fix this in binderRpcTest, we always use the first session to cause the
+    // remote process to shutdown. Normally, when we shutdown, the default in the destructor is to
+    // check that there are no leaks and shutdown. However, when there are incoming threadpools,
+    // there will be a few extra binder threads there, so we can't shutdown the server. We should
+    // consider an alternative way of doing the test so that we don't need this, some ideas, such as
+    // program in understanding of incoming threadpool into the destructor so that (e.g.
+    // intelligently wait for sessions to shutdown now that they will do this)
+    void forceShutdown() {
+        if (auto status = rootIface->scheduleShutdown(); !status.isOk()) {
+            EXPECT_EQ(DEAD_OBJECT, status.transactionError()) << status;
+        }
+        EXPECT_TRUE(proc->sessions.at(0).session->shutdownAndWait(true));
+        expectAlreadyShutdown = true;
+    }
+
     BinderRpcTestProcessSession(BinderRpcTestProcessSession&&) = default;
     ~BinderRpcTestProcessSession() {
         if (!expectAlreadyShutdown) {
