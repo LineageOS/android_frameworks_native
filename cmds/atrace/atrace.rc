@@ -501,6 +501,33 @@ on late-init && property:ro.boot.hypervisor.vm.supported=1
     chmod 0440 /sys/kernel/debug/tracing/hyp/events/hyp/hyp_exit/id
     chmod 0440 /sys/kernel/tracing/hyp/events/hyp/hyp_exit/id
 
+# host_hcall event
+    chmod 0660 /sys/kernel/debug/tracing/hyp/events/hyp/host_hcall/enable
+    chmod 0660 /sys/kernel/tracing/hyp/events/hyp/host_hcall/enable
+# TODO(b/249050813): should this be handled in kernel?
+    chmod 0440 /sys/kernel/debug/tracing/hyp/events/hyp/host_hcall/format
+    chmod 0440 /sys/kernel/tracing/hyp/events/hyp/host_hcall/format
+    chmod 0440 /sys/kernel/debug/tracing/hyp/events/hyp/host_hcall/id
+    chmod 0440 /sys/kernel/tracing/hyp/events/hyp/host_hcall/id
+
+# host_smc event
+    chmod 0660 /sys/kernel/debug/tracing/hyp/events/hyp/host_smc/enable
+    chmod 0660 /sys/kernel/tracing/hyp/events/hyp/host_smc/enable
+# TODO(b/249050813): should this be handled in kernel?
+    chmod 0440 /sys/kernel/debug/tracing/hyp/events/hyp/host_smc/format
+    chmod 0440 /sys/kernel/tracing/hyp/events/hyp/host_smc/format
+    chmod 0440 /sys/kernel/debug/tracing/hyp/events/hyp/host_smc/id
+    chmod 0440 /sys/kernel/tracing/hyp/events/hyp/host_smc/id
+
+# host_mem_abort event
+    chmod 0660 /sys/kernel/debug/tracing/hyp/events/hyp/host_mem_abort/enable
+    chmod 0660 /sys/kernel/tracing/hyp/events/hyp/host_mem_abort/enable
+# TODO(b/249050813): should this be handled in kernel?
+    chmod 0440 /sys/kernel/debug/tracing/hyp/events/hyp/host_mem_abort/format
+    chmod 0440 /sys/kernel/tracing/hyp/events/hyp/host_mem_abort/format
+    chmod 0440 /sys/kernel/debug/tracing/hyp/events/hyp/host_mem_abort/id
+    chmod 0440 /sys/kernel/tracing/hyp/events/hyp/host_mem_abort/id
+
 
 on property:persist.debug.atrace.boottrace=1
     start boottrace
