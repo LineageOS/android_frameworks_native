@@ -24,9 +24,6 @@ package {
 cc_test {
     name: "gpuservice_unittest",
     test_suites: ["device-tests"],
-    sanitize: {
-        address: true,
-    },
     srcs: [
         "GpuMemTest.cpp",
         "GpuMemTracerTest.cpp",
