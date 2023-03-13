@@ -163,7 +163,8 @@ public:
             session.root = nullptr;
         }
 
-        for (auto& info : sessions) {
+        for (size_t sessionNum = 0; sessionNum < sessions.size(); sessionNum++) {
+            auto& info = sessions.at(sessionNum);
             sp<RpcSession>& session = info.session;
 
             EXPECT_NE(nullptr, session);
@@ -179,6 +180,7 @@ public:
             for (size_t i = 0; i < 3; i++) {
                 sp<RpcSession> strongSession = weakSession.promote();
                 EXPECT_EQ(nullptr, strongSession)
+                        << "For session " << sessionNum << ". "
                         << (debugBacktrace(host.getPid()), debugBacktrace(getpid()),
                             "Leaked sess: ")
                         << strongSession->getStrongCount() << " checked time " << i;
@@ -253,6 +255,10 @@ std::string BinderRpc::PrintParamInfo(const testing::TestParamInfo<ParamType>& i
 std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
         const BinderRpcOptions& options) {
     CHECK_GE(options.numSessions, 1) << "Must have at least one session to a server";
+
+    if (options.numIncomingConnectionsBySession.size() != 0) {
+        CHECK_EQ(options.numIncomingConnectionsBySession.size(), options.numSessions);
+    }
 
     SocketType socketType = std::get<0>(GetParam());
     RpcSecurity rpcSecurity = std::get<1>(GetParam());
@@ -351,9 +357,15 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
 
     status_t status;
 
-    for (const auto& session : sessions) {
+    for (size_t i = 0; i < sessions.size(); i++) {
+        const auto& session = sessions.at(i);
+
+        size_t numIncoming = options.numIncomingConnectionsBySession.size() > 0
+                ? options.numIncomingConnectionsBySession.at(i)
+                : 0;
+
         CHECK(session->setProtocolVersion(clientVersion));
-        session->setMaxIncomingThreads(options.numIncomingConnections);
+        session->setMaxIncomingThreads(numIncoming);
         session->setMaxOutgoingConnections(options.numOutgoingConnections);
         session->setFileDescriptorTransportMode(options.clientFileDescriptorTransportMode);
 
@@ -651,6 +663,32 @@ TEST_P(BinderRpc, OnewayCallExhaustion) {
     proc.proc->sessions.erase(proc.proc->sessions.begin() + 1);
 }
 
+TEST_P(BinderRpc, SessionWithIncomingThreadpoolDoesntLeak) {
+    if (clientOrServerSingleThreaded()) {
+        GTEST_SKIP() << "This test requires multiple threads";
+    }
+
+    // session 0 - will check for leaks in destrutor of proc
+    // session 1 - we want to make sure it gets deleted when we drop all references to it
+    auto proc = createRpcTestSocketServerProcess(
+            {.numThreads = 1, .numIncomingConnectionsBySession = {0, 1}, .numSessions = 2});
+
+    wp<RpcSession> session = proc.proc->sessions.at(1).session;
+
+    // remove all references to the second session
+    proc.proc->sessions.at(1).root = nullptr;
+    proc.proc->sessions.erase(proc.proc->sessions.begin() + 1);
+
+    // TODO(b/271830568) more efficient way to wait for other incoming threadpool
+    // to drain commands.
+    for (size_t i = 0; i < 100; i++) {
+        usleep(10 * 1000);
+        if (session.promote() == nullptr) break;
+    }
+
+    EXPECT_EQ(nullptr, session.promote());
+}
+
 TEST_P(BinderRpc, SingleDeathRecipient) {
     if (clientOrServerSingleThreaded()) {
         GTEST_SKIP() << "This test requires multiple threads";
@@ -668,7 +706,7 @@ TEST_P(BinderRpc, SingleDeathRecipient) {
 
     // Death recipient needs to have an incoming connection to be called
     auto proc = createRpcTestSocketServerProcess(
-            {.numThreads = 1, .numSessions = 1, .numIncomingConnections = 1});
+            {.numThreads = 1, .numSessions = 1, .numIncomingConnectionsBySession = {1}});
 
     auto dr = sp<MyDeathRec>::make();
     ASSERT_EQ(OK, proc.rootBinder->linkToDeath(dr, (void*)1, 0));
@@ -681,6 +719,10 @@ TEST_P(BinderRpc, SingleDeathRecipient) {
     ASSERT_TRUE(dr->mCv.wait_for(lock, 100ms, [&]() { return dr->dead; }));
 
     // need to wait for the session to shutdown so we don't "Leak session"
+    // can't do this before checking the death recipient by calling
+    // forceShutdown earlier, because shutdownAndWait will also trigger
+    // a death recipient, but if we had a way to wait for the service
+    // to gracefully shutdown, we could use that here.
     EXPECT_TRUE(proc.proc->sessions.at(0).session->shutdownAndWait(true));
     proc.expectAlreadyShutdown = true;
 }
@@ -702,7 +744,7 @@ TEST_P(BinderRpc, SingleDeathRecipientOnShutdown) {
 
     // Death recipient needs to have an incoming connection to be called
     auto proc = createRpcTestSocketServerProcess(
-            {.numThreads = 1, .numSessions = 1, .numIncomingConnections = 1});
+            {.numThreads = 1, .numSessions = 1, .numIncomingConnectionsBySession = {1}});
 
     auto dr = sp<MyDeathRec>::make();
     EXPECT_EQ(OK, proc.rootBinder->linkToDeath(dr, (void*)1, 0));
@@ -735,8 +777,7 @@ TEST_P(BinderRpc, DeathRecipientFailsWithoutIncoming) {
         void binderDied(const wp<IBinder>& /* who */) override {}
     };
 
-    auto proc = createRpcTestSocketServerProcess(
-            {.numThreads = 1, .numSessions = 1, .numIncomingConnections = 0});
+    auto proc = createRpcTestSocketServerProcess({.numThreads = 1, .numSessions = 1});
 
     auto dr = sp<MyDeathRec>::make();
     EXPECT_EQ(INVALID_OPERATION, proc.rootBinder->linkToDeath(dr, (void*)1, 0));
@@ -755,19 +796,13 @@ TEST_P(BinderRpc, UnlinkDeathRecipient) {
 
     // Death recipient needs to have an incoming connection to be called
     auto proc = createRpcTestSocketServerProcess(
-            {.numThreads = 1, .numSessions = 1, .numIncomingConnections = 1});
+            {.numThreads = 1, .numSessions = 1, .numIncomingConnectionsBySession = {1}});
 
     auto dr = sp<MyDeathRec>::make();
     ASSERT_EQ(OK, proc.rootBinder->linkToDeath(dr, (void*)1, 0));
     ASSERT_EQ(OK, proc.rootBinder->unlinkToDeath(dr, (void*)1, 0, nullptr));
 
-    if (auto status = proc.rootIface->scheduleShutdown(); !status.isOk()) {
-        EXPECT_EQ(DEAD_OBJECT, status.transactionError()) << status;
-    }
-
-    // need to wait for the session to shutdown so we don't "Leak session"
-    EXPECT_TRUE(proc.proc->sessions.at(0).session->shutdownAndWait(true));
-    proc.expectAlreadyShutdown = true;
+    proc.forceShutdown();
 }
 
 TEST_P(BinderRpc, Die) {

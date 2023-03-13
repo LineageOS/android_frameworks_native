@@ -51,6 +51,9 @@ constexpr uint32_t RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_
  * This represents a session (group of connections) between a client
  * and a server. Multiple connections are needed for multiple parallel "binder"
  * calls which may also have nested calls.
+ *
+ * Once a binder exists in the session, if all references to all binders are dropped,
+ * the session shuts down.
  */
 class RpcSession final : public virtual RefBase {
 public:
