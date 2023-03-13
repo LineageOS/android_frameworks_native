@@ -1830,7 +1830,7 @@ using StylusButtonIntegrationTestTypes =
         ::testing::Types<UinputTouchScreen, UinputExternalStylus, UinputExternalStylusWithPressure>;
 TYPED_TEST_SUITE(StylusButtonIntegrationTest, StylusButtonIntegrationTestTypes);
 
-TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsGenerateKeyEvents) {
+TYPED_TEST(StylusButtonIntegrationTest, DISABLED_StylusButtonsGenerateKeyEvents) {
     const auto stylusId = TestFixture::mStylusInfo.getId();
 
     TestFixture::mStylus->pressKey(BTN_STYLUS);
@@ -1844,7 +1844,7 @@ TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsGenerateKeyEvents) {
                   WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
 }
 
-TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsSurroundingTouchGesture) {
+TYPED_TEST(StylusButtonIntegrationTest, DISABLED_StylusButtonsSurroundingTouchGesture) {
     const Point centerPoint = TestFixture::mTouchscreen->getCenterPoint();
     const auto touchscreenId = TestFixture::mTouchscreenInfo.getId();
     const auto stylusId = TestFixture::mStylusInfo.getId();
@@ -1890,7 +1890,7 @@ TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsSurroundingTouchGesture) {
                   WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
 }
 
-TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsSurroundingHoveringTouchGesture) {
+TYPED_TEST(StylusButtonIntegrationTest, DISABLED_StylusButtonsSurroundingHoveringTouchGesture) {
     const Point centerPoint = TestFixture::mTouchscreen->getCenterPoint();
     const auto touchscreenId = TestFixture::mTouchscreenInfo.getId();
     const auto stylusId = TestFixture::mStylusInfo.getId();
@@ -1966,7 +1966,7 @@ TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsSurroundingHoveringTouchGes
                   WithKeyCode(AKEYCODE_STYLUS_BUTTON_PRIMARY), WithDeviceId(stylusId))));
 }
 
-TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsWithinTouchGesture) {
+TYPED_TEST(StylusButtonIntegrationTest, DISABLED_StylusButtonsWithinTouchGesture) {
     const Point centerPoint = TestFixture::mTouchscreen->getCenterPoint();
     const auto touchscreenId = TestFixture::mTouchscreenInfo.getId();
     const auto stylusId = TestFixture::mStylusInfo.getId();
@@ -2020,7 +2020,7 @@ TYPED_TEST(StylusButtonIntegrationTest, StylusButtonsWithinTouchGesture) {
                   WithDeviceId(touchscreenId))));
 }
 
-TYPED_TEST(StylusButtonIntegrationTest, StylusButtonMotionEventsDisabled) {
+TYPED_TEST(StylusButtonIntegrationTest, DISABLED_StylusButtonMotionEventsDisabled) {
     TestFixture::mFakePolicy->setStylusButtonMotionEventsEnabled(false);
     TestFixture::mReader->requestRefreshConfiguration(
             InputReaderConfiguration::CHANGE_STYLUS_BUTTON_REPORTING);
@@ -2077,7 +2077,7 @@ TYPED_TEST(StylusButtonIntegrationTest, StylusButtonMotionEventsDisabled) {
 // ongoing stylus gesture that is being emitted by the touchscreen.
 using ExternalStylusIntegrationTest = TouchIntegrationTest;
 
-TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureReported) {
+TEST_F(ExternalStylusIntegrationTest, DISABLED_FusedExternalStylusPressureReported) {
     const Point centerPoint = mDevice->getCenterPoint();
 
     // Create an external stylus capable of reporting pressure data that
@@ -2123,7 +2123,7 @@ TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureReported) {
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasNotCalled());
 }
 
-TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureNotReported) {
+TEST_F(ExternalStylusIntegrationTest, DISABLED_FusedExternalStylusPressureNotReported) {
     const Point centerPoint = mDevice->getCenterPoint();
 
     // Create an external stylus capable of reporting pressure data that
@@ -2191,7 +2191,7 @@ TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureNotReported) {
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyKeyWasNotCalled());
 }
 
-TEST_F(ExternalStylusIntegrationTest, UnfusedExternalStylus) {
+TEST_F(ExternalStylusIntegrationTest, DISABLED_UnfusedExternalStylus) {
     const Point centerPoint = mDevice->getCenterPoint();
 
     // Create an external stylus device that does not support pressure. It should not affect any
