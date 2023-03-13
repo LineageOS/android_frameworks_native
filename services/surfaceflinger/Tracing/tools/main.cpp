@@ -53,9 +53,6 @@ int main(int argc, char** argv) {
     ALOGD("Generating %s...", outputLayersTracePath);
     std::cout << "Generating " << outputLayersTracePath << "\n";
 
-    // sink any log spam from the stubbed surfaceflinger
-    __android_log_set_logger([](const struct __android_log_message* /* log_message */) {});
-
     if (!LayerTraceGenerator().generate(transactionTraceFile, outputLayersTracePath)) {
         std::cout << "Error: Failed to generate layers trace " << outputLayersTracePath;
         return -1;

@@ -18,7 +18,11 @@
 #include <gtest/gtest.h>
 
 #include <gui/SurfaceComposerClient.h>
+#include <cstdint>
+#include "Client.h"
 
+#include "FrontEnd/LayerCreationArgs.h"
+#include "FrontEnd/Update.h"
 #include "Tracing/RingBuffer.h"
 #include "Tracing/TransactionTracing.h"
 
@@ -42,14 +46,15 @@ protected:
     }
 
     void queueAndCommitTransaction(int64_t vsyncId) {
+        frontend::Update update;
         TransactionState transaction;
         transaction.id = static_cast<uint64_t>(vsyncId * 3);
         transaction.originUid = 1;
         transaction.originPid = 2;
         mTracing.addQueuedTransaction(transaction);
         std::vector<TransactionState> transactions;
-        transactions.emplace_back(transaction);
-        mTracing.addCommittedTransactions(transactions, vsyncId);
+        update.transactions.emplace_back(transaction);
+        mTracing.addCommittedTransactions(vsyncId, 0, update, {}, false);
         flush(vsyncId);
     }
 
@@ -57,12 +62,24 @@ protected:
                      const std::vector<TransactionState>& expectedTransactions,
                      int64_t expectedVsyncId) {
         EXPECT_EQ(actualProto.vsync_id(), expectedVsyncId);
-        EXPECT_EQ(actualProto.transactions().size(),
+        ASSERT_EQ(actualProto.transactions().size(),
                   static_cast<int32_t>(expectedTransactions.size()));
         for (uint32_t i = 0; i < expectedTransactions.size(); i++) {
             EXPECT_EQ(actualProto.transactions(static_cast<int32_t>(i)).pid(),
                       expectedTransactions[i].originPid);
         }
+    }
+
+    LayerCreationArgs getLayerCreationArgs(uint32_t layerId, uint32_t parentId,
+                                           uint32_t layerIdToMirror, uint32_t flags,
+                                           bool addToRoot) {
+        LayerCreationArgs args;
+        args.sequence = layerId;
+        args.parentId = parentId;
+        args.layerIdToMirror = layerIdToMirror;
+        args.flags = flags;
+        args.addToRoot = addToRoot;
+        return args;
     }
 };
 
@@ -79,57 +96,59 @@ TEST_F(TransactionTracingTest, addTransactions) {
 
     // Split incoming transactions into two and commit them in reverse order to test out of order
     // commits.
-    std::vector<TransactionState> firstTransactionSet =
-            std::vector<TransactionState>(transactions.begin() + 50, transactions.end());
     int64_t firstTransactionSetVsyncId = 42;
-    mTracing.addCommittedTransactions(firstTransactionSet, firstTransactionSetVsyncId);
+    frontend::Update firstUpdate;
+    firstUpdate.transactions =
+            std::vector<TransactionState>(transactions.begin() + 50, transactions.end());
+    mTracing.addCommittedTransactions(firstTransactionSetVsyncId, 0, firstUpdate, {}, false);
 
     int64_t secondTransactionSetVsyncId = 43;
-    std::vector<TransactionState> secondTransactionSet =
+    frontend::Update secondUpdate;
+    secondUpdate.transactions =
             std::vector<TransactionState>(transactions.begin(), transactions.begin() + 50);
-    mTracing.addCommittedTransactions(secondTransactionSet, secondTransactionSetVsyncId);
+    mTracing.addCommittedTransactions(secondTransactionSetVsyncId, 0, secondUpdate, {}, false);
     flush(secondTransactionSetVsyncId);
 
     proto::TransactionTraceFile proto = writeToProto();
-    EXPECT_EQ(proto.entry().size(), 2);
-    verifyEntry(proto.entry(0), firstTransactionSet, firstTransactionSetVsyncId);
-    verifyEntry(proto.entry(1), secondTransactionSet, secondTransactionSetVsyncId);
+    ASSERT_EQ(proto.entry().size(), 2);
+    verifyEntry(proto.entry(0), firstUpdate.transactions, firstTransactionSetVsyncId);
+    verifyEntry(proto.entry(1), secondUpdate.transactions, secondTransactionSetVsyncId);
 }
 
 class TransactionTracingLayerHandlingTest : public TransactionTracingTest {
 protected:
     void SetUp() override {
-        // add layers
         mTracing.setBufferSize(SMALL_BUFFER_SIZE);
-        const sp<IBinder> fakeLayerHandle = sp<BBinder>::make();
-        mTracing.onLayerAdded(fakeLayerHandle->localBinder(), mParentLayerId, "parent",
-                              123 /* flags */, -1 /* parentId */);
-        const sp<IBinder> fakeChildLayerHandle = sp<BBinder>::make();
-        mTracing.onLayerAdded(fakeChildLayerHandle->localBinder(), mChildLayerId, "child",
-                              456 /* flags */, mParentLayerId);
 
-        // add some layer transaction
+        // add layers and add some layer transaction
         {
+            frontend::Update update;
+            update.layerCreationArgs.emplace_back(std::move(
+                    getLayerCreationArgs(mParentLayerId, /*parentId=*/UNASSIGNED_LAYER_ID,
+                                         /*layerIdToMirror=*/UNASSIGNED_LAYER_ID, /*flags=*/123,
+                                         /*addToRoot=*/true)));
+            update.layerCreationArgs.emplace_back(std::move(
+                    getLayerCreationArgs(mChildLayerId, mParentLayerId,
+                                         /*layerIdToMirror=*/UNASSIGNED_LAYER_ID, /*flags=*/456,
+                                         /*addToRoot=*/true)));
             TransactionState transaction;
             transaction.id = 50;
             ResolvedComposerState layerState;
-            layerState.state.surface = fakeLayerHandle;
+            layerState.layerId = mParentLayerId;
             layerState.state.what = layer_state_t::eLayerChanged;
             layerState.state.z = 42;
             transaction.states.emplace_back(layerState);
             ResolvedComposerState childState;
-            childState.state.surface = fakeChildLayerHandle;
+            childState.layerId = mChildLayerId;
             childState.state.what = layer_state_t::eLayerChanged;
             childState.state.z = 43;
             transaction.states.emplace_back(childState);
             mTracing.addQueuedTransaction(transaction);
 
-            std::vector<TransactionState> transactions;
-            transactions.emplace_back(transaction);
+            update.transactions.emplace_back(transaction);
             VSYNC_ID_FIRST_LAYER_CHANGE = ++mVsyncId;
-            mTracing.onLayerAddedToDrawingState(mParentLayerId, VSYNC_ID_FIRST_LAYER_CHANGE);
-            mTracing.onLayerAddedToDrawingState(mChildLayerId, VSYNC_ID_FIRST_LAYER_CHANGE);
-            mTracing.addCommittedTransactions(transactions, VSYNC_ID_FIRST_LAYER_CHANGE);
+            mTracing.addCommittedTransactions(VSYNC_ID_FIRST_LAYER_CHANGE, 0, update, {}, false);
+
             flush(VSYNC_ID_FIRST_LAYER_CHANGE);
         }
 
@@ -139,17 +158,17 @@ protected:
             TransactionState transaction;
             transaction.id = 51;
             ResolvedComposerState layerState;
-            layerState.state.surface = fakeLayerHandle;
+            layerState.layerId = mParentLayerId;
             layerState.state.what = layer_state_t::eLayerChanged | layer_state_t::ePositionChanged;
             layerState.state.z = 41;
             layerState.state.x = 22;
             transaction.states.emplace_back(layerState);
             mTracing.addQueuedTransaction(transaction);
 
-            std::vector<TransactionState> transactions;
-            transactions.emplace_back(transaction);
+            frontend::Update update;
+            update.transactions.emplace_back(transaction);
             VSYNC_ID_SECOND_LAYER_CHANGE = ++mVsyncId;
-            mTracing.addCommittedTransactions(transactions, VSYNC_ID_SECOND_LAYER_CHANGE);
+            mTracing.addCommittedTransactions(VSYNC_ID_SECOND_LAYER_CHANGE, 0, update, {}, false);
             flush(VSYNC_ID_SECOND_LAYER_CHANGE);
         }
 
@@ -163,8 +182,8 @@ protected:
         queueAndCommitTransaction(++mVsyncId);
     }
 
-    int mParentLayerId = 1;
-    int mChildLayerId = 2;
+    uint32_t mParentLayerId = 1;
+    uint32_t mChildLayerId = 2;
     int64_t mVsyncId = 0;
     int64_t VSYNC_ID_FIRST_LAYER_CHANGE;
     int64_t VSYNC_ID_SECOND_LAYER_CHANGE;
@@ -232,42 +251,42 @@ TEST_F(TransactionTracingLayerHandlingTest, startingStateSurvivesBufferFlush) {
 class TransactionTracingMirrorLayerTest : public TransactionTracingTest {
 protected:
     void SetUp() override {
-        // add layers
         mTracing.setBufferSize(SMALL_BUFFER_SIZE);
-        const sp<IBinder> fakeLayerHandle = sp<BBinder>::make();
-        mTracing.onLayerAdded(fakeLayerHandle->localBinder(), mLayerId, "Test Layer",
-                              123 /* flags */, -1 /* parentId */);
-        const sp<IBinder> fakeMirrorLayerHandle = sp<BBinder>::make();
-        mTracing.onMirrorLayerAdded(fakeMirrorLayerHandle->localBinder(), mMirrorLayerId, "Mirror",
-                                    mLayerId);
-        mTracing.onLayerAddedToDrawingState(mLayerId, mVsyncId);
-        mTracing.onLayerAddedToDrawingState(mMirrorLayerId, mVsyncId);
 
-        // add some layer transaction
+        // add layers and some layer transaction
         {
+            frontend::Update update;
+            update.layerCreationArgs.emplace_back(
+                    getLayerCreationArgs(mLayerId, /*parentId=*/UNASSIGNED_LAYER_ID,
+                                         /*layerIdToMirror=*/UNASSIGNED_LAYER_ID, /*flags=*/123,
+                                         /*addToRoot=*/true));
+            update.layerCreationArgs.emplace_back(
+                    getLayerCreationArgs(mMirrorLayerId, UNASSIGNED_LAYER_ID,
+                                         /*layerIdToMirror=*/mLayerId, /*flags=*/0,
+                                         /*addToRoot=*/false));
+
             TransactionState transaction;
             transaction.id = 50;
             ResolvedComposerState layerState;
-            layerState.state.surface = fakeLayerHandle;
+            layerState.layerId = mLayerId;
             layerState.state.what = layer_state_t::eLayerChanged;
             layerState.state.z = 42;
             transaction.states.emplace_back(layerState);
             ResolvedComposerState mirrorState;
-            mirrorState.state.surface = fakeMirrorLayerHandle;
+            mirrorState.layerId = mMirrorLayerId;
             mirrorState.state.what = layer_state_t::eLayerChanged;
             mirrorState.state.z = 43;
             transaction.states.emplace_back(mirrorState);
             mTracing.addQueuedTransaction(transaction);
 
-            std::vector<TransactionState> transactions;
-            transactions.emplace_back(transaction);
-            mTracing.addCommittedTransactions(transactions, mVsyncId);
+            update.transactions.emplace_back(transaction);
+            mTracing.addCommittedTransactions(mVsyncId, 0, update, {}, false);
             flush(mVsyncId);
         }
     }
 
-    int mLayerId = 5;
-    int mMirrorLayerId = 55;
+    uint32_t mLayerId = 5;
+    uint32_t mMirrorLayerId = 55;
     int64_t mVsyncId = 0;
     int64_t VSYNC_ID_FIRST_LAYER_CHANGE;
     int64_t VSYNC_ID_SECOND_LAYER_CHANGE;

@@ -29,9 +29,8 @@
 
 namespace android {
 
-LayerTracing::LayerTracing(SurfaceFlinger& flinger) : mFlinger(flinger) {
-    mBuffer = std::make_unique<RingBuffer<LayersTraceFileProto, LayersTraceProto>>();
-}
+LayerTracing::LayerTracing()
+      : mBuffer(std::make_unique<RingBuffer<LayersTraceFileProto, LayersTraceProto>>()) {}
 
 LayerTracing::~LayerTracing() = default;
 
@@ -84,8 +83,11 @@ void LayerTracing::setBufferSize(size_t bufferSizeInBytes) {
 bool LayerTracing::flagIsSet(uint32_t flags) const {
     return (mFlags & flags) == flags;
 }
+uint32_t LayerTracing::getFlags() const {
+    return mFlags;
+}
 
-LayersTraceFileProto LayerTracing::createTraceFileProto() const {
+LayersTraceFileProto LayerTracing::createTraceFileProto() {
     LayersTraceFileProto fileProto;
     fileProto.set_magic_number(uint64_t(LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_H) << 32 |
                                LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_L);
@@ -101,7 +103,9 @@ void LayerTracing::dump(std::string& result) const {
     mBuffer->dump(result);
 }
 
-void LayerTracing::notify(bool visibleRegionDirty, int64_t time, int64_t vsyncId) {
+void LayerTracing::notify(bool visibleRegionDirty, int64_t time, int64_t vsyncId,
+                          LayersProto* layers, std::string hwcDump,
+                          google::protobuf::RepeatedPtrField<DisplayProto>* displays) {
     std::scoped_lock lock(mTraceLock);
     if (!mEnabled) {
         return;
@@ -116,22 +120,15 @@ void LayerTracing::notify(bool visibleRegionDirty, int64_t time, int64_t vsyncId
     entry.set_elapsed_realtime_nanos(time);
     const char* where = visibleRegionDirty ? "visibleRegionsDirty" : "bufferLatched";
     entry.set_where(where);
-    LayersProto layers(mFlinger.dumpDrawingStateProto(mFlags));
-
-    if (flagIsSet(LayerTracing::TRACE_EXTRA)) {
-        mFlinger.dumpOffscreenLayersProto(layers);
-    }
-    entry.mutable_layers()->Swap(&layers);
+    entry.mutable_layers()->Swap(layers);
 
     if (flagIsSet(LayerTracing::TRACE_HWC)) {
-        std::string hwcDump;
-        mFlinger.dumpHwc(hwcDump);
         entry.set_hwc_blob(hwcDump);
     }
     if (!flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         entry.set_excludes_composition_state(true);
     }
-    mFlinger.dumpDisplayProto(entry);
+    entry.mutable_displays()->Swap(displays);
     entry.set_vsync_id(vsyncId);
     mBuffer->emplace(std::move(entry));
 }

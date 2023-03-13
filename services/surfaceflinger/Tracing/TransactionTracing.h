@@ -25,8 +25,12 @@
 #include <mutex>
 #include <thread>
 
-#include "RingBuffer.h"
+#include "Display/DisplayMap.h"
+#include "FrontEnd/DisplayInfo.h"
+#include "FrontEnd/LayerCreationArgs.h"
+#include "FrontEnd/Update.h"
 #include "LocklessStack.h"
+#include "RingBuffer.h"
 #include "TransactionProtoParser.h"
 
 using namespace android::surfaceflinger;
@@ -55,22 +59,22 @@ public:
     ~TransactionTracing();
 
     void addQueuedTransaction(const TransactionState&);
-    void addCommittedTransactions(std::vector<TransactionState>& transactions, int64_t vsyncId);
+    void addCommittedTransactions(
+            int64_t vsyncId, nsecs_t commitTime, frontend::Update& update,
+            const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos,
+            bool displayInfoChanged);
     status_t writeToFile(std::string filename = FILE_NAME);
     void setBufferSize(size_t bufferSizeInBytes);
-    void onLayerAdded(BBinder* layerHandle, int layerId, const std::string& name, uint32_t flags,
-                      int parentId);
-    void onMirrorLayerAdded(BBinder* layerHandle, int layerId, const std::string& name,
-                            int mirrorFromId);
     void onLayerRemoved(int layerId);
-    void onHandleRemoved(BBinder* layerHandle);
-    void onLayerAddedToDrawingState(int layerId, int64_t vsyncId);
     void dump(std::string&) const;
     static constexpr auto CONTINUOUS_TRACING_BUFFER_SIZE = 512 * 1024;
     static constexpr auto ACTIVE_TRACING_BUFFER_SIZE = 100 * 1024 * 1024;
+    // version 1 - switching to support new frontend
+    static constexpr auto TRACING_VERSION = 1;
 
 private:
     friend class TransactionTracingTest;
+    friend class SurfaceFlinger;
 
     static constexpr auto FILE_NAME = "/data/misc/wmtrace/transactions_trace.winscope";
 
@@ -83,16 +87,12 @@ private:
     LocklessStack<proto::TransactionState> mTransactionQueue;
     nsecs_t mStartingTimestamp GUARDED_BY(mTraceLock);
     std::unordered_map<int, proto::LayerCreationArgs> mCreatedLayers GUARDED_BY(mTraceLock);
-    std::unordered_map<BBinder* /* layerHandle */, int32_t /* layerId */> mLayerHandles
+    std::map<uint32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
+    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mStartingDisplayInfos
             GUARDED_BY(mTraceLock);
-    std::vector<std::pair<BBinder* /* layerHandle */, int32_t /* layerId */>> mRemovedLayerHandles
-            GUARDED_BY(mTraceLock);
-    std::map<int32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
-    std::set<int32_t /* layerId */> mRemovedLayerHandlesAtStart GUARDED_BY(mTraceLock);
-    TransactionProtoParser mProtoParser GUARDED_BY(mTraceLock);
-    // Parses the transaction to proto without holding any tracing locks so we can generate proto
-    // in the binder thread without any contention.
-    TransactionProtoParser mLockfreeProtoParser;
+
+    std::set<uint32_t /* layerId */> mRemovedLayerHandlesAtStart GUARDED_BY(mTraceLock);
+    TransactionProtoParser mProtoParser;
 
     // We do not want main thread to block so main thread will try to acquire mMainThreadLock,
     // otherwise will push data to temporary container.
@@ -101,27 +101,29 @@ private:
     bool mDone GUARDED_BY(mMainThreadLock) = false;
     std::condition_variable mTransactionsAvailableCv;
     std::condition_variable mTransactionsAddedToBufferCv;
-    struct CommittedTransactions {
+    struct CommittedUpdates {
         std::vector<uint64_t> transactionIds;
-        std::vector<int32_t> createdLayerIds;
+        std::vector<LayerCreationArgs> createdLayers;
+        std::vector<uint32_t> destroyedLayerHandles;
+        bool displayInfoChanged;
+        display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
         int64_t vsyncId;
         int64_t timestamp;
     };
-    std::vector<CommittedTransactions> mCommittedTransactions GUARDED_BY(mMainThreadLock);
-    std::vector<CommittedTransactions> mPendingTransactions; // only accessed by main thread
+    std::vector<CommittedUpdates> mUpdates GUARDED_BY(mMainThreadLock);
+    std::vector<CommittedUpdates> mPendingUpdates; // only accessed by main thread
 
-    std::vector<int32_t /* layerId */> mRemovedLayers GUARDED_BY(mMainThreadLock);
-    std::vector<int32_t /* layerId */> mPendingRemovedLayers; // only accessed by main thread
+    std::vector<uint32_t /* layerId */> mDestroyedLayers GUARDED_BY(mMainThreadLock);
+    std::vector<uint32_t /* layerId */> mPendingDestroyedLayers; // only accessed by main thread
 
     proto::TransactionTraceFile createTraceFileProto() const;
     void loop();
-    void addEntry(const std::vector<CommittedTransactions>& committedTransactions,
-                  const std::vector<int32_t>& removedLayers) EXCLUDES(mTraceLock);
+    void addEntry(const std::vector<CommittedUpdates>& committedTransactions,
+                  const std::vector<uint32_t>& removedLayers) EXCLUDES(mTraceLock);
     int32_t getLayerIdLocked(const sp<IBinder>& layerHandle) REQUIRES(mTraceLock);
     void tryPushToTracingThread() EXCLUDES(mMainThreadLock);
     void addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) REQUIRES(mTraceLock);
     void updateStartingStateLocked(const proto::TransactionTraceEntry& entry) REQUIRES(mTraceLock);
-    CommittedTransactions& findOrCreateCommittedTransactionRecord(int64_t vsyncId);
     // TEST
     // Wait until all the committed transactions for the specified vsync id are added to the buffer.
     void flush(int64_t vsyncId) EXCLUDES(mMainThreadLock);
