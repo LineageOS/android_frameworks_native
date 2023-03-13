@@ -445,6 +445,12 @@ public:
     Status blockingRecvFd(android::os::ParcelFileDescriptor* /*fd*/) override {
         return Status::fromStatusT(UNKNOWN_TRANSACTION);
     }
+
+    Status blockingSendIntOneway(int /*n*/) override {
+        return Status::fromStatusT(UNKNOWN_TRANSACTION);
+    }
+
+    Status blockingRecvInt(int* /*n*/) override { return Status::fromStatusT(UNKNOWN_TRANSACTION); }
 };
 
 } // namespace android

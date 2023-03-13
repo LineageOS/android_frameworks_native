@@ -80,4 +80,8 @@ interface IBinderRpcTest {
     // get queued.
     oneway void blockingSendFdOneway(in ParcelFileDescriptor fd);
     ParcelFileDescriptor blockingRecvFd();
+
+    // Same as blockingSendFdOneway, but with integers.
+    oneway void blockingSendIntOneway(int n);
+    int blockingRecvInt();
 }
