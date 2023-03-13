@@ -155,13 +155,13 @@ static std::vector<MotionEvent> createAxisScrollMotionEventStream(
 
         MotionEvent event;
         ui::Transform identityTransform;
-        event.initialize(InputEvent::nextId(), 5 /*deviceId*/, AINPUT_SOURCE_ROTARY_ENCODER,
+        event.initialize(InputEvent::nextId(), /*deviceId=*/5, AINPUT_SOURCE_ROTARY_ENCODER,
                          ADISPLAY_ID_NONE, INVALID_HMAC, AMOTION_EVENT_ACTION_SCROLL,
-                         0 /*actionButton*/, 0 /*flags*/, AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE,
-                         0 /*buttonState*/, MotionClassification::NONE, identityTransform,
-                         0 /*xPrecision*/, 0 /*yPrecision*/, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                         AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, 0 /*downTime*/,
-                         timeStamp.count(), 1 /*pointerCount*/, properties, coords);
+                         /*actionButton=*/0, /*flags=*/0, AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE,
+                         /*buttonState=*/0, MotionClassification::NONE, identityTransform,
+                         /*xPrecision=*/0, /*yPrecision=*/0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, /*downTime=*/0,
+                         timeStamp.count(), /*pointerCount=*/1, properties, coords);
 
         events.emplace_back(event);
     }
@@ -215,12 +215,12 @@ static std::vector<MotionEvent> createTouchMotionEventStream(
 
         MotionEvent event;
         ui::Transform identityTransform;
-        event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN,
-                         DISPLAY_ID, INVALID_HMAC, action, 0 /*actionButton*/, 0 /*flags*/,
-                         AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
-                         MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
-                         0 /*yPrecision*/, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                         AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, 0 /*downTime*/,
+        event.initialize(InputEvent::nextId(), /*deviceId=*/0, AINPUT_SOURCE_TOUCHSCREEN,
+                         DISPLAY_ID, INVALID_HMAC, action, /*actionButton=*/0, /*flags=*/0,
+                         AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, /*buttonState=*/0,
+                         MotionClassification::NONE, identityTransform, /*xPrecision=*/0,
+                         /*yPrecision=*/0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, /*downTime=*/0,
                          entry.eventTime.count(), pointerCount, properties, coords);
 
         events.emplace_back(event);
@@ -336,23 +336,23 @@ TEST_F(VelocityTrackerTest, TestDefaultStrategiesForPlanarAxes) {
 TEST_F(VelocityTrackerTest, TestComputedVelocity) {
     VelocityTracker::ComputedVelocity computedVelocity;
 
-    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, 0 /*id*/, 200 /*velocity*/);
-    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, 26U /*id*/, 400 /*velocity*/);
-    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, 27U /*id*/, 650 /*velocity*/);
-    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, MAX_POINTER_ID, 750 /*velocity*/);
-    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, 0 /*id*/, 1000 /*velocity*/);
-    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, 26U /*id*/, 2000 /*velocity*/);
-    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, 27U /*id*/, 3000 /*velocity*/);
-    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, MAX_POINTER_ID, 4000 /*velocity*/);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, /*id=*/0, /*velocity=*/200);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, /*id=*/26U, /*velocity=*/400);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, /*id=*/27U, /*velocity=*/650);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_X, MAX_POINTER_ID, /*velocity=*/750);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, /*id=*/0, /*velocity=*/1000);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, /*id=*/26U, /*velocity=*/2000);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, /*id=*/27U, /*velocity=*/3000);
+    computedVelocity.addVelocity(AMOTION_EVENT_AXIS_Y, MAX_POINTER_ID, /*velocity=*/4000);
 
     // Check the axes/indices with velocity.
-    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, 0U /*id*/)), 200);
-    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, 26U /*id*/)), 400);
-    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, 27U /*id*/)), 650);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, /*id=*/0U)), 200);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, /*id=*/26U)), 400);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, /*id=*/27U)), 650);
     EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, MAX_POINTER_ID)), 750);
-    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, 0U /*id*/)), 1000);
-    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, 26U /*id*/)), 2000);
-    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, 27U /*id*/)), 3000);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, /*id=*/0U)), 1000);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, /*id=*/26U)), 2000);
+    EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, /*id=*/27U)), 3000);
     EXPECT_EQ(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_Y, MAX_POINTER_ID)), 4000);
     for (uint32_t id = 0; id <= MAX_POINTER_ID; id++) {
         // Since no data was added for AXIS_SCROLL, expect empty value for the axis for any id.
@@ -431,17 +431,17 @@ TEST_F(VelocityTrackerTest, TestGetComputedVelocity) {
 
     float maxFloat = std::numeric_limits<float>::max();
     VelocityTracker::ComputedVelocity computedVelocity;
-    computedVelocity = vt.getComputedVelocity(1000 /* units */, maxFloat);
+    computedVelocity = vt.getComputedVelocity(/*units=*/1000, maxFloat);
     checkVelocity(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID)),
                   764.345703);
 
     // Expect X velocity to be scaled with respective to provided units.
-    computedVelocity = vt.getComputedVelocity(1000000 /* units */, maxFloat);
+    computedVelocity = vt.getComputedVelocity(/*units=*/1000000, maxFloat);
     checkVelocity(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID)),
                   764345.703);
 
     // Expect X velocity to be clamped by provided max velocity.
-    computedVelocity = vt.getComputedVelocity(1000000 /* units */, 1000);
+    computedVelocity = vt.getComputedVelocity(/*units=*/1000000, 1000);
     checkVelocity(*(computedVelocity.getVelocity(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID)), 1000);
 
     // All 0 data for Y; expect 0 velocity.
