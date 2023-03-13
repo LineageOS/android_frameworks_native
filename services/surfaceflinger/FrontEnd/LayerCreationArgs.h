@@ -37,13 +37,13 @@ namespace android::surfaceflinger {
 struct LayerCreationArgs {
     static std::atomic<uint32_t> sSequence;
     static uint32_t getInternalLayerId(uint32_t id);
+    static LayerCreationArgs fromOtherArgs(const LayerCreationArgs& other);
 
     LayerCreationArgs(android::SurfaceFlinger*, sp<android::Client>, std::string name,
                       uint32_t flags, gui::LayerMetadata, std::optional<uint32_t> id = std::nullopt,
                       bool internalLayer = false);
     LayerCreationArgs(std::optional<uint32_t> id, bool internalLayer = false);
-
-    LayerCreationArgs(const LayerCreationArgs&);
+    LayerCreationArgs() = default; // for tracing
 
     android::SurfaceFlinger* flinger;
     sp<android::Client> client;

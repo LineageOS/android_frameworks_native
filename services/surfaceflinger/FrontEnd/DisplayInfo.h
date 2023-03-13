@@ -30,6 +30,7 @@ struct DisplayInfo {
     bool isSecure;
     // TODO(b/238781169) can eliminate once sPrimaryDisplayRotationFlags is removed.
     bool isPrimary;
+    bool isVirtual;
     ui::Transform::RotationFlags rotationFlags;
     ui::Transform::RotationFlags transformHint;
     std::string getDebugString() const {
