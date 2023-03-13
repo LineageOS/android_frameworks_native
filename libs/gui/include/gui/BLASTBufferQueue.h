@@ -54,6 +54,8 @@ public:
                                nsecs_t dequeueReadyTime) REQUIRES(mMutex);
     void getConnectionEvents(uint64_t frameNumber, bool* needsDisconnect);
 
+    void resizeFrameEventHistory(size_t newSize);
+
 protected:
     void onSidebandStreamChanged() override REQUIRES(mMutex);
 
@@ -129,12 +131,15 @@ public:
 
 private:
     friend class BLASTBufferQueueHelper;
+    friend class BBQBufferQueueProducer;
 
     // can't be copied
     BLASTBufferQueue& operator = (const BLASTBufferQueue& rhs);
     BLASTBufferQueue(const BLASTBufferQueue& rhs);
     void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
                            sp<IGraphicBufferConsumer>* outConsumer);
+
+    void resizeFrameEventHistory(size_t newSize);
 
     void acquireNextBufferLocked(
             const std::optional<SurfaceComposerClient::Transaction*> transaction) REQUIRES(mMutex);
