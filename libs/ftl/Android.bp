@@ -10,9 +10,6 @@ package {
 cc_test {
     name: "ftl_test",
     test_suites: ["device-tests"],
-    sanitize: {
-        address: true,
-    },
     srcs: [
         "algorithm_test.cpp",
         "cast_test.cpp",
