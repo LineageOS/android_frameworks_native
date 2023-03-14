@@ -61,8 +61,21 @@ constexpr char OUTPUT_R[] = "r";
 constexpr char OUTPUT_PHI[] = "phi";
 constexpr char OUTPUT_PRESSURE[] = "pressure";
 
+// Ideally, we would just use std::filesystem::exists here, but it requires libc++fs, which causes
+// build issues in other parts of the system.
+#if defined(__ANDROID__)
+bool fileExists(const char* filename) {
+    struct stat buffer;
+    return stat(filename, &buffer) == 0;
+}
+#endif
+
 std::string getModelPath() {
 #if defined(__ANDROID__)
+    static const char* oemModel = "/vendor/etc/motion_predictor_model.fb";
+    if (fileExists(oemModel)) {
+        return oemModel;
+    }
     return "/system/etc/motion_predictor_model.fb";
 #else
     return base::GetExecutableDirectory() + "/motion_predictor_model.fb";
@@ -217,7 +230,7 @@ void TfLiteMotionPredictorBuffers::pushSample(int64_t timestamp,
 
 std::unique_ptr<TfLiteMotionPredictorModel> TfLiteMotionPredictorModel::create() {
     const std::string modelPath = getModelPath();
-    const int fd = open(modelPath.c_str(), O_RDONLY);
+    android::base::unique_fd fd(open(modelPath.c_str(), O_RDONLY));
     if (fd == -1) {
         PLOG(FATAL) << "Could not read model from " << modelPath;
     }
@@ -231,9 +244,6 @@ std::unique_ptr<TfLiteMotionPredictorModel> TfLiteMotionPredictorModel::create()
             android::base::MappedFile::FromFd(fd, /*offset=*/0, fdSize, PROT_READ);
     if (!modelBuffer) {
         PLOG(FATAL) << "Failed to mmap model";
-    }
-    if (close(fd) == -1) {
-        PLOG(FATAL) << "Failed to close model fd";
     }
 
     return std::unique_ptr<TfLiteMotionPredictorModel>(
