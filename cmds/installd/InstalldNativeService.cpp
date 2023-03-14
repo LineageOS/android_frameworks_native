@@ -100,6 +100,8 @@ static constexpr const char* kXattrDefault = "user.default";
 
 static constexpr const char* kDataMirrorCePath = "/data_mirror/data_ce";
 static constexpr const char* kDataMirrorDePath = "/data_mirror/data_de";
+static constexpr const char* kMiscMirrorCePath = "/data_mirror/misc_ce";
+static constexpr const char* kMiscMirrorDePath = "/data_mirror/misc_de";
 
 static constexpr const int MIN_RESTRICTED_HOME_SDK_VERSION = 24; // > M
 
@@ -3539,22 +3541,40 @@ binder::Status InstalldNativeService::tryMountDataMirror(
 
     std::string mirrorVolCePath(StringPrintf("%s/%s", kDataMirrorCePath, uuid_));
     if (fs_prepare_dir(mirrorVolCePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
-        return error("Failed to create CE mirror");
+        return error("Failed to create CE data mirror");
     }
 
     std::string mirrorVolDePath(StringPrintf("%s/%s", kDataMirrorDePath, uuid_));
     if (fs_prepare_dir(mirrorVolDePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
-        return error("Failed to create DE mirror");
+        return error("Failed to create DE data mirror");
+    }
+
+    std::string mirrorVolMiscCePath(StringPrintf("%s/%s", kMiscMirrorCePath, uuid_));
+    if (fs_prepare_dir(mirrorVolMiscCePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
+        return error("Failed to create CE misc mirror");
+    }
+
+    std::string mirrorVolMiscDePath(StringPrintf("%s/%s", kMiscMirrorDePath, uuid_));
+    if (fs_prepare_dir(mirrorVolMiscDePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
+        return error("Failed to create DE misc mirror");
     }
 
     auto cePath = StringPrintf("%s/user", create_data_path(uuid_).c_str());
     auto dePath = StringPrintf("%s/user_de", create_data_path(uuid_).c_str());
+    auto miscCePath = StringPrintf("%s/misc_ce", create_data_path(uuid_).c_str());
+    auto miscDePath = StringPrintf("%s/misc_de", create_data_path(uuid_).c_str());
 
     if (access(cePath.c_str(), F_OK) != 0) {
         return error("Cannot access CE path: " + cePath);
     }
     if (access(dePath.c_str(), F_OK) != 0) {
         return error("Cannot access DE path: " + dePath);
+    }
+    if (access(miscCePath.c_str(), F_OK) != 0) {
+        return error("Cannot access misc CE path: " + cePath);
+    }
+    if (access(miscDePath.c_str(), F_OK) != 0) {
+        return error("Cannot access misc DE path: " + dePath);
     }
 
     struct stat ceStat, mirrorCeStat;
@@ -3583,6 +3603,21 @@ binder::Status InstalldNativeService::tryMountDataMirror(
             MS_NOSUID | MS_NODEV | MS_NOATIME | MS_BIND | MS_NOEXEC, nullptr)) == -1) {
         return error("Failed to mount " + mirrorVolDePath);
     }
+
+    // Mount misc CE mirror
+    if (TEMP_FAILURE_RETRY(mount(miscCePath.c_str(), mirrorVolMiscCePath.c_str(), NULL,
+                                 MS_NOSUID | MS_NODEV | MS_NOATIME | MS_BIND | MS_NOEXEC,
+                                 nullptr)) == -1) {
+        return error("Failed to mount " + mirrorVolMiscCePath);
+    }
+
+    // Mount misc DE mirror
+    if (TEMP_FAILURE_RETRY(mount(miscDePath.c_str(), mirrorVolMiscDePath.c_str(), NULL,
+                                 MS_NOSUID | MS_NODEV | MS_NOATIME | MS_BIND | MS_NOEXEC,
+                                 nullptr)) == -1) {
+        return error("Failed to mount " + mirrorVolMiscDePath);
+    }
+
     return ok();
 }
 
@@ -3605,6 +3640,8 @@ binder::Status InstalldNativeService::onPrivateVolumeRemoved(
 
     std::string mirrorCeVolPath(StringPrintf("%s/%s", kDataMirrorCePath, uuid_));
     std::string mirrorDeVolPath(StringPrintf("%s/%s", kDataMirrorDePath, uuid_));
+    std::string mirrorMiscCeVolPath(StringPrintf("%s/%s", kMiscMirrorCePath, uuid_));
+    std::string mirrorMiscDeVolPath(StringPrintf("%s/%s", kMiscMirrorDePath, uuid_));
 
     std::lock_guard<std::recursive_mutex> lock(mMountsLock);
 
@@ -3629,6 +3666,29 @@ binder::Status InstalldNativeService::onPrivateVolumeRemoved(
     if (delete_dir_contents_and_dir(mirrorDeVolPath, true) != 0) {
         res = error("Failed to delete " + mirrorDeVolPath);
     }
+
+    // Unmount misc CE storage
+    if (TEMP_FAILURE_RETRY(umount(mirrorMiscCeVolPath.c_str())) != 0) {
+        if (errno != ENOENT) {
+            res = error(StringPrintf("Failed to umount %s %s", mirrorMiscCeVolPath.c_str(),
+                                     strerror(errno)));
+        }
+    }
+    if (delete_dir_contents_and_dir(mirrorMiscCeVolPath, true) != 0) {
+        res = error("Failed to delete " + mirrorMiscCeVolPath);
+    }
+
+    // Unmount misc DE storage
+    if (TEMP_FAILURE_RETRY(umount(mirrorMiscDeVolPath.c_str())) != 0) {
+        if (errno != ENOENT) {
+            res = error(StringPrintf("Failed to umount %s %s", mirrorMiscDeVolPath.c_str(),
+                                     strerror(errno)));
+        }
+    }
+    if (delete_dir_contents_and_dir(mirrorMiscDeVolPath, true) != 0) {
+        res = error("Failed to delete " + mirrorMiscDeVolPath);
+    }
+
     return res;
 }
 

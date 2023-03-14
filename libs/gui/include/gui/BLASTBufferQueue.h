@@ -96,7 +96,8 @@ public:
     void releaseBufferCallback(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
                                std::optional<uint32_t> currentMaxAcquiredBufferCount);
     void releaseBufferCallbackLocked(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
-                               std::optional<uint32_t> currentMaxAcquiredBufferCount);
+                                     std::optional<uint32_t> currentMaxAcquiredBufferCount,
+                                     bool fakeRelease);
     void syncNextTransaction(std::function<void(SurfaceComposerClient::Transaction*)> callback,
                              bool acquireSingleBuffer = true);
     void stopContinuousSyncTransaction();

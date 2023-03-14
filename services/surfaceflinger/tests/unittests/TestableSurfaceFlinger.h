@@ -798,7 +798,7 @@ public:
             return *this;
         }
 
-        auto& setPowerMode(hal::PowerMode mode) {
+        auto& setPowerMode(std::optional<hal::PowerMode> mode) {
             mCreationArgs.initialPowerMode = mode;
             return *this;
         }
@@ -867,6 +867,10 @@ public:
                                   .deviceProductInfo = {},
                                   .supportedModes = modes,
                                   .activeMode = activeMode->get()};
+
+                if (mCreationArgs.isPrimary) {
+                    mFlinger.mutableActiveDisplayToken() = mDisplayToken;
+                }
             }
 
             state.isSecure = mCreationArgs.isSecure;
