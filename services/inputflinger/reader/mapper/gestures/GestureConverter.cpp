@@ -111,8 +111,8 @@ NotifyArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime, const Ge
     mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
     mPointerController->move(deltaX, deltaY);
     mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
-    float xCursorPosition, yCursorPosition;
-    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
 
     PointerCoords coords;
     coords.clear();
@@ -136,8 +136,7 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
     mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
     mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
 
-    float xCursorPosition, yCursorPosition;
-    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
 
     PointerCoords coords;
     coords.clear();
@@ -202,8 +201,7 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
                                                      const Gesture& gesture) {
     std::list<NotifyArgs> out;
     PointerCoords& coords = mFakeFingerCoords[0];
-    float xCursorPosition, yCursorPosition;
-    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
     if (mCurrentClassification != MotionClassification::TWO_FINGER_SWIPE) {
         mCurrentClassification = MotionClassification::TWO_FINGER_SWIPE;
         coords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
@@ -244,8 +242,7 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
         return {};
     }
 
-    float xCursorPosition, yCursorPosition;
-    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, 0);
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, 0);
     NotifyMotionArgs args =
@@ -262,8 +259,8 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
                                                                              uint32_t fingerCount,
                                                                              float dx, float dy) {
     std::list<NotifyArgs> out = {};
-    float xCursorPosition, yCursorPosition;
-    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
     if (mCurrentClassification != MotionClassification::MULTI_FINGER_SWIPE) {
         // If the user changes the number of fingers mid-way through a swipe (e.g. they start with
         // three and then put a fourth finger down), the gesture library will treat it as two
@@ -328,8 +325,7 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
     if (mCurrentClassification != MotionClassification::MULTI_FINGER_SWIPE) {
         return out;
     }
-    float xCursorPosition, yCursorPosition;
-    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET, 0);
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET, 0);
 
@@ -353,8 +349,8 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
 [[nodiscard]] std::list<NotifyArgs> GestureConverter::handlePinch(nsecs_t when, nsecs_t readTime,
                                                                   const Gesture& gesture) {
     std::list<NotifyArgs> out;
-    float xCursorPosition, yCursorPosition;
-    mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
 
     // Pinch gesture phases are reported a little differently from others, in that the same details
     // struct is used for all phases of the gesture, just with different zoom_state values. When
