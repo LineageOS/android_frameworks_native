@@ -60,9 +60,9 @@ std::string BinderRpc::PrintParamInfo(const testing::TestParamInfo<ParamType>& i
 // threads.
 std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
         const BinderRpcOptions& options) {
-    LOG_ALWAYS_FATAL_IF(options.numIncomingConnectionsBySession.size() != 0,
+    LOG_ALWAYS_FATAL_IF(options.numIncomingConnections != 0,
                         "Non-zero incoming connections %zu on Trusty",
-                        options.numIncomingConnectionsBySession.size());
+                        options.numIncomingConnections);
 
     uint32_t clientVersion = std::get<2>(GetParam());
     uint32_t serverVersion = std::get<3>(GetParam());

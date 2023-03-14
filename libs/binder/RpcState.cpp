@@ -262,10 +262,8 @@ void RpcState::dump() {
 }
 
 void RpcState::clear() {
-    return clear(RpcMutexUniqueLock(mNodeMutex));
-}
+    RpcMutexUniqueLock _l(mNodeMutex);
 
-void RpcState::clear(RpcMutexUniqueLock nodeLock) {
     if (mTerminated) {
         LOG_ALWAYS_FATAL_IF(!mNodeForAddress.empty(),
                             "New state should be impossible after terminating!");
@@ -294,7 +292,7 @@ void RpcState::clear(RpcMutexUniqueLock nodeLock) {
     auto temp = std::move(mNodeForAddress);
     mNodeForAddress.clear(); // RpcState isn't reusable, but for future/explicit
 
-    nodeLock.unlock();
+    _l.unlock();
     temp.clear(); // explicit
 }
 
@@ -706,7 +704,7 @@ status_t RpcState::sendDecStrongToTarget(const sp<RpcSession::RpcConnection>& co
     };
 
     {
-        RpcMutexUniqueLock _l(mNodeMutex);
+        RpcMutexLockGuard _l(mNodeMutex);
         if (mTerminated) return DEAD_OBJECT; // avoid fatal only, otherwise races
         auto it = mNodeForAddress.find(addr);
         LOG_ALWAYS_FATAL_IF(it == mNodeForAddress.end(),
@@ -722,9 +720,8 @@ status_t RpcState::sendDecStrongToTarget(const sp<RpcSession::RpcConnection>& co
         body.amount = it->second.timesRecd - target;
         it->second.timesRecd = target;
 
-        LOG_ALWAYS_FATAL_IF(nullptr != tryEraseNode(session, std::move(_l), it),
+        LOG_ALWAYS_FATAL_IF(nullptr != tryEraseNode(it),
                             "Bad state. RpcState shouldn't own received binder");
-        // LOCK ALREADY RELEASED
     }
 
     RpcWireHeader cmd = {
@@ -1167,8 +1164,8 @@ status_t RpcState::processDecStrong(const sp<RpcSession::RpcConnection>& connect
                    it->second.timesSent);
 
     it->second.timesSent -= body.amount;
-    sp<IBinder> tempHold = tryEraseNode(session, std::move(_l), it);
-    // LOCK ALREADY RELEASED
+    sp<IBinder> tempHold = tryEraseNode(it);
+    _l.unlock();
     tempHold = nullptr; // destructor may make binder calls on this session
 
     return OK;
@@ -1232,10 +1229,7 @@ status_t RpcState::validateParcel(const sp<RpcSession>& session, const Parcel& p
     return OK;
 }
 
-sp<IBinder> RpcState::tryEraseNode(const sp<RpcSession>& session, RpcMutexUniqueLock nodeLock,
-                                   std::map<uint64_t, BinderNode>::iterator& it) {
-    bool shouldShutdown = false;
-
+sp<IBinder> RpcState::tryEraseNode(std::map<uint64_t, BinderNode>::iterator& it) {
     sp<IBinder> ref;
 
     if (it->second.timesSent == 0) {
@@ -1245,25 +1239,7 @@ sp<IBinder> RpcState::tryEraseNode(const sp<RpcSession>& session, RpcMutexUnique
             LOG_ALWAYS_FATAL_IF(!it->second.asyncTodo.empty(),
                                 "Can't delete binder w/ pending async transactions");
             mNodeForAddress.erase(it);
-
-            if (mNodeForAddress.size() == 0) {
-                shouldShutdown = true;
-            }
         }
-    }
-
-    // If we shutdown, prevent RpcState from being re-used. This prevents another
-    // thread from getting the root object again.
-    if (shouldShutdown) {
-        clear(std::move(nodeLock));
-    } else {
-        nodeLock.unlock(); // explicit
-    }
-    // LOCK IS RELEASED
-
-    if (shouldShutdown) {
-        ALOGI("RpcState has no binders left, so triggering shutdown...");
-        (void)session->shutdownAndWait(false);
     }
 
     return ref;
