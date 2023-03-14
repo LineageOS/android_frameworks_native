@@ -91,7 +91,10 @@ struct jpegr_exif_struct {
     int length;
 };
 
-struct jpegr_metadata {
+/*
+ * Holds information for recovery map related metadata.
+ */
+struct jpegr_metadata_struct {
   // JPEG/R version
   uint32_t version;
   // Max Content Boost for the map
@@ -103,12 +106,14 @@ struct jpegr_metadata {
 typedef struct jpegr_uncompressed_struct* jr_uncompressed_ptr;
 typedef struct jpegr_compressed_struct* jr_compressed_ptr;
 typedef struct jpegr_exif_struct* jr_exif_ptr;
-typedef struct jpegr_metadata* jr_metadata_ptr;
+typedef struct jpegr_metadata_struct* jr_metadata_ptr;
 typedef struct jpegr_info_struct* jr_info_ptr;
 
 class JpegR {
 public:
     /*
+     * Experimental only
+     *
      * Encode API-0
      * Compress JPEGR image from 10-bit HDR YUV.
      *
@@ -199,21 +204,40 @@ public:
      * Decode API
      * Decompress JPEGR image.
      *
-     * The output JPEGR image is in RGBA_1010102 data format if decoding to HDR.
-     * @param compressed_jpegr_image compressed JPEGR image
-     * @param dest destination of the uncompressed JPEGR image
-     * @param exif destination of the decoded EXIF metadata.
-     * @param output_format flag for setting output color format. if set to
-     *                      {@code JPEGR_OUTPUT_SDR}, decoder will only decode the primary image
-     *                      which is SDR. Default value is JPEGR_OUTPUT_HDR_LINEAR.
-     * @param recovery_map destination of the decoded recovery map.
+     * @param compressed_jpegr_image compressed JPEGR image.
+     * @param dest destination of the uncompressed JPEGR image.
+     * @param exif destination of the decoded EXIF metadata. The default value is NULL where the
+                   decoder will do nothing about it. If configured not NULL the decoder will write
+                   EXIF data into this structure. The format is defined in {@code jpegr_exif_struct}
+     * @param output_format flag for setting output color format. Its value configures the output
+                            color format. The default value is {@code JPEGR_OUTPUT_HDR_LINEAR}.
+                            ----------------------------------------------------------------------
+                            |   output_format          |    decoded color format to be written   |
+                            ----------------------------------------------------------------------
+                            |     JPEGR_OUTPUT_SDR     |                RGBA_8888                |
+                            ----------------------------------------------------------------------
+                            | JPEGR_OUTPUT_HDR_LINEAR  |        (default)RGBA_F16 linear         |
+                            ----------------------------------------------------------------------
+                            |   JPEGR_OUTPUT_HDR_PQ    |             RGBA_1010102 PQ             |
+                            ----------------------------------------------------------------------
+                            |   JPEGR_OUTPUT_HDR_HLG   |            RGBA_1010102 HLG             |
+                            ----------------------------------------------------------------------
+     * @param recovery_map destination of the decoded recovery map. The default value is NULL where
+                           the decoder will do nothing about it. If configured not NULL the decoder
+                           will write the decoded recovery_map data into this structure. The format
+                           is defined in {@code jpegr_uncompressed_struct}.
+     * @param metadata destination of the decoded metadata. The default value is NULL where the
+                       decoder will do nothing about it. If configured not NULL the decoder will
+                       write metadata into this structure. the format of metadata is defined in
+                       {@code jpegr_metadata}.
      * @return NO_ERROR if decoding succeeds, error code if error occurs.
      */
     status_t decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                          jr_uncompressed_ptr dest,
                          jr_exif_ptr exif = nullptr,
                          jpegr_output_format output_format = JPEGR_OUTPUT_HDR_LINEAR,
-                         jr_uncompressed_ptr recovery_map = nullptr);
+                         jr_uncompressed_ptr recovery_map = nullptr,
+                         jr_metadata_ptr metadata = nullptr);
 
     /*
     * Gets Info from JPEGR file without decoding it.
