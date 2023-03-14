@@ -253,7 +253,7 @@ const string kMapBaseRendition    = Name(kRecoveryMapPrefix, "BaseRendition");
 const string XMPXmlHandler::minContentBoostAttrName = kMapGainMapMin;
 const string XMPXmlHandler::maxContentBoostAttrName = kMapGainMapMax;
 
-bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* metadata) {
+bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata_struct* metadata) {
     string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
 
     if (xmp_size < nameSpace.size()+2) {
@@ -327,7 +327,7 @@ string generateXmpForPrimaryImage(int secondary_image_length) {
   return ss.str();
 }
 
-string generateXmpForSecondaryImage(jpegr_metadata& metadata) {
+string generateXmpForSecondaryImage(jpegr_metadata_struct& metadata) {
   const vector<string> kConDirSeq({kConDirectory, string("rdf:Seq")});
   const vector<string> kLiItem({string("rdf:li"), kConItem});
 
