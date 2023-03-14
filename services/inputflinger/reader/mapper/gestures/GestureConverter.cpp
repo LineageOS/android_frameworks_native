@@ -210,10 +210,12 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
         coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
         mDownTime = when;
-        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
-                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
-                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                     yCursorPosition));
+        NotifyMotionArgs args =
+                makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN, /* actionButton= */ 0,
+                               mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
+                               mFakeFingerCoords.data(), xCursorPosition, yCursorPosition);
+        args.flags |= AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
+        out.push_back(args);
     }
     float deltaX = gesture.details.scroll.dx;
     float deltaY = gesture.details.scroll.dy;
@@ -224,9 +226,12 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
     // TODO(b/262876643): set AXIS_GESTURE_{X,Y}_OFFSET.
     coords.setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, -gesture.details.scroll.dx);
     coords.setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, -gesture.details.scroll.dy);
-    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /* actionButton= */ 0,
-                                 mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
-                                 mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
+    NotifyMotionArgs args =
+            makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /* actionButton= */ 0,
+                           mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
+                           mFakeFingerCoords.data(), xCursorPosition, yCursorPosition);
+    args.flags |= AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
+    out.push_back(args);
     return out;
 }
 
@@ -243,10 +248,11 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
     mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, 0);
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, 0);
-    NotifyArgs args = makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP,
-                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
-                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                     yCursorPosition);
+    NotifyMotionArgs args =
+            makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /* actionButton= */ 0,
+                           mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
+                           mFakeFingerCoords.data(), xCursorPosition, yCursorPosition);
+    args.flags |= AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
     mCurrentClassification = MotionClassification::NONE;
     return args;
 }
