@@ -225,14 +225,23 @@ class FuzzPointerController : public PointerControllerInterface {
 public:
     FuzzPointerController(std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp) : mFdp(mFdp) {}
     ~FuzzPointerController() {}
-    bool getBounds(float* outMinX, float* outMinY, float* outMaxX, float* outMaxY) const override {
-        return mFdp->ConsumeBool();
+    std::optional<FloatRect> getBounds() const override {
+        if (mFdp->ConsumeBool()) {
+            return {};
+        } else {
+            return FloatRect{mFdp->ConsumeFloatingPoint<float>(),
+                             mFdp->ConsumeFloatingPoint<float>(),
+                             mFdp->ConsumeFloatingPoint<float>(),
+                             mFdp->ConsumeFloatingPoint<float>()};
+        }
     }
     void move(float deltaX, float deltaY) override {}
     void setButtonState(int32_t buttonState) override {}
     int32_t getButtonState() const override { return mFdp->ConsumeIntegral<int32_t>(); }
     void setPosition(float x, float y) override {}
-    void getPosition(float* outX, float* outY) const override {}
+    FloatPoint getPosition() const override {
+        return {mFdp->ConsumeFloatingPoint<float>(), mFdp->ConsumeFloatingPoint<float>()};
+    }
     void fade(Transition transition) override {}
     void unfade(Transition transition) override {}
     void setPresentation(Presentation presentation) override {}
