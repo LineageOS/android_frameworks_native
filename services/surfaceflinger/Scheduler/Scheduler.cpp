@@ -114,8 +114,12 @@ void Scheduler::setPacesetterDisplay(std::optional<PhysicalDisplayId> pacesetter
 }
 
 void Scheduler::registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
-    registerDisplayInternal(displayId, std::move(selectorPtr),
-                            std::make_shared<VsyncSchedule>(displayId, mFeatures));
+    auto schedulePtr = std::make_shared<VsyncSchedule>(displayId, mFeatures,
+                                                       [this](PhysicalDisplayId id, bool enable) {
+                                                           onHardwareVsyncRequest(id, enable);
+                                                       });
+
+    registerDisplayInternal(displayId, std::move(selectorPtr), std::move(schedulePtr));
 }
 
 void Scheduler::registerDisplayInternal(PhysicalDisplayId displayId,
@@ -137,7 +141,7 @@ void Scheduler::registerDisplayInternal(PhysicalDisplayId displayId,
 
     // Disable hardware VSYNC if the registration is new, as opposed to a renewal.
     if (isNew) {
-        mSchedulerCallback.setVsyncEnabled(displayId, false);
+        onHardwareVsyncRequest(displayId, false);
     }
 }
 
@@ -422,13 +426,13 @@ void Scheduler::setVsyncConfig(const VsyncConfig& config, Period vsyncPeriod) {
 void Scheduler::enableHardwareVsync(PhysicalDisplayId id) {
     auto schedule = getVsyncSchedule(id);
     LOG_ALWAYS_FATAL_IF(!schedule);
-    schedule->enableHardwareVsync(mSchedulerCallback);
+    schedule->enableHardwareVsync();
 }
 
 void Scheduler::disableHardwareVsync(PhysicalDisplayId id, bool disallow) {
     auto schedule = getVsyncSchedule(id);
     LOG_ALWAYS_FATAL_IF(!schedule);
-    schedule->disableHardwareVsync(mSchedulerCallback, disallow);
+    schedule->disableHardwareVsync(disallow);
 }
 
 void Scheduler::resyncAllToHardwareVsync(bool allowToEnable) {
@@ -455,10 +459,30 @@ void Scheduler::resyncToHardwareVsyncLocked(PhysicalDisplayId id, bool allowToEn
             refreshRate = display.selectorPtr->getActiveMode().modePtr->getFps();
         }
         if (refreshRate->isValid()) {
-            display.schedulePtr->startPeriodTransition(mSchedulerCallback, refreshRate->getPeriod(),
-                                                       false /* force */);
+            constexpr bool kForce = false;
+            display.schedulePtr->startPeriodTransition(refreshRate->getPeriod(), kForce);
         }
     }
+}
+
+void Scheduler::onHardwareVsyncRequest(PhysicalDisplayId id, bool enabled) {
+    static const auto& whence = __func__;
+    ATRACE_NAME(ftl::Concat(whence, ' ', id.value, ' ', enabled).c_str());
+
+    // On main thread to serialize reads/writes of pending hardware VSYNC state.
+    static_cast<void>(
+            schedule([=]() FTL_FAKE_GUARD(mDisplayLock) FTL_FAKE_GUARD(kMainThreadContext) {
+                ATRACE_NAME(ftl::Concat(whence, ' ', id.value, ' ', enabled).c_str());
+
+                if (const auto displayOpt = mDisplays.get(id)) {
+                    auto& display = displayOpt->get();
+                    display.schedulePtr->setPendingHardwareVsyncState(enabled);
+
+                    if (display.powerMode != hal::PowerMode::OFF) {
+                        mSchedulerCallback.requestHardwareVsync(id, enabled);
+                    }
+                }
+            }));
 }
 
 void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
@@ -506,18 +530,17 @@ bool Scheduler::addResyncSample(PhysicalDisplayId id, nsecs_t timestamp,
         ALOGW("%s: Invalid display %s!", __func__, to_string(id).c_str());
         return false;
     }
-    return schedule->addResyncSample(mSchedulerCallback, TimePoint::fromNs(timestamp),
-                                     hwcVsyncPeriod);
+    return schedule->addResyncSample(TimePoint::fromNs(timestamp), hwcVsyncPeriod);
 }
 
 void Scheduler::addPresentFence(PhysicalDisplayId id, std::shared_ptr<FenceTime> fence) {
     auto schedule = getVsyncSchedule(id);
     LOG_ALWAYS_FATAL_IF(!schedule);
-    const bool needMoreSignals = schedule->getController().addPresentFence(std::move(fence));
-    if (needMoreSignals) {
-        schedule->enableHardwareVsync(mSchedulerCallback);
+    if (const bool needMoreSignals = schedule->getController().addPresentFence(std::move(fence))) {
+        schedule->enableHardwareVsync();
     } else {
-        schedule->disableHardwareVsync(mSchedulerCallback, false /* disallow */);
+        constexpr bool kDisallow = false;
+        schedule->disableHardwareVsync(kDisallow);
     }
 }
 
@@ -581,9 +604,13 @@ void Scheduler::setDisplayPowerMode(PhysicalDisplayId id, hal::PowerMode powerMo
     }
     {
         std::scoped_lock lock(mDisplayLock);
-        auto vsyncSchedule = getVsyncScheduleLocked(id);
-        LOG_ALWAYS_FATAL_IF(!vsyncSchedule);
-        vsyncSchedule->getController().setDisplayPowerMode(powerMode);
+
+        const auto displayOpt = mDisplays.get(id);
+        LOG_ALWAYS_FATAL_IF(!displayOpt);
+        auto& display = displayOpt->get();
+
+        display.powerMode = powerMode;
+        display.schedulePtr->getController().setDisplayPowerMode(powerMode);
     }
     if (!isPacesetter) return;
 
@@ -641,7 +668,7 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
         ftl::FakeGuard guard(kMainThreadContext);
         for (const auto& [_, display] : mDisplays) {
             constexpr bool kDisallow = false;
-            display.schedulePtr->disableHardwareVsync(mSchedulerCallback, kDisallow);
+            display.schedulePtr->disableHardwareVsync(kDisallow);
         }
     }
 
@@ -762,8 +789,8 @@ std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
         newVsyncSchedulePtr = pacesetter.schedulePtr;
 
         const Fps refreshRate = pacesetter.selectorPtr->getActiveMode().modePtr->getFps();
-        newVsyncSchedulePtr->startPeriodTransition(mSchedulerCallback, refreshRate.getPeriod(),
-                                                   true /* force */);
+        constexpr bool kForce = true;
+        newVsyncSchedulePtr->startPeriodTransition(refreshRate.getPeriod(), kForce);
     }
     return newVsyncSchedulePtr;
 }

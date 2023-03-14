@@ -320,6 +320,9 @@ private:
     void touchTimerCallback(TimerState);
     void displayPowerTimerCallback(TimerState);
 
+    // VsyncSchedule delegate.
+    void onHardwareVsyncRequest(PhysicalDisplayId, bool enable);
+
     void resyncToHardwareVsyncLocked(PhysicalDisplayId, bool allowToEnable,
                                      std::optional<Fps> refreshRate = std::nullopt)
             REQUIRES(kMainThreadContext, mDisplayLock);
@@ -433,6 +436,8 @@ private:
         // Effectively const except in move constructor.
         RefreshRateSelectorPtr selectorPtr;
         VsyncSchedulePtr schedulePtr;
+
+        hal::PowerMode powerMode = hal::PowerMode::OFF;
     };
 
     using DisplayRef = std::reference_wrapper<Display>;
