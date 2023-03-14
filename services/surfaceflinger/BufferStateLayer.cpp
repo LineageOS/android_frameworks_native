@@ -459,6 +459,7 @@ bool BufferStateLayer::setHdrMetadata(const HdrMetadata& hdrMetadata) {
 }
 
 bool BufferStateLayer::setSurfaceDamageRegion(const Region& surfaceDamage) {
+    if (mDrawingState.surfaceDamageRegion.hasSameRects(surfaceDamage)) return false;
     mDrawingState.surfaceDamageRegion = surfaceDamage;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
