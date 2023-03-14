@@ -56,12 +56,12 @@ __attribute__((warn_unused_result)) binder_exception_t AServiceManager_addServic
  *
  * \param binder object to register globally with the service manager.
  * \param instance identifier of the service. This will be used to lookup the service.
- * \param flag an AServiceManager_AddServiceFlag enum to denote how the service should be added.
+ * \param flags an AServiceManager_AddServiceFlag enum to denote how the service should be added.
  *
  * \return EX_NONE on success.
  */
-__attribute__((warn_unused_result)) binder_exception_t AServiceManager_addServiceWithFlag(
-        AIBinder* binder, const char* instance, const AServiceManager_AddServiceFlag flag)
+__attribute__((warn_unused_result)) binder_exception_t AServiceManager_addServiceWithFlags(
+        AIBinder* binder, const char* instance, const AServiceManager_AddServiceFlag flags)
         __INTRODUCED_IN(34);
 
 /**
