@@ -67,6 +67,10 @@ bool create_cache_path(char path[PKG_PATH_MAX] ATTRIBUTE_UNUSED,
     return false;
 }
 
+bool force_compile_without_image() {
+    return false;
+}
+
 static void mkdir(const char* path) {
     const std::string fullPath = StringPrintf("/data/local/tmp/user/0/%s", path);
     ::mkdir(fullPath.c_str(), 0755);
