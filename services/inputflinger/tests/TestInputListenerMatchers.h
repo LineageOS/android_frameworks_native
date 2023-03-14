@@ -145,7 +145,7 @@ MATCHER_P(WithToolType, toolType, "InputEvent with specified tool type") {
 
 MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {
     *result_listener << "expected flags " << flags << ", but got " << arg.flags;
-    return arg.flags == flags;
+    return arg.flags == static_cast<int32_t>(flags);
 }
 
 MATCHER_P(WithMotionClassification, classification,
