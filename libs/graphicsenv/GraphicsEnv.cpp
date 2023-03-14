@@ -126,7 +126,20 @@ static const std::string getSystemNativeLibraries(NativeLibrary type) {
 }
 
 bool GraphicsEnv::isDebuggable() {
-    return prctl(PR_GET_DUMPABLE, 0, 0, 0, 0) > 0;
+    // This flag determines if the application is marked debuggable
+    bool appDebuggable = prctl(PR_GET_DUMPABLE, 0, 0, 0, 0) > 0;
+
+    // This flag is set only in `debuggable` builds of the platform
+#if defined(ANDROID_DEBUGGABLE)
+    bool platformDebuggable = true;
+#else
+    bool platformDebuggable = false;
+#endif
+
+    ALOGV("GraphicsEnv::isDebuggable returning appDebuggable=%s || platformDebuggable=%s",
+          appDebuggable ? "true" : "false", platformDebuggable ? "true" : "false");
+
+    return appDebuggable || platformDebuggable;
 }
 
 void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,
