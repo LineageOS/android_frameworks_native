@@ -65,6 +65,10 @@ bool create_cache_path(char path[PKG_PATH_MAX], const char *src, const char *ins
     return create_cache_path_default(path, src, instruction_set);
 }
 
+bool force_compile_without_image() {
+    return false;
+}
+
 static bool initialize_globals() {
     return init_globals_from_data_and_root();
 }

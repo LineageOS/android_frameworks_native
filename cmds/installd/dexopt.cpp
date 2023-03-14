@@ -1942,7 +1942,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         RUNTIME_NATIVE_BOOT_NAMESPACE,
         ENABLE_JITZYGOTE_IMAGE,
         /*default_value=*/ "");
-    bool use_jitzygote_image = jitzygote_flag == "true" || IsBootClassPathProfilingEnable();
+    bool compile_without_image = jitzygote_flag == "true" || IsBootClassPathProfilingEnable() ||
+            force_compile_without_image();
 
     // Decide whether to use dex2oat64.
     bool use_dex2oat64 = false;
@@ -1964,7 +1965,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                       in_dex, in_vdex, dex_metadata, reference_profile, class_loader_context,
                       join_fds(context_input_fds), swap_fd.get(), instruction_set, compiler_filter,
                       debuggable, boot_complete, for_restore, target_sdk_version,
-                      enable_hidden_api_checks, generate_compact_dex, use_jitzygote_image,
+                      enable_hidden_api_checks, generate_compact_dex, compile_without_image,
                       background_job_compile, compilation_reason);
 
     bool cancelled = false;
