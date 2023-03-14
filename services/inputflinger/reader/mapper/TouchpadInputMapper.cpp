@@ -256,8 +256,9 @@ std::list<NotifyArgs> TouchpadInputMapper::configure(nsecs_t when,
 
 std::list<NotifyArgs> TouchpadInputMapper::reset(nsecs_t when) {
     mStateConverter.reset();
-    mGestureConverter.reset();
-    return InputMapper::reset(when);
+    std::list<NotifyArgs> out = mGestureConverter.reset(when);
+    out += InputMapper::reset(when);
+    return out;
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
