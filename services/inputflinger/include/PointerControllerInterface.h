@@ -22,6 +22,20 @@
 
 namespace android {
 
+struct FloatPoint {
+    float x;
+    float y;
+
+    inline FloatPoint(float x, float y) : x(x), y(y) {}
+
+    inline explicit FloatPoint(vec2 p) : x(p.x), y(p.y) {}
+
+    template <typename T, typename U>
+    operator std::tuple<T, U>() {
+        return {x, y};
+    }
+};
+
 /**
  * Interface for tracking a mouse / touch pad pointer and touch pad spots.
  *
@@ -40,8 +54,7 @@ protected:
 public:
     /* Gets the bounds of the region that the pointer can traverse.
      * Returns true if the bounds are available. */
-    virtual bool getBounds(float* outMinX, float* outMinY,
-            float* outMaxX, float* outMaxY) const = 0;
+    virtual std::optional<FloatRect> getBounds() const = 0;
 
     /* Move the pointer. */
     virtual void move(float deltaX, float deltaY) = 0;
@@ -56,7 +69,7 @@ public:
     virtual void setPosition(float x, float y) = 0;
 
     /* Gets the absolute location of the pointer. */
-    virtual void getPosition(float* outX, float* outY) const = 0;
+    virtual FloatPoint getPosition() const = 0;
 
     enum class Transition {
         // Fade/unfade immediately.
