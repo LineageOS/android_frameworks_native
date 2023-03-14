@@ -252,14 +252,16 @@ TEST_F(GestureConverterTest, Scroll) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
                       WithGestureScrollDistance(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithDownTime(downTime)));
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithDownTime(downTime),
+                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                       WithCoords(POINTER_X, POINTER_Y - 10),
                       WithGestureScrollDistance(0, 10, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER),
+                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE)));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
@@ -269,7 +271,8 @@ TEST_F(GestureConverterTest, Scroll) {
                       WithCoords(POINTER_X, POINTER_Y - 15),
                       WithGestureScrollDistance(0, 5, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER),
+                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE)));
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
@@ -280,7 +283,8 @@ TEST_F(GestureConverterTest, Scroll) {
                       WithCoords(POINTER_X, POINTER_Y - 15),
                       WithGestureScrollDistance(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER),
+                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE)));
 }
 
 TEST_F(GestureConverterTest, Scroll_Rotated) {
