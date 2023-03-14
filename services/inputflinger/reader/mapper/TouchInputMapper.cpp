@@ -873,14 +873,26 @@ void TouchInputMapper::computeInputTransforms() {
             : ui::Transform();
 
     // Step 4: Scale the raw coordinates to the display space.
-    // - Here, we assume that the raw surface of the touch device maps perfectly to the surface
-    //   of the display panel. This is usually true for touchscreens.
+    // - In DIRECT mode, we assume that the raw surface of the touch device maps perfectly to
+    //   the surface of the display panel. This is usually true for touchscreens.
+    // - In POINTER mode, we cannot assume that the display and the touch device have the same
+    //   aspect ratio, since it is likely to be untrue for devices like external drawing tablets.
+    //   In this case, we used a fixed scale so that 1) we use the same scale across both the x and
+    //   y axes to ensure the mapping does not stretch gestures, and 2) the entire region of the
+    //   display can be reached by the touch device.
     // - From this point onward, we are no longer in the discrete space of the raw coordinates but
     //   are in the continuous space of the logical display.
     ui::Transform scaleRawToDisplay;
     const float xScale = static_cast<float>(mViewport.deviceWidth) / rotatedRawSize.width;
     const float yScale = static_cast<float>(mViewport.deviceHeight) / rotatedRawSize.height;
-    scaleRawToDisplay.set(xScale, 0, 0, yScale);
+    if (mDeviceMode == DeviceMode::DIRECT) {
+        scaleRawToDisplay.set(xScale, 0, 0, yScale);
+    } else if (mDeviceMode == DeviceMode::POINTER) {
+        const float fixedScale = std::max(xScale, yScale);
+        scaleRawToDisplay.set(fixedScale, 0, 0, fixedScale);
+    } else {
+        LOG_ALWAYS_FATAL("computeInputTransform can only be used for DIRECT and POINTER modes");
+    }
 
     // Step 5: Undo the display rotation to bring us back to the un-rotated display coordinate space
     // that InputReader uses.
