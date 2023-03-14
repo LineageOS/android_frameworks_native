@@ -19,6 +19,7 @@
 #include <limits> // std::numeric_limits
 
 #include <gui/SurfaceComposerClient.h>
+#include "LayerProtoHelper.h"
 
 #include "Tracing/TransactionProtoParser.h"
 
@@ -27,7 +28,6 @@ using namespace android::surfaceflinger;
 namespace android {
 
 TEST(TransactionProtoParserTest, parse) {
-    const sp<IBinder> layerHandle = sp<BBinder>::make();
     const sp<IBinder> displayHandle = sp<BBinder>::make();
     TransactionState t1;
     t1.originPid = 1;
@@ -37,7 +37,6 @@ TEST(TransactionProtoParserTest, parse) {
     t1.postTime = 5;
 
     layer_state_t layer;
-    layer.layerId = 6;
     layer.what = std::numeric_limits<uint64_t>::max();
     layer.what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
     layer.x = 7;
@@ -48,10 +47,9 @@ TEST(TransactionProtoParserTest, parse) {
     for (uint32_t i = 0; i < layerCount; i++) {
         ResolvedComposerState s;
         if (i == 1) {
-            layer.parentSurfaceControlForChild =
-                    sp<SurfaceControl>::make(SurfaceComposerClient::getDefault(), layerHandle, 42,
-                                             "#42");
+            s.parentId = 42;
         }
+        s.layerId = 6 + i;
         s.state = layer;
         t1.states.emplace_back(s);
     }
@@ -72,18 +70,10 @@ TEST(TransactionProtoParserTest, parse) {
 
     class TestMapper : public TransactionProtoParser::FlingerDataMapper {
     public:
-        sp<IBinder> layerHandle;
         sp<IBinder> displayHandle;
 
-        TestMapper(sp<IBinder> layerHandle, sp<IBinder> displayHandle)
-              : layerHandle(layerHandle), displayHandle(displayHandle) {}
+        TestMapper(sp<IBinder> displayHandle) : displayHandle(displayHandle) {}
 
-        sp<IBinder> getLayerHandle(int32_t id) const override {
-            return (id == 42) ? layerHandle : nullptr;
-        }
-        int64_t getLayerId(const sp<IBinder>& handle) const override {
-            return (handle == layerHandle) ? 42 : -1;
-        }
         sp<IBinder> getDisplayHandle(int32_t id) const {
             return (id == 43) ? displayHandle : nullptr;
         }
@@ -92,7 +82,7 @@ TEST(TransactionProtoParserTest, parse) {
         }
     };
 
-    TransactionProtoParser parser(std::make_unique<TestMapper>(layerHandle, displayHandle));
+    TransactionProtoParser parser(std::make_unique<TestMapper>(displayHandle));
 
     proto::TransactionState proto = parser.toProto(t1);
     TransactionState t2 = parser.fromProto(proto);
@@ -105,8 +95,8 @@ TEST(TransactionProtoParserTest, parse) {
     ASSERT_EQ(t1.states.size(), t2.states.size());
     ASSERT_EQ(t1.states[0].state.x, t2.states[0].state.x);
     ASSERT_EQ(t1.states[0].state.matrix.dsdx, t2.states[0].state.matrix.dsdx);
-    ASSERT_EQ(t1.states[1].state.parentSurfaceControlForChild->getHandle(),
-              t2.states[1].state.parentSurfaceControlForChild->getHandle());
+    ASSERT_EQ(t1.states[1].layerId, t2.states[1].layerId);
+    ASSERT_EQ(t1.states[1].parentId, t2.states[1].parentId);
 
     ASSERT_EQ(t1.displays.size(), t2.displays.size());
     ASSERT_EQ(t1.displays[1].width, t2.displays[1].width);

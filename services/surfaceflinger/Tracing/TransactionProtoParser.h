@@ -18,30 +18,17 @@
 #include <gui/fake/BufferData.h>
 #include <layerproto/TransactionProto.h>
 #include <utils/RefBase.h>
+#include "Display/DisplayMap.h"
+#include "FrontEnd/DisplayInfo.h"
 
+#include "FrontEnd/LayerCreationArgs.h"
 #include "TransactionState.h"
 
 namespace android::surfaceflinger {
 
-struct TracingLayerCreationArgs {
-    int32_t layerId;
-    std::string name;
-    uint32_t flags = 0;
-    int32_t parentId = -1;
-    int32_t mirrorFromId = -1;
-};
-
-struct TracingLayerState : layer_state_t {
-    uint64_t bufferId;
-    uint32_t bufferHeight;
-    uint32_t bufferWidth;
-    int32_t pixelFormat;
-    uint64_t bufferUsage;
+struct TracingLayerState : ResolvedComposerState {
     bool hasSidebandStream;
-    int32_t parentId;
-    int32_t relativeParentId;
-    int32_t inputCropId;
-    TracingLayerCreationArgs args;
+    LayerCreationArgs args;
 };
 
 class TransactionProtoParser {
@@ -51,40 +38,30 @@ public:
     class FlingerDataMapper {
     public:
         virtual ~FlingerDataMapper() = default;
-        virtual sp<IBinder> getLayerHandle(int32_t /* layerId */) const { return nullptr; }
-        virtual int64_t getLayerId(const sp<IBinder>& /* layerHandle */) const { return -1; }
-        virtual int64_t getLayerId(BBinder* /* layerHandle */) const { return -1; }
         virtual sp<IBinder> getDisplayHandle(int32_t /* displayId */) const { return nullptr; }
         virtual int32_t getDisplayId(const sp<IBinder>& /* displayHandle */) const { return -1; }
-        virtual std::shared_ptr<BufferData> getGraphicData(uint64_t bufferId, uint32_t width,
-                                                           uint32_t height, int32_t pixelFormat,
-                                                           uint64_t usage) const {
-            return std::make_shared<fake::BufferData>(bufferId, width, height, pixelFormat, usage);
-        }
-        virtual void getGraphicBufferPropertiesFromCache(client_cache_t /* cachedBuffer */,
-                                                         uint64_t* /* outBufferId */,
-                                                         uint32_t* /* outWidth */,
-                                                         uint32_t* /* outHeight */,
-                                                         int32_t* /* outPixelFormat */,
-                                                         uint64_t* /* outUsage */) const {}
     };
 
     TransactionProtoParser(std::unique_ptr<FlingerDataMapper> provider)
           : mMapper(std::move(provider)) {}
 
     proto::TransactionState toProto(const TransactionState&);
-    proto::TransactionState toProto(const std::map<int32_t /* layerId */, TracingLayerState>&);
-    proto::LayerCreationArgs toProto(const TracingLayerCreationArgs& args);
+    proto::TransactionState toProto(const std::map<uint32_t /* layerId */, TracingLayerState>&);
+    proto::LayerCreationArgs toProto(const LayerCreationArgs& args);
+    proto::LayerState toProto(const ResolvedComposerState&);
+    proto::DisplayInfo toProto(const frontend::DisplayInfo&, uint32_t layerStack);
 
     TransactionState fromProto(const proto::TransactionState&);
     void mergeFromProto(const proto::LayerState&, TracingLayerState& outState);
-    void fromProto(const proto::LayerCreationArgs&, TracingLayerCreationArgs& outArgs);
+    void fromProto(const proto::LayerCreationArgs&, LayerCreationArgs& outArgs);
     std::unique_ptr<FlingerDataMapper> mMapper;
+    frontend::DisplayInfo fromProto(const proto::DisplayInfo&);
+    void fromProto(const google::protobuf::RepeatedPtrField<proto::DisplayInfo>&,
+                   display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> outDisplayInfos);
 
 private:
-    proto::LayerState toProto(const layer_state_t&);
     proto::DisplayState toProto(const DisplayState&);
-    void fromProto(const proto::LayerState&, layer_state_t& out);
+    void fromProto(const proto::LayerState&, ResolvedComposerState& out);
     DisplayState fromProto(const proto::DisplayState&);
 
 };

@@ -56,7 +56,7 @@ protected:
 
         mPublisher = std::make_unique<InputPublisher>(std::move(serverChannel));
         mConsumer = std::make_unique<InputConsumer>(std::move(clientChannel),
-                                                    true /* enableTouchResampling */);
+                                                    /*enableTouchResampling=*/true);
     }
 
     status_t publishSimpleMotionEventWithCoords(int32_t action, nsecs_t eventTime,
@@ -79,11 +79,11 @@ status_t TouchResamplingTest::publishSimpleMotionEventWithCoords(
     if (action == AMOTION_EVENT_ACTION_DOWN && eventTime != 0) {
         ADD_FAILURE() << "Downtime should be equal to 0 (hardcoded for convenience)";
     }
-    return mPublisher->publishMotionEvent(mSeq++, InputEvent::nextId(), 1 /*deviceId*/,
-                                          AINPUT_SOURCE_TOUCHSCREEN, 0 /*displayId*/, INVALID_HMAC,
-                                          action, 0 /*actionButton*/, 0 /*flags*/, 0 /*edgeFlags*/,
-                                          AMETA_NONE, 0 /*buttonState*/, MotionClassification::NONE,
-                                          identityTransform, 0 /*xPrecision*/, 0 /*yPrecision*/,
+    return mPublisher->publishMotionEvent(mSeq++, InputEvent::nextId(), /*deviceId=*/1,
+                                          AINPUT_SOURCE_TOUCHSCREEN, /*displayId=*/0, INVALID_HMAC,
+                                          action, /*actionButton=*/0, /*flags=*/0, /*edgeFlags=*/0,
+                                          AMETA_NONE, /*buttonState=*/0, MotionClassification::NONE,
+                                          identityTransform, /*xPrecision=*/0, /*yPrecision=*/0,
                                           AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                           AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform,
                                           downTime, eventTime, properties.size(), properties.data(),
@@ -161,7 +161,7 @@ void TouchResamplingTest::consumeInputEventEntries(const std::vector<InputEventE
     uint32_t consumeSeq;
     InputEvent* event;
 
-    status_t status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, frameTime.count(),
+    status_t status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, frameTime.count(),
                                          &consumeSeq, &event);
     ASSERT_EQ(OK, status);
     MotionEvent* motionEvent = static_cast<MotionEvent*>(event);

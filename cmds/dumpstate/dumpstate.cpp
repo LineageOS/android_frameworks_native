@@ -1254,8 +1254,9 @@ static Dumpstate::RunStatus RunDumpsysTextByPriority(const std::string& title, i
              dumpsys.writeDumpHeader(STDOUT_FILENO, service, priority);
              dumpsys.writeDumpFooter(STDOUT_FILENO, service, std::chrono::milliseconds(1));
         } else {
-            status_t status = dumpsys.startDumpThread(Dumpsys::TYPE_DUMP, service, args);
-            if (status == OK) {
+             status_t status = dumpsys.startDumpThread(Dumpsys::TYPE_DUMP | Dumpsys::TYPE_PID,
+                                                       service, args);
+             if (status == OK) {
                 dumpsys.writeDumpHeader(STDOUT_FILENO, service, priority);
                 std::chrono::duration<double> elapsed_seconds;
                 if (priority == IServiceManager::DUMP_FLAG_PRIORITY_HIGH &&
@@ -1902,6 +1903,9 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     }
     ds.AddDir(PREREBOOT_DATA_DIR, false);
     add_mountinfo();
+    for (const char* path : {"/proc/cpuinfo", "/proc/meminfo"}) {
+        ds.AddZipEntry(ZIP_ROOT_DIR + path, path);
+    }
     DumpIpTablesAsRoot();
     DumpDynamicPartitionInfo();
     ds.AddDir(OTA_METADATA_DIR, true);
