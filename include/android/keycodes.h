@@ -776,7 +776,39 @@ enum {
     AKEYCODE_THUMBS_DOWN = 287,
     /** Used to switch current account that is consuming content.
      * May be consumed by system to switch current viewer profile. */
-    AKEYCODE_PROFILE_SWITCH = 288
+    AKEYCODE_PROFILE_SWITCH = 288,
+    /** Video Application key #1. */
+    AKEYCODE_VIDEO_APP_1 = 289,
+    /** Video Application key #2. */
+    AKEYCODE_VIDEO_APP_2 = 290,
+    /** Video Application key #3. */
+    AKEYCODE_VIDEO_APP_3 = 291,
+    /** Video Application key #4. */
+    AKEYCODE_VIDEO_APP_4 = 292,
+    /** Video Application key #5. */
+    AKEYCODE_VIDEO_APP_5 = 293,
+    /** Video Application key #6. */
+    AKEYCODE_VIDEO_APP_6 = 294,
+    /** Video Application key #7. */
+    AKEYCODE_VIDEO_APP_7 = 295,
+    /** Video Application key #8. */
+    AKEYCODE_VIDEO_APP_8 = 296,
+    /** Featured Application key #1. */
+    AKEYCODE_FEATURED_APP_1 = 297,
+    /** Featured Application key #2. */
+    AKEYCODE_FEATURED_APP_2 = 298,
+    /** Featured Application key #3. */
+    AKEYCODE_FEATURED_APP_3 = 299,
+    /** Featured Application key #4. */
+    AKEYCODE_FEATURED_APP_4 = 300,
+    /** Demo Application key #1. */
+    AKEYCODE_DEMO_APP_1 = 301,
+    /** Demo Application key #2. */
+    AKEYCODE_DEMO_APP_2 = 302,
+    /** Demo Application key #3. */
+    AKEYCODE_DEMO_APP_3 = 303,
+    /** Demo Application key #4. */
+    AKEYCODE_DEMO_APP_4 = 304,
 
     // NOTE: If you add a new keycode here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/KeyEvent.java for the full list.

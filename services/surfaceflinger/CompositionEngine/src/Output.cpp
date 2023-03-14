@@ -977,17 +977,17 @@ void Output::beginFrame() {
     //   frame, then nothing more until we get new layers.
     // - When a display is created with a private layer stack, we won't
     //   emit any black frames until a layer is added to the layer stack.
-    const bool mustRecompose = dirty && !(empty && wasEmpty);
+    mMustRecompose = dirty && !(empty && wasEmpty);
 
     const char flagPrefix[] = {'-', '+'};
     static_cast<void>(flagPrefix);
-    ALOGV_IF("%s: %s composition for %s (%cdirty %cempty %cwasEmpty)", __FUNCTION__,
-             mustRecompose ? "doing" : "skipping", getName().c_str(), flagPrefix[dirty],
-             flagPrefix[empty], flagPrefix[wasEmpty]);
+    ALOGV("%s: %s composition for %s (%cdirty %cempty %cwasEmpty)", __func__,
+          mMustRecompose ? "doing" : "skipping", getName().c_str(), flagPrefix[dirty],
+          flagPrefix[empty], flagPrefix[wasEmpty]);
 
-    mRenderSurface->beginFrame(mustRecompose);
+    mRenderSurface->beginFrame(mMustRecompose);
 
-    if (mustRecompose) {
+    if (mMustRecompose) {
         outputState.lastCompositionHadVisibleLayers = !empty;
     }
 }
@@ -1588,6 +1588,10 @@ void Output::finishPrepareFrame() {
         mPlanner->reportFinalPlan(getOutputLayersOrderedByZ());
     }
     mRenderSurface->prepareFrame(state.usesClientComposition, state.usesDeviceComposition);
+}
+
+bool Output::mustRecompose() const {
+    return mMustRecompose;
 }
 
 } // namespace impl

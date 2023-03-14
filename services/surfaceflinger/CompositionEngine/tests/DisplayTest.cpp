@@ -971,16 +971,40 @@ TEST_F(DisplayFinishFrameTest, skipsCompositionIfNotDirty) {
 
     // We expect no calls to queueBuffer if composition was skipped.
     EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(0);
+    EXPECT_CALL(*renderSurface, beginFrame(false));
 
     gpuDisplay->editState().isEnabled = true;
     gpuDisplay->editState().usesClientComposition = false;
     gpuDisplay->editState().layerStackSpace.setContent(Rect(0, 0, 1, 1));
     gpuDisplay->editState().dirtyRegion = Region::INVALID_REGION;
+    gpuDisplay->editState().lastCompositionHadVisibleLayers = true;
 
+    gpuDisplay->beginFrame();
     gpuDisplay->finishFrame({}, std::move(mResultWithoutBuffer));
 }
 
-TEST_F(DisplayFinishFrameTest, performsCompositionIfDirty) {
+TEST_F(DisplayFinishFrameTest, skipsCompositionIfEmpty) {
+    auto args = getDisplayCreationArgsForGpuVirtualDisplay();
+    std::shared_ptr<impl::Display> gpuDisplay = impl::createDisplay(mCompositionEngine, args);
+
+    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
+    gpuDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+
+    // We expect no calls to queueBuffer if composition was skipped.
+    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(0);
+    EXPECT_CALL(*renderSurface, beginFrame(false));
+
+    gpuDisplay->editState().isEnabled = true;
+    gpuDisplay->editState().usesClientComposition = false;
+    gpuDisplay->editState().layerStackSpace.setContent(Rect(0, 0, 1, 1));
+    gpuDisplay->editState().dirtyRegion = Region(Rect(0, 0, 1, 1));
+    gpuDisplay->editState().lastCompositionHadVisibleLayers = false;
+
+    gpuDisplay->beginFrame();
+    gpuDisplay->finishFrame({}, std::move(mResultWithoutBuffer));
+}
+
+TEST_F(DisplayFinishFrameTest, performsCompositionIfDirtyAndNotEmpty) {
     auto args = getDisplayCreationArgsForGpuVirtualDisplay();
     std::shared_ptr<impl::Display> gpuDisplay = impl::createDisplay(mCompositionEngine, args);
 
@@ -989,11 +1013,15 @@ TEST_F(DisplayFinishFrameTest, performsCompositionIfDirty) {
 
     // We expect a single call to queueBuffer when composition is not skipped.
     EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(1);
+    EXPECT_CALL(*renderSurface, beginFrame(true));
 
     gpuDisplay->editState().isEnabled = true;
     gpuDisplay->editState().usesClientComposition = false;
     gpuDisplay->editState().layerStackSpace.setContent(Rect(0, 0, 1, 1));
     gpuDisplay->editState().dirtyRegion = Region(Rect(0, 0, 1, 1));
+    gpuDisplay->editState().lastCompositionHadVisibleLayers = true;
+
+    gpuDisplay->beginFrame();
     gpuDisplay->finishFrame({}, std::move(mResultWithBuffer));
 }
 
