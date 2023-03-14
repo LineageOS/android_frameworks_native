@@ -45,7 +45,7 @@ static inline uint16_t EndianSwap16(uint16_t value) {
     #define Endian_SwapBE16(n) (n)
 #endif
 
-struct jpegr_metadata;
+struct jpegr_metadata_struct;
 /*
  * Mutable data structure. Holds information for metadata.
  */
@@ -87,7 +87,7 @@ status_t Write(jr_compressed_ptr destination, const void* source, size_t length,
  * @param metadata place to store HDR metadata values
  * @return true if metadata is successfully retrieved, false otherwise
 */
-bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata* metadata);
+bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata_struct* metadata);
 
 /*
  * This method generates XMP metadata for the primary image.
@@ -156,7 +156,7 @@ std::string generateXmpForPrimaryImage(int secondary_image_length);
  * @param metadata JPEG/R metadata to encode as XMP
  * @return XMP metadata in type of string
  */
- std::string generateXmpForSecondaryImage(jpegr_metadata& metadata);
+ std::string generateXmpForSecondaryImage(jpegr_metadata_struct& metadata);
 }  // namespace android::jpegrecoverymap
 
 #endif //ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H
