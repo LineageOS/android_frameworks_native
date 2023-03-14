@@ -27,10 +27,13 @@ cc_library_shared {
     srcs: [
         "GpuStatsInfo.cpp",
         "GraphicsEnv.cpp",
-        "IGpuService.cpp"
+        "IGpuService.cpp",
     ],
 
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 
     shared_libs: [
         "libbase",
@@ -46,4 +49,13 @@ cc_library_shared {
     ],
 
     export_include_dirs: ["include"],
+
+    product_variables: {
+        // `debuggable` is set for eng and userdebug builds
+        debuggable: {
+            cflags: [
+                "-DANDROID_DEBUGGABLE",
+            ],
+        },
+    },
 }

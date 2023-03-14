@@ -134,13 +134,14 @@ public:
 
     struct RoundedCornerState {
         RoundedCornerState() = default;
-        RoundedCornerState(FloatRect cropRect, float radius)
+        RoundedCornerState(const FloatRect& cropRect, const vec2& radius)
               : cropRect(cropRect), radius(radius) {}
 
         // Rounded rectangle in local layer coordinate space.
         FloatRect cropRect = FloatRect();
         // Radius of the rounded rectangle.
-        float radius = 0.0f;
+        vec2 radius;
+        bool hasRoundedCorners() const { return radius.x > 0.0f && radius.y > 0.0f; }
     };
 
     using FrameRate = scheduler::LayerInfo::FrameRate;
@@ -596,7 +597,7 @@ public:
     // corner crop does not intersect with its own rounded corner crop.
     virtual RoundedCornerState getRoundedCornerState() const;
 
-    bool hasRoundedCorners() const override { return getRoundedCornerState().radius > .0f; }
+    bool hasRoundedCorners() const override { return getRoundedCornerState().hasRoundedCorners(); }
 
     virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
     /**

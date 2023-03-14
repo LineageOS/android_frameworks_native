@@ -406,7 +406,7 @@ void Layer::prepareBasicGeometryCompositionState() {
     const auto& drawingState{getDrawingState()};
     const auto alpha = static_cast<float>(getAlpha());
     const bool opaque = isOpaque(drawingState);
-    const bool usesRoundedCorners = getRoundedCornerState().radius != 0.f;
+    const bool usesRoundedCorners = hasRoundedCorners();
 
     auto blendMode = Hwc2::IComposerClient::BlendMode::NONE;
     if (!opaque || alpha != 1.0f) {
@@ -482,7 +482,7 @@ void Layer::preparePerFrameCompositionState() {
     compositionState->hasProtectedContent = isProtected();
     compositionState->dimmingEnabled = isDimmingEnabled();
 
-    const bool usesRoundedCorners = getRoundedCornerState().radius != 0.f;
+    const bool usesRoundedCorners = hasRoundedCorners();
 
     compositionState->isOpaque =
             isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
@@ -1915,27 +1915,22 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
     const auto& parent = mDrawingParent.promote();
     if (parent != nullptr) {
         parentSettings = parent->getRoundedCornerState();
-        if (parentSettings.radius > 0) {
+        if (parentSettings.hasRoundedCorners()) {
             ui::Transform t = getActiveTransform(getDrawingState());
             t = t.inverse();
             parentSettings.cropRect = t.transform(parentSettings.cropRect);
-            // The rounded corners shader only accepts 1 corner radius for performance reasons,
-            // but a transform matrix can define horizontal and vertical scales.
-            // Let's take the average between both of them and pass into the shader, practically we
-            // never do this type of transformation on windows anyway.
-            auto scaleX = sqrtf(t[0][0] * t[0][0] + t[0][1] * t[0][1]);
-            auto scaleY = sqrtf(t[1][0] * t[1][0] + t[1][1] * t[1][1]);
-            parentSettings.radius *= (scaleX + scaleY) / 2.0f;
+            parentSettings.radius.x *= t.getScaleX();
+            parentSettings.radius.y *= t.getScaleY();
         }
     }
 
     // Get layer settings
     Rect layerCropRect = getCroppedBufferSize(getDrawingState());
-    const float radius = getDrawingState().cornerRadius;
+    const vec2 radius(getDrawingState().cornerRadius, getDrawingState().cornerRadius);
     RoundedCornerState layerSettings(layerCropRect.toFloatRect(), radius);
-    const bool layerSettingsValid = layerSettings.radius > 0 && layerCropRect.isValid();
+    const bool layerSettingsValid = layerSettings.hasRoundedCorners() && layerCropRect.isValid();
 
-    if (layerSettingsValid && parentSettings.radius > 0) {
+    if (layerSettingsValid && parentSettings.hasRoundedCorners()) {
         // If the parent and the layer have rounded corner settings, use the parent settings if the
         // parent crop is entirely inside the layer crop.
         // This has limitations and cause rendering artifacts. See b/200300845 for correct fix.
@@ -1949,7 +1944,7 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
         }
     } else if (layerSettingsValid) {
         return layerSettings;
-    } else if (parentSettings.radius > 0) {
+    } else if (parentSettings.hasRoundedCorners()) {
         return parentSettings;
     }
     return {};
@@ -2070,7 +2065,8 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo) {
     layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
     layerInfo->set_requested_corner_radius(getDrawingState().cornerRadius);
-    layerInfo->set_corner_radius(getRoundedCornerState().radius);
+    layerInfo->set_corner_radius(
+            (getRoundedCornerState().radius.x + getRoundedCornerState().radius.y) / 2.0);
     layerInfo->set_background_blur_radius(getBackgroundBlurRadius());
     layerInfo->set_is_trusted_overlay(isTrustedOverlay());
     LayerProtoHelper::writeToProtoDeprecated(transform, layerInfo->mutable_transform());

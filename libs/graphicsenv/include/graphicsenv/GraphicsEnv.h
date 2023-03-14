@@ -35,7 +35,7 @@ public:
 
     // Check if the process is debuggable. It returns false except in any of the
     // following circumstances:
-    // 1. ro.debuggable=1 (global debuggable enabled).
+    // 1. ANDROID_DEBUGGABLE is defined (global debuggable enabled).
     // 2. android:debuggable="true" in the manifest for an individual app.
     // 3. An app which explicitly calls prctl(PR_SET_DUMPABLE, 1).
     // 4. GraphicsEnv calls prctl(PR_SET_DUMPABLE, 1) in the presence of
