@@ -73,6 +73,10 @@ bool create_cache_path(char path[PKG_PATH_MAX], const char *src, const char *ins
     return create_cache_path_default(path, src, instruction_set);
 }
 
+bool force_compile_without_image() {
+    return false;
+}
+
 static void run_cmd(const std::string& cmd) {
     system(cmd.c_str());
 }
