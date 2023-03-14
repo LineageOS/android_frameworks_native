@@ -155,6 +155,25 @@ TEST_F(SchedulerTest, validConnectionHandle) {
     EXPECT_EQ(kEventConnections, mScheduler->getEventThreadConnectionCount(mConnectionHandle));
 }
 
+TEST_F(SchedulerTest, registerDisplay) {
+    // Hardware VSYNC should not change if the display is already registered.
+    EXPECT_CALL(mSchedulerCallback, setVsyncEnabled(kDisplayId1, false)).Times(0);
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
+
+    // Hardware VSYNC should be disabled for newly registered displays.
+    EXPECT_CALL(mSchedulerCallback, setVsyncEnabled(kDisplayId2, false)).Times(1);
+    EXPECT_CALL(mSchedulerCallback, setVsyncEnabled(kDisplayId3, false)).Times(1);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    mScheduler->registerDisplay(kDisplayId3,
+                                std::make_shared<RefreshRateSelector>(kDisplay3Modes,
+                                                                      kDisplay3Mode60->getId()));
+}
+
 TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSupported) {
     // The layer is registered at creation time and deregistered at destruction time.
     sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());

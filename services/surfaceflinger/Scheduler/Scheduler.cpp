@@ -123,14 +123,22 @@ void Scheduler::registerDisplayInternal(PhysicalDisplayId displayId,
                                         VsyncSchedulePtr schedulePtr) {
     demotePacesetterDisplay();
 
-    std::shared_ptr<VsyncSchedule> pacesetterVsyncSchedule;
-    {
+    auto [pacesetterVsyncSchedule, isNew] = [&]() FTL_FAKE_GUARD(kMainThreadContext) {
         std::scoped_lock lock(mDisplayLock);
-        mDisplays.emplace_or_replace(displayId, std::move(selectorPtr), std::move(schedulePtr));
+        const bool isNew = mDisplays
+                                   .emplace_or_replace(displayId, std::move(selectorPtr),
+                                                       std::move(schedulePtr))
+                                   .second;
 
-        pacesetterVsyncSchedule = promotePacesetterDisplayLocked();
-    }
+        return std::make_pair(promotePacesetterDisplayLocked(), isNew);
+    }();
+
     applyNewVsyncSchedule(std::move(pacesetterVsyncSchedule));
+
+    // Disable hardware VSYNC if the registration is new, as opposed to a renewal.
+    if (isNew) {
+        mSchedulerCallback.setVsyncEnabled(displayId, false);
+    }
 }
 
 void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {

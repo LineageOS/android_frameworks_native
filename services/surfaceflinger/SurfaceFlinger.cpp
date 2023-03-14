@@ -3869,8 +3869,6 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
                                              static_cast<ISchedulerCallback&>(*this), features,
                                              std::move(modulatorPtr));
     mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
-
-    setVsyncEnabled(display->getPhysicalId(), false);
     mScheduler->startTimers();
 
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
