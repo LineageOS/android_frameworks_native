@@ -154,15 +154,10 @@ std::list<NotifyArgs> KeyboardInputMapper::configure(nsecs_t when,
 }
 
 void KeyboardInputMapper::configureParameters() {
-    mParameters.orientationAware = false;
     const PropertyMap& config = getDeviceContext().getConfiguration();
-    config.tryGetProperty("keyboard.orientationAware", mParameters.orientationAware);
-
-    mParameters.handlesKeyRepeat = false;
-    config.tryGetProperty("keyboard.handlesKeyRepeat", mParameters.handlesKeyRepeat);
-
-    mParameters.doNotWakeByDefault = false;
-    config.tryGetProperty("keyboard.doNotWakeByDefault", mParameters.doNotWakeByDefault);
+    mParameters.orientationAware = config.getBool("keyboard.orientationAware").value_or(false);
+    mParameters.handlesKeyRepeat = config.getBool("keyboard.handlesKeyRepeat").value_or(false);
+    mParameters.doNotWakeByDefault = config.getBool("keyboard.doNotWakeByDefault").value_or(false);
 }
 
 void KeyboardInputMapper::dumpParameters(std::string& dump) const {
