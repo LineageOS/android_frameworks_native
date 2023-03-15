@@ -885,15 +885,17 @@ void FrameTimeline::DisplayFrame::setGpuFence(const std::shared_ptr<FenceTime>& 
 
 void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync,
                                                nsecs_t previousPresentTime) {
-    if (mPredictionState == PredictionState::Expired ||
-        mSurfaceFlingerActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
+    const bool presentTimeValid =
+            mSurfaceFlingerActuals.presentTime >= mSurfaceFlingerActuals.startTime;
+    if (mPredictionState == PredictionState::Expired || !presentTimeValid) {
         // Cannot do jank classification with expired predictions or invalid signal times. Set the
         // deltas to 0 as both negative and positive deltas are used as real values.
         mJankType = JankType::Unknown;
         deadlineDelta = 0;
         deltaToVsync = 0;
-        if (mSurfaceFlingerActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
+        if (!presentTimeValid) {
             mSurfaceFlingerActuals.presentTime = mSurfaceFlingerActuals.endTime;
+            mJankType |= JankType::DisplayHAL;
         }
 
         return;
