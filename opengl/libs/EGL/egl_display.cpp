@@ -322,6 +322,16 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
 
         mExtensionString = gBuiltinExtensionString;
 
+        // b/269060366 Conditionally enabled EGL_ANDROID_get_frame_timestamps extension if the
+        // device's present timestamps are reliable (which may not be the case on emulators).
+        if (cnx->useAngle) {
+            if (android::base::GetBoolProperty("service.sf.present_timestamp", false)) {
+                mExtensionString.append("EGL_ANDROID_get_frame_timestamps");
+            }
+        } else {
+            mExtensionString.append("EGL_ANDROID_get_frame_timestamps");
+        }
+
         hasColorSpaceSupport = findExtension(disp.queryString.extensions, "EGL_KHR_gl_colorspace");
 
         // Note: CDD requires that devices supporting wide color and/or HDR color also support
@@ -361,6 +371,7 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
                     findExtension(disp.queryString.extensions, "EGL_KHR_image_gl_colorspace")) {
                     mExtensionString.append("EGL_EXT_image_gl_colorspace ");
                 }
+
                 if (findExtension(disp.queryString.extensions, ext.c_str(), len)) {
                     mExtensionString.append(ext + " ");
                 }
