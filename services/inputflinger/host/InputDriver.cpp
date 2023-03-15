@@ -242,13 +242,13 @@ input_property_map_t* InputDriver::inputGetDevicePropertyMap(input_device_identi
 
 input_property_t* InputDriver::inputGetDeviceProperty(input_property_map_t* map, const char* key) {
     if (map != nullptr) {
-        std::string value;
-        auto prop = std::make_unique<input_property_t>();
-        if (!map->propertyMap->tryGetProperty(key, value)) {
+        std::optional<std::string> value = map->propertyMap->getString(key);
+        if (!value.has_value()) {
             return nullptr;
         }
+        auto prop = std::make_unique<input_property_t>();
         prop->key = key;
-        prop->value = value.c_str();
+        prop->value = value->c_str();
         return prop.release();
     }
     return nullptr;

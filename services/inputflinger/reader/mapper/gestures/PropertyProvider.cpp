@@ -19,6 +19,7 @@
 #include "gestures/PropertyProvider.h"
 
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 #include <android-base/stringprintf.h>
@@ -255,36 +256,34 @@ void GesturesProp::trySetFromIdcProperty(const android::PropertyMap& idcProperti
     bool parsedSuccessfully = false;
     Visitor setVisitor{
             [&](int*) {
-                int32_t value;
-                parsedSuccessfully = idcProperties.tryGetProperty(propertyName, value);
-                if (parsedSuccessfully) {
-                    setIntValues({value});
+                if (std::optional<int32_t> value = idcProperties.getInt(propertyName); value) {
+                    parsedSuccessfully = true;
+                    setIntValues({*value});
                 }
             },
             [&](GesturesPropBool*) {
-                bool value;
-                parsedSuccessfully = idcProperties.tryGetProperty(propertyName, value);
-                if (parsedSuccessfully) {
-                    setBoolValues({value});
+                if (std::optional<bool> value = idcProperties.getBool(propertyName); value) {
+                    parsedSuccessfully = true;
+                    setBoolValues({*value});
                 }
             },
             [&](double*) {
-                double value;
-                parsedSuccessfully = idcProperties.tryGetProperty(propertyName, value);
-                if (parsedSuccessfully) {
-                    setRealValues({value});
+                if (std::optional<double> value = idcProperties.getDouble(propertyName); value) {
+                    parsedSuccessfully = true;
+                    setRealValues({*value});
                 }
             },
             [&](const char**) {
                 ALOGE("Gesture property \"%s\" is a string, and so cannot be set in an IDC file.",
                       mName.c_str());
+                // We've already reported the type mismatch, so set parsedSuccessfully.
+                parsedSuccessfully = true;
             },
     };
     std::visit(setVisitor, mDataPointer);
 
-    ALOGE_IF(!parsedSuccessfully, "Gesture property \"%s\" could set due to a type mismatch.",
+    ALOGE_IF(!parsedSuccessfully, "Gesture property \"%s\" couldn't be set due to a type mismatch.",
              mName.c_str());
-    return;
 }
 
 template <typename T, typename U>

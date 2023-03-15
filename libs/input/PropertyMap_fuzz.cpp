@@ -29,8 +29,7 @@ static const std::vector<std::function<void(FuzzedDataProvider*, android::Proper
                 },
                 [](FuzzedDataProvider* dataProvider, android::PropertyMap& propertyMap) -> void {
                     std::string key = dataProvider->ConsumeRandomLengthString(MAX_STR_LEN);
-                    std::string out;
-                    propertyMap.tryGetProperty(key, out);
+                    propertyMap.getString(key);
                 },
                 [](FuzzedDataProvider* dataProvider, android::PropertyMap& /*unused*/) -> void {
                     TemporaryFile tf;

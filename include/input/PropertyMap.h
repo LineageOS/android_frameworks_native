@@ -19,6 +19,7 @@
 #include <android-base/result.h>
 #include <utils/Tokenizer.h>
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -63,15 +64,15 @@ public:
     /* Returns a set of all property keys starting with the given prefix. */
     std::unordered_set<std::string> getKeysWithPrefix(const std::string& prefix) const;
 
-    /* Gets the value of a property and parses it.
-     * Returns true and sets outValue if the key was found and its value was parsed successfully.
-     * Otherwise returns false and does not modify outValue.  (Also logs a warning.)
+    /* Gets the value of a property and parses it. Returns nullopt if the key wasn't found or
+     * couldn't be parsed as the requested type. (Warnings are also logged in the case of parsing
+     * failures.)
      */
-    bool tryGetProperty(const std::string& key, std::string& outValue) const;
-    bool tryGetProperty(const std::string& key, bool& outValue) const;
-    bool tryGetProperty(const std::string& key, int32_t& outValue) const;
-    bool tryGetProperty(const std::string& key, float& outValue) const;
-    bool tryGetProperty(const std::string& key, double& outValue) const;
+    std::optional<std::string> getString(const std::string& key) const;
+    std::optional<bool> getBool(const std::string& key) const;
+    std::optional<int32_t> getInt(const std::string& key) const;
+    std::optional<float> getFloat(const std::string& key) const;
+    std::optional<double> getDouble(const std::string& key) const;
 
     /* Adds all values from the specified property map. */
     void addAll(const PropertyMap* map);
