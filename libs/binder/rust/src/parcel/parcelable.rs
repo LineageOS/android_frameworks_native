@@ -771,7 +771,13 @@ impl<T: DeserializeOption> Deserialize for Option<T> {
 #[macro_export]
 macro_rules! impl_serialize_for_parcelable {
     ($parcelable:ident) => {
-        impl $crate::binder_impl::Serialize for $parcelable {
+        $crate::impl_serialize_for_parcelable!($parcelable < >);
+    };
+    ($parcelable:ident < $( $param:ident ),* , >) => {
+        $crate::impl_serialize_for_parcelable!($parcelable < $($param),* >);
+    };
+    ($parcelable:ident < $( $param:ident ),* > ) => {
+        impl < $($param),* > $crate::binder_impl::Serialize for $parcelable < $($param),* > {
             fn serialize(
                 &self,
                 parcel: &mut $crate::binder_impl::BorrowedParcel<'_>,
@@ -780,9 +786,9 @@ macro_rules! impl_serialize_for_parcelable {
             }
         }
 
-        impl $crate::binder_impl::SerializeArray for $parcelable {}
+        impl < $($param),* > $crate::binder_impl::SerializeArray for $parcelable < $($param),* > {}
 
-        impl $crate::binder_impl::SerializeOption for $parcelable {
+        impl < $($param),* > $crate::binder_impl::SerializeOption for $parcelable < $($param),* > {
             fn serialize_option(
                 this: Option<&Self>,
                 parcel: &mut $crate::binder_impl::BorrowedParcel<'_>,
@@ -808,7 +814,13 @@ macro_rules! impl_serialize_for_parcelable {
 #[macro_export]
 macro_rules! impl_deserialize_for_parcelable {
     ($parcelable:ident) => {
-        impl $crate::binder_impl::Deserialize for $parcelable {
+        $crate::impl_deserialize_for_parcelable!($parcelable < >);
+    };
+    ($parcelable:ident < $( $param:ident ),* , >) => {
+        $crate::impl_deserialize_for_parcelable!($parcelable < $($param),* >);
+    };
+    ($parcelable:ident < $( $param:ident ),* > ) => {
+        impl < $($param: Default),* > $crate::binder_impl::Deserialize for $parcelable < $($param),* > {
             fn deserialize(
                 parcel: &$crate::binder_impl::BorrowedParcel<'_>,
             ) -> std::result::Result<Self, $crate::StatusCode> {
@@ -830,9 +842,9 @@ macro_rules! impl_deserialize_for_parcelable {
             }
         }
 
-        impl $crate::binder_impl::DeserializeArray for $parcelable {}
+        impl < $($param: Default),* > $crate::binder_impl::DeserializeArray for $parcelable < $($param),* > {}
 
-        impl $crate::binder_impl::DeserializeOption for $parcelable {
+        impl < $($param: Default),* > $crate::binder_impl::DeserializeOption for $parcelable < $($param),* > {
             fn deserialize_option(
                 parcel: &$crate::binder_impl::BorrowedParcel<'_>,
             ) -> std::result::Result<Option<Self>, $crate::StatusCode> {
