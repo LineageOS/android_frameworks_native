@@ -40,14 +40,15 @@ class SurfaceFlinger;
  */
 class LayerTracing {
 public:
-    LayerTracing(SurfaceFlinger& flinger);
+    LayerTracing();
     ~LayerTracing();
     bool enable();
     bool disable(std::string filename = FILE_NAME);
     bool isEnabled() const;
     status_t writeToFile();
-    LayersTraceFileProto createTraceFileProto() const;
-    void notify(bool visibleRegionDirty, int64_t time, int64_t vsyncId);
+    static LayersTraceFileProto createTraceFileProto();
+    void notify(bool visibleRegionDirty, int64_t time, int64_t vsyncId, LayersProto* layers,
+                std::string hwcDump, google::protobuf::RepeatedPtrField<DisplayProto>* displays);
 
     enum : uint32_t {
         TRACE_INPUT = 1 << 1,
@@ -60,13 +61,12 @@ public:
     };
     void setTraceFlags(uint32_t flags);
     bool flagIsSet(uint32_t flags) const;
+    uint32_t getFlags() const;
     void setBufferSize(size_t bufferSizeInBytes);
     void dump(std::string&) const;
 
 private:
     static constexpr auto FILE_NAME = "/data/misc/wmtrace/layers_trace.winscope";
-
-    SurfaceFlinger& mFlinger;
     uint32_t mFlags = TRACE_INPUT;
     mutable std::mutex mTraceLock;
     bool mEnabled GUARDED_BY(mTraceLock) = false;

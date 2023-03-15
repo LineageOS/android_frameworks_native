@@ -69,7 +69,9 @@ LayerCreationArgs::LayerCreationArgs(std::optional<uint32_t> id, bool internalLa
       : LayerCreationArgs(nullptr, nullptr, /*name=*/"", /*flags=*/0, /*metadata=*/{}, id,
                           internalLayer) {}
 
-LayerCreationArgs::LayerCreationArgs(const LayerCreationArgs& args)
-      : LayerCreationArgs(args.flinger, args.client, args.name, args.flags, args.metadata) {}
+LayerCreationArgs LayerCreationArgs::fromOtherArgs(const LayerCreationArgs& other) {
+    // returns a new instance of LayerCreationArgs with a unique id.
+    return LayerCreationArgs(other.flinger, other.client, other.name, other.flags, other.metadata);
+}
 
 } // namespace android::surfaceflinger

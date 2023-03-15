@@ -711,6 +711,11 @@ bool create_cache_path(char path[PKG_PATH_MAX],
     return true;
 }
 
+bool force_compile_without_image() {
+    // We don't have a boot image anyway. Compile without a boot image.
+    return true;
+}
+
 static int log_callback(int type, const char *fmt, ...) {
     va_list ap;
     int priority;
