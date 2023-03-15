@@ -15,8 +15,6 @@
  */
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#include "FrontEnd/LayerCreationArgs.h"
-#include "FrontEnd/LayerSnapshot.h"
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wextra"
@@ -250,88 +248,47 @@ void LayerProtoHelper::readFromProto(const BlurRegion& proto, android::BlurRegio
     outRegion.bottom = proto.bottom();
 }
 
-LayersProto LayerProtoFromSnapshotGenerator::generate(const frontend::LayerHierarchy& root) {
-    mLayersProto.clear_layers();
-    std::unordered_set<uint64_t> stackIdsToSkip;
-    if ((mTraceFlags & LayerTracing::TRACE_VIRTUAL_DISPLAYS) == 0) {
-        for (const auto& [layerStack, displayInfo] : mDisplayInfos) {
-            if (displayInfo.isVirtual) {
-                stackIdsToSkip.insert(layerStack.id);
-            }
-        }
-    }
-
-    frontend::LayerHierarchy::TraversalPath path = frontend::LayerHierarchy::TraversalPath::ROOT;
-    for (auto& [child, variant] : root.mChildren) {
-        if (variant != frontend::LayerHierarchy::Variant::Attached ||
-            stackIdsToSkip.find(child->getLayer()->layerStack.id) != stackIdsToSkip.end()) {
-            continue;
-        }
-        frontend::LayerHierarchy::ScopedAddToTraversalPath addChildToPath(path,
-                                                                          child->getLayer()->id,
-                                                                          variant);
-        LayerProtoFromSnapshotGenerator::writeHierarchyToProto(*child, path);
-    }
-
-    // fill in relative and parent info
-    for (int i = 0; i < mLayersProto.layers_size(); i++) {
-        auto layerProto = mLayersProto.mutable_layers()->Mutable(i);
-        auto it = mChildToRelativeParent.find(layerProto->id());
-        if (it == mChildToRelativeParent.end()) {
-            layerProto->set_z_order_relative_of(-1);
-        } else {
-            layerProto->set_z_order_relative_of(it->second);
-        }
-        it = mChildToParent.find(layerProto->id());
-        if (it == mChildToParent.end()) {
-            layerProto->set_parent(-1);
-        } else {
-            layerProto->set_parent(it->second);
-        }
-    }
-
-    mDefaultSnapshots.clear();
-    mChildToRelativeParent.clear();
-    return std::move(mLayersProto);
-}
-
-frontend::LayerSnapshot* LayerProtoFromSnapshotGenerator::getSnapshot(
-        frontend::LayerHierarchy::TraversalPath& path, const frontend::RequestedLayerState& layer) {
-    frontend::LayerSnapshot* snapshot = mSnapshotBuilder.getSnapshot(path);
-    if (snapshot) {
-        return snapshot;
-    } else {
-        mDefaultSnapshots[path] = frontend::LayerSnapshot(layer, path);
-        return &mDefaultSnapshots[path];
-    }
-}
-
-void LayerProtoFromSnapshotGenerator::writeHierarchyToProto(
-        const frontend::LayerHierarchy& root, frontend::LayerHierarchy::TraversalPath& path) {
+void LayerProtoHelper::writeHierarchyToProto(
+        LayersProto& outLayersProto, const frontend::LayerHierarchy& root,
+        const frontend::LayerSnapshotBuilder& snapshotBuilder,
+        const std::unordered_map<uint32_t, sp<Layer>>& legacyLayers, uint32_t traceFlags) {
     using Variant = frontend::LayerHierarchy::Variant;
-    LayerProto* layerProto = mLayersProto.add_layers();
-    const frontend::RequestedLayerState& layer = *root.getLayer();
-    frontend::LayerSnapshot* snapshot = getSnapshot(path, layer);
-    LayerProtoHelper::writeSnapshotToProto(layerProto, layer, *snapshot, mTraceFlags);
+    frontend::LayerSnapshot defaultSnapshot;
 
+    LayerProto* layerProto = outLayersProto.add_layers();
+    const frontend::RequestedLayerState& layer = *root.getLayer();
+    frontend::LayerSnapshot* snapshot = snapshotBuilder.getSnapshot(layer.id);
+
+    if (!snapshot) {
+        defaultSnapshot.uniqueSequence = layer.id;
+        snapshot = &defaultSnapshot;
+    }
+    writeSnapshotToProto(layerProto, layer, *snapshot, traceFlags);
     for (const auto& [child, variant] : root.mChildren) {
-        frontend::LayerHierarchy::ScopedAddToTraversalPath addChildToPath(path,
-                                                                          child->getLayer()->id,
-                                                                          variant);
-        frontend::LayerSnapshot* childSnapshot = getSnapshot(path, layer);
-        if (variant == Variant::Attached || variant == Variant::Detached ||
-            variant == Variant::Mirror) {
-            mChildToParent[childSnapshot->uniqueSequence] = snapshot->uniqueSequence;
-            layerProto->add_children(childSnapshot->uniqueSequence);
+        if (variant == Variant::Attached || variant == Variant::Detached) {
+            layerProto->add_children(child->getLayer()->id);
         } else if (variant == Variant::Relative) {
-            mChildToRelativeParent[childSnapshot->uniqueSequence] = snapshot->uniqueSequence;
-            layerProto->add_relatives(childSnapshot->uniqueSequence);
+            layerProto->add_relatives(child->getLayer()->id);
         }
     }
 
-    if (mTraceFlags & LayerTracing::TRACE_COMPOSITION) {
-        auto it = mLegacyLayers.find(layer.id);
-        if (it != mLegacyLayers.end()) {
+    auto parent = root.getParent();
+    if (parent && parent->getLayer()) {
+        layerProto->set_parent(parent->getLayer()->id);
+    } else {
+        layerProto->set_parent(-1);
+    }
+
+    auto relativeParent = root.getRelativeParent();
+    if (relativeParent && relativeParent->getLayer()) {
+        layerProto->set_z_order_relative_of(relativeParent->getLayer()->id);
+    } else {
+        layerProto->set_z_order_relative_of(-1);
+    }
+
+    if (traceFlags & LayerTracing::TRACE_COMPOSITION) {
+        auto it = legacyLayers.find(layer.id);
+        if (it != legacyLayers.end()) {
             it->second->writeCompositionStateToProto(layerProto);
         }
     }
@@ -341,10 +298,7 @@ void LayerProtoFromSnapshotGenerator::writeHierarchyToProto(
         if (variant == Variant::Detached) {
             continue;
         }
-        frontend::LayerHierarchy::ScopedAddToTraversalPath addChildToPath(path,
-                                                                          child->getLayer()->id,
-                                                                          variant);
-        writeHierarchyToProto(*child, path);
+        writeHierarchyToProto(outLayersProto, *child, snapshotBuilder, legacyLayers, traceFlags);
     }
 }
 
@@ -391,7 +345,6 @@ void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
     layerInfo->set_shadow_radius(snapshot.shadowRadius);
 
     layerInfo->set_id(snapshot.uniqueSequence);
-    layerInfo->set_original_id(snapshot.sequence);
     layerInfo->set_name(requestedState.name);
     layerInfo->set_type("Layer");
 
