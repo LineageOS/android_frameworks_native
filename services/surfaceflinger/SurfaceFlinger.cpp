@@ -2498,6 +2498,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         if (!dropFrame) {
             refreshArgs.outputs.push_back(display->getCompositionDisplay());
         }
+        display->tracePowerMode();
         displayIds.push_back(display->getId());
     }
     mPowerAdvisor->setDisplays(displayIds);

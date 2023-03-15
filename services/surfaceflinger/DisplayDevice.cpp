@@ -181,9 +181,21 @@ void DisplayDevice::setPowerMode(hal::PowerMode mode) {
         getCompositionDisplay()->applyDisplayBrightness(true);
     }
 
-    mPowerMode = mode;
+    if (mPowerMode) {
+        *mPowerMode = mode;
+    } else {
+        mPowerMode.emplace("PowerMode -" + to_string(getId()), mode);
+    }
 
     getCompositionDisplay()->setCompositionEnabled(isPoweredOn());
+}
+
+void DisplayDevice::tracePowerMode() {
+    // assign the same value for tracing
+    if (mPowerMode) {
+        const hal::PowerMode powerMode = *mPowerMode;
+        *mPowerMode = powerMode;
+    }
 }
 
 void DisplayDevice::enableLayerCaching(bool enable) {
