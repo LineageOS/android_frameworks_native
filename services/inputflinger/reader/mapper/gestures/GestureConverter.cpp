@@ -98,7 +98,6 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
         case kGestureTypePinch:
             return handlePinch(when, readTime, gesture);
         default:
-            // TODO(b/251196347): handle more gesture types.
             return {};
     }
 }
@@ -295,8 +294,6 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
                                          yCursorPosition));
         }
     }
-    // TODO(b/251196347): Set the gesture properties appropriately to avoid needing to negate the Y
-    // values.
     float rotatedDeltaX = dx, rotatedDeltaY = -dy;
     rotateDelta(mOrientation, &rotatedDeltaX, &rotatedDeltaY);
     for (size_t i = 0; i < mSwipeFingerCount; i++) {
@@ -307,8 +304,6 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
                             coords.getAxisValue(AMOTION_EVENT_AXIS_Y) + rotatedDeltaY);
     }
     float xOffset = dx / (mXAxisInfo.maxValue - mXAxisInfo.minValue);
-    // TODO(b/251196347): Set the gesture properties appropriately to avoid needing to negate the Y
-    // values.
     float yOffset = -dy / (mYAxisInfo.maxValue - mYAxisInfo.minValue);
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET, xOffset);
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET, yOffset);
