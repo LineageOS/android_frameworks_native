@@ -52,9 +52,10 @@ std::unique_ptr<RpcTransportCtxFactory> BinderRpc::newFactory(RpcSecurity rpcSec
 // threads.
 std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
         const BinderRpcOptions& options) {
-    LOG_ALWAYS_FATAL_IF(options.numIncomingConnections != 0,
-                        "Non-zero incoming connections %zu on Trusty",
-                        options.numIncomingConnections);
+    LOG_ALWAYS_FATAL_IF(std::any_of(options.numIncomingConnectionsBySession.begin(),
+                                    options.numIncomingConnectionsBySession.end(),
+                                    [](size_t n) { return n != 0; }),
+                        "Non-zero incoming connections on Trusty");
 
     RpcSecurity rpcSecurity = std::get<1>(GetParam());
     uint32_t clientVersion = std::get<2>(GetParam());
