@@ -489,7 +489,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_invalidSignalTime) {
 
     auto displayFrame0 = getDisplayFrame(0);
     EXPECT_EQ(displayFrame0->getActuals().presentTime, 59);
-    EXPECT_EQ(displayFrame0->getJankType(), JankType::Unknown);
+    EXPECT_EQ(displayFrame0->getJankType(), JankType::Unknown | JankType::DisplayHAL);
     EXPECT_EQ(surfaceFrame1->getActuals().presentTime, -1);
     EXPECT_EQ(surfaceFrame1->getJankType(), JankType::Unknown);
 }
@@ -2259,6 +2259,7 @@ TEST_F(FrameTimelineTest, jankClassification_presentFenceError) {
     mFrameTimeline->setSfWakeUp(sfToken3, 72, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(80, validPresentFence);
 
+    erroneousPresentFence2->signalForTest(2);
     validPresentFence->signalForTest(80);
 
     addEmptyDisplayFrame();
@@ -2268,14 +2269,14 @@ TEST_F(FrameTimelineTest, jankClassification_presentFenceError) {
         EXPECT_EQ(displayFrame->getActuals().presentTime, 26);
         EXPECT_EQ(displayFrame->getFramePresentMetadata(), FramePresentMetadata::UnknownPresent);
         EXPECT_EQ(displayFrame->getFrameReadyMetadata(), FrameReadyMetadata::UnknownFinish);
-        EXPECT_EQ(displayFrame->getJankType(), JankType::Unknown);
+        EXPECT_EQ(displayFrame->getJankType(), JankType::Unknown | JankType::DisplayHAL);
     }
     {
         auto displayFrame = getDisplayFrame(1);
         EXPECT_EQ(displayFrame->getActuals().presentTime, 60);
         EXPECT_EQ(displayFrame->getFramePresentMetadata(), FramePresentMetadata::UnknownPresent);
         EXPECT_EQ(displayFrame->getFrameReadyMetadata(), FrameReadyMetadata::UnknownFinish);
-        EXPECT_EQ(displayFrame->getJankType(), JankType::Unknown);
+        EXPECT_EQ(displayFrame->getJankType(), JankType::Unknown | JankType::DisplayHAL);
     }
     {
         auto displayFrame = getDisplayFrame(2);
