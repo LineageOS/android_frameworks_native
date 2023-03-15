@@ -395,10 +395,14 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
         mRenderEngineType != RenderEngineType::SKIA_VK_THREADED) {
         return;
     }
-    // We currently don't attempt to map a buffer if the buffer contains protected content
-    // because GPU resources for protected buffers is much more limited.
+    // We don't attempt to map a buffer if the buffer contains protected content. In GL this is
+    // important because GPU resources for protected buffers are much more limited. (In Vk we
+    // simply match the existing behavior for protected buffers.)  In Vk, we never cache any
+    // buffers while in a protected context, since Vk cannot share across contexts, and protected
+    // is less common.
     const bool isProtectedBuffer = buffer->getUsage() & GRALLOC_USAGE_PROTECTED;
-    if (isProtectedBuffer) {
+    if (isProtectedBuffer ||
+        (mRenderEngineType == RenderEngineType::SKIA_VK_THREADED && isProtected())) {
         return;
     }
     ATRACE_CALL();
@@ -459,6 +463,20 @@ void SkiaRenderEngine::unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) {
             useProtectedContext(inProtected);
         }
     }
+}
+
+std::shared_ptr<AutoBackendTexture::LocalRef> SkiaRenderEngine::getOrCreateBackendTexture(
+        const sp<GraphicBuffer>& buffer, bool isOutputBuffer) {
+    // Do not lookup the buffer in the cache for protected contexts with the SkiaVk back-end
+    if (mRenderEngineType == RenderEngineType::SKIA_GL_THREADED ||
+        (mRenderEngineType == RenderEngineType::SKIA_VK_THREADED && !isProtected())) {
+        if (const auto& it = mTextureCache.find(buffer->getId()); it != mTextureCache.end()) {
+            return it->second;
+        }
+    }
+    return std::make_shared<AutoBackendTexture::LocalRef>(getActiveGrContext(),
+                                                          buffer->toAHardwareBuffer(),
+                                                          isOutputBuffer, mTextureCleanupMgr);
 }
 
 bool SkiaRenderEngine::canSkipPostRenderCleanup() const {
@@ -651,21 +669,11 @@ void SkiaRenderEngine::drawLayersInternal(
     validateOutputBufferUsage(buffer->getBuffer());
 
     auto grContext = getActiveGrContext();
-    auto& cache = mTextureCache;
 
     // any AutoBackendTexture deletions will now be deferred until cleanupPostRender is called
     DeferTextureCleanup dtc(mTextureCleanupMgr);
 
-    std::shared_ptr<AutoBackendTexture::LocalRef> surfaceTextureRef;
-    if (const auto& it = cache.find(buffer->getBuffer()->getId()); it != cache.end()) {
-        surfaceTextureRef = it->second;
-    } else {
-        surfaceTextureRef =
-                std::make_shared<AutoBackendTexture::LocalRef>(grContext,
-                                                               buffer->getBuffer()
-                                                                       ->toAHardwareBuffer(),
-                                                               true, mTextureCleanupMgr);
-    }
+    auto surfaceTextureRef = getOrCreateBackendTexture(buffer->getBuffer(), true);
 
     // wait on the buffer to be ready to use prior to using it
     waitFence(grContext, bufferFence);
@@ -904,21 +912,7 @@ void SkiaRenderEngine::drawLayersInternal(
             ATRACE_NAME("DrawImage");
             validateInputBufferUsage(layer.source.buffer.buffer->getBuffer());
             const auto& item = layer.source.buffer;
-            std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef = nullptr;
-
-            if (const auto& iter = cache.find(item.buffer->getBuffer()->getId());
-                iter != cache.end()) {
-                imageTextureRef = iter->second;
-            } else {
-                // If we didn't find the image in the cache, then create a local ref but don't cache
-                // it. If we're using skia, we're guaranteed to run on a dedicated GPU thread so if
-                // we didn't find anything in the cache then we intentionally did not cache this
-                // buffer's resources.
-                imageTextureRef = std::make_shared<
-                        AutoBackendTexture::LocalRef>(grContext,
-                                                      item.buffer->getBuffer()->toAHardwareBuffer(),
-                                                      false, mTextureCleanupMgr);
-            }
+            auto imageTextureRef = getOrCreateBackendTexture(item.buffer->getBuffer(), false);
 
             // if the layer's buffer has a fence, then we must must respect the fence prior to using
             // the buffer.
