@@ -102,9 +102,11 @@ std::unique_ptr<RpcTransportCtxFactory> makeFactoryTls() {
 }
 
 static sp<RpcSession> gSession = RpcSession::make();
+static sp<IBinder> gRpcBinder;
 // Certificate validation happens during handshake and does not affect the result of benchmarks.
 // Skip certificate validation to simplify the setup process.
 static sp<RpcSession> gSessionTls = RpcSession::make(makeFactoryTls());
+static sp<IBinder> gRpcTlsBinder;
 #ifdef __BIONIC__
 static const String16 kKernelBinderInstance = String16(u"binderRpcBenchmark-control");
 static sp<IBinder> gKernelBinder;
@@ -118,9 +120,9 @@ static sp<IBinder> getBinderForOptions(benchmark::State& state) {
             return gKernelBinder;
 #endif
         case RPC:
-            return gSession->getRootObject();
+            return gRpcBinder;
         case RPC_TLS:
-            return gSessionTls->getRootObject();
+            return gRpcTlsBinder;
         default:
             LOG(FATAL) << "Unknown transport value: " << transport;
             return nullptr;
@@ -254,11 +256,13 @@ int main(int argc, char** argv) {
     (void)unlink(addr.c_str());
     forkRpcServer(addr.c_str(), RpcServer::make(RpcTransportCtxFactoryRaw::make()));
     setupClient(gSession, addr.c_str());
+    gRpcBinder = gSession->getRootObject();
 
     std::string tlsAddr = tmp + "/binderRpcTlsBenchmark";
     (void)unlink(tlsAddr.c_str());
     forkRpcServer(tlsAddr.c_str(), RpcServer::make(makeFactoryTls()));
     setupClient(gSessionTls, tlsAddr.c_str());
+    gRpcTlsBinder = gSessionTls->getRootObject();
 
     ::benchmark::RunSpecifiedBenchmarks();
     return 0;
