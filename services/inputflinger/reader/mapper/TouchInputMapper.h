@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <optional>
+#include <string>
+
 #include <stdint.h>
 #include <ui/Rotation.h>
 

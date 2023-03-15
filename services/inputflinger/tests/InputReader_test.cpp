@@ -16,6 +16,7 @@
 
 #include <cinttypes>
 #include <memory>
+#include <optional>
 
 #include <CursorInputMapper.h>
 #include <InputDevice.h>
@@ -2355,10 +2356,10 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     InputReaderConfiguration config;
     std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, &config, 0);
 
-    std::string propertyValue;
-    ASSERT_TRUE(mDevice->getConfiguration().tryGetProperty("key", propertyValue))
+    std::optional<std::string> propertyValue = mDevice->getConfiguration().getString("key");
+    ASSERT_TRUE(propertyValue.has_value())
             << "Device should have read configuration during configuration phase.";
-    ASSERT_EQ("value", propertyValue);
+    ASSERT_EQ("value", *propertyValue);
 
     ASSERT_NO_FATAL_FAILURE(mapper1.assertConfigureWasCalled());
     ASSERT_NO_FATAL_FAILURE(mapper2.assertConfigureWasCalled());
