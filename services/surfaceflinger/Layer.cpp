@@ -3168,6 +3168,7 @@ bool Layer::setHdrMetadata(const HdrMetadata& hdrMetadata) {
 }
 
 bool Layer::setSurfaceDamageRegion(const Region& surfaceDamage) {
+    if (mDrawingState.surfaceDamageRegion.hasSameRects(surfaceDamage)) return false;
     mDrawingState.surfaceDamageRegion = surfaceDamage;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
