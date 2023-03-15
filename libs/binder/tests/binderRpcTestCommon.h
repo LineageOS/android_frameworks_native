@@ -170,7 +170,7 @@ static inline T readFromFd(android::base::borrowed_fd fd) {
     return object;
 }
 
-static inline std::unique_ptr<RpcTransportCtxFactory> newFactory(
+static inline std::unique_ptr<RpcTransportCtxFactory> newTlsFactory(
         RpcSecurity rpcSecurity, std::shared_ptr<RpcCertificateVerifier> verifier = nullptr,
         std::unique_ptr<RpcAuth> auth = nullptr) {
     switch (rpcSecurity) {
