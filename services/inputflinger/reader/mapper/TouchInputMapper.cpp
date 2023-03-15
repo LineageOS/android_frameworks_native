@@ -1658,7 +1658,6 @@ void TouchInputMapper::updateTouchSpots() {
     mPointerController->setPresentation(PointerControllerInterface::Presentation::SPOT);
     mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
 
-    mPointerController->setButtonState(mCurrentRawState.buttonState);
     mPointerController->setSpots(mCurrentCookedState.cookedPointerData.pointerCoords.cbegin(),
                                  mCurrentCookedState.cookedPointerData.idToIndex.cbegin(),
                                  mCurrentCookedState.cookedPointerData.touchingIdBits |
@@ -3029,8 +3028,6 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         prepareMultiFingerPointerGestures(when, outCancelPreviousGesture, outFinishPreviousGesture);
     }
 
-    mPointerController->setButtonState(mCurrentRawState.buttonState);
-
     if (DEBUG_GESTURES) {
         ALOGD("Gestures: finishPreviousGesture=%s, cancelPreviousGesture=%s, "
               "currentGestureMode=%d, currentGestureIdBits=0x%08x, "
@@ -3566,7 +3563,6 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
     if (down || hovering) {
         mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
         mPointerController->clearSpots();
-        mPointerController->setButtonState(mCurrentRawState.buttonState);
         mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
     } else if (!down && !hovering && (mPointerSimple.down || mPointerSimple.hovering)) {
         mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
