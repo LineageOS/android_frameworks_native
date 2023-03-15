@@ -52,6 +52,7 @@
 #include <utils/Timers.h>
 
 #include <filesystem>
+#include <optional>
 #include <regex>
 #include <utility>
 
@@ -673,9 +674,9 @@ status_t EventHub::Device::loadKeyMapLocked() {
 
 bool EventHub::Device::isExternalDeviceLocked() {
     if (configuration) {
-        bool value;
-        if (configuration->tryGetProperty("device.internal", value)) {
-            return !value;
+        std::optional<bool> isInternal = configuration->getBool("device.internal");
+        if (isInternal.has_value()) {
+            return !isInternal.value();
         }
     }
     return identifier.bus == BUS_USB || identifier.bus == BUS_BLUETOOTH;
@@ -683,9 +684,9 @@ bool EventHub::Device::isExternalDeviceLocked() {
 
 bool EventHub::Device::deviceHasMicLocked() {
     if (configuration) {
-        bool value;
-        if (configuration->tryGetProperty("audio.mic", value)) {
-            return value;
+        std::optional<bool> hasMic = configuration->getBool("audio.mic");
+        if (hasMic.has_value()) {
+            return hasMic.value();
         }
     }
     return false;
@@ -2281,8 +2282,8 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     }
 
     // See if the device is specially configured to be of a certain type.
-    std::string deviceType;
-    if (device->configuration && device->configuration->tryGetProperty("device.type", deviceType)) {
+    if (device->configuration) {
+        std::string deviceType = device->configuration->getString("device.type").value_or("");
         if (deviceType == "rotaryEncoder") {
             device->classes |= InputDeviceClass::ROTARY_ENCODER;
         } else if (deviceType == "externalStylus") {

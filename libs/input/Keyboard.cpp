@@ -16,9 +16,10 @@
 
 #define LOG_TAG "Keyboard"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <limits.h>
+#include <optional>
 
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
@@ -49,23 +50,25 @@ status_t KeyMap::load(const InputDeviceIdentifier& deviceIdentifier,
         const PropertyMap* deviceConfiguration) {
     // Use the configured key layout if available.
     if (deviceConfiguration) {
-        std::string keyLayoutName;
-        if (deviceConfiguration->tryGetProperty("keyboard.layout", keyLayoutName)) {
-            status_t status = loadKeyLayout(deviceIdentifier, keyLayoutName.c_str());
+        std::optional<std::string> keyLayoutName =
+                deviceConfiguration->getString("keyboard.layout");
+        if (keyLayoutName.has_value()) {
+            status_t status = loadKeyLayout(deviceIdentifier, *keyLayoutName);
             if (status == NAME_NOT_FOUND) {
                 ALOGE("Configuration for keyboard device '%s' requested keyboard layout '%s' but "
                       "it was not found.",
-                      deviceIdentifier.name.c_str(), keyLayoutName.c_str());
+                      deviceIdentifier.name.c_str(), keyLayoutName->c_str());
             }
         }
 
-        std::string keyCharacterMapName;
-        if (deviceConfiguration->tryGetProperty("keyboard.characterMap", keyCharacterMapName)) {
-            status_t status = loadKeyCharacterMap(deviceIdentifier, keyCharacterMapName.c_str());
+        std::optional<std::string> keyCharacterMapName =
+                deviceConfiguration->getString("keyboard.characterMap");
+        if (keyCharacterMapName.has_value()) {
+            status_t status = loadKeyCharacterMap(deviceIdentifier, *keyCharacterMapName);
             if (status == NAME_NOT_FOUND) {
                 ALOGE("Configuration for keyboard device '%s' requested keyboard character "
                       "map '%s' but it was not found.",
-                      deviceIdentifier.name.c_str(), keyCharacterMapName.c_str());
+                      deviceIdentifier.name.c_str(), keyCharacterMapName->c_str());
             }
         }
 
@@ -162,9 +165,7 @@ bool isKeyboardSpecialFunction(const PropertyMap* config) {
     if (config == nullptr) {
         return false;
     }
-    bool isSpecialFunction = false;
-    config->tryGetProperty("keyboard.specialFunction", isSpecialFunction);
-    return isSpecialFunction;
+    return config->getBool("keyboard.specialFunction").value_or(false);
 }
 
 bool isEligibleBuiltInKeyboard(const InputDeviceIdentifier& deviceIdentifier,
@@ -177,8 +178,7 @@ bool isEligibleBuiltInKeyboard(const InputDeviceIdentifier& deviceIdentifier,
     }
 
     if (deviceConfiguration) {
-        bool builtIn = false;
-        if (deviceConfiguration->tryGetProperty("keyboard.builtIn", builtIn) && builtIn) {
+        if (deviceConfiguration->getBool("keyboard.builtIn").value_or(false)) {
             return true;
         }
     }

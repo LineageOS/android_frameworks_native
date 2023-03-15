@@ -60,75 +60,62 @@ bool PropertyMap::hasProperty(const std::string& key) const {
     return mProperties.find(key) != mProperties.end();
 }
 
-bool PropertyMap::tryGetProperty(const std::string& key, std::string& outValue) const {
+std::optional<std::string> PropertyMap::getString(const std::string& key) const {
     auto it = mProperties.find(key);
-    if (it == mProperties.end()) {
-        return false;
-    }
-
-    outValue = it->second;
-    return true;
+    return it != mProperties.end() ? std::make_optional(it->second) : std::nullopt;
 }
 
-bool PropertyMap::tryGetProperty(const std::string& key, bool& outValue) const {
-    int32_t intValue;
-    if (!tryGetProperty(key, intValue)) {
-        return false;
-    }
-
-    outValue = intValue;
-    return true;
+std::optional<bool> PropertyMap::getBool(const std::string& key) const {
+    std::optional<int32_t> intValue = getInt(key);
+    return intValue.has_value() ? std::make_optional(*intValue != 0) : std::nullopt;
 }
 
-bool PropertyMap::tryGetProperty(const std::string& key, int32_t& outValue) const {
-    std::string stringValue;
-    if (!tryGetProperty(key, stringValue) || stringValue.length() == 0) {
-        return false;
+std::optional<int32_t> PropertyMap::getInt(const std::string& key) const {
+    std::optional<std::string> stringValue = getString(key);
+    if (!stringValue.has_value() || stringValue->length() == 0) {
+        return std::nullopt;
     }
 
     char* end;
-    int32_t value = static_cast<int32_t>(strtol(stringValue.c_str(), &end, 10));
+    int32_t value = static_cast<int32_t>(strtol(stringValue->c_str(), &end, 10));
     if (*end != '\0') {
         ALOGW("Property key '%s' has invalid value '%s'.  Expected an integer.", key.c_str(),
-              stringValue.c_str());
-        return false;
+              stringValue->c_str());
+        return std::nullopt;
     }
-    outValue = value;
-    return true;
+    return value;
 }
 
-bool PropertyMap::tryGetProperty(const std::string& key, float& outValue) const {
-    std::string stringValue;
-    if (!tryGetProperty(key, stringValue) || stringValue.length() == 0) {
-        return false;
+std::optional<float> PropertyMap::getFloat(const std::string& key) const {
+    std::optional<std::string> stringValue = getString(key);
+    if (!stringValue.has_value() || stringValue->length() == 0) {
+        return std::nullopt;
     }
 
     char* end;
-    float value = strtof(stringValue.c_str(), &end);
+    float value = strtof(stringValue->c_str(), &end);
     if (*end != '\0') {
         ALOGW("Property key '%s' has invalid value '%s'.  Expected a float.", key.c_str(),
-              stringValue.c_str());
-        return false;
+              stringValue->c_str());
+        return std::nullopt;
     }
-    outValue = value;
-    return true;
+    return value;
 }
 
-bool PropertyMap::tryGetProperty(const std::string& key, double& outValue) const {
-    std::string stringValue;
-    if (!tryGetProperty(key, stringValue) || stringValue.length() == 0) {
-        return false;
+std::optional<double> PropertyMap::getDouble(const std::string& key) const {
+    std::optional<std::string> stringValue = getString(key);
+    if (!stringValue.has_value() || stringValue->length() == 0) {
+        return std::nullopt;
     }
 
     char* end;
-    double value = strtod(stringValue.c_str(), &end);
+    double value = strtod(stringValue->c_str(), &end);
     if (*end != '\0') {
         ALOGW("Property key '%s' has invalid value '%s'.  Expected a double.", key.c_str(),
-              stringValue.c_str());
-        return false;
+              stringValue->c_str());
+        return std::nullopt;
     }
-    outValue = value;
-    return true;
+    return value;
 }
 
 void PropertyMap::addAll(const PropertyMap* map) {
