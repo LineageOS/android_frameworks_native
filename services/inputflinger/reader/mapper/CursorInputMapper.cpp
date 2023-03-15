@@ -83,10 +83,11 @@ void CursorInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     InputMapper::populateDeviceInfo(info);
 
     if (mParameters.mode == Parameters::Mode::POINTER) {
-        float minX, minY, maxX, maxY;
-        if (mPointerController->getBounds(&minX, &minY, &maxX, &maxY)) {
-            info->addMotionRange(AMOTION_EVENT_AXIS_X, mSource, minX, maxX, 0.0f, 0.0f, 0.0f);
-            info->addMotionRange(AMOTION_EVENT_AXIS_Y, mSource, minY, maxY, 0.0f, 0.0f, 0.0f);
+        if (const auto bounds = mPointerController->getBounds(); bounds) {
+            info->addMotionRange(AMOTION_EVENT_AXIS_X, mSource, bounds->left, bounds->right, 0.0f,
+                                 0.0f, 0.0f);
+            info->addMotionRange(AMOTION_EVENT_AXIS_Y, mSource, bounds->top, bounds->bottom, 0.0f,
+                                 0.0f, 0.0f);
         }
     } else {
         info->addMotionRange(AMOTION_EVENT_AXIS_X, mSource, -1.0f, 1.0f, 0.0f, mXScale, 0.0f);
@@ -379,7 +380,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
         }
 
-        mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+        std::tie(xCursorPosition, yCursorPosition) = mPointerController->getPosition();
 
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);

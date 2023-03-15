@@ -57,6 +57,9 @@ extern bool create_cache_path(char path[PKG_PATH_MAX],
                               const char *src,
                               const char *instruction_set);
 
+// If true, pass "--force-jit-zygote" to dex2oat (i.e., compile without a boot image).
+extern bool force_compile_without_image();
+
 }  // namespace installd
 }  // namespace android
 

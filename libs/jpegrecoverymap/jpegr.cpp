@@ -107,7 +107,7 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  jpegr_metadata metadata;
+  jpegr_metadata_struct metadata;
   metadata.version = kJpegrVersion;
 
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
@@ -176,7 +176,7 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  jpegr_metadata metadata;
+  jpegr_metadata_struct metadata;
   metadata.version = kJpegrVersion;
 
   jpegr_uncompressed_struct map;
@@ -235,7 +235,7 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  jpegr_metadata metadata;
+  jpegr_metadata_struct metadata;
   metadata.version = kJpegrVersion;
 
   jpegr_uncompressed_struct map;
@@ -288,7 +288,7 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
   }
 
-  jpegr_metadata metadata;
+  jpegr_metadata_struct metadata;
   metadata.version = kJpegrVersion;
 
   jpegr_uncompressed_struct map;
@@ -332,7 +332,8 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                             jr_uncompressed_ptr dest,
                             jr_exif_ptr exif,
                             jpegr_output_format output_format,
-                            jr_uncompressed_ptr recovery_map) {
+                            jr_uncompressed_ptr recovery_map,
+                            jr_metadata_ptr metadata) {
   if (compressed_jpegr_image == nullptr || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
@@ -387,6 +388,18 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
     memcpy(recovery_map->data, recovery_map_decoder.getDecompressedImagePtr(), size);
   }
 
+  jpegr_metadata_struct jr_metadata;
+  if (!getMetadataFromXMP(static_cast<uint8_t*>(recovery_map_decoder.getXMPPtr()),
+                          recovery_map_decoder.getXMPSize(), &jr_metadata)) {
+    return ERROR_JPEGR_DECODE_ERROR;
+  }
+
+  if (metadata != nullptr) {
+      metadata->version = jr_metadata.version;
+      metadata->minContentBoost = jr_metadata.minContentBoost;
+      metadata->maxContentBoost = jr_metadata.maxContentBoost;
+  }
+
   if (output_format == JPEGR_OUTPUT_SDR) {
     return NO_ERROR;
   }
@@ -417,13 +430,8 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
 
-  jpegr_metadata metadata;
-  if (!getMetadataFromXMP(static_cast<uint8_t*>(recovery_map_decoder.getXMPPtr()),
-                          recovery_map_decoder.getXMPSize(), &metadata)) {
-    return ERROR_JPEGR_DECODE_ERROR;
-  }
-
-  JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &metadata, output_format, dest));
+  JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &jr_metadata, output_format,
+                               dest));
   return NO_ERROR;
 }
 
