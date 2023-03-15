@@ -5786,9 +5786,17 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
         return layersProto;
     }
 
-    return LayerProtoFromSnapshotGenerator(mLayerSnapshotBuilder, mFrontEndDisplayInfos, {},
-                                           traceFlags)
-            .generate(mLayerHierarchyBuilder.getHierarchy());
+    const frontend::LayerHierarchy& root = mLayerHierarchyBuilder.getHierarchy();
+    LayersProto layersProto;
+    for (auto& [child, variant] : root.mChildren) {
+        if (variant != frontend::LayerHierarchy::Variant::Attached ||
+            stackIdsToSkip.find(child->getLayer()->layerStack.id) != stackIdsToSkip.end()) {
+            continue;
+        }
+        LayerProtoHelper::writeHierarchyToProto(layersProto, *child, mLayerSnapshotBuilder,
+                                                mLegacyLayers, traceFlags);
+    }
+    return layersProto;
 }
 
 google::protobuf::RepeatedPtrField<DisplayProto> SurfaceFlinger::dumpDisplayProto() const {

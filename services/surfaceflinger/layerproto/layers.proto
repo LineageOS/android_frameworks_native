@@ -138,8 +138,6 @@ message LayerProto {
   float requested_corner_radius = 56;
 
   RectProto destination_frame = 57;
-
-  uint32 original_id = 58;
 }
 
 message PositionProto {
