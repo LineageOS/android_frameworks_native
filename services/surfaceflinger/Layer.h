@@ -848,6 +848,11 @@ public:
     void updateMetadataSnapshot(const LayerMetadata& parentMetadata);
     void updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMetadata,
                                         std::unordered_set<Layer*>& visited);
+    sp<Layer> getClonedFrom() const {
+        return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr;
+    }
+    bool isClone() { return mClonedFrom != nullptr; }
+
     bool willPresentCurrentTransaction() const;
 
     void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
@@ -885,10 +890,6 @@ protected:
     void gatherBufferInfo();
     void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&);
 
-    sp<Layer> getClonedFrom() const {
-        return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr;
-    }
-    bool isClone() { return mClonedFrom != nullptr; }
     bool isClonedFromAlive() { return getClonedFrom() != nullptr; }
 
     void cloneDrawingState(const Layer* from);
