@@ -727,7 +727,9 @@ auto Scheduler::chooseDisplayMode() -> std::pair<DisplayModePtr, GlobalSignals> 
 DisplayModePtr Scheduler::getPreferredDisplayMode() {
     std::lock_guard<std::mutex> lock(mPolicyLock);
     // Make sure the stored mode is up to date.
-    mPolicy.mode = chooseDisplayMode().first;
+    if (mPolicy.mode) {
+        mPolicy.mode = chooseDisplayMode().first;
+    }
     return mPolicy.mode;
 }
 
