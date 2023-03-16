@@ -26,7 +26,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     rewind(intermediateFile);
     int fileNumber = fileno(intermediateFile);
 
-    android::base::unique_fd fd(fileNumber);
+    android::base::unique_fd fd(dup(fileNumber));
 
     auto transaction = android::binder::debug::RecordedTransaction::fromFile(fd);
 

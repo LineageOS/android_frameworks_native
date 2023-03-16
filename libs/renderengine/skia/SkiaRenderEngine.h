@@ -133,6 +133,8 @@ private:
     void unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) override final;
     bool canSkipPostRenderCleanup() const override final;
 
+    std::shared_ptr<AutoBackendTexture::LocalRef> getOrCreateBackendTexture(
+            const sp<GraphicBuffer>& buffer, bool isOutputBuffer) REQUIRES(mRenderingMutex);
     void initCanvas(SkCanvas* canvas, const DisplaySettings& display);
     void drawShadow(SkCanvas* canvas, const SkRRect& casterRRect,
                     const ShadowSettings& shadowSettings);
@@ -167,7 +169,9 @@ private:
     // Number of external holders of ExternalTexture references, per GraphicBuffer ID.
     std::unordered_map<GraphicBufferId, int32_t> mGraphicBufferExternalRefs
             GUARDED_BY(mRenderingMutex);
-    // Cache of GL textures that we'll store per GraphicBuffer ID, shared between GPU contexts.
+    // For GL, this cache is shared between protected and unprotected contexts. For Vulkan, it is
+    // only used for the unprotected context, because Vulkan does not allow sharing between
+    // contexts, and protected is less common.
     std::unordered_map<GraphicBufferId, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
             GUARDED_BY(mRenderingMutex);
     std::unordered_map<shaders::LinearEffect, sk_sp<SkRuntimeEffect>, shaders::LinearEffectHasher>

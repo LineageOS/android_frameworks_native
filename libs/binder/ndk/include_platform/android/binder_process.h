@@ -32,7 +32,7 @@ __BEGIN_DECLS
  * Do not use this from a library. Apps setup their own threadpools, and otherwise, the main
  * function should be responsible for configuring the threadpool for the entire application.
  */
-void ABinderProcess_startThreadPool();
+void ABinderProcess_startThreadPool(void);
 /**
  * This sets the maximum number of threads that can be started in the threadpool. By default, after
  * startThreadPool is called, this is 15. If it is called additional times, it will only prevent
@@ -48,7 +48,7 @@ bool ABinderProcess_setThreadPoolMaxThreadCount(uint32_t numThreads);
  * you should use this in a library to abort if the threadpool is not started.
  * Programs should configure binder threadpools once at the beginning.
  */
-bool ABinderProcess_isThreadPoolStarted();
+bool ABinderProcess_isThreadPoolStarted(void);
 /**
  * This adds the current thread to the threadpool. This may cause the threadpool to exceed the
  * maximum size.
@@ -56,7 +56,7 @@ bool ABinderProcess_isThreadPoolStarted();
  * Do not use this from a library. Apps setup their own threadpools, and otherwise, the main
  * function should be responsible for configuring the threadpool for the entire application.
  */
-void ABinderProcess_joinThreadPool();
+void ABinderProcess_joinThreadPool(void);
 
 /**
  * This gives you an fd to wait on. Whenever data is available on the fd,
@@ -79,6 +79,6 @@ __attribute__((weak)) binder_status_t ABinderProcess_setupPolling(int* fd) __INT
  *
  * \return STATUS_OK on success
  */
-__attribute__((weak)) binder_status_t ABinderProcess_handlePolledCommands() __INTRODUCED_IN(31);
+__attribute__((weak)) binder_status_t ABinderProcess_handlePolledCommands(void) __INTRODUCED_IN(31);
 
 __END_DECLS

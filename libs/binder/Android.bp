@@ -191,6 +191,7 @@ cc_defaults {
         "google-*",
         "misc-*",
         "performance*",
+        "-performance-move-const-arg", // b/273486801
         "portability*",
     ],
 }

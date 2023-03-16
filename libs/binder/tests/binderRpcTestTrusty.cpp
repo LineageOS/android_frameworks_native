@@ -39,31 +39,25 @@ public:
     void terminate() override { LOG_ALWAYS_FATAL("terminate() not supported"); }
 };
 
-std::string BinderRpc::PrintParamInfo(const testing::TestParamInfo<ParamType>& info) {
-    auto [type, security, clientVersion, serverVersion, singleThreaded, noKernel] = info.param;
-    auto ret = PrintToString(type) + "_clientV" + std::to_string(clientVersion) + "_serverV" +
-            std::to_string(serverVersion);
-    if (singleThreaded) {
-        ret += "_single_threaded";
-    } else {
-        ret += "_multi_threaded";
+std::unique_ptr<RpcTransportCtxFactory> BinderRpc::newFactory(RpcSecurity rpcSecurity) {
+    switch (rpcSecurity) {
+        case RpcSecurity::RAW:
+            return RpcTransportCtxFactoryTipcTrusty::make();
+        default:
+            LOG_ALWAYS_FATAL("Unknown RpcSecurity %d", rpcSecurity);
     }
-    if (noKernel) {
-        ret += "_no_kernel";
-    } else {
-        ret += "_with_kernel";
-    }
-    return ret;
 }
 
 // This creates a new process serving an interface on a certain number of
 // threads.
 std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
         const BinderRpcOptions& options) {
-    LOG_ALWAYS_FATAL_IF(options.numIncomingConnectionsBySession.size() != 0,
-                        "Non-zero incoming connections %zu on Trusty",
-                        options.numIncomingConnectionsBySession.size());
+    LOG_ALWAYS_FATAL_IF(std::any_of(options.numIncomingConnectionsBySession.begin(),
+                                    options.numIncomingConnectionsBySession.end(),
+                                    [](size_t n) { return n != 0; }),
+                        "Non-zero incoming connections on Trusty");
 
+    RpcSecurity rpcSecurity = std::get<1>(GetParam());
     uint32_t clientVersion = std::get<2>(GetParam());
     uint32_t serverVersion = std::get<3>(GetParam());
 
@@ -71,8 +65,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
 
     status_t status;
     for (size_t i = 0; i < options.numSessions; i++) {
-        auto factory = android::RpcTransportCtxFactoryTipcTrusty::make();
-        auto session = android::RpcSession::make(std::move(factory));
+        auto session = android::RpcSession::make(newFactory(rpcSecurity));
 
         EXPECT_TRUE(session->setProtocolVersion(clientVersion));
         session->setMaxOutgoingConnections(options.numOutgoingConnections);
