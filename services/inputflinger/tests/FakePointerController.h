@@ -32,8 +32,6 @@ public:
     const std::map<int32_t, std::vector<int32_t>>& getSpots();
 
     void setPosition(float x, float y) override;
-    void setButtonState(int32_t buttonState) override;
-    int32_t getButtonState() const override;
     FloatPoint getPosition() const override;
     int32_t getDisplayId() const override;
     void setDisplayViewport(const DisplayViewport& viewport) override;
@@ -54,7 +52,6 @@ private:
     bool mHaveBounds{false};
     float mMinX{0}, mMinY{0}, mMaxX{0}, mMaxY{0};
     float mX{0}, mY{0};
-    int32_t mButtonState{0};
     int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
     bool mIsPointerShown{false};
 
