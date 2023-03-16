@@ -233,21 +233,8 @@ static base::unique_fd connectToUnixBootstrap(const RpcTransportFd& transportFd)
     return std::move(sockClient);
 }
 
-std::string BinderRpc::PrintParamInfo(const testing::TestParamInfo<ParamType>& info) {
-    auto [type, security, clientVersion, serverVersion, singleThreaded, noKernel] = info.param;
-    auto ret = PrintToString(type) + "_" + newFactory(security)->toCString() + "_clientV" +
-            std::to_string(clientVersion) + "_serverV" + std::to_string(serverVersion);
-    if (singleThreaded) {
-        ret += "_single_threaded";
-    } else {
-        ret += "_multi_threaded";
-    }
-    if (noKernel) {
-        ret += "_no_kernel";
-    } else {
-        ret += "_with_kernel";
-    }
-    return ret;
+std::unique_ptr<RpcTransportCtxFactory> BinderRpc::newFactory(RpcSecurity rpcSecurity) {
+    return newTlsFactory(rpcSecurity);
 }
 
 // This creates a new process serving an interface on a certain number of
@@ -327,7 +314,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
             LOG_ALWAYS_FATAL("TIPC socket type only supported on vendor");
 #endif
         } else {
-            factory = newFactory(rpcSecurity, certVerifier);
+            factory = newTlsFactory(rpcSecurity, certVerifier);
         }
         sessions.emplace_back(RpcSession::make(std::move(factory)));
     }
@@ -1257,7 +1244,7 @@ TEST_P(BinderRpcServerRootObject, WeakRootObject) {
     };
 
     auto [isStrong1, isStrong2, rpcSecurity] = GetParam();
-    auto server = RpcServer::make(newFactory(rpcSecurity));
+    auto server = RpcServer::make(newTlsFactory(rpcSecurity));
     auto binder1 = sp<BBinder>::make();
     IBinder* binderRaw1 = binder1.get();
     setRootObject(isStrong1)(server.get(), binder1);
@@ -1353,7 +1340,7 @@ TEST(BinderRpc, Java) {
 class BinderRpcServerOnly : public ::testing::TestWithParam<std::tuple<RpcSecurity, uint32_t>> {
 public:
     static std::string PrintTestParam(const ::testing::TestParamInfo<ParamType>& info) {
-        return std::string(newFactory(std::get<0>(info.param))->toCString()) + "_serverV" +
+        return std::string(newTlsFactory(std::get<0>(info.param))->toCString()) + "_serverV" +
                 std::to_string(std::get<1>(info.param));
     }
 };
@@ -1361,7 +1348,7 @@ public:
 TEST_P(BinderRpcServerOnly, SetExternalServerTest) {
     base::unique_fd sink(TEMP_FAILURE_RETRY(open("/dev/null", O_RDWR)));
     int sinkFd = sink.get();
-    auto server = RpcServer::make(newFactory(std::get<0>(GetParam())));
+    auto server = RpcServer::make(newTlsFactory(std::get<0>(GetParam())));
     server->setProtocolVersion(std::get<1>(GetParam()));
     ASSERT_FALSE(server->hasServer());
     ASSERT_EQ(OK, server->setupExternalServer(std::move(sink)));
@@ -1377,7 +1364,7 @@ TEST_P(BinderRpcServerOnly, Shutdown) {
     }
 
     auto addr = allocateSocketAddress();
-    auto server = RpcServer::make(newFactory(std::get<0>(GetParam())));
+    auto server = RpcServer::make(newTlsFactory(std::get<0>(GetParam())));
     server->setProtocolVersion(std::get<1>(GetParam()));
     ASSERT_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
     auto joinEnds = std::make_shared<OneOffSignal>();
@@ -1426,7 +1413,7 @@ public:
                 const Param& param,
                 std::unique_ptr<RpcAuth> auth = std::make_unique<RpcAuthSelfSigned>()) {
             auto [socketType, rpcSecurity, certificateFormat, serverVersion] = param;
-            auto rpcServer = RpcServer::make(newFactory(rpcSecurity));
+            auto rpcServer = RpcServer::make(newTlsFactory(rpcSecurity));
             rpcServer->setProtocolVersion(serverVersion);
             switch (socketType) {
                 case SocketType::PRECONNECTED: {
@@ -1505,7 +1492,7 @@ public:
             }
             mFd = rpcServer->releaseServer();
             if (!mFd.fd.ok()) return AssertionFailure() << "releaseServer returns invalid fd";
-            mCtx = newFactory(rpcSecurity, mCertVerifier, std::move(auth))->newServerCtx();
+            mCtx = newTlsFactory(rpcSecurity, mCertVerifier, std::move(auth))->newServerCtx();
             if (mCtx == nullptr) return AssertionFailure() << "newServerCtx";
             mSetup = true;
             return AssertionSuccess();
@@ -1610,7 +1597,7 @@ public:
             auto [socketType, rpcSecurity, certificateFormat, serverVersion] = param;
             (void)serverVersion;
             mFdTrigger = FdTrigger::make();
-            mCtx = newFactory(rpcSecurity, mCertVerifier)->newClientCtx();
+            mCtx = newTlsFactory(rpcSecurity, mCertVerifier)->newClientCtx();
             if (mCtx == nullptr) return AssertionFailure() << "newClientCtx";
             return AssertionSuccess();
         }
@@ -1682,7 +1669,7 @@ public:
     using Client = RpcTransportTestUtils::Client;
     static inline std::string PrintParamInfo(const testing::TestParamInfo<ParamType>& info) {
         auto [socketType, rpcSecurity, certificateFormat, serverVersion] = info.param;
-        auto ret = PrintToString(socketType) + "_" + newFactory(rpcSecurity)->toCString();
+        auto ret = PrintToString(socketType) + "_" + newTlsFactory(rpcSecurity)->toCString();
         if (certificateFormat.has_value()) ret += "_" + PrintToString(*certificateFormat);
         ret += "_serverV" + std::to_string(serverVersion);
         return ret;

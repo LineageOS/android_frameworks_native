@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <optional>
+#include <string>
+
 #include "InputMapper.h"
 
 namespace android {
@@ -119,9 +122,6 @@ private:
     std::unordered_map<InputDeviceSensorType, Sensor> mSensors;
 
     [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when, bool force);
-
-    template <typename T>
-    bool tryGetProperty(std::string keyName, T& outValue);
 
     void parseSensorConfiguration(InputDeviceSensorType sensorType, int32_t absCode,
                                   int32_t sensorDataIndex, const Axis& axis);
