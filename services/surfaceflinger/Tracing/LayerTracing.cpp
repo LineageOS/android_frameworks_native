@@ -18,6 +18,8 @@
 #define LOG_TAG "LayerTracing"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <filesystem>
+
 #include <SurfaceFlinger.h>
 #include <android-base/stringprintf.h>
 #include <log/log.h>
@@ -44,16 +46,25 @@ bool LayerTracing::enable() {
     return true;
 }
 
-bool LayerTracing::disable(std::string filename) {
+bool LayerTracing::disable(std::string filename, bool writeToFile) {
     std::scoped_lock lock(mTraceLock);
     if (!mEnabled) {
         return false;
     }
     mEnabled = false;
-    LayersTraceFileProto fileProto = createTraceFileProto();
-    mBuffer->writeToFile(fileProto, filename);
+    if (writeToFile) {
+        LayersTraceFileProto fileProto = createTraceFileProto();
+        mBuffer->writeToFile(fileProto, filename);
+    }
     mBuffer->reset();
     return true;
+}
+
+void LayerTracing::appendToStream(std::ofstream& out) {
+    std::scoped_lock lock(mTraceLock);
+    LayersTraceFileProto fileProto = createTraceFileProto();
+    mBuffer->appendToStream(fileProto, out);
+    mBuffer->reset();
 }
 
 bool LayerTracing::isEnabled() const {
@@ -61,13 +72,13 @@ bool LayerTracing::isEnabled() const {
     return mEnabled;
 }
 
-status_t LayerTracing::writeToFile() {
+status_t LayerTracing::writeToFile(std::string filename) {
     std::scoped_lock lock(mTraceLock);
     if (!mEnabled) {
         return STATUS_OK;
     }
     LayersTraceFileProto fileProto = createTraceFileProto();
-    return mBuffer->writeToFile(fileProto, FILE_NAME);
+    return mBuffer->writeToFile(fileProto, filename);
 }
 
 void LayerTracing::setTraceFlags(uint32_t flags) {
