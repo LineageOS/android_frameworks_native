@@ -1270,6 +1270,9 @@ static Dumpstate::RunStatus RunDumpsysTextByPriority(const std::string& title, i
                 dumpsys.writeDumpFooter(STDOUT_FILENO, service, elapsed_seconds);
                 bool dump_complete = (status == OK);
                 dumpsys.stopDumpThread(dump_complete);
+            } else {
+                MYLOGE("Failed to start dump thread for service: %s, status: %d",
+                       String8(service).c_str(), status);
             }
         }
 
