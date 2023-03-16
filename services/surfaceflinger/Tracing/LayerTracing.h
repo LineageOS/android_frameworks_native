@@ -43,9 +43,10 @@ public:
     LayerTracing();
     ~LayerTracing();
     bool enable();
-    bool disable(std::string filename = FILE_NAME);
+    bool disable(std::string filename = FILE_NAME, bool writeToFile = true);
+    void appendToStream(std::ofstream& out);
     bool isEnabled() const;
-    status_t writeToFile();
+    status_t writeToFile(std::string filename = FILE_NAME);
     static LayersTraceFileProto createTraceFileProto();
     void notify(bool visibleRegionDirty, int64_t time, int64_t vsyncId, LayersProto* layers,
                 std::string hwcDump, google::protobuf::RepeatedPtrField<DisplayProto>* displays);
