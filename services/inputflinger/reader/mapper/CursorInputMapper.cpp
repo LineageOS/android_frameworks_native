@@ -373,11 +373,6 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             if (moved) {
                 mPointerController->move(deltaX, deltaY);
             }
-
-            if (buttonsChanged) {
-                mPointerController->setButtonState(currentButtonState);
-            }
-
             mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
         }
 
