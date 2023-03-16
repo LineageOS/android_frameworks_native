@@ -42,12 +42,12 @@ public:
     void fakeBasicFrameTiming(TimePoint startTime, Duration vsyncPeriod);
     void setExpectedTiming(Duration totalFrameTargetDuration, TimePoint expectedPresentTime);
     Duration getFenceWaitDelayDuration(bool skipValidate);
+    Duration getErrorMargin();
 
 protected:
     TestableSurfaceFlinger mFlinger;
     std::unique_ptr<PowerAdvisor> mPowerAdvisor;
     NiceMock<MockAidlPowerHalWrapper>* mMockAidlWrapper;
-    Duration kErrorMargin = 1ms;
 };
 
 void PowerAdvisorTest::SetUp() FTL_FAKE_GUARD(mPowerAdvisor->mPowerHalMutex) {
@@ -77,11 +77,17 @@ void PowerAdvisorTest::fakeBasicFrameTiming(TimePoint startTime, Duration vsyncP
     mPowerAdvisor->setCommitStart(startTime);
     mPowerAdvisor->setFrameDelay(0ns);
     mPowerAdvisor->setTargetWorkDuration(vsyncPeriod);
+    ON_CALL(*mMockAidlWrapper, getTargetWorkDuration())
+            .WillByDefault(Return(std::make_optional(vsyncPeriod)));
 }
 
 Duration PowerAdvisorTest::getFenceWaitDelayDuration(bool skipValidate) {
     return (skipValidate ? PowerAdvisor::kFenceWaitStartDelaySkippedValidate
                          : PowerAdvisor::kFenceWaitStartDelayValidated);
+}
+
+Duration PowerAdvisorTest::getErrorMargin() {
+    return mPowerAdvisor->sTargetSafetyMargin;
 }
 
 namespace {
@@ -109,7 +115,7 @@ TEST_F(PowerAdvisorTest, hintSessionUseHwcDisplay) {
     // increment the frame
     startTime += vsyncPeriod;
 
-    const Duration expectedDuration = kErrorMargin + presentDuration + postCompDuration;
+    const Duration expectedDuration = getErrorMargin() + presentDuration + postCompDuration;
     EXPECT_CALL(*mMockAidlWrapper, sendActualWorkDuration(Eq(expectedDuration), _)).Times(1);
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
@@ -145,7 +151,7 @@ TEST_F(PowerAdvisorTest, hintSessionSubtractsHwcFenceTime) {
     // increment the frame
     startTime += vsyncPeriod;
 
-    const Duration expectedDuration = kErrorMargin + presentDuration +
+    const Duration expectedDuration = getErrorMargin() + presentDuration +
             getFenceWaitDelayDuration(false) - hwcBlockedDuration + postCompDuration;
     EXPECT_CALL(*mMockAidlWrapper, sendActualWorkDuration(Eq(expectedDuration), _)).Times(1);
 
@@ -185,7 +191,7 @@ TEST_F(PowerAdvisorTest, hintSessionUsingSecondaryVirtualDisplays) {
     // increment the frame
     startTime += vsyncPeriod;
 
-    const Duration expectedDuration = kErrorMargin + presentDuration + postCompDuration;
+    const Duration expectedDuration = getErrorMargin() + presentDuration + postCompDuration;
     EXPECT_CALL(*mMockAidlWrapper, sendActualWorkDuration(Eq(expectedDuration), _)).Times(1);
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
