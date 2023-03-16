@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <ios>
 #include <memory>
 #include <vector>
 #include "FrontEnd/LayerCreationArgs.h"
@@ -62,8 +63,11 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
 
     LayerTracing layerTracing;
     layerTracing.setTraceFlags(LayerTracing::TRACE_INPUT | LayerTracing::TRACE_BUFFERS);
-    layerTracing.setBufferSize(512 * 1024 * 1024); // 512MB buffer size
+    // 10MB buffer size (large enough to hold a single entry)
+    layerTracing.setBufferSize(10 * 1024 * 1024);
     layerTracing.enable();
+    layerTracing.writeToFile(outputLayersTracePath);
+    std::ofstream out(outputLayersTracePath, std::ios::binary | std::ios::app);
 
     ALOGD("Generating %d transactions...", traceFile.entry_size());
     for (int i = 0; i < traceFile.entry_size(); i++) {
@@ -160,8 +164,10 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
         auto displayProtos = LayerProtoHelper::writeDisplayInfoToProto(displayInfos);
         layerTracing.notify(visibleRegionsDirty, entry.elapsed_realtime_nanos(), entry.vsync_id(),
                             &layersProto, {}, &displayProtos);
+        layerTracing.appendToStream(out);
     }
-    layerTracing.disable(outputLayersTracePath);
+    layerTracing.disable("", /*writeToFile=*/false);
+    out.close();
     ALOGD("End of generating trace file. File written to %s", outputLayersTracePath);
     return true;
 }
