@@ -175,6 +175,7 @@ public:
     std::optional<hardware::graphics::composer::hal::PowerMode> getPowerMode() const;
     void setPowerMode(hardware::graphics::composer::hal::PowerMode mode);
     bool isPoweredOn() const;
+    void tracePowerMode();
 
     // Enables layer caching on this DisplayDevice
     void enableLayerCaching(bool enable);
@@ -276,7 +277,8 @@ private:
     static ui::Transform::RotationFlags sPrimaryDisplayRotationFlags;
 
     // Allow nullopt as initial power mode.
-    std::optional<hardware::graphics::composer::hal::PowerMode> mPowerMode;
+    using TracedPowerMode = TracedOrdinal<hardware::graphics::composer::hal::PowerMode>;
+    std::optional<TracedPowerMode> mPowerMode;
 
     std::optional<float> mStagedBrightness;
     std::optional<float> mBrightness;
