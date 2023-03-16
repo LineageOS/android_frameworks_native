@@ -59,12 +59,6 @@ public:
     /* Move the pointer. */
     virtual void move(float deltaX, float deltaY) = 0;
 
-    /* Sets a mask that indicates which buttons are pressed. */
-    virtual void setButtonState(int32_t buttonState) = 0;
-
-    /* Gets a mask that indicates which buttons are pressed. */
-    virtual int32_t getButtonState() const = 0;
-
     /* Sets the absolute location of the pointer. */
     virtual void setPosition(float x, float y) = 0;
 
