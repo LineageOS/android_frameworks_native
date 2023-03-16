@@ -463,6 +463,13 @@ Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata) {
   return e * recoveryFactor;
 }
 
+Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata, float displayBoost) {
+  float logBoost = log2(metadata->minContentBoost) * (1.0f - recovery)
+                 + log2(metadata->maxContentBoost) * recovery;
+  float recoveryFactor = exp2(logBoost * displayBoost / metadata->maxContentBoost);
+  return e * recoveryFactor;
+}
+
 Color applyRecoveryLUT(Color e, float recovery, RecoveryLUT& recoveryLUT) {
   float recoveryFactor = recoveryLUT.getRecoveryFactor(recovery);
   return e * recoveryFactor;

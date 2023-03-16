@@ -135,6 +135,16 @@ struct RecoveryLUT {
     }
   }
 
+  RecoveryLUT(jr_metadata_ptr metadata, float displayBoost) {
+    float boostFactor = displayBoost > 0 ? displayBoost / metadata->maxContentBoost : 1.0f;
+    for (int idx = 0; idx < kRecoveryFactorNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kRecoveryFactorNumEntries - 1);
+      float logBoost = log2(metadata->minContentBoost) * (1.0f - value)
+                     + log2(metadata->maxContentBoost) * value;
+      mRecoveryTable[idx] = exp2(logBoost * boostFactor);
+    }
+  }
+
   ~RecoveryLUT() {
   }
 
@@ -357,6 +367,7 @@ uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata);
  * value, with the given hdr ratio, to the given sdr input in the range [0, 1].
  */
 Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata);
+Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata, float displayBoost);
 Color applyRecoveryLUT(Color e, float recovery, RecoveryLUT& recoveryLUT);
 
 /*
