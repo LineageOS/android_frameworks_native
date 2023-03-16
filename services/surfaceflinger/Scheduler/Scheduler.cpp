@@ -402,7 +402,6 @@ void Scheduler::disableHardwareVsync(PhysicalDisplayId id, bool disallow) {
 }
 
 void Scheduler::resyncAllToHardwareVsync(bool allowToEnable) {
-    ATRACE_CALL();
     std::scoped_lock lock(mDisplayLock);
     ftl::FakeGuard guard(kMainThreadContext);
 
