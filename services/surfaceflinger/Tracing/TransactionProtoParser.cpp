@@ -27,9 +27,7 @@
 namespace android::surfaceflinger {
 
 class FakeExternalTexture : public renderengine::ExternalTexture {
-    const sp<GraphicBuffer> mEmptyBuffer =
-            sp<GraphicBuffer>::make(1u, 1u, PIXEL_FORMAT_RGBA_8888,
-                                    GRALLOC_USAGE_SW_WRITE_OFTEN | GRALLOC_USAGE_SW_READ_OFTEN);
+    const sp<GraphicBuffer> mEmptyBuffer = nullptr;
     uint32_t mWidth;
     uint32_t mHeight;
     uint64_t mId;
