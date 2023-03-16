@@ -109,7 +109,6 @@ void Scheduler::startTimers() {
 void Scheduler::setPacesetterDisplay(std::optional<PhysicalDisplayId> pacesetterIdOpt) {
     demotePacesetterDisplay();
 
-    std::scoped_lock lock(mDisplayLock);
     promotePacesetterDisplay(pacesetterIdOpt);
 }
 
@@ -123,26 +122,34 @@ void Scheduler::registerDisplayInternal(PhysicalDisplayId displayId,
                                         std::shared_ptr<VsyncSchedule> vsyncSchedule) {
     demotePacesetterDisplay();
 
-    std::scoped_lock lock(mDisplayLock);
-    mRefreshRateSelectors.emplace_or_replace(displayId, std::move(selectorPtr));
-    mVsyncSchedules.emplace_or_replace(displayId, std::move(vsyncSchedule));
+    std::shared_ptr<VsyncSchedule> pacesetterVsyncSchedule;
+    {
+        std::scoped_lock lock(mDisplayLock);
+        mRefreshRateSelectors.emplace_or_replace(displayId, std::move(selectorPtr));
+        mVsyncSchedules.emplace_or_replace(displayId, std::move(vsyncSchedule));
 
-    promotePacesetterDisplay();
+        pacesetterVsyncSchedule = promotePacesetterDisplayLocked();
+    }
+    applyNewVsyncSchedule(std::move(pacesetterVsyncSchedule));
 }
 
 void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
     demotePacesetterDisplay();
 
-    std::scoped_lock lock(mDisplayLock);
-    mRefreshRateSelectors.erase(displayId);
-    mVsyncSchedules.erase(displayId);
+    std::shared_ptr<VsyncSchedule> pacesetterVsyncSchedule;
+    {
+        std::scoped_lock lock(mDisplayLock);
+        mRefreshRateSelectors.erase(displayId);
+        mVsyncSchedules.erase(displayId);
 
-    // Do not allow removing the final display. Code in the scheduler expects
-    // there to be at least one display. (This may be relaxed in the future with
-    // headless virtual display.)
-    LOG_ALWAYS_FATAL_IF(mRefreshRateSelectors.empty(), "Cannot unregister all displays!");
+        // Do not allow removing the final display. Code in the scheduler expects
+        // there to be at least one display. (This may be relaxed in the future with
+        // headless virtual display.)
+        LOG_ALWAYS_FATAL_IF(mRefreshRateSelectors.empty(), "Cannot unregister all displays!");
 
-    promotePacesetterDisplay();
+        pacesetterVsyncSchedule = promotePacesetterDisplayLocked();
+    }
+    applyNewVsyncSchedule(std::move(pacesetterVsyncSchedule));
 }
 
 void Scheduler::run() {
@@ -678,6 +685,18 @@ bool Scheduler::updateFrameRateOverrides(GlobalSignals consideredSignals, Fps di
 }
 
 void Scheduler::promotePacesetterDisplay(std::optional<PhysicalDisplayId> pacesetterIdOpt) {
+    std::shared_ptr<VsyncSchedule> pacesetterVsyncSchedule;
+
+    {
+        std::scoped_lock lock(mDisplayLock);
+        pacesetterVsyncSchedule = promotePacesetterDisplayLocked(pacesetterIdOpt);
+    }
+
+    applyNewVsyncSchedule(std::move(pacesetterVsyncSchedule));
+}
+
+std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
+        std::optional<PhysicalDisplayId> pacesetterIdOpt) {
     // TODO(b/241286431): Choose the pacesetter display.
     mPacesetterDisplayId = pacesetterIdOpt.value_or(mRefreshRateSelectors.begin()->first);
     ALOGI("Display %s is the pacesetter", to_string(*mPacesetterDisplayId).c_str());
@@ -697,13 +716,21 @@ void Scheduler::promotePacesetterDisplay(std::optional<PhysicalDisplayId> pacese
         vsyncSchedule->startPeriodTransition(mSchedulerCallback, refreshRate.getPeriod(),
                                              true /* force */);
     }
+    return vsyncSchedule;
+}
 
+void Scheduler::applyNewVsyncSchedule(std::shared_ptr<VsyncSchedule> vsyncSchedule) {
     onNewVsyncSchedule(vsyncSchedule->getDispatch());
+    std::vector<android::EventThread*> threads;
     {
         std::lock_guard<std::mutex> lock(mConnectionsLock);
+        threads.reserve(mConnections.size());
         for (auto& [_, connection] : mConnections) {
-            connection.thread->onNewVsyncSchedule(vsyncSchedule);
+            threads.push_back(connection.thread.get());
         }
+    }
+    for (auto* thread : threads) {
+        thread->onNewVsyncSchedule(vsyncSchedule);
     }
 }
 
