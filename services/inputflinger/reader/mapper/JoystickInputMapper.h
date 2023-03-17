@@ -26,7 +26,7 @@ public:
     virtual ~JoystickInputMapper();
 
     virtual uint32_t getSources() const override;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo) override;
     virtual void dump(std::string& dump) override;
     [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
                                                   const InputReaderConfiguration* config,
@@ -106,7 +106,7 @@ private:
     static bool isCenteredAxis(int32_t axis);
     static int32_t getCompatAxis(int32_t axis);
 
-    static void addMotionRange(int32_t axisId, const Axis& axis, InputDeviceInfo* info);
+    static void addMotionRange(int32_t axisId, const Axis& axis, InputDeviceInfo& info);
     static void setPointerCoordsAxisValue(PointerCoords* pointerCoords, int32_t axis, float value);
 };
 

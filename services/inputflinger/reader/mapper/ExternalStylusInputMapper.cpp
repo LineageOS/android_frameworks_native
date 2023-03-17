@@ -30,11 +30,11 @@ uint32_t ExternalStylusInputMapper::getSources() const {
     return AINPUT_SOURCE_STYLUS;
 }
 
-void ExternalStylusInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
+void ExternalStylusInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
     if (mRawPressureAxis.valid) {
-        info->addMotionRange(AMOTION_EVENT_AXIS_PRESSURE, AINPUT_SOURCE_STYLUS, 0.0f, 1.0f, 0.0f,
-                             0.0f, 0.0f);
+        info.addMotionRange(AMOTION_EVENT_AXIS_PRESSURE, AINPUT_SOURCE_STYLUS, 0.0f, 1.0f, 0.0f,
+                            0.0f, 0.0f);
     }
 }
 

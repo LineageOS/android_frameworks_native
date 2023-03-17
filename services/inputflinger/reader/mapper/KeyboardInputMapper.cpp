@@ -85,18 +85,18 @@ int32_t KeyboardInputMapper::getDisplayId() {
     return ADISPLAY_ID_NONE;
 }
 
-void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
+void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
-    info->setKeyboardType(mKeyboardType);
-    info->setKeyCharacterMap(getDeviceContext().getKeyCharacterMap());
+    info.setKeyboardType(mKeyboardType);
+    info.setKeyCharacterMap(getDeviceContext().getKeyCharacterMap());
 
     if (mKeyboardLayoutInfo) {
-        info->setKeyboardLayoutInfo(*mKeyboardLayoutInfo);
+        info.setKeyboardLayoutInfo(*mKeyboardLayoutInfo);
     } else {
         std::optional<RawLayoutInfo> layoutInfo = getDeviceContext().getRawLayoutInfo();
         if (layoutInfo) {
-            info->setKeyboardLayoutInfo(
+            info.setKeyboardLayoutInfo(
                     KeyboardLayoutInfo(layoutInfo->languageTag, layoutInfo->layoutType));
         }
     }

@@ -123,7 +123,7 @@ static ui::Rotation getInverseRotation(ui::Rotation orientation) {
 
 static void assertAxisResolution(MultiTouchInputMapper& mapper, int axis, float resolution) {
     InputDeviceInfo info;
-    mapper.populateDeviceInfo(&info);
+    mapper.populateDeviceInfo(info);
 
     const InputDeviceInfo::MotionRange* motionRange =
             info.getMotionRange(axis, AINPUT_SOURCE_TOUCHSCREEN);
@@ -132,7 +132,7 @@ static void assertAxisResolution(MultiTouchInputMapper& mapper, int axis, float 
 
 static void assertAxisNotPresent(MultiTouchInputMapper& mapper, int axis) {
     InputDeviceInfo info;
-    mapper.populateDeviceInfo(&info);
+    mapper.populateDeviceInfo(info);
 
     const InputDeviceInfo::MotionRange* motionRange =
             info.getMotionRange(axis, AINPUT_SOURCE_TOUCHSCREEN);
@@ -255,11 +255,11 @@ public:
 private:
     uint32_t getSources() const override { return mSources; }
 
-    void populateDeviceInfo(InputDeviceInfo* deviceInfo) override {
+    void populateDeviceInfo(InputDeviceInfo& deviceInfo) override {
         InputMapper::populateDeviceInfo(deviceInfo);
 
         if (mKeyboardType != AINPUT_KEYBOARD_TYPE_NONE) {
-            deviceInfo->setKeyboardType(mKeyboardType);
+            deviceInfo.setKeyboardType(mKeyboardType);
         }
     }
 
@@ -3808,7 +3808,7 @@ TEST_F(CursorInputMapperTest, WhenModeIsPointer_PopulateDeviceInfo_ReturnsRangeF
     CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
 
     InputDeviceInfo info;
-    mapper.populateDeviceInfo(&info);
+    mapper.populateDeviceInfo(info);
 
     // Initially there may not be a valid motion range.
     ASSERT_EQ(nullptr, info.getMotionRange(AINPUT_MOTION_RANGE_X, AINPUT_SOURCE_MOUSE));
@@ -3820,7 +3820,7 @@ TEST_F(CursorInputMapperTest, WhenModeIsPointer_PopulateDeviceInfo_ReturnsRangeF
     mFakePointerController->setBounds(1, 2, 800 - 1, 480 - 1);
 
     InputDeviceInfo info2;
-    mapper.populateDeviceInfo(&info2);
+    mapper.populateDeviceInfo(info2);
 
     ASSERT_NO_FATAL_FAILURE(assertMotionRange(info2,
             AINPUT_MOTION_RANGE_X, AINPUT_SOURCE_MOUSE,
@@ -3838,7 +3838,7 @@ TEST_F(CursorInputMapperTest, WhenModeIsNavigation_PopulateDeviceInfo_ReturnsSca
     CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
 
     InputDeviceInfo info;
-    mapper.populateDeviceInfo(&info);
+    mapper.populateDeviceInfo(info);
 
     ASSERT_NO_FATAL_FAILURE(assertMotionRange(info,
             AINPUT_MOTION_RANGE_X, AINPUT_SOURCE_TRACKBALL,
@@ -8481,7 +8481,7 @@ TEST_F(MultiTouchInputMapperTest, Process_PressureAxis_AmplitudeCalibration) {
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
     InputDeviceInfo info;
-    mapper.populateDeviceInfo(&info);
+    mapper.populateDeviceInfo(info);
     ASSERT_NO_FATAL_FAILURE(assertMotionRange(info,
             AINPUT_MOTION_RANGE_PRESSURE, AINPUT_SOURCE_TOUCHSCREEN,
             0.0f, RAW_PRESSURE_MAX * 0.01, 0.0f, 0.0f));

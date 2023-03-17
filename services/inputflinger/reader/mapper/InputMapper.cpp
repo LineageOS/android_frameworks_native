@@ -29,8 +29,8 @@ InputMapper::InputMapper(InputDeviceContext& deviceContext) : mDeviceContext(dev
 
 InputMapper::~InputMapper() {}
 
-void InputMapper::populateDeviceInfo(InputDeviceInfo* info) {
-    info->addSource(getSources());
+void InputMapper::populateDeviceInfo(InputDeviceInfo& info) {
+    info.addSource(getSources());
 }
 
 void InputMapper::dump(std::string& dump) {}
