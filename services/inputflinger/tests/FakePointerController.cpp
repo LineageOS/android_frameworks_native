@@ -37,14 +37,6 @@ void FakePointerController::setPosition(float x, float y) {
     mY = y;
 }
 
-void FakePointerController::setButtonState(int32_t buttonState) {
-    mButtonState = buttonState;
-}
-
-int32_t FakePointerController::getButtonState() const {
-    return mButtonState;
-}
-
 FloatPoint FakePointerController::getPosition() const {
     return {mX, mY};
 }
