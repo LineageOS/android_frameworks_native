@@ -555,6 +555,8 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
  *                     range in use.
  *
  *                     Must be finite && >= 1.0f
+ *
+ * Available since API level 34.
  */
 void ASurfaceTransaction_setExtendedRangeBrightness(ASurfaceTransaction* transaction,
                                             ASurfaceControl* surface_control,
