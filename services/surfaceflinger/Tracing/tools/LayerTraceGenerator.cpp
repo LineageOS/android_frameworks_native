@@ -138,29 +138,10 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
               lifecycleManager.getGlobalChanges().string().c_str());
 
         lifecycleManager.commitChanges();
-        // write layers trace
-        auto tracingFlags = LayerTracing::TRACE_INPUT | LayerTracing::TRACE_BUFFERS;
-        std::unordered_set<uint64_t> stackIdsToSkip;
-        if ((tracingFlags & LayerTracing::TRACE_VIRTUAL_DISPLAYS) == 0) {
-            for (const auto& displayInfo : displayInfos) {
-                if (displayInfo.second.isVirtual) {
-                    stackIdsToSkip.insert(displayInfo.first.id);
-                }
-            }
-        }
 
-        const frontend::LayerHierarchy& root = hierarchyBuilder.getHierarchy();
-
-        LayersProto layersProto;
-        for (auto& [child, variant] : root.mChildren) {
-            if (variant != frontend::LayerHierarchy::Variant::Attached ||
-                stackIdsToSkip.find(child->getLayer()->layerStack.id) != stackIdsToSkip.end()) {
-                continue;
-            }
-            LayerProtoHelper::writeHierarchyToProto(layersProto, *child, snapshotBuilder, {},
-                                                    tracingFlags);
-        }
-
+        LayersProto layersProto = LayerProtoFromSnapshotGenerator(snapshotBuilder, displayInfos, {},
+                                                                  layerTracing.getFlags())
+                                          .generate(hierarchyBuilder.getHierarchy());
         auto displayProtos = LayerProtoHelper::writeDisplayInfoToProto(displayInfos);
         layerTracing.notify(visibleRegionsDirty, entry.elapsed_realtime_nanos(), entry.vsync_id(),
                             &layersProto, {}, &displayProtos);
