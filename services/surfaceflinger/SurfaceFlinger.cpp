@@ -4090,8 +4090,34 @@ status_t SurfaceFlinger::addClientLayer(LayerCreationArgs& args, const sp<IBinde
         ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
               MAX_LAYERS);
         static_cast<void>(mScheduler->schedule([=] {
+            ALOGE("Dumping layer keeping > 20 children alive:");
+            bool leakingParentLayerFound = false;
+            mDrawingState.traverse([&](Layer* layer) {
+                if (leakingParentLayerFound) {
+                    return;
+                }
+                if (layer->getChildrenCount() > 20) {
+                    leakingParentLayerFound = true;
+                    sp<Layer> parent = sp<Layer>::fromExisting(layer);
+                    while (parent) {
+                        ALOGE("Parent Layer: %s handleIsAlive: %s", parent->getName().c_str(),
+                              std::to_string(parent->isHandleAlive()).c_str());
+                        parent = parent->getParent();
+                    }
+                    // Sample up to 100 layers
+                    ALOGE("Dumping random sampling of child layers total(%zu): ",
+                          layer->getChildrenCount());
+                    int sampleSize = (layer->getChildrenCount() / 100) + 1;
+                    layer->traverseChildren([&](Layer* layer) {
+                        if (rand() % sampleSize == 0) {
+                            ALOGE("Child Layer: %s", layer->getName().c_str());
+                        }
+                    });
+                }
+            });
+
             ALOGE("Dumping random sampling of on-screen layers: ");
-            mDrawingState.traverse([&](Layer *layer) {
+            mDrawingState.traverse([&](Layer* layer) {
                 // Aim to dump about 200 layers to avoid totally trashing
                 // logcat. On the other hand, if there really are 4096 layers
                 // something has gone totally wrong its probably the most
@@ -4100,6 +4126,8 @@ status_t SurfaceFlinger::addClientLayer(LayerCreationArgs& args, const sp<IBinde
                     ALOGE("Layer: %s", layer->getName().c_str());
                 }
             });
+            ALOGE("Dumping random sampling of off-screen layers total(%zu): ",
+                  mOffscreenLayers.size());
             for (Layer* offscreenLayer : mOffscreenLayers) {
                 if (rand() % 20 == 13) {
                     ALOGE("Offscreen-layer: %s", offscreenLayer->getName().c_str());
@@ -5297,6 +5325,7 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32
 
     Mutex::Autolock lock(mStateLock);
     markLayerPendingRemovalLocked(layer);
+    layer->onHandleDestroyed();
     mBufferCountTracker.remove(handle);
     layer.clear();
 

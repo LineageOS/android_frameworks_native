@@ -335,6 +335,7 @@ sp<IBinder> Layer::getHandle() {
         return nullptr;
     }
     mGetHandleCalled = true;
+    mHandleAlive = true;
     return sp<LayerHandle>::make(mFlinger, sp<Layer>::fromExisting(this));
 }
 
@@ -1649,9 +1650,9 @@ void Layer::onDisconnect() {
     mFlinger->mFrameTracer->onDestroy(layerId);
 }
 
-size_t Layer::getChildrenCount() const {
+size_t Layer::getDescendantCount() const {
     size_t count = 0;
-    for (const sp<Layer>& child : mCurrentChildren) {
+    for (const sp<Layer>& child : mDrawingChildren) {
         count += 1 + child->getChildrenCount();
     }
     return count;
@@ -1895,6 +1896,12 @@ void Layer::traverse(LayerVector::StateSet state, const LayerVector::Visitor& vi
           state == LayerVector::StateSet::Drawing ? mDrawingChildren : mCurrentChildren;
     for (const sp<Layer>& child : children) {
         child->traverse(state, visitor);
+    }
+}
+
+void Layer::traverseChildren(const LayerVector::Visitor& visitor) {
+    for (const sp<Layer>& child : mDrawingChildren) {
+        visitor(child.get());
     }
 }
 

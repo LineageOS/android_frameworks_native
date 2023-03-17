@@ -700,6 +700,7 @@ public:
     void traverse(LayerVector::StateSet, const LayerVector::Visitor&);
     void traverseInReverseZOrder(LayerVector::StateSet, const LayerVector::Visitor&);
     void traverseInZOrder(LayerVector::StateSet, const LayerVector::Visitor&);
+    void traverseChildren(const LayerVector::Visitor&);
 
     /**
      * Traverse only children in z order, ignoring relative layers that are not children of the
@@ -707,7 +708,10 @@ public:
      */
     void traverseChildrenInZOrder(LayerVector::StateSet, const LayerVector::Visitor&);
 
-    size_t getChildrenCount() const;
+    size_t getDescendantCount() const;
+    size_t getChildrenCount() const { return mDrawingChildren.size(); }
+    bool isHandleAlive() const { return mHandleAlive; }
+    bool onHandleDestroyed() { return mHandleAlive = false; }
 
     // ONLY CALL THIS FROM THE LAYER DTOR!
     // See b/141111965.  We need to add current children to offscreen layers in
@@ -1191,6 +1195,7 @@ private:
     std::vector<std::pair<frontend::LayerHierarchy::TraversalPath, sp<LayerFE>>> mLayerFEs;
     std::unique_ptr<frontend::LayerSnapshot> mSnapshot =
             std::make_unique<frontend::LayerSnapshot>();
+    bool mHandleAlive = false;
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);
