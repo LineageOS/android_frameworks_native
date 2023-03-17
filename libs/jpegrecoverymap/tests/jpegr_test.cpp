@@ -152,7 +152,8 @@ void JpegRBenchmark::BenchmarkApplyRecoveryMap(jr_uncompressed_ptr yuv420Image,
 
   timerStart(&applyRecMapTime);
   for (auto i = 0; i < kProfileCount; i++) {
-      ASSERT_EQ(OK, applyRecoveryMap(yuv420Image, map, metadata, JPEGR_OUTPUT_HDR_HLG, dest));
+      ASSERT_EQ(OK, applyRecoveryMap(yuv420Image, map, metadata, JPEGR_OUTPUT_HDR_HLG,
+                                     metadata->maxContentBoost /* displayBoost */, dest));
   }
   timerStop(&applyRecMapTime);
 
@@ -170,7 +171,7 @@ TEST_F(JpegRTest, build) {
   jpegRCodec.encodeJPEGR(nullptr, nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
                          nullptr);
   jpegRCodec.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0), nullptr);
-  jpegRCodec.decodeJPEGR(nullptr, nullptr, nullptr);
+  jpegRCodec.decodeJPEGR(nullptr, nullptr);
 }
 
 TEST_F(JpegRTest, writeXmpThenRead) {
