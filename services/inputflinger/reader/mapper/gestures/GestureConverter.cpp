@@ -16,13 +16,14 @@
 
 #include "gestures/GestureConverter.h"
 
+#include <optional>
 #include <sstream>
 
 #include <android-base/stringprintf.h>
-#include <android/input.h>
 #include <ftl/enum.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
+#include <ui/FloatRect.h>
 
 #include "TouchCursorInputMapperCommon.h"
 #include "input/Input.h"
@@ -73,6 +74,28 @@ std::string GestureConverter::dump() const {
 
 void GestureConverter::reset() {
     mButtonState = 0;
+}
+
+void GestureConverter::populateMotionRanges(InputDeviceInfo& info) const {
+    info.addMotionRange(AMOTION_EVENT_AXIS_PRESSURE, SOURCE, 0.0f, 1.0f, 0, 0, 0);
+
+    // TODO(b/259547750): set this using the raw axis ranges from the touchpad when pointer capture
+    // is enabled.
+    if (std::optional<FloatRect> rect = mPointerController->getBounds(); rect.has_value()) {
+        info.addMotionRange(AMOTION_EVENT_AXIS_X, SOURCE, rect->left, rect->right, 0, 0, 0);
+        info.addMotionRange(AMOTION_EVENT_AXIS_Y, SOURCE, rect->top, rect->bottom, 0, 0, 0);
+    }
+
+    info.addMotionRange(AMOTION_EVENT_AXIS_GESTURE_X_OFFSET, SOURCE, -1.0f, 1.0f, 0, 0, 0);
+    info.addMotionRange(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET, SOURCE, -1.0f, 1.0f, 0, 0, 0);
+
+    // The other axes that can be reported don't have ranges that are easy to define. RELATIVE_X/Y
+    // and GESTURE_SCROLL_X/Y_DISTANCE are the result of acceleration functions being applied to
+    // finger movements, so their maximum values can't simply be derived from the size of the
+    // touchpad. GESTURE_PINCH_SCALE_FACTOR's maximum value depends on the minimum finger separation
+    // that the pad can report, which cannot be determined from its raw axis information. (Assuming
+    // a minimum finger separation of 1 unit would let us calculate a theoretical maximum, but it
+    // would be orders of magnitude too high, so probably not very useful.)
 }
 
 std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t readTime,
@@ -418,10 +441,7 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
                                                   const PointerProperties* pointerProperties,
                                                   const PointerCoords* pointerCoords,
                                                   float xCursorPosition, float yCursorPosition) {
-    // TODO(b/260226362): consider what the appropriate source for these events is.
-    const uint32_t source = AINPUT_SOURCE_MOUSE;
-
-    return NotifyMotionArgs(mReaderContext.getNextId(), when, readTime, mDeviceId, source,
+    return NotifyMotionArgs(mReaderContext.getNextId(), when, readTime, mDeviceId, SOURCE,
                             mPointerController->getDisplayId(), /* policyFlags= */ POLICY_FLAG_WAKE,
                             action, /* actionButton= */ actionButton, /* flags= */ 0,
                             mReaderContext.getGlobalMetaState(), buttonState,
