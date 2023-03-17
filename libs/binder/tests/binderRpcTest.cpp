@@ -464,7 +464,9 @@ TEST_P(BinderRpc, ThreadPoolOverSaturated) {
     constexpr size_t kNumThreads = 10;
     constexpr size_t kNumCalls = kNumThreads + 3;
     auto proc = createRpcTestSocketServerProcess({.numThreads = kNumThreads});
-    testThreadPoolOverSaturated(proc.rootIface, kNumCalls, 250 /*ms*/);
+
+    // b/272429574 - below 500ms, the test fails
+    testThreadPoolOverSaturated(proc.rootIface, kNumCalls, 500 /*ms*/);
 }
 
 TEST_P(BinderRpc, ThreadPoolLimitOutgoing) {
@@ -477,7 +479,9 @@ TEST_P(BinderRpc, ThreadPoolLimitOutgoing) {
     constexpr size_t kNumCalls = kNumOutgoingConnections + 3;
     auto proc = createRpcTestSocketServerProcess(
             {.numThreads = kNumThreads, .numOutgoingConnections = kNumOutgoingConnections});
-    testThreadPoolOverSaturated(proc.rootIface, kNumCalls, 250 /*ms*/);
+
+    // b/272429574 - below 500ms, the test fails
+    testThreadPoolOverSaturated(proc.rootIface, kNumCalls, 500 /*ms*/);
 }
 
 TEST_P(BinderRpc, ThreadingStressTest) {

@@ -236,8 +236,6 @@ public:
         }
     }
     void move(float deltaX, float deltaY) override {}
-    void setButtonState(int32_t buttonState) override {}
-    int32_t getButtonState() const override { return mFdp->ConsumeIntegral<int32_t>(); }
     void setPosition(float x, float y) override {}
     FloatPoint getPosition() const override {
         return {mFdp->ConsumeFloatingPoint<float>(), mFdp->ConsumeFloatingPoint<float>()};

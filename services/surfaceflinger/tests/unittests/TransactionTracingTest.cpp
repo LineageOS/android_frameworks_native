@@ -21,8 +21,10 @@
 #include <cstdint>
 #include "Client.h"
 
+#include <layerproto/LayerProtoHeader.h>
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/Update.h"
+#include "Tracing/LayerTracing.h"
 #include "Tracing/RingBuffer.h"
 #include "Tracing/TransactionTracing.h"
 
@@ -304,5 +306,25 @@ TEST_F(TransactionTracingMirrorLayerTest, canAddMirrorLayers) {
     EXPECT_EQ(proto.entry(0).added_layers(1).layer_id(), mMirrorLayerId);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 2);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(1).z(), 43);
+}
+
+// Verify we can write the layers traces by entry to reduce mem pressure
+// on the system when generating large traces.
+TEST(LayerTraceTest, canStreamLayersTrace) {
+    LayersTraceFileProto inProto = LayerTracing::createTraceFileProto();
+    inProto.add_entry();
+    inProto.add_entry();
+
+    std::string output;
+    inProto.SerializeToString(&output);
+    LayersTraceFileProto inProto2 = LayerTracing::createTraceFileProto();
+    inProto2.add_entry();
+    std::string output2;
+    inProto2.SerializeToString(&output2);
+
+    LayersTraceFileProto outProto;
+    outProto.ParseFromString(output + output2);
+    // magic?
+    EXPECT_EQ(outProto.entry().size(), 3);
 }
 } // namespace android

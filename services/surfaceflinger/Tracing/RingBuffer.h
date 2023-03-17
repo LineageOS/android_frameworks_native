@@ -24,6 +24,7 @@
 #include <utils/Timers.h>
 #include <utils/Trace.h>
 #include <chrono>
+#include <fstream>
 #include <queue>
 
 namespace android {
@@ -70,6 +71,19 @@ public:
             ALOGE("Could not save the proto file %s", filename.c_str());
             return PERMISSION_DENIED;
         }
+        return NO_ERROR;
+    }
+
+    status_t appendToStream(FileProto& fileProto, std::ofstream& out) {
+        ATRACE_CALL();
+        writeToProto(fileProto);
+        std::string output;
+        if (!fileProto.SerializeToString(&output)) {
+            ALOGE("Could not serialize proto.");
+            return UNKNOWN_ERROR;
+        }
+
+        out << output;
         return NO_ERROR;
     }
 
