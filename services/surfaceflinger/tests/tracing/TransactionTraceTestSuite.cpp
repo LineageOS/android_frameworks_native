@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <unordered_map>
 
 #include <LayerTraceGenerator.h>
 #include <Tracing/TransactionProtoParser.h>
@@ -84,9 +85,9 @@ protected:
 std::vector<std::filesystem::path> TransactionTraceTestSuite::sTransactionTraces{};
 
 struct LayerInfo {
-    int id;
+    int32_t id;
     std::string name;
-    int parent;
+    int32_t parent;
     int z;
     uint64_t curr_frame;
     float x;
@@ -143,16 +144,27 @@ TEST_P(TransactionTraceTestSuite, validateEndState) {
     expectedLayers.reserve(static_cast<size_t>(expectedLastEntry.layers().layers_size()));
     for (int i = 0; i < expectedLastEntry.layers().layers_size(); i++) {
         auto layer = expectedLastEntry.layers().layers(i);
-        expectedLayers.push_back(getLayerInfoFromProto(layer));
+        LayerInfo layerInfo = getLayerInfoFromProto(layer);
+        expectedLayers.push_back(layerInfo);
     }
     std::sort(expectedLayers.begin(), expectedLayers.end(), compareById);
 
+    std::unordered_map<int32_t /* snapshotId*/, int32_t /*layerId*/> snapshotIdToLayerId;
     std::vector<LayerInfo> actualLayers;
     actualLayers.reserve(static_cast<size_t>(actualLastEntry.layers().layers_size()));
     for (int i = 0; i < actualLastEntry.layers().layers_size(); i++) {
         auto layer = actualLastEntry.layers().layers(i);
-        actualLayers.push_back(getLayerInfoFromProto(layer));
+        LayerInfo layerInfo = getLayerInfoFromProto(layer);
+        snapshotIdToLayerId[layerInfo.id] = static_cast<int32_t>(layer.original_id());
+        actualLayers.push_back(layerInfo);
     }
+
+    for (auto& layer : actualLayers) {
+        layer.id = snapshotIdToLayerId[layer.id];
+        auto it = snapshotIdToLayerId.find(layer.parent);
+        layer.parent = it == snapshotIdToLayerId.end() ? -1 : it->second;
+    }
+
     std::sort(actualLayers.begin(), actualLayers.end(), compareById);
 
     size_t i = 0;

@@ -28,9 +28,14 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
                              const LayerHierarchy::TraversalPath& path)
       : path(path) {
     static uint32_t sUniqueSequenceId = 0;
-    // Provide a unique id for clones otherwise keeping using the sequence id.
-    // The seq id can still be useful for debugging if its available.
-    uniqueSequence = (path.isClone()) ? sUniqueSequenceId++ : state.id;
+    // Provide a unique id for all snapshots.
+    // A front end layer can generate multiple snapshots if its mirrored.
+    // Additionally, if the layer is not reachable, we may choose to destroy
+    // and recreate the snapshot in which case the unique sequence id will
+    // change. The consumer shouldn't tie any lifetimes to this unique id but
+    // register a LayerLifecycleManager::ILifecycleListener or get a list of
+    // destroyed layers from LayerLifecycleManager.
+    uniqueSequence = sUniqueSequenceId++;
     sequence = static_cast<int32_t>(state.id);
     name = state.name;
     textureName = state.textureName;
