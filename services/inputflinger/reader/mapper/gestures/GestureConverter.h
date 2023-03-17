@@ -21,6 +21,7 @@
 #include <memory>
 
 #include <PointerControllerInterface.h>
+#include <android/input.h>
 #include <utils/Timers.h>
 
 #include "EventHub.h"
@@ -44,6 +45,8 @@ public:
 
     void setOrientation(ui::Rotation orientation) { mOrientation = orientation; }
     void reset();
+
+    void populateMotionRanges(InputDeviceInfo& info) const;
 
     [[nodiscard]] std::list<NotifyArgs> handleGesture(nsecs_t when, nsecs_t readTime,
                                                       const Gesture& gesture);
@@ -98,6 +101,9 @@ private:
             {.id = 3, .toolType = AMOTION_EVENT_TOOL_TYPE_FINGER},
     }};
     std::array<PointerCoords, MAX_FAKE_FINGERS> mFakeFingerCoords = {};
+
+    // TODO(b/260226362): consider what the appropriate source for these events is.
+    static constexpr uint32_t SOURCE = AINPUT_SOURCE_MOUSE;
 };
 
 } // namespace android
