@@ -42,15 +42,15 @@ binder_exception_t AServiceManager_addService(AIBinder* binder, const char* inst
     return PruneException(exception);
 }
 
-binder_exception_t AServiceManager_addServiceWithFlag(AIBinder* binder, const char* instance,
-                                                      const AServiceManager_AddServiceFlag flag) {
+binder_exception_t AServiceManager_addServiceWithFlags(AIBinder* binder, const char* instance,
+                                                       const AServiceManager_AddServiceFlag flags) {
     if (binder == nullptr || instance == nullptr) {
         return EX_ILLEGAL_ARGUMENT;
     }
 
     sp<IServiceManager> sm = defaultServiceManager();
 
-    bool allowIsolated = flag & AServiceManager_AddServiceFlag::ADD_SERVICE_ALLOW_ISOLATED;
+    bool allowIsolated = flags & AServiceManager_AddServiceFlag::ADD_SERVICE_ALLOW_ISOLATED;
     status_t exception = sm->addService(String16(instance), binder->getBinder(), allowIsolated);
     return PruneException(exception);
 }
