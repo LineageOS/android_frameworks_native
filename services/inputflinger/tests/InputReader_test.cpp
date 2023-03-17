@@ -644,6 +644,30 @@ TEST_F(InputReaderTest, PolicyGetInputDevices) {
     ASSERT_EQ(0U, inputDevices[0].getMotionRanges().size());
 }
 
+TEST_F(InputReaderTest, InputDeviceRecreatedOnSysfsNodeChanged) {
+    ASSERT_NO_FATAL_FAILURE(addDevice(1, "keyboard", InputDeviceClass::KEYBOARD, nullptr));
+    mFakeEventHub->setSysfsRootPath(1, "xyz");
+
+    // Should also have received a notification describing the new input device.
+    ASSERT_EQ(1U, mFakePolicy->getInputDevices().size());
+    InputDeviceInfo inputDevice = mFakePolicy->getInputDevices()[0];
+    ASSERT_EQ(0U, inputDevice.getLights().size());
+
+    RawLightInfo infoMonolight = {.id = 123,
+                                  .name = "mono_keyboard_backlight",
+                                  .maxBrightness = 255,
+                                  .flags = InputLightClass::BRIGHTNESS,
+                                  .path = ""};
+    mFakeEventHub->addRawLightInfo(/*rawId=*/123, std::move(infoMonolight));
+    mReader->sysfsNodeChanged("xyz");
+    mReader->loopOnce();
+
+    // Should also have received a notification describing the new recreated input device.
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+    inputDevice = mFakePolicy->getInputDevices()[0];
+    ASSERT_EQ(1U, inputDevice.getLights().size());
+}
+
 TEST_F(InputReaderTest, GetMergedInputDevices) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
     constexpr int32_t eventHubIds[2] = {END_RESERVED_ID, END_RESERVED_ID + 1};

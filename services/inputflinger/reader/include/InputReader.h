@@ -117,6 +117,8 @@ public:
 
     std::optional<std::string> getBluetoothAddress(int32_t deviceId) const override;
 
+    void sysfsNodeChanged(const std::string& sysfsNodePath) override;
+
 protected:
     // These members are protected so they can be instrumented by test cases.
     virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t deviceId,
