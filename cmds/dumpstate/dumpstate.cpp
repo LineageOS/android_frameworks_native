@@ -2059,6 +2059,8 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
                SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"telephony.registry"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"isub"}, CommandOptions::WithTimeout(90).Build(),
+               SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"telecom"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
     if (include_sensitive_info) {
