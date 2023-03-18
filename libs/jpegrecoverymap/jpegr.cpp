@@ -330,6 +330,7 @@ status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image, jr_info_p
 /* Decode API */
 status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                             jr_uncompressed_ptr dest,
+                            float max_display_boost,
                             jr_exif_ptr exif,
                             jpegr_output_format output_format,
                             jr_uncompressed_ptr recovery_map,
@@ -431,7 +432,7 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
 
   JPEGR_CHECK(applyRecoveryMap(&uncompressed_yuv_420_image, &map, &jr_metadata, output_format,
-                               dest));
+                               max_display_boost, dest));
   return NO_ERROR;
 }
 
@@ -667,6 +668,7 @@ status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                  jr_uncompressed_ptr uncompressed_recovery_map,
                                  jr_metadata_ptr metadata,
                                  jpegr_output_format output_format,
+                                 float max_display_boost,
                                  jr_uncompressed_ptr dest) {
   if (uncompressed_yuv_420_image == nullptr
    || uncompressed_recovery_map == nullptr
@@ -678,13 +680,15 @@ status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
   dest->width = uncompressed_yuv_420_image->width;
   dest->height = uncompressed_yuv_420_image->height;
   ShepardsIDW idwTable(kMapDimensionScaleFactor);
-  RecoveryLUT recoveryLUT(metadata);
+  float display_boost = max_display_boost > 0 ?
+          std::min(max_display_boost, metadata->maxContentBoost)
+          : metadata->maxContentBoost;
+  RecoveryLUT recoveryLUT(metadata, display_boost);
 
   JobQueue jobQueue;
   std::function<void()> applyRecMap = [uncompressed_yuv_420_image, uncompressed_recovery_map,
                                        metadata, dest, &jobQueue, &idwTable, output_format,
-                                       &recoveryLUT]() -> void {
-    const float hdr_ratio = metadata->maxContentBoost;
+                                       &recoveryLUT, display_boost]() -> void {
     size_t width = uncompressed_yuv_420_image->width;
     size_t height = uncompressed_yuv_420_image->height;
 
@@ -710,12 +714,13 @@ status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
           } else {
             recovery = sampleMap(uncompressed_recovery_map, map_scale_factor, x, y, idwTable);
           }
+
 #if USE_APPLY_RECOVERY_LUT
           Color rgb_hdr = applyRecoveryLUT(rgb_sdr, recovery, recoveryLUT);
 #else
-          Color rgb_hdr = applyRecovery(rgb_sdr, recovery, metadata);
+          Color rgb_hdr = applyRecovery(rgb_sdr, recovery, metadata, display_boost);
 #endif
-          rgb_hdr = rgb_hdr / metadata->maxContentBoost;
+          rgb_hdr = rgb_hdr / display_boost;
           size_t pixel_idx = x + y * width;
 
           switch (output_format) {

@@ -3725,8 +3725,11 @@ void SurfaceFlinger::updateInputFlinger() {
         ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
             mWindowInfosListenerInvoker
-                    ->windowInfosChanged(windowInfos, displayInfos,
-                                         inputWindowCommands.windowInfosReportedListeners);
+                    ->windowInfosChanged(std::move(windowInfos), std::move(displayInfos),
+                                         std::move(
+                                                 inputWindowCommands.windowInfosReportedListeners),
+                                         /* forceImmediateCall= */
+                                         !inputWindowCommands.focusRequests.empty());
         } else {
             // If there are listeners but no changes to input windows, call the listeners
             // immediately.
@@ -5791,17 +5794,9 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
         return layersProto;
     }
 
-    const frontend::LayerHierarchy& root = mLayerHierarchyBuilder.getHierarchy();
-    LayersProto layersProto;
-    for (auto& [child, variant] : root.mChildren) {
-        if (variant != frontend::LayerHierarchy::Variant::Attached ||
-            stackIdsToSkip.find(child->getLayer()->layerStack.id) != stackIdsToSkip.end()) {
-            continue;
-        }
-        LayerProtoHelper::writeHierarchyToProto(layersProto, *child, mLayerSnapshotBuilder,
-                                                mLegacyLayers, traceFlags);
-    }
-    return layersProto;
+    return LayerProtoFromSnapshotGenerator(mLayerSnapshotBuilder, mFrontEndDisplayInfos, {},
+                                           traceFlags)
+            .generate(mLayerHierarchyBuilder.getHierarchy());
 }
 
 google::protobuf::RepeatedPtrField<DisplayProto> SurfaceFlinger::dumpDisplayProto() const {
