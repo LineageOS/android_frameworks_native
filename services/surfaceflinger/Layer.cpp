@@ -52,8 +52,11 @@
 #include <system/graphics-base-v1.0.h>
 #include <ui/DataspaceUtils.h>
 #include <ui/DebugUtils.h>
+#include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
+#include <ui/Rect.h>
+#include <ui/Transform.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/NativeHandle.h>
@@ -2297,62 +2300,21 @@ static Region transformTouchableRegionSafely(const ui::Transform& t, const Regio
 }
 
 void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& screenToDisplay) {
-    Rect tmpBounds = getInputBounds();
-    if (!tmpBounds.isValid()) {
+    auto [inputBounds, inputBoundsValid] = getInputBounds(/*fillParentBounds=*/false);
+    if (!inputBoundsValid) {
         info.touchableRegion.clear();
-        // A layer could have invalid input bounds and still expect to receive touch input if it has
-        // replaceTouchableRegionWithCrop. For that case, the input transform needs to be calculated
-        // correctly to determine the coordinate space for input events. Use an empty rect so that
-        // the layer will receive input in its own layer space.
-        tmpBounds = Rect::EMPTY_RECT;
     }
 
-    // InputDispatcher works in the display device's coordinate space. Here, we calculate the
-    // frame and transform used for the layer, which determines the bounds and the coordinate space
-    // within which the layer will receive input.
-    //
-    // The coordinate space within which each of the bounds are specified is explicitly documented
-    // in the variable name. For example "inputBoundsInLayer" is specified in layer space. A
-    // Transform converts one coordinate space to another, which is apparent in its naming. For
-    // example, "layerToDisplay" transforms layer space to display space.
-    //
-    // Coordinate space definitions:
-    //   - display: The display device's coordinate space. Correlates to pixels on the display.
-    //   - screen: The post-rotation coordinate space for the display, a.k.a. logical display space.
-    //   - layer: The coordinate space of this layer.
-    //   - input: The coordinate space in which this layer will receive input events. This could be
-    //            different than layer space if a surfaceInset is used, which changes the origin
-    //            of the input space.
-    const FloatRect inputBoundsInLayer = tmpBounds.toFloatRect();
-
-    // Clamp surface inset to the input bounds.
-    const auto surfaceInset = static_cast<float>(info.surfaceInset);
-    const float xSurfaceInset =
-            std::max(0.f, std::min(surfaceInset, inputBoundsInLayer.getWidth() / 2.f));
-    const float ySurfaceInset =
-            std::max(0.f, std::min(surfaceInset, inputBoundsInLayer.getHeight() / 2.f));
-
-    // Apply the insets to the input bounds.
-    const FloatRect insetBoundsInLayer(inputBoundsInLayer.left + xSurfaceInset,
-                                       inputBoundsInLayer.top + ySurfaceInset,
-                                       inputBoundsInLayer.right - xSurfaceInset,
-                                       inputBoundsInLayer.bottom - ySurfaceInset);
-
-    // Crop the input bounds to ensure it is within the parent's bounds.
-    const FloatRect croppedInsetBoundsInLayer = mBounds.intersect(insetBoundsInLayer);
-
-    const ui::Transform layerToScreen = getInputTransform();
-    const ui::Transform layerToDisplay = screenToDisplay * layerToScreen;
-
-    const Rect roundedFrameInDisplay{layerToDisplay.transform(croppedInsetBoundsInLayer)};
+    const Rect roundedFrameInDisplay = getInputBoundsInDisplaySpace(inputBounds, screenToDisplay);
     info.frameLeft = roundedFrameInDisplay.left;
     info.frameTop = roundedFrameInDisplay.top;
     info.frameRight = roundedFrameInDisplay.right;
     info.frameBottom = roundedFrameInDisplay.bottom;
 
     ui::Transform inputToLayer;
-    inputToLayer.set(insetBoundsInLayer.left, insetBoundsInLayer.top);
-    const ui::Transform inputToDisplay = layerToDisplay * inputToLayer;
+    inputToLayer.set(inputBounds.left, inputBounds.top);
+    const ui::Transform layerToScreen = getInputTransform();
+    const ui::Transform inputToDisplay = screenToDisplay * layerToScreen * inputToLayer;
 
     // InputDispatcher expects a display-to-input transform.
     info.transform = inputToDisplay.inverse();
@@ -2485,13 +2447,23 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
         info.inputConfig |= WindowInfo::InputConfig::DROP_INPUT;
     }
 
-    auto cropLayer = mDrawingState.touchableRegionCrop.promote();
+    sp<Layer> cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
-        const Rect bounds(cropLayer ? cropLayer->mScreenBounds : mScreenBounds);
-        info.touchableRegion = Region(displayTransform.transform(bounds));
+        Rect inputBoundsInDisplaySpace;
+        if (!cropLayer) {
+            FloatRect inputBounds = getInputBounds(/*fillParentBounds=*/true).first;
+            inputBoundsInDisplaySpace = getInputBoundsInDisplaySpace(inputBounds, displayTransform);
+        } else {
+            FloatRect inputBounds = cropLayer->getInputBounds(/*fillParentBounds=*/true).first;
+            inputBoundsInDisplaySpace =
+                    cropLayer->getInputBoundsInDisplaySpace(inputBounds, displayTransform);
+        }
+        info.touchableRegion = Region(inputBoundsInDisplaySpace);
     } else if (cropLayer != nullptr) {
-        info.touchableRegion = info.touchableRegion.intersect(
-                displayTransform.transform(Rect{cropLayer->mScreenBounds}));
+        FloatRect inputBounds = cropLayer->getInputBounds(/*fillParentBounds=*/true).first;
+        Rect inputBoundsInDisplaySpace =
+                cropLayer->getInputBoundsInDisplaySpace(inputBounds, displayTransform);
+        info.touchableRegion = info.touchableRegion.intersect(inputBoundsInDisplaySpace);
     }
 
     // Inherit the trusted state from the parent hierarchy, but don't clobber the trusted state
@@ -2511,6 +2483,27 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
     }
 
     return info;
+}
+
+Rect Layer::getInputBoundsInDisplaySpace(const FloatRect& inputBounds,
+                                         const ui::Transform& screenToDisplay) {
+    // InputDispatcher works in the display device's coordinate space. Here, we calculate the
+    // frame and transform used for the layer, which determines the bounds and the coordinate space
+    // within which the layer will receive input.
+
+    // Coordinate space definitions:
+    //   - display: The display device's coordinate space. Correlates to pixels on the display.
+    //   - screen: The post-rotation coordinate space for the display, a.k.a. logical display space.
+    //   - layer: The coordinate space of this layer.
+    //   - input: The coordinate space in which this layer will receive input events. This could be
+    //            different than layer space if a surfaceInset is used, which changes the origin
+    //            of the input space.
+
+    // Crop the input bounds to ensure it is within the parent's bounds.
+    const FloatRect croppedInputBounds = mBounds.intersect(inputBounds);
+    const ui::Transform layerToScreen = getInputTransform();
+    const ui::Transform layerToDisplay = screenToDisplay * layerToScreen;
+    return Rect{layerToDisplay.transform(croppedInputBounds)};
 }
 
 sp<Layer> Layer::getClonedRoot() {
@@ -3461,20 +3454,46 @@ ui::Transform Layer::getInputTransform() const {
 }
 
 /**
+ * Returns the bounds used to fill the input frame and the touchable region.
+ *
  * Similar to getInputTransform, we need to update the bounds to include the transform.
  * This is because bounds don't include the buffer transform, where the input assumes
  * that's already included.
  */
-Rect Layer::getInputBounds() const {
-    if (!hasBufferOrSidebandStream()) {
-        return getCroppedBufferSize(getDrawingState());
+std::pair<FloatRect, bool> Layer::getInputBounds(bool fillParentBounds) const {
+    Rect croppedBufferSize = getCroppedBufferSize(getDrawingState());
+    FloatRect inputBounds = croppedBufferSize.toFloatRect();
+    if (hasBufferOrSidebandStream() && croppedBufferSize.isValid() &&
+        mDrawingState.transform.getType() != ui::Transform::IDENTITY) {
+        inputBounds = mDrawingState.transform.transform(inputBounds);
     }
 
-    Rect bufferBounds = getCroppedBufferSize(getDrawingState());
-    if (mDrawingState.transform.getType() == ui::Transform::IDENTITY || !bufferBounds.isValid()) {
-        return bufferBounds;
+    bool inputBoundsValid = croppedBufferSize.isValid();
+    if (!inputBoundsValid) {
+        /**
+         * Input bounds are based on the layer crop or buffer size. But if we are using
+         * the layer bounds as the input bounds (replaceTouchableRegionWithCrop flag) then
+         * we can use the parent bounds as the input bounds if the layer does not have buffer
+         * or a crop. We want to unify this logic but because of compat reasons we cannot always
+         * use the parent bounds. A layer without a buffer can get input. So when a window is
+         * initially added, its touchable region can fill its parent layer bounds and that can
+         * have negative consequences.
+         */
+        inputBounds = fillParentBounds ? mBounds : FloatRect{};
     }
-    return mDrawingState.transform.transform(bufferBounds);
+
+    // Clamp surface inset to the input bounds.
+    const float inset = static_cast<float>(mDrawingState.inputInfo.surfaceInset);
+    const float xSurfaceInset = std::clamp(inset, 0.f, inputBounds.getWidth() / 2.f);
+    const float ySurfaceInset = std::clamp(inset, 0.f, inputBounds.getHeight() / 2.f);
+
+    // Apply the insets to the input bounds.
+    inputBounds.left += xSurfaceInset;
+    inputBounds.top += ySurfaceInset;
+    inputBounds.right -= xSurfaceInset;
+    inputBounds.bottom -= ySurfaceInset;
+
+    return {inputBounds, inputBoundsValid};
 }
 
 bool Layer::simpleBufferUpdate(const layer_state_t& s) const {
