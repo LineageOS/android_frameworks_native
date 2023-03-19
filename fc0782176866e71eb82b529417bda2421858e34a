@@ -33,6 +33,24 @@
       "message": "you\u0027re leaking the device.\ndelete device is missing.\nalso since you\u0027re not doing anything with the device disabling it is unlikely to do anything?",
       "revId": "fc0782176866e71eb82b529417bda2421858e34a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "2e9e0013_e38a5edc",
+        "filename": "services/inputflinger/reader/EventHub.cpp",
+        "patchSetId": 7
+      },
+      "lineNbr": 1315,
+      "author": {
+        "id": 27741
+      },
+      "writtenOn": "2023-03-19T18:50:59Z",
+      "side": 1,
+      "message": "Disabling the device causes it to not show in apps looking for all input devices. A good example is steam link--the single joycons and combined controller would both show as options, but they would have issues. some other apps wouldn\u0027t even ask, and would auto select an incorrect device. I could swap to deleting the device, but the concern was if we wanted to re enable the device later on (our Daemon will soon expose a userspace toggle to re-enable the single cons and disable combined).",
+      "parentUuid": "3fa14c60_0a9ffb51",
+      "revId": "fc0782176866e71eb82b529417bda2421858e34a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
