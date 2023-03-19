@@ -51,6 +51,24 @@
       "parentUuid": "3fa14c60_0a9ffb51",
       "revId": "fc0782176866e71eb82b529417bda2421858e34a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "0d149945_f6d54e66",
+        "filename": "services/inputflinger/reader/EventHub.cpp",
+        "patchSetId": 7
+      },
+      "lineNbr": 1315,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2023-03-19T18:53:22Z",
+      "side": 1,
+      "message": "currently the device doesn\u0027t seem to be added at all, so I don\u0027t really get how it\u0027s supposed to work\nsee addDeviceLocked at the bottom of everything",
+      "parentUuid": "2e9e0013_e38a5edc",
+      "revId": "fc0782176866e71eb82b529417bda2421858e34a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
