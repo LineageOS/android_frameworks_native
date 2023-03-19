@@ -87,6 +87,24 @@
       "parentUuid": "0d149945_f6d54e66",
       "revId": "fc0782176866e71eb82b529417bda2421858e34a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "845db25c_30498d82",
+        "filename": "services/inputflinger/reader/EventHub.cpp",
+        "patchSetId": 7
+      },
+      "lineNbr": 1315,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2023-03-19T19:01:34Z",
+      "side": 1,
+      "message": "I\u0027d remove the early return.\nif the device is properly disabled, having it registered is likely the best option",
+      "parentUuid": "e3aefdbe_8321fe3f",
+      "revId": "fc0782176866e71eb82b529417bda2421858e34a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
