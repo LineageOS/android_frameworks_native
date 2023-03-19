@@ -44,6 +44,8 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
     inputInfo.id = static_cast<int32_t>(uniqueSequence);
     inputInfo.ownerUid = static_cast<int32_t>(state.ownerUid);
     inputInfo.ownerPid = state.ownerPid;
+    uid = state.ownerUid;
+    pid = state.ownerPid;
     changes = RequestedLayerState::Changes::Created;
     mirrorRootPath = path.variant == LayerHierarchy::Variant::Mirror
             ? path
@@ -179,7 +181,12 @@ std::string LayerSnapshot::getDebugString() const {
     std::stringstream debug;
     debug << "Snapshot{" << path.toString() << name << " isVisible=" << isVisible << " {"
           << getIsVisibleReason() << "} changes=" << changes.string()
-          << " layerStack=" << outputFilter.layerStack.id << "}";
+          << " layerStack=" << outputFilter.layerStack.id << " geomLayerBounds={"
+          << geomLayerBounds.left << "," << geomLayerBounds.top << "," << geomLayerBounds.bottom
+          << "," << geomLayerBounds.right << "}"
+          << " geomLayerTransform={tx=" << geomLayerTransform.tx()
+          << ",ty=" << geomLayerTransform.ty() << "}"
+          << "}";
     return debug.str();
 }
 

@@ -39,9 +39,12 @@ void reparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
 
 LayerRenderArea::LayerRenderArea(SurfaceFlinger& flinger, sp<Layer> layer, const Rect& crop,
                                  ui::Size reqSize, ui::Dataspace reqDataSpace, bool childrenOnly,
-                                 bool allowSecureLayers)
+                                 bool allowSecureLayers, const ui::Transform& layerTransform,
+                                 const Rect& layerBufferSize)
       : RenderArea(reqSize, CaptureFill::CLEAR, reqDataSpace, allowSecureLayers),
         mLayer(std::move(layer)),
+        mLayerTransform(layerTransform),
+        mLayerBufferSize(layerBufferSize),
         mCrop(crop),
         mFlinger(flinger),
         mChildrenOnly(childrenOnly) {}
@@ -60,7 +63,8 @@ sp<const DisplayDevice> LayerRenderArea::getDisplayDevice() const {
 
 Rect LayerRenderArea::getSourceCrop() const {
     if (mCrop.isEmpty()) {
-        return mLayer->getBufferSize(mLayer->getDrawingState());
+        // TODO this should probably be mBounds instead of just buffer bounds
+        return mLayerBufferSize;
     } else {
         return mCrop;
     }
@@ -70,7 +74,7 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
     using namespace std::string_literals;
 
     if (!mChildrenOnly) {
-        mTransform = mLayer->getTransform().inverse();
+        mTransform = mLayerTransform.inverse();
     }
 
     if (mFlinger.mLayerLifecycleManagerEnabled) {
