@@ -69,6 +69,24 @@
       "parentUuid": "2e9e0013_e38a5edc",
       "revId": "fc0782176866e71eb82b529417bda2421858e34a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "e3aefdbe_8321fe3f",
+        "filename": "services/inputflinger/reader/EventHub.cpp",
+        "patchSetId": 7
+      },
+      "lineNbr": 1315,
+      "author": {
+        "id": 27741
+      },
+      "writtenOn": "2023-03-19T18:59:57Z",
+      "side": 1,
+      "message": "ohhhhh i see what you mean...i could just delete the device, or I could remove the return. I left the return in from a previous iteration of the patch--my bad. What do you think is best?",
+      "parentUuid": "0d149945_f6d54e66",
+      "revId": "fc0782176866e71eb82b529417bda2421858e34a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
