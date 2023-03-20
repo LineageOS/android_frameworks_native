@@ -206,9 +206,9 @@ uint32_t TouchpadInputMapper::getSources() const {
     return AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD;
 }
 
-void TouchpadInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
+void TouchpadInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
-    mGestureConverter.populateMotionRanges(*info);
+    mGestureConverter.populateMotionRanges(info);
 }
 
 void TouchpadInputMapper::dump(std::string& dump) {
