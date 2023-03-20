@@ -570,6 +570,8 @@ public:
 
     FloatRect getBounds(const Region& activeTransparentRegion) const;
     FloatRect getBounds() const;
+    Rect getInputBoundsInDisplaySpace(const FloatRect& insetBounds,
+                                      const ui::Transform& displayTransform);
 
     // Compute bounds for the layer and cache the results.
     void computeBounds(FloatRect parentBounds, ui::Transform parentTransform, float shadowRadius);
@@ -936,7 +938,7 @@ protected:
      * "replaceTouchableRegionWithCrop" is specified. In this case, the layer will receive input
      * in this layer's space, regardless of the specified crop layer.
      */
-    Rect getInputBounds() const;
+    std::pair<FloatRect, bool> getInputBounds(bool fillParentBounds) const;
 
     // constant
     sp<SurfaceFlinger> mFlinger;
