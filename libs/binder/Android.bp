@@ -359,6 +359,7 @@ cc_library {
 
 cc_library_static {
     name: "libbinder_rpc_no_kernel",
+    vendor_available: true,
     defaults: [
         "libbinder_common_defaults",
         "libbinder_android_defaults",
@@ -411,6 +412,7 @@ cc_defaults {
 cc_defaults {
     name: "libbinder_tls_defaults",
     defaults: ["libbinder_tls_shared_deps"],
+    vendor_available: true,
     host_supported: true,
 
     header_libs: [
@@ -437,7 +439,7 @@ cc_library_shared {
     defaults: ["libbinder_tls_defaults"],
 }
 
-cc_library_shared {
+cc_library {
     name: "libbinder_trusty",
     vendor: true,
     srcs: [

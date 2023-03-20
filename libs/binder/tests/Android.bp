@@ -138,6 +138,7 @@ cc_test {
 
 aidl_interface {
     name: "binderRpcTestIface",
+    vendor_available: true,
     host_supported: true,
     unstable: true,
     srcs: [
@@ -159,6 +160,7 @@ aidl_interface {
 cc_library_static {
     name: "libbinder_tls_test_utils",
     host_supported: true,
+    vendor_available: true,
     target: {
         darwin: {
             enabled: false,
@@ -438,6 +440,37 @@ cc_test {
     static_libs: [
         "libbinder_rpc_single_threaded_no_kernel",
     ],
+}
+
+cc_test {
+    name: "binderRpcToTrustyTest",
+    vendor: true,
+    host_supported: false,
+    defaults: [
+        "binderRpcTest_common_defaults",
+        "binderRpcTest_static_defaults",
+    ],
+
+    srcs: [
+        "binderRpcTest.cpp",
+        "binderRpcTestCommon.cpp",
+        "binderRpcUniversalTests.cpp",
+    ],
+
+    cflags: [
+        "-DBINDER_RPC_TO_TRUSTY_TEST",
+    ],
+
+    static_libs: [
+        // We want to link libbinder statically so we can push the binary
+        // to the device for testing independently of the library
+        "libbinder_rpc_no_kernel",
+        "libbinder_trusty",
+        "libtrusty",
+    ],
+
+    test_suites: ["device-tests"],
+    require_root: true,
 }
 
 cc_test {
