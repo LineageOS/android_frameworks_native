@@ -77,6 +77,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.context_hub.prebuilt.xml",
+    src: "android.hardware.context_hub.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.ethernet.prebuilt.xml",
     src: "android.hardware.ethernet.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
