@@ -74,7 +74,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void {
                     InputDeviceInfo info;
-                    mapper.populateDeviceInfo(&info);
+                    mapper.populateDeviceInfo(info);
                 },
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {

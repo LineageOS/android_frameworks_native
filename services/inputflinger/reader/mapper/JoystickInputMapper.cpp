@@ -29,7 +29,7 @@ uint32_t JoystickInputMapper::getSources() const {
     return AINPUT_SOURCE_JOYSTICK;
 }
 
-void JoystickInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
+void JoystickInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
     for (const auto& [_, axis] : mAxes) {
@@ -41,16 +41,16 @@ void JoystickInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     }
 }
 
-void JoystickInputMapper::addMotionRange(int32_t axisId, const Axis& axis, InputDeviceInfo* info) {
-    info->addMotionRange(axisId, AINPUT_SOURCE_JOYSTICK, axis.min, axis.max, axis.flat, axis.fuzz,
-                         axis.resolution);
+void JoystickInputMapper::addMotionRange(int32_t axisId, const Axis& axis, InputDeviceInfo& info) {
+    info.addMotionRange(axisId, AINPUT_SOURCE_JOYSTICK, axis.min, axis.max, axis.flat, axis.fuzz,
+                        axis.resolution);
     /* In order to ease the transition for developers from using the old axes
      * to the newer, more semantically correct axes, we'll continue to register
      * the old axes as duplicates of their corresponding new ones.  */
     int32_t compatAxis = getCompatAxis(axisId);
     if (compatAxis >= 0) {
-        info->addMotionRange(compatAxis, AINPUT_SOURCE_JOYSTICK, axis.min, axis.max, axis.flat,
-                             axis.fuzz, axis.resolution);
+        info.addMotionRange(compatAxis, AINPUT_SOURCE_JOYSTICK, axis.min, axis.max, axis.flat,
+                            axis.fuzz, axis.resolution);
     }
 }
 

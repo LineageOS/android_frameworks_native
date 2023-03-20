@@ -60,7 +60,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                     std::list<NotifyArgs> unused =
                             mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig, 0);
                     InputDeviceInfo info;
-                    mapper.populateDeviceInfo(&info);
+                    mapper.populateDeviceInfo(info);
                 },
                 [&]() -> void {
                     int32_t type, code;
