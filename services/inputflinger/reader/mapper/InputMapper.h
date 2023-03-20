@@ -51,7 +51,7 @@ public:
     inline InputReaderPolicyInterface* getPolicy() { return getContext()->getPolicy(); }
 
     virtual uint32_t getSources() const = 0;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
+    virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo);
     virtual void dump(std::string& dump);
     [[nodiscard]] virtual std::list<NotifyArgs> configure(nsecs_t when,
                                                           const InputReaderConfiguration* config,

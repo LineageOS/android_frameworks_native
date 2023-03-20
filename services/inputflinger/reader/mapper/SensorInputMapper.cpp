@@ -73,12 +73,12 @@ void SensorInputMapper::parseSensorConfiguration(InputDeviceSensorType sensorTyp
     }
 }
 
-void SensorInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
+void SensorInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
     for (const auto& [sensorType, sensor] : mSensors) {
-        info->addSensorInfo(sensor.sensorInfo);
-        info->setHasSensor(true);
+        info.addSensorInfo(sensor.sensorInfo);
+        info.setHasSensor(true);
     }
 }
 

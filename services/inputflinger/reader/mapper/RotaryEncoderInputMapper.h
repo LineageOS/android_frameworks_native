@@ -29,7 +29,7 @@ public:
     virtual ~RotaryEncoderInputMapper();
 
     virtual uint32_t getSources() const override;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo) override;
     virtual void dump(std::string& dump) override;
     [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
                                                   const InputReaderConfiguration* config,
