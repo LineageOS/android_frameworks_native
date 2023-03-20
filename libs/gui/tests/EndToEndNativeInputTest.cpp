@@ -512,6 +512,22 @@ TEST_F(InputSurfacesTest, input_respects_surface_insets) {
     bgSurface->expectTap(1, 1);
 }
 
+TEST_F(InputSurfacesTest, input_respects_surface_insets_with_replaceTouchableRegionWithCrop) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
+    bgSurface->showAt(100, 100);
+
+    fgSurface->mInputInfo.surfaceInset = 5;
+    fgSurface->mInputInfo.replaceTouchableRegionWithCrop = true;
+    fgSurface->showAt(100, 100);
+
+    injectTap(106, 106);
+    fgSurface->expectTap(1, 1);
+
+    injectTap(101, 101);
+    bgSurface->expectTap(1, 1);
+}
+
 // Ensure a surface whose insets are cropped, handles the touch offset correctly. ref:b/120413463
 TEST_F(InputSurfacesTest, input_respects_cropped_surface_insets) {
     std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
