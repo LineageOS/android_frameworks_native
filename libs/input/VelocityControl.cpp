@@ -37,7 +37,7 @@ VelocityControl::VelocityControl() {
     reset();
 }
 
-VelocityControlParameters& VelocityControl::getParameters() {
+const VelocityControlParameters& VelocityControl::getParameters() const{
     return mParameters;
 }
 
