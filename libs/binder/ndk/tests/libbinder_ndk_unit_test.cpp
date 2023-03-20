@@ -51,6 +51,7 @@ constexpr char kBinderNdkUnitTestService[] = "BinderNdkUnitTest";
 constexpr char kLazyBinderNdkUnitTestService[] = "LazyBinderNdkUnitTest";
 constexpr char kForcePersistNdkUnitTestService[] = "ForcePersistNdkUnitTestService";
 constexpr char kActiveServicesNdkUnitTestService[] = "ActiveServicesNdkUnitTestService";
+constexpr char kBinderNdkUnitTestServiceFlagged[] = "BinderNdkUnitTestFlagged";
 
 constexpr unsigned int kShutdownWaitTime = 11;
 constexpr uint64_t kContextTestValue = 0xb4e42fb4d9a1d715;
@@ -151,6 +152,24 @@ int generatedService() {
 
     if (exception != EX_NONE) {
         LOG(FATAL) << "Could not register: " << exception << " " << kBinderNdkUnitTestService;
+    }
+
+    ABinderProcess_joinThreadPool();
+
+    return 1;  // should not return
+}
+
+int generatedFlaggedService(const AServiceManager_AddServiceFlag flags, const char* instance) {
+    ABinderProcess_setThreadPoolMaxThreadCount(0);
+
+    auto service = ndk::SharedRefBase::make<MyBinderNdkUnitTest>();
+    auto binder = service->asBinder();
+
+    binder_exception_t exception =
+            AServiceManager_addServiceWithFlags(binder.get(), instance, flags);
+
+    if (exception != EX_NONE) {
+        LOG(FATAL) << "Could not register: " << exception << " " << instance;
     }
 
     ABinderProcess_joinThreadPool();
@@ -847,6 +866,12 @@ TEST(NdkBinder, UseHandleShellCommand) {
     EXPECT_EQ("CMD", shellCmdToString(testService, {"C", "M", "D"}));
 }
 
+TEST(NdkBinder, FlaggedServiceAccessible) {
+    static const sp<android::IServiceManager> sm(android::defaultServiceManager());
+    sp<IBinder> testService = sm->getService(String16(kBinderNdkUnitTestServiceFlagged));
+    ASSERT_NE(nullptr, testService);
+}
+
 TEST(NdkBinder, GetClassInterfaceDescriptor) {
     ASSERT_STREQ(IFoo::kIFooDescriptor, AIBinder_Class_getDescriptor(IFoo::kClass));
 }
@@ -900,6 +925,13 @@ int main(int argc, char* argv[]) {
     if (fork() == 0) {
         prctl(PR_SET_PDEATHSIG, SIGHUP);
         return generatedService();
+    }
+    if (fork() == 0) {
+        prctl(PR_SET_PDEATHSIG, SIGHUP);
+        // We may want to change this flag to be more generic ones for the future
+        AServiceManager_AddServiceFlag test_flags =
+                AServiceManager_AddServiceFlag::ADD_SERVICE_ALLOW_ISOLATED;
+        return generatedFlaggedService(test_flags, kBinderNdkUnitTestServiceFlagged);
     }
 
     ABinderProcess_setThreadPoolMaxThreadCount(1);  // to receive death notifications/callbacks
