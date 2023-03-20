@@ -37,7 +37,7 @@ uint32_t RotaryEncoderInputMapper::getSources() const {
     return mSource;
 }
 
-void RotaryEncoderInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
+void RotaryEncoderInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
     if (mRotaryEncoderScrollAccumulator.haveRelativeVWheel()) {
@@ -52,8 +52,8 @@ void RotaryEncoderInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
                   "default to 1.0!\n");
         }
         mScalingFactor = scalingFactor.value_or(1.0f);
-        info->addMotionRange(AMOTION_EVENT_AXIS_SCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f,
-                             res.value_or(0.0f) * mScalingFactor);
+        info.addMotionRange(AMOTION_EVENT_AXIS_SCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f,
+                            res.value_or(0.0f) * mScalingFactor);
     }
 }
 
