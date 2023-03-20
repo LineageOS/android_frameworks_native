@@ -25,8 +25,7 @@ using Transaction = SurfaceComposerClient::Transaction;
 using gui::DisplayInfo;
 using gui::WindowInfo;
 
-using WindowInfosPredicate =
-        std::function<bool(const std::vector<WindowInfo>&, const std::vector<DisplayInfo>&)>;
+using WindowInfosPredicate = std::function<bool(const std::vector<WindowInfo>&)>;
 
 class WindowInfosListenerTest : public ::testing::Test {
 protected:
@@ -43,8 +42,8 @@ protected:
               : mPredicate(std::move(predicate)), mPromise(promise) {}
 
         void onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos,
-                                  const std::vector<DisplayInfo>& displayInfos) override {
-            if (mPredicate(windowInfos, displayInfos)) {
+                                  const std::vector<DisplayInfo>&) override {
+            if (mPredicate(windowInfos)) {
                 mPromise.set_value();
             }
         }
@@ -77,16 +76,6 @@ const WindowInfo* findMatchingWindowInfo(const WindowInfo& targetWindowInfo,
     return nullptr;
 }
 
-const DisplayInfo* findMatchingDisplayInfo(int32_t displayId,
-                                           const std::vector<DisplayInfo>& displayInfos) {
-    for (const DisplayInfo& displayInfo : displayInfos) {
-        if (displayInfo.displayId == displayId) {
-            return &displayInfo;
-        }
-    }
-    return nullptr;
-}
-
 TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
     std::string name = "Test Layer";
     sp<IBinder> token = sp<BBinder>::make();
@@ -104,16 +93,14 @@ TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
             .setInputWindowInfo(surfaceControl, windowInfo)
             .apply();
 
-    auto windowPresent = [&](const std::vector<WindowInfo>& windowInfos,
-                             const std::vector<DisplayInfo>&) {
+    auto windowPresent = [&](const std::vector<WindowInfo>& windowInfos) {
         return findMatchingWindowInfo(windowInfo, windowInfos);
     };
     ASSERT_TRUE(waitForWindowInfosPredicate(windowPresent));
 
     Transaction().reparent(surfaceControl, nullptr).apply();
 
-    auto windowNotPresent = [&](const std::vector<WindowInfo>& windowInfos,
-                                const std::vector<DisplayInfo>&) {
+    auto windowNotPresent = [&](const std::vector<WindowInfo>& windowInfos) {
         return !findMatchingWindowInfo(windowInfo, windowInfos);
     };
     ASSERT_TRUE(waitForWindowInfosPredicate(windowNotPresent));
@@ -137,8 +124,7 @@ TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
             .setInputWindowInfo(surfaceControl, windowInfo)
             .apply();
 
-    auto windowIsPresentAndTouchableRegionEmpty = [&](const std::vector<WindowInfo>& windowInfos,
-                                                      const std::vector<DisplayInfo>&) {
+    auto windowIsPresentAndTouchableRegionEmpty = [&](const std::vector<WindowInfo>& windowInfos) {
         auto foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
         if (!foundWindowInfo) {
             return false;
@@ -151,21 +137,14 @@ TEST_F(WindowInfosListenerTest, WindowInfoChanged) {
     Transaction().setInputWindowInfo(surfaceControl, windowInfo).apply();
 
     auto windowIsPresentAndTouchableRegionMatches =
-            [&](const std::vector<WindowInfo>& windowInfos,
-                const std::vector<DisplayInfo>& displayInfos) {
+            [&](const std::vector<WindowInfo>& windowInfos) {
                 auto foundWindowInfo = findMatchingWindowInfo(windowInfo, windowInfos);
                 if (!foundWindowInfo) {
                     return false;
                 }
 
-                auto displayInfo =
-                        findMatchingDisplayInfo(foundWindowInfo->displayId, displayInfos);
-                if (!displayInfo) {
-                    return false;
-                }
-
                 auto touchableRegion =
-                        displayInfo->transform.transform(foundWindowInfo->touchableRegion);
+                        foundWindowInfo->transform.transform(foundWindowInfo->touchableRegion);
                 return touchableRegion.hasSameRects(windowInfo.touchableRegion);
             };
     ASSERT_TRUE(waitForWindowInfosPredicate(windowIsPresentAndTouchableRegionMatches));
