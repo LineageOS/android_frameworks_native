@@ -25,6 +25,7 @@
 #include <gui/WindowInfo.h>
 #include <renderengine/mock/FakeExternalTexture.h>
 #include <ui/DisplayStatInfo.h>
+#include <ui/Transform.h>
 
 #include <FuzzableDataspaces.h>
 #include <surfaceflinger_fuzzers_utils.h>
@@ -42,6 +43,7 @@ public:
     void invokeEffectLayer();
     LayerCreationArgs createLayerCreationArgs(TestableSurfaceFlinger* flinger, sp<Client> client);
     Rect getFuzzedRect();
+    ui::Transform getFuzzedTransform();
     FrameTimelineInfo getFuzzedFrameTimelineInfo();
 
 private:
@@ -52,6 +54,12 @@ Rect LayerFuzzer::getFuzzedRect() {
     return Rect(mFdp.ConsumeIntegral<int32_t>() /*left*/, mFdp.ConsumeIntegral<int32_t>() /*top*/,
                 mFdp.ConsumeIntegral<int32_t>() /*right*/,
                 mFdp.ConsumeIntegral<int32_t>() /*bottom*/);
+}
+
+ui::Transform LayerFuzzer::getFuzzedTransform() {
+    return ui::Transform(mFdp.ConsumeIntegral<int32_t>() /*orientation*/,
+                         mFdp.ConsumeIntegral<int32_t>() /*width*/,
+                         mFdp.ConsumeIntegral<int32_t>() /*height*/);
 }
 
 FrameTimelineInfo LayerFuzzer::getFuzzedFrameTimelineInfo() {
@@ -166,7 +174,7 @@ void LayerFuzzer::invokeBufferStateLayer() {
                               {mFdp.ConsumeIntegral<int32_t>(),
                                mFdp.ConsumeIntegral<int32_t>()} /*reqSize*/,
                               mFdp.PickValueInArray(kDataspaces), mFdp.ConsumeBool(),
-                              mFdp.ConsumeBool());
+                              mFdp.ConsumeBool(), getFuzzedTransform(), getFuzzedRect());
     layerArea.render([]() {} /*drawLayers*/);
 
     if (!ownsHandle) {
