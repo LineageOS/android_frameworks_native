@@ -22,6 +22,7 @@ java_test_host {
     libs: [
         "tradefed",
         "vts-core-tradefed-harness",
+        "compatibility-host-util",
     ],
     test_suites: [
         "general-tests",
