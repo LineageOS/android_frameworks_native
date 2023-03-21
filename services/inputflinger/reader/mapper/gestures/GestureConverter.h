@@ -44,7 +44,7 @@ public:
     std::string dump() const;
 
     void setOrientation(ui::Rotation orientation) { mOrientation = orientation; }
-    void reset();
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when);
 
     void populateMotionRanges(InputDeviceInfo& info) const;
 
@@ -55,15 +55,19 @@ private:
     [[nodiscard]] NotifyArgs handleMove(nsecs_t when, nsecs_t readTime, const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> handleButtonsChange(nsecs_t when, nsecs_t readTime,
                                                             const Gesture& gesture);
+    [[nodiscard]] std::list<NotifyArgs> releaseAllButtons(nsecs_t when, nsecs_t readTime);
     [[nodiscard]] std::list<NotifyArgs> handleScroll(nsecs_t when, nsecs_t readTime,
                                                      const Gesture& gesture);
     [[nodiscard]] NotifyArgs handleFling(nsecs_t when, nsecs_t readTime, const Gesture& gesture);
+    [[nodiscard]] NotifyArgs endScroll(nsecs_t when, nsecs_t readTime);
+
     [[nodiscard]] std::list<NotifyArgs> handleMultiFingerSwipe(nsecs_t when, nsecs_t readTime,
                                                                uint32_t fingerCount, float dx,
                                                                float dy);
     [[nodiscard]] std::list<NotifyArgs> handleMultiFingerSwipeLift(nsecs_t when, nsecs_t readTime);
     [[nodiscard]] std::list<NotifyArgs> handlePinch(nsecs_t when, nsecs_t readTime,
                                                     const Gesture& gesture);
+    [[nodiscard]] std::list<NotifyArgs> endPinch(nsecs_t when, nsecs_t readTime);
 
     NotifyMotionArgs makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
                                     int32_t actionButton, int32_t buttonState,
