@@ -382,9 +382,16 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
                 status = session->setupPreconnectedClient({}, [=]() {
 #ifdef BINDER_RPC_TO_TRUSTY_TEST
                     auto port = trustyIpcPort(serverVersion);
-                    int tipcFd = tipc_connect(kTrustyIpcDevice, port.c_str());
-                    return tipcFd >= 0 ? android::base::unique_fd(tipcFd)
-                                       : android::base::unique_fd();
+                    for (size_t i = 0; i < 5; i++) {
+                        // Try to connect several times,
+                        // in case the service is slow to start
+                        int tipcFd = tipc_connect(kTrustyIpcDevice, port.c_str());
+                        if (tipcFd >= 0) {
+                            return android::base::unique_fd(tipcFd);
+                        }
+                        usleep(50000);
+                    }
+                    return android::base::unique_fd();
 #else
                     LOG_ALWAYS_FATAL("Tried to connect to Trusty outside of vendor");
                     return android::base::unique_fd();
