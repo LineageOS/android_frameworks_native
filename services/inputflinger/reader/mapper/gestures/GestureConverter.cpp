@@ -72,8 +72,32 @@ std::string GestureConverter::dump() const {
     return out.str();
 }
 
-void GestureConverter::reset() {
-    mButtonState = 0;
+std::list<NotifyArgs> GestureConverter::reset(nsecs_t when) {
+    std::list<NotifyArgs> out;
+    switch (mCurrentClassification) {
+        case MotionClassification::TWO_FINGER_SWIPE:
+            out.push_back(endScroll(when, when));
+            break;
+        case MotionClassification::MULTI_FINGER_SWIPE:
+            out += handleMultiFingerSwipeLift(when, when);
+            break;
+        case MotionClassification::PINCH:
+            out += endPinch(when, when);
+            break;
+        case MotionClassification::NONE:
+            // When a button is pressed, the Gestures library always ends the current gesture,
+            // so we don't have to worry about the case where buttons need to be lifted during a
+            // pinch or swipe.
+            if (mButtonState) {
+                out += releaseAllButtons(when, when);
+            }
+            break;
+        default:
+            break;
+    }
+    mCurrentClassification = MotionClassification::NONE;
+    mDownTime = 0;
+    return out;
 }
 
 void GestureConverter::populateMotionRanges(InputDeviceInfo& info) const {
@@ -219,6 +243,39 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
     return out;
 }
 
+std::list<NotifyArgs> GestureConverter::releaseAllButtons(nsecs_t when, nsecs_t readTime) {
+    std::list<NotifyArgs> out;
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
+
+    PointerCoords coords;
+    coords.clear();
+    coords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0);
+    const bool pointerDown = isPointerDown(mButtonState);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, pointerDown ? 1.0f : 0.0f);
+    uint32_t newButtonState = mButtonState;
+    for (uint32_t button = AMOTION_EVENT_BUTTON_PRIMARY; button <= AMOTION_EVENT_BUTTON_FORWARD;
+         button <<= 1) {
+        if (mButtonState & button) {
+            newButtonState &= ~button;
+            out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
+                                         button, newButtonState, /*pointerCount=*/1,
+                                         mFingerProps.data(), &coords, xCursorPosition,
+                                         yCursorPosition));
+        }
+    }
+    if (pointerDown) {
+        coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 0.0f);
+        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /*actionButton=*/0,
+                                     newButtonState, /*pointerCount=*/1, mFingerProps.data(),
+                                     &coords, xCursorPosition, yCursorPosition));
+    }
+    mButtonState = 0;
+    return out;
+}
+
 std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readTime,
                                                      const Gesture& gesture) {
     std::list<NotifyArgs> out;
@@ -264,6 +321,10 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
         return {};
     }
 
+    return endScroll(when, readTime);
+}
+
+NotifyArgs GestureConverter::endScroll(nsecs_t when, nsecs_t readTime) {
     const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, 0);
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, 0);
@@ -366,8 +427,6 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
 
 [[nodiscard]] std::list<NotifyArgs> GestureConverter::handlePinch(nsecs_t when, nsecs_t readTime,
                                                                   const Gesture& gesture) {
-    std::list<NotifyArgs> out;
-
     const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
 
     // Pinch gesture phases are reported a little differently from others, in that the same details
@@ -391,6 +450,7 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
         mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
         mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
         mDownTime = when;
+        std::list<NotifyArgs> out;
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
                                      /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
                                      mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
@@ -405,19 +465,7 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
     }
 
     if (gesture.details.pinch.zoom_state == GESTURES_ZOOM_END) {
-        mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR, 1.0);
-        out.push_back(makeMotionArgs(when, readTime,
-                                     AMOTION_EVENT_ACTION_POINTER_UP |
-                                             1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT,
-                                     /* actionButton= */ 0, mButtonState, /* pointerCount= */ 2,
-                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                     yCursorPosition));
-        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /* actionButton= */ 0,
-                                     mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
-                                     mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
-        mCurrentClassification = MotionClassification::NONE;
-        mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR, 0);
-        return out;
+        return endPinch(when, readTime);
     }
 
     mPinchFingerSeparation *= gesture.details.pinch.dz;
@@ -429,9 +477,27 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
     mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X,
                                       xCursorPosition + mPinchFingerSeparation / 2);
     mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
-    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /* actionButton= */ 0,
-                                 mButtonState, /* pointerCount= */ 2, mFingerProps.data(),
+    return {makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /*actionButton=*/0,
+                           mButtonState, /*pointerCount=*/2, mFingerProps.data(),
+                           mFakeFingerCoords.data(), xCursorPosition, yCursorPosition)};
+}
+
+std::list<NotifyArgs> GestureConverter::endPinch(nsecs_t when, nsecs_t readTime) {
+    std::list<NotifyArgs> out;
+    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
+
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR, 1.0);
+    out.push_back(makeMotionArgs(when, readTime,
+                                 AMOTION_EVENT_ACTION_POINTER_UP |
+                                         1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT,
+                                 /*actionButton=*/0, mButtonState, /*pointerCount=*/2,
+                                 mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
+                                 yCursorPosition));
+    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /*actionButton=*/0,
+                                 mButtonState, /*pointerCount=*/1, mFingerProps.data(),
                                  mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
+    mCurrentClassification = MotionClassification::NONE;
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR, 0);
     return out;
 }
 
