@@ -77,6 +77,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.context_hub.prebuilt.xml",
+    src: "android.hardware.context_hub.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.ethernet.prebuilt.xml",
     src: "android.hardware.ethernet.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -107,8 +113,32 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.sensor.accelerometer_limited_axes_uncalibrated.prebuilt.xml",
+    src: "android.hardware.sensor.accelerometer_limited_axes_uncalibrated.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.accelerometer_limited_axes.prebuilt.xml",
+    src: "android.hardware.sensor.accelerometer_limited_axes.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.accelerometer.prebuilt.xml",
+    src: "android.hardware.sensor.accelerometer.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.sensor.ambient_temperature.prebuilt.xml",
     src: "android.hardware.sensor.ambient_temperature.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.assist.prebuilt.xml",
+    src: "android.hardware.sensor.assist.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 
@@ -119,14 +149,62 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.sensor.compass.prebuilt.xml",
+    src: "android.hardware.sensor.compass.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.sensor.dynamic.head_tracker.prebuilt.xml",
     src: "android.hardware.sensor.dynamic.head_tracker.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 
 prebuilt_etc {
+    name: "android.hardware.sensor.gyroscope_limited_axes_uncalibrated.prebuilt.xml",
+    src: "android.hardware.sensor.gyroscope_limited_axes_uncalibrated.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.gyroscope_limited_axes.prebuilt.xml",
+    src: "android.hardware.sensor.gyroscope_limited_axes.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.sensor.gyroscope.prebuilt.xml",
     src: "android.hardware.sensor.gyroscope.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.heading.prebuilt.xml",
+    src: "android.hardware.sensor.heading.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.heartrate.ecg.prebuilt.xml",
+    src: "android.hardware.sensor.heartrate.ecg.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.heartrate.fitness.prebuilt.xml",
+    src: "android.hardware.sensor.heartrate.fitness.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.heartrate.prebuilt.xml",
+    src: "android.hardware.sensor.heartrate.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.hifi_sensors.prebuilt.xml",
+    src: "android.hardware.sensor.hifi_sensors.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 
@@ -155,6 +233,18 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.sensor.stepcounter.prebuilt.xml",
+    src: "android.hardware.sensor.stepcounter.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.sensor.stepdetector.prebuilt.xml",
+    src: "android.hardware.sensor.stepdetector.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.telephony.gsm.prebuilt.xml",
     src: "android.hardware.telephony.gsm.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -163,6 +253,12 @@ prebuilt_etc {
 prebuilt_etc {
     name: "android.hardware.telephony.ims.prebuilt.xml",
     src: "android.hardware.telephony.ims.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.telephony.satellite.prebuilt.xml",
+    src: "android.hardware.telephony.satellite.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 
