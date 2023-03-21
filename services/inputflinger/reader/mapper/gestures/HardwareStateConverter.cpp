@@ -26,16 +26,11 @@
 
 namespace android {
 
-HardwareStateConverter::HardwareStateConverter(const InputDeviceContext& deviceContext)
-      : mDeviceContext(deviceContext), mTouchButtonAccumulator(deviceContext) {
-    RawAbsoluteAxisInfo slotAxisInfo;
-    deviceContext.getAbsoluteAxisInfo(ABS_MT_SLOT, &slotAxisInfo);
-    if (!slotAxisInfo.valid || slotAxisInfo.maxValue <= 0) {
-        ALOGW("Touchpad \"%s\" doesn't have a valid ABS_MT_SLOT axis, and probably won't work "
-              "properly.",
-              deviceContext.getName().c_str());
-    }
-    mMotionAccumulator.configure(deviceContext, slotAxisInfo.maxValue + 1, true);
+HardwareStateConverter::HardwareStateConverter(const InputDeviceContext& deviceContext,
+                                               MultiTouchMotionAccumulator& motionAccumulator)
+      : mDeviceContext(deviceContext),
+        mMotionAccumulator(motionAccumulator),
+        mTouchButtonAccumulator(deviceContext) {
     mTouchButtonAccumulator.configure();
 }
 

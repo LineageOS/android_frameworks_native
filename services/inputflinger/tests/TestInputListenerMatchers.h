@@ -73,6 +73,12 @@ MATCHER_P(WithPointerCount, count, "MotionEvent with specified number of pointer
     return arg.pointerCount == count;
 }
 
+MATCHER_P2(WithPointerId, index, id, "MotionEvent with specified pointer ID for pointer index") {
+    const auto argPointerId = arg.pointerProperties[index].id;
+    *result_listener << "expected pointer with index " << index << " to have ID " << argPointerId;
+    return argPointerId == id;
+}
+
 MATCHER_P2(WithCoords, x, y, "InputEvent with specified coords") {
     const auto argX = arg.pointerCoords[0].getX();
     const auto argY = arg.pointerCoords[0].getY();
@@ -136,10 +142,34 @@ MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {
     return argPressure == pressure;
 }
 
+MATCHER_P2(WithTouchDimensions, maj, min, "InputEvent with specified touch dimensions") {
+    const auto argMajor = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR);
+    const auto argMinor = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR);
+    *result_listener << "expected touch dimensions " << maj << " major x " << min
+                     << " minor, but got " << argMajor << " major x " << argMinor << " minor";
+    return argMajor == maj && argMinor == min;
+}
+
+MATCHER_P2(WithToolDimensions, maj, min, "InputEvent with specified tool dimensions") {
+    const auto argMajor = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR);
+    const auto argMinor = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR);
+    *result_listener << "expected tool dimensions " << maj << " major x " << min
+                     << " minor, but got " << argMajor << " major x " << argMinor << " minor";
+    return argMajor == maj && argMinor == min;
+}
+
 MATCHER_P(WithToolType, toolType, "InputEvent with specified tool type") {
     const auto argToolType = arg.pointerProperties[0].toolType;
     *result_listener << "expected tool type " << ftl::enum_string(toolType) << ", but got "
                      << ftl::enum_string(argToolType);
+    return argToolType == toolType;
+}
+
+MATCHER_P2(WithPointerToolType, pointer, toolType,
+           "InputEvent with specified tool type for pointer") {
+    const auto argToolType = arg.pointerProperties[pointer].toolType;
+    *result_listener << "expected pointer " << pointer << " to have tool type "
+                     << ftl::enum_string(toolType) << ", but got " << ftl::enum_string(argToolType);
     return argToolType == toolType;
 }
 
