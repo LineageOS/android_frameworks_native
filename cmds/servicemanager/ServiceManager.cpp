@@ -360,6 +360,10 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
     }
 #endif  // !VENDORSERVICEMANAGER
 
+    if ((dumpPriority & DUMP_FLAG_PRIORITY_ALL) == 0) {
+        ALOGW("Dump flag priority is not set when adding %s", name.c_str());
+    }
+
     // implicitly unlinked when the binder is removed
     if (binder->remoteBinder() != nullptr &&
         binder->linkToDeath(sp<ServiceManager>::fromExisting(this)) != OK) {
