@@ -465,7 +465,7 @@ InputDeviceInfo InputDevice::getDeviceInfo() {
                              mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE));
 
     for_each_mapper(
-            [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(&outDeviceInfo); });
+            [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(outDeviceInfo); });
 
     if (mController) {
         mController->populateDeviceInfo(&outDeviceInfo);
