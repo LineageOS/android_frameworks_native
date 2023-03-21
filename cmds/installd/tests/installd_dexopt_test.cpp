@@ -203,6 +203,10 @@ protected:
     std::string secondary_dex_de_;
 
     virtual void SetUp() {
+        if (base::GetBoolProperty("dalvik.vm.useartservice", false)) {
+            GTEST_SKIP() << "Skipping legacy dexopt tests when ART Service is enabled";
+        }
+
         setenv("ANDROID_LOG_TAGS", "*:v", 1);
         android::base::InitLogging(nullptr);
         // Initialize the globals holding the file system main paths (/data/, /system/ etc..).
@@ -223,6 +227,10 @@ protected:
     }
 
     virtual void TearDown() {
+        if (base::GetBoolProperty("dalvik.vm.useartservice", false)) {
+            GTEST_SKIP();
+        }
+
         if (!kDebug) {
             service_->controlDexOptBlocking(false);
             service_->destroyAppData(
@@ -966,6 +974,10 @@ TEST_F(DexoptTest, DexoptDex2oat64Enabled) {
 class PrimaryDexReCompilationTest : public DexoptTest {
   public:
     virtual void SetUp() {
+        if (base::GetBoolProperty("dalvik.vm.useartservice", false)) {
+            GTEST_SKIP() << "Skipping legacy dexopt tests when ART Service is enabled";
+        }
+
         DexoptTest::SetUp();
         CompilePrimaryDexOk("verify",
                             DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
@@ -980,6 +992,10 @@ class PrimaryDexReCompilationTest : public DexoptTest {
     }
 
     virtual void TearDown() {
+        if (base::GetBoolProperty("dalvik.vm.useartservice", false)) {
+            GTEST_SKIP();
+        }
+
         first_compilation_odex_fd_.reset(-1);
         first_compilation_vdex_fd_.reset(-1);
         DexoptTest::TearDown();
@@ -1002,6 +1018,10 @@ TEST_F(PrimaryDexReCompilationTest, DexoptPrimaryUpdateInPlaceVdex) {
 
 class ReconcileTest : public DexoptTest {
     virtual void SetUp() {
+        if (base::GetBoolProperty("dalvik.vm.useartservice", false)) {
+            GTEST_SKIP() << "Skipping legacy dexopt tests when ART Service is enabled";
+        }
+
         DexoptTest::SetUp();
         CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
             /*binder_ok*/ true, /*compile_ok*/ true);
@@ -1067,6 +1087,10 @@ class ProfileTest : public DexoptTest {
     static constexpr const char* kPrimaryProfile = "primary.prof";
 
     virtual void SetUp() {
+        if (base::GetBoolProperty("dalvik.vm.useartservice", false)) {
+            GTEST_SKIP() << "Skipping legacy dexopt tests when ART Service is enabled";
+        }
+
         DexoptTest::SetUp();
         cur_profile_ = create_current_profile_path(
                 kTestUserId, package_name_, kPrimaryProfile, /*is_secondary_dex*/ false);
@@ -1440,6 +1464,9 @@ class BootProfileTest : public ProfileTest {
     std::vector<int64_t> extra_ce_data_inodes_;
 
     virtual void SetUp() {
+        if (base::GetBoolProperty("dalvik.vm.useartservice", false)) {
+            GTEST_SKIP() << "Skipping legacy dexopt tests when ART Service is enabled";
+        }
 
         ProfileTest::SetUp();
         intial_android_profiles_dir = android_profiles_dir;
@@ -1453,6 +1480,10 @@ class BootProfileTest : public ProfileTest {
     }
 
     virtual void TearDown() {
+        if (base::GetBoolProperty("dalvik.vm.useartservice", false)) {
+            GTEST_SKIP();
+        }
+
         android_profiles_dir = intial_android_profiles_dir;
         deleteAppProfilesForBootMerge();
         ProfileTest::TearDown();
