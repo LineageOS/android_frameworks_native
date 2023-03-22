@@ -156,60 +156,6 @@ public:
             buffer_handle_t bufferHandle,
             std::optional<std::vector<uint8_t>> smpte2094_10) const override;
 
-    [[nodiscard]] status_t getDefaultPixelFormatFourCC(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage, uint32_t *outPixelFormatFourCC) const override;
-
-    [[nodiscard]] status_t getDefaultPixelFormatModifier(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage, uint64_t *outPixelFormatModifier) const override;
-
-    [[nodiscard]] status_t getDefaultAllocationSize(uint32_t width, uint32_t height,
-                                                    PixelFormat format, uint32_t layerCount,
-                                                    uint64_t usage,
-                                                    uint64_t *outAllocationSize) const override;
-
-    [[nodiscard]] status_t getDefaultProtectedContent(uint32_t width, uint32_t height,
-                                                      PixelFormat format, uint32_t layerCount,
-                                                      uint64_t usage,
-                                                      uint64_t *outProtectedContent) const override;
-
-    [[nodiscard]] status_t getDefaultCompression(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage,
-            aidl::android::hardware::graphics::common::ExtendableType *outCompression)
-            const override;
-
-    [[nodiscard]] status_t getDefaultCompression(uint32_t width, uint32_t height,
-                                                 PixelFormat format, uint32_t layerCount,
-                                                 uint64_t usage,
-                                                 ui::Compression *outCompression) const override;
-
-    [[nodiscard]] status_t getDefaultInterlaced(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage,
-            aidl::android::hardware::graphics::common::ExtendableType *outInterlaced)
-            const override;
-
-    [[nodiscard]] status_t getDefaultInterlaced(uint32_t width, uint32_t height, PixelFormat format,
-                                                uint32_t layerCount, uint64_t usage,
-                                                ui::Interlaced *outInterlaced) const override;
-
-    [[nodiscard]] status_t getDefaultChromaSiting(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage,
-            aidl::android::hardware::graphics::common::ExtendableType *outChromaSiting)
-            const override;
-
-    [[nodiscard]] status_t getDefaultChromaSiting(uint32_t width, uint32_t height,
-                                                  PixelFormat format, uint32_t layerCount,
-                                                  uint64_t usage,
-                                                  ui::ChromaSiting *outChromaSiting) const override;
-
-    [[nodiscard]] status_t getDefaultPlaneLayouts(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage, std::vector<ui::PlaneLayout> *outPlaneLayouts) const override;
-
 private:
     void unlockBlocking(buffer_handle_t bufferHandle) const;
 
