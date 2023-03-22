@@ -816,6 +816,8 @@ void Dumpstate::PrintHeader() const {
     printf("Kernel: ");
     DumpFileToFd(STDOUT_FILENO, "", "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
+    printf("Bootconfig: ");
+    DumpFileToFd(STDOUT_FILENO, "", "/proc/bootconfig");
     printf("Uptime: ");
     RunCommandToFd(STDOUT_FILENO, "", {"uptime", "-p"},
                    CommandOptions::WithTimeout(1).Always().Build());
