@@ -57,7 +57,4 @@ cc_test {
         "libgtest",
         "libscheduler",
     ],
-    sanitize: {
-        address: true,
-    },
 }
