@@ -514,7 +514,6 @@ android::PixelFormat GetNativePixelFormat(VkFormat format) {
         case VK_FORMAT_R8_UNORM:
             native_format = android::PIXEL_FORMAT_R_8;
             break;
-        // TODO: Do we need to query for VK_EXT_rgba10x6_formats here?
         case VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16:
             native_format = android::PIXEL_FORMAT_RGBA_10101010;
             break;
@@ -805,9 +804,23 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         }
     }
 
-    // TODO query VK_EXT_rgba10x6_formats support
+    bool rgba10x6_formats_ext = false;
+    uint32_t exts_count;
+    const auto& driver = GetData(pdev).driver;
+    driver.EnumerateDeviceExtensionProperties(pdev, nullptr, &exts_count,
+                                              nullptr);
+    std::vector<VkExtensionProperties> props(exts_count);
+    driver.EnumerateDeviceExtensionProperties(pdev, nullptr, &exts_count,
+                                              props.data());
+    for (uint32_t i = 0; i < exts_count; i++) {
+        VkExtensionProperties prop = props[i];
+        if (strcmp(prop.extensionName,
+                   VK_EXT_RGBA10X6_FORMATS_EXTENSION_NAME) == 0) {
+            rgba10x6_formats_ext = true;
+        }
+    }
     desc.format = AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM;
-    if (AHardwareBuffer_isSupported(&desc)) {
+    if (AHardwareBuffer_isSupported(&desc) && rgba10x6_formats_ext) {
         all_formats.emplace_back(
             VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
                                VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
