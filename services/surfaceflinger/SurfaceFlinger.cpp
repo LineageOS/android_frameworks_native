@@ -7051,13 +7051,34 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
     bool childrenOnly = args.childrenOnly;
     RenderAreaFuture renderAreaFuture = ftl::defer([=]() -> std::unique_ptr<RenderArea> {
+        ui::Transform layerTransform;
+        Rect layerBufferSize;
+        if (mLayerLifecycleManagerEnabled) {
+            frontend::LayerSnapshot* snapshot =
+                    mLayerSnapshotBuilder.getSnapshot(parent->getSequence());
+            if (!snapshot) {
+                ALOGW("Couldn't find layer snapshot for %d", parent->getSequence());
+            } else {
+                layerTransform = snapshot->localTransform;
+                layerBufferSize = snapshot->bufferSize;
+            }
+        } else {
+            layerTransform = parent->getTransform();
+            layerBufferSize = parent->getBufferSize(parent->getDrawingState());
+        }
+
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
-                                                 childrenOnly, args.captureSecureLayers);
+                                                 childrenOnly, args.captureSecureLayers,
+                                                 layerTransform, layerBufferSize);
     });
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
-        FloatRect parentCrop = crop.isEmpty() ? FloatRect(0, 0, reqSize.width, reqSize.height)
-                                              : crop.toFloatRect();
+        std::optional<FloatRect> parentCrop = std::nullopt;
+        if (args.childrenOnly) {
+            parentCrop = crop.isEmpty() ? FloatRect(0, 0, reqSize.width, reqSize.height)
+                                        : crop.toFloatRect();
+        }
+
         getLayerSnapshots = getLayerSnapshotsForScreenshots(parent->sequence, args.uid,
                                                             std::move(excludeLayerIds),
                                                             args.childrenOnly, parentCrop);
@@ -8007,7 +8028,7 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(
                     if (layerStack && snapshot->outputFilter.layerStack != *layerStack) {
                         return;
                     }
-                    if (uid != CaptureArgs::UNSET_UID && snapshot->inputInfo.ownerUid != uid) {
+                    if (uid != CaptureArgs::UNSET_UID && snapshot->uid != uid) {
                         return;
                     }
                     if (!snapshot->hasSomethingToDraw()) {
@@ -8034,7 +8055,8 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(
 std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()>
 SurfaceFlinger::getLayerSnapshotsForScreenshots(uint32_t rootLayerId, uint32_t uid,
                                                 std::unordered_set<uint32_t> excludeLayerIds,
-                                                bool childrenOnly, const FloatRect& parentCrop) {
+                                                bool childrenOnly,
+                                                const std::optional<FloatRect>& parentCrop) {
     return [&, rootLayerId, uid, excludeLayerIds = std::move(excludeLayerIds), childrenOnly,
             parentCrop]() {
         auto root = mLayerHierarchyBuilder.getPartialHierarchy(rootLayerId, childrenOnly);
@@ -8047,7 +8069,7 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(uint32_t rootLayerId, uint32_t u
                      .globalShadowSettings = mDrawingState.globalShadowSettings,
                      .supportsBlur = mSupportsBlur,
                      .forceFullDamage = mForceFullDamage,
-                     .parentCrop = {parentCrop},
+                     .parentCrop = parentCrop,
                      .excludeLayerIds = std::move(excludeLayerIds),
                      .supportedLayerGenericMetadata =
                              getHwComposer().getSupportedLayerGenericMetadata(),
