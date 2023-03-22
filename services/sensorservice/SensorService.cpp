@@ -1648,7 +1648,7 @@ int SensorService::configureRuntimeSensorDirectChannel(
     int deviceId = c->getDeviceId();
     int sensorDeviceId = getDeviceIdFromHandle(sensorHandle);
     if (sensorDeviceId != c->getDeviceId()) {
-        ALOGE("Cannot configure direct channel created for device %d with a sensor that belongs"
+        ALOGE("Cannot configure direct channel created for device %d with a sensor that belongs "
               "to device %d", c->getDeviceId(), sensorDeviceId);
         return BAD_VALUE;
     }
