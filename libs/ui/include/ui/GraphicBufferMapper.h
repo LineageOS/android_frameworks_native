@@ -138,48 +138,6 @@ public:
     status_t setSmpte2094_10(buffer_handle_t bufferHandle,
                              std::optional<std::vector<uint8_t>> smpte2094_10);
 
-    /**
-     * Gets the default metadata for a gralloc buffer allocated with the given parameters.
-     *
-     * These functions are supported by gralloc 4.0+.
-     */
-    status_t getDefaultPixelFormatFourCC(uint32_t width, uint32_t height, PixelFormat format,
-                                         uint32_t layerCount, uint64_t usage,
-                                         uint32_t* outPixelFormatFourCC);
-    status_t getDefaultPixelFormatModifier(uint32_t width, uint32_t height, PixelFormat format,
-                                           uint32_t layerCount, uint64_t usage,
-                                           uint64_t* outPixelFormatModifier);
-    status_t getDefaultAllocationSize(uint32_t width, uint32_t height, PixelFormat format,
-                                      uint32_t layerCount, uint64_t usage,
-                                      uint64_t* outAllocationSize);
-    status_t getDefaultProtectedContent(uint32_t width, uint32_t height, PixelFormat format,
-                                        uint32_t layerCount, uint64_t usage,
-                                        uint64_t* outProtectedContent);
-    status_t getDefaultCompression(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage,
-            aidl::android::hardware::graphics::common::ExtendableType* outCompression);
-    status_t getDefaultCompression(uint32_t width, uint32_t height, PixelFormat format,
-                                   uint32_t layerCount, uint64_t usage,
-                                   ui::Compression* outCompression);
-    status_t getDefaultInterlaced(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage,
-            aidl::android::hardware::graphics::common::ExtendableType* outInterlaced);
-    status_t getDefaultInterlaced(uint32_t width, uint32_t height, PixelFormat format,
-                                  uint32_t layerCount, uint64_t usage,
-                                  ui::Interlaced* outInterlaced);
-    status_t getDefaultChromaSiting(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage,
-            aidl::android::hardware::graphics::common::ExtendableType* outChromaSiting);
-    status_t getDefaultChromaSiting(uint32_t width, uint32_t height, PixelFormat format,
-                                    uint32_t layerCount, uint64_t usage,
-                                    ui::ChromaSiting* outChromaSiting);
-    status_t getDefaultPlaneLayouts(uint32_t width, uint32_t height, PixelFormat format,
-                                    uint32_t layerCount, uint64_t usage,
-                                    std::vector<ui::PlaneLayout>* outPlaneLayouts);
-
     const GrallocMapper& getGrallocMapper() const {
         return reinterpret_cast<const GrallocMapper&>(*mMapper);
     }
