@@ -93,6 +93,8 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     int32_t frameRateSelectionPriority;
     LayerHierarchy::TraversalPath mirrorRootPath;
     bool unreachable = true;
+    uid_t uid;
+    pid_t pid;
     ChildState childState;
 
     static bool isOpaqueFormat(PixelFormat format);
