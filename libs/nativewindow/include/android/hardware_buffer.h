@@ -177,14 +177,14 @@ enum AHardwareBuffer_Format {
     /**
      * Corresponding formats:
      *   Vulkan: VK_FORMAT_R16_UINT
-     *   OpenGL ES: GR_GL_R16UI
+     *   OpenGL ES: GL_R16UI
      */
     AHARDWAREBUFFER_FORMAT_R16_UINT                 = 0x39,
 
     /**
      * Corresponding formats:
      *   Vulkan: VK_FORMAT_R16G16_UINT
-     *   OpenGL ES: GR_GL_RG16UI
+     *   OpenGL ES: GL_RG16UI
      */
     AHARDWAREBUFFER_FORMAT_R16G16_UINT              = 0x3a,
 
