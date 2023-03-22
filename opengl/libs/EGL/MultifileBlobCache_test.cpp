@@ -190,6 +190,26 @@ TEST_F(MultifileBlobCacheTest, CacheMaxValueSizeSucceeds) {
     }
 }
 
+TEST_F(MultifileBlobCacheTest, CacheMaxKeyAndValueSizeSucceeds) {
+    char key[kMaxKeySize];
+    for (int i = 0; i < kMaxKeySize; i++) {
+        key[i] = 'a';
+    }
+    char buf[kMaxValueSize];
+    for (int i = 0; i < kMaxValueSize; i++) {
+        buf[i] = 'b';
+    }
+    mMBC->set(key, kMaxKeySize, buf, kMaxValueSize);
+    for (int i = 0; i < kMaxValueSize; i++) {
+        buf[i] = 0xee;
+    }
+    mMBC->get(key, kMaxKeySize, buf, kMaxValueSize);
+    for (int i = 0; i < kMaxValueSize; i++) {
+        SCOPED_TRACE(i);
+        ASSERT_EQ('b', buf[i]);
+    }
+}
+
 TEST_F(MultifileBlobCacheTest, CacheMinKeyAndValueSizeSucceeds) {
     unsigned char buf[1] = {0xee};
     mMBC->set("x", 1, "y", 1);

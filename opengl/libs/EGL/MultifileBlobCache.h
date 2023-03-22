@@ -20,6 +20,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+#include <android-base/thread_annotations.h>
 #include <future>
 #include <map>
 #include <queue>
@@ -139,7 +140,8 @@ private:
     // Below are the components used for deferred writes
 
     // Track whether we have pending writes for an entry
-    std::multimap<uint32_t, uint8_t*> mDeferredWrites;
+    std::mutex mDeferredWriteStatusMutex;
+    std::multimap<uint32_t, uint8_t*> mDeferredWrites GUARDED_BY(mDeferredWriteStatusMutex);
 
     // Functions to work through tasks in the queue
     void processTasks();

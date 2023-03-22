@@ -298,13 +298,17 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
 
     // Sending -1 as the fd indicates we don't have an fd for this
     if (!addToHotCache(entryHash, -1, buffer, fileSize)) {
-        ALOGE("GET: Failed to add %u to hot cache", entryHash);
+        ALOGE("SET: Failed to add %u to hot cache", entryHash);
         return;
     }
 
     // Track that we're creating a pending write for this entry
     // Include the buffer to handle the case when multiple writes are pending for an entry
-    mDeferredWrites.insert(std::make_pair(entryHash, buffer));
+    {
+        // Synchronize access to deferred write status
+        std::lock_guard<std::mutex> lock(mDeferredWriteStatusMutex);
+        mDeferredWrites.insert(std::make_pair(entryHash, buffer));
+    }
 
     // Create deferred task to write to storage
     ALOGV("SET: Adding task to queue.");
@@ -371,8 +375,15 @@ EGLsizeiANDROID MultifileBlobCache::get(const void* key, EGLsizeiANDROID keySize
     } else {
         ALOGV("GET: HotCache MISS for entry: %u", entryHash);
 
-        if (mDeferredWrites.find(entryHash) != mDeferredWrites.end()) {
-            // Wait for writes to complete if there is an outstanding write for this entry
+        // Wait for writes to complete if there is an outstanding write for this entry
+        bool wait = false;
+        {
+            // Synchronize access to deferred write status
+            std::lock_guard<std::mutex> lock(mDeferredWriteStatusMutex);
+            wait = mDeferredWrites.find(entryHash) != mDeferredWrites.end();
+        }
+
+        if (wait) {
             ALOGV("GET: Waiting for write to complete for %u", entryHash);
             waitForWorkComplete();
         }
@@ -484,6 +495,7 @@ bool MultifileBlobCache::addToHotCache(uint32_t newEntryHash, int newFd, uint8_t
               mHotCacheSize, newEntrySize, mHotCacheLimit, newEntryHash);
 
         // Wait for all the files to complete writing so our hot cache is accurate
+        ALOGV("HOTCACHE(ADD): Waiting for work to complete for %u", newEntryHash);
         waitForWorkComplete();
 
         // Free up old entries until under the limit
@@ -520,6 +532,7 @@ bool MultifileBlobCache::removeFromHotCache(uint32_t entryHash) {
         ALOGV("HOTCACHE(REMOVE): Removing %u from hot cache", entryHash);
 
         // Wait for all the files to complete writing so our hot cache is accurate
+        ALOGV("HOTCACHE(REMOVE): Waiting for work to complete for %u", entryHash);
         waitForWorkComplete();
 
         ALOGV("HOTCACHE(REMOVE): Closing hot cache entry for %u", entryHash);
@@ -590,6 +603,7 @@ void MultifileBlobCache::trimCache(size_t cacheByteLimit) {
     size_t limit = cacheByteLimit;
 
     // Wait for all deferred writes to complete
+    ALOGV("TRIM: Waiting for work to complete.");
     waitForWorkComplete();
 
     size_t size = getTotalSize();
@@ -646,13 +660,18 @@ void MultifileBlobCache::processTask(DeferredTask& task) {
 
             // Erase the entry from mDeferredWrites
             // Since there could be multiple outstanding writes for an entry, find the matching one
-            typedef std::multimap<uint32_t, uint8_t*>::iterator entryIter;
-            std::pair<entryIter, entryIter> iterPair = mDeferredWrites.equal_range(entryHash);
-            for (entryIter it = iterPair.first; it != iterPair.second; ++it) {
-                if (it->second == buffer) {
-                    ALOGV("DEFERRED: Marking write complete for %u at %p", it->first, it->second);
-                    mDeferredWrites.erase(it);
-                    break;
+            {
+                // Synchronize access to deferred write status
+                std::lock_guard<std::mutex> lock(mDeferredWriteStatusMutex);
+                typedef std::multimap<uint32_t, uint8_t*>::iterator entryIter;
+                std::pair<entryIter, entryIter> iterPair = mDeferredWrites.equal_range(entryHash);
+                for (entryIter it = iterPair.first; it != iterPair.second; ++it) {
+                    if (it->second == buffer) {
+                        ALOGV("DEFERRED: Marking write complete for %u at %p", it->first,
+                              it->second);
+                        mDeferredWrites.erase(it);
+                        break;
+                    }
                 }
             }
 
