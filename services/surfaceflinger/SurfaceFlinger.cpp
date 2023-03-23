@@ -3257,8 +3257,11 @@ void SurfaceFlinger::updateInputFlinger() {
                                                       inputFlinger = mInputFlinger, this]() {
         ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
-            mWindowInfosListenerInvoker->windowInfosChanged(windowInfos, displayInfos,
-                                                            inputWindowCommands.syncInputWindows);
+            mWindowInfosListenerInvoker
+                    ->windowInfosChanged(std::move(windowInfos), std::move(displayInfos),
+                                         /* shouldSync= */ inputWindowCommands.syncInputWindows,
+                                         /* forceImmediateCall= */
+                                         !inputWindowCommands.focusRequests.empty());
         } else if (inputWindowCommands.syncInputWindows) {
             // If the caller requested to sync input windows, but there are no
             // changes to input windows, notify immediately.
