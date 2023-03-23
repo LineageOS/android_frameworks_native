@@ -16,11 +16,16 @@
 
 #include <BnAidlStuff.h>
 #include <android-base/logging.h>
+#include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binderthreadstate/CallerUtils.h>
 #include <binderthreadstateutilstest/1.0/IHidlStuff.h>
 #include <gtest/gtest.h>
 #include <hidl/HidlTransportSupport.h>
+#include <hwbinder/IPCThreadState.h>
+
+#include <thread>
+
 #include <linux/prctl.h>
 #include <sys/prctl.h>
 
@@ -152,6 +157,20 @@ TEST(BinderThreadState, LocalHidlCall) {
 TEST(BinderThreadState, LocalAidlCall) {
     sp<IAidlStuff> server = new AidlServer(0, 0);
     EXPECT_TRUE(server->callLocal().isOk());
+}
+
+TEST(BinderThreadState, DoesntInitializeBinderDriver) {
+    // this is on another thread, because it's testing thread-specific
+    // state and we expect it not to be initialized.
+    std::thread([&] {
+        EXPECT_EQ(nullptr, android::IPCThreadState::selfOrNull());
+        EXPECT_EQ(nullptr, android::hardware::IPCThreadState::selfOrNull());
+
+        (void)getCurrentServingCall();
+
+        EXPECT_EQ(nullptr, android::IPCThreadState::selfOrNull());
+        EXPECT_EQ(nullptr, android::hardware::IPCThreadState::selfOrNull());
+    }).join();
 }
 
 TEST(BindThreadState, RemoteHidlCall) {
