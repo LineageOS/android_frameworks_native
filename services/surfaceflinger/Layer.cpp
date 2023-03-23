@@ -1505,7 +1505,7 @@ void Layer::updateTransformHint(ui::Transform::RotationFlags transformHint) {
         transformHint = ui::Transform::ROT_0;
     }
 
-    setTransformHint(transformHint);
+    setTransformHintLegacy(transformHint);
 }
 
 // ----------------------------------------------------------------------------
@@ -2865,9 +2865,13 @@ void Layer::onSurfaceFrameCreated(
 
 void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
-        handle->transformHint = mSkipReportingTransformHint
-                ? std::nullopt
-                : std::make_optional<uint32_t>(mTransformHint);
+        if (mFlinger->mLayerLifecycleManagerEnabled) {
+            handle->transformHint = mTransformHint;
+        } else {
+            handle->transformHint = mSkipReportingTransformHint
+                    ? std::nullopt
+                    : std::make_optional<uint32_t>(mTransformHintLegacy);
+        }
         handle->dequeueReadyTime = dequeueReadyTime;
         handle->currentMaxAcquiredBufferCount =
                 mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mOwnerUid);
@@ -4027,10 +4031,10 @@ sp<GraphicBuffer> Layer::getBuffer() const {
     return mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getBuffer() : nullptr;
 }
 
-void Layer::setTransformHint(ui::Transform::RotationFlags displayTransformHint) {
-    mTransformHint = getFixedTransformHint();
-    if (mTransformHint == ui::Transform::ROT_INVALID) {
-        mTransformHint = displayTransformHint;
+void Layer::setTransformHintLegacy(ui::Transform::RotationFlags displayTransformHint) {
+    mTransformHintLegacy = getFixedTransformHint();
+    if (mTransformHintLegacy == ui::Transform::ROT_INVALID) {
+        mTransformHintLegacy = displayTransformHint;
     }
     mSkipReportingTransformHint = false;
 }
