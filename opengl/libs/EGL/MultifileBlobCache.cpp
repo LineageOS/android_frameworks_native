@@ -276,11 +276,10 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
 
     uint8_t* buffer = new uint8_t[fileSize];
 
-    // Write placeholders for magic and CRC until deferred thread complets the write
+    // Write placeholders for magic and CRC until deferred thread completes the write
     android::MultifileHeader header = {kMultifileMagic, kCrcPlaceholder, keySize, valueSize};
     memcpy(static_cast<void*>(buffer), static_cast<const void*>(&header),
            sizeof(android::MultifileHeader));
-
     // Write the key and value after the header
     memcpy(static_cast<void*>(buffer + sizeof(MultifileHeader)), static_cast<const void*>(key),
            keySize);
@@ -301,6 +300,7 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
     // Sending -1 as the fd indicates we don't have an fd for this
     if (!addToHotCache(entryHash, -1, buffer, fileSize)) {
         ALOGE("SET: Failed to add %u to hot cache", entryHash);
+        delete[] buffer;
         return;
     }
 
