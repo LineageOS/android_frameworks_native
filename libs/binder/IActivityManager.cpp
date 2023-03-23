@@ -131,6 +131,53 @@ public:
         *outResult = reply.readInt32();
         return NO_ERROR;
     }
+
+    virtual status_t logFgsApiBegin(int32_t apiType, int32_t appUid, int32_t appPid) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IActivityManager::getInterfaceDescriptor());
+        data.writeInt32(apiType);
+        data.writeInt32(appUid);
+        data.writeInt32(appPid);
+        status_t err = remote()->transact(LOG_FGS_API_BEGIN_TRANSACTION, data, &reply);
+        if (err != NO_ERROR || ((err = reply.readExceptionCode()) != NO_ERROR)) {
+            ALOGD("FGS Logger Transaction failed");
+            ALOGD("%d", err);
+            return err;
+        }
+        return NO_ERROR;
+    }
+
+    virtual status_t logFgsApiEnd(int32_t apiType, int32_t appUid, int32_t appPid) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IActivityManager::getInterfaceDescriptor());
+        data.writeInt32(apiType);
+        data.writeInt32(appUid);
+        data.writeInt32(appPid);
+        status_t err = remote()->transact(LOG_FGS_API_END_TRANSACTION, data, &reply);
+        if (err != NO_ERROR || ((err = reply.readExceptionCode()) != NO_ERROR)) {
+            ALOGD("FGS Logger Transaction failed");
+            ALOGD("%d", err);
+            return err;
+        }
+        return NO_ERROR;
+    }
+
+    virtual status_t logFgsApiStateChanged(int32_t apiType, int32_t state, int32_t appUid,
+                                           int32_t appPid) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IActivityManager::getInterfaceDescriptor());
+        data.writeInt32(apiType);
+        data.writeInt32(state);
+        data.writeInt32(appUid);
+        data.writeInt32(appPid);
+        status_t err = remote()->transact(LOG_FGS_API_BEGIN_TRANSACTION, data, &reply);
+        if (err != NO_ERROR || ((err = reply.readExceptionCode()) != NO_ERROR)) {
+            ALOGD("FGS Logger Transaction failed");
+            ALOGD("%d", err);
+            return err;
+        }
+        return NO_ERROR;
+    }
 };
 
 // ------------------------------------------------------------------------------------

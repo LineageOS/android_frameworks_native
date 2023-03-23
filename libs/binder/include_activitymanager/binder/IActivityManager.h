@@ -42,6 +42,10 @@ public:
                                     const pid_t pid,
                                     const uid_t uid,
                                     int32_t* outResult) = 0;
+    virtual status_t logFgsApiBegin(int32_t apiType, int32_t appUid, int32_t appPid) = 0;
+    virtual status_t logFgsApiEnd(int32_t apiType, int32_t appUid, int32_t appPid) = 0;
+    virtual status_t logFgsApiStateChanged(int32_t apiType, int32_t state, int32_t appUid,
+                                           int32_t appPid) = 0;
 
     enum {
         OPEN_CONTENT_URI_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION,
@@ -50,6 +54,9 @@ public:
         IS_UID_ACTIVE_TRANSACTION,
         GET_UID_PROCESS_STATE_TRANSACTION,
         CHECK_PERMISSION_TRANSACTION,
+        LOG_FGS_API_BEGIN_TRANSACTION,
+        LOG_FGS_API_END_TRANSACTION,
+        LOG_FGS_API_STATE_CHANGED_TRANSACTION
     };
 };
 
