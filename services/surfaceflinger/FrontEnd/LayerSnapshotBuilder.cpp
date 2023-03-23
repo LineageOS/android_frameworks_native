@@ -22,10 +22,15 @@
 #include "LayerSnapshotBuilder.h"
 #include <gui/TraceUtils.h>
 #include <ui/FloatRect.h>
+
 #include <numeric>
+#include <optional>
+
+#include <gui/TraceUtils.h>
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/Hal.h"
 #include "LayerLog.h"
+#include "LayerSnapshotBuilder.h"
 #include "TimeStats/TimeStats.h"
 #include "ftl/small_map.h"
 
@@ -649,12 +654,14 @@ void LayerSnapshotBuilder::resetRelativeState(LayerSnapshot& snapshot) {
     snapshot.relativeLayerMetadata.mMap.clear();
 }
 
-uint32_t getDisplayRotationFlags(
-        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displays,
-        const ui::LayerStack& layerStack) {
-    static frontend::DisplayInfo sDefaultDisplayInfo = {.isPrimary = false};
-    auto display = displays.get(layerStack).value_or(sDefaultDisplayInfo).get();
-    return display.isPrimary ? display.rotationFlags : 0;
+uint32_t getPrimaryDisplayRotationFlags(
+        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displays) {
+    for (auto& [_, display] : displays) {
+        if (display.isPrimary) {
+            return display.rotationFlags;
+        }
+    }
+    return 0;
 }
 
 void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& args,
@@ -681,8 +688,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
             ? requested.layerStack
             : parentSnapshot.outputFilter.layerStack;
 
-    uint32_t displayRotationFlags =
-            getDisplayRotationFlags(args.displays, snapshot.outputFilter.layerStack);
+    uint32_t primaryDisplayRotationFlags = getPrimaryDisplayRotationFlags(args.displays);
     const bool forceUpdate = args.forceUpdate == ForceUpdateFlags::ALL ||
             snapshot.changes.any(RequestedLayerState::Changes::Visibility |
                                  RequestedLayerState::Changes::Created);
@@ -696,7 +702,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                 : Fence::NO_FENCE;
         snapshot.buffer =
                 requested.externalTexture ? requested.externalTexture->getBuffer() : nullptr;
-        snapshot.bufferSize = requested.getBufferSize(displayRotationFlags);
+        snapshot.bufferSize = requested.getBufferSize(primaryDisplayRotationFlags);
         snapshot.geomBufferSize = snapshot.bufferSize;
         snapshot.croppedBufferSize = requested.getCroppedBufferSize(snapshot.bufferSize);
         snapshot.dataspace = requested.dataspace;
@@ -751,13 +757,26 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         snapshot.gameMode = requested.metadata.has(gui::METADATA_GAME_MODE)
                 ? requested.gameMode
                 : parentSnapshot.gameMode;
-        snapshot.fixedTransformHint = requested.fixedTransformHint != ui::Transform::ROT_INVALID
-                ? requested.fixedTransformHint
-                : parentSnapshot.fixedTransformHint;
         // Display mirrors are always placed in a VirtualDisplay so we never want to capture layers
         // marked as skip capture
         snapshot.handleSkipScreenshotFlag = parentSnapshot.handleSkipScreenshotFlag ||
                 (requested.layerStackToMirror != ui::INVALID_LAYER_STACK);
+    }
+
+    if (forceUpdate || snapshot.changes.any(RequestedLayerState::Changes::AffectsChildren) ||
+        args.displayChanges) {
+        snapshot.fixedTransformHint = requested.fixedTransformHint != ui::Transform::ROT_INVALID
+                ? requested.fixedTransformHint
+                : parentSnapshot.fixedTransformHint;
+
+        if (snapshot.fixedTransformHint != ui::Transform::ROT_INVALID) {
+            snapshot.transformHint = snapshot.fixedTransformHint;
+        } else {
+            const auto display = args.displays.get(snapshot.outputFilter.layerStack);
+            snapshot.transformHint = display.has_value()
+                    ? std::make_optional<>(display->get().transformHint)
+                    : std::nullopt;
+        }
     }
 
     if (forceUpdate ||
@@ -799,7 +818,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     if (forceUpdate ||
         snapshot.changes.any(RequestedLayerState::Changes::Hierarchy |
                              RequestedLayerState::Changes::Geometry)) {
-        updateLayerBounds(snapshot, requested, parentSnapshot, displayRotationFlags);
+        updateLayerBounds(snapshot, requested, parentSnapshot, primaryDisplayRotationFlags);
         updateRoundedCorner(snapshot, requested, parentSnapshot);
     }
 
@@ -870,10 +889,10 @@ void LayerSnapshotBuilder::updateRoundedCorner(LayerSnapshot& snapshot,
 void LayerSnapshotBuilder::updateLayerBounds(LayerSnapshot& snapshot,
                                              const RequestedLayerState& requested,
                                              const LayerSnapshot& parentSnapshot,
-                                             uint32_t displayRotationFlags) {
+                                             uint32_t primaryDisplayRotationFlags) {
     snapshot.croppedBufferSize = requested.getCroppedBufferSize(snapshot.bufferSize);
     snapshot.geomCrop = requested.crop;
-    snapshot.localTransform = requested.getTransform(displayRotationFlags);
+    snapshot.localTransform = requested.getTransform(primaryDisplayRotationFlags);
     snapshot.localTransformInverse = snapshot.localTransform.inverse();
     snapshot.geomLayerTransform = parentSnapshot.geomLayerTransform * snapshot.localTransform;
     const bool transformWasInvalid = snapshot.invalidTransform;
@@ -887,14 +906,14 @@ void LayerSnapshotBuilder::updateLayerBounds(LayerSnapshot& snapshot,
                                    requestedT.dsdy(), requestedT.dtdx(), requestedT.dtdy());
         std::string bufferDebug;
         if (requested.externalTexture) {
-            auto unRotBuffer = requested.getUnrotatedBufferSize(displayRotationFlags);
+            auto unRotBuffer = requested.getUnrotatedBufferSize(primaryDisplayRotationFlags);
             auto& destFrame = requested.destinationFrame;
             bufferDebug = base::StringPrintf(" buffer={%d,%d}  displayRot=%d"
                                              " destFrame={%d,%d,%d,%d} unRotBuffer={%d,%d}",
                                              requested.externalTexture->getWidth(),
                                              requested.externalTexture->getHeight(),
-                                             displayRotationFlags, destFrame.left, destFrame.top,
-                                             destFrame.right, destFrame.bottom,
+                                             primaryDisplayRotationFlags, destFrame.left,
+                                             destFrame.top, destFrame.right, destFrame.bottom,
                                              unRotBuffer.getHeight(), unRotBuffer.getWidth());
         }
         ALOGW("Resetting transform for %s because it is invalid.%s%s",
