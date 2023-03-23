@@ -32,9 +32,9 @@ class TestableTexturePool : public TexturePool {
 public:
     TestableTexturePool(renderengine::RenderEngine& renderEngine) : TexturePool(renderEngine) {}
 
-    size_t getMinPoolSize() const { return kMinPoolSize; }
     size_t getMaxPoolSize() const { return kMaxPoolSize; }
     size_t getPoolSize() const { return mPool.size(); }
+    size_t isGenTextureFutureValid() const { return mGenTextureFuture.valid(); }
 };
 
 struct TexturePoolTest : public testing::Test {
@@ -56,16 +56,8 @@ struct TexturePoolTest : public testing::Test {
     TestableTexturePool mTexturePool = TestableTexturePool(mRenderEngine);
 };
 
-TEST_F(TexturePoolTest, preallocatesMinPool) {
-    EXPECT_EQ(mTexturePool.getMinPoolSize(), mTexturePool.getPoolSize());
-}
-
-TEST_F(TexturePoolTest, doesNotAllocateBeyondMinPool) {
-    for (size_t i = 0; i < mTexturePool.getMinPoolSize() + 1; i++) {
-        auto texture = mTexturePool.borrowTexture();
-    }
-
-    EXPECT_EQ(mTexturePool.getMinPoolSize(), mTexturePool.getPoolSize());
+TEST_F(TexturePoolTest, preallocatesZeroSizePool) {
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
 }
 
 TEST_F(TexturePoolTest, cyclesUpToMaxPoolSize) {
@@ -119,10 +111,10 @@ TEST_F(TexturePoolTest, reallocatesWhenDisplaySizeChanges) {
               static_cast<int32_t>(texture->get()->getBuffer()->getHeight()));
     mTexturePool.setDisplaySize(kDisplaySizeTwo);
 
-    EXPECT_EQ(mTexturePool.getMinPoolSize(), mTexturePool.getPoolSize());
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
     texture.reset();
     // When the texture is returned to the pool, the pool now destroys it.
-    EXPECT_EQ(mTexturePool.getMinPoolSize(), mTexturePool.getPoolSize());
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
 
     texture = mTexturePool.borrowTexture();
     EXPECT_EQ(kDisplaySizeTwo.getWidth(),
@@ -132,14 +124,11 @@ TEST_F(TexturePoolTest, reallocatesWhenDisplaySizeChanges) {
 }
 
 TEST_F(TexturePoolTest, freesBuffersWhenDisabled) {
-    EXPECT_EQ(mTexturePool.getPoolSize(), mTexturePool.getMinPoolSize());
-
     std::deque<std::shared_ptr<TexturePool::AutoTexture>> textures;
-    for (size_t i = 0; i < mTexturePool.getMinPoolSize() - 1; i++) {
+    for (size_t i = 0; i < 2; i++) {
         textures.emplace_back(mTexturePool.borrowTexture());
     }
 
-    EXPECT_EQ(mTexturePool.getPoolSize(), 1u);
     mTexturePool.setEnabled(false);
     EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
 
@@ -148,12 +137,11 @@ TEST_F(TexturePoolTest, freesBuffersWhenDisabled) {
 }
 
 TEST_F(TexturePoolTest, doesNotHoldBuffersWhenDisabled) {
-    EXPECT_EQ(mTexturePool.getPoolSize(), mTexturePool.getMinPoolSize());
     mTexturePool.setEnabled(false);
     EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
 
     std::deque<std::shared_ptr<TexturePool::AutoTexture>> textures;
-    for (size_t i = 0; i < mTexturePool.getMinPoolSize() - 1; i++) {
+    for (size_t i = 0; i < 2; i++) {
         textures.emplace_back(mTexturePool.borrowTexture());
     }
 
@@ -162,12 +150,13 @@ TEST_F(TexturePoolTest, doesNotHoldBuffersWhenDisabled) {
     EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
 }
 
-TEST_F(TexturePoolTest, reallocatesWhenReEnabled) {
-    EXPECT_EQ(mTexturePool.getPoolSize(), mTexturePool.getMinPoolSize());
+TEST_F(TexturePoolTest, genFutureWhenReEnabled) {
     mTexturePool.setEnabled(false);
     EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
+    EXPECT_FALSE(mTexturePool.isGenTextureFutureValid());
     mTexturePool.setEnabled(true);
-    EXPECT_EQ(mTexturePool.getPoolSize(), mTexturePool.getMinPoolSize());
+    EXPECT_EQ(mTexturePool.getPoolSize(), 0u);
+    EXPECT_TRUE(mTexturePool.isGenTextureFutureValid());
 }
 
 } // namespace
