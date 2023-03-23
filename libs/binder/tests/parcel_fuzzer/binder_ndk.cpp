@@ -198,6 +198,8 @@ std::vector<ParcelRead<NdkParcelAdapter>> BINDER_NDK_PARCEL_READ_FUNCTIONS{
             aidl::parcelables::GenericDataParcelable genericDataParcelable;
             binder_status_t status = genericDataParcelable.readFromParcel(p.aParcel());
             FUZZ_LOG() << "status: " << status;
+            std::string toString = genericDataParcelable.toString();
+            FUZZ_LOG() << "toString() result: " << toString;
         },
         [](const NdkParcelAdapter& p, FuzzedDataProvider& provider) {
             FUZZ_LOG() << "about to marshal AParcel";
