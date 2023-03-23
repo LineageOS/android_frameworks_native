@@ -455,8 +455,6 @@ public:
     sp<GraphicBuffer> getBuffer() const;
     const std::shared_ptr<renderengine::ExternalTexture>& getExternalTexture() const;
 
-    ui::Transform::RotationFlags getTransformHint() const { return mTransformHint; }
-
     /*
      * Returns if a frame is ready
      */
@@ -878,6 +876,9 @@ public:
         };
     };
     bool hasBuffer() const { return mBufferInfo.mBuffer != nullptr; }
+    void setTransformHint(std::optional<ui::Transform::RotationFlags> transformHint) {
+        mTransformHint = transformHint;
+    }
 
 protected:
     // For unit tests
@@ -1154,14 +1155,15 @@ private:
     float mBorderWidth;
     half4 mBorderColor;
 
-    void setTransformHint(ui::Transform::RotationFlags);
+    void setTransformHintLegacy(ui::Transform::RotationFlags);
 
     const uint32_t mTextureName;
 
     // Transform hint provided to the producer. This must be accessed holding
     // the mStateLock.
-    ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
+    ui::Transform::RotationFlags mTransformHintLegacy = ui::Transform::ROT_0;
     bool mSkipReportingTransformHint = true;
+    std::optional<ui::Transform::RotationFlags> mTransformHint = std::nullopt;
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     uint64_t mPreviousReleasedFrameNumber = 0;
