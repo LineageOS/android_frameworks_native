@@ -54,7 +54,6 @@ private:
     MultiTouchMotionAccumulator mMotionAccumulator;
     TouchButtonAccumulator mTouchButtonAccumulator;
     int32_t mMscTimestamp = 0;
-    std::set<size_t> mFingerSlots;
 };
 
 } // namespace android
