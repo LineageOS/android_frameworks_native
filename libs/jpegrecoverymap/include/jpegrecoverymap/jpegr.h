@@ -19,6 +19,10 @@
 
 #include "jpegrerrorcode.h"
 
+#ifndef FLT_MAX
+#define FLT_MAX 0x1.fffffep127f
+#endif
+
 namespace android::jpegrecoverymap {
 
 // Color gamuts for image data
@@ -206,7 +210,8 @@ public:
      *
      * @param compressed_jpegr_image compressed JPEGR image.
      * @param dest destination of the uncompressed JPEGR image.
-     * @param max_display_boost (optional) the maximum available boost supported by a display
+     * @param max_display_boost (optional) the maximum available boost supported by a display,
+     *                          the value must be greater than or equal to 1.0.
      * @param exif destination of the decoded EXIF metadata. The default value is NULL where the
                    decoder will do nothing about it. If configured not NULL the decoder will write
                    EXIF data into this structure. The format is defined in {@code jpegr_exif_struct}
@@ -235,7 +240,7 @@ public:
      */
     status_t decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                          jr_uncompressed_ptr dest,
-                         float max_display_boost = -1.0f,
+                         float max_display_boost = FLT_MAX,
                          jr_exif_ptr exif = nullptr,
                          jpegr_output_format output_format = JPEGR_OUTPUT_HDR_LINEAR,
                          jr_uncompressed_ptr recovery_map = nullptr,
