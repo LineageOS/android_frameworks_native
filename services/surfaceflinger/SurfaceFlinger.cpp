@@ -2763,7 +2763,7 @@ bool SurfaceFlinger::isHdrLayer(const frontend::LayerSnapshot& snapshot) const {
     // RANGE_EXTENDED layers may identify themselves as being "HDR" via a desired sdr/hdr ratio
     if ((snapshot.dataspace & (int32_t)Dataspace::RANGE_MASK) ==
                 (int32_t)Dataspace::RANGE_EXTENDED &&
-        snapshot.desiredSdrHdrRatio > 1.01f) {
+        snapshot.desiredHdrSdrRatio > 1.01f) {
         return true;
     }
     return false;
@@ -2900,11 +2900,9 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
                         const auto* outputLayer =
                             compositionDisplay->getOutputLayerForLayer(layerFe);
                         if (outputLayer) {
-                            // TODO(b/267350616): Rename SdrHdrRatio -> HdrSdrRatio
-                            // everywhere
-                            const float desiredHdrSdrRatio = snapshot.desiredSdrHdrRatio <= 1.f
+                            const float desiredHdrSdrRatio = snapshot.desiredHdrSdrRatio <= 1.f
                                     ? std::numeric_limits<float>::infinity()
-                                    : snapshot.desiredSdrHdrRatio;
+                                    : snapshot.desiredHdrSdrRatio;
                             info.mergeDesiredRatio(desiredHdrSdrRatio);
                             info.numberOfHdrLayers++;
                             const auto displayFrame = outputLayer->getState().displayFrame;
@@ -4931,7 +4929,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         if (layer->setDimmingEnabled(s.dimmingEnabled)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eExtendedRangeBrightnessChanged) {
-        if (layer->setExtendedRangeBrightness(s.currentSdrHdrRatio, s.desiredSdrHdrRatio)) {
+        if (layer->setExtendedRangeBrightness(s.currentHdrSdrRatio, s.desiredHdrSdrRatio)) {
             flags |= eTraversalNeeded;
         }
     }
