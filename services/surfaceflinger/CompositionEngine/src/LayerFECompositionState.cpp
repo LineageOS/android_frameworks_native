@@ -121,9 +121,9 @@ void LayerFECompositionState::dump(std::string& out) const {
     dumpVal(out, "dataspace", toString(dataspace), dataspace);
     dumpVal(out, "hdr metadata types", hdrMetadata.validTypes);
     dumpVal(out, "dimming enabled", dimmingEnabled);
-    if (currentSdrHdrRatio > 1.01f || desiredSdrHdrRatio > 1.01f) {
-        dumpVal(out, "current sdr/hdr ratio", currentSdrHdrRatio);
-        dumpVal(out, "desired sdr/hdr ratio", desiredSdrHdrRatio);
+    if (currentHdrSdrRatio > 1.01f || desiredHdrSdrRatio > 1.01f) {
+        dumpVal(out, "current hdr/sdr ratio", currentHdrSdrRatio);
+        dumpVal(out, "desired hdr/sdr ratio", desiredHdrSdrRatio);
     }
     dumpVal(out, "colorTransform", colorTransform);
     dumpVal(out, "caching hint", toString(cachingHint));
