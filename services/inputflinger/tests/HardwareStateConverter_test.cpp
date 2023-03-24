@@ -231,8 +231,7 @@ TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
 
     schs = processSync(conv, time);
     ASSERT_TRUE(schs.has_value());
-    ASSERT_EQ(1, schs->state.finger_cnt);
-    EXPECT_EQ(-1, schs->state.fingers[0].tracking_id);
+    ASSERT_EQ(0, schs->state.finger_cnt);
 
     processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 53);
     processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 97);
