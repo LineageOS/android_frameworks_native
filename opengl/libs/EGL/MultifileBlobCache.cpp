@@ -62,12 +62,14 @@ void freeHotCacheEntry(android::MultifileHotCache& entry) {
 
 namespace android {
 
-MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSize,
+MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize,
                                        const std::string& baseDir)
       : mInitialized(false),
+        mMaxKeySize(maxKeySize),
+        mMaxValueSize(maxValueSize),
         mMaxTotalSize(maxTotalSize),
         mTotalCacheSize(0),
-        mHotCacheLimit(maxHotCacheSize),
+        mHotCacheLimit(0),
         mHotCacheSize(0),
         mWorkerThreadIdle(true) {
     if (baseDir.empty()) {
@@ -78,9 +80,9 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
     // Establish the name of our multifile directory
     mMultifileDirName = baseDir + ".multifile";
 
-    // Set a limit for max key and value, ensuring at least one entry can always fit in hot cache
-    mMaxKeySize = mHotCacheLimit / 4;
-    mMaxValueSize = mHotCacheLimit / 2;
+    // Set the hotcache limit to be large enough to contain one max entry
+    // This ensure the hot cache is always large enough for single entry
+    mHotCacheLimit = mMaxKeySize + mMaxValueSize + sizeof(MultifileHeader);
 
     ALOGV("INIT: Initializing multifile blobcache with maxKeySize=%zu and maxValueSize=%zu",
           mMaxKeySize, mMaxValueSize);
@@ -254,7 +256,7 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
 
     // Ensure key and value are under their limits
     if (keySize > mMaxKeySize || valueSize > mMaxValueSize) {
-        ALOGV("SET: keySize (%lu vs %zu) or valueSize (%lu vs %zu) too large", keySize, mMaxKeySize,
+        ALOGW("SET: keySize (%lu vs %zu) or valueSize (%lu vs %zu) too large", keySize, mMaxKeySize,
               valueSize, mMaxValueSize);
         return;
     }
@@ -326,7 +328,7 @@ EGLsizeiANDROID MultifileBlobCache::get(const void* key, EGLsizeiANDROID keySize
 
     // Ensure key and value are under their limits
     if (keySize > mMaxKeySize || valueSize > mMaxValueSize) {
-        ALOGV("GET: keySize (%lu vs %zu) or valueSize (%lu vs %zu) too large", keySize, mMaxKeySize,
+        ALOGW("GET: keySize (%lu vs %zu) or valueSize (%lu vs %zu) too large", keySize, mMaxKeySize,
               valueSize, mMaxValueSize);
         return 0;
     }

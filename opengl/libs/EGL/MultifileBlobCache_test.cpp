@@ -28,17 +28,16 @@ namespace android {
 template <typename T>
 using sp = std::shared_ptr<T>;
 
+constexpr size_t kMaxKeySize = 2 * 1024;
+constexpr size_t kMaxValueSize = 6 * 1024;
 constexpr size_t kMaxTotalSize = 32 * 1024;
-constexpr size_t kMaxPreloadSize = 8 * 1024;
-
-constexpr size_t kMaxKeySize = kMaxPreloadSize / 4;
-constexpr size_t kMaxValueSize = kMaxPreloadSize / 2;
 
 class MultifileBlobCacheTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
         mTempFile.reset(new TemporaryFile());
-        mMBC.reset(new MultifileBlobCache(kMaxTotalSize, kMaxPreloadSize, &mTempFile->path[0]));
+        mMBC.reset(new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize,
+                                          &mTempFile->path[0]));
     }
 
     virtual void TearDown() { mMBC.reset(); }

@@ -91,7 +91,8 @@ private:
 
 class MultifileBlobCache {
 public:
-    MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSize, const std::string& baseDir);
+    MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize,
+                       const std::string& baseDir);
     ~MultifileBlobCache();
 
     void set(const void* key, EGLsizeiANDROID keySize, const void* value,
