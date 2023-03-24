@@ -352,14 +352,12 @@ status_t Gralloc5Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32
         }
     }
     {
-        (void)stride;
-        // TODO(b/261856851): Add StandardMetadataType::STRIDE && enable this
-        //        auto value = getStandardMetadata<StandardMetadataType::STRIDE>(mMapper,
-        //        bufferHandle); if (static_cast<BufferUsage>(usage) != value) {
-        //            ALOGW("Layer count didn't match, expected %" PRIu64 " got %" PRId64, usage,
-        //                  static_cast<int64_t>(value.value_or(BufferUsage::CPU_READ_NEVER)));
-        //            return BAD_VALUE;
-        //        }
+        auto value = getStandardMetadata<StandardMetadataType::STRIDE>(mMapper, bufferHandle);
+        if (stride != value) {
+            ALOGW("Stride didn't match, expected %" PRIu32 " got %" PRId32, stride,
+                  value.value_or(-1));
+            return BAD_VALUE;
+        }
     }
     return OK;
 }
