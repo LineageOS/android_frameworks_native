@@ -667,7 +667,7 @@ TEST_F(CachedSetTest, holePunch_requiresNonHdrWithExtendedBrightness) {
                                                       ui::Dataspace::TRANSFER_SRGB |
                                                       ui::Dataspace::RANGE_EXTENDED);
     mTestLayers[0]->outputLayerCompositionState.dataspace = dataspace;
-    mTestLayers[0]->layerFECompositionState.currentSdrHdrRatio = 5.f;
+    mTestLayers[0]->layerFECompositionState.currentHdrSdrRatio = 5.f;
     mTestLayers[0]->layerState->update(&mTestLayers[0]->outputLayer);
 
     CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
