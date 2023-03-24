@@ -321,7 +321,18 @@ private:
     // Chooses a pacesetter among the registered displays, unless `pacesetterIdOpt` is specified.
     // The new `mPacesetterDisplayId` is never `std::nullopt`.
     void promotePacesetterDisplay(std::optional<PhysicalDisplayId> pacesetterIdOpt = std::nullopt)
+            REQUIRES(kMainThreadContext) EXCLUDES(mDisplayLock);
+
+    // Changes to the displays (e.g. registering and unregistering) must be made
+    // while mDisplayLock is locked, and the new pacesetter then must be promoted while
+    // mDisplayLock is still locked. However, a new pacesetter means that
+    // MessageQueue and EventThread need to use the new pacesetter's
+    // VsyncSchedule, and this must happen while mDisplayLock is *not* locked,
+    // or else we may deadlock with EventThread.
+    std::shared_ptr<VsyncSchedule> promotePacesetterDisplayLocked(
+            std::optional<PhysicalDisplayId> pacesetterIdOpt = std::nullopt)
             REQUIRES(kMainThreadContext, mDisplayLock);
+    void applyNewVsyncSchedule(std::shared_ptr<VsyncSchedule>) EXCLUDES(mDisplayLock);
 
     // Blocks until the pacesetter's idle timer thread exits. `mDisplayLock` must not be locked by
     // the caller on the main thread to avoid deadlock, since the timer thread locks it before exit.
