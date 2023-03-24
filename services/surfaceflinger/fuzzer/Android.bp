@@ -69,6 +69,7 @@ cc_defaults {
         "-Wno-unused-result",
         "-Wno-conversion",
         "-Wno-sign-compare",
+        "-Wno-unused-function",
     ],
     fuzz_config: {
         cc: [

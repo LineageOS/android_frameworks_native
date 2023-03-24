@@ -129,6 +129,11 @@ public:
         return (scheduler::ScheduleResult)0;
     }
 
+    scheduler::ScheduleResult update(CallbackToken /* token */,
+                                     ScheduleTiming /* scheduleTiming */) override {
+        return (scheduler::ScheduleResult)0;
+    }
+
     scheduler::CancelResult cancel(CallbackToken /* token */) override {
         return (scheduler::CancelResult)0;
     }
