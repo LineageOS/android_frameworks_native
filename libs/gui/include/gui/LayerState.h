@@ -389,8 +389,8 @@ struct layer_state_t {
     gui::DropInputMode dropInputMode;
 
     bool dimmingEnabled;
-    float currentSdrHdrRatio = 1.f;
-    float desiredSdrHdrRatio = 1.f;
+    float currentHdrSdrRatio = 1.f;
+    float desiredHdrSdrRatio = 1.f;
 
     gui::CachingHint cachingHint = gui::CachingHint::Enabled;
 
