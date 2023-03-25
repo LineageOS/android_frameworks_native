@@ -2532,8 +2532,6 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
     }
 
     updateCursorAsync();
-    updateInputFlinger();
-
     if (mLayerTracingEnabled && !mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         // This will block and tracing should only be enabled for debugging.
         addToLayerTracing(mVisibleRegionsDirty, frameTime.ns(), vsyncId.value);
@@ -2863,6 +2861,11 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
         layer->releasePendingBuffer(presentTime.ns());
     }
 
+    mTransactionCallbackInvoker.addPresentFence(std::move(presentFence));
+    mTransactionCallbackInvoker.sendCallbacks(false /* onCommitOnly */);
+    mTransactionCallbackInvoker.clearCompletedTransactions();
+    updateInputFlinger();
+
     std::vector<std::pair<std::shared_ptr<compositionengine::Display>, sp<HdrLayerInfoReporter>>>
             hdrInfoListeners;
     bool haveNewListeners = false;
@@ -2921,10 +2924,6 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
     }
 
     mHdrLayerInfoChanged = false;
-
-    mTransactionCallbackInvoker.addPresentFence(std::move(presentFence));
-    mTransactionCallbackInvoker.sendCallbacks(false /* onCommitOnly */);
-    mTransactionCallbackInvoker.clearCompletedTransactions();
 
     mTimeStats->incrementTotalFrames();
     mTimeStats->setPresentFenceGlobal(presentFenceTime);
