@@ -225,8 +225,8 @@ public:
         gui::DropInputMode dropInputMode;
         bool autoRefresh = false;
         bool dimmingEnabled = true;
-        float currentSdrHdrRatio = 1.f;
-        float desiredSdrHdrRatio = 1.f;
+        float currentHdrSdrRatio = 1.f;
+        float desiredHdrSdrRatio = 1.f;
         gui::CachingHint cachingHint = gui::CachingHint::Enabled;
         int64_t latchedVsyncId = 0;
     };
@@ -296,8 +296,8 @@ public:
     virtual bool hasColorTransform() const;
     virtual bool isColorSpaceAgnostic() const { return mDrawingState.colorSpaceAgnostic; }
     virtual bool isDimmingEnabled() const { return getDrawingState().dimmingEnabled; }
-    float getDesiredSdrHdrRatio() const { return getDrawingState().desiredSdrHdrRatio; }
-    float getCurrentSdrHdrRatio() const { return getDrawingState().currentSdrHdrRatio; }
+    float getDesiredHdrSdrRatio() const { return getDrawingState().desiredHdrSdrRatio; }
+    float getCurrentHdrSdrRatio() const { return getDrawingState().currentHdrSdrRatio; }
     gui::CachingHint getCachingHint() const { return getDrawingState().cachingHint; }
 
     bool setTransform(uint32_t /*transform*/);
@@ -517,7 +517,7 @@ public:
         uint64_t mFrameNumber;
 
         bool mFrameLatencyNeeded{false};
-        float mDesiredSdrHdrRatio = 1.f;
+        float mDesiredHdrSdrRatio = 1.f;
     };
 
     BufferInfo mBufferInfo;

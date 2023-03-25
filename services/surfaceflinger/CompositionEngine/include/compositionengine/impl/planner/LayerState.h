@@ -247,6 +247,10 @@ public:
 
     ui::Dataspace getDataspace() const { return mOutputDataspace.get(); }
 
+    float getHdrSdrRatio() const {
+        return getOutputLayer()->getLayerFE().getCompositionState()->currentHdrSdrRatio;
+    };
+
     wp<GraphicBuffer> getBuffer() const { return mBuffer.get(); }
 
     bool isProtected() const { return mIsProtected.get(); }

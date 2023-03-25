@@ -378,6 +378,10 @@ bool CachedSet::hasUnsupportedDataspace() const {
             // to avoid flickering/color differences.
             return true;
         }
+        // TODO(b/274804887): temp fix of overdimming issue, skip caching if hsdr/sdr ratio > 1.01f
+        if (layer.getState()->getHdrSdrRatio() > 1.01f) {
+            return true;
+        }
         return false;
     });
 }
