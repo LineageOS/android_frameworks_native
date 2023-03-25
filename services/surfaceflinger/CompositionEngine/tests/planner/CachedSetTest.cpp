@@ -662,6 +662,26 @@ TEST_F(CachedSetTest, holePunch_requiresNonBT601_625) {
     EXPECT_FALSE(cachedSet.requiresHolePunch());
 }
 
+TEST_F(CachedSetTest, holePunch_requiresNonHdrWithExtendedBrightness) {
+    const auto dataspace = static_cast<ui::Dataspace>(ui::Dataspace::STANDARD_DCI_P3 |
+                                                      ui::Dataspace::TRANSFER_SRGB |
+                                                      ui::Dataspace::RANGE_EXTENDED);
+    mTestLayers[0]->outputLayerCompositionState.dataspace = dataspace;
+    mTestLayers[0]->layerFECompositionState.currentHdrSdrRatio = 5.f;
+    mTestLayers[0]->layerState->update(&mTestLayers[0]->outputLayer);
+
+    CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
+    auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;
+    layerFECompositionState.buffer = sp<GraphicBuffer>::make();
+    layerFECompositionState.blendMode = hal::BlendMode::NONE;
+    sp<mock::LayerFE> layerFE = mTestLayers[0]->layerFE;
+
+    CachedSet cachedSet(layer);
+    EXPECT_CALL(*layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
+
+    EXPECT_FALSE(cachedSet.requiresHolePunch());
+}
+
 TEST_F(CachedSetTest, holePunch_requiresNoBlending) {
     CachedSet::Layer& layer = *mTestLayers[0]->cachedSetLayer.get();
     auto& layerFECompositionState = mTestLayers[0]->layerFECompositionState;

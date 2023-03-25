@@ -1723,8 +1723,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setExten
         return *this;
     }
     s->what |= layer_state_t::eExtendedRangeBrightnessChanged;
-    s->currentSdrHdrRatio = currentBufferRatio;
-    s->desiredSdrHdrRatio = desiredRatio;
+    s->currentHdrSdrRatio = currentBufferRatio;
+    s->desiredHdrSdrRatio = desiredRatio;
 
     registerSurfaceControlForCallback(sc);
     return *this;
