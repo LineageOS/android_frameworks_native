@@ -27,7 +27,7 @@ import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
 
 import com.android.compatibility.common.util.PropertyUtil;
-import com.android.compatibility.common.util.GmsTest;
+import com.android.compatibility.common.util.VsrTest;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -62,7 +62,7 @@ public class GpuWorkTracepointTest extends BaseHostJUnit4Test {
                 commandResult.getStatus(), CommandStatus.SUCCESS);
     }
 
-    @GmsTest(requirement = "VSR-3.3-004")
+    @VsrTest(requirements={"VSR-3.3-004"})
     @RestrictedBuildTest
     @Test
     public void testGpuWorkPeriodTracepointFormat() throws Exception {
