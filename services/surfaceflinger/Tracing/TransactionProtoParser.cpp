@@ -47,6 +47,7 @@ public:
     uint64_t getId() const override { return mId; }
     PixelFormat getPixelFormat() const override { return mPixelFormat; }
     uint64_t getUsage() const override { return mUsage; }
+    void remapBuffer() override {}
     ~FakeExternalTexture() = default;
 };
 
