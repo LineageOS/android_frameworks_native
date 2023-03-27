@@ -75,6 +75,23 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Wait a little while for dumpstatez to stop if it is running
+    bool dumpstate_running = false;
+    for (int i = 0; i < 20; i++) {
+        char buf[PROPERTY_VALUE_MAX];
+        property_get("init.svc.dumpstatez", buf, "");
+        dumpstate_running = strcmp(buf, "running") == 0;
+
+        if (!dumpstate_running) break;
+
+        sleep(1);
+    }
+
+    if (dumpstate_running) {
+        fprintf(stderr, "FAIL:dumpstatez service is already running\n");
+        return EXIT_FAILURE;
+    }
+
     // TODO: code below was copy-and-pasted from bugreport.cpp (except by the
     // timeout value);
     // should be reused instead.
