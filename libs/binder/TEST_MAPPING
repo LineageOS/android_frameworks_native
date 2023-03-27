@@ -79,6 +79,12 @@
     },
     {
       "name": "rustBinderSerializationTest"
+    },
+    {
+      "name": "libbinder_ndk_bindgen_test"
+    },
+    {
+      "name": "libbinder_rpc_unstable_bindgen_test"
     }
   ],
   "presubmit-large": [
