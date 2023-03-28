@@ -20,6 +20,9 @@
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <SkImage.h>
+#include <include/gpu/ganesh/SkImageGanesh.h>
+
 #include "ColorSpaces.h"
 #include "log/log_main.h"
 #include "utils/Trace.h"
@@ -98,8 +101,9 @@ sk_sp<SkImage> AutoBackendTexture::makeImage(ui::Dataspace dataspace, SkAlphaTyp
     }
 
     sk_sp<SkImage> image =
-            SkImage::MakeFromTexture(context, mBackendTexture, kTopLeft_GrSurfaceOrigin, colorType,
-                                     alphaType, toSkColorSpace(dataspace), releaseImageProc, this);
+            SkImages::BorrowTextureFrom(context, mBackendTexture, kTopLeft_GrSurfaceOrigin,
+                                        colorType, alphaType, toSkColorSpace(dataspace),
+                                        releaseImageProc, this);
     if (image.get()) {
         // The following ref will be counteracted by releaseProc, when SkImage is discarded.
         ref();
