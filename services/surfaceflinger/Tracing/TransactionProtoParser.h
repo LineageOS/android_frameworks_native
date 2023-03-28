@@ -49,15 +49,16 @@ public:
     proto::TransactionState toProto(const std::map<uint32_t /* layerId */, TracingLayerState>&);
     proto::LayerCreationArgs toProto(const LayerCreationArgs& args);
     proto::LayerState toProto(const ResolvedComposerState&);
-    proto::DisplayInfo toProto(const frontend::DisplayInfo&, uint32_t layerStack);
+    static proto::DisplayInfo toProto(const frontend::DisplayInfo&, uint32_t layerStack);
 
     TransactionState fromProto(const proto::TransactionState&);
     void mergeFromProto(const proto::LayerState&, TracingLayerState& outState);
     void fromProto(const proto::LayerCreationArgs&, LayerCreationArgs& outArgs);
     std::unique_ptr<FlingerDataMapper> mMapper;
-    frontend::DisplayInfo fromProto(const proto::DisplayInfo&);
-    void fromProto(const google::protobuf::RepeatedPtrField<proto::DisplayInfo>&,
-                   display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> outDisplayInfos);
+    static frontend::DisplayInfo fromProto(const proto::DisplayInfo&);
+    static void fromProto(
+            const google::protobuf::RepeatedPtrField<proto::DisplayInfo>&,
+            display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& outDisplayInfos);
 
 private:
     proto::DisplayState toProto(const DisplayState&);
