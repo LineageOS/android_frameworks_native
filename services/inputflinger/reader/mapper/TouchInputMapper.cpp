@@ -229,11 +229,12 @@ void TouchInputMapper::dump(std::string& dump) {
         dump += StringPrintf(INDENT4 "[%d]: id=%d, x=%d, y=%d, pressure=%d, "
                                      "touchMajor=%d, touchMinor=%d, toolMajor=%d, toolMinor=%d, "
                                      "orientation=%d, tiltX=%d, tiltY=%d, distance=%d, "
-                                     "toolType=%d, isHovering=%s\n",
+                                     "toolType=%s, isHovering=%s\n",
                              i, pointer.id, pointer.x, pointer.y, pointer.pressure,
                              pointer.touchMajor, pointer.touchMinor, pointer.toolMajor,
                              pointer.toolMinor, pointer.orientation, pointer.tiltX, pointer.tiltY,
-                             pointer.distance, pointer.toolType, toString(pointer.isHovering));
+                             pointer.distance, ftl::enum_string(pointer.toolType).c_str(),
+                             toString(pointer.isHovering));
     }
 
     dump += StringPrintf(INDENT3 "Last Cooked Button State: 0x%08x\n",
@@ -248,7 +249,7 @@ void TouchInputMapper::dump(std::string& dump) {
                                      "pressure=%0.3f, touchMajor=%0.3f, touchMinor=%0.3f, "
                                      "toolMajor=%0.3f, toolMinor=%0.3f, "
                                      "orientation=%0.3f, tilt=%0.3f, distance=%0.3f, "
-                                     "toolType=%d, isHovering=%s\n",
+                                     "toolType=%s, isHovering=%s\n",
                              i, pointerProperties.id, pointerCoords.getX(), pointerCoords.getY(),
                              pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
                              pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y),
@@ -260,7 +261,7 @@ void TouchInputMapper::dump(std::string& dump) {
                              pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION),
                              pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_TILT),
                              pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_DISTANCE),
-                             pointerProperties.toolType,
+                             ftl::enum_string(pointerProperties.toolType).c_str(),
                              toString(mLastCookedState.cookedPointerData.isHovering(i)));
     }
 
@@ -1582,10 +1583,10 @@ std::list<NotifyArgs> TouchInputMapper::cookAndDispatch(nsecs_t when, nsecs_t re
                     mCurrentRawState.rawPointerData.pointerForId(id);
             if (isStylusToolType(pointer.toolType)) {
                 mCurrentCookedState.stylusIdBits.markBit(id);
-            } else if (pointer.toolType == AMOTION_EVENT_TOOL_TYPE_FINGER ||
-                       pointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
+            } else if (pointer.toolType == ToolType::FINGER ||
+                       pointer.toolType == ToolType::UNKNOWN) {
                 mCurrentCookedState.fingerIdBits.markBit(id);
-            } else if (pointer.toolType == AMOTION_EVENT_TOOL_TYPE_MOUSE) {
+            } else if (pointer.toolType == ToolType::MOUSE) {
                 mCurrentCookedState.mouseIdBits.markBit(id);
             }
         }
@@ -1704,7 +1705,7 @@ void TouchInputMapper::applyExternalStylusTouchState(nsecs_t when) {
     PointerCoords& coords = currentPointerData.editPointerCoordsWithId(*mFusedStylusPointerId);
     coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, pressure);
 
-    if (mExternalStylusState.toolType != AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
+    if (mExternalStylusState.toolType != ToolType::UNKNOWN) {
         PointerProperties& properties =
                 currentPointerData.editPointerPropertiesWithId(*mFusedStylusPointerId);
         properties.toolType = mExternalStylusState.toolType;
@@ -2678,7 +2679,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
         PointerProperties pointerProperties;
         pointerProperties.clear();
         pointerProperties.id = 0;
-        pointerProperties.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+        pointerProperties.toolType = ToolType::FINGER;
 
         PointerCoords pointerCoords;
         pointerCoords.clear();
@@ -2887,7 +2888,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         mPointerGesture.currentGestureIdToIndex[mPointerGesture.activeGestureId] = 0;
         mPointerGesture.currentGestureProperties[0].clear();
         mPointerGesture.currentGestureProperties[0].id = mPointerGesture.activeGestureId;
-        mPointerGesture.currentGestureProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+        mPointerGesture.currentGestureProperties[0].toolType = ToolType::FINGER;
         mPointerGesture.currentGestureCoords[0].clear();
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
@@ -2922,8 +2923,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                     mPointerGesture.currentGestureProperties[0].clear();
                     mPointerGesture.currentGestureProperties[0].id =
                             mPointerGesture.activeGestureId;
-                    mPointerGesture.currentGestureProperties[0].toolType =
-                            AMOTION_EVENT_TOOL_TYPE_FINGER;
+                    mPointerGesture.currentGestureProperties[0].toolType = ToolType::FINGER;
                     mPointerGesture.currentGestureCoords[0].clear();
                     mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X,
                                                                          mPointerGesture.tapX);
@@ -3010,7 +3010,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         mPointerGesture.currentGestureIdToIndex[mPointerGesture.activeGestureId] = 0;
         mPointerGesture.currentGestureProperties[0].clear();
         mPointerGesture.currentGestureProperties[0].id = mPointerGesture.activeGestureId;
-        mPointerGesture.currentGestureProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+        mPointerGesture.currentGestureProperties[0].toolType = ToolType::FINGER;
         mPointerGesture.currentGestureCoords[0].clear();
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
@@ -3040,9 +3040,10 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             uint32_t index = mPointerGesture.currentGestureIdToIndex[id];
             const PointerProperties& properties = mPointerGesture.currentGestureProperties[index];
             const PointerCoords& coords = mPointerGesture.currentGestureCoords[index];
-            ALOGD("  currentGesture[%d]: index=%d, toolType=%d, "
+            ALOGD("  currentGesture[%d]: index=%d, toolType=%s, "
                   "x=%0.3f, y=%0.3f, pressure=%0.3f",
-                  id, index, properties.toolType, coords.getAxisValue(AMOTION_EVENT_AXIS_X),
+                  id, index, ftl::enum_string(properties.toolType).c_str(),
+                  coords.getAxisValue(AMOTION_EVENT_AXIS_X),
                   coords.getAxisValue(AMOTION_EVENT_AXIS_Y),
                   coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE));
         }
@@ -3051,9 +3052,10 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             uint32_t index = mPointerGesture.lastGestureIdToIndex[id];
             const PointerProperties& properties = mPointerGesture.lastGestureProperties[index];
             const PointerCoords& coords = mPointerGesture.lastGestureCoords[index];
-            ALOGD("  lastGesture[%d]: index=%d, toolType=%d, "
+            ALOGD("  lastGesture[%d]: index=%d, toolType=%s, "
                   "x=%0.3f, y=%0.3f, pressure=%0.3f",
-                  id, index, properties.toolType, coords.getAxisValue(AMOTION_EVENT_AXIS_X),
+                  id, index, ftl::enum_string(properties.toolType).c_str(),
+                  coords.getAxisValue(AMOTION_EVENT_AXIS_X),
                   coords.getAxisValue(AMOTION_EVENT_AXIS_Y),
                   coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE));
         }
@@ -3342,7 +3344,7 @@ void TouchInputMapper::prepareMultiFingerPointerGestures(nsecs_t when, bool* can
         mPointerGesture.currentGestureIdToIndex[mPointerGesture.activeGestureId] = 0;
         mPointerGesture.currentGestureProperties[0].clear();
         mPointerGesture.currentGestureProperties[0].id = mPointerGesture.activeGestureId;
-        mPointerGesture.currentGestureProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+        mPointerGesture.currentGestureProperties[0].toolType = ToolType::FINGER;
         mPointerGesture.currentGestureCoords[0].clear();
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X,
                                                              mPointerGesture.referenceGestureX);
@@ -3435,7 +3437,7 @@ void TouchInputMapper::prepareMultiFingerPointerGestures(nsecs_t when, bool* can
 
             mPointerGesture.currentGestureProperties[i].clear();
             mPointerGesture.currentGestureProperties[i].id = gestureId;
-            mPointerGesture.currentGestureProperties[i].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+            mPointerGesture.currentGestureProperties[i].toolType = ToolType::FINGER;
             mPointerGesture.currentGestureCoords[i].clear();
             mPointerGesture.currentGestureCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X,
                                                                  mPointerGesture.referenceGestureX +

@@ -200,17 +200,12 @@ static common::Button getButtonState(int32_t buttonState) {
     return static_cast<common::Button>(buttonState);
 }
 
-static common::ToolType getToolType(int32_t toolType) {
-    static_assert(static_cast<common::ToolType>(AMOTION_EVENT_TOOL_TYPE_UNKNOWN) ==
-                  common::ToolType::UNKNOWN);
-    static_assert(static_cast<common::ToolType>(AMOTION_EVENT_TOOL_TYPE_FINGER) ==
-                  common::ToolType::FINGER);
-    static_assert(static_cast<common::ToolType>(AMOTION_EVENT_TOOL_TYPE_STYLUS) ==
-                  common::ToolType::STYLUS);
-    static_assert(static_cast<common::ToolType>(AMOTION_EVENT_TOOL_TYPE_MOUSE) ==
-                  common::ToolType::MOUSE);
-    static_assert(static_cast<common::ToolType>(AMOTION_EVENT_TOOL_TYPE_ERASER) ==
-                  common::ToolType::ERASER);
+static common::ToolType getToolType(ToolType toolType) {
+    static_assert(static_cast<common::ToolType>(ToolType::UNKNOWN) == common::ToolType::UNKNOWN);
+    static_assert(static_cast<common::ToolType>(ToolType::FINGER) == common::ToolType::FINGER);
+    static_assert(static_cast<common::ToolType>(ToolType::STYLUS) == common::ToolType::STYLUS);
+    static_assert(static_cast<common::ToolType>(ToolType::MOUSE) == common::ToolType::MOUSE);
+    static_assert(static_cast<common::ToolType>(ToolType::ERASER) == common::ToolType::ERASER);
     return static_cast<common::ToolType>(toolType);
 }
 

@@ -99,10 +99,10 @@ private:
     // We never need any PointerProperties other than the finger tool type, so we can just keep a
     // const array of them.
     const std::array<PointerProperties, MAX_FAKE_FINGERS> mFingerProps = {{
-            {.id = 0, .toolType = AMOTION_EVENT_TOOL_TYPE_FINGER},
-            {.id = 1, .toolType = AMOTION_EVENT_TOOL_TYPE_FINGER},
-            {.id = 2, .toolType = AMOTION_EVENT_TOOL_TYPE_FINGER},
-            {.id = 3, .toolType = AMOTION_EVENT_TOOL_TYPE_FINGER},
+            {.id = 0, .toolType = ToolType::FINGER},
+            {.id = 1, .toolType = ToolType::FINGER},
+            {.id = 2, .toolType = ToolType::FINGER},
+            {.id = 3, .toolType = ToolType::FINGER},
     }};
     std::array<PointerCoords, MAX_FAKE_FINGERS> mFakeFingerCoords = {};
 

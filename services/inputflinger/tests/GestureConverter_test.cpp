@@ -93,7 +93,7 @@ TEST_F(GestureConverterTest, Move) {
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
                       WithCoords(POINTER_X - 5, POINTER_Y + 10), WithRelativeMotion(-5, 10),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithButtonState(0),
+                      WithToolType(ToolType::FINGER), WithButtonState(0),
                       WithPressure(0.0f)));
 
     ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X - 5, POINTER_Y + 10));
@@ -111,7 +111,7 @@ TEST_F(GestureConverterTest, Move_Rotated) {
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
                       WithCoords(POINTER_X + 10, POINTER_Y + 5), WithRelativeMotion(10, 5),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithButtonState(0),
+                      WithToolType(ToolType::FINGER), WithButtonState(0),
                       WithPressure(0.0f)));
 
     ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X + 10, POINTER_Y + 5));
@@ -133,14 +133,14 @@ TEST_F(GestureConverterTest, ButtonsChange) {
                       WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
                                       AMOTION_EVENT_BUTTON_SECONDARY),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
                       WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
                       WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
@@ -148,7 +148,7 @@ TEST_F(GestureConverterTest, ButtonsChange) {
                       WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
                                       AMOTION_EVENT_BUTTON_SECONDARY),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 
     // Then release the left button
     Gesture leftUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
@@ -162,7 +162,7 @@ TEST_F(GestureConverterTest, ButtonsChange) {
                       WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
                       WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 
     // Finally release the right button
     Gesture rightUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
@@ -175,12 +175,12 @@ TEST_F(GestureConverterTest, ButtonsChange) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
                       WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY), WithButtonState(0),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, DragWithButton) {
@@ -198,14 +198,14 @@ TEST_F(GestureConverterTest, DragWithButton) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
                       WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
                       WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
                       WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 
     // Move
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
@@ -215,7 +215,7 @@ TEST_F(GestureConverterTest, DragWithButton) {
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                       WithCoords(POINTER_X - 5, POINTER_Y + 10), WithRelativeMotion(-5, 10),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER),
+                      WithToolType(ToolType::FINGER),
                       WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f)));
 
     ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X - 5, POINTER_Y + 10));
@@ -231,12 +231,12 @@ TEST_F(GestureConverterTest, DragWithButton) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
                       WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
                       WithCoords(POINTER_X - 5, POINTER_Y + 10),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
                       WithCoords(POINTER_X - 5, POINTER_Y + 10),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, Scroll) {
@@ -252,7 +252,7 @@ TEST_F(GestureConverterTest, Scroll) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
                       WithGestureScrollDistance(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithDownTime(downTime),
+                      WithToolType(ToolType::FINGER), WithDownTime(downTime),
                       WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -260,7 +260,7 @@ TEST_F(GestureConverterTest, Scroll) {
                       WithCoords(POINTER_X, POINTER_Y - 10),
                       WithGestureScrollDistance(0, 10, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER),
+                      WithToolType(ToolType::FINGER),
                       WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE)));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
@@ -271,7 +271,7 @@ TEST_F(GestureConverterTest, Scroll) {
                       WithCoords(POINTER_X, POINTER_Y - 15),
                       WithGestureScrollDistance(0, 5, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER),
+                      WithToolType(ToolType::FINGER),
                       WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE)));
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
@@ -283,7 +283,7 @@ TEST_F(GestureConverterTest, Scroll) {
                       WithCoords(POINTER_X, POINTER_Y - 15),
                       WithGestureScrollDistance(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER),
+                      WithToolType(ToolType::FINGER),
                       WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE)));
 }
 
@@ -301,14 +301,14 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
                       WithGestureScrollDistance(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER), WithDownTime(downTime)));
+                      WithToolType(ToolType::FINGER), WithDownTime(downTime)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                       WithCoords(POINTER_X - 10, POINTER_Y),
                       WithGestureScrollDistance(0, 10, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
@@ -318,7 +318,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
                       WithCoords(POINTER_X - 15, POINTER_Y),
                       WithGestureScrollDistance(0, 5, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
@@ -329,7 +329,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
                       WithCoords(POINTER_X - 15, POINTER_Y),
                       WithGestureScrollDistance(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, Scroll_ClearsClassificationAndOffsetsAfterGesture) {
@@ -393,7 +393,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
     ASSERT_THAT(arg,
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(1u), WithToolType(ToolType::FINGER)));
     PointerCoords finger0Start = arg.pointerCoords[0];
     args.pop_front();
     arg = std::get<NotifyMotionArgs>(args.front());
@@ -402,7 +402,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
                                        1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(2u), WithToolType(ToolType::FINGER)));
     PointerCoords finger1Start = arg.pointerCoords[1];
     args.pop_front();
     arg = std::get<NotifyMotionArgs>(args.front());
@@ -411,7 +411,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
                                        2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(3u), WithToolType(ToolType::FINGER)));
     PointerCoords finger2Start = arg.pointerCoords[2];
     args.pop_front();
 
@@ -420,7 +420,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                       WithGestureOffset(0, -0.01, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(3u), WithToolType(ToolType::FINGER)));
     EXPECT_EQ(arg.pointerCoords[0].getX(), finger0Start.getX());
     EXPECT_EQ(arg.pointerCoords[1].getX(), finger1Start.getX());
     EXPECT_EQ(arg.pointerCoords[2].getX(), finger2Start.getX());
@@ -437,7 +437,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                       WithGestureOffset(0, -0.005, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(3u), WithToolType(ToolType::FINGER)));
     EXPECT_EQ(arg.pointerCoords[0].getX(), finger0Start.getX());
     EXPECT_EQ(arg.pointerCoords[1].getX(), finger1Start.getX());
     EXPECT_EQ(arg.pointerCoords[2].getX(), finger2Start.getX());
@@ -453,19 +453,19 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
                                        2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(3u), WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
                                        1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(2u), WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(1u), WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, ThreeFingerSwipe_Rotated) {
@@ -560,7 +560,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
     ASSERT_THAT(arg,
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(1u), WithToolType(ToolType::FINGER)));
     PointerCoords finger0Start = arg.pointerCoords[0];
     args.pop_front();
     arg = std::get<NotifyMotionArgs>(args.front());
@@ -569,7 +569,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                                        1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(2u), WithToolType(ToolType::FINGER)));
     PointerCoords finger1Start = arg.pointerCoords[1];
     args.pop_front();
     arg = std::get<NotifyMotionArgs>(args.front());
@@ -578,7 +578,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                                        2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(3u), WithToolType(ToolType::FINGER)));
     PointerCoords finger2Start = arg.pointerCoords[2];
     args.pop_front();
     arg = std::get<NotifyMotionArgs>(args.front());
@@ -587,7 +587,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                                        3 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(4u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(4u), WithToolType(ToolType::FINGER)));
     PointerCoords finger3Start = arg.pointerCoords[3];
     args.pop_front();
 
@@ -596,7 +596,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                       WithGestureOffset(0.01, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(4u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(4u), WithToolType(ToolType::FINGER)));
     EXPECT_EQ(arg.pointerCoords[0].getX(), finger0Start.getX() + 10);
     EXPECT_EQ(arg.pointerCoords[1].getX(), finger1Start.getX() + 10);
     EXPECT_EQ(arg.pointerCoords[2].getX(), finger2Start.getX() + 10);
@@ -615,7 +615,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                       WithGestureOffset(0.005, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(4u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(4u), WithToolType(ToolType::FINGER)));
     EXPECT_EQ(arg.pointerCoords[0].getX(), finger0Start.getX() + 15);
     EXPECT_EQ(arg.pointerCoords[1].getX(), finger1Start.getX() + 15);
     EXPECT_EQ(arg.pointerCoords[2].getX(), finger2Start.getX() + 15);
@@ -633,26 +633,26 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                                        3 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(4u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(4u), WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
                                        2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(3u), WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
                                        1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(2u), WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(1u), WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, Pinch_Inwards) {
@@ -668,7 +668,7 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON),
                       WithCoords(POINTER_X - 100, POINTER_Y), WithPointerCount(1u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
@@ -676,7 +676,7 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON),
                       WithPointerCoords(1, POINTER_X + 100, POINTER_Y), WithPointerCount(2u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 0.8, GESTURES_ZOOM_UPDATE);
@@ -688,7 +688,7 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
                       WithGesturePinchScaleFactor(0.8f, EPSILON),
                       WithPointerCoords(0, POINTER_X - 80, POINTER_Y),
                       WithPointerCoords(1, POINTER_X + 80, POINTER_Y), WithPointerCount(2u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
@@ -699,13 +699,13 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
                                        1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, Pinch_Outwards) {
@@ -721,7 +721,7 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON),
                       WithCoords(POINTER_X - 100, POINTER_Y), WithPointerCount(1u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
@@ -729,7 +729,7 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON),
                       WithPointerCoords(1, POINTER_X + 100, POINTER_Y), WithPointerCount(2u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 1.2, GESTURES_ZOOM_UPDATE);
@@ -741,7 +741,7 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
                       WithGesturePinchScaleFactor(1.2f, EPSILON),
                       WithPointerCoords(0, POINTER_X - 120, POINTER_Y),
                       WithPointerCoords(1, POINTER_X + 120, POINTER_Y), WithPointerCount(2u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
@@ -752,13 +752,13 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
                                        1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, Pinch_ClearsClassificationAndScaleFactorAfterGesture) {
@@ -802,18 +802,18 @@ TEST_F(GestureConverterTest, ResetWithButtonPressed) {
                       WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
                       WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
                       WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY), WithButtonState(0),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
                       WithCoords(POINTER_X, POINTER_Y),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, ResetDuringScroll) {
@@ -830,7 +830,7 @@ TEST_F(GestureConverterTest, ResetDuringScroll) {
                       WithCoords(POINTER_X, POINTER_Y - 10),
                       WithGestureScrollDistance(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER),
+                      WithToolType(ToolType::FINGER),
                       WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE)));
 }
 
@@ -849,19 +849,19 @@ TEST_F(GestureConverterTest, ResetDuringThreeFingerSwipe) {
                                        2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(3u), WithToolType(ToolType::FINGER)));
     args.pop_front();
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
                                        1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(2u), WithToolType(ToolType::FINGER)));
     args.pop_front();
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithPointerCount(1u), WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, ResetDuringPinch) {
@@ -879,13 +879,13 @@ TEST_F(GestureConverterTest, ResetDuringPinch) {
                                        1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
     args.pop_front();
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
                       WithMotionClassification(MotionClassification::PINCH),
                       WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
-                      WithToolType(AMOTION_EVENT_TOOL_TYPE_FINGER)));
+                      WithToolType(ToolType::FINGER)));
 }
 
 } // namespace android

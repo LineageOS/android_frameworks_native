@@ -99,7 +99,7 @@ void TouchResamplingTest::publishSimpleMotionEvent(int32_t action, nsecs_t event
         properties.push_back({});
         properties.back().clear();
         properties.back().id = pointer.id;
-        properties.back().toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+        properties.back().toolType = ToolType::FINGER;
 
         coords.push_back({});
         coords.back().clear();

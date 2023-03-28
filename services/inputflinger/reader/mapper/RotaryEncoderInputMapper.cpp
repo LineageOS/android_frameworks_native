@@ -121,7 +121,7 @@ std::list<NotifyArgs> RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readT
         PointerProperties pointerProperties;
         pointerProperties.clear();
         pointerProperties.id = 0;
-        pointerProperties.toolType = AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
+        pointerProperties.toolType = ToolType::UNKNOWN;
 
         uint32_t policyFlags = 0;
         if (getDeviceContext().isExternal()) {

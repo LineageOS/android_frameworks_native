@@ -36,7 +36,7 @@ public:
     void process(const RawEvent* rawEvent);
 
     uint32_t getButtonState() const;
-    int32_t getToolType() const;
+    ToolType getToolType() const;
     bool isToolActive() const;
     bool isHovering() const;
     bool hasStylus() const;
