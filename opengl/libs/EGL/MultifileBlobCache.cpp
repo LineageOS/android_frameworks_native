@@ -267,7 +267,7 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
     // If we're going to be over the cache limit, kick off a trim to clear space
     if (getTotalSize() + fileSize > mMaxTotalSize) {
         ALOGV("SET: Cache is full, calling trimCache to clear space");
-        trimCache(mMaxTotalSize);
+        trimCache();
     }
 
     ALOGV("SET: Add %u to cache", entryHash);
@@ -589,7 +589,7 @@ bool MultifileBlobCache::applyLRU(size_t cacheLimit) {
         }
     }
 
-    ALOGV("LRU: Cache is emptry");
+    ALOGV("LRU: Cache is empty");
     return false;
 }
 
@@ -598,24 +598,15 @@ bool MultifileBlobCache::applyLRU(size_t cacheLimit) {
 constexpr uint32_t kCacheLimitDivisor = 2;
 
 // Calculate the cache size and remove old entries until under the limit
-void MultifileBlobCache::trimCache(size_t cacheByteLimit) {
-    // Start with the value provided by egl_cache
-    size_t limit = cacheByteLimit;
-
+void MultifileBlobCache::trimCache() {
     // Wait for all deferred writes to complete
     ALOGV("TRIM: Waiting for work to complete.");
     waitForWorkComplete();
 
-    size_t size = getTotalSize();
-
-    // If size is larger than the threshold, remove files using LRU
-    if (size > limit) {
-        ALOGV("TRIM: Multifile cache size is larger than %zu, removing old entries",
-              cacheByteLimit);
-        if (!applyLRU(limit / kCacheLimitDivisor)) {
-            ALOGE("Error when clearing multifile shader cache");
-            return;
-        }
+    ALOGV("TRIM: Reducing multifile cache size to %zu", mMaxTotalSize / kCacheLimitDivisor);
+    if (!applyLRU(mMaxTotalSize / kCacheLimitDivisor)) {
+        ALOGE("Error when clearing multifile shader cache");
+        return;
     }
 }
 

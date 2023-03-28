@@ -265,9 +265,66 @@ TEST_P(EGLCacheTest, TerminatedCacheBelowCacheLimit) {
     // Cache should contain both the key and the value
     // So 8 bytes per entry, at least 24 bytes
     ASSERT_GE(mCache->getCacheSize(), 24);
-    mCache->setCacheLimit(4);
+
+    // Set the new limit and initialize cache
     mCache->terminate();
+    mCache->setCacheLimit(4);
+    mCache->initialize(egl_display_t::get(EGL_DEFAULT_DISPLAY));
+
+    // Ensure the new limit is respected
     ASSERT_LE(mCache->getCacheSize(), 4);
+}
+
+TEST_P(EGLCacheTest, TrimCacheOnOverflow) {
+    // Skip if not in multifile mode
+    if (mCacheMode == egl_cache_t::EGLCacheMode::Monolithic) {
+        GTEST_SKIP() << "Skipping test designed for multifile";
+    }
+
+    uint8_t buf[4] = { 0xee, 0xee, 0xee, 0xee };
+    mCache->initialize(egl_display_t::get(EGL_DEFAULT_DISPLAY));
+
+    // Set one value in the cache
+    mCache->setBlob("abcd", 4, "efgh", 4);
+    ASSERT_EQ(4, mCache->getBlob("abcd", 4, buf, 4));
+    ASSERT_EQ('e', buf[0]);
+    ASSERT_EQ('f', buf[1]);
+    ASSERT_EQ('g', buf[2]);
+    ASSERT_EQ('h', buf[3]);
+
+    // Get the size of cache with a single entry
+    size_t cacheEntrySize = mCache->getCacheSize();
+
+    // Now reinitialize the cache, using max size equal to a single entry
+    mCache->terminate();
+    mCache->setCacheLimit(cacheEntrySize);
+    mCache->initialize(egl_display_t::get(EGL_DEFAULT_DISPLAY));
+
+    // Ensure our cache still has original value
+    ASSERT_EQ(4, mCache->getBlob("abcd", 4, buf, 4));
+    ASSERT_EQ('e', buf[0]);
+    ASSERT_EQ('f', buf[1]);
+    ASSERT_EQ('g', buf[2]);
+    ASSERT_EQ('h', buf[3]);
+
+    // Set another value, which should overflow the cache and trim
+    mCache->setBlob("ijkl", 4, "mnop", 4);
+    ASSERT_EQ(4, mCache->getBlob("ijkl", 4, buf, 4));
+    ASSERT_EQ('m', buf[0]);
+    ASSERT_EQ('n', buf[1]);
+    ASSERT_EQ('o', buf[2]);
+    ASSERT_EQ('p', buf[3]);
+
+    // The cache should still be under the limit
+    ASSERT_TRUE(mCache->getCacheSize() == cacheEntrySize);
+
+    // And no cache hit on trimmed entry
+    uint8_t buf2[4] = { 0xee, 0xee, 0xee, 0xee };
+    mCache->getBlob("abcd", 4, buf2, 4);
+    ASSERT_EQ(0xee, buf2[0]);
+    ASSERT_EQ(0xee, buf2[1]);
+    ASSERT_EQ(0xee, buf2[2]);
+    ASSERT_EQ(0xee, buf2[3]);
 }
 
 INSTANTIATE_TEST_CASE_P(MonolithicCacheTests,

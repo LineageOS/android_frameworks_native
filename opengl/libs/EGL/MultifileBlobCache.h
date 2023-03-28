@@ -119,7 +119,7 @@ private:
     bool addToHotCache(uint32_t entryHash, int fd, uint8_t* entryBufer, size_t entrySize);
     bool removeFromHotCache(uint32_t entryHash);
 
-    void trimCache(size_t cacheByteLimit);
+    void trimCache();
     bool applyLRU(size_t cacheLimit);
 
     bool mInitialized;
