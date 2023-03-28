@@ -46,9 +46,9 @@ void ExternalStylusInputMapper::dump(std::string& dump) {
     dumpStylusState(dump, mStylusState);
 }
 
-std::list<NotifyArgs> ExternalStylusInputMapper::configure(nsecs_t when,
-                                                           const InputReaderConfiguration* config,
-                                                           uint32_t changes) {
+std::list<NotifyArgs> ExternalStylusInputMapper::reconfigure(nsecs_t when,
+                                                             const InputReaderConfiguration* config,
+                                                             uint32_t changes) {
     getAbsoluteAxisInfo(ABS_PRESSURE, &mRawPressureAxis);
     mTouchButtonAccumulator.configure();
     return {};
