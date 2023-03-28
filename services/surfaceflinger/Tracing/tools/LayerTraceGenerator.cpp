@@ -92,6 +92,16 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
         for (int j = 0; j < entry.transactions_size(); j++) {
             // apply transactions
             TransactionState transaction = parser.fromProto(entry.transactions(j));
+            for (auto& resolvedComposerState : transaction.states) {
+                if (resolvedComposerState.state.what & layer_state_t::eInputInfoChanged) {
+                    if (!resolvedComposerState.state.windowInfoHandle->getInfo()->inputConfig.test(
+                                gui::WindowInfo::InputConfig::NO_INPUT_CHANNEL)) {
+                        // create a fake token since the FE expects a valid token
+                        resolvedComposerState.state.windowInfoHandle->editInfo()->token =
+                                sp<BBinder>::make();
+                    }
+                }
+            }
             transactions.emplace_back(std::move(transaction));
         }
 

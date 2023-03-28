@@ -19,6 +19,7 @@
 #include <limits> // std::numeric_limits
 
 #include <gui/SurfaceComposerClient.h>
+#include <ui/Rotation.h>
 #include "LayerProtoHelper.h"
 
 #include "Tracing/TransactionProtoParser.h"
@@ -101,6 +102,50 @@ TEST(TransactionProtoParserTest, parse) {
     ASSERT_EQ(t1.displays.size(), t2.displays.size());
     ASSERT_EQ(t1.displays[1].width, t2.displays[1].width);
     ASSERT_EQ(t1.displays[0].token, t2.displays[0].token);
+}
+
+TEST(TransactionProtoParserTest, parseDisplayInfo) {
+    frontend::DisplayInfo d1;
+    d1.info.displayId = 42;
+    d1.info.logicalWidth = 43;
+    d1.info.logicalHeight = 44;
+    d1.info.transform.set(1, 2, 3, 4);
+    d1.transform = d1.info.transform.inverse();
+    d1.receivesInput = true;
+    d1.isSecure = false;
+    d1.isPrimary = true;
+    d1.isVirtual = false;
+    d1.rotationFlags = ui::Transform::ROT_180;
+    d1.transformHint = ui::Transform::ROT_90;
+
+    const uint32_t layerStack = 2;
+    google::protobuf::RepeatedPtrField<proto::DisplayInfo> displayProtos;
+    auto displayInfoProto = displayProtos.Add();
+    *displayInfoProto = TransactionProtoParser::toProto(d1, layerStack);
+    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
+    TransactionProtoParser::fromProto(displayProtos, displayInfos);
+
+    ASSERT_TRUE(displayInfos.contains(ui::LayerStack::fromValue(layerStack)));
+    frontend::DisplayInfo d2 = displayInfos.get(ui::LayerStack::fromValue(layerStack))->get();
+    EXPECT_EQ(d1.info.displayId, d2.info.displayId);
+    EXPECT_EQ(d1.info.logicalWidth, d2.info.logicalWidth);
+    EXPECT_EQ(d1.info.logicalHeight, d2.info.logicalHeight);
+
+    EXPECT_EQ(d1.info.transform.dsdx(), d2.info.transform.dsdx());
+    EXPECT_EQ(d1.info.transform.dsdy(), d2.info.transform.dsdy());
+    EXPECT_EQ(d1.info.transform.dtdx(), d2.info.transform.dtdx());
+    EXPECT_EQ(d1.info.transform.dtdy(), d2.info.transform.dtdy());
+
+    EXPECT_EQ(d1.transform.dsdx(), d2.transform.dsdx());
+    EXPECT_EQ(d1.transform.dsdy(), d2.transform.dsdy());
+    EXPECT_EQ(d1.transform.dtdx(), d2.transform.dtdx());
+    EXPECT_EQ(d1.transform.dtdy(), d2.transform.dtdy());
+
+    EXPECT_EQ(d1.receivesInput, d2.receivesInput);
+    EXPECT_EQ(d1.isSecure, d2.isSecure);
+    EXPECT_EQ(d1.isVirtual, d2.isVirtual);
+    EXPECT_EQ(d1.rotationFlags, d2.rotationFlags);
+    EXPECT_EQ(d1.transformHint, d2.transformHint);
 }
 
 } // namespace android
