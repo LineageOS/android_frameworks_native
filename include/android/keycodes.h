@@ -831,6 +831,14 @@ enum {
     AKEYCODE_STYLUS_BUTTON_TAIL = 311,
     /** Key to open recent apps (a.k.a. Overview) */
     AKEYCODE_RECENT_APPS = 312,
+    /** User customizable key #1. */
+    AKEYCODE_MACRO_1 = 313,
+    /** User customizable key #2. */
+    AKEYCODE_MACRO_2 = 314,
+    /** User customizable key #3. */
+    AKEYCODE_MACRO_3 = 315,
+    /** User customizable key #4. */
+    AKEYCODE_MACRO_4 = 316,
 
     // NOTE: If you add a new keycode here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/KeyEvent.java for the full list.

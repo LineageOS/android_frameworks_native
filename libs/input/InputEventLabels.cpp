@@ -343,7 +343,11 @@ namespace android {
     DEFINE_KEYCODE(STYLUS_BUTTON_SECONDARY), \
     DEFINE_KEYCODE(STYLUS_BUTTON_TERTIARY), \
     DEFINE_KEYCODE(STYLUS_BUTTON_TAIL), \
-    DEFINE_KEYCODE(RECENT_APPS)
+    DEFINE_KEYCODE(RECENT_APPS), \
+    DEFINE_KEYCODE(MACRO_1), \
+    DEFINE_KEYCODE(MACRO_2), \
+    DEFINE_KEYCODE(MACRO_3), \
+    DEFINE_KEYCODE(MACRO_4)
 
 // NOTE: If you add a new axis here you must also add it to several other files.
 //       Refer to frameworks/base/core/java/android/view/MotionEvent.java for the full list.

@@ -21,6 +21,7 @@ cc_library_shared {
         "android.frameworks.stats@1.0",
         "android.frameworks.stats-V2-ndk",
         "libbinder_ndk",
+        "libexpresslog",
         "libhidlbase",
         "liblog",
         "libstatslog",
