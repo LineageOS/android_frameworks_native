@@ -1464,7 +1464,7 @@ static InputEventInjectionResult injectKeyUp(const std::unique_ptr<InputDispatch
 
 class PointerBuilder {
 public:
-    PointerBuilder(int32_t id, int32_t toolType) {
+    PointerBuilder(int32_t id, ToolType toolType) {
         mProperties.clear();
         mProperties.id = id;
         mProperties.toolType = toolType;
@@ -1722,7 +1722,7 @@ static InputEventInjectionResult injectMotionEvent(
                                 .eventTime(eventTime)
                                 .rawXCursorPosition(cursorPosition.x)
                                 .rawYCursorPosition(cursorPosition.y)
-                                .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER)
                                                  .x(position.x)
                                                  .y(position.y))
                                 .build();
@@ -1767,7 +1767,7 @@ static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32
     for (size_t i = 0; i < pointerCount; i++) {
         pointerProperties[i].clear();
         pointerProperties[i].id = i;
-        pointerProperties[i].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+        pointerProperties[i].toolType = ToolType::FINGER;
 
         pointerCoords[i].clear();
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X, points[i].x);
@@ -1961,21 +1961,21 @@ TEST_F(InputDispatcherTest, CancelAfterPointer0Up) {
     // First touch pointer down on right window
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                            .build()));
     // Second touch pointer down
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
 
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(110).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(110).y(100))
                            .build()));
     // First touch pointer lifts. The second one remains down
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(POINTER_0_UP, AINPUT_SOURCE_TOUCHSCREEN)
 
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(110).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(110).y(100))
                            .build()));
     window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
     window->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
@@ -2069,8 +2069,8 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
     const MotionEvent secondFingerDownEvent =
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(150))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(100))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(150).y(150))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -2085,8 +2085,8 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
             MotionEventBuilder(POINTER_0_UP, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(150))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(100))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(150).y(150))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerUpEvent, INJECT_EVENT_TIMEOUT,
@@ -2102,7 +2102,7 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
                                         .displayId(ADISPLAY_ID_DEFAULT)
                                         .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
                                         .pointer(PointerBuilder(/* id */ 1,
-                                                                AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                                ToolType::FINGER)
                                                          .x(100)
                                                          .y(100))
                                         .build(),
@@ -2154,8 +2154,8 @@ TEST_F(InputDispatcherTest, TwoWindows_SplitWallpaperTouch) {
     const MotionEvent secondFingerDownEvent =
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(100))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(300).y(100))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -2179,8 +2179,8 @@ TEST_F(InputDispatcherTest, TwoWindows_SplitWallpaperTouch) {
     const MotionEvent secondFingerMoveEvent =
             MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(310).y(110))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(100))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(310).y(110))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerMoveEvent, INJECT_EVENT_TIMEOUT,
@@ -2274,15 +2274,15 @@ TEST_F(InputDispatcherTest, TwoPointerCancelInconsistentPolicy) {
             args = MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
                            .policyFlags(DEFAULT_POLICY_FLAGS)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                            .build()));
 
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
                            .policyFlags(DEFAULT_POLICY_FLAGS)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(120).y(120))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(120).y(120))
                            .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
     spyWindow->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
@@ -2294,8 +2294,8 @@ TEST_F(InputDispatcherTest, TwoPointerCancelInconsistentPolicy) {
             args = MotionArgsBuilder(AMOTION_EVENT_ACTION_CANCEL, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
                            .policyFlags(0)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(120).y(120))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(120).y(120))
                            .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL));
@@ -2313,7 +2313,7 @@ TEST_F(InputDispatcherTest, TwoPointerCancelInconsistentPolicy) {
             args = MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
                            .policyFlags(DEFAULT_POLICY_FLAGS)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                            .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
@@ -2358,7 +2358,7 @@ TEST_F(InputDispatcherTest, HoverFromLeftToRightAndTap) {
                                         .deviceId(mouseDeviceId)
                                         .downTime(baseTime + 10)
                                         .eventTime(baseTime + 20)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(300)
                                                          .y(100))
                                         .build()));
@@ -2372,7 +2372,7 @@ TEST_F(InputDispatcherTest, HoverFromLeftToRightAndTap) {
                                         .deviceId(mouseDeviceId)
                                         .downTime(baseTime + 10)
                                         .eventTime(baseTime + 30)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(110)
                                                          .y(100))
                                         .build()));
@@ -2386,7 +2386,7 @@ TEST_F(InputDispatcherTest, HoverFromLeftToRightAndTap) {
                                         .deviceId(touchDeviceId)
                                         .downTime(baseTime + 40)
                                         .eventTime(baseTime + 40)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(100)
                                                          .y(100))
                                         .build()));
@@ -2401,7 +2401,7 @@ TEST_F(InputDispatcherTest, HoverFromLeftToRightAndTap) {
                                         .deviceId(touchDeviceId)
                                         .downTime(baseTime + 40)
                                         .eventTime(baseTime + 50)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(100)
                                                          .y(100))
                                         .build()));
@@ -2415,7 +2415,7 @@ TEST_F(InputDispatcherTest, HoverFromLeftToRightAndTap) {
                                         .deviceId(touchDeviceId)
                                         .downTime(baseTime + 60)
                                         .eventTime(baseTime + 60)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(300)
                                                          .y(100))
                                         .build()));
@@ -2429,7 +2429,7 @@ TEST_F(InputDispatcherTest, HoverFromLeftToRightAndTap) {
                                         .deviceId(touchDeviceId)
                                         .downTime(baseTime + 60)
                                         .eventTime(baseTime + 70)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(300)
                                                          .y(100))
                                         .build()));
@@ -2467,7 +2467,7 @@ TEST_F(InputDispatcherTest, MultiDeviceSplitTouch) {
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
                            .deviceId(mouseDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(100).y(100))
                            .build()));
     leftWindow->consumeMotionEvent(
             AllOf(WithMotionAction(ACTION_HOVER_ENTER), WithDeviceId(mouseDeviceId)));
@@ -2477,7 +2477,7 @@ TEST_F(InputDispatcherTest, MultiDeviceSplitTouch) {
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
                            .deviceId(mouseDeviceId)
                            .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(100).y(100))
                            .build()));
 
     leftWindow->consumeMotionEvent(
@@ -2490,7 +2490,7 @@ TEST_F(InputDispatcherTest, MultiDeviceSplitTouch) {
                            .deviceId(mouseDeviceId)
                            .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
                            .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(100).y(100))
                            .build()));
     leftWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
 
@@ -2498,7 +2498,7 @@ TEST_F(InputDispatcherTest, MultiDeviceSplitTouch) {
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(300).y(100))
                            .build()));
     leftWindow->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
 
@@ -2508,8 +2508,8 @@ TEST_F(InputDispatcherTest, MultiDeviceSplitTouch) {
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(100).y(100))
                            .build()));
     leftWindow->consumeMotionEvent(
             AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId)));
@@ -2547,21 +2547,21 @@ TEST_F(InputDispatcherTest, MixedTouchAndMouseWithPointerDown) {
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(300).y(100))
                            .build()));
     // Second touch pointer down
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(350).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(350).y(100))
                            .build()));
     // First touch pointer lifts. The second one remains down
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(POINTER_0_UP, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(350).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(350).y(100))
                            .build()));
     window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
     window->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
@@ -2572,7 +2572,7 @@ TEST_F(InputDispatcherTest, MixedTouchAndMouseWithPointerDown) {
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
                            .deviceId(mouseDeviceId)
                            .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(320).y(100))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(320).y(100))
                            .build()));
 
     window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(touchDeviceId),
@@ -2584,7 +2584,7 @@ TEST_F(InputDispatcherTest, MixedTouchAndMouseWithPointerDown) {
                            .deviceId(mouseDeviceId)
                            .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
                            .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(320).y(100))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(320).y(100))
                            .build()));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
 
@@ -2592,8 +2592,8 @@ TEST_F(InputDispatcherTest, MixedTouchAndMouseWithPointerDown) {
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(POINTER_0_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(350).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(350).y(100))
                            .build()));
     // The pointer_down event should be ignored
     window->assertNoEvents();
@@ -2619,7 +2619,7 @@ TEST_F(InputDispatcherTest, UnfinishedInjectedEvent) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
                                         .deviceId(ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(50)
                                                          .y(50))
                                         .build()));
@@ -2631,7 +2631,7 @@ TEST_F(InputDispatcherTest, UnfinishedInjectedEvent) {
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(300).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(300).y(100))
                            .build()));
 
     window->consumeMotionEvent(
@@ -2673,7 +2673,7 @@ TEST_F(InputDispatcherTest, HoverTapAndSplitTouch) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
                                                    AINPUT_SOURCE_MOUSE)
                                         .deviceId(mouseDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(50)
                                                          .y(50))
                                         .build()));
@@ -2685,7 +2685,7 @@ TEST_F(InputDispatcherTest, HoverTapAndSplitTouch) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(touchDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(100)
                                                          .y(100))
                                         .build()));
@@ -2695,7 +2695,7 @@ TEST_F(InputDispatcherTest, HoverTapAndSplitTouch) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(touchDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(100)
                                                          .y(100))
                                         .build()));
@@ -2709,7 +2709,7 @@ TEST_F(InputDispatcherTest, HoverTapAndSplitTouch) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(touchDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(300)
                                                          .y(100))
                                         .build()));
@@ -2720,10 +2720,10 @@ TEST_F(InputDispatcherTest, HoverTapAndSplitTouch) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(touchDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(300)
                                                          .y(100))
-                                        .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(1, ToolType::FINGER)
                                                          .x(100)
                                                          .y(100))
                                         .build()));
@@ -2756,7 +2756,7 @@ TEST_F(InputDispatcherTest, StylusHoverAndTouchTap) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
                                                    AINPUT_SOURCE_STYLUS)
                                         .deviceId(stylusDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                        .pointer(PointerBuilder(0, ToolType::STYLUS)
                                                          .x(50)
                                                          .y(50))
                                         .build()));
@@ -2768,7 +2768,7 @@ TEST_F(InputDispatcherTest, StylusHoverAndTouchTap) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(touchDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(100)
                                                          .y(100))
                                         .build()));
@@ -2781,7 +2781,7 @@ TEST_F(InputDispatcherTest, StylusHoverAndTouchTap) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_STYLUS)
                                         .deviceId(stylusDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                        .pointer(PointerBuilder(0, ToolType::STYLUS)
                                                          .x(50)
                                                          .y(50))
                                         .build()));
@@ -2794,7 +2794,7 @@ TEST_F(InputDispatcherTest, StylusHoverAndTouchTap) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(touchDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(100)
                                                          .y(100))
                                         .build()));
@@ -2806,7 +2806,7 @@ TEST_F(InputDispatcherTest, StylusHoverAndTouchTap) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_STYLUS)
                                         .deviceId(stylusDeviceId)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                        .pointer(PointerBuilder(0, ToolType::STYLUS)
                                                          .x(50)
                                                          .y(50))
                                         .build()));
@@ -2839,40 +2839,40 @@ TEST_F(InputDispatcherTest, StylusHoverAndDownNoInputChannel) {
     // Start hovering with stylus
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
                              .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
     // Stop hovering
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
                              .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
 
     // Stylus touches down
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_STYLUS)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
                              .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
 
     // Stylus goes up
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_STYLUS)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
                              .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_UP));
 
     // Again hover
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
                              .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
     // Stop hovering
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS).x(50).y(50))
+                             .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
                              .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
 
@@ -2908,7 +2908,7 @@ TEST_F(InputDispatcherTest, TouchPilferAndMouseMove) {
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
                            .deviceId(mouseDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(100).y(100))
                            .build()));
     spyWindow->consumeMotionEvent(
             AllOf(WithMotionAction(ACTION_HOVER_ENTER), WithDeviceId(mouseDeviceId)));
@@ -2919,7 +2919,7 @@ TEST_F(InputDispatcherTest, TouchPilferAndMouseMove) {
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                              .deviceId(touchDeviceId)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                             .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
                              .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
     window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
@@ -2929,7 +2929,7 @@ TEST_F(InputDispatcherTest, TouchPilferAndMouseMove) {
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                              .deviceId(touchDeviceId)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(55).y(55))
+                             .pointer(PointerBuilder(0, ToolType::FINGER).x(55).y(55))
                              .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
     window->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
@@ -2941,7 +2941,7 @@ TEST_F(InputDispatcherTest, TouchPilferAndMouseMove) {
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                              .deviceId(touchDeviceId)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(60).y(60))
+                             .pointer(PointerBuilder(0, ToolType::FINGER).x(60).y(60))
                              .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
 
@@ -2950,7 +2950,7 @@ TEST_F(InputDispatcherTest, TouchPilferAndMouseMove) {
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
                            .deviceId(mouseDeviceId)
                            .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(100).y(100))
                            .build()));
 
     spyWindow->consumeMotionEvent(
@@ -2964,7 +2964,7 @@ TEST_F(InputDispatcherTest, TouchPilferAndMouseMove) {
                            .deviceId(mouseDeviceId)
                            .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
                            .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(100).y(100))
                            .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
@@ -2974,7 +2974,7 @@ TEST_F(InputDispatcherTest, TouchPilferAndMouseMove) {
             args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_MOUSE)
                            .deviceId(mouseDeviceId)
                            .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(110).y(110))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(110).y(110))
                            .build()));
     spyWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
     window->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
@@ -2983,7 +2983,7 @@ TEST_F(InputDispatcherTest, TouchPilferAndMouseMove) {
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                              .deviceId(touchDeviceId)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(65).y(65))
+                             .pointer(PointerBuilder(0, ToolType::FINGER).x(65).y(65))
                              .build()));
 
     // No more events
@@ -3129,9 +3129,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(900)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(900).y(400))
                                         .build()));
     windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
 
@@ -3140,9 +3138,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
     windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
@@ -3152,9 +3148,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_MOUSE)
                                         .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     windowLeft->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
     windowLeft->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
@@ -3165,9 +3159,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                    AINPUT_SOURCE_MOUSE)
                                         .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
                                         .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
 
@@ -3177,9 +3169,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
                                                    AINPUT_SOURCE_MOUSE)
                                         .buttonState(0)
                                         .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     windowLeft->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE));
 
@@ -3187,9 +3177,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_MOUSE)
                                         .buttonState(0)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     windowLeft->consumeMotionUp(ADISPLAY_ID_DEFAULT);
 
@@ -3198,9 +3186,7 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(900)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(900).y(400))
                                         .build()));
     windowRight->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
 
@@ -3230,14 +3216,14 @@ TEST_F(InputDispatcherTest, TwoPointersDownMouseClick) {
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                            .build()));
 
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(100))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(120).y(120))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(120).y(120))
                            .build()));
     window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
     window->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
@@ -3247,7 +3233,7 @@ TEST_F(InputDispatcherTest, TwoPointersDownMouseClick) {
             args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
                            .deviceId(mouseDeviceId)
                            .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(300).y(400))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                            .build()));
     window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(touchDeviceId),
                                      WithPointerCount(2u)));
@@ -3258,7 +3244,7 @@ TEST_F(InputDispatcherTest, TwoPointersDownMouseClick) {
                            .deviceId(mouseDeviceId)
                            .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
                            .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(300).y(400))
+                           .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                            .build()));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
 
@@ -3267,8 +3253,8 @@ TEST_F(InputDispatcherTest, TwoPointersDownMouseClick) {
     mDispatcher->notifyMotion(&(
             args = MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                            .deviceId(touchDeviceId)
-                           .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(101).y(101))
-                           .pointer(PointerBuilder(1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(121).y(121))
+                           .pointer(PointerBuilder(0, ToolType::FINGER).x(101).y(101))
+                           .pointer(PointerBuilder(1, ToolType::FINGER).x(121).y(121))
                            .build()));
     window->assertNoEvents();
 }
@@ -3293,7 +3279,7 @@ TEST_F(InputDispatcherTest, HoverWithSpyWindows) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
                                                    AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(100)
                                                          .y(100))
                                         .build()));
@@ -3327,7 +3313,7 @@ TEST_F(InputDispatcherTest, MouseAndTouchWithSpyWindows) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
                                                    AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(100)
                                                          .y(100))
                                         .build()));
@@ -3337,7 +3323,7 @@ TEST_F(InputDispatcherTest, MouseAndTouchWithSpyWindows) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(110)
                                                          .y(110))
                                         .build()));
@@ -3356,7 +3342,7 @@ TEST_F(InputDispatcherTest, MouseAndTouchWithSpyWindows) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(SECOND_DEVICE_ID)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(200)
                                                          .y(200))
                                         .build()));
@@ -3380,7 +3366,7 @@ TEST_F(InputDispatcherTest, MouseAndTouchWithSpyWindows) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(SECOND_DEVICE_ID)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(200)
                                                          .y(200))
                                         .build()));
@@ -3397,7 +3383,7 @@ TEST_F(InputDispatcherTest, MouseAndTouchWithSpyWindows) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(SECOND_DEVICE_ID)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(250)
                                                          .y(250))
                                         .build()));
@@ -3412,7 +3398,7 @@ TEST_F(InputDispatcherTest, MouseAndTouchWithSpyWindows) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_UP,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .deviceId(SECOND_DEVICE_ID)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER)
                                                          .x(250)
                                                          .y(250))
                                         .build()));
@@ -3441,9 +3427,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
                                                    AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
     // Inject a series of mouse events for a mouse click
@@ -3451,9 +3435,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_MOUSE)
                                         .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
     window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
@@ -3464,9 +3446,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                                    AINPUT_SOURCE_MOUSE)
                                         .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
                                         .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
 
@@ -3476,9 +3456,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                                    AINPUT_SOURCE_MOUSE)
                                         .buttonState(0)
                                         .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE));
 
@@ -3486,9 +3464,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_MOUSE)
                                         .buttonState(0)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     window->consumeMotionUp(ADISPLAY_ID_DEFAULT);
 
@@ -3496,9 +3472,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_EXIT,
                                                    AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
-                                                         .x(300)
-                                                         .y(400))
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
                                         .build()));
     window->assertNoEvents();
 }
@@ -3521,7 +3495,7 @@ TEST_F(InputDispatcherTest, HoverExitIsSentToRemovedWindow) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
                                                    AINPUT_SOURCE_MOUSE)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(300)
                                                          .y(400))
                                         .build()));
@@ -3551,7 +3525,7 @@ TEST_F(InputDispatcherTest, TouchDownAfterMouseHover) {
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
                              .deviceId(mouseDeviceId)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE).x(10).y(10))
+                             .pointer(PointerBuilder(0, ToolType::MOUSE).x(10).y(10))
                              .build()));
     window->consumeMotionEvent(
             AllOf(WithMotionAction(ACTION_HOVER_ENTER), WithDeviceId(mouseDeviceId)));
@@ -3560,7 +3534,7 @@ TEST_F(InputDispatcherTest, TouchDownAfterMouseHover) {
     mDispatcher->notifyMotion(
             &(args = MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                              .deviceId(touchDeviceId)
-                             .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                             .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
                              .build()));
 
     window->consumeMotionEvent(
@@ -3633,7 +3607,7 @@ TEST_F(InputDispatcherTest, HoverEnterMoveRemoveWindowsInSecondDisplay) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_MOUSE)
                                         .displayId(ADISPLAY_ID_DEFAULT)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(300)
                                                          .y(600))
                                         .build()));
@@ -3654,7 +3628,7 @@ TEST_F(InputDispatcherTest, HoverEnterMoveRemoveWindowsInSecondDisplay) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_MOUSE)
                                         .displayId(ADISPLAY_ID_DEFAULT)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                        .pointer(PointerBuilder(0, ToolType::MOUSE)
                                                          .x(400)
                                                          .y(700))
                                         .build()));
@@ -3911,8 +3885,8 @@ TEST_F(InputDispatcherTest, NonSplitTouchableWindowReceivesMultiTouch) {
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(-30).y(-50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(-30).y(-50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -4033,7 +4007,7 @@ TEST_F(InputDispatcherDisplayProjectionTest, InjectionWithTransformInLogicalDisp
     MotionEvent event = MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                                 .displayId(ADISPLAY_ID_DEFAULT)
                                 .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                                .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER)
                                                  .x(untransformedPoint.x)
                                                  .y(untransformedPoint.y))
                                 .build();
@@ -6076,7 +6050,7 @@ TEST_F(InputDispatcherOnPointerDownOutsideFocus, NoFocusChangeFlag) {
     const MotionEvent event =
             MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_MOUSE)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(20).y(20))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(20).y(20))
                     .addFlag(AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE)
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectMotionEvent(mDispatcher, event))
@@ -7937,7 +7911,7 @@ protected:
                                   MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
                                                      AINPUT_SOURCE_STYLUS)
                                           .buttonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY)
-                                          .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                          .pointer(PointerBuilder(0, ToolType::STYLUS)
                                                            .x(50)
                                                            .y(50))
                                           .build()));
@@ -7949,7 +7923,7 @@ protected:
                                   MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_MOUSE)
                                           .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
                                           .pointer(PointerBuilder(MOUSE_POINTER_ID,
-                                                                  AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                                  ToolType::MOUSE)
                                                            .x(50)
                                                            .y(50))
                                           .build()));
@@ -8038,8 +8012,8 @@ TEST_F(InputDispatcherDragTests, DragEnterAndPointerDownPilfersPointers) {
     const MotionEvent secondFingerDownEvent =
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(60).y(60))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(60).y(60))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -8093,9 +8067,7 @@ TEST_F(InputDispatcherDragTests, StylusDragAndDrop) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_STYLUS)
                                         .buttonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
-                                                         .x(50)
-                                                         .y(50))
+                                        .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
@@ -8107,9 +8079,7 @@ TEST_F(InputDispatcherDragTests, StylusDragAndDrop) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_STYLUS)
                                         .buttonState(0)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
-                                                         .x(150)
-                                                         .y(50))
+                                        .pointer(PointerBuilder(0, ToolType::STYLUS).x(150).y(50))
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
@@ -8122,9 +8092,7 @@ TEST_F(InputDispatcherDragTests, StylusDragAndDrop) {
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_STYLUS)
                                         .buttonState(0)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
-                                                         .x(150)
-                                                         .y(50))
+                                        .pointer(PointerBuilder(0, ToolType::STYLUS).x(150).y(50))
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
@@ -8182,8 +8150,8 @@ TEST_F(InputDispatcherDragTests, NoDragAndDropWhenMultiFingers) {
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(75).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(75).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -8209,8 +8177,8 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenSplitTouch) {
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(50))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(150).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(50).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -8225,8 +8193,8 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenSplitTouch) {
     const MotionEvent secondFingerMoveEvent =
             MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(50))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(150).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(50).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerMoveEvent, INJECT_EVENT_TIMEOUT,
@@ -8239,8 +8207,8 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenSplitTouch) {
     const MotionEvent secondFingerUpEvent =
             MotionEventBuilder(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(50))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(150).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(50).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerUpEvent, INJECT_EVENT_TIMEOUT,
@@ -8265,9 +8233,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenMultiDisplays) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .displayId(SECOND_DISPLAY_ID)
-                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_FINGER)
-                                                         .x(100)
-                                                         .y(100))
+                                        .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                                         .build()));
     windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_DOWN,
                                     SECOND_DISPLAY_ID, /*expectedFlag=*/0);
@@ -8311,7 +8277,7 @@ TEST_F(InputDispatcherDragTests, MouseDragAndDrop) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_MOUSE)
                                         .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
                                         .pointer(PointerBuilder(MOUSE_POINTER_ID,
-                                                                AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                                ToolType::MOUSE)
                                                          .x(50)
                                                          .y(50))
                                         .build()))
@@ -8326,7 +8292,7 @@ TEST_F(InputDispatcherDragTests, MouseDragAndDrop) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_MOUSE)
                                         .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
                                         .pointer(PointerBuilder(MOUSE_POINTER_ID,
-                                                                AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                                ToolType::MOUSE)
                                                          .x(150)
                                                          .y(50))
                                         .build()))
@@ -8341,7 +8307,7 @@ TEST_F(InputDispatcherDragTests, MouseDragAndDrop) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_MOUSE)
                                         .buttonState(0)
                                         .pointer(PointerBuilder(MOUSE_POINTER_ID,
-                                                                AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                                ToolType::MOUSE)
                                                          .x(150)
                                                          .y(50))
                                         .build()))
@@ -8813,8 +8779,8 @@ TEST_F(InputDispatcherSpyWindowTest, ReceivesMultiplePointers) {
     const MotionEvent secondFingerDownEvent =
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(150).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -8845,8 +8811,8 @@ TEST_F(InputDispatcherSpyWindowTest, ReceivesSecondPointerAsDown) {
     const MotionEvent secondFingerDownEvent =
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(150).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -8884,8 +8850,8 @@ TEST_F(InputDispatcherSpyWindowTest, SplitIfNoForegroundWindowTouched) {
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(200))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(200))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(50).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -9007,8 +8973,8 @@ TEST_F(InputDispatcherPilferPointersTest, ContinuesToReceiveGestureAfterPilfer) 
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(200))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(200))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(50).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -9022,9 +8988,9 @@ TEST_F(InputDispatcherPilferPointersTest, ContinuesToReceiveGestureAfterPilfer) 
             MotionEventBuilder(POINTER_2_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(100).y(200))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
-                    .pointer(PointerBuilder(/*id=*/2, AMOTION_EVENT_TOOL_TYPE_FINGER).x(-5).y(-5))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(200))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/2, ToolType::FINGER).x(-5).y(-5))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               injectMotionEvent(mDispatcher, thirdFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -9058,8 +9024,8 @@ TEST_F(InputDispatcherPilferPointersTest, PartiallyPilferRequiredPointers) {
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(150))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(10).y(10))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(150).y(150))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(10).y(10))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -9073,9 +9039,9 @@ TEST_F(InputDispatcherPilferPointersTest, PartiallyPilferRequiredPointers) {
             MotionEventBuilder(POINTER_2_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(150))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(10).y(10))
-                    .pointer(PointerBuilder(/*id=*/2, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(150).y(150))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(10).y(10))
+                    .pointer(PointerBuilder(/*id=*/2, ToolType::FINGER).x(50).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, thirdFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -9119,8 +9085,8 @@ TEST_F(InputDispatcherPilferPointersTest, PilferAllRequiredPointers) {
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(10).y(10))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(10).y(10))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(50).y(50))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -9166,8 +9132,8 @@ TEST_F(InputDispatcherPilferPointersTest, CanReceivePointersAfterPilfer) {
             MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .displayId(ADISPLAY_ID_DEFAULT)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                    .pointer(PointerBuilder(/*id=*/0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(10).y(10))
-                    .pointer(PointerBuilder(/*id=*/1, AMOTION_EVENT_TOOL_TYPE_FINGER).x(150).y(150))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(10).y(10))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(150).y(150))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
@@ -9221,7 +9187,7 @@ public:
         NotifyMotionArgs motionArgs =
                 generateMotionArgs(action, AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS,
                                    ADISPLAY_ID_DEFAULT, {PointF{30, 40}});
-        motionArgs.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+        motionArgs.pointerProperties[0].toolType = ToolType::STYLUS;
         mDispatcher->notifyMotion(&motionArgs);
     }
 };

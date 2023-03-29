@@ -66,6 +66,14 @@ constexpr size_t kMaxSize = 256;
 
 namespace android {
 
+template<class Fdp>
+ToolType getFuzzedToolType(Fdp& fdp) {
+    const int32_t toolType = fdp.template ConsumeIntegralInRange<int32_t>(
+                            static_cast<int32_t>(ToolType::ftl_first),
+                            static_cast<int32_t>(ToolType::ftl_last));
+    return static_cast<ToolType>(toolType);
+}
+
 class FuzzEventHub : public EventHubInterface {
     InputDeviceIdentifier mIdentifier;
     std::vector<TouchVideoFrame> mVideoFrames;

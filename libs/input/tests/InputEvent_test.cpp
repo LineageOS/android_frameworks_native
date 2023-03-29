@@ -259,10 +259,10 @@ void MotionEventTest::SetUp() {
 
     mPointerProperties[0].clear();
     mPointerProperties[0].id = 1;
-    mPointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    mPointerProperties[0].toolType = ToolType::FINGER;
     mPointerProperties[1].clear();
     mPointerProperties[1].id = 2;
-    mPointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mPointerProperties[1].toolType = ToolType::STYLUS;
 
     mSamples[0].pointerCoords[0].clear();
     mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 10);
@@ -366,9 +366,9 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
 
     ASSERT_EQ(2U, event->getPointerCount());
     ASSERT_EQ(1, event->getPointerId(0));
-    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, event->getToolType(0));
+    ASSERT_EQ(ToolType::FINGER, event->getToolType(0));
     ASSERT_EQ(2, event->getPointerId(1));
-    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_STYLUS, event->getToolType(1));
+    ASSERT_EQ(ToolType::STYLUS, event->getToolType(1));
 
     ASSERT_EQ(2U, event->getHistorySize());
 
@@ -692,7 +692,7 @@ TEST_F(MotionEventTest, Transform) {
 MotionEvent createMotionEvent(int32_t source, uint32_t action, float x, float y, float dx, float dy,
                               const ui::Transform& transform, const ui::Transform& rawTransform) {
     std::vector<PointerProperties> pointerProperties;
-    pointerProperties.push_back(PointerProperties{/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER});
+    pointerProperties.push_back(PointerProperties{/*id=*/0, ToolType::FINGER});
     std::vector<PointerCoords> pointerCoords;
     pointerCoords.emplace_back().clear();
     pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_X, x);

@@ -145,6 +145,10 @@ inline static const char* toString(bool value) {
     return value ? "true" : "false";
 }
 
+static bool shouldResampleTool(ToolType toolType) {
+    return toolType == ToolType::FINGER || toolType == ToolType::UNKNOWN;
+}
+
 // --- InputMessage ---
 
 bool InputMessage::isValid(size_t actualSize) const {
@@ -1272,11 +1276,6 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
     }
 
     event->addSample(sampleTime, touchState.lastResample.pointers);
-}
-
-bool InputConsumer::shouldResampleTool(int32_t toolType) {
-    return toolType == AMOTION_EVENT_TOOL_TYPE_FINGER
-            || toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
 }
 
 status_t InputConsumer::sendFinishedSignal(uint32_t seq, bool handled) {
