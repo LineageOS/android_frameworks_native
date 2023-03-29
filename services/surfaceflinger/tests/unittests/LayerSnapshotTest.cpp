@@ -308,6 +308,31 @@ TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
     EXPECT_EQ(getSnapshot(1)->frameRate.type, scheduler::LayerInfo::FrameRateCompatibility::NoVote);
 }
 
+TEST_F(LayerSnapshotTest, canCropTouchableRegion) {
+    // ROOT
+    // ├── 1
+    // │   ├── 11
+    // │   │   └── 111 (touchregion set to touch but cropped by layer 13)
+    // │   ├── 12
+    // │   │   ├── 121
+    // │   │   └── 122
+    // │   │       └── 1221
+    // │   └── 13 (crop set to touchCrop)
+    // └── 2
+
+    Rect touchCrop{300, 300, 400, 500};
+    setCrop(13, touchCrop);
+    Region touch{Rect{0, 0, 1000, 1000}};
+    setTouchableRegionCrop(111, touch, /*touchCropId=*/13, /*replaceTouchableRegionWithCrop=*/true);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot({.id = 111})->inputInfo.touchableRegion.bounds(), touchCrop);
+
+    Rect modifiedTouchCrop{100, 300, 400, 700};
+    setCrop(13, modifiedTouchCrop);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot({.id = 111})->inputInfo.touchableRegion.bounds(), modifiedTouchCrop);
+}
+
 // Display Mirroring Tests
 // tree with 3 levels of children
 // ROOT (DISPLAY 0)
