@@ -22,6 +22,7 @@
 
 #include "StatsAidl.h"
 
+#include <Counter.h>
 #include <log/log.h>
 #include <stats_annotations.h>
 #include <stats_event.h>
@@ -29,10 +30,17 @@
 
 #include <unordered_map>
 
+namespace {
+    static const char* g_AtomErrorMetricName =
+        "statsd_errors.value_report_vendor_atom_errors_count";
+}
+
 namespace aidl {
 namespace android {
 namespace frameworks {
 namespace stats {
+
+using ::android::expresslog::Counter;
 
 template <typename E>
 constexpr typename std::underlying_type<E>::type to_underlying(E e) noexcept {
@@ -86,12 +94,14 @@ bool write_field_annotations(AStatsEvent* event, const std::vector<Annotation>& 
 ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
     if (vendorAtom.atomId < 100000 || vendorAtom.atomId >= 200000) {
         ALOGE("Atom ID %ld is not a valid vendor atom ID", (long)vendorAtom.atomId);
+        Counter::logIncrement(g_AtomErrorMetricName);
         return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
                 -1, "Not a valid vendor atom ID");
     }
     if (vendorAtom.reverseDomainName.length() > 50) {
         ALOGE("Vendor atom reverse domain name %s is too long.",
               vendorAtom.reverseDomainName.c_str());
+        Counter::logIncrement(g_AtomErrorMetricName);
         return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
                 -1, "Vendor atom reverse domain name is too long");
     }
@@ -100,8 +110,9 @@ ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
 
     if (vendorAtom.atomAnnotations) {
         if (!write_atom_annotations(event, *vendorAtom.atomAnnotations)) {
-            ALOGE("Atom ID %ld has incompatible atom level annotation", (long)vendorAtom.atomId);
             AStatsEvent_release(event);
+            ALOGE("Atom ID %ld has incompatible atom level annotation", (long)vendorAtom.atomId);
+            Counter::logIncrement(g_AtomErrorMetricName);
             return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
                     -1, "invalid atom annotation");
         }
@@ -222,6 +233,7 @@ ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
             default: {
                 AStatsEvent_release(event);
                 ALOGE("Atom ID %ld has invalid atomValue.getTag", (long)vendorAtom.atomId);
+                Counter::logIncrement(g_AtomErrorMetricName);
                 return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
                         -1, "invalid atomValue.getTag");
                 break;
@@ -235,9 +247,10 @@ ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
             VLOG("Atom ID %ld has %ld annotations for field #%ld", (long)vendorAtom.atomId,
                  (long)fieldAnnotations.size(), (long)atomValueIdx + 2);
             if (!write_field_annotations(event, fieldAnnotations)) {
+                AStatsEvent_release(event);
                 ALOGE("Atom ID %ld has incompatible field level annotation for field #%ld",
                       (long)vendorAtom.atomId, (long)atomValueIdx + 2);
-                AStatsEvent_release(event);
+                Counter::logIncrement(g_AtomErrorMetricName);
                 return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(
                         -1, "invalid atom field annotation");
             }
@@ -249,6 +262,7 @@ ndk::ScopedAStatus StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
     AStatsEvent_release(event);
     if (ret <= 0) {
         ALOGE("Error writing Atom ID %ld. Result: %d", (long)vendorAtom.atomId, ret);
+        Counter::logIncrement(g_AtomErrorMetricName);
     }
     return ret <= 0 ? ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(ret,
                                                                               "report atom failed")
