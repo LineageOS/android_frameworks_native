@@ -78,8 +78,8 @@ struct RawPointerData {
         int32_t distance{};
         int32_t tiltX{};
         int32_t tiltY{};
-        // A fully decoded AMOTION_EVENT_TOOL_TYPE constant.
-        int32_t toolType{AMOTION_EVENT_TOOL_TYPE_UNKNOWN};
+        // A fully decoded ToolType constant.
+        ToolType toolType{ToolType::UNKNOWN};
         bool isHovering{false};
     };
 

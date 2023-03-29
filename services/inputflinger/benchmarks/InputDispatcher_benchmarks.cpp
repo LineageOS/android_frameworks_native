@@ -207,7 +207,7 @@ static MotionEvent generateMotionEvent() {
 
     pointerProperties[0].clear();
     pointerProperties[0].id = 0;
-    pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    pointerProperties[0].toolType = ToolType::FINGER;
 
     pointerCoords[0].clear();
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 100);
@@ -235,7 +235,7 @@ static NotifyMotionArgs generateMotionArgs() {
 
     pointerProperties[0].clear();
     pointerProperties[0].id = 0;
-    pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    pointerProperties[0].toolType = ToolType::FINGER;
 
     pointerCoords[0].clear();
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 100);
