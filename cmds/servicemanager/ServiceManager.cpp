@@ -337,26 +337,26 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
     auto ctx = mAccess->getCallingContext();
 
     if (multiuser_get_app_id(ctx.uid) >= AID_APP) {
-        return Status::fromExceptionCode(Status::EX_SECURITY, "App UIDs cannot add services");
+        return Status::fromExceptionCode(Status::EX_SECURITY, "App UIDs cannot add services.");
     }
 
     if (!mAccess->canAdd(ctx, name)) {
-        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denial");
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     if (binder == nullptr) {
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Null binder");
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Null binder.");
     }
 
     if (!isValidServiceName(name)) {
         ALOGE("Invalid service name: %s", name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Invalid service name");
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Invalid service name.");
     }
 
 #ifndef VENDORSERVICEMANAGER
     if (!meetsDeclarationRequirements(binder, name)) {
         // already logged
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "VINTF declaration error");
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "VINTF declaration error.");
     }
 #endif  // !VENDORSERVICEMANAGER
 
@@ -368,7 +368,7 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
     if (binder->remoteBinder() != nullptr &&
         binder->linkToDeath(sp<ServiceManager>::fromExisting(this)) != OK) {
         ALOGE("Could not linkToDeath when adding %s", name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "linkToDeath failure");
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Couldn't linkToDeath.");
     }
 
     auto it = mNameToService.find(name);
@@ -422,7 +422,7 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
 
 Status ServiceManager::listServices(int32_t dumpPriority, std::vector<std::string>* outList) {
     if (!mAccess->canList(mAccess->getCallingContext())) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     size_t toReserve = 0;
@@ -466,18 +466,18 @@ Status ServiceManager::registerForNotifications(
 
     if (!isValidServiceName(name)) {
         ALOGE("Invalid service name: %s", name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Invalid service name.");
     }
 
     if (callback == nullptr) {
-        return Status::fromExceptionCode(Status::EX_NULL_POINTER);
+        return Status::fromExceptionCode(Status::EX_NULL_POINTER, "Null callback.");
     }
 
     if (OK !=
         IInterface::asBinder(callback)->linkToDeath(
                 sp<ServiceManager>::fromExisting(this))) {
         ALOGE("Could not linkToDeath when adding %s", name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Couldn't link to death.");
     }
 
     mNameToRegistrationCallback[name].push_back(callback);
@@ -497,7 +497,7 @@ Status ServiceManager::unregisterForNotifications(
     auto ctx = mAccess->getCallingContext();
 
     if (!mAccess->canFind(ctx, name)) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     bool found = false;
@@ -509,7 +509,7 @@ Status ServiceManager::unregisterForNotifications(
 
     if (!found) {
         ALOGE("Trying to unregister callback, but none exists %s", name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Nothing to unregister.");
     }
 
     return Status::ok();
@@ -519,7 +519,7 @@ Status ServiceManager::isDeclared(const std::string& name, bool* outReturn) {
     auto ctx = mAccess->getCallingContext();
 
     if (!mAccess->canFind(ctx, name)) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     *outReturn = false;
@@ -547,7 +547,7 @@ binder::Status ServiceManager::getDeclaredInstances(const std::string& interface
     }
 
     if (outReturn->size() == 0 && allInstances.size() != 0) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     return Status::ok();
@@ -558,7 +558,7 @@ Status ServiceManager::updatableViaApex(const std::string& name,
     auto ctx = mAccess->getCallingContext();
 
     if (!mAccess->canFind(ctx, name)) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     *outReturn = std::nullopt;
@@ -587,7 +587,7 @@ Status ServiceManager::getUpdatableNames([[maybe_unused]] const std::string& ape
     }
 
     if (outReturn->size() == 0 && apexUpdatableInstances.size() != 0) {
-        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denial");
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     return Status::ok();
@@ -598,7 +598,7 @@ Status ServiceManager::getConnectionInfo(const std::string& name,
     auto ctx = mAccess->getCallingContext();
 
     if (!mAccess->canFind(ctx, name)) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     *outReturn = std::nullopt;
@@ -667,36 +667,37 @@ void ServiceManager::tryStartService(const std::string& name) {
 Status ServiceManager::registerClientCallback(const std::string& name, const sp<IBinder>& service,
                                               const sp<IClientCallback>& cb) {
     if (cb == nullptr) {
-        return Status::fromExceptionCode(Status::EX_NULL_POINTER);
+        return Status::fromExceptionCode(Status::EX_NULL_POINTER, "Callback null.");
     }
 
     auto ctx = mAccess->getCallingContext();
     if (!mAccess->canAdd(ctx, name)) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     auto serviceIt = mNameToService.find(name);
     if (serviceIt == mNameToService.end()) {
         ALOGE("Could not add callback for nonexistent service: %s", name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Service doesn't exist.");
     }
 
     if (serviceIt->second.ctx.debugPid != IPCThreadState::self()->getCallingPid()) {
         ALOGW("Only a server can register for client callbacks (for %s)", name.c_str());
-        return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION);
+        return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION,
+                                         "Only service can register client callback for itself.");
     }
 
     if (serviceIt->second.binder != service) {
         ALOGW("Tried to register client callback for %s but a different service is registered "
               "under this name.",
               name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT, "Service mismatch.");
     }
 
     if (OK !=
         IInterface::asBinder(cb)->linkToDeath(sp<ServiceManager>::fromExisting(this))) {
         ALOGE("Could not linkToDeath when adding client callback for %s", name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Couldn't linkToDeath.");
     }
 
     mNameToClientCallback[name].push_back(cb);
@@ -810,24 +811,25 @@ void ServiceManager::sendClientCallbackNotifications(const std::string& serviceN
 
 Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IBinder>& binder) {
     if (binder == nullptr) {
-        return Status::fromExceptionCode(Status::EX_NULL_POINTER);
+        return Status::fromExceptionCode(Status::EX_NULL_POINTER, "Null service.");
     }
 
     auto ctx = mAccess->getCallingContext();
     if (!mAccess->canAdd(ctx, name)) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     auto serviceIt = mNameToService.find(name);
     if (serviceIt == mNameToService.end()) {
         ALOGW("Tried to unregister %s, but that service wasn't registered to begin with.",
               name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Service not registered.");
     }
 
     if (serviceIt->second.ctx.debugPid != IPCThreadState::self()->getCallingPid()) {
         ALOGW("Only a server can unregister itself (for %s)", name.c_str());
-        return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION);
+        return Status::fromExceptionCode(Status::EX_UNSUPPORTED_OPERATION,
+                                         "Service can only unregister itself.");
     }
 
     sp<IBinder> storedBinder = serviceIt->second.binder;
@@ -835,14 +837,16 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
     if (binder != storedBinder) {
         ALOGW("Tried to unregister %s, but a different service is registered under this name.",
               name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE,
+                                         "Different service registered under this name.");
     }
 
     // important because we don't have timer-based guarantees, we don't want to clear
     // this
     if (serviceIt->second.guaranteeClient) {
         ALOGI("Tried to unregister %s, but there is about to be a client.", name.c_str());
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE,
+                                         "Can't unregister, pending client.");
     }
 
     // - kernel driver will hold onto one refcount (during this transaction)
@@ -857,7 +861,8 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
         // help reduce thrashing, but we should be able to remove it.
         serviceIt->second.guaranteeClient = true;
 
-        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
+        return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE,
+                                         "Can't unregister, known client.");
     }
 
     ALOGI("Unregistering %s", name.c_str());
@@ -868,7 +873,7 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
 
 Status ServiceManager::getServiceDebugInfo(std::vector<ServiceDebugInfo>* outReturn) {
     if (!mAccess->canList(mAccess->getCallingContext())) {
-        return Status::fromExceptionCode(Status::EX_SECURITY);
+        return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 
     outReturn->reserve(mNameToService.size());
