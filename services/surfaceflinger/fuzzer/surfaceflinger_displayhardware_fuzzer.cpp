@@ -222,7 +222,7 @@ void DisplayHardwareFuzzer::getDeviceCompositionChanges(HalDisplayId halDisplayI
     std::optional<impl::HWComposer::DeviceRequestedChanges> outChanges;
     mHwc.getDeviceCompositionChanges(halDisplayID,
                                      mFdp.ConsumeBool() /*frameUsesClientComposition*/,
-                                     std::chrono::steady_clock::now(), FenceTime::NO_FENCE,
+                                     std::chrono::steady_clock::now(),
                                      mFdp.ConsumeIntegral<nsecs_t>(), &outChanges);
 }
 
@@ -555,8 +555,7 @@ void DisplayHardwareFuzzer::invokeComposer() {
     mHwc.setClientTarget(halDisplayID, mFdp.ConsumeIntegral<uint32_t>(), Fence::NO_FENCE,
                          sp<GraphicBuffer>::make(), mFdp.PickValueInArray(kDataspaces));
 
-    mHwc.presentAndGetReleaseFences(halDisplayID, std::chrono::steady_clock::now(),
-                                    FenceTime::NO_FENCE);
+    mHwc.presentAndGetReleaseFences(halDisplayID, std::chrono::steady_clock::now());
 
     mHwc.setPowerMode(mPhysicalDisplayId, mFdp.PickValueInArray(kPowerModes));
 
