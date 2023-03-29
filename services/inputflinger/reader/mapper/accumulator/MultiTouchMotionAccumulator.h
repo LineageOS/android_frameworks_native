@@ -45,7 +45,7 @@ public:
         inline int32_t getTrackingId() const { return mAbsMtTrackingId; }
         inline int32_t getPressure() const { return mAbsMtPressure; }
         inline int32_t getDistance() const { return mAbsMtDistance; }
-        int32_t getToolType() const;
+        ToolType getToolType() const;
 
     private:
         friend class MultiTouchMotionAccumulator;

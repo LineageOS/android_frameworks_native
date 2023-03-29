@@ -45,7 +45,7 @@ static MotionEvent getMotionEvent(int32_t action, float x, float y,
         PointerProperties properties;
         properties.clear();
         properties.id = i;
-        properties.toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+        properties.toolType = ToolType::STYLUS;
         pointerProperties.push_back(properties);
         PointerCoords coords;
         coords.clear();
