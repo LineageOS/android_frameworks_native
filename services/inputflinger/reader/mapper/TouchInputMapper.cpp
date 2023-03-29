@@ -3491,14 +3491,19 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerStylus(nsecs_t when, nsec
     if (!mCurrentCookedState.stylusIdBits.isEmpty()) {
         uint32_t id = mCurrentCookedState.stylusIdBits.firstMarkedBit();
         uint32_t index = mCurrentCookedState.cookedPointerData.idToIndex[id];
-        mPointerController
-                ->setPosition(mCurrentCookedState.cookedPointerData.pointerCoords[index].getX(),
-                              mCurrentCookedState.cookedPointerData.pointerCoords[index].getY());
-
         hovering = mCurrentCookedState.cookedPointerData.hoveringIdBits.hasBit(id);
         down = !hovering;
 
-        const auto [x, y] = mPointerController->getPosition();
+        float x = mCurrentCookedState.cookedPointerData.pointerCoords[index].getX();
+        float y = mCurrentCookedState.cookedPointerData.pointerCoords[index].getY();
+        // Styluses are configured specifically for one display. We only update the
+        // PointerController for this stylus if the PointerController is configured for
+        // the same display as this stylus,
+        if (getAssociatedDisplayId() == mViewport.displayId) {
+            mPointerController->setPosition(x, y);
+            std::tie(x, y) = mPointerController->getPosition();
+        }
+
         mPointerSimple.currentCoords.copyFrom(
                 mCurrentCookedState.cookedPointerData.pointerCoords[index]);
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
@@ -3511,7 +3516,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerStylus(nsecs_t when, nsec
         hovering = false;
     }
 
-    return dispatchPointerSimple(when, readTime, policyFlags, down, hovering);
+    return dispatchPointerSimple(when, readTime, policyFlags, down, hovering, mViewport.displayId);
 }
 
 std::list<NotifyArgs> TouchInputMapper::abortPointerStylus(nsecs_t when, nsecs_t readTime,
@@ -3554,7 +3559,8 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerMouse(nsecs_t when, nsecs
         hovering = false;
     }
 
-    return dispatchPointerSimple(when, readTime, policyFlags, down, hovering);
+    const int32_t displayId = mPointerController->getDisplayId();
+    return dispatchPointerSimple(when, readTime, policyFlags, down, hovering, displayId);
 }
 
 std::list<NotifyArgs> TouchInputMapper::abortPointerMouse(nsecs_t when, nsecs_t readTime,
@@ -3568,7 +3574,7 @@ std::list<NotifyArgs> TouchInputMapper::abortPointerMouse(nsecs_t when, nsecs_t 
 
 std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime,
                                                               uint32_t policyFlags, bool down,
-                                                              bool hovering) {
+                                                              bool hovering, int32_t displayId) {
     LOG_ALWAYS_FATAL_IF(mDeviceMode != DeviceMode::POINTER,
                         "%s cannot be used when the device is not in POINTER mode.", __func__);
     std::list<NotifyArgs> out;
@@ -3581,7 +3587,6 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
     } else if (!down && !hovering && (mPointerSimple.down || mPointerSimple.hovering)) {
         mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
     }
-    int32_t displayId = mPointerController->getDisplayId();
 
     const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
 
