@@ -219,7 +219,7 @@ void PowerAdvisor::sendActualWorkDuration() {
         std::lock_guard lock(mPowerHalMutex);
         HalWrapper* const halWrapper = getPowerHal();
         if (halWrapper != nullptr) {
-            halWrapper->sendActualWorkDuration(*actualDuration + kTargetSafetyMargin,
+            halWrapper->sendActualWorkDuration(*actualDuration + sTargetSafetyMargin,
                                                TimePoint::now());
         }
     }
@@ -232,12 +232,11 @@ void PowerAdvisor::sendPredictedWorkDuration() {
     }
 
     const std::optional<Duration> predictedDuration = estimateWorkDuration(true);
-
     if (predictedDuration.has_value()) {
         std::lock_guard lock(mPowerHalMutex);
         HalWrapper* const halWrapper = getPowerHal();
         if (halWrapper != nullptr) {
-            halWrapper->sendActualWorkDuration(*predictedDuration + kTargetSafetyMargin,
+            halWrapper->sendActualWorkDuration(*predictedDuration + sTargetSafetyMargin,
                                                TimePoint::now());
         }
     }
@@ -811,6 +810,10 @@ std::optional<Duration> AidlPowerHalWrapper::getTargetWorkDuration() {
 
 const bool AidlPowerHalWrapper::sTraceHintSessionData =
         base::GetBoolProperty(std::string("debug.sf.trace_hint_sessions"), false);
+
+const Duration PowerAdvisor::sTargetSafetyMargin = std::chrono::microseconds(
+        base::GetIntProperty<int64_t>("debug.sf.hint_margin_us",
+                                      ticks<std::micro>(PowerAdvisor::kDefaultTargetSafetyMargin)));
 
 PowerAdvisor::HalWrapper* PowerAdvisor::getPowerHal() {
     if (!mHasHal) {
