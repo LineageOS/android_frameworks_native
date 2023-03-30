@@ -148,6 +148,35 @@ static LayerInfo getLayerInfoFromProto(::android::surfaceflinger::LayerProto& pr
             touchableRegionBounds};
 }
 
+static std::vector<LayerInfo> getLayerInfosFromProto(
+        android::surfaceflinger::LayersTraceProto& entry) {
+    std::unordered_map<int32_t /* snapshotId*/, int32_t /*layerId*/> snapshotIdToLayerId;
+    std::vector<LayerInfo> layers;
+    layers.reserve(static_cast<size_t>(entry.layers().layers_size()));
+    bool mapSnapshotIdToLayerId = false;
+    for (int i = 0; i < entry.layers().layers_size(); i++) {
+        auto layer = entry.layers().layers(i);
+        LayerInfo layerInfo = getLayerInfoFromProto(layer);
+
+        snapshotIdToLayerId[layerInfo.id] = static_cast<int32_t>(layer.original_id());
+        if (layer.original_id() != 0) {
+            mapSnapshotIdToLayerId = true;
+        }
+        layers.push_back(layerInfo);
+    }
+    std::sort(layers.begin(), layers.end(), compareById);
+
+    if (!mapSnapshotIdToLayerId) {
+        return layers;
+    }
+    for (auto& layer : layers) {
+        layer.id = snapshotIdToLayerId[layer.id];
+        auto it = snapshotIdToLayerId.find(layer.parent);
+        layer.parent = it == snapshotIdToLayerId.end() ? -1 : it->second;
+    }
+    return layers;
+}
+
 TEST_P(TransactionTraceTestSuite, validateEndState) {
     ASSERT_GT(mActualLayersTraceProto.entry_size(), 0);
     ASSERT_GT(mExpectedLayersTraceProto.entry_size(), 0);
@@ -158,32 +187,9 @@ TEST_P(TransactionTraceTestSuite, validateEndState) {
 
     EXPECT_EQ(expectedLastEntry.layers().layers_size(), actualLastEntry.layers().layers_size());
 
-    std::vector<LayerInfo> expectedLayers;
-    expectedLayers.reserve(static_cast<size_t>(expectedLastEntry.layers().layers_size()));
-    for (int i = 0; i < expectedLastEntry.layers().layers_size(); i++) {
-        auto layer = expectedLastEntry.layers().layers(i);
-        LayerInfo layerInfo = getLayerInfoFromProto(layer);
-        expectedLayers.push_back(layerInfo);
-    }
-    std::sort(expectedLayers.begin(), expectedLayers.end(), compareById);
-
-    std::unordered_map<int32_t /* snapshotId*/, int32_t /*layerId*/> snapshotIdToLayerId;
-    std::vector<LayerInfo> actualLayers;
-    actualLayers.reserve(static_cast<size_t>(actualLastEntry.layers().layers_size()));
-    for (int i = 0; i < actualLastEntry.layers().layers_size(); i++) {
-        auto layer = actualLastEntry.layers().layers(i);
-        LayerInfo layerInfo = getLayerInfoFromProto(layer);
-        snapshotIdToLayerId[layerInfo.id] = static_cast<int32_t>(layer.original_id());
-        actualLayers.push_back(layerInfo);
-    }
-
-    for (auto& layer : actualLayers) {
-        layer.id = snapshotIdToLayerId[layer.id];
-        auto it = snapshotIdToLayerId.find(layer.parent);
-        layer.parent = it == snapshotIdToLayerId.end() ? -1 : it->second;
-    }
-
-    std::sort(actualLayers.begin(), actualLayers.end(), compareById);
+    std::vector<LayerInfo> expectedLayers = getLayerInfosFromProto(expectedLastEntry);
+    std::vector<LayerInfo> actualLayers = getLayerInfosFromProto(actualLastEntry);
+    ;
 
     size_t i = 0;
     for (; i < actualLayers.size() && i < expectedLayers.size(); i++) {

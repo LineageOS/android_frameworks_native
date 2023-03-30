@@ -74,4 +74,23 @@ LayerCreationArgs LayerCreationArgs::fromOtherArgs(const LayerCreationArgs& othe
     return LayerCreationArgs(other.flinger, other.client, other.name, other.flags, other.metadata);
 }
 
+std::string LayerCreationArgs::getDebugString() const {
+    std::stringstream stream;
+    stream << "LayerCreationArgs{" << name << "[" << sequence << "] flags=" << flags
+           << " pid=" << ownerPid << " uid=" << ownerUid;
+    if (addToRoot) {
+        stream << " addToRoot=" << addToRoot;
+    }
+    if (parentId != UNASSIGNED_LAYER_ID) {
+        stream << " parentId=" << parentId;
+    }
+    if (layerIdToMirror != UNASSIGNED_LAYER_ID) {
+        stream << " layerIdToMirror=" << layerIdToMirror;
+    }
+    if (layerStackToMirror != ui::INVALID_LAYER_STACK) {
+        stream << " layerStackToMirror=" << layerStackToMirror.id;
+    }
+    return stream.str();
+}
+
 } // namespace android::surfaceflinger
