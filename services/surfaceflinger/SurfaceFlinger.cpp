@@ -3707,11 +3707,8 @@ void SurfaceFlinger::updateInputFlinger() {
         ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
             mWindowInfosListenerInvoker
-                    ->windowInfosChanged(std::move(windowInfos), std::move(displayInfos),
-                                         std::move(
-                                                 inputWindowCommands.windowInfosReportedListeners),
-                                         /* forceImmediateCall= */
-                                         !inputWindowCommands.focusRequests.empty());
+                    ->windowInfosChanged(windowInfos, displayInfos,
+                                         inputWindowCommands.windowInfosReportedListeners);
         } else {
             // If there are listeners but no changes to input windows, call the listeners
             // immediately.
