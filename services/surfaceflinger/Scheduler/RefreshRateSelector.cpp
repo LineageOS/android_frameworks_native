@@ -564,7 +564,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
                 continue;
             }
 
-            const bool inPrimaryRange = policy->primaryRanges.physical.includes(modePtr->getFps());
+            const bool inPrimaryRange = policy->primaryRanges.render.includes(fps);
             if ((primaryRangeIsSingleRate || !inPrimaryRange) &&
                 !(layer.focused &&
                   (layer.vote == LayerVoteType::ExplicitDefault ||
