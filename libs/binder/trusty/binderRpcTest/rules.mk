@@ -32,4 +32,8 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/googletest \
 	trusty/user/base/lib/libstdc++-trusty \
 
+# TEST_P tests from binderRpcUniversalTests.cpp don't get linked in
+# unless we pass in --whole-archive to the linker (b/275620340).
+MODULE_USE_WHOLE_ARCHIVE := true
+
 include make/trusted_app.mk
