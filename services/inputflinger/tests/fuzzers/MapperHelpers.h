@@ -225,6 +225,7 @@ public:
     bool isDeviceEnabled(int32_t deviceId) const override { return mFdp->ConsumeBool(); }
     status_t enableDevice(int32_t deviceId) override { return mFdp->ConsumeIntegral<status_t>(); }
     status_t disableDevice(int32_t deviceId) override { return mFdp->ConsumeIntegral<status_t>(); }
+    void sysfsNodeChanged(const std::string& sysfsNodePath) override {}
 };
 
 class FuzzPointerController : public PointerControllerInterface {
