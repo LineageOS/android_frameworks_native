@@ -28,7 +28,7 @@ NotifyMotionArgs generateFuzzedMotionArgs(FuzzedDataProvider &fdp) {
     // Create a basic motion event for testing
     PointerProperties properties;
     properties.id = 0;
-    properties.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    properties.toolType = getFuzzedToolType(fdp);
     PointerCoords coords;
     coords.clear();
     for (int32_t i = 0; i < fdp.ConsumeIntegralInRange<int32_t>(0, MAX_AXES); i++) {

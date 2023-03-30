@@ -216,7 +216,21 @@ std::string inputEventSourceToString(int32_t source);
 
 bool isFromSource(uint32_t source, uint32_t test);
 
-bool isStylusToolType(uint32_t toolType);
+/**
+ * The pointer tool type.
+ */
+enum class ToolType {
+    UNKNOWN = AMOTION_EVENT_TOOL_TYPE_UNKNOWN,
+    FINGER = AMOTION_EVENT_TOOL_TYPE_FINGER,
+    STYLUS = AMOTION_EVENT_TOOL_TYPE_STYLUS,
+    MOUSE = AMOTION_EVENT_TOOL_TYPE_MOUSE,
+    ERASER = AMOTION_EVENT_TOOL_TYPE_ERASER,
+    PALM = AMOTION_EVENT_TOOL_TYPE_PALM,
+    ftl_first = UNKNOWN,
+    ftl_last = PALM,
+};
+
+bool isStylusToolType(ToolType toolType);
 
 /*
  * Flags that flow alongside events in the input dispatch system to help with certain
@@ -319,8 +333,6 @@ enum class MotionClassification : uint8_t {
  * String representation of MotionClassification
  */
 const char* motionClassificationToString(MotionClassification classification);
-
-const char* motionToolTypeToString(int32_t toolType);
 
 /**
  * Portion of FrameMetrics timeline of interest to input code.
@@ -448,11 +460,11 @@ struct PointerProperties {
     int32_t id;
 
     // The pointer tool type.
-    int32_t toolType;
+    ToolType toolType;
 
     inline void clear() {
         id = -1;
-        toolType = 0;
+        toolType = ToolType::UNKNOWN;
     }
 
     bool operator==(const PointerProperties& other) const;
@@ -638,7 +650,7 @@ public:
         return mPointerProperties[pointerIndex].id;
     }
 
-    inline int32_t getToolType(size_t pointerIndex) const {
+    inline ToolType getToolType(size_t pointerIndex) const {
         return mPointerProperties[pointerIndex].toolType;
     }
 

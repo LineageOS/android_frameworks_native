@@ -33,8 +33,8 @@ struct StylusState {
     std::optional<float> pressure{};
     /* The state of the stylus buttons as a bitfield (e.g. AMOTION_EVENT_BUTTON_SECONDARY). */
     uint32_t buttons{};
-    /* Which tool type the stylus is currently using (e.g. AMOTION_EVENT_TOOL_TYPE_ERASER). */
-    int32_t toolType{AMOTION_EVENT_TOOL_TYPE_UNKNOWN};
+    /* Which tool type the stylus is currently using (e.g. ToolType::ERASER). */
+    ToolType toolType{ToolType::UNKNOWN};
 
     void clear() { *this = StylusState{}; }
 };

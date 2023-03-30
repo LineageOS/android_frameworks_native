@@ -77,7 +77,7 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
             continue;
         }
 
-        if (inSlot.getToolType() == AMOTION_EVENT_TOOL_TYPE_PALM) {
+        if (inSlot.getToolType() == ToolType::PALM) {
             std::optional<int32_t> id = getActiveBitId(inSlot);
             if (id) {
                 outState->rawPointerData.canceledIdBits.markBit(id.value());
@@ -112,12 +112,12 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
         outPointer.tiltY = 0;
 
         outPointer.toolType = inSlot.getToolType();
-        if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
+        if (outPointer.toolType == ToolType::UNKNOWN) {
             outPointer.toolType = mTouchButtonAccumulator.getToolType();
-            if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
-                outPointer.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+            if (outPointer.toolType == ToolType::UNKNOWN) {
+                outPointer.toolType = ToolType::FINGER;
             }
-        } else if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_STYLUS && !mStylusMtToolSeen) {
+        } else if (outPointer.toolType == ToolType::STYLUS && !mStylusMtToolSeen) {
             mStylusMtToolSeen = true;
             // The multi-touch device produced a stylus event with MT_TOOL_PEN. Dynamically
             // re-configure this input device so that we add SOURCE_STYLUS if we haven't already.
@@ -130,12 +130,11 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
                 bumpGeneration();
             }
         }
-        if (shouldSimulateStylusWithTouch() &&
-            outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_FINGER) {
-            outPointer.toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+        if (shouldSimulateStylusWithTouch() && outPointer.toolType == ToolType::FINGER) {
+            outPointer.toolType = ToolType::STYLUS;
         }
 
-        bool isHovering = mTouchButtonAccumulator.getToolType() != AMOTION_EVENT_TOOL_TYPE_MOUSE &&
+        bool isHovering = mTouchButtonAccumulator.getToolType() != ToolType::MOUSE &&
                 (mTouchButtonAccumulator.isHovering() ||
                  (mRawPointerAxes.pressure.valid && inSlot.getPressure() <= 0));
         outPointer.isHovering = isHovering;

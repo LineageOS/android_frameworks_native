@@ -41,7 +41,7 @@ void SingleTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
         outState->rawPointerData.pointerCount = 1;
         outState->rawPointerData.idToIndex[0] = 0;
 
-        bool isHovering = mTouchButtonAccumulator.getToolType() != AMOTION_EVENT_TOOL_TYPE_MOUSE &&
+        bool isHovering = mTouchButtonAccumulator.getToolType() != ToolType::MOUSE &&
                 (mTouchButtonAccumulator.isHovering() ||
                  (mRawPointerAxes.pressure.valid &&
                   mSingleTouchMotionAccumulator.getAbsolutePressure() <= 0));
@@ -61,8 +61,8 @@ void SingleTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
         outPointer.tiltX = mSingleTouchMotionAccumulator.getAbsoluteTiltX();
         outPointer.tiltY = mSingleTouchMotionAccumulator.getAbsoluteTiltY();
         outPointer.toolType = mTouchButtonAccumulator.getToolType();
-        if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
-            outPointer.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+        if (outPointer.toolType == ToolType::UNKNOWN) {
+            outPointer.toolType = ToolType::FINGER;
         }
         outPointer.isHovering = isHovering;
     }

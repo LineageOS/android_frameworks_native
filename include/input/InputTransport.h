@@ -669,7 +669,6 @@ private:
     static void addSample(MotionEvent* event, const InputMessage* msg);
     static bool canAddSample(const Batch& batch, const InputMessage* msg);
     static ssize_t findSampleNoLaterThan(const Batch& batch, nsecs_t time);
-    static bool shouldResampleTool(int32_t toolType);
 
     static bool isTouchResamplingEnabled();
 };

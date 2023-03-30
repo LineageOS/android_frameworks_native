@@ -37,7 +37,7 @@ static NotifyMotionArgs generateBasicMotionArgs() {
     // Create a basic motion event for testing
     PointerProperties properties;
     properties.id = 0;
-    properties.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    properties.toolType = ToolType::FINGER;
 
     PointerCoords coords;
     coords.clear();
