@@ -156,6 +156,7 @@ private:
         bool undoPremultipliedAlpha;
         bool requiresLinearEffect;
         float layerDimmingRatio;
+        const ui::Dataspace outputDataSpace;
     };
     sk_sp<SkShader> createRuntimeEffectShader(const RuntimeEffectShaderParameters&);
 
