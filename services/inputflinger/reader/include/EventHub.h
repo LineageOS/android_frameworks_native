@@ -388,6 +388,10 @@ public:
 
     /* Disable an input device. Closes file descriptor to that device. */
     virtual status_t disableDevice(int32_t deviceId) = 0;
+
+    /* Sysfs node changed. Reopen the Eventhub device if any new Peripheral like Light, Battery,
+     * etc. is detected. */
+    virtual void sysfsNodeChanged(const std::string& sysfsNodePath) = 0;
 };
 
 template <std::size_t BITS>
@@ -567,6 +571,8 @@ public:
 
     status_t disableDevice(int32_t deviceId) override final;
 
+    void sysfsNodeChanged(const std::string& sysfsNodePath) override final;
+
     ~EventHub() override;
 
 private:
@@ -578,6 +584,7 @@ private:
         std::unordered_map<int32_t /*lightId*/, RawLightInfo> lightInfos;
         std::optional<RawLayoutInfo> layoutInfo;
 
+        bool isChanged() const;
         bool operator==(const AssociatedDevice&) const = default;
         bool operator!=(const AssociatedDevice&) const = default;
         std::string dump() const;

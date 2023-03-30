@@ -1531,6 +1531,20 @@ std::shared_ptr<const EventHub::AssociatedDevice> EventHub::obtainAssociatedDevi
     return associatedDevice;
 }
 
+bool EventHub::AssociatedDevice::isChanged() const {
+    std::unordered_map<int32_t, RawBatteryInfo> newBatteryInfos =
+            readBatteryConfiguration(sysfsRootPath);
+    std::unordered_map<int32_t, RawLightInfo> newLightInfos =
+            readLightsConfiguration(sysfsRootPath);
+    std::optional<RawLayoutInfo> newLayoutInfo = readLayoutConfiguration(sysfsRootPath);
+
+    if (newBatteryInfos == batteryInfos && newLightInfos == lightInfos &&
+        newLayoutInfo == layoutInfo) {
+        return false;
+    }
+    return true;
+}
+
 void EventHub::vibrate(int32_t deviceId, const VibrationElement& element) {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
@@ -2534,6 +2548,42 @@ status_t EventHub::disableDevice(int32_t deviceId) {
     }
     unregisterDeviceFromEpollLocked(*device);
     return device->disable();
+}
+
+// TODO(b/274755573): Shift to uevent handling on native side and remove this method
+// Currently using Java UEventObserver to trigger this which uses UEvent infrastructure that uses a
+// NETLINK socket to observe UEvents. We can create similar infrastructure on Eventhub side to
+// directly observe UEvents instead of triggering from Java side.
+void EventHub::sysfsNodeChanged(const std::string& sysfsNodePath) {
+    std::scoped_lock _l(mLock);
+
+    // Check in opening devices
+    for (auto it = mOpeningDevices.begin(); it != mOpeningDevices.end(); it++) {
+        std::unique_ptr<Device>& device = *it;
+        if (device->associatedDevice &&
+            sysfsNodePath.find(device->associatedDevice->sysfsRootPath.string()) !=
+                    std::string::npos &&
+            device->associatedDevice->isChanged()) {
+            it = mOpeningDevices.erase(it);
+            openDeviceLocked(device->path);
+        }
+    }
+
+    // Check in already added device
+    std::vector<Device*> devicesToReopen;
+    for (const auto& [id, device] : mDevices) {
+        if (device->associatedDevice &&
+            sysfsNodePath.find(device->associatedDevice->sysfsRootPath.string()) !=
+                    std::string::npos &&
+            device->associatedDevice->isChanged()) {
+            devicesToReopen.push_back(device.get());
+        }
+    }
+    for (const auto& device : devicesToReopen) {
+        closeDeviceLocked(*device);
+        openDeviceLocked(device->path);
+    }
+    devicesToReopen.clear();
 }
 
 void EventHub::createVirtualKeyboardLocked() {
