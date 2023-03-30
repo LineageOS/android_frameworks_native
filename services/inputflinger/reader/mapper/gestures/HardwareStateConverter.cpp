@@ -81,11 +81,16 @@ SelfContainedHardwareState HardwareStateConverter::produceHardwareState(nsecs_t 
     }
 
     schs.fingers.clear();
+    size_t numPalms = 0;
     for (size_t i = 0; i < mMotionAccumulator.getSlotCount(); i++) {
         MultiTouchMotionAccumulator::Slot slot = mMotionAccumulator.getSlot(i);
+        if (!slot.isInUse()) {
+            continue;
+        }
         // Some touchpads continue to report contacts even after they've identified them as palms.
         // We want to exclude these contacts from the HardwareStates.
-        if (!slot.isInUse() || slot.getToolType() == ToolType::PALM) {
+        if (slot.getToolType() == ToolType::PALM) {
+            numPalms++;
             continue;
         }
 
@@ -103,7 +108,7 @@ SelfContainedHardwareState HardwareStateConverter::produceHardwareState(nsecs_t 
     }
     schs.state.fingers = schs.fingers.data();
     schs.state.finger_cnt = schs.fingers.size();
-    schs.state.touch_cnt = mTouchButtonAccumulator.getTouchCount();
+    schs.state.touch_cnt = mTouchButtonAccumulator.getTouchCount() - numPalms;
     return schs;
 }
 

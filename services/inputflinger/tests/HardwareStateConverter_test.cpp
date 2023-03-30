@@ -196,8 +196,10 @@ TEST_F(HardwareStateConverterTest, OnePalm) {
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 100);
 
     processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOUCH, 1);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOOL_FINGER, 1);
     std::optional<SelfContainedHardwareState> schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(0, schs->state.touch_cnt);
     EXPECT_EQ(0, schs->state.finger_cnt);
 }
 
@@ -209,9 +211,11 @@ TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 100);
 
     processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOUCH, 1);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOOL_FINGER, 1);
 
     std::optional<SelfContainedHardwareState> schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.touch_cnt);
     EXPECT_EQ(1, schs->state.finger_cnt);
 
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
@@ -220,6 +224,7 @@ TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
 
     schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(0, schs->state.touch_cnt);
     ASSERT_EQ(0, schs->state.finger_cnt);
 
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 53);
@@ -227,6 +232,7 @@ TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
 
     schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(0, schs->state.touch_cnt);
     EXPECT_EQ(0, schs->state.finger_cnt);
 
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
@@ -234,6 +240,7 @@ TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 95);
     schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.touch_cnt);
     ASSERT_EQ(1, schs->state.finger_cnt);
     const FingerState& newFinger = schs->state.fingers[0];
     EXPECT_EQ(123, newFinger.tracking_id);
