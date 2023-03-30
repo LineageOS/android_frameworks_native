@@ -321,7 +321,7 @@ std::list<NotifyArgs> JoystickInputMapper::sync(nsecs_t when, nsecs_t readTime, 
     PointerProperties pointerProperties;
     pointerProperties.clear();
     pointerProperties.id = 0;
-    pointerProperties.toolType = AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
+    pointerProperties.toolType = ToolType::UNKNOWN;
 
     PointerCoords pointerCoords;
     pointerCoords.clear();

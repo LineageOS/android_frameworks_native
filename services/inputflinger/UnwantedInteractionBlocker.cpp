@@ -18,6 +18,7 @@
 #include "UnwantedInteractionBlocker.h"
 
 #include <android-base/stringprintf.h>
+#include <ftl/enum.h>
 #include <input/PrintTools.h>
 #include <inttypes.h>
 #include <linux/input-event-codes.h>
@@ -98,18 +99,21 @@ static bool isPalmRejectionEnabled() {
     return false;
 }
 
-static int getLinuxToolCode(int toolType) {
+static int getLinuxToolCode(ToolType toolType) {
     switch (toolType) {
-        case AMOTION_EVENT_TOOL_TYPE_STYLUS:
+        case ToolType::STYLUS:
             return BTN_TOOL_PEN;
-        case AMOTION_EVENT_TOOL_TYPE_ERASER:
+        case ToolType::ERASER:
             return BTN_TOOL_RUBBER;
-        case AMOTION_EVENT_TOOL_TYPE_FINGER:
+        case ToolType::FINGER:
             return BTN_TOOL_FINGER;
-        default:
-            ALOGW("Got tool type %" PRId32 ", converting to BTN_TOOL_FINGER", toolType);
-            return BTN_TOOL_FINGER;
+        case ToolType::UNKNOWN:
+        case ToolType::MOUSE:
+        case ToolType::PALM:
+            break;
     }
+    ALOGW("Got tool type %s, converting to BTN_TOOL_FINGER", ftl::enum_string(toolType).c_str());
+    return BTN_TOOL_FINGER;
 }
 
 static int32_t getActionUpForPointerId(const NotifyMotionArgs& args, int32_t pointerId) {

@@ -2621,8 +2621,21 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     const auto prevVsyncTime = mExpectedPresentTime - mScheduler->getVsyncSchedule()->period();
     const auto hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration;
 
-    refreshArgs.earliestPresentTime = prevVsyncTime - hwcMinWorkDuration;
-    refreshArgs.previousPresentFence = mPreviousPresentFences[0].fenceTime;
+    const Period vsyncPeriod = mScheduler->getVsyncSchedule()->period();
+    const bool threeVsyncsAhead = mExpectedPresentTime - frameTime > 2 * vsyncPeriod;
+
+    // We should wait for the earliest present time if HWC doesn't support ExpectedPresentTime,
+    // and the next vsync is not already taken by the previous frame.
+    const bool waitForEarliestPresent =
+            !getHwComposer().getComposer()->isSupported(
+                    Hwc2::Composer::OptionalFeature::ExpectedPresentTime) &&
+            (threeVsyncsAhead ||
+             mPreviousPresentFences[0].fenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING);
+
+    if (waitForEarliestPresent) {
+        refreshArgs.earliestPresentTime = prevVsyncTime - hwcMinWorkDuration;
+    }
+
     refreshArgs.scheduledFrameTime = mScheduler->getScheduledFrameTime();
     refreshArgs.expectedPresentTime = mExpectedPresentTime.ns();
     refreshArgs.hasTrustedPresentationListener = mNumTrustedPresentationListeners > 0;
@@ -3722,11 +3735,8 @@ void SurfaceFlinger::updateInputFlinger() {
         ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
             mWindowInfosListenerInvoker
-                    ->windowInfosChanged(std::move(windowInfos), std::move(displayInfos),
-                                         std::move(
-                                                 inputWindowCommands.windowInfosReportedListeners),
-                                         /* forceImmediateCall= */
-                                         !inputWindowCommands.focusRequests.empty());
+                    ->windowInfosChanged(windowInfos, displayInfos,
+                                         inputWindowCommands.windowInfosReportedListeners);
         } else {
             // If there are listeners but no changes to input windows, call the listeners
             // immediately.

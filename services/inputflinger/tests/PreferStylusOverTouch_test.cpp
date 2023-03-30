@@ -45,8 +45,8 @@ static NotifyMotionArgs generateMotionArgs(nsecs_t downTime, nsecs_t eventTime, 
     PointerCoords pointerCoords[pointerCount];
 
     const int32_t deviceId = isFromSource(source, TOUCHSCREEN) ? TOUCH_DEVICE_ID : STYLUS_DEVICE_ID;
-    const int32_t toolType = isFromSource(source, TOUCHSCREEN) ? AMOTION_EVENT_TOOL_TYPE_FINGER
-                                                               : AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    const ToolType toolType =
+            isFromSource(source, TOUCHSCREEN) ? ToolType::FINGER : ToolType::STYLUS;
     for (size_t i = 0; i < pointerCount; i++) {
         pointerProperties[i].clear();
         pointerProperties[i].id = i;
@@ -278,20 +278,20 @@ TEST_F(PreferStylusOverTouchTest, MixedStylusAndTouchPointersAreIgnored) {
     // Event from a stylus device, but with finger tool type
     args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/1, DOWN, {{1, 2}}, STYLUS);
     // Keep source stylus, but make the tool type touch
-    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    args.pointerProperties[0].toolType = ToolType::FINGER;
     assertNotBlocked(args);
 
     // Second pointer (stylus pointer) goes down, from the same device
     args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/2, POINTER_1_DOWN, {{1, 2}, {10, 20}},
                               STYLUS);
     // Keep source stylus, but make the tool type touch
-    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    args.pointerProperties[0].toolType = ToolType::STYLUS;
     assertNotBlocked(args);
 
     // Second pointer (stylus pointer) goes down, from the same device
     args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/3, MOVE, {{2, 3}, {11, 21}}, STYLUS);
     // Keep source stylus, but make the tool type touch
-    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    args.pointerProperties[0].toolType = ToolType::FINGER;
     assertNotBlocked(args);
 }
 
@@ -418,14 +418,14 @@ TEST_F(PreferStylusOverTouchTest, MixedStylusAndTouchDeviceIsCanceledAtFirst) {
     // Introduce a stylus pointer into the device 1 stream. It should be ignored.
     args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/3, POINTER_1_DOWN, {{1, 2}, {3, 4}},
                               TOUCHSCREEN);
-    args.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    args.pointerProperties[1].toolType = ToolType::STYLUS;
     args.source = STYLUS;
     assertDropped(args);
 
     // Lift up touch from the mixed touch/stylus device
     args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/4, CANCEL, {{1, 2}, {3, 4}},
                               TOUCHSCREEN);
-    args.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    args.pointerProperties[1].toolType = ToolType::STYLUS;
     args.source = STYLUS;
     assertDropped(args);
 

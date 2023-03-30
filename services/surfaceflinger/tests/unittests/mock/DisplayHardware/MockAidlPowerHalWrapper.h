@@ -47,6 +47,8 @@ public:
     MOCK_METHOD(void, sendActualWorkDuration, (Duration actualDuration, TimePoint timestamp),
                 (override));
     MOCK_METHOD(bool, shouldReconnectHAL, (), (override));
+    MOCK_METHOD(std::vector<int32_t>, getPowerHintSessionThreadIds, (), (override));
+    MOCK_METHOD(std::optional<Duration>, getTargetWorkDuration, (), (override));
 };
 
 } // namespace android::Hwc2::mock
