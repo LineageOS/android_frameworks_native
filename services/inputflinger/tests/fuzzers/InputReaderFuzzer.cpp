@@ -165,6 +165,10 @@ public:
         return reader->getBluetoothAddress(deviceId);
     }
 
+    void sysfsNodeChanged(const std::string& sysfsNodePath) {
+        reader->sysfsNodeChanged(sysfsNodePath);
+    }
+
 private:
     std::unique_ptr<InputReaderInterface> reader;
 };
