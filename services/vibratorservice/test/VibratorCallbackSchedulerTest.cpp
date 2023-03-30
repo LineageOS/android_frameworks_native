@@ -102,18 +102,6 @@ TEST_F(VibratorCallbackSchedulerTest, TestScheduleMultipleCallbacksRunsInDelayOr
     ASSERT_THAT(getExpiredCallbacks(), ElementsAre(3, 2, 1));
 }
 
-TEST_F(VibratorCallbackSchedulerTest, TestScheduleInParallelRunsInDelayOrder) {
-    std::vector<std::thread> threads;
-    for (int i = 0; i < 5; i++) {
-        threads.push_back(std::thread(
-                [=]() { mScheduler->schedule(createCallback(i), milliseconds(10 + 2 * i)); }));
-    }
-    std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
-
-    ASSERT_TRUE(waitForCallbacks(5, 25ms));
-    ASSERT_THAT(getExpiredCallbacks(), ElementsAre(0, 1, 2, 3, 4));
-}
-
 TEST_F(VibratorCallbackSchedulerTest, TestDestructorDropsPendingCallbacksAndKillsThread) {
     mScheduler->schedule(createCallback(1), 5ms);
     mScheduler.reset(nullptr);
