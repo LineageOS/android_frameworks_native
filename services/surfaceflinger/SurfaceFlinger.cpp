@@ -7913,9 +7913,14 @@ bool SurfaceFlinger::commitMirrorDisplays(VsyncId vsyncId) {
                                          ISurfaceComposerClient::eNoColorFill,
                                          gui::LayerMetadata());
             sp<Layer> childMirror;
-            createEffectLayer(mirrorArgs, &unused, &childMirror);
-            childMirror->setClonedChild(layer->createClone());
-            childMirror->reparent(mirrorDisplay.rootHandle);
+            {
+                Mutex::Autolock lock(mStateLock);
+                createEffectLayer(mirrorArgs, &unused, &childMirror);
+                childMirror->setClonedChild(layer->createClone());
+                childMirror->reparent(mirrorDisplay.rootHandle);
+            }
+            // lock on mStateLock needs to be released before binder handle gets destroyed
+            unused.clear();
         }
     }
     return true;
