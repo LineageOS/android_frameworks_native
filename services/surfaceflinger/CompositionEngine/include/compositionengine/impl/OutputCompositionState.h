@@ -122,12 +122,9 @@ struct OutputCompositionState {
 
     bool previousDeviceRequestedSuccess = false;
 
+    // Optional.
     // The earliest time to send the present command to the HAL
-    std::chrono::steady_clock::time_point earliestPresentTime;
-
-    // The previous present fence. Used together with earliestPresentTime
-    // to prevent an early presentation of a frame.
-    std::shared_ptr<FenceTime> previousPresentFence;
+    std::optional<std::chrono::steady_clock::time_point> earliestPresentTime;
 
     // The expected time for the next present
     nsecs_t expectedPresentTime{0};
