@@ -236,6 +236,11 @@ struct WindowInfo : public Parcelable {
     Type layoutParamsType = Type::UNKNOWN;
     ftl::Flags<Flag> layoutParamsFlags;
 
+    // The input token for the window to which focus should be transferred when this input window
+    // can be successfully focused. If null, this input window will not transfer its focus to
+    // any other window.
+    sp<IBinder> focusTransferTarget;
+
     void setInputConfig(ftl::Flags<InputConfig> config, bool value);
 
     void addTouchableRegion(const Rect& region);

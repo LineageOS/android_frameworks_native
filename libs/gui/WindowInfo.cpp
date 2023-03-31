@@ -125,6 +125,7 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeBool(replaceTouchableRegionWithCrop) ?:
         parcel->writeStrongBinder(touchableRegionCropHandle.promote()) ?:
         parcel->writeStrongBinder(windowToken);
+        parcel->writeStrongBinder(focusTransferTarget);
     // clang-format on
     return status;
 }
@@ -175,7 +176,9 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->read(touchableRegion) ?:
         parcel->readBool(&replaceTouchableRegionWithCrop) ?:
         parcel->readNullableStrongBinder(&touchableRegionCropHandleSp) ?:
-        parcel->readNullableStrongBinder(&windowToken);
+        parcel->readNullableStrongBinder(&windowToken) ?:
+        parcel->readNullableStrongBinder(&focusTransferTarget);
+
     // clang-format on
 
     if (status != OK) {
