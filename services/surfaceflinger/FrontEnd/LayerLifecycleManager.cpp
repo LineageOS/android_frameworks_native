@@ -164,7 +164,8 @@ void LayerLifecycleManager::onHandlesDestroyed(const std::vector<uint32_t>& dest
     }
 }
 
-void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState>& transactions) {
+void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState>& transactions,
+                                              bool ignoreUnknownLayers) {
     for (const auto& transaction : transactions) {
         for (const auto& resolvedComposerState : transaction.states) {
             const auto& clientState = resolvedComposerState.state;
@@ -176,7 +177,8 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
 
             RequestedLayerState* layer = getLayerFromId(layerId);
             if (layer == nullptr) {
-                LOG_ALWAYS_FATAL("%s Layer with layerid=%d not found", __func__, layerId);
+                LOG_ALWAYS_FATAL_IF(!ignoreUnknownLayers, "%s Layer with layerid=%d not found",
+                                    __func__, layerId);
                 continue;
             }
 

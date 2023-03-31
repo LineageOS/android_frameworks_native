@@ -271,6 +271,7 @@ void TransactionTracing::updateStartingStateLocked(
         for (const proto::LayerState& layerState : transaction.layer_changes()) {
             auto it = mStartingStates.find(layerState.layer_id());
             if (it == mStartingStates.end()) {
+                // TODO(b/238781169) make this log fatal when we switch over to using new fe
                 ALOGW("Could not find layer id %d", layerState.layer_id());
                 continue;
             }
