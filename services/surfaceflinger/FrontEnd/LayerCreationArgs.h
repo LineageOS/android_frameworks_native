@@ -44,6 +44,7 @@ struct LayerCreationArgs {
                       bool internalLayer = false);
     LayerCreationArgs(std::optional<uint32_t> id, bool internalLayer = false);
     LayerCreationArgs() = default; // for tracing
+    std::string getDebugString() const;
 
     android::SurfaceFlinger* flinger;
     sp<android::Client> client;
