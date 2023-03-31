@@ -119,10 +119,14 @@ private:
                                   const LayerSnapshot& parentSnapshot);
     void updateChildState(LayerSnapshot& snapshot, const LayerSnapshot& childSnapshot,
                           const Args& args);
+    void updateTouchableRegionCrop(const Args& args);
 
     std::unordered_map<LayerHierarchy::TraversalPath, LayerSnapshot*,
                        LayerHierarchy::TraversalPathHash>
             mIdToSnapshot;
+    // Track snapshots that needs touchable region crop from other snapshots
+    std::unordered_set<LayerHierarchy::TraversalPath, LayerHierarchy::TraversalPathHash>
+            mNeedsTouchableRegionCrop;
     std::vector<std::unique_ptr<LayerSnapshot>> mSnapshots;
     LayerSnapshot mRootSnapshot;
     bool mResortSnapshots = false;
