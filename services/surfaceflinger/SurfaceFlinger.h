@@ -797,7 +797,7 @@ private:
     status_t mirrorDisplay(DisplayId displayId, const LayerCreationArgs& args,
                            gui::CreateSurfaceResult& outResult);
 
-    void markLayerPendingRemovalLocked(const sp<Layer>& layer);
+    void markLayerPendingRemovalLocked(const sp<Layer>& layer) REQUIRES(mStateLock);
 
     // add a layer to SurfaceFlinger
     status_t addClientLayer(LayerCreationArgs& args, const sp<IBinder>& handle,
