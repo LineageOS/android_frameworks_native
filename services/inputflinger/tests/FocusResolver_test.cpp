@@ -237,7 +237,60 @@ TEST(FocusResolverTest, FocusRequestsArePersistent) {
     ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
 }
 
-TEST(FocusResolverTest, ConditionalFocusRequestsAreNotPersistent) {
+TEST(FocusResolverTest, FocusTransferTarget) {
+    sp<IBinder> hostWindowToken = sp<BBinder>::make();
+    std::vector<sp<WindowInfoHandle>> windows;
+
+    sp<FakeWindowHandle> hostWindow =
+            sp<FakeWindowHandle>::make("Host Window", hostWindowToken, /*focusable=*/true,
+                                       /*visible=*/true);
+    windows.push_back(hostWindow);
+    sp<IBinder> embeddedWindowToken = sp<BBinder>::make();
+    sp<FakeWindowHandle> embeddedWindow =
+            sp<FakeWindowHandle>::make("Embedded Window", embeddedWindowToken, /*focusable=*/false,
+                                       /*visible=*/true);
+    windows.push_back(embeddedWindow);
+
+    FocusRequest request;
+    request.displayId = 42;
+    request.token = hostWindowToken;
+
+    // Host wants to transfer touch to embedded.
+    hostWindow->editInfo()->focusTransferTarget = embeddedWindowToken;
+
+    FocusResolver focusResolver;
+    std::optional<FocusResolver::FocusChanges> changes =
+            focusResolver.setFocusedWindow(request, windows);
+    // Embedded was not focusable so host gains focus.
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ hostWindowToken);
+
+    // Embedded is now focusable so will gain focus
+    embeddedWindow->setFocusable(true);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ hostWindowToken, /*to*/ embeddedWindowToken);
+
+    // Embedded is not visible so host will get focus
+    embeddedWindow->setVisible(false);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ embeddedWindowToken, /*to*/ hostWindowToken);
+
+    // Embedded is now visible so will get focus
+    embeddedWindow->setVisible(true);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ hostWindowToken, /*to*/ embeddedWindowToken);
+
+    // Remove focusTransferTarget from host. Host will gain focus.
+    hostWindow->editInfo()->focusTransferTarget = nullptr;
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ embeddedWindowToken, /*to*/ hostWindowToken);
+
+    // Set invalid token for focusTransferTarget. Host will remain focus
+    hostWindow->editInfo()->focusTransferTarget = sp<BBinder>::make();
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FALSE(changes);
+}
+
+TEST(FocusResolverTest, FocusTransferMultipleInChain) {
     sp<IBinder> hostWindowToken = sp<BBinder>::make();
     std::vector<sp<WindowInfoHandle>> windows;
 
@@ -251,43 +304,60 @@ TEST(FocusResolverTest, ConditionalFocusRequestsAreNotPersistent) {
                                        /*visible=*/true);
     windows.push_back(embeddedWindow);
 
+    sp<IBinder> embeddedWindowToken2 = sp<BBinder>::make();
+    sp<FakeWindowHandle> embeddedWindow2 =
+            sp<FakeWindowHandle>::make("Embedded Window2", embeddedWindowToken2, /*focusable=*/true,
+                                       /*visible=*/true);
+    windows.push_back(embeddedWindow2);
+
     FocusRequest request;
     request.displayId = 42;
     request.token = hostWindowToken;
+
+    hostWindow->editInfo()->focusTransferTarget = embeddedWindowToken;
+    embeddedWindow->editInfo()->focusTransferTarget = embeddedWindowToken2;
+
     FocusResolver focusResolver;
     std::optional<FocusResolver::FocusChanges> changes =
             focusResolver.setFocusedWindow(request, windows);
-    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ hostWindowToken);
-
-    request.focusedToken = hostWindow->getToken();
-    request.token = embeddedWindowToken;
-    changes = focusResolver.setFocusedWindow(request, windows);
-    ASSERT_FOCUS_CHANGE(changes, /*from*/ hostWindowToken, /*to*/ embeddedWindowToken);
-
-    embeddedWindow->setFocusable(false);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
-    // The embedded window is no longer focusable, provide focus back to the original focused
-    // window.
-    ASSERT_FOCUS_CHANGE(changes, /*from*/ embeddedWindowToken, /*to*/ hostWindowToken);
-
-    embeddedWindow->setFocusable(true);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
-    // The embedded window is focusable again, but we it cannot gain focus unless there is another
-    // focus request.
-    ASSERT_FALSE(changes);
-
-    embeddedWindow->setVisible(false);
-    changes = focusResolver.setFocusedWindow(request, windows);
-    // If the embedded window is not visible/focusable, then we do not grant it focus and the
-    // request is dropped.
-    ASSERT_FALSE(changes);
-
-    embeddedWindow->setVisible(true);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
-    // If the embedded window becomes visble/focusable, nothing changes since the request has been
-    // dropped.
-    ASSERT_FALSE(changes);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ embeddedWindowToken2);
 }
+
+TEST(FocusResolverTest, FocusTransferTargetCycle) {
+    sp<IBinder> hostWindowToken = sp<BBinder>::make();
+    std::vector<sp<WindowInfoHandle>> windows;
+
+    sp<FakeWindowHandle> hostWindow =
+            sp<FakeWindowHandle>::make("Host Window", hostWindowToken, /*focusable=*/true,
+                                       /*visible=*/true);
+    windows.push_back(hostWindow);
+    sp<IBinder> embeddedWindowToken = sp<BBinder>::make();
+    sp<FakeWindowHandle> embeddedWindow =
+            sp<FakeWindowHandle>::make("Embedded Window", embeddedWindowToken, /*focusable=*/true,
+                                       /*visible=*/true);
+    windows.push_back(embeddedWindow);
+
+    sp<IBinder> embeddedWindowToken2 = sp<BBinder>::make();
+    sp<FakeWindowHandle> embeddedWindow2 =
+            sp<FakeWindowHandle>::make("Embedded Window2", embeddedWindowToken2, /*focusable=*/true,
+                                       /*visible=*/true);
+    windows.push_back(embeddedWindow2);
+
+    FocusRequest request;
+    request.displayId = 42;
+    request.token = hostWindowToken;
+
+    hostWindow->editInfo()->focusTransferTarget = embeddedWindowToken;
+    embeddedWindow->editInfo()->focusTransferTarget = embeddedWindowToken2;
+    embeddedWindow2->editInfo()->focusTransferTarget = hostWindowToken;
+
+    FocusResolver focusResolver;
+    std::optional<FocusResolver::FocusChanges> changes =
+            focusResolver.setFocusedWindow(request, windows);
+    // Cycle will be detected and stop right before trying to transfer token to host again.
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ embeddedWindowToken2);
+}
+
 TEST(FocusResolverTest, FocusRequestsAreClearedWhenWindowIsRemoved) {
     sp<IBinder> windowToken = sp<BBinder>::make();
     std::vector<sp<WindowInfoHandle>> windows;

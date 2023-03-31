@@ -637,14 +637,10 @@ protected:
         }
     }
 
-    void setFocusedWindow(const sp<WindowInfoHandle>& window,
-                          const sp<WindowInfoHandle>& focusedWindow = nullptr) {
+    void setFocusedWindow(const sp<WindowInfoHandle>& window) {
         FocusRequest request;
         request.token = window->getToken();
         request.windowName = window->getName();
-        if (focusedWindow) {
-            request.focusedToken = focusedWindow->getToken();
-        }
         request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
         request.displayId = window->getInfo()->displayId;
         mDispatcher->setFocusedWindow(request);
@@ -5229,7 +5225,8 @@ TEST_F(InputDispatcherTest, SetFocusedWindow_CheckFocusedToken) {
     setFocusedWindow(windowTop);
     windowTop->consumeFocusEvent(true);
 
-    setFocusedWindow(windowSecond, windowTop);
+    windowTop->editInfo()->focusTransferTarget = windowSecond->getToken();
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
     windowSecond->consumeFocusEvent(true);
     windowTop->consumeFocusEvent(false);
 
@@ -5240,7 +5237,7 @@ TEST_F(InputDispatcherTest, SetFocusedWindow_CheckFocusedToken) {
     windowSecond->consumeKeyDown(ADISPLAY_ID_NONE);
 }
 
-TEST_F(InputDispatcherTest, SetFocusedWindow_DropRequestFocusTokenNotFocused) {
+TEST_F(InputDispatcherTest, SetFocusedWindow_TransferFocusTokenNotFocusable) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> windowTop =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Top", ADISPLAY_ID_DEFAULT);
@@ -5249,15 +5246,17 @@ TEST_F(InputDispatcherTest, SetFocusedWindow_DropRequestFocusTokenNotFocused) {
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
     windowTop->setFocusable(true);
-    windowSecond->setFocusable(true);
+    windowSecond->setFocusable(false);
+    windowTop->editInfo()->focusTransferTarget = windowSecond->getToken();
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
-    setFocusedWindow(windowSecond, windowTop);
+    setFocusedWindow(windowTop);
+    windowTop->consumeFocusEvent(true);
 
-    ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, injectKeyDown(mDispatcher))
-            << "Inject key event should return InputEventInjectionResult::TIMED_OUT";
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
 
     // Event should be dropped.
-    windowTop->assertNoEvents();
+    windowTop->consumeKeyDown(ADISPLAY_ID_NONE);
     windowSecond->assertNoEvents();
 }
 
