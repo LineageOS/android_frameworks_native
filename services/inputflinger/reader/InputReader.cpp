@@ -928,6 +928,10 @@ bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
     return *associatedDisplayId == displayId;
 }
 
+void InputReader::sysfsNodeChanged(const std::string& sysfsNodePath) {
+    mEventHub->sysfsNodeChanged(sysfsNodePath);
+}
+
 void InputReader::dump(std::string& dump) {
     std::scoped_lock _l(mLock);
 
