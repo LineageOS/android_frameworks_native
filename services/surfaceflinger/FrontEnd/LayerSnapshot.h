@@ -94,6 +94,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     int32_t frameRateSelectionPriority;
     LayerHierarchy::TraversalPath mirrorRootPath;
     bool unreachable = true;
+    uint32_t touchCropId;
     uid_t uid;
     pid_t pid;
     ChildState childState;
