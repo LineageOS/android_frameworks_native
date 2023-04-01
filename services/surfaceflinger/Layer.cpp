@@ -72,6 +72,7 @@
 #include "LayerProtoHelper.h"
 #include "LayerRejecter.h"
 #include "MonitoredProducer.h"
+#include "MutexUtils.h"
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
@@ -254,10 +255,12 @@ void Layer::onRemovedFromCurrentState() {
     auto layersInTree = getRootLayer()->getLayersInTree(LayerVector::StateSet::Current);
     std::sort(layersInTree.begin(), layersInTree.end());
 
-    traverse(LayerVector::StateSet::Current, [&](Layer* layer) {
-        layer->removeFromCurrentState();
-        layer->removeRelativeZ(layersInTree);
-    });
+    REQUIRE_MUTEX(mFlinger->mStateLock);
+    traverse(LayerVector::StateSet::Current,
+             [&](Layer* layer) REQUIRES(layer->mFlinger->mStateLock) {
+                 layer->removeFromCurrentState();
+                 layer->removeRelativeZ(layersInTree);
+             });
 }
 
 void Layer::addToCurrentState() {
@@ -936,10 +939,12 @@ bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace da
         mFlinger->mLayersAdded = true;
         // set up SF to handle added color layer
         if (isRemovedFromCurrentState()) {
+            MUTEX_ALIAS(mFlinger->mStateLock, mDrawingState.bgColorLayer->mFlinger->mStateLock);
             mDrawingState.bgColorLayer->onRemovedFromCurrentState();
         }
         mFlinger->setTransactionFlags(eTransactionNeeded);
     } else if (mDrawingState.bgColorLayer && alpha == 0) {
+        MUTEX_ALIAS(mFlinger->mStateLock, mDrawingState.bgColorLayer->mFlinger->mStateLock);
         mDrawingState.bgColorLayer->reparent(nullptr);
         mDrawingState.bgColorLayer = nullptr;
         return true;
