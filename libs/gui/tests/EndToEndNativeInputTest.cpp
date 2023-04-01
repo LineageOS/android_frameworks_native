@@ -272,8 +272,6 @@ public:
         FocusRequest request;
         request.token = mInputInfo.token;
         request.windowName = mInputInfo.name;
-        request.focusedToken = nullptr;
-        request.focusedWindowName = "";
         request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
         request.displayId = displayId;
         t.setFocusedWindow(request);

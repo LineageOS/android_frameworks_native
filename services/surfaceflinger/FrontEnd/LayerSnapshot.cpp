@@ -187,6 +187,8 @@ std::string LayerSnapshot::getDebugString() const {
           << " geomLayerTransform={tx=" << geomLayerTransform.tx()
           << ",ty=" << geomLayerTransform.ty() << "}"
           << "}";
+    debug << " input{ touchCropId=" << touchCropId
+          << " replaceTouchableRegionWithCrop=" << inputInfo.replaceTouchableRegionWithCrop << "}";
     return debug.str();
 }
 

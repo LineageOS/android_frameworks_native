@@ -24,15 +24,6 @@ parcelable FocusRequest {
     @nullable IBinder token;
     @utf8InCpp String windowName;
     /**
-     * The token that the caller expects currently to be focused. If the
-     * specified token does not match the currently focused window, this request will be dropped.
-     * If the specified focused token matches the currently focused window, the call will succeed.
-     * Set this to "null" if this call should succeed no matter what the currently focused token
-     * is.
-     */
-    @nullable IBinder focusedToken;
-    @utf8InCpp String focusedWindowName;
-    /**
      * SYSTEM_TIME_MONOTONIC timestamp in nanos set by the client (wm) when requesting the focus
      * change. This determines which request gets precedence if there is a focus change request
      * from another source such as pointer down.
