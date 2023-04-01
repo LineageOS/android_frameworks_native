@@ -4769,6 +4769,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         }
         return 0;
     }
+    MUTEX_ALIAS(mStateLock, layer->mFlinger->mStateLock);
 
     ui::LayerStack oldLayerStack = layer->getLayerStack(LayerVector::StateSet::Current);
 
@@ -7739,6 +7740,7 @@ void SurfaceFlinger::handleLayerCreatedLocked(const LayerCreatedState& state, Vs
         ALOGD("Layer was destroyed soon after creation %p", state.layer.unsafe_get());
         return;
     }
+    MUTEX_ALIAS(mStateLock, layer->mFlinger->mStateLock);
 
     sp<Layer> parent;
     bool addToRoot = state.addToRoot;
@@ -7916,6 +7918,7 @@ bool SurfaceFlinger::commitMirrorDisplays(VsyncId vsyncId) {
             {
                 Mutex::Autolock lock(mStateLock);
                 createEffectLayer(mirrorArgs, &unused, &childMirror);
+                MUTEX_ALIAS(mStateLock, childMirror->mFlinger->mStateLock);
                 childMirror->setClonedChild(layer->createClone());
                 childMirror->reparent(mirrorDisplay.rootHandle);
             }

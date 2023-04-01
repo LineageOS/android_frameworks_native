@@ -447,23 +447,36 @@ void LayerSnapshotBuilder::updateSnapshots(const Args& args) {
         }
     }
 
+    // Update touchable region crops outside the main update pass. This is because a layer could be
+    // cropped by any other layer and it requires both snapshots to be updated.
+    updateTouchableRegionCrop(args);
+
     const bool hasUnreachableSnapshots = sortSnapshotsByZ(args);
     clearChanges(mRootSnapshot);
 
-    // Destroy unreachable snapshots
-    if (!hasUnreachableSnapshots) {
+    // Destroy unreachable snapshots for clone layers. And destroy snapshots for non-clone
+    // layers if the layer have been destroyed.
+    // TODO(b/238781169) consider making clone layer ids stable as well
+    if (!hasUnreachableSnapshots && args.layerLifecycleManager.getDestroyedLayers().empty()) {
         return;
+    }
+
+    std::unordered_set<uint32_t> destroyedLayerIds;
+    for (auto& destroyedLayer : args.layerLifecycleManager.getDestroyedLayers()) {
+        destroyedLayerIds.insert(destroyedLayer->id);
     }
 
     auto it = mSnapshots.begin();
     while (it < mSnapshots.end()) {
         auto& traversalPath = it->get()->path;
-        if (!it->get()->unreachable) {
+        if (!it->get()->unreachable &&
+            destroyedLayerIds.find(traversalPath.id) == destroyedLayerIds.end()) {
             it++;
             continue;
         }
 
         mIdToSnapshot.erase(traversalPath);
+        mNeedsTouchableRegionCrop.erase(traversalPath);
         mSnapshots.back()->globalZ = it->get()->globalZ;
         std::iter_swap(it, mSnapshots.end() - 1);
         mSnapshots.erase(mSnapshots.end() - 1);
@@ -554,7 +567,7 @@ bool LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
     mResortSnapshots = false;
 
     for (auto& snapshot : mSnapshots) {
-        snapshot->unreachable = true;
+        snapshot->unreachable = snapshot->path.isClone();
     }
 
     size_t globalZ = 0;
@@ -739,6 +752,8 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         // If root layer, use the layer stack otherwise get the parent's layer stack.
         snapshot.color.a = parentSnapshot.color.a * requested.color.a;
         snapshot.alpha = snapshot.color.a;
+        snapshot.inputInfo.alpha = snapshot.color.a;
+
         snapshot.isSecure =
                 parentSnapshot.isSecure || (requested.flags & layer_state_t::eLayerSecure);
         snapshot.isTrustedOverlay = parentSnapshot.isTrustedOverlay || requested.isTrustedOverlay;
@@ -986,9 +1001,11 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
         snapshot.inputInfo.ownerUid = static_cast<int32_t>(requested.ownerUid);
         snapshot.inputInfo.ownerPid = requested.ownerPid;
     }
+    snapshot.touchCropId = requested.touchCropId;
 
     snapshot.inputInfo.id = static_cast<int32_t>(snapshot.uniqueSequence);
     snapshot.inputInfo.displayId = static_cast<int32_t>(snapshot.outputFilter.layerStack.id);
+    updateVisibility(snapshot, snapshot.isVisible);
     if (!needsInputInfo(snapshot, requested)) {
         return;
     }
@@ -1033,27 +1050,13 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     }
 
     auto cropLayerSnapshot = getSnapshot(requested.touchCropId);
-    if (snapshot.inputInfo.replaceTouchableRegionWithCrop) {
-        Rect inputBoundsInDisplaySpace;
-        if (!cropLayerSnapshot) {
-            FloatRect inputBounds = getInputBounds(snapshot, /*fillParentBounds=*/true).first;
-            inputBoundsInDisplaySpace =
-                    getInputBoundsInDisplaySpace(snapshot, inputBounds, displayInfo.transform);
-        } else {
-            FloatRect inputBounds =
-                    getInputBounds(*cropLayerSnapshot, /*fillParentBounds=*/true).first;
-            inputBoundsInDisplaySpace =
-                    getInputBoundsInDisplaySpace(*cropLayerSnapshot, inputBounds,
-                                                 displayInfo.transform);
-        }
-        snapshot.inputInfo.touchableRegion = Region(inputBoundsInDisplaySpace);
-    } else if (cropLayerSnapshot) {
-        FloatRect inputBounds = getInputBounds(*cropLayerSnapshot, /*fillParentBounds=*/true).first;
+    if (cropLayerSnapshot) {
+        mNeedsTouchableRegionCrop.insert(path);
+    } else if (snapshot.inputInfo.replaceTouchableRegionWithCrop) {
+        FloatRect inputBounds = getInputBounds(snapshot, /*fillParentBounds=*/true).first;
         Rect inputBoundsInDisplaySpace =
-                getInputBoundsInDisplaySpace(*cropLayerSnapshot, inputBounds,
-                                             displayInfo.transform);
-        snapshot.inputInfo.touchableRegion = snapshot.inputInfo.touchableRegion.intersect(
-                displayInfo.transform.transform(inputBoundsInDisplaySpace));
+                getInputBoundsInDisplaySpace(snapshot, inputBounds, displayInfo.transform);
+        snapshot.inputInfo.touchableRegion = Region(inputBoundsInDisplaySpace);
     }
 
     // Inherit the trusted state from the parent hierarchy, but don't clobber the trusted state
@@ -1066,12 +1069,7 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     // touches from going outside the cloned area.
     if (path.isClone()) {
         snapshot.inputInfo.inputConfig |= gui::WindowInfo::InputConfig::CLONE;
-        auto clonedRootSnapshot = getSnapshot(snapshot.mirrorRootPath);
-        if (clonedRootSnapshot) {
-            const Rect rect =
-                    displayInfo.transform.transform(Rect{clonedRootSnapshot->transformedBounds});
-            snapshot.inputInfo.touchableRegion = snapshot.inputInfo.touchableRegion.intersect(rect);
-        }
+        mNeedsTouchableRegionCrop.insert(path);
     }
 }
 
@@ -1114,6 +1112,79 @@ void LayerSnapshotBuilder::forEachInputSnapshot(const ConstVisitor& visitor) con
         LayerSnapshot& snapshot = *mSnapshots[(size_t)i];
         if (!snapshot.hasInputInfo()) continue;
         visitor(snapshot);
+    }
+}
+
+void LayerSnapshotBuilder::updateTouchableRegionCrop(const Args& args) {
+    if (mNeedsTouchableRegionCrop.empty()) {
+        return;
+    }
+
+    static constexpr ftl::Flags<RequestedLayerState::Changes> AFFECTS_INPUT =
+            RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Created |
+            RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::Geometry |
+            RequestedLayerState::Changes::Input;
+
+    if (args.forceUpdate != ForceUpdateFlags::ALL &&
+        !args.layerLifecycleManager.getGlobalChanges().any(AFFECTS_INPUT)) {
+        return;
+    }
+
+    for (auto& path : mNeedsTouchableRegionCrop) {
+        frontend::LayerSnapshot* snapshot = getSnapshot(path);
+        if (!snapshot) {
+            continue;
+        }
+        const std::optional<frontend::DisplayInfo> displayInfoOpt =
+                args.displays.get(snapshot->outputFilter.layerStack);
+        static frontend::DisplayInfo sDefaultInfo = {.isSecure = false};
+        auto displayInfo = displayInfoOpt.value_or(sDefaultInfo);
+
+        bool needsUpdate =
+                args.forceUpdate == ForceUpdateFlags::ALL || snapshot->changes.any(AFFECTS_INPUT);
+        auto cropLayerSnapshot = getSnapshot(snapshot->touchCropId);
+        needsUpdate =
+                needsUpdate || (cropLayerSnapshot && cropLayerSnapshot->changes.any(AFFECTS_INPUT));
+        auto clonedRootSnapshot = path.isClone() ? getSnapshot(snapshot->mirrorRootPath) : nullptr;
+        needsUpdate = needsUpdate ||
+                (clonedRootSnapshot && clonedRootSnapshot->changes.any(AFFECTS_INPUT));
+
+        if (!needsUpdate) {
+            continue;
+        }
+
+        if (snapshot->inputInfo.replaceTouchableRegionWithCrop) {
+            Rect inputBoundsInDisplaySpace;
+            if (!cropLayerSnapshot) {
+                FloatRect inputBounds = getInputBounds(*snapshot, /*fillParentBounds=*/true).first;
+                inputBoundsInDisplaySpace =
+                        getInputBoundsInDisplaySpace(*snapshot, inputBounds, displayInfo.transform);
+            } else {
+                FloatRect inputBounds =
+                        getInputBounds(*cropLayerSnapshot, /*fillParentBounds=*/true).first;
+                inputBoundsInDisplaySpace =
+                        getInputBoundsInDisplaySpace(*cropLayerSnapshot, inputBounds,
+                                                     displayInfo.transform);
+            }
+            snapshot->inputInfo.touchableRegion = Region(inputBoundsInDisplaySpace);
+        } else if (cropLayerSnapshot) {
+            FloatRect inputBounds =
+                    getInputBounds(*cropLayerSnapshot, /*fillParentBounds=*/true).first;
+            Rect inputBoundsInDisplaySpace =
+                    getInputBoundsInDisplaySpace(*cropLayerSnapshot, inputBounds,
+                                                 displayInfo.transform);
+            snapshot->inputInfo.touchableRegion = snapshot->inputInfo.touchableRegion.intersect(
+                    displayInfo.transform.transform(inputBoundsInDisplaySpace));
+        }
+
+        // If the layer is a clone, we need to crop the input region to cloned root to prevent
+        // touches from going outside the cloned area.
+        if (clonedRootSnapshot) {
+            const Rect rect =
+                    displayInfo.transform.transform(Rect{clonedRootSnapshot->transformedBounds});
+            snapshot->inputInfo.touchableRegion =
+                    snapshot->inputInfo.touchableRegion.intersect(rect);
+        }
     }
 }
 

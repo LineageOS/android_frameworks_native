@@ -92,7 +92,13 @@ private:
     //
     static Focusability isTokenFocusable(
             const sp<IBinder>& token,
-            const std::vector<sp<android::gui::WindowInfoHandle>>& windows);
+            const std::vector<sp<android::gui::WindowInfoHandle>>& windows,
+            sp<android::gui::WindowInfoHandle>& outFocusableWindow);
+
+    static FocusResolver::Focusability getResolvedFocusWindow(
+            const sp<IBinder>& token,
+            const std::vector<sp<android::gui::WindowInfoHandle>>& windows,
+            sp<android::gui::WindowInfoHandle>& outFocusableWindow);
 
     // Focus tracking for keys, trackball, etc. A window token can be associated with one or
     // more InputWindowHandles. If a window is mirrored, the window and its mirror will share
