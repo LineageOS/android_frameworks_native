@@ -50,4 +50,14 @@ struct SCOPED_CAPABILITY TimedLock {
     const status_t status;
 };
 
+// Require, under penalty of compilation failure, that the compiler thinks that a mutex is held.
+#define REQUIRE_MUTEX(expr) ([]() REQUIRES(expr) {})()
+
+// Tell the compiler that we know that a mutex is held.
+#define ASSERT_MUTEX(expr) ([]() ASSERT_CAPABILITY(expr) {})()
+
+// Specify that one mutex is an alias for another.
+// (e.g. SurfaceFlinger::mStateLock and Layer::mFlinger->mStateLock)
+#define MUTEX_ALIAS(held, alias) (REQUIRE_MUTEX(held), ASSERT_MUTEX(alias))
+
 } // namespace android

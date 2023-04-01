@@ -859,7 +859,7 @@ private:
     // this layer meaning it is entirely safe to destroy all
     // resources associated to this layer.
     void onHandleDestroyed(BBinder* handle, sp<Layer>& layer);
-    void markLayerPendingRemovalLocked(const sp<Layer>& layer);
+    void markLayerPendingRemovalLocked(const sp<Layer>& layer) REQUIRES(mStateLock);
 
     // add a layer to SurfaceFlinger
     status_t addClientLayer(const sp<Client>& client, const sp<IBinder>& handle,
