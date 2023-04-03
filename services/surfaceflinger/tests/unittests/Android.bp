@@ -24,7 +24,7 @@ package {
 filegroup {
     name: "libsurfaceflinger_mock_sources",
     srcs: [
-        "mock/DisplayHardware/MockAidlPowerHalWrapper.cpp",
+        "mock/DisplayHardware/MockPowerHalController.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockHWC2.cpp",
         "mock/DisplayHardware/MockIPower.cpp",
@@ -70,7 +70,6 @@ cc_test {
         ":libsurfaceflinger_mock_sources",
         ":libsurfaceflinger_sources",
         "libsurfaceflinger_unittest_main.cpp",
-        "AidlPowerHalWrapperTest.cpp",
         "CompositionTest.cpp",
         "DisplayIdGeneratorTest.cpp",
         "DisplayTransactionTest.cpp",
@@ -196,6 +195,7 @@ cc_defaults {
         "libinput",
         "liblog",
         "libnativewindow",
+        "libpowermanager",
         "libprocessgroup",
         "libprotobuf-cpp-lite",
         "libSurfaceFlingerProp",
