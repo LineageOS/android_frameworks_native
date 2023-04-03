@@ -3361,8 +3361,7 @@ void Dumpstate::MaybeSnapshotUiTraces() {
              "WMShell", "protolog", "save-for-bugreport"},
         CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
 
-    // Currently WindowManagerService and InputMethodManagerSerivice support WinScope protocol.
-    for (const auto& service : {"input_method", "window"}) {
+    for (const auto& service : {"input_method", "window", "window shell"}) {
         RunCommand(
             // Empty name because it's not intended to be classified as a bugreport section.
             // Actual tracing files can be found in "/data/misc/wmtrace/" in the bugreport.
