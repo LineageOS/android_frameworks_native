@@ -1408,10 +1408,6 @@ private:
     // These classes do not store any client state but help with managing transaction callbacks
     // and stats.
     std::unordered_map<uint32_t, sp<Layer>> mLegacyLayers;
-    struct {
-        bool late = false;
-        bool early = false;
-    } mPowerHintSessionMode;
 
     TransactionHandler mTransactionHandler;
     display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
