@@ -64,9 +64,59 @@ std::vector<TransactionState> TransactionHandler::flushTransactions() {
         transactionsPendingBarrier = flushPendingTransactionQueues(transactions, flushState);
     } while (lastTransactionsPendingBarrier != transactionsPendingBarrier);
 
+    applyUnsignaledBufferTransaction(transactions, flushState);
+
     mPendingTransactionCount.fetch_sub(transactions.size());
     ATRACE_INT("TransactionQueue", static_cast<int>(mPendingTransactionCount.load()));
     return transactions;
+}
+
+void TransactionHandler::applyUnsignaledBufferTransaction(
+        std::vector<TransactionState>& transactions, TransactionFlushState& flushState) {
+    // only apply an unsignaled buffer transaction if it's the first one
+    if (!transactions.empty()) {
+        return;
+    }
+
+    if (!flushState.queueWithUnsignaledBuffer) {
+        return;
+    }
+
+    auto it = mPendingTransactionQueues.find(flushState.queueWithUnsignaledBuffer);
+    LOG_ALWAYS_FATAL_IF(it == mPendingTransactionQueues.end(),
+                        "Could not find queue with unsignaled buffer!");
+
+    auto& queue = it->second;
+    popTransactionFromPending(transactions, flushState, queue);
+    if (queue.empty()) {
+        it = mPendingTransactionQueues.erase(it);
+    }
+}
+
+void TransactionHandler::popTransactionFromPending(std::vector<TransactionState>& transactions,
+                                                   TransactionFlushState& flushState,
+                                                   std::queue<TransactionState>& queue) {
+    auto& transaction = queue.front();
+    // Transaction is ready move it from the pending queue.
+    flushState.firstTransaction = false;
+    removeFromStalledTransactions(transaction.id);
+    transactions.emplace_back(std::move(transaction));
+    queue.pop();
+
+    auto& readyToApplyTransaction = transactions.back();
+    readyToApplyTransaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
+        const bool frameNumberChanged =
+                state.bufferData->flags.test(BufferData::BufferDataChange::frameNumberChanged);
+        if (frameNumberChanged) {
+            flushState.bufferLayersReadyToPresent.emplace_or_replace(state.surface.get(),
+                                                                     state.bufferData->frameNumber);
+        } else {
+            // Barrier function only used for BBQ which always includes a frame number.
+            // This value only used for barrier logic.
+            flushState.bufferLayersReadyToPresent
+                    .emplace_or_replace(state.surface.get(), std::numeric_limits<uint64_t>::max());
+        }
+    });
 }
 
 TransactionHandler::TransactionReadiness TransactionHandler::applyFilters(
@@ -79,8 +129,7 @@ TransactionHandler::TransactionReadiness TransactionHandler::applyFilters(
             case TransactionReadiness::NotReadyBarrier:
                 return perFilterReady;
 
-            case TransactionReadiness::ReadyUnsignaled:
-            case TransactionReadiness::ReadyUnsignaledSingle:
+            case TransactionReadiness::NotReadyUnsignaled:
                 // If one of the filters allows latching an unsignaled buffer, latch this ready
                 // state.
                 ready = perFilterReady;
@@ -97,17 +146,7 @@ int TransactionHandler::flushPendingTransactionQueues(std::vector<TransactionSta
     int transactionsPendingBarrier = 0;
     auto it = mPendingTransactionQueues.begin();
     while (it != mPendingTransactionQueues.end()) {
-        auto& queue = it->second;
-        IBinder* queueToken = it->first.get();
-
-        // if we have already flushed a transaction with an unsignaled buffer then stop queue
-        // processing
-        if (std::find(flushState.queuesWithUnsignaledBuffers.begin(),
-                      flushState.queuesWithUnsignaledBuffers.end(),
-                      queueToken) != flushState.queuesWithUnsignaledBuffers.end()) {
-            continue;
-        }
-
+        auto& [applyToken, queue] = *it;
         while (!queue.empty()) {
             auto& transaction = queue.front();
             flushState.transaction = &transaction;
@@ -117,38 +156,14 @@ int TransactionHandler::flushPendingTransactionQueues(std::vector<TransactionSta
                 break;
             } else if (ready == TransactionReadiness::NotReady) {
                 break;
-            }
-
-            // Transaction is ready move it from the pending queue.
-            flushState.firstTransaction = false;
-            removeFromStalledTransactions(transaction.id);
-            transactions.emplace_back(std::move(transaction));
-            queue.pop();
-
-            // If the buffer is unsignaled, then we don't want to signal other transactions using
-            // the buffer as a barrier.
-            auto& readyToApplyTransaction = transactions.back();
-            if (ready == TransactionReadiness::Ready) {
-                readyToApplyTransaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
-                    const bool frameNumberChanged = state.bufferData->flags.test(
-                            BufferData::BufferDataChange::frameNumberChanged);
-                    if (frameNumberChanged) {
-                        flushState.bufferLayersReadyToPresent
-                                .emplace_or_replace(state.surface.get(),
-                                                    state.bufferData->frameNumber);
-                    } else {
-                        // Barrier function only used for BBQ which always includes a frame number.
-                        // This value only used for barrier logic.
-                        flushState.bufferLayersReadyToPresent
-                                .emplace_or_replace(state.surface.get(),
-                                                    std::numeric_limits<uint64_t>::max());
-                    }
-                });
-            } else if (ready == TransactionReadiness::ReadyUnsignaledSingle) {
-                // Track queues with a flushed unsingaled buffer.
-                flushState.queuesWithUnsignaledBuffers.emplace_back(queueToken);
+            } else if (ready == TransactionReadiness::NotReadyUnsignaled) {
+                // We maybe able to latch this transaction if it's the only transaction
+                // ready to be applied.
+                flushState.queueWithUnsignaledBuffer = applyToken;
                 break;
             }
+            // ready == TransactionReadiness::Ready
+            popTransactionFromPending(transactions, flushState, queue);
         }
 
         if (queue.empty()) {

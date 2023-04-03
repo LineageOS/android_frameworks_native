@@ -174,10 +174,15 @@ enum class LatchUnsignaledConfig {
     // Latch unsignaled is permitted when a single layer is updated in a frame,
     // and the update includes just a buffer update (i.e. no sync transactions
     // or geometry changes).
+    // Latch unsignaled is also only permitted when a single transaction is ready
+    // to be applied. If we pass an unsignaled fence to HWC, HWC might miss presenting
+    // the frame if the fence does not fire in time. If we apply another transaction,
+    // we may penalize the other transaction unfairly.
     AutoSingleLayer,
 
     // All buffers are latched unsignaled. This behaviour is discouraged as it
     // can break sync transactions, stall the display and cause undesired side effects.
+    // This is equivalent to ignoring the acquire fence when applying transactions.
     Always,
 };
 
