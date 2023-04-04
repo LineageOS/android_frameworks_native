@@ -6882,6 +6882,7 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     wp<const DisplayDevice> displayWeak;
     ui::LayerStack layerStack;
     ui::Size reqSize(args.width, args.height);
+    std::unordered_set<uint32_t> excludeLayerIds;
     ui::Dataspace dataspace;
     {
         Mutex::Autolock lock(mStateLock);
@@ -6893,6 +6894,16 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         // set the requested width/height to the logical display layer stack rect size by default
         if (args.width == 0 || args.height == 0) {
             reqSize = display->getLayerStackSpaceRect().getSize();
+        }
+
+        for (const auto& handle : args.excludeHandles) {
+            uint32_t excludeLayer = LayerHandle::getLayerId(handle);
+            if (excludeLayer != UNASSIGNED_LAYER_ID) {
+                excludeLayerIds.emplace(excludeLayer);
+            } else {
+                ALOGW("Invalid layer handle passed as excludeLayer to captureDisplay");
+                return NAME_NOT_FOUND;
+            }
         }
 
         // Allow the caller to specify a dataspace regardless of the display's color mode, e.g. if
@@ -6910,10 +6921,11 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
         getLayerSnapshots =
-                getLayerSnapshotsForScreenshots(layerStack, args.uid, /*snapshotFilterFn=*/nullptr);
+                getLayerSnapshotsForScreenshots(layerStack, args.uid, std::move(excludeLayerIds));
     } else {
-        auto traverseLayers = [this, args, layerStack](const LayerVector::Visitor& visitor) {
-            traverseLayersInLayerStack(layerStack, args.uid, visitor);
+        auto traverseLayers = [this, args, excludeLayerIds,
+                               layerStack](const LayerVector::Visitor& visitor) {
+            traverseLayersInLayerStack(layerStack, args.uid, std::move(excludeLayerIds), visitor);
         };
         getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
     }
@@ -6956,7 +6968,7 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
                                                             /*snapshotFilterFn=*/nullptr);
     } else {
         auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
-            traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, visitor);
+            traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, {}, visitor);
         };
         getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
     }
@@ -7380,6 +7392,7 @@ void SurfaceFlinger::State::traverseInReverseZOrder(const LayerVector::Visitor& 
 }
 
 void SurfaceFlinger::traverseLayersInLayerStack(ui::LayerStack layerStack, const int32_t uid,
+                                                std::unordered_set<uint32_t> excludeLayerIds,
                                                 const LayerVector::Visitor& visitor) {
     // We loop through the first level of layers without traversing,
     // as we need to determine which layers belong to the requested display.
@@ -7398,6 +7411,17 @@ void SurfaceFlinger::traverseLayersInLayerStack(ui::LayerStack layerStack, const
             if (uid != CaptureArgs::UNSET_UID && layer->getOwnerUid() != uid) {
                 return;
             }
+
+            if (!excludeLayerIds.empty()) {
+                auto p = sp<Layer>::fromExisting(layer);
+                while (p != nullptr) {
+                    if (excludeLayerIds.count(p->sequence) != 0) {
+                        return;
+                    }
+                    p = p->getParent();
+                }
+            }
+
             visitor(layer);
         });
     }
@@ -8054,6 +8078,44 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(
                     layerFE->mSnapshot = std::make_unique<frontend::LayerSnapshot>(*snapshot);
                     layers.emplace_back(legacyLayer, std::move(layerFE));
                 });
+
+        return layers;
+    };
+}
+
+std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()>
+SurfaceFlinger::getLayerSnapshotsForScreenshots(std::optional<ui::LayerStack> layerStack,
+                                                uint32_t uid,
+                                                std::unordered_set<uint32_t> excludeLayerIds) {
+    return [&, layerStack, uid, excludeLayerIds = std::move(excludeLayerIds)]() {
+        if (excludeLayerIds.empty()) {
+            auto getLayerSnapshotsFn =
+                    getLayerSnapshotsForScreenshots(layerStack, uid, /*snapshotFilterFn=*/nullptr);
+            std::vector<std::pair<Layer*, sp<LayerFE>>> layers = getLayerSnapshotsFn();
+            return layers;
+        }
+
+        frontend::LayerSnapshotBuilder::Args
+                args{.root = mLayerHierarchyBuilder.getHierarchy(),
+                     .layerLifecycleManager = mLayerLifecycleManager,
+                     .forceUpdate = frontend::LayerSnapshotBuilder::ForceUpdateFlags::HIERARCHY,
+                     .displays = mFrontEndDisplayInfos,
+                     .displayChanges = true,
+                     .globalShadowSettings = mDrawingState.globalShadowSettings,
+                     .supportsBlur = mSupportsBlur,
+                     .forceFullDamage = mForceFullDamage,
+                     .excludeLayerIds = std::move(excludeLayerIds),
+                     .supportedLayerGenericMetadata =
+                             getHwComposer().getSupportedLayerGenericMetadata(),
+                     .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap()};
+        mLayerSnapshotBuilder.update(args);
+
+        auto getLayerSnapshotsFn =
+                getLayerSnapshotsForScreenshots(layerStack, uid, /*snapshotFilterFn=*/nullptr);
+        std::vector<std::pair<Layer*, sp<LayerFE>>> layers = getLayerSnapshotsFn();
+
+        args.excludeLayerIds.clear();
+        mLayerSnapshotBuilder.update(args);
 
         return layers;
     };
