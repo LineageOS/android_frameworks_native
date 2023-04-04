@@ -39,21 +39,10 @@
 
 using namespace std::literals;
 
+constexpr uint32_t kMultifileMagic = 'MFB$';
+constexpr uint32_t kCrcPlaceholder = 0;
+
 namespace {
-
-// Open the file and determine the size of the value it contains
-size_t getValueSizeFromFile(int fd, const std::string& entryPath) {
-    // Read the beginning of the file to get header
-    android::MultifileHeader header;
-    size_t result = read(fd, static_cast<void*>(&header), sizeof(android::MultifileHeader));
-    if (result != sizeof(android::MultifileHeader)) {
-        ALOGE("Error reading MultifileHeader from cache entry (%s): %s", entryPath.c_str(),
-              std::strerror(errno));
-        return 0;
-    }
-
-    return header.valueSize;
-}
 
 // Helper function to close entries or free them
 void freeHotCacheEntry(android::MultifileHotCache& entry) {
@@ -73,12 +62,14 @@ void freeHotCacheEntry(android::MultifileHotCache& entry) {
 
 namespace android {
 
-MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSize,
+MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize,
                                        const std::string& baseDir)
       : mInitialized(false),
+        mMaxKeySize(maxKeySize),
+        mMaxValueSize(maxValueSize),
         mMaxTotalSize(maxTotalSize),
         mTotalCacheSize(0),
-        mHotCacheLimit(maxHotCacheSize),
+        mHotCacheLimit(0),
         mHotCacheSize(0),
         mWorkerThreadIdle(true) {
     if (baseDir.empty()) {
@@ -89,9 +80,9 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
     // Establish the name of our multifile directory
     mMultifileDirName = baseDir + ".multifile";
 
-    // Set a limit for max key and value, ensuring at least one entry can always fit in hot cache
-    mMaxKeySize = mHotCacheLimit / 4;
-    mMaxValueSize = mHotCacheLimit / 2;
+    // Set the hotcache limit to be large enough to contain one max entry
+    // This ensure the hot cache is always large enough for single entry
+    mHotCacheLimit = mMaxKeySize + mMaxValueSize + sizeof(MultifileHeader);
 
     ALOGV("INIT: Initializing multifile blobcache with maxKeySize=%zu and maxValueSize=%zu",
           mMaxKeySize, mMaxValueSize);
@@ -129,6 +120,15 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
                     return;
                 }
 
+                // If the cache entry is damaged or no good, remove it
+                if (st.st_size <= 0 || st.st_atime <= 0) {
+                    ALOGE("INIT: Entry %u has invalid stats! Removing.", entryHash);
+                    if (remove(fullPath.c_str()) != 0) {
+                        ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+                    }
+                    continue;
+                }
+
                 // Open the file so we can read its header
                 int fd = open(fullPath.c_str(), O_RDONLY);
                 if (fd == -1) {
@@ -137,13 +137,51 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
                     return;
                 }
 
-                // Look up the details we track about each file
-                size_t valueSize = getValueSizeFromFile(fd, fullPath);
+                // Read the beginning of the file to get header
+                MultifileHeader header;
+                size_t result = read(fd, static_cast<void*>(&header), sizeof(MultifileHeader));
+                if (result != sizeof(MultifileHeader)) {
+                    ALOGE("Error reading MultifileHeader from cache entry (%s): %s",
+                          fullPath.c_str(), std::strerror(errno));
+                    return;
+                }
+
+                // Verify header magic
+                if (header.magic != kMultifileMagic) {
+                    ALOGE("INIT: Entry %u has bad magic (%u)! Removing.", entryHash, header.magic);
+                    if (remove(fullPath.c_str()) != 0) {
+                        ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+                    }
+                    continue;
+                }
+
+                // Note: Converting from off_t (signed) to size_t (unsigned)
+                size_t fileSize = static_cast<size_t>(st.st_size);
+
+                // Memory map the file
+                uint8_t* mappedEntry = reinterpret_cast<uint8_t*>(
+                        mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0));
+                if (mappedEntry == MAP_FAILED) {
+                    ALOGE("Failed to mmap cacheEntry, error: %s", std::strerror(errno));
+                    return;
+                }
+
+                // Ensure we have a good CRC
+                if (header.crc !=
+                    crc32c(mappedEntry + sizeof(MultifileHeader),
+                           fileSize - sizeof(MultifileHeader))) {
+                    ALOGE("INIT: Entry %u failed CRC check! Removing.", entryHash);
+                    if (remove(fullPath.c_str()) != 0) {
+                        ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+                    }
+                    continue;
+                }
 
                 // If the cache entry is damaged or no good, remove it
-                // TODO: Perform any other checks
-                if (valueSize <= 0 || st.st_size <= 0 || st.st_atime <= 0) {
-                    ALOGV("INIT: Entry %u has a problem! Removing.", entryHash);
+                if (header.keySize <= 0 || header.valueSize <= 0) {
+                    ALOGE("INIT: Entry %u has a bad header keySize (%lu) or valueSize (%lu), "
+                          "removing.",
+                          entryHash, header.keySize, header.valueSize);
                     if (remove(fullPath.c_str()) != 0) {
                         ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
                     }
@@ -152,25 +190,14 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
 
                 ALOGV("INIT: Entry %u is good, tracking it now.", entryHash);
 
-                // Note: Converting from off_t (signed) to size_t (unsigned)
-                size_t fileSize = static_cast<size_t>(st.st_size);
-                time_t accessTime = st.st_atime;
-
                 // Track details for rapid lookup later
-                trackEntry(entryHash, valueSize, fileSize, accessTime);
+                trackEntry(entryHash, header.valueSize, fileSize, st.st_atime);
 
                 // Track the total size
                 increaseTotalCacheSize(fileSize);
 
                 // Preload the entry for fast retrieval
                 if ((mHotCacheSize + fileSize) < mHotCacheLimit) {
-                    // Memory map the file
-                    uint8_t* mappedEntry = reinterpret_cast<uint8_t*>(
-                            mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0));
-                    if (mappedEntry == MAP_FAILED) {
-                        ALOGE("Failed to mmap cacheEntry, error: %s", std::strerror(errno));
-                    }
-
                     ALOGV("INIT: Populating hot cache with fd = %i, cacheEntry = %p for "
                           "entryHash %u",
                           fd, mappedEntry, entryHash);
@@ -183,6 +210,8 @@ MultifileBlobCache::MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSi
                         return;
                     }
                 } else {
+                    // If we're not keeping it in hot cache, unmap it now
+                    munmap(mappedEntry, fileSize);
                     close(fd);
                 }
             }
@@ -227,7 +256,7 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
 
     // Ensure key and value are under their limits
     if (keySize > mMaxKeySize || valueSize > mMaxValueSize) {
-        ALOGV("SET: keySize (%lu vs %zu) or valueSize (%lu vs %zu) too large", keySize, mMaxKeySize,
+        ALOGW("SET: keySize (%lu vs %zu) or valueSize (%lu vs %zu) too large", keySize, mMaxKeySize,
               valueSize, mMaxValueSize);
         return;
     }
@@ -240,17 +269,18 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
     // If we're going to be over the cache limit, kick off a trim to clear space
     if (getTotalSize() + fileSize > mMaxTotalSize) {
         ALOGV("SET: Cache is full, calling trimCache to clear space");
-        trimCache(mMaxTotalSize);
+        trimCache();
     }
 
     ALOGV("SET: Add %u to cache", entryHash);
 
     uint8_t* buffer = new uint8_t[fileSize];
 
-    // Write the key and value after the header
-    android::MultifileHeader header = {keySize, valueSize};
+    // Write placeholders for magic and CRC until deferred thread completes the write
+    android::MultifileHeader header = {kMultifileMagic, kCrcPlaceholder, keySize, valueSize};
     memcpy(static_cast<void*>(buffer), static_cast<const void*>(&header),
            sizeof(android::MultifileHeader));
+    // Write the key and value after the header
     memcpy(static_cast<void*>(buffer + sizeof(MultifileHeader)), static_cast<const void*>(key),
            keySize);
     memcpy(static_cast<void*>(buffer + sizeof(MultifileHeader) + keySize),
@@ -269,13 +299,18 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
 
     // Sending -1 as the fd indicates we don't have an fd for this
     if (!addToHotCache(entryHash, -1, buffer, fileSize)) {
-        ALOGE("GET: Failed to add %u to hot cache", entryHash);
+        ALOGE("SET: Failed to add %u to hot cache", entryHash);
+        delete[] buffer;
         return;
     }
 
     // Track that we're creating a pending write for this entry
     // Include the buffer to handle the case when multiple writes are pending for an entry
-    mDeferredWrites.insert(std::make_pair(entryHash, buffer));
+    {
+        // Synchronize access to deferred write status
+        std::lock_guard<std::mutex> lock(mDeferredWriteStatusMutex);
+        mDeferredWrites.insert(std::make_pair(entryHash, buffer));
+    }
 
     // Create deferred task to write to storage
     ALOGV("SET: Adding task to queue.");
@@ -293,7 +328,7 @@ EGLsizeiANDROID MultifileBlobCache::get(const void* key, EGLsizeiANDROID keySize
 
     // Ensure key and value are under their limits
     if (keySize > mMaxKeySize || valueSize > mMaxValueSize) {
-        ALOGV("GET: keySize (%lu vs %zu) or valueSize (%lu vs %zu) too large", keySize, mMaxKeySize,
+        ALOGW("GET: keySize (%lu vs %zu) or valueSize (%lu vs %zu) too large", keySize, mMaxKeySize,
               valueSize, mMaxValueSize);
         return 0;
     }
@@ -342,8 +377,15 @@ EGLsizeiANDROID MultifileBlobCache::get(const void* key, EGLsizeiANDROID keySize
     } else {
         ALOGV("GET: HotCache MISS for entry: %u", entryHash);
 
-        if (mDeferredWrites.find(entryHash) != mDeferredWrites.end()) {
-            // Wait for writes to complete if there is an outstanding write for this entry
+        // Wait for writes to complete if there is an outstanding write for this entry
+        bool wait = false;
+        {
+            // Synchronize access to deferred write status
+            std::lock_guard<std::mutex> lock(mDeferredWriteStatusMutex);
+            wait = mDeferredWrites.find(entryHash) != mDeferredWrites.end();
+        }
+
+        if (wait) {
             ALOGV("GET: Waiting for write to complete for %u", entryHash);
             waitForWorkComplete();
         }
@@ -455,6 +497,7 @@ bool MultifileBlobCache::addToHotCache(uint32_t newEntryHash, int newFd, uint8_t
               mHotCacheSize, newEntrySize, mHotCacheLimit, newEntryHash);
 
         // Wait for all the files to complete writing so our hot cache is accurate
+        ALOGV("HOTCACHE(ADD): Waiting for work to complete for %u", newEntryHash);
         waitForWorkComplete();
 
         // Free up old entries until under the limit
@@ -491,6 +534,7 @@ bool MultifileBlobCache::removeFromHotCache(uint32_t entryHash) {
         ALOGV("HOTCACHE(REMOVE): Removing %u from hot cache", entryHash);
 
         // Wait for all the files to complete writing so our hot cache is accurate
+        ALOGV("HOTCACHE(REMOVE): Waiting for work to complete for %u", entryHash);
         waitForWorkComplete();
 
         ALOGV("HOTCACHE(REMOVE): Closing hot cache entry for %u", entryHash);
@@ -547,7 +591,7 @@ bool MultifileBlobCache::applyLRU(size_t cacheLimit) {
         }
     }
 
-    ALOGV("LRU: Cache is emptry");
+    ALOGV("LRU: Cache is empty");
     return false;
 }
 
@@ -556,23 +600,15 @@ bool MultifileBlobCache::applyLRU(size_t cacheLimit) {
 constexpr uint32_t kCacheLimitDivisor = 2;
 
 // Calculate the cache size and remove old entries until under the limit
-void MultifileBlobCache::trimCache(size_t cacheByteLimit) {
-    // Start with the value provided by egl_cache
-    size_t limit = cacheByteLimit;
-
+void MultifileBlobCache::trimCache() {
     // Wait for all deferred writes to complete
+    ALOGV("TRIM: Waiting for work to complete.");
     waitForWorkComplete();
 
-    size_t size = getTotalSize();
-
-    // If size is larger than the threshold, remove files using LRU
-    if (size > limit) {
-        ALOGV("TRIM: Multifile cache size is larger than %zu, removing old entries",
-              cacheByteLimit);
-        if (!applyLRU(limit / kCacheLimitDivisor)) {
-            ALOGE("Error when clearing multifile shader cache");
-            return;
-        }
+    ALOGV("TRIM: Reducing multifile cache size to %zu", mMaxTotalSize / kCacheLimitDivisor);
+    if (!applyLRU(mMaxTotalSize / kCacheLimitDivisor)) {
+        ALOGE("Error when clearing multifile shader cache");
+        return;
     }
 }
 
@@ -600,6 +636,11 @@ void MultifileBlobCache::processTask(DeferredTask& task) {
 
             ALOGV("DEFERRED: Opened fd %i from %s", fd, fullPath.c_str());
 
+            // Add CRC check to the header (always do this last!)
+            MultifileHeader* header = reinterpret_cast<MultifileHeader*>(buffer);
+            header->crc =
+                    crc32c(buffer + sizeof(MultifileHeader), bufferSize - sizeof(MultifileHeader));
+
             ssize_t result = write(fd, buffer, bufferSize);
             if (result != bufferSize) {
                 ALOGE("Error writing fileSize to cache entry (%s): %s", fullPath.c_str(),
@@ -612,13 +653,18 @@ void MultifileBlobCache::processTask(DeferredTask& task) {
 
             // Erase the entry from mDeferredWrites
             // Since there could be multiple outstanding writes for an entry, find the matching one
-            typedef std::multimap<uint32_t, uint8_t*>::iterator entryIter;
-            std::pair<entryIter, entryIter> iterPair = mDeferredWrites.equal_range(entryHash);
-            for (entryIter it = iterPair.first; it != iterPair.second; ++it) {
-                if (it->second == buffer) {
-                    ALOGV("DEFERRED: Marking write complete for %u at %p", it->first, it->second);
-                    mDeferredWrites.erase(it);
-                    break;
+            {
+                // Synchronize access to deferred write status
+                std::lock_guard<std::mutex> lock(mDeferredWriteStatusMutex);
+                typedef std::multimap<uint32_t, uint8_t*>::iterator entryIter;
+                std::pair<entryIter, entryIter> iterPair = mDeferredWrites.equal_range(entryHash);
+                for (entryIter it = iterPair.first; it != iterPair.second; ++it) {
+                    if (it->second == buffer) {
+                        ALOGV("DEFERRED: Marking write complete for %u at %p", it->first,
+                              it->second);
+                        mDeferredWrites.erase(it);
+                        break;
+                    }
                 }
             }
 
