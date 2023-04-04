@@ -40,14 +40,20 @@ public:
         // Layer handles that have transactions with buffers that are ready to be applied.
         ftl::SmallMap<IBinder* /* binder address */, uint64_t /* framenumber */, 15>
                 bufferLayersReadyToPresent = {};
-        ftl::SmallVector<IBinder* /* queueToken */, 15> queuesWithUnsignaledBuffers;
+        // Tracks the queue with an unsignaled buffer. This is used to handle
+        // LatchUnsignaledConfig::AutoSingleLayer to ensure we only apply an unsignaled buffer
+        // if it's the only transaction that is ready to be applied.
+        sp<IBinder> queueWithUnsignaledBuffer = nullptr;
     };
     enum class TransactionReadiness {
-        NotReady,
-        NotReadyBarrier,
+        // Transaction is ready to be applied
         Ready,
-        ReadyUnsignaled,
-        ReadyUnsignaledSingle,
+        // Transaction has unmet conditions (fence, present time, etc) and cannot be applied.
+        NotReady,
+        // Transaction is waiting on a barrier (another buffer to be latched first)
+        NotReadyBarrier,
+        // Transaction has an unsignaled fence but can be applied if it's the only transaction
+        NotReadyUnsignaled,
     };
     using TransactionFilter = std::function<TransactionReadiness(const TransactionFlushState&)>;
 
@@ -64,6 +70,9 @@ private:
     friend class ::android::TestableSurfaceFlinger;
 
     int flushPendingTransactionQueues(std::vector<TransactionState>&, TransactionFlushState&);
+    void applyUnsignaledBufferTransaction(std::vector<TransactionState>&, TransactionFlushState&);
+    void popTransactionFromPending(std::vector<TransactionState>&, TransactionFlushState&,
+                                   std::queue<TransactionState>&);
     TransactionReadiness applyFilters(TransactionFlushState&);
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash>
             mPendingTransactionQueues;
