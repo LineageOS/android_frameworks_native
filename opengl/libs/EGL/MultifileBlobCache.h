@@ -20,6 +20,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+#include <android-base/thread_annotations.h>
 #include <future>
 #include <map>
 #include <queue>
@@ -28,9 +29,13 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "FileBlobCache.h"
+
 namespace android {
 
 struct MultifileHeader {
+    uint32_t magic;
+    uint32_t crc;
     EGLsizeiANDROID keySize;
     EGLsizeiANDROID valueSize;
 };
@@ -86,7 +91,8 @@ private:
 
 class MultifileBlobCache {
 public:
-    MultifileBlobCache(size_t maxTotalSize, size_t maxHotCacheSize, const std::string& baseDir);
+    MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize,
+                       const std::string& baseDir);
     ~MultifileBlobCache();
 
     void set(const void* key, EGLsizeiANDROID keySize, const void* value,
@@ -114,7 +120,7 @@ private:
     bool addToHotCache(uint32_t entryHash, int fd, uint8_t* entryBufer, size_t entrySize);
     bool removeFromHotCache(uint32_t entryHash);
 
-    void trimCache(size_t cacheByteLimit);
+    void trimCache();
     bool applyLRU(size_t cacheLimit);
 
     bool mInitialized;
@@ -135,7 +141,8 @@ private:
     // Below are the components used for deferred writes
 
     // Track whether we have pending writes for an entry
-    std::multimap<uint32_t, uint8_t*> mDeferredWrites;
+    std::mutex mDeferredWriteStatusMutex;
+    std::multimap<uint32_t, uint8_t*> mDeferredWrites GUARDED_BY(mDeferredWriteStatusMutex);
 
     // Functions to work through tasks in the queue
     void processTasks();

@@ -38,8 +38,9 @@ static const size_t kMaxMonolithicTotalSize = 2 * 1024 * 1024;
 static const unsigned int kDeferredMonolithicSaveDelay = 4;
 
 // Multifile cache size limits
-constexpr uint32_t kMultifileHotCacheLimit = 8 * 1024 * 1024;
-constexpr uint32_t kMultifileCacheByteLimit = 32 * 1024 * 1024;
+constexpr uint32_t kMaxMultifileKeySize = 1 * 1024 * 1024;
+constexpr uint32_t kMaxMultifileValueSize = 8 * 1024 * 1024;
+constexpr uint32_t kMaxMultifileTotalSize = 32 * 1024 * 1024;
 
 namespace android {
 
@@ -250,7 +251,7 @@ void egl_cache_t::updateMode() {
     if (mMultifileMode) {
         mCacheByteLimit = static_cast<size_t>(
                 base::GetUintProperty<uint32_t>("ro.egl.blobcache.multifile_limit",
-                                                kMultifileCacheByteLimit));
+                                                kMaxMultifileTotalSize));
 
         // Check for a debug value
         int debugCacheSize = base::GetIntProperty("debug.egl.blobcache.multifile_limit", -1);
@@ -274,8 +275,9 @@ BlobCache* egl_cache_t::getBlobCacheLocked() {
 
 MultifileBlobCache* egl_cache_t::getMultifileBlobCacheLocked() {
     if (mMultifileBlobCache == nullptr) {
-        mMultifileBlobCache.reset(
-                new MultifileBlobCache(mCacheByteLimit, kMultifileHotCacheLimit, mFilename));
+        mMultifileBlobCache.reset(new MultifileBlobCache(kMaxMultifileKeySize,
+                                                         kMaxMultifileValueSize, mCacheByteLimit,
+                                                         mFilename));
     }
     return mMultifileBlobCache.get();
 }
