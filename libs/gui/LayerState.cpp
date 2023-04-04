@@ -897,6 +897,11 @@ status_t CaptureArgs::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(dataspace));
     SAFE_PARCEL(output->writeBool, allowProtected);
     SAFE_PARCEL(output->writeBool, grayscale);
+
+    SAFE_PARCEL(output->writeInt32, excludeHandles.size());
+    for (auto& excludeHandle : excludeHandles) {
+        SAFE_PARCEL(output->writeStrongBinder, excludeHandle);
+    }
     return NO_ERROR;
 }
 
@@ -913,6 +918,15 @@ status_t CaptureArgs::readFromParcel(const Parcel* input) {
     dataspace = static_cast<ui::Dataspace>(value);
     SAFE_PARCEL(input->readBool, &allowProtected);
     SAFE_PARCEL(input->readBool, &grayscale);
+
+    int32_t numExcludeHandles = 0;
+    SAFE_PARCEL_READ_SIZE(input->readInt32, &numExcludeHandles, input->dataSize());
+    excludeHandles.reserve(numExcludeHandles);
+    for (int i = 0; i < numExcludeHandles; i++) {
+        sp<IBinder> binder;
+        SAFE_PARCEL(input->readStrongBinder, &binder);
+        excludeHandles.emplace(binder);
+    }
     return NO_ERROR;
 }
 
@@ -940,10 +954,6 @@ status_t LayerCaptureArgs::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(CaptureArgs::writeToParcel, output);
 
     SAFE_PARCEL(output->writeStrongBinder, layerHandle);
-    SAFE_PARCEL(output->writeInt32, excludeHandles.size());
-    for (auto el : excludeHandles) {
-        SAFE_PARCEL(output->writeStrongBinder, el);
-    }
     SAFE_PARCEL(output->writeBool, childrenOnly);
     return NO_ERROR;
 }
@@ -952,15 +962,6 @@ status_t LayerCaptureArgs::readFromParcel(const Parcel* input) {
     SAFE_PARCEL(CaptureArgs::readFromParcel, input);
 
     SAFE_PARCEL(input->readStrongBinder, &layerHandle);
-
-    int32_t numExcludeHandles = 0;
-    SAFE_PARCEL_READ_SIZE(input->readInt32, &numExcludeHandles, input->dataSize());
-    excludeHandles.reserve(numExcludeHandles);
-    for (int i = 0; i < numExcludeHandles; i++) {
-        sp<IBinder> binder;
-        SAFE_PARCEL(input->readStrongBinder, &binder);
-        excludeHandles.emplace(binder);
-    }
 
     SAFE_PARCEL(input->readBool, &childrenOnly);
     return NO_ERROR;

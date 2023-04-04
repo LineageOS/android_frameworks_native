@@ -826,7 +826,9 @@ private:
 
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
     // matching ownerUid
-    void traverseLayersInLayerStack(ui::LayerStack, const int32_t uid, const LayerVector::Visitor&);
+    void traverseLayersInLayerStack(ui::LayerStack, const int32_t uid,
+                                    std::unordered_set<uint32_t> excludeLayerIds,
+                                    const LayerVector::Visitor&);
 
     void readPersistentProperties();
 
@@ -1380,6 +1382,9 @@ private:
             std::optional<ui::LayerStack> layerStack, uint32_t uid,
             std::function<bool(const frontend::LayerSnapshot&, bool& outStopTraversal)>
                     snapshotFilterFn);
+    std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshotsForScreenshots(
+            std::optional<ui::LayerStack> layerStack, uint32_t uid,
+            std::unordered_set<uint32_t> excludeLayerIds);
     std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshotsForScreenshots(
             uint32_t rootLayerId, uint32_t uid, std::unordered_set<uint32_t> excludeLayerIds,
             bool childrenOnly, const std::optional<FloatRect>& optionalParentCrop);

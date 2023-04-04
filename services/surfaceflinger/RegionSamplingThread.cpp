@@ -347,7 +347,8 @@ void RegionSamplingThread::captureSample() {
                 }
                 visitor(layer);
             };
-            mFlinger.traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, filterVisitor);
+            mFlinger.traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, {},
+                                                filterVisitor);
         };
         getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
     }
