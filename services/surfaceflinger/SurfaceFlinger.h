@@ -323,6 +323,8 @@ public:
     bool mIgnoreHwcPhysicalDisplayOrientation = false;
 
     void forceFutureUpdate(int delayInMs);
+    const DisplayDevice* getDisplayFromLayerStack(ui::LayerStack)
+            REQUIRES(mStateLock, kMainThreadContext);
 
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly

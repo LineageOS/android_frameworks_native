@@ -332,7 +332,7 @@ void LayerProtoFromSnapshotGenerator::writeHierarchyToProto(
     if (mTraceFlags & LayerTracing::TRACE_COMPOSITION) {
         auto it = mLegacyLayers.find(layer.id);
         if (it != mLegacyLayers.end()) {
-            it->second->writeCompositionStateToProto(layerProto);
+            it->second->writeCompositionStateToProto(layerProto, snapshot->outputFilter.layerStack);
         }
     }
 
