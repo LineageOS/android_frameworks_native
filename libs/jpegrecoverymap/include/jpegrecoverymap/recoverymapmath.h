@@ -116,11 +116,17 @@ inline Color operator/(const Color& lhs, const float rhs) {
 }
 
 inline uint16_t floatToHalf(float f) {
-  uint32_t x = *((uint32_t*)&f);
-  uint16_t h = ((x >> 16) & 0x8000)
-             | ((((x & 0x7f800000) - 0x38000000) >> 13) & 0x7c00)
-             | ((x >> 13) & 0x03ff);
-  return h;
+  // round-to-nearest-even: add last bit after truncated mantissa
+  const uint32_t b = *((uint32_t*)&f) + 0x00001000;
+
+  const uint32_t e = (b & 0x7F800000) >> 23; // exponent
+  const uint32_t m = b & 0x007FFFFF; // mantissa
+
+  // sign : normalized : denormalized : saturate
+  return (b & 0x80000000) >> 16
+            | (e > 112) * ((((e - 112) << 10) & 0x7C00) | m >> 13)
+            | ((e < 113) & (e > 101)) * ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1)
+            | (e > 143) * 0x7FFF;
 }
 
 constexpr size_t kRecoveryFactorPrecision = 10;
