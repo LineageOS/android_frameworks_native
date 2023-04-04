@@ -128,6 +128,15 @@ public:
         remote()->transact(NOTE_RESET_FLASHLIGHT_TRANSACTION, data, &reply);
     }
 
+    virtual binder::Status noteWakeupSensorEvent(int64_t elapsedNanos, int uid, int handle) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IBatteryStats::getInterfaceDescriptor());
+        data.writeInt64(elapsedNanos);
+        data.writeInt32(uid);
+        data.writeInt32(handle);
+        status_t ret = remote()->transact(NOTE_WAKEUP_SENSOR_EVENT_TRANSACTION, data, &reply);
+        return binder::Status::fromStatusT(ret);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(BatteryStats, "com.android.internal.app.IBatteryStats")
@@ -235,6 +244,16 @@ status_t BnBatteryStats::onTransact(
             reply->writeNoException();
             return NO_ERROR;
         } break;
+        case NOTE_WAKEUP_SENSOR_EVENT_TRANSACTION: {
+            CHECK_INTERFACE(IBatteryStats, data, reply);
+            int64_t elapsedNanos = data.readInt64();
+            int uid = data.readInt32();
+            int handle = data.readInt32();
+            noteWakeupSensorEvent(elapsedNanos, uid, handle);
+            reply->writeNoException();
+            return NO_ERROR;
+        } break;
+
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }
