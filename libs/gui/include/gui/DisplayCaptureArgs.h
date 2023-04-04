@@ -22,9 +22,11 @@
 #include <binder/IBinder.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
+#include <gui/SpHash.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
+#include <unordered_set>
 
 namespace android::gui {
 
@@ -54,6 +56,8 @@ struct CaptureArgs : public Parcelable {
     bool allowProtected = false;
 
     bool grayscale = false;
+
+    std::unordered_set<sp<IBinder>, SpHash<IBinder>> excludeHandles;
 
     virtual status_t writeToParcel(Parcel* output) const;
     virtual status_t readFromParcel(const Parcel* input);
