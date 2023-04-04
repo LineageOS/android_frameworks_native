@@ -478,10 +478,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     mIgnoreHdrCameraLayers = ignore_hdr_camera_layers(false);
 
-    // Power hint session mode, representing which hint(s) to send: early, late, or both)
-    mPowerHintSessionMode =
-            {.late = base::GetBoolProperty("debug.sf.send_late_power_session_hint"s, true),
-             .early = base::GetBoolProperty("debug.sf.send_early_power_session_hint"s, false)};
     mLayerLifecycleManagerEnabled =
             base::GetBoolProperty("persist.debug.sf.enable_layer_lifecycle_manager"s, false);
     mLegacyFrontEndEnabled = !mLayerLifecycleManagerEnabled ||
@@ -715,12 +711,12 @@ void SurfaceFlinger::bootFinished() {
 
         readPersistentProperties();
         mPowerAdvisor->onBootFinished();
-        const bool powerHintEnabled = mFlagManager.use_adpf_cpu_hint();
-        mPowerAdvisor->enablePowerHint(powerHintEnabled);
-        const bool powerHintUsed = mPowerAdvisor->usePowerHintSession();
+        const bool hintSessionEnabled = mFlagManager.use_adpf_cpu_hint();
+        mPowerAdvisor->enablePowerHintSession(hintSessionEnabled);
+        const bool hintSessionUsed = mPowerAdvisor->usePowerHintSession();
         ALOGD("Power hint is %s",
-              powerHintUsed ? "supported" : (powerHintEnabled ? "unsupported" : "disabled"));
-        if (powerHintUsed) {
+              hintSessionUsed ? "supported" : (hintSessionEnabled ? "unsupported" : "disabled"));
+        if (hintSessionUsed) {
             std::optional<pid_t> renderEngineTid = getRenderEngine().getRenderEngineTid();
             std::vector<int32_t> tidList;
             tidList.emplace_back(gettid());
@@ -2461,16 +2457,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
 
         mPowerAdvisor->setFrameDelay(frameDelay);
         mPowerAdvisor->setTotalFrameTargetWorkDuration(idealSfWorkDuration);
-
-        const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
-        const Period vsyncPeriod = display->getActiveMode().fps.getPeriod();
-        mPowerAdvisor->setTargetWorkDuration(vsyncPeriod);
-
-        // Send early hint here to make sure there's not another frame pending
-        if (mPowerHintSessionMode.early) {
-            // Send a rough prediction for this frame based on last frame's timing info
-            mPowerAdvisor->sendPredictedWorkDuration();
-        }
+        mPowerAdvisor->updateTargetWorkDuration(vsyncPeriod);
     }
 
     if (mRefreshRateOverlaySpinner) {
@@ -2669,9 +2656,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         mPowerAdvisor->setSfPresentTiming(TimePoint::fromNs(mPreviousPresentFences[0]
                                                                     .fenceTime->getSignalTime()),
                                           TimePoint::now());
-        if (mPowerHintSessionMode.late) {
-            mPowerAdvisor->sendActualWorkDuration();
-        }
+        mPowerAdvisor->reportActualWorkDuration();
     }
 
     if (mScheduler->onPostComposition(presentTime)) {

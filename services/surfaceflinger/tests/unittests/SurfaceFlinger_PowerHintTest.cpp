@@ -70,7 +70,6 @@ void SurfaceFlingerPowerHintTest::SetUp() {
     mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
     mFlinger.setupTimeStats(std::shared_ptr<TimeStats>(mTimeStats));
     mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
-    mFlinger.setPowerHintSessionMode(true, true);
     mFlinger.setupPowerAdvisor(std::unique_ptr<Hwc2::PowerAdvisor>(mPowerAdvisor));
     static constexpr bool kIsPrimary = true;
     FakeHwcDisplayInjector(DEFAULT_DISPLAY_ID, hal::DisplayType::PHYSICAL, kIsPrimary)
@@ -100,7 +99,7 @@ void SurfaceFlingerPowerHintTest::SetUp() {
 TEST_F(SurfaceFlingerPowerHintTest, sendDurationsIncludingHwcWaitTime) {
     ON_CALL(*mPowerAdvisor, usePowerHintSession()).WillByDefault(Return(true));
 
-    EXPECT_CALL(*mPowerAdvisor, setTargetWorkDuration(_)).Times(1);
+    EXPECT_CALL(*mPowerAdvisor, updateTargetWorkDuration(_)).Times(1);
     EXPECT_CALL(*mDisplaySurface,
                 prepareFrame(compositionengine::DisplaySurface::CompositionType::Hwc))
             .Times(1);
@@ -109,7 +108,7 @@ TEST_F(SurfaceFlingerPowerHintTest, sendDurationsIncludingHwcWaitTime) {
         std::this_thread::sleep_for(kMockHwcRunTime);
         return hardware::graphics::composer::V2_1::Error::NONE;
     });
-    EXPECT_CALL(*mPowerAdvisor, sendActualWorkDuration()).Times(1);
+    EXPECT_CALL(*mPowerAdvisor, reportActualWorkDuration()).Times(1);
 
     const TimePoint frameTime = scheduler::SchedulerClock::now();
     constexpr Period kMockVsyncPeriod = 15ms;
@@ -121,7 +120,7 @@ TEST_F(SurfaceFlingerPowerHintTest, inactiveOnDisplayDoze) {
 
     mDisplay->setPowerMode(hal::PowerMode::DOZE);
 
-    EXPECT_CALL(*mPowerAdvisor, setTargetWorkDuration(_)).Times(0);
+    EXPECT_CALL(*mPowerAdvisor, updateTargetWorkDuration(_)).Times(0);
     EXPECT_CALL(*mDisplaySurface,
                 prepareFrame(compositionengine::DisplaySurface::CompositionType::Hwc))
             .Times(1);
@@ -130,7 +129,7 @@ TEST_F(SurfaceFlingerPowerHintTest, inactiveOnDisplayDoze) {
         std::this_thread::sleep_for(kMockHwcRunTime);
         return hardware::graphics::composer::V2_1::Error::NONE;
     });
-    EXPECT_CALL(*mPowerAdvisor, sendActualWorkDuration()).Times(0);
+    EXPECT_CALL(*mPowerAdvisor, reportActualWorkDuration()).Times(0);
 
     const TimePoint frameTime = scheduler::SchedulerClock::now();
     constexpr Period kMockVsyncPeriod = 15ms;

@@ -3026,5 +3026,21 @@ TEST_P(RefreshRateSelectorTest, frameRateIsCappedByPolicy) {
     EXPECT_FRAME_RATE_MODE(kMode60, 30_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
 }
 
+TEST_P(RefreshRateSelectorTest, frameRateNotInRange) {
+    auto selector = createSelector(kModes_60_90, kModeId60);
+
+    constexpr FpsRanges k60Only = {{60_Hz, 90_Hz}, {60_Hz, 60_Hz}};
+    constexpr FpsRanges kAll = {{0_Hz, 90_Hz}, {0_Hz, 90_Hz}};
+
+    EXPECT_EQ(SetPolicyResult::Changed,
+              selector.setDisplayManagerPolicy({DisplayModeId(kModeId60), k60Only, kAll}));
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    layers[0].name = "Test layer";
+    layers[0].vote = LayerVoteType::Heuristic;
+    layers[0].desiredRefreshRate = 45_Hz;
+    EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
+}
+
 } // namespace
 } // namespace android::scheduler
