@@ -4262,20 +4262,23 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
             return TraverseBuffersReturnValues::STOP_TRAVERSAL;
         }
 
-        // check fence status
-        const bool allowLatchUnsignaled = shouldLatchUnsignaled(layer, s, transaction.states.size(),
-                                                                flushState.firstTransaction);
-        ATRACE_FORMAT("%s allowLatchUnsignaled=%s", layer->getName().c_str(),
-                      allowLatchUnsignaled ? "true" : "false");
-
-        const bool acquireFenceChanged = s.bufferData &&
+        // ignore the acquire fence if LatchUnsignaledConfig::Always is set.
+        const bool checkAcquireFence = enableLatchUnsignaledConfig != LatchUnsignaledConfig::Always;
+        const bool acquireFenceAvailable = s.bufferData &&
                 s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&
                 s.bufferData->acquireFence;
-        const bool fenceSignaled =
-                (!acquireFenceChanged ||
-                 s.bufferData->acquireFence->getStatus() != Fence::Status::Unsignaled);
+        const bool fenceSignaled = !checkAcquireFence || !acquireFenceAvailable ||
+                s.bufferData->acquireFence->getStatus() != Fence::Status::Unsignaled;
         if (!fenceSignaled) {
-            if (!allowLatchUnsignaled) {
+            // check fence status
+            const bool allowLatchUnsignaled =
+                    shouldLatchUnsignaled(layer, s, transaction.states.size(),
+                                          flushState.firstTransaction);
+            ATRACE_FORMAT("%s allowLatchUnsignaled=%s", layer->getName().c_str(),
+                          allowLatchUnsignaled ? "true" : "false");
+            if (allowLatchUnsignaled) {
+                ready = TransactionReadiness::NotReadyUnsignaled;
+            } else {
                 ready = TransactionReadiness::NotReady;
                 auto& listener = s.bufferData->releaseBufferListener;
                 if (listener &&
@@ -4288,10 +4291,6 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
                 }
                 return TraverseBuffersReturnValues::STOP_TRAVERSAL;
             }
-
-            ready = enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer
-                    ? TransactionReadiness::ReadyUnsignaledSingle
-                    : TransactionReadiness::ReadyUnsignaled;
         }
         return TraverseBuffersReturnValues::CONTINUE_TRAVERSAL;
     });
