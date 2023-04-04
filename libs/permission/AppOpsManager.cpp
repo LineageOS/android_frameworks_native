@@ -146,6 +146,14 @@ void AppOpsManager::startWatchingMode(int32_t op, const String16& packageName,
     }
 }
 
+void AppOpsManager::startWatchingMode(int32_t op, const String16& packageName, int32_t flags,
+        const sp<IAppOpsCallback>& callback) {
+    sp<IAppOpsService> service = getService();
+    if (service != nullptr) {
+        service->startWatchingModeWithFlags(op, packageName, flags, callback);
+    }
+}
+
 void AppOpsManager::stopWatchingMode(const sp<IAppOpsCallback>& callback) {
     sp<IAppOpsService> service = getService();
     if (service != nullptr) {

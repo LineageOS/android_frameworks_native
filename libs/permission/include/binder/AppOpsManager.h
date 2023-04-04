@@ -151,6 +151,10 @@ public:
         _NUM_OP = 117
     };
 
+    enum {
+        WATCH_FOREGROUND_CHANGES = 1 << 0
+    };
+
     AppOpsManager();
 
     int32_t checkOp(int32_t op, int32_t uid, const String16& callingPackage);
@@ -173,6 +177,8 @@ public:
     void finishOp(int32_t op, int32_t uid, const String16& callingPackage,
             const std::optional<String16>& attributionTag);
     void startWatchingMode(int32_t op, const String16& packageName,
+            const sp<IAppOpsCallback>& callback);
+    void startWatchingMode(int32_t op, const String16& packageName, int32_t flags,
             const sp<IAppOpsCallback>& callback);
     void stopWatchingMode(const sp<IAppOpsCallback>& callback);
     int32_t permissionToOpCode(const String16& permission);
