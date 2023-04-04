@@ -285,8 +285,8 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
 
 
     // Other options retain default values
-    EXPECT_TRUE(options_.do_vibrate);
     EXPECT_FALSE(options_.progress_updates_to_socket);
+    EXPECT_FALSE(options_.do_vibrate);
     EXPECT_FALSE(options_.show_header_only);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.stream_to_socket);
