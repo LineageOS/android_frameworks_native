@@ -52,6 +52,8 @@ public:
             const String16& packageName) = 0;
     virtual void setCameraAudioRestriction(int32_t mode) = 0;
     virtual bool shouldCollectNotes(int32_t opCode) = 0;
+    virtual void startWatchingModeWithFlags(int32_t op, const String16& packageName,
+            int32_t flags, const sp<IAppOpsCallback>& callback) = 0;
 
     enum {
         CHECK_OPERATION_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION,
@@ -64,6 +66,7 @@ public:
         CHECK_AUDIO_OPERATION_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+7,
         SHOULD_COLLECT_NOTES_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+8,
         SET_CAMERA_AUDIO_RESTRICTION_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+9,
+        START_WATCHING_MODE_WITH_FLAGS_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+10,
     };
 
     enum {
