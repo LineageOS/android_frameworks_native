@@ -15,14 +15,17 @@
  */
 
 #include <jpegrecoverymap/jpegrutils.h>
-#include <utils/Log.h>
+
+#include <algorithm>
+#include <cmath>
+
 #include <image_io/xml/xml_reader.h>
 #include <image_io/xml/xml_writer.h>
 #include <image_io/base/message_handler.h>
 #include <image_io/xml/xml_element_rules.h>
 #include <image_io/xml/xml_handler.h>
 #include <image_io/xml/xml_rule.h>
-#include <cmath>
+#include <utils/Log.h>
 
 using namespace photos_editing_formats::image_io;
 using namespace std;
@@ -230,26 +233,26 @@ const string kItemMime             = Name(kItemPrefix, "Mime");
 const string kItemSemantic         = Name(kItemPrefix, "Semantic");
 
 // Item XMP constants - element and attribute values
-const string kSemanticPrimary     = "Primary";
-const string kSemanticRecoveryMap = "RecoveryMap";
-const string kMimeImageJpeg       = "image/jpeg";
+const string kSemanticPrimary = "Primary";
+const string kSemanticGainMap = "GainMap";
+const string kMimeImageJpeg   = "image/jpeg";
 
-// RecoveryMap XMP constants - URI and namespace prefix
-const string kRecoveryMapUri      = "http://ns.adobe.com/hdr-gain-map/1.0/";
-const string kRecoveryMapPrefix   = "hdrgm";
+// GainMap XMP constants - URI and namespace prefix
+const string kGainMapUri      = "http://ns.adobe.com/hdr-gain-map/1.0/";
+const string kGainMapPrefix   = "hdrgm";
 
-// RecoveryMap XMP constants - element and attribute names
-const string kMapVersion          = Name(kRecoveryMapPrefix, "Version");
-const string kMapGainMapMin       = Name(kRecoveryMapPrefix, "GainMapMin");
-const string kMapGainMapMax       = Name(kRecoveryMapPrefix, "GainMapMax");
-const string kMapGamma            = Name(kRecoveryMapPrefix, "Gamma");
-const string kMapOffsetSdr        = Name(kRecoveryMapPrefix, "OffsetSDR");
-const string kMapOffsetHdr        = Name(kRecoveryMapPrefix, "OffsetHDR");
-const string kMapHDRCapacityMin   = Name(kRecoveryMapPrefix, "HDRCapacityMin");
-const string kMapHDRCapacityMax   = Name(kRecoveryMapPrefix, "HDRCapacityMax");
-const string kMapBaseRendition    = Name(kRecoveryMapPrefix, "BaseRendition");
+// GainMap XMP constants - element and attribute names
+const string kMapVersion            = Name(kGainMapPrefix, "Version");
+const string kMapGainMapMin         = Name(kGainMapPrefix, "GainMapMin");
+const string kMapGainMapMax         = Name(kGainMapPrefix, "GainMapMax");
+const string kMapGamma              = Name(kGainMapPrefix, "Gamma");
+const string kMapOffsetSdr          = Name(kGainMapPrefix, "OffsetSDR");
+const string kMapOffsetHdr          = Name(kGainMapPrefix, "OffsetHDR");
+const string kMapHDRCapacityMin     = Name(kGainMapPrefix, "HDRCapacityMin");
+const string kMapHDRCapacityMax     = Name(kGainMapPrefix, "HDRCapacityMax");
+const string kMapBaseRenditionIsHDR = Name(kGainMapPrefix, "BaseRenditionIsHDR");
 
-// RecoveryMap XMP constants - names for XMP handlers
+// GainMap XMP constants - names for XMP handlers
 const string XMPXmlHandler::minContentBoostAttrName = kMapGainMapMin;
 const string XMPXmlHandler::maxContentBoostAttrName = kMapGainMapMax;
 
@@ -313,15 +316,23 @@ string generateXmpForPrimaryImage(int secondary_image_length) {
   writer.StartWritingElement("rdf:Description");
   writer.WriteXmlns(kContainerPrefix, kContainerUri);
   writer.WriteXmlns(kItemPrefix, kItemUri);
+
   writer.StartWritingElements(kConDirSeq);
-  size_t item_depth = writer.StartWritingElements(kLiItem);
+
+  size_t item_depth = writer.StartWritingElement("rdf:li");
+  writer.WriteAttributeNameAndValue("rdf:parseType", "Resource");
+  writer.StartWritingElement(kConItem);
   writer.WriteAttributeNameAndValue(kItemSemantic, kSemanticPrimary);
   writer.WriteAttributeNameAndValue(kItemMime, kMimeImageJpeg);
   writer.FinishWritingElementsToDepth(item_depth);
-  writer.StartWritingElements(kLiItem);
-  writer.WriteAttributeNameAndValue(kItemSemantic, kSemanticRecoveryMap);
+
+  writer.StartWritingElement("rdf:li");
+  writer.WriteAttributeNameAndValue("rdf:parseType", "Resource");
+  writer.StartWritingElement(kConItem);
+  writer.WriteAttributeNameAndValue(kItemSemantic, kSemanticGainMap);
   writer.WriteAttributeNameAndValue(kItemMime, kMimeImageJpeg);
   writer.WriteAttributeNameAndValue(kItemLength, secondary_image_length);
+
   writer.FinishWriting();
 
   return ss.str();
@@ -329,7 +340,6 @@ string generateXmpForPrimaryImage(int secondary_image_length) {
 
 string generateXmpForSecondaryImage(jpegr_metadata_struct& metadata) {
   const vector<string> kConDirSeq({kConDirectory, string("rdf:Seq")});
-  const vector<string> kLiItem({string("rdf:li"), kConItem});
 
   std::stringstream ss;
   photos_editing_formats::image_io::XmlWriter writer(ss);
@@ -339,16 +349,17 @@ string generateXmpForSecondaryImage(jpegr_metadata_struct& metadata) {
   writer.StartWritingElement("rdf:RDF");
   writer.WriteXmlns("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
   writer.StartWritingElement("rdf:Description");
-  writer.WriteXmlns(kRecoveryMapPrefix, kRecoveryMapUri);
+  writer.WriteXmlns(kGainMapPrefix, kGainMapUri);
   writer.WriteAttributeNameAndValue(kMapVersion, metadata.version);
   writer.WriteAttributeNameAndValue(kMapGainMapMin, log2(metadata.minContentBoost));
   writer.WriteAttributeNameAndValue(kMapGainMapMax, log2(metadata.maxContentBoost));
   writer.WriteAttributeNameAndValue(kMapGamma, "1");
   writer.WriteAttributeNameAndValue(kMapOffsetSdr, "0");
   writer.WriteAttributeNameAndValue(kMapOffsetHdr, "0");
-  writer.WriteAttributeNameAndValue(kMapHDRCapacityMin, "0");
-  writer.WriteAttributeNameAndValue(kMapHDRCapacityMax, "2.3");
-  writer.WriteAttributeNameAndValue(kMapBaseRendition, "SDR");
+  writer.WriteAttributeNameAndValue(
+      kMapHDRCapacityMin, std::max(log2(metadata.minContentBoost), 0.0f));
+  writer.WriteAttributeNameAndValue(kMapHDRCapacityMax, log2(metadata.maxContentBoost));
+  writer.WriteAttributeNameAndValue(kMapBaseRenditionIsHDR, "False");
   writer.FinishWriting();
 
   return ss.str();
