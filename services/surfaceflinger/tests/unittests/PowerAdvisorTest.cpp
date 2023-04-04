@@ -25,13 +25,15 @@
 #include <ui/DisplayId.h>
 #include <chrono>
 #include "TestableSurfaceFlinger.h"
-#include "mock/DisplayHardware/MockAidlPowerHalWrapper.h"
+#include "mock/DisplayHardware/MockIPowerHintSession.h"
+#include "mock/DisplayHardware/MockPowerHalController.h"
 
 using namespace android;
 using namespace android::Hwc2::mock;
 using namespace android::hardware::power;
 using namespace std::chrono_literals;
 using namespace testing;
+using namespace android::power;
 
 namespace android::Hwc2::impl {
 
@@ -47,23 +49,27 @@ public:
 protected:
     TestableSurfaceFlinger mFlinger;
     std::unique_ptr<PowerAdvisor> mPowerAdvisor;
-    NiceMock<MockAidlPowerHalWrapper>* mMockAidlWrapper;
+    MockPowerHalController* mMockPowerHalController;
+    sp<MockIPowerHintSession> mMockPowerHintSession;
 };
 
-void PowerAdvisorTest::SetUp() FTL_FAKE_GUARD(mPowerAdvisor->mPowerHalMutex) {
-    std::unique_ptr<MockAidlPowerHalWrapper> mockAidlWrapper =
-            std::make_unique<NiceMock<MockAidlPowerHalWrapper>>();
-    mPowerAdvisor = std::make_unique<PowerAdvisor>(*mFlinger.flinger());
-    ON_CALL(*mockAidlWrapper.get(), supportsPowerHintSession()).WillByDefault(Return(true));
-    ON_CALL(*mockAidlWrapper.get(), startPowerHintSession()).WillByDefault(Return(true));
-    mPowerAdvisor->mHalWrapper = std::move(mockAidlWrapper);
-    mMockAidlWrapper =
-            reinterpret_cast<NiceMock<MockAidlPowerHalWrapper>*>(mPowerAdvisor->mHalWrapper.get());
+void PowerAdvisorTest::SetUp() {
+    mPowerAdvisor = std::make_unique<impl::PowerAdvisor>(*mFlinger.flinger());
+    mPowerAdvisor->mPowerHal = std::make_unique<NiceMock<MockPowerHalController>>();
+    mMockPowerHalController =
+            reinterpret_cast<MockPowerHalController*>(mPowerAdvisor->mPowerHal.get());
+    ON_CALL(*mMockPowerHalController, getHintSessionPreferredRate)
+            .WillByDefault(Return(HalResult<int64_t>::fromStatus(binder::Status::ok(), 16000)));
 }
 
 void PowerAdvisorTest::startPowerHintSession() {
     const std::vector<int32_t> threadIds = {1, 2, 3};
-    mPowerAdvisor->enablePowerHint(true);
+    mMockPowerHintSession = android::sp<NiceMock<MockIPowerHintSession>>::make();
+    ON_CALL(*mMockPowerHalController, createHintSession)
+            .WillByDefault(
+                    Return(HalResult<sp<IPowerHintSession>>::fromStatus(binder::Status::ok(),
+                                                                        mMockPowerHintSession)));
+    mPowerAdvisor->enablePowerHintSession(true);
     mPowerAdvisor->startPowerHintSession(threadIds);
 }
 
@@ -76,9 +82,7 @@ void PowerAdvisorTest::setExpectedTiming(Duration totalFrameTargetDuration,
 void PowerAdvisorTest::fakeBasicFrameTiming(TimePoint startTime, Duration vsyncPeriod) {
     mPowerAdvisor->setCommitStart(startTime);
     mPowerAdvisor->setFrameDelay(0ns);
-    mPowerAdvisor->setTargetWorkDuration(vsyncPeriod);
-    ON_CALL(*mMockAidlWrapper, getTargetWorkDuration())
-            .WillByDefault(Return(std::make_optional(vsyncPeriod)));
+    mPowerAdvisor->updateTargetWorkDuration(vsyncPeriod);
 }
 
 Duration PowerAdvisorTest::getFenceWaitDelayDuration(bool skipValidate) {
@@ -116,7 +120,10 @@ TEST_F(PowerAdvisorTest, hintSessionUseHwcDisplay) {
     startTime += vsyncPeriod;
 
     const Duration expectedDuration = getErrorMargin() + presentDuration + postCompDuration;
-    EXPECT_CALL(*mMockAidlWrapper, sendActualWorkDuration(Eq(expectedDuration), _)).Times(1);
+    EXPECT_CALL(*mMockPowerHintSession,
+                reportActualWorkDuration(ElementsAre(
+                        Field(&WorkDuration::durationNanos, Eq(expectedDuration.ns())))))
+            .Times(1);
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
     setExpectedTiming(vsyncPeriod, startTime + vsyncPeriod);
@@ -124,7 +131,7 @@ TEST_F(PowerAdvisorTest, hintSessionUseHwcDisplay) {
     mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime + 1ms, startTime + 1500us);
     mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime + 2ms, startTime + 2500us);
     mPowerAdvisor->setSfPresentTiming(startTime, startTime + presentDuration);
-    mPowerAdvisor->sendActualWorkDuration();
+    mPowerAdvisor->reportActualWorkDuration();
 }
 
 TEST_F(PowerAdvisorTest, hintSessionSubtractsHwcFenceTime) {
@@ -153,7 +160,10 @@ TEST_F(PowerAdvisorTest, hintSessionSubtractsHwcFenceTime) {
 
     const Duration expectedDuration = getErrorMargin() + presentDuration +
             getFenceWaitDelayDuration(false) - hwcBlockedDuration + postCompDuration;
-    EXPECT_CALL(*mMockAidlWrapper, sendActualWorkDuration(Eq(expectedDuration), _)).Times(1);
+    EXPECT_CALL(*mMockPowerHintSession,
+                reportActualWorkDuration(ElementsAre(
+                        Field(&WorkDuration::durationNanos, Eq(expectedDuration.ns())))))
+            .Times(1);
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
     setExpectedTiming(vsyncPeriod, startTime + vsyncPeriod);
@@ -163,7 +173,7 @@ TEST_F(PowerAdvisorTest, hintSessionSubtractsHwcFenceTime) {
     // now report the fence as having fired during the display HWC time
     mPowerAdvisor->setSfPresentTiming(startTime + 2ms + hwcBlockedDuration,
                                       startTime + presentDuration);
-    mPowerAdvisor->sendActualWorkDuration();
+    mPowerAdvisor->reportActualWorkDuration();
 }
 
 TEST_F(PowerAdvisorTest, hintSessionUsingSecondaryVirtualDisplays) {
@@ -192,7 +202,10 @@ TEST_F(PowerAdvisorTest, hintSessionUsingSecondaryVirtualDisplays) {
     startTime += vsyncPeriod;
 
     const Duration expectedDuration = getErrorMargin() + presentDuration + postCompDuration;
-    EXPECT_CALL(*mMockAidlWrapper, sendActualWorkDuration(Eq(expectedDuration), _)).Times(1);
+    EXPECT_CALL(*mMockPowerHintSession,
+                reportActualWorkDuration(ElementsAre(
+                        Field(&WorkDuration::durationNanos, Eq(expectedDuration.ns())))))
+            .Times(1);
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
     setExpectedTiming(vsyncPeriod, startTime + vsyncPeriod);
@@ -202,7 +215,7 @@ TEST_F(PowerAdvisorTest, hintSessionUsingSecondaryVirtualDisplays) {
     mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime + 1ms, startTime + 1500us);
     mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime + 2ms, startTime + 2500us);
     mPowerAdvisor->setSfPresentTiming(startTime, startTime + presentDuration);
-    mPowerAdvisor->sendActualWorkDuration();
+    mPowerAdvisor->reportActualWorkDuration();
 }
 
 } // namespace

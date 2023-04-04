@@ -49,6 +49,7 @@
 #include "SurfaceFlingerDefaultFactory.h"
 #include "ThreadContext.h"
 #include "TimeStats/TimeStats.h"
+#include "surfaceflinger_scheduler_fuzzer.h"
 
 #include "renderengine/mock/RenderEngine.h"
 #include "scheduler/TimeKeeper.h"
@@ -237,7 +238,8 @@ public:
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplayInternal(displayId, std::move(selectorPtr),
                                 std::shared_ptr<VsyncSchedule>(
-                                        new VsyncSchedule(displayId, std::move(tracker), nullptr,
+                                        new VsyncSchedule(displayId, std::move(tracker),
+                                                          std::make_shared<FuzzImplVSyncDispatch>(),
                                                           std::move(controller))));
     }
 
