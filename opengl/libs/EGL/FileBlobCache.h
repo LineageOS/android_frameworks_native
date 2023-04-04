@@ -22,6 +22,8 @@
 
 namespace android {
 
+uint32_t crc32c(const uint8_t* buf, size_t len);
+
 class FileBlobCache : public BlobCache {
 public:
     // FileBlobCache attempts to load the saved cache contents from disk into

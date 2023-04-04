@@ -205,6 +205,7 @@ cc_test {
     srcs: [
         "EGL/BlobCache.cpp",
         "EGL/BlobCache_test.cpp",
+        "EGL/FileBlobCache.cpp",
         "EGL/MultifileBlobCache.cpp",
         "EGL/MultifileBlobCache_test.cpp",
     ],
