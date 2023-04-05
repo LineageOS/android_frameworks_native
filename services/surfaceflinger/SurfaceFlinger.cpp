@@ -8968,6 +8968,15 @@ void SurfaceFlinger::forceFutureUpdate(int delayInMs) {
     static_cast<void>(mScheduler->scheduleDelayed([&]() { scheduleRepaint(); }, ms2ns(delayInMs)));
 }
 
+const DisplayDevice* SurfaceFlinger::getDisplayFromLayerStack(ui::LayerStack layerStack) {
+    for (const auto& [_, display] : mDisplays) {
+        if (display->getLayerStack() == layerStack) {
+            return display.get();
+        }
+    }
+    return nullptr;
+}
+
 } // namespace android
 
 #if defined(__gl_h_)
