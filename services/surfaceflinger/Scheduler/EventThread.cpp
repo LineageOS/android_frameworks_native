@@ -525,7 +525,7 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
 
 bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
                                      const sp<EventThreadConnection>& connection) const {
-    const auto throttleVsync = [&] {
+    const auto throttleVsync = [&]() REQUIRES(mMutex) {
         const auto& vsyncData = event.vsync.vsyncData;
         if (connection->frameRate.isValid()) {
             return !mVsyncSchedule->getTracker()
