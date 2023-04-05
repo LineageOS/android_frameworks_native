@@ -821,6 +821,7 @@ private:
 
     static void assignPointerIds(const RawState& last, RawState& current);
 
+    // Compute input transforms for DIRECT and POINTER modes.
     void computeInputTransforms();
 
     void configureDeviceType();
