@@ -38,10 +38,16 @@ cc_binary {
     ],
 
     init_rc: ["atrace.rc"],
+    required: ["ftrace_synthetic_events.conf"],
 
     product_variables: {
         debuggable: {
             init_rc: ["atrace_userdebug.rc"],
         },
     },
+}
+
+prebuilt_etc {
+    name: "ftrace_synthetic_events.conf",
+    src: "ftrace_synthetic_events.conf",
 }
