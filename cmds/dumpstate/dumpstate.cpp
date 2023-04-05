@@ -2229,8 +2229,7 @@ Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
 
         const uint64_t start = Nanotime();
         const int ret = dump_backtrace_to_file_timeout(
-            pid, is_java_process ? kDebuggerdJavaBacktrace : kDebuggerdNativeBacktrace,
-            is_java_process ? 5 : 20, fd);
+            pid, is_java_process ? kDebuggerdJavaBacktrace : kDebuggerdNativeBacktrace, 3, fd);
 
         if (ret == -1) {
             // For consistency, the header and footer to this message match those
