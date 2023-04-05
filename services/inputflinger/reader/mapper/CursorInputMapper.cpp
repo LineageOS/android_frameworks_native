@@ -134,7 +134,7 @@ void CursorInputMapper::dump(std::string& dump) {
 }
 
 std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
-                                                     const InputReaderConfiguration* config,
+                                                     const InputReaderConfiguration& config,
                                                      uint32_t changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
@@ -173,10 +173,10 @@ std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
     }
 
     const bool configurePointerCapture = mParameters.mode != Parameters::Mode::NAVIGATION &&
-            ((!changes && config->pointerCaptureRequest.enable) ||
+            ((!changes && config.pointerCaptureRequest.enable) ||
              (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE));
     if (configurePointerCapture) {
-        if (config->pointerCaptureRequest.enable) {
+        if (config.pointerCaptureRequest.enable) {
             if (mParameters.mode == Parameters::Mode::POINTER) {
                 mParameters.mode = Parameters::Mode::POINTER_RELATIVE;
                 mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
@@ -207,9 +207,9 @@ std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
             mWheelXVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
             mWheelYVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
         } else {
-            mPointerVelocityControl.setParameters(config->pointerVelocityControlParameters);
-            mWheelXVelocityControl.setParameters(config->wheelVelocityControlParameters);
-            mWheelYVelocityControl.setParameters(config->wheelVelocityControlParameters);
+            mPointerVelocityControl.setParameters(config.pointerVelocityControlParameters);
+            mWheelXVelocityControl.setParameters(config.wheelVelocityControlParameters);
+            mWheelYVelocityControl.setParameters(config.wheelVelocityControlParameters);
         }
     }
 
@@ -241,7 +241,7 @@ std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
         // rotations and report values directly from the input device.
         if (!isOrientedDevice && mDisplayId &&
             mParameters.mode != Parameters::Mode::POINTER_RELATIVE) {
-            if (auto viewport = config->getDisplayViewportById(*mDisplayId); viewport) {
+            if (auto viewport = config.getDisplayViewportById(*mDisplayId); viewport) {
                 mOrientation = getInverseRotation(viewport->orientation);
             }
         }
