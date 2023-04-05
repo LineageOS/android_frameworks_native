@@ -54,6 +54,7 @@ private:
         nsecs_t downTime{};
         int32_t keyCode{};
         int32_t scanCode{};
+        int32_t flags{};
     };
 
     uint32_t mSource{};

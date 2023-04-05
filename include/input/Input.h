@@ -257,6 +257,7 @@ enum {
 
     // Indicates that the key represents a special gesture that has been detected by
     // the touch firmware or driver.  Causes touch events from the same device to be canceled.
+    // This policy flag prevents key events from changing touch mode state.
     POLICY_FLAG_GESTURE = 0x00000008,
 
     POLICY_FLAG_RAW_MASK = 0x0000ffff,
