@@ -295,7 +295,8 @@ void RpcServer::join() {
 bool RpcServer::shutdown() {
     RpcMutexUniqueLock _l(mLock);
     if (mShutdownTrigger == nullptr) {
-        LOG_RPC_DETAIL("Cannot shutdown. No shutdown trigger installed (already shutdown?)");
+        LOG_RPC_DETAIL("Cannot shutdown. No shutdown trigger installed (already shutdown, or not "
+                       "joined yet?)");
         return false;
     }
 
