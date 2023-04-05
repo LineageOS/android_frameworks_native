@@ -204,7 +204,7 @@ void CompositionTest::captureScreenComposition() {
 
     auto traverseLayers = [this](const LayerVector::Visitor& visitor) {
         return mFlinger.traverseLayersInLayerStack(mDisplay->getLayerStack(),
-                                                   CaptureArgs::UNSET_UID, visitor);
+                                                   CaptureArgs::UNSET_UID, {}, visitor);
     };
 
     auto getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);

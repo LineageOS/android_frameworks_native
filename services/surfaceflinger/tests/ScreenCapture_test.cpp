@@ -222,6 +222,14 @@ TEST_F(ScreenCaptureTest, CaptureLayerExclude) {
     mCapture->checkPixel(0, 0, 200, 200, 200);
 }
 
+TEST_F(ScreenCaptureTest, CaptureLayerExcludeThroughDisplayArgs) {
+    mCaptureArgs.excludeHandles = {mFGSurfaceControl->getHandle()};
+    ScreenCapture::captureDisplay(&mCapture, mCaptureArgs);
+    mCapture->expectBGColor(0, 0);
+    // Doesn't capture FG layer which is at 64, 64
+    mCapture->expectBGColor(64, 64);
+}
+
 // Like the last test but verifies that children are also exclude.
 TEST_F(ScreenCaptureTest, CaptureLayerExcludeTree) {
     auto fgHandle = mFGSurfaceControl->getHandle();

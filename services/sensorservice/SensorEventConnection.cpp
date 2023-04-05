@@ -55,14 +55,13 @@ SensorService::SensorEventConnection::SensorEventConnection(
 SensorService::SensorEventConnection::~SensorEventConnection() {
     ALOGD_IF(DEBUG_CONNECTIONS, "~SensorEventConnection(%p)", this);
     destroy();
-    mService->cleanupConnection(this);
-    if (mEventCache != nullptr) {
-        delete[] mEventCache;
-    }
+    delete[] mEventCache;
 }
 
 void SensorService::SensorEventConnection::destroy() {
-    mDestroyed = true;
+    if (!mDestroyed.exchange(true)) {
+      mService->cleanupConnection(this);
+    }
 }
 
 void SensorService::SensorEventConnection::onFirstRef() {
