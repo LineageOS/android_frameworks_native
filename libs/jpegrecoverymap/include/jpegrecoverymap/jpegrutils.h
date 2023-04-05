@@ -105,14 +105,16 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata_struc
  *       xmlns:Item="http://ns.google.com/photos/1.0/container/item/">
  *       <Container:Directory>
  *         <rdf:Seq>
- *           <rdf:li>
+ *           <rdf:li
+ *             rdf:parseType="Resource">
  *             <Container:Item
  *               Item:Semantic="Primary"
  *               Item:Mime="image/jpeg"/>
  *           </rdf:li>
- *           <rdf:li>
+ *           <rdf:li
+ *             rdf:parseType="Resource">
  *             <Container:Item
- *               Item:Semantic="RecoveryMap"
+ *               Item:Semantic="GainMap"
  *               Item:Mime="image/jpeg"
  *               Item:Length="1000"/>
  *           </rdf:li>
@@ -142,14 +144,14 @@ std::string generateXmpForPrimaryImage(int secondary_image_length);
  *     <rdf:Description
  *       xmlns:hdrgm="http://ns.adobe.com/hdr-gain-map/1.0/"
  *       hdrgm:Version="1"
- *       hdrgm:GainMapMin="0.5"
- *       hdrgm:GainMapMax="8.5"
+ *       hdrgm:GainMapMin="-1"
+ *       hdrgm:GainMapMax="3"
  *       hdrgm:Gamma="1"
  *       hdrgm:OffsetSDR="0"
  *       hdrgm:OffsetHDR="0"
- *       hdrgm:HDRCapacityMin="0.5"
- *       hdrgm:HDRCapacityMax="8.5"
- *       hdrgm:BaseRendition="SDR"/>
+ *       hdrgm:HDRCapacityMin="0"
+ *       hdrgm:HDRCapacityMax="3"
+ *       hdrgm:BaseRenditionIsHDR="False"/>
  *   </rdf:RDF>
  * </x:xmpmeta>
  *
