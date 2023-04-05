@@ -78,20 +78,42 @@ void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, ns
 void MessageQueue::initVsync(std::shared_ptr<scheduler::VSyncDispatch> dispatch,
                              frametimeline::TokenManager& tokenManager,
                              std::chrono::nanoseconds workDuration) {
-    std::lock_guard lock(mVsync.mutex);
-    mVsync.workDuration = workDuration;
-    mVsync.tokenManager = &tokenManager;
-    onNewVsyncScheduleLocked(std::move(dispatch));
+    std::unique_ptr<scheduler::VSyncCallbackRegistration> oldRegistration;
+    {
+        std::lock_guard lock(mVsync.mutex);
+        mVsync.workDuration = workDuration;
+        mVsync.tokenManager = &tokenManager;
+        oldRegistration = onNewVsyncScheduleLocked(std::move(dispatch));
+    }
+
+    // See comments in onNewVsyncSchedule. Today, oldRegistration should be
+    // empty, but nothing prevents us from calling initVsync multiple times, so
+    // go ahead and destruct it outside the lock for safety.
+    oldRegistration.reset();
 }
 
 void MessageQueue::onNewVsyncSchedule(std::shared_ptr<scheduler::VSyncDispatch> dispatch) {
-    std::lock_guard lock(mVsync.mutex);
-    onNewVsyncScheduleLocked(std::move(dispatch));
+    std::unique_ptr<scheduler::VSyncCallbackRegistration> oldRegistration;
+    {
+        std::lock_guard lock(mVsync.mutex);
+        oldRegistration = onNewVsyncScheduleLocked(std::move(dispatch));
+    }
+
+    // The old registration needs to be deleted after releasing mVsync.mutex to
+    // avoid deadlock. This is because the callback may be running on the timer
+    // thread. In that case, timerCallback sets
+    // VSyncDispatchTimerQueueEntry::mRunning to true, then attempts to lock
+    // mVsync.mutex. But if it's already locked, the VSyncCallbackRegistration's
+    // destructor has to wait until VSyncDispatchTimerQueueEntry::mRunning is
+    // set back to false, but it won't be until mVsync.mutex is released.
+    oldRegistration.reset();
 }
 
-void MessageQueue::onNewVsyncScheduleLocked(std::shared_ptr<scheduler::VSyncDispatch> dispatch) {
+std::unique_ptr<scheduler::VSyncCallbackRegistration> MessageQueue::onNewVsyncScheduleLocked(
+        std::shared_ptr<scheduler::VSyncDispatch> dispatch) {
     const bool reschedule = mVsync.registration &&
             mVsync.registration->cancel() == scheduler::CancelResult::Cancelled;
+    auto oldRegistration = std::move(mVsync.registration);
     mVsync.registration = std::make_unique<
             scheduler::VSyncCallbackRegistration>(std::move(dispatch),
                                                   std::bind(&MessageQueue::vsyncCallback, this,
@@ -105,6 +127,7 @@ void MessageQueue::onNewVsyncScheduleLocked(std::shared_ptr<scheduler::VSyncDisp
                                                .readyDuration = 0,
                                                .earliestVsync = mVsync.lastCallbackTime.ns()});
     }
+    return oldRegistration;
 }
 
 void MessageQueue::destroyVsync() {
