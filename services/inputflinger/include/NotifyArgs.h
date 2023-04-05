@@ -24,6 +24,20 @@
 
 namespace android {
 
+/* Describes a change in any of the connected input devices. */
+struct NotifyInputDevicesChangedArgs {
+    int32_t id;
+    std::vector<InputDeviceInfo> inputDeviceInfos;
+
+    inline NotifyInputDevicesChangedArgs() {}
+
+    NotifyInputDevicesChangedArgs(int32_t id, std::vector<InputDeviceInfo> infos);
+
+    bool operator==(const NotifyInputDevicesChangedArgs& rhs) const = default;
+
+    NotifyInputDevicesChangedArgs(const NotifyInputDevicesChangedArgs& other) = default;
+};
+
 /* Describes a configuration change event. */
 struct NotifyConfigurationChangedArgs {
     int32_t id;
@@ -183,7 +197,6 @@ struct NotifyDeviceResetArgs {
 
 /* Describes a change in the state of Pointer Capture. */
 struct NotifyPointerCaptureChangedArgs {
-    // The sequence number of the Pointer Capture request, if enabled.
     int32_t id;
     nsecs_t eventTime;
 
@@ -211,9 +224,10 @@ struct NotifyVibratorStateArgs {
     NotifyVibratorStateArgs(const NotifyVibratorStateArgs& other) = default;
 };
 
-using NotifyArgs = std::variant<NotifyConfigurationChangedArgs, NotifyKeyArgs, NotifyMotionArgs,
-                                NotifySensorArgs, NotifySwitchArgs, NotifyDeviceResetArgs,
-                                NotifyPointerCaptureChangedArgs, NotifyVibratorStateArgs>;
+using NotifyArgs =
+        std::variant<NotifyInputDevicesChangedArgs, NotifyConfigurationChangedArgs, NotifyKeyArgs,
+                     NotifyMotionArgs, NotifySensorArgs, NotifySwitchArgs, NotifyDeviceResetArgs,
+                     NotifyPointerCaptureChangedArgs, NotifyVibratorStateArgs>;
 
 const char* toString(const NotifyArgs& args);
 
