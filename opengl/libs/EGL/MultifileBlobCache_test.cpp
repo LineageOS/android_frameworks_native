@@ -28,17 +28,16 @@ namespace android {
 template <typename T>
 using sp = std::shared_ptr<T>;
 
+constexpr size_t kMaxKeySize = 2 * 1024;
+constexpr size_t kMaxValueSize = 6 * 1024;
 constexpr size_t kMaxTotalSize = 32 * 1024;
-constexpr size_t kMaxPreloadSize = 8 * 1024;
-
-constexpr size_t kMaxKeySize = kMaxPreloadSize / 4;
-constexpr size_t kMaxValueSize = kMaxPreloadSize / 2;
 
 class MultifileBlobCacheTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
         mTempFile.reset(new TemporaryFile());
-        mMBC.reset(new MultifileBlobCache(kMaxTotalSize, kMaxPreloadSize, &mTempFile->path[0]));
+        mMBC.reset(new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize,
+                                          &mTempFile->path[0]));
     }
 
     virtual void TearDown() { mMBC.reset(); }
@@ -184,6 +183,26 @@ TEST_F(MultifileBlobCacheTest, CacheMaxValueSizeSucceeds) {
         buf[i] = 0xee;
     }
     mMBC->get("abcd", 4, buf, kMaxValueSize);
+    for (int i = 0; i < kMaxValueSize; i++) {
+        SCOPED_TRACE(i);
+        ASSERT_EQ('b', buf[i]);
+    }
+}
+
+TEST_F(MultifileBlobCacheTest, CacheMaxKeyAndValueSizeSucceeds) {
+    char key[kMaxKeySize];
+    for (int i = 0; i < kMaxKeySize; i++) {
+        key[i] = 'a';
+    }
+    char buf[kMaxValueSize];
+    for (int i = 0; i < kMaxValueSize; i++) {
+        buf[i] = 'b';
+    }
+    mMBC->set(key, kMaxKeySize, buf, kMaxValueSize);
+    for (int i = 0; i < kMaxValueSize; i++) {
+        buf[i] = 0xee;
+    }
+    mMBC->get(key, kMaxKeySize, buf, kMaxValueSize);
     for (int i = 0; i < kMaxValueSize; i++) {
         SCOPED_TRACE(i);
         ASSERT_EQ('b', buf[i]);

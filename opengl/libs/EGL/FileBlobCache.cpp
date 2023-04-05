@@ -31,7 +31,7 @@ static const size_t cacheFileHeaderSize = 8;
 
 namespace android {
 
-static uint32_t crc32c(const uint8_t* buf, size_t len) {
+uint32_t crc32c(const uint8_t* buf, size_t len) {
     const uint32_t polyBits = 0x82F63B78;
     uint32_t r = 0;
     for (size_t i = 0; i < len; i++) {
