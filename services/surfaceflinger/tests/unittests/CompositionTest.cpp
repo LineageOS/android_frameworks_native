@@ -605,7 +605,7 @@ struct BaseLayerProperties {
                     EXPECT_EQ(false, layer.source.buffer.isOpaque);
                     EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius.x);
                     EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius.y);
-                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
+                    EXPECT_EQ(ui::Dataspace::V0_SRGB, layer.sourceDataspace);
                     EXPECT_EQ(LayerProperties::COLOR[3], layer.alpha);
                     return resultFuture;
                 });
@@ -654,7 +654,7 @@ struct BaseLayerProperties {
                               layer.source.solidColor);
                     EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius.x);
                     EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius.y);
-                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
+                    EXPECT_EQ(ui::Dataspace::V0_SRGB, layer.sourceDataspace);
                     EXPECT_EQ(LayerProperties::COLOR[3], layer.alpha);
                     return resultFuture;
                 });
@@ -731,7 +731,7 @@ struct CommonSecureLayerProperties : public BaseLayerProperties<LayerProperties>
                     EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), layer.source.solidColor);
                     EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius.x);
                     EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius.y);
-                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
+                    EXPECT_EQ(ui::Dataspace::V0_SRGB, layer.sourceDataspace);
                     EXPECT_EQ(1.0f, layer.alpha);
                     return resultFuture;
                 });
