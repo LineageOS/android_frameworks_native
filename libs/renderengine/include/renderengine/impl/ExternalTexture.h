@@ -51,10 +51,12 @@ public:
     bool hasSameBuffer(const renderengine::ExternalTexture& other) const override {
         return getBuffer() == other.getBuffer();
     }
+    void remapBuffer() override;
 
 private:
     sp<GraphicBuffer> mBuffer;
     android::renderengine::RenderEngine& mRenderEngine;
+    const bool mWritable;
 };
 
 } // namespace android::renderengine::impl
