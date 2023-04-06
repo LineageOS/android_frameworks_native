@@ -63,10 +63,10 @@ void RotaryEncoderInputMapper::dump(std::string& dump) {
                          toString(mRotaryEncoderScrollAccumulator.haveRelativeVWheel()));
 }
 
-std::list<NotifyArgs> RotaryEncoderInputMapper::configure(nsecs_t when,
-                                                          const InputReaderConfiguration* config,
-                                                          uint32_t changes) {
-    std::list<NotifyArgs> out = InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> RotaryEncoderInputMapper::reconfigure(nsecs_t when,
+                                                            const InputReaderConfiguration* config,
+                                                            uint32_t changes) {
+    std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
     if (!changes) {
         mRotaryEncoderScrollAccumulator.configure(getDeviceContext());
     }
