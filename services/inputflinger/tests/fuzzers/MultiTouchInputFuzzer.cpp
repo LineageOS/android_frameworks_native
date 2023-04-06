@@ -79,8 +79,8 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {
                     std::list<NotifyArgs> unused =
-                            mapper.configure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig,
-                                             fdp->ConsumeIntegral<uint32_t>());
+                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig,
+                                               fdp->ConsumeIntegral<uint32_t>());
                 },
                 [&]() -> void {
                     std::list<NotifyArgs> unused = mapper.reset(fdp->ConsumeIntegral<nsecs_t>());
@@ -127,8 +127,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 [&]() -> void {
                     StylusState state{fdp->ConsumeIntegral<nsecs_t>(),
                                       fdp->ConsumeFloatingPoint<float>(),
-                                      fdp->ConsumeIntegral<uint32_t>(),
-                                      getFuzzedToolType(*fdp)};
+                                      fdp->ConsumeIntegral<uint32_t>(), getFuzzedToolType(*fdp)};
                     std::list<NotifyArgs> unused = mapper.updateExternalStylusState(state);
                 },
                 [&]() -> void { mapper.getAssociatedDisplayId(); },

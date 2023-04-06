@@ -103,10 +103,10 @@ void JoystickInputMapper::dump(std::string& dump) {
     }
 }
 
-std::list<NotifyArgs> JoystickInputMapper::configure(nsecs_t when,
-                                                     const InputReaderConfiguration* config,
-                                                     uint32_t changes) {
-    std::list<NotifyArgs> out = InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> JoystickInputMapper::reconfigure(nsecs_t when,
+                                                       const InputReaderConfiguration* config,
+                                                       uint32_t changes) {
+    std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
     if (!changes) { // first time only
         // Collect all axes.
