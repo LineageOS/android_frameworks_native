@@ -238,6 +238,13 @@ cc_defaults {
         "binderRpcUniversalTests.cpp",
     ],
 
+    // This test uses a lot of resources and takes a long time. Due to
+    // design of several tests, it is also very sensitive to resource
+    // contention on the device. b/276820894
+    test_options: {
+        unit_test: false,
+    },
+
     test_suites: ["general-tests"],
     require_root: true,
 
