@@ -172,8 +172,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.crop.makeInvalid();
     mDrawingState.acquireFence = sp<Fence>::make(-1);
     mDrawingState.acquireFenceTime = std::make_shared<FenceTime>(mDrawingState.acquireFence);
-    mDrawingState.dataspace = ui::Dataspace::UNKNOWN;
-    mDrawingState.dataspaceRequested = false;
+    mDrawingState.dataspace = ui::Dataspace::V0_SRGB;
     mDrawingState.hdrMetadata.validTypes = 0;
     mDrawingState.surfaceDamageRegion = Region::INVALID_REGION;
     mDrawingState.cornerRadius = 0.0f;
@@ -209,7 +208,6 @@ Layer::Layer(const LayerCreationArgs& args)
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
     mPotentialCursor = args.flags & ISurfaceComposerClient::eCursorWindow;
     mProtectedByApp = args.flags & ISurfaceComposerClient::eProtectedByApp;
-    mDrawingState.dataspace = ui::Dataspace::V0_SRGB;
 
     mSnapshot->sequence = sequence;
     mSnapshot->name = getDebugName();
@@ -3144,7 +3142,6 @@ void Layer::recordLayerHistoryAnimationTx(const scheduler::LayerProps& layerProp
 }
 
 bool Layer::setDataspace(ui::Dataspace dataspace) {
-    mDrawingState.dataspaceRequested = true;
     if (mDrawingState.dataspace == dataspace) return false;
     mDrawingState.dataspace = dataspace;
     mDrawingState.modified = true;
@@ -3409,6 +3406,42 @@ void Layer::gatherBufferInfo() {
     mBufferInfo.mTransform = mDrawingState.bufferTransform;
     auto lastDataspace = mBufferInfo.mDataspace;
     mBufferInfo.mDataspace = translateDataspace(mDrawingState.dataspace);
+    if (mBufferInfo.mBuffer != nullptr) {
+        auto& mapper = GraphicBufferMapper::get();
+        // TODO: We should measure if it's faster to do a blind write if we're on newer api levels
+        // and don't need to possibly remaps buffers.
+        ui::Dataspace dataspace = ui::Dataspace::UNKNOWN;
+        status_t err = OK;
+        {
+            ATRACE_NAME("getDataspace");
+            err = mapper.getDataspace(mBufferInfo.mBuffer->getBuffer()->handle, &dataspace);
+        }
+        if (err != OK || dataspace != mBufferInfo.mDataspace) {
+            {
+                ATRACE_NAME("setDataspace");
+                err = mapper.setDataspace(mBufferInfo.mBuffer->getBuffer()->handle,
+                                          static_cast<ui::Dataspace>(mBufferInfo.mDataspace));
+            }
+
+            // Some GPU drivers may cache gralloc metadata which means before we composite we need
+            // to upsert RenderEngine's caches. Put in a special workaround to be backwards
+            // compatible with old vendors, with a ticking clock.
+            static const int32_t kVendorVersion =
+                    base::GetIntProperty("ro.vndk.version", __ANDROID_API_FUTURE__);
+            if (const auto format =
+                        static_cast<aidl::android::hardware::graphics::common::PixelFormat>(
+                                mBufferInfo.mBuffer->getPixelFormat());
+                err == OK && kVendorVersion < __ANDROID_API_U__ &&
+                (format ==
+                         aidl::android::hardware::graphics::common::PixelFormat::
+                                 IMPLEMENTATION_DEFINED ||
+                 format == aidl::android::hardware::graphics::common::PixelFormat::YCBCR_420_888 ||
+                 format == aidl::android::hardware::graphics::common::PixelFormat::YV12 ||
+                 format == aidl::android::hardware::graphics::common::PixelFormat::YCBCR_P010)) {
+                mBufferInfo.mBuffer->remapBuffer();
+            }
+        }
+    }
     if (lastDataspace != mBufferInfo.mDataspace) {
         mFlinger->mHdrLayerInfoChanged = true;
     }
@@ -3999,10 +4032,6 @@ uint32_t Layer::getBufferTransform() const {
 }
 
 ui::Dataspace Layer::getDataSpace() const {
-    return mDrawingState.dataspaceRequested ? getRequestedDataSpace() : ui::Dataspace::UNKNOWN;
-}
-
-ui::Dataspace Layer::getRequestedDataSpace() const {
     return hasBufferOrSidebandStream() ? mBufferInfo.mDataspace : mDrawingState.dataspace;
 }
 
@@ -4010,6 +4039,8 @@ ui::Dataspace Layer::translateDataspace(ui::Dataspace dataspace) {
     ui::Dataspace updatedDataspace = dataspace;
     // translate legacy dataspaces to modern dataspaces
     switch (dataspace) {
+        // Treat unknown dataspaces as V0_sRGB
+        case ui::Dataspace::UNKNOWN:
         case ui::Dataspace::SRGB:
             updatedDataspace = ui::Dataspace::V0_SRGB;
             break;
