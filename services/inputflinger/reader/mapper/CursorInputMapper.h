@@ -53,7 +53,8 @@ private:
 
 class CursorInputMapper : public InputMapper {
 public:
-    explicit CursorInputMapper(InputDeviceContext& deviceContext);
+    explicit CursorInputMapper(InputDeviceContext& deviceContext,
+                               const InputReaderConfiguration& readerConfig);
     virtual ~CursorInputMapper();
 
     virtual uint32_t getSources() const override;

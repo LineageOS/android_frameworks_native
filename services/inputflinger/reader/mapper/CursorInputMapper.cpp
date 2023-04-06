@@ -68,8 +68,10 @@ void CursorMotionAccumulator::finishSync() {
 
 // --- CursorInputMapper ---
 
-CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext), mLastEventTime(std::numeric_limits<nsecs_t>::min()) {}
+CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
+                                     const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig),
+        mLastEventTime(std::numeric_limits<nsecs_t>::min()) {}
 
 CursorInputMapper::~CursorInputMapper() {
     if (mPointerController != nullptr) {

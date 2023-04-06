@@ -31,8 +31,7 @@ namespace android {
  * different classes of events.
  *
  * InputMapper lifecycle:
- * - create
- * - configure with 0 changes
+ * - create and configure with 0 changes
  * - reset
  * - process, process, process (may occasionally reconfigure with non-zero changes or reset)
  * - reset
@@ -40,7 +39,8 @@ namespace android {
  */
 class InputMapper {
 public:
-    explicit InputMapper(InputDeviceContext& deviceContext);
+    explicit InputMapper(InputDeviceContext& deviceContext,
+                         const InputReaderConfiguration& readerConfig);
     virtual ~InputMapper();
 
     inline int32_t getDeviceId() { return mDeviceContext.getId(); }

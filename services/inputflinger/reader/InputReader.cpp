@@ -332,7 +332,7 @@ std::shared_ptr<InputDevice> InputReader::createDeviceLocked(
         device = std::make_shared<InputDevice>(&mContext, deviceId, bumpGenerationLocked(),
                                                identifier);
     }
-    device->addEventHubDevice(eventHubId);
+    device->addEventHubDevice(eventHubId, mConfig);
     return device;
 }
 

@@ -25,7 +25,9 @@
 
 namespace android {
 
-InputMapper::InputMapper(InputDeviceContext& deviceContext) : mDeviceContext(deviceContext) {}
+InputMapper::InputMapper(InputDeviceContext& deviceContext,
+                         const InputReaderConfiguration& readerConfig)
+      : mDeviceContext(deviceContext) {}
 
 InputMapper::~InputMapper() {}
 
