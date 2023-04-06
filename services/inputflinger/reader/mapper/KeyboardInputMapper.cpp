@@ -131,10 +131,10 @@ std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
     return std::nullopt;
 }
 
-std::list<NotifyArgs> KeyboardInputMapper::configure(nsecs_t when,
-                                                     const InputReaderConfiguration* config,
-                                                     uint32_t changes) {
-    std::list<NotifyArgs> out = InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> KeyboardInputMapper::reconfigure(nsecs_t when,
+                                                       const InputReaderConfiguration* config,
+                                                       uint32_t changes) {
+    std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
     if (!changes) { // first time only
         // Configure basic parameters.

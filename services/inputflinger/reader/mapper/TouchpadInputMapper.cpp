@@ -219,9 +219,9 @@ void TouchpadInputMapper::dump(std::string& dump) {
     dump += addLinePrefix(mPropertyProvider.dump(), INDENT4);
 }
 
-std::list<NotifyArgs> TouchpadInputMapper::configure(nsecs_t when,
-                                                     const InputReaderConfiguration* config,
-                                                     uint32_t changes) {
+std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
+                                                       const InputReaderConfiguration* config,
+                                                       uint32_t changes) {
     if (!changes) {
         // First time configuration
         mPropertyProvider.loadPropertiesFromIdcFile(getDeviceContext().getConfiguration());
