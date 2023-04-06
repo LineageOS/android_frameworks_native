@@ -106,6 +106,9 @@ public:
     // Returns the length of the model's input buffers.
     size_t inputLength() const;
 
+    // Returns the length of the model's output buffers.
+    size_t outputLength() const;
+
     // Executes the model.
     // Returns true if the model successfully executed and the output tensors can be read.
     bool invoke();
