@@ -17,52 +17,202 @@
 #define LOG_TAG "InputDeviceMetricsCollector"
 #include "InputDeviceMetricsCollector.h"
 
+#include <android-base/stringprintf.h>
+#include <input/PrintTools.h>
+#include <linux/input.h>
+#include <statslog.h>
+
 namespace android {
 
+using android::base::StringPrintf;
+using std::chrono::nanoseconds;
+
+namespace {
+
+constexpr nanoseconds DEFAULT_USAGE_SESSION_TIMEOUT = std::chrono::seconds(5);
+
+/**
+ * Log debug messages about metrics events logged to statsd.
+ * Enable this via "adb shell setprop log.tag.InputDeviceMetricsCollector DEBUG" (requires restart)
+ */
+const bool DEBUG = __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG, ANDROID_LOG_INFO);
+
+int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus) {
+    switch (linuxBus) {
+        case BUS_USB:
+            return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__USB;
+        case BUS_BLUETOOTH:
+            return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__BLUETOOTH;
+        default:
+            return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__OTHER;
+    }
+}
+
+class : public InputDeviceMetricsLogger {
+    nanoseconds getCurrentTime() override { return nanoseconds(systemTime(SYSTEM_TIME_MONOTONIC)); }
+
+    void logInputDeviceUsageReported(const InputDeviceIdentifier& identifier,
+                                     nanoseconds sessionDuration) override {
+        const int32_t durationMillis =
+                std::chrono::duration_cast<std::chrono::milliseconds>(sessionDuration).count();
+        const static std::vector<int32_t> empty;
+
+        ALOGD_IF(DEBUG, "Usage session reported for device: %s", identifier.name.c_str());
+        ALOGD_IF(DEBUG, "    Total duration: %dms", durationMillis);
+
+        util::stats_write(util::INPUTDEVICE_USAGE_REPORTED, identifier.vendor, identifier.product,
+                          identifier.version, linuxBusToInputDeviceBusEnum(identifier.bus),
+                          durationMillis, /*usage_sources=*/empty,
+                          /*usage_durations_per_source=*/empty, /*uids=*/empty,
+                          /*usage_durations_per_uid=*/empty);
+    }
+} sStatsdLogger;
+
+bool isIgnoredInputDeviceId(int32_t deviceId) {
+    switch (deviceId) {
+        case INVALID_INPUT_DEVICE_ID:
+        case VIRTUAL_KEYBOARD_ID:
+            return true;
+        default:
+            return false;
+    }
+}
+
+} // namespace
+
 InputDeviceMetricsCollector::InputDeviceMetricsCollector(InputListenerInterface& listener)
-      : mNextListener(listener){};
+      : InputDeviceMetricsCollector(listener, sStatsdLogger, DEFAULT_USAGE_SESSION_TIMEOUT) {}
+
+InputDeviceMetricsCollector::InputDeviceMetricsCollector(InputListenerInterface& listener,
+                                                         InputDeviceMetricsLogger& logger,
+                                                         nanoseconds usageSessionTimeout)
+      : mNextListener(listener), mLogger(logger), mUsageSessionTimeout(usageSessionTimeout) {}
 
 void InputDeviceMetricsCollector::notifyInputDevicesChanged(
         const NotifyInputDevicesChangedArgs& args) {
+    processUsages();
+    onInputDevicesChanged(args.inputDeviceInfos);
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyConfigurationChanged(
         const NotifyConfigurationChangedArgs& args) {
+    processUsages();
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyKey(const NotifyKeyArgs& args) {
+    processUsages();
+    onInputDeviceUsage(DeviceId{args.deviceId}, nanoseconds(args.eventTime));
+
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyMotion(const NotifyMotionArgs& args) {
+    processUsages();
+    onInputDeviceUsage(DeviceId{args.deviceId}, nanoseconds(args.eventTime));
+
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifySwitch(const NotifySwitchArgs& args) {
+    processUsages();
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifySensor(const NotifySensorArgs& args) {
+    processUsages();
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyVibratorState(const NotifyVibratorStateArgs& args) {
+    processUsages();
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
+    processUsages();
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyPointerCaptureChanged(
         const NotifyPointerCaptureChangedArgs& args) {
+    processUsages();
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::dump(std::string& dump) {
     dump += "InputDeviceMetricsCollector:\n";
+
+    dump += "  Logged device IDs: " + dumpMapKeys(mLoggedDeviceInfos, &toString) + "\n";
+    dump += "  Devices with active usage sessions: " +
+            dumpMapKeys(mActiveUsageSessions, &toString) + "\n";
+}
+
+void InputDeviceMetricsCollector::onInputDevicesChanged(const std::vector<InputDeviceInfo>& infos) {
+    std::map<DeviceId, InputDeviceIdentifier> newDeviceIds;
+
+    for (const InputDeviceInfo& info : infos) {
+        if (isIgnoredInputDeviceId(info.getId())) {
+            continue;
+        }
+        newDeviceIds.emplace(info.getId(), info.getIdentifier());
+    }
+
+    for (auto [deviceId, identifier] : mLoggedDeviceInfos) {
+        if (newDeviceIds.count(deviceId) != 0) {
+            continue;
+        }
+        onInputDeviceRemoved(deviceId, identifier);
+    }
+
+    std::swap(newDeviceIds, mLoggedDeviceInfos);
+}
+
+void InputDeviceMetricsCollector::onInputDeviceRemoved(DeviceId deviceId,
+                                                       const InputDeviceIdentifier& identifier) {
+    // Report usage for that device if there is an active session.
+    auto it = mActiveUsageSessions.find(deviceId);
+    if (it != mActiveUsageSessions.end()) {
+        mLogger.logInputDeviceUsageReported(identifier, it->second.end - it->second.start);
+        mActiveUsageSessions.erase(it);
+    }
+    // We don't remove this from mLoggedDeviceInfos because it will be updated in
+    // onInputDevicesChanged().
+}
+
+void InputDeviceMetricsCollector::onInputDeviceUsage(DeviceId deviceId, nanoseconds eventTime) {
+    if (mLoggedDeviceInfos.count(deviceId) == 0) {
+        // Do not track usage for devices that are not logged.
+        return;
+    }
+
+    auto [it, inserted] = mActiveUsageSessions.try_emplace(deviceId, eventTime, eventTime);
+    if (!inserted) {
+        it->second.end = eventTime;
+    }
+}
+
+void InputDeviceMetricsCollector::processUsages() {
+    const auto usageSessionExpiryTime = mLogger.getCurrentTime() - mUsageSessionTimeout;
+
+    std::vector<DeviceId> completedUsageSessions;
+
+    for (const auto& [deviceId, usageSession] : mActiveUsageSessions) {
+        if (usageSession.end <= usageSessionExpiryTime) {
+            completedUsageSessions.emplace_back(deviceId);
+        }
+    }
+
+    for (DeviceId deviceId : completedUsageSessions) {
+        const auto it = mLoggedDeviceInfos.find(deviceId);
+        LOG_ALWAYS_FATAL_IF(it == mLoggedDeviceInfos.end());
+
+        const auto& session = mActiveUsageSessions[deviceId];
+        mLogger.logInputDeviceUsageReported(it->second, session.end - session.start);
+
+        mActiveUsageSessions.erase(deviceId);
+    }
 }
 
 } // namespace android

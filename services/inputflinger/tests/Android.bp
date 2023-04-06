@@ -47,6 +47,7 @@ cc_test {
         "FocusResolver_test.cpp",
         "GestureConverter_test.cpp",
         "HardwareStateConverter_test.cpp",
+        "InputDeviceMetricsCollector_test.cpp",
         "InputMapperTest.cpp",
         "InputProcessor_test.cpp",
         "InputProcessorConverter_test.cpp",

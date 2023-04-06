@@ -18,6 +18,12 @@
 
 #include "InputListener.h"
 
+#include <ftl/mixins.h>
+#include <input/InputDevice.h>
+#include <chrono>
+#include <map>
+#include <vector>
+
 namespace android {
 
 /**
@@ -34,10 +40,23 @@ public:
     virtual void dump(std::string& dump) = 0;
 };
 
+/** The logging interface for the metrics collector, injected for testing. */
+class InputDeviceMetricsLogger {
+public:
+    virtual std::chrono::nanoseconds getCurrentTime() = 0;
+    virtual void logInputDeviceUsageReported(const InputDeviceIdentifier&,
+                                             std::chrono::nanoseconds duration) = 0;
+    virtual ~InputDeviceMetricsLogger() = default;
+};
+
 class InputDeviceMetricsCollector : public InputDeviceMetricsCollectorInterface {
 public:
     explicit InputDeviceMetricsCollector(InputListenerInterface& listener);
     ~InputDeviceMetricsCollector() override = default;
+
+    // Test constructor
+    InputDeviceMetricsCollector(InputListenerInterface& listener, InputDeviceMetricsLogger& logger,
+                                std::chrono::nanoseconds usageSessionTimeout);
 
     void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
     void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
@@ -53,6 +72,32 @@ public:
 
 private:
     InputListenerInterface& mNextListener;
+    InputDeviceMetricsLogger& mLogger;
+    const std::chrono::nanoseconds mUsageSessionTimeout;
+
+    // Type-safe wrapper for input device id.
+    struct DeviceId : ftl::Constructible<DeviceId, std::int32_t>,
+                      ftl::Equatable<DeviceId>,
+                      ftl::Orderable<DeviceId> {
+        using Constructible::Constructible;
+    };
+    static std::string toString(const DeviceId& id) {
+        return std::to_string(ftl::to_underlying(id));
+    }
+
+    std::map<DeviceId, InputDeviceIdentifier> mLoggedDeviceInfos;
+
+    struct UsageSession {
+        std::chrono::nanoseconds start;
+        std::chrono::nanoseconds end;
+    };
+    // The input devices that currently have active usage sessions.
+    std::map<DeviceId, UsageSession> mActiveUsageSessions;
+
+    void onInputDevicesChanged(const std::vector<InputDeviceInfo>& infos);
+    void onInputDeviceRemoved(DeviceId deviceId, const InputDeviceIdentifier& identifier);
+    void onInputDeviceUsage(DeviceId deviceId, std::chrono::nanoseconds eventTime);
+    void processUsages();
 };
 
 } // namespace android
