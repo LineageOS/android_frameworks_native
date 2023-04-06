@@ -789,7 +789,7 @@ private:
 
     [[nodiscard]] std::list<NotifyArgs> dispatchPointerSimple(nsecs_t when, nsecs_t readTime,
                                                               uint32_t policyFlags, bool down,
-                                                              bool hovering);
+                                                              bool hovering, int32_t displayId);
     [[nodiscard]] std::list<NotifyArgs> abortPointerSimple(nsecs_t when, nsecs_t readTime,
                                                            uint32_t policyFlags);
 
@@ -821,6 +821,7 @@ private:
 
     static void assignPointerIds(const RawState& last, RawState& current);
 
+    // Compute input transforms for DIRECT and POINTER modes.
     void computeInputTransforms();
 
     void configureDeviceType();

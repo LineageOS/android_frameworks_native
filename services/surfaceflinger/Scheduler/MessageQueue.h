@@ -117,9 +117,9 @@ private:
 
     struct Vsync {
         frametimeline::TokenManager* tokenManager = nullptr;
-        std::unique_ptr<scheduler::VSyncCallbackRegistration> registration;
 
         mutable std::mutex mutex;
+        std::unique_ptr<scheduler::VSyncCallbackRegistration> registration GUARDED_BY(mutex);
         TracedOrdinal<std::chrono::nanoseconds> workDuration
                 GUARDED_BY(mutex) = {"VsyncWorkDuration-sf", std::chrono::nanoseconds(0)};
         TimePoint lastCallbackTime GUARDED_BY(mutex);
@@ -129,7 +129,10 @@ private:
 
     Vsync mVsync;
 
-    void onNewVsyncScheduleLocked(std::shared_ptr<scheduler::VSyncDispatch>) REQUIRES(mVsync.mutex);
+    // Returns the old registration so it can be destructed outside the lock to
+    // avoid deadlock.
+    std::unique_ptr<scheduler::VSyncCallbackRegistration> onNewVsyncScheduleLocked(
+            std::shared_ptr<scheduler::VSyncDispatch>) REQUIRES(mVsync.mutex);
 
 public:
     explicit MessageQueue(ICompositor&);
