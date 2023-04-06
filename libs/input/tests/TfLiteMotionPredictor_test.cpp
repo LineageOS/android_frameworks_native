@@ -139,8 +139,10 @@ TEST(TfLiteMotionPredictorTest, ModelInputOutputLength) {
 
     ASSERT_TRUE(model->invoke());
 
-    ASSERT_EQ(model->outputR().size(), model->outputPhi().size());
-    ASSERT_EQ(model->outputR().size(), model->outputPressure().size());
+    const int outputLength = model->outputLength();
+    ASSERT_EQ(outputLength, model->outputR().size());
+    ASSERT_EQ(outputLength, model->outputPhi().size());
+    ASSERT_EQ(outputLength, model->outputPressure().size());
 }
 
 TEST(TfLiteMotionPredictorTest, ModelOutput) {
