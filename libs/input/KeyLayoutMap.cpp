@@ -230,6 +230,16 @@ std::vector<int32_t> KeyLayoutMap::findScanCodesForKey(int32_t keyCode) const {
     return scanCodes;
 }
 
+std::vector<int32_t> KeyLayoutMap::findUsageCodesForKey(int32_t keyCode) const {
+    std::vector<int32_t> usageCodes;
+    for (const auto& [usageCode, key] : mKeysByUsageCode) {
+        if (keyCode == key.keyCode) {
+            usageCodes.push_back(usageCode);
+        }
+    }
+    return usageCodes;
+}
+
 std::optional<AxisInfo> KeyLayoutMap::mapAxis(int32_t scanCode) const {
     auto it = mAxes.find(scanCode);
     if (it == mAxes.end()) {

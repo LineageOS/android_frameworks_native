@@ -73,6 +73,7 @@ public:
             int32_t* outKeyCode, uint32_t* outFlags) const;
     std::vector<int32_t> findScanCodesForKey(int32_t keyCode) const;
     std::optional<int32_t> findScanCodeForLed(int32_t ledCode) const;
+    std::vector<int32_t> findUsageCodesForKey(int32_t keyCode) const;
     std::optional<int32_t> findUsageCodeForLed(int32_t ledCode) const;
 
     std::optional<AxisInfo> mapAxis(int32_t scanCode) const;
