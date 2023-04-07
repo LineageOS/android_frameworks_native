@@ -158,12 +158,15 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
                     RequestedLayerState::Changes::VisibleRegion |
                     RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Input;
         }
-        if (clientState.what & layer_state_t::eBufferChanged) {
-            changes |= RequestedLayerState::Changes::Buffer;
-        }
-        if (clientState.what & layer_state_t::eSidebandStreamChanged) {
-            changes |= RequestedLayerState::Changes::SidebandStream;
-        }
+    }
+    if (clientState.what & layer_state_t::eBufferChanged) {
+        barrierProducerId = std::max(bufferData->producerId, barrierProducerId);
+        barrierFrameNumber = std::max(bufferData->frameNumber, barrierFrameNumber);
+        // TODO(b/277265947) log and flush transaction trace when we detect out of order updates
+        changes |= RequestedLayerState::Changes::Buffer;
+    }
+    if (clientState.what & layer_state_t::eSidebandStreamChanged) {
+        changes |= RequestedLayerState::Changes::SidebandStream;
     }
     if (what & (layer_state_t::eAlphaChanged)) {
         if (oldAlpha == 0 || color.a == 0) {

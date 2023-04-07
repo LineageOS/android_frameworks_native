@@ -139,9 +139,16 @@ public:
         ui::Dataspace dataspace;
 
         uint64_t frameNumber;
+        // high watermark framenumber to use to check for barriers to protect ourselves
+        // from out of order transactions
+        uint64_t barrierFrameNumber;
         ui::Transform transform;
 
         uint32_t producerId = 0;
+        // high watermark producerId to use to check for barriers to protect ourselves
+        // from out of order transactions
+        uint32_t barrierProducerId = 0;
+
         uint32_t bufferTransform;
         bool transformToDisplayInverse;
         Region transparentRegionHint;
