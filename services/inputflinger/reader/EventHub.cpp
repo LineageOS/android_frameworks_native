@@ -461,6 +461,11 @@ bool EventHub::Device::hasKeycodeLocked(int keycode) const {
         }
     }
 
+    std::vector<int32_t> usageCodes = keyMap.keyLayoutMap->findUsageCodesForKey(keycode);
+    if (usageCodes.size() > 0 && mscBitmask.test(MSC_SCAN)) {
+        return true;
+    }
+
     return false;
 }
 
