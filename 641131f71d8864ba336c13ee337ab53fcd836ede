@@ -16,6 +16,24 @@
       "message": "Not entirely sure how, but this solves the bootanimation lags (or in case of the lineage bootanimation, it appearing to start \"delayed\") when using skiaglthreaded renderengine",
       "revId": "641131f71d8864ba336c13ee337ab53fcd836ede",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "5772d27a_f15e482f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2023-04-07T21:37:52Z",
+      "side": 1,
+      "message": "I noticed and just thought it was a 20 thing lol.\n\nYeah I can attest that this fixes that.",
+      "parentUuid": "0eb03589_2b941800",
+      "revId": "641131f71d8864ba336c13ee337ab53fcd836ede",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
