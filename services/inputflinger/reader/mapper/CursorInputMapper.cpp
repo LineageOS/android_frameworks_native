@@ -133,10 +133,10 @@ void CursorInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
-std::list<NotifyArgs> CursorInputMapper::configure(nsecs_t when,
-                                                   const InputReaderConfiguration* config,
-                                                   uint32_t changes) {
-    std::list<NotifyArgs> out = InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
+                                                     const InputReaderConfiguration* config,
+                                                     uint32_t changes) {
+    std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
     if (!changes) { // first time only
         mCursorScrollAccumulator.configure(getDeviceContext());

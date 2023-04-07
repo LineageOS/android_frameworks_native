@@ -192,8 +192,8 @@ TEST_F(JpegRTest, writeXmpThenRead) {
 
   jpegr_metadata_struct metadata_read;
   EXPECT_TRUE(getMetadataFromXMP(xmpData.data(), xmpData.size(), &metadata_read));
-  ASSERT_EQ(metadata_expected.maxContentBoost, metadata_read.maxContentBoost);
-  ASSERT_EQ(metadata_expected.minContentBoost, metadata_read.minContentBoost);
+  EXPECT_FLOAT_EQ(metadata_expected.maxContentBoost, metadata_read.maxContentBoost);
+  EXPECT_FLOAT_EQ(metadata_expected.minContentBoost, metadata_read.minContentBoost);
 }
 
 /* Test Encode API-0 and decode */
