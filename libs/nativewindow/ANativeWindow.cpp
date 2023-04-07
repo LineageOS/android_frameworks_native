@@ -79,27 +79,6 @@ static int64_t query64(ANativeWindow* window, int what) {
     return res < 0 ? res : value;
 }
 
-static bool isDataSpaceValid(ANativeWindow* window, int32_t dataSpace) {
-    bool supported = false;
-    switch (dataSpace) {
-        case HAL_DATASPACE_UNKNOWN:
-        case HAL_DATASPACE_V0_SRGB:
-            return true;
-        // These data space need wide gamut support.
-        case HAL_DATASPACE_V0_SCRGB_LINEAR:
-        case HAL_DATASPACE_V0_SCRGB:
-        case HAL_DATASPACE_DISPLAY_P3:
-            native_window_get_wide_color_support(window, &supported);
-            return supported;
-        // These data space need HDR support.
-        case HAL_DATASPACE_BT2020_PQ:
-            native_window_get_hdr_support(window, &supported);
-            return supported;
-        default:
-            return false;
-    }
-}
-
 /**************************************************************************************************
  * NDK
  **************************************************************************************************/
@@ -219,8 +198,7 @@ int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpa
     static_assert(static_cast<int>(ADATASPACE_DEPTH) == static_cast<int>(HAL_DATASPACE_DEPTH));
     static_assert(static_cast<int>(ADATASPACE_DYNAMIC_DEPTH) == static_cast<int>(HAL_DATASPACE_DYNAMIC_DEPTH));
 
-    if (!window || !query(window, NATIVE_WINDOW_IS_VALID) ||
-            !isDataSpaceValid(window, dataSpace)) {
+    if (!window || !query(window, NATIVE_WINDOW_IS_VALID)) {
         return -EINVAL;
     }
     return native_window_set_buffers_data_space(window,
