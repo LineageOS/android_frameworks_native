@@ -137,7 +137,6 @@ public:
         wp<Layer> touchableRegionCrop;
 
         ui::Dataspace dataspace;
-        bool dataspaceRequested;
 
         uint64_t frameNumber;
         ui::Transform transform;
@@ -333,7 +332,6 @@ public:
     virtual FrameRateCompatibility getDefaultFrameRateCompatibility() const;
     //
     ui::Dataspace getDataSpace() const;
-    ui::Dataspace getRequestedDataSpace() const;
 
     virtual sp<LayerFE> getCompositionEngineLayerFE() const;
     virtual sp<LayerFE> copyCompositionEngineLayerFE() const;

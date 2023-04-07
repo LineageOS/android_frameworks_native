@@ -263,8 +263,8 @@ private:
         }
     }
 
-    std::list<NotifyArgs> configure(nsecs_t, const InputReaderConfiguration* config,
-                                    uint32_t changes) override {
+    std::list<NotifyArgs> reconfigure(nsecs_t, const InputReaderConfiguration* config,
+                                      uint32_t changes) override {
         std::scoped_lock<std::mutex> lock(mLock);
         mConfigureWasCalled = true;
 

@@ -385,7 +385,7 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
         }
 
         for_each_mapper([this, when, &config, changes, &out](InputMapper& mapper) {
-            out += mapper.configure(when, config, changes);
+            out += mapper.reconfigure(when, config, changes);
             mSources |= mapper.getSources();
         });
 

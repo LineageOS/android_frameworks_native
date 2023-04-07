@@ -346,6 +346,10 @@ size_t TfLiteMotionPredictorModel::inputLength() const {
     return getTensorBuffer<const float>(mInputR).size();
 }
 
+size_t TfLiteMotionPredictorModel::outputLength() const {
+    return getTensorBuffer<const float>(mOutputR).size();
+}
+
 std::span<float> TfLiteMotionPredictorModel::inputR() {
     return getTensorBuffer<float>(mInputR);
 }
