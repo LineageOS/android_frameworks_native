@@ -23,6 +23,7 @@
 #include <input/InputDevice.h>
 #include <statslog.h>
 #include <chrono>
+#include <functional>
 #include <map>
 #include <set>
 #include <vector>
@@ -79,8 +80,25 @@ std::set<InputDeviceUsageSource> getUsageSourcesForMotionArgs(const NotifyMotion
 class InputDeviceMetricsLogger {
 public:
     virtual std::chrono::nanoseconds getCurrentTime() = 0;
+
+    // Describes the breakdown of an input device usage session by its usage sources.
+    // An input device can have more than one usage source. For example, some game controllers have
+    // buttons, joysticks, and touchpads. We track usage by these sources to get a better picture of
+    // the device usage. The source breakdown of a 10 minute usage session could look like this:
+    //   { {GAMEPAD, <9 mins>}, {TOUCHPAD, <2 mins>}, {TOUCHPAD, <3 mins>} }
+    // This would indicate that the GAMEPAD source was used first, and that source usage session
+    // lasted for 9 mins. During that time, the TOUCHPAD was used for 2 mins, until its source
+    // usage session expired. The TOUCHPAD was then used again later for another 3 mins.
+    using SourceUsageBreakdown =
+            std::vector<std::pair<InputDeviceUsageSource, std::chrono::nanoseconds /*duration*/>>;
+
+    struct DeviceUsageReport {
+        std::chrono::nanoseconds usageDuration;
+        SourceUsageBreakdown sourceBreakdown;
+    };
+
     virtual void logInputDeviceUsageReported(const InputDeviceIdentifier&,
-                                             std::chrono::nanoseconds duration) = 0;
+                                             const DeviceUsageReport&) = 0;
     virtual ~InputDeviceMetricsLogger() = default;
 };
 
@@ -116,23 +134,42 @@ private:
                       ftl::Orderable<DeviceId> {
         using Constructible::Constructible;
     };
-    static std::string toString(const DeviceId& id) {
+    static inline std::string toString(const DeviceId& id) {
         return std::to_string(ftl::to_underlying(id));
     }
 
-    std::map<DeviceId, InputDeviceIdentifier> mLoggedDeviceInfos;
+    std::map<DeviceId, InputDeviceInfo> mLoggedDeviceInfos;
 
-    struct UsageSession {
-        std::chrono::nanoseconds start;
-        std::chrono::nanoseconds end;
+    class ActiveSession {
+    public:
+        explicit ActiveSession(std::chrono::nanoseconds usageSessionTimeout,
+                               std::chrono::nanoseconds startTime);
+        void recordUsage(std::chrono::nanoseconds eventTime, InputDeviceUsageSource source);
+        bool checkIfCompletedAt(std::chrono::nanoseconds timestamp);
+        InputDeviceMetricsLogger::DeviceUsageReport finishSession();
+
+    private:
+        struct UsageSession {
+            std::chrono::nanoseconds start{};
+            std::chrono::nanoseconds end{};
+        };
+
+        const std::chrono::nanoseconds mUsageSessionTimeout;
+        UsageSession mDeviceSession{};
+
+        std::map<InputDeviceUsageSource, UsageSession> mActiveSessionsBySource{};
+        InputDeviceMetricsLogger::SourceUsageBreakdown mSourceUsageBreakdown{};
     };
+
     // The input devices that currently have active usage sessions.
-    std::map<DeviceId, UsageSession> mActiveUsageSessions;
+    std::map<DeviceId, ActiveSession> mActiveUsageSessions;
 
     void onInputDevicesChanged(const std::vector<InputDeviceInfo>& infos);
     void onInputDeviceRemoved(DeviceId deviceId, const InputDeviceIdentifier& identifier);
-    void onInputDeviceUsage(DeviceId deviceId, std::chrono::nanoseconds eventTime);
-    void processUsages();
+    using SourceProvider = std::function<std::set<InputDeviceUsageSource>(const InputDeviceInfo&)>;
+    void onInputDeviceUsage(DeviceId deviceId, std::chrono::nanoseconds eventTime,
+                            const SourceProvider& getSources);
+    void reportCompletedSessions();
 };
 
 } // namespace android

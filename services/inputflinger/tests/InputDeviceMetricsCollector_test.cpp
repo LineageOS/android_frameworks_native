@@ -336,16 +336,20 @@ TEST(InputDeviceMetricsCollectorDeviceClassificationTest, MixedClassificationTou
 
 // --- InputDeviceMetricsCollectorTest ---
 
-class InputDeviceMetricsCollectorTest : public testing::Test, InputDeviceMetricsLogger {
+class InputDeviceMetricsCollectorTest : public testing::Test, public InputDeviceMetricsLogger {
 protected:
     TestInputListener mTestListener;
     InputDeviceMetricsCollector mMetricsCollector{mTestListener, *this, USAGE_TIMEOUT};
 
-    void assertUsageLogged(InputDeviceIdentifier identifier, nanoseconds duration) {
+    void assertUsageLogged(const InputDeviceIdentifier& identifier, nanoseconds duration,
+                           std::optional<SourceUsageBreakdown> sourceBreakdown = {}) {
         ASSERT_GE(mLoggedUsageSessions.size(), 1u);
-        const auto& session = *mLoggedUsageSessions.begin();
-        ASSERT_EQ(identifier, std::get<InputDeviceIdentifier>(session));
-        ASSERT_EQ(duration, std::get<nanoseconds>(session));
+        const auto& [loggedIdentifier, report] = *mLoggedUsageSessions.begin();
+        ASSERT_EQ(identifier, loggedIdentifier);
+        ASSERT_EQ(duration, report.usageDuration);
+        if (sourceBreakdown) {
+            ASSERT_EQ(sourceBreakdown, report.sourceBreakdown);
+        }
         mLoggedUsageSessions.erase(mLoggedUsageSessions.begin());
     }
 
@@ -367,14 +371,14 @@ protected:
     }
 
 private:
-    std::vector<std::tuple<InputDeviceIdentifier, nanoseconds>> mLoggedUsageSessions;
+    std::vector<std::tuple<InputDeviceIdentifier, DeviceUsageReport>> mLoggedUsageSessions;
     nanoseconds mCurrentTime{TIME};
 
     nanoseconds getCurrentTime() override { return mCurrentTime; }
 
     void logInputDeviceUsageReported(const InputDeviceIdentifier& identifier,
-                                     nanoseconds duration) override {
-        mLoggedUsageSessions.emplace_back(identifier, duration);
+                                     const DeviceUsageReport& report) override {
+        mLoggedUsageSessions.emplace_back(identifier, report);
     }
 };
 
@@ -505,6 +509,115 @@ TEST_F(InputDeviceMetricsCollectorTest, TracksUsageFromDifferentDevicesIndepende
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
     // Since Device 2's usage session ended, its usage should be reported.
     ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(DEVICE_ID_2), 150ns + USAGE_TIMEOUT));
+
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+}
+
+TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource) {
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    InputDeviceMetricsLogger::SourceUsageBreakdown expectedSourceBreakdown;
+
+    // Use touchscreen.
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN));
+    setCurrentTime(TIME + 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN));
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+
+    // Use a stylus with the same input device.
+    setCurrentTime(TIME + 200ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, STYLUS, {ToolType::STYLUS}));
+    setCurrentTime(TIME + 400ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, STYLUS, {ToolType::STYLUS}));
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+
+    // Touchscreen was used again after its usage timeout expired.
+    // This should be tracked as a separate usage of the source in the breakdown.
+    setCurrentTime(TIME + 300ns + USAGE_TIMEOUT);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    expectedSourceBreakdown.emplace_back(InputDeviceUsageSource::TOUCHSCREEN, 100ns);
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+
+    // Continue stylus and touchscreen usages.
+    setCurrentTime(TIME + 350ns + USAGE_TIMEOUT);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, STYLUS, {ToolType::STYLUS}));
+    setCurrentTime(TIME + 450ns + USAGE_TIMEOUT);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN));
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+
+    // Touchscreen was used after the stylus's usage timeout expired.
+    // The stylus usage should be tracked in the source breakdown.
+    setCurrentTime(TIME + 400ns + USAGE_TIMEOUT + USAGE_TIMEOUT);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN));
+    expectedSourceBreakdown.emplace_back(InputDeviceUsageSource::STYLUS_DIRECT,
+                                         150ns + USAGE_TIMEOUT);
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+
+    // Remove all devices to force the usage session to be logged.
+    setCurrentTime(TIME + 500ns + USAGE_TIMEOUT);
+    mMetricsCollector.notifyInputDevicesChanged({});
+    expectedSourceBreakdown.emplace_back(InputDeviceUsageSource::TOUCHSCREEN,
+                                         100ns + USAGE_TIMEOUT);
+    // Verify that only one usage session was logged for the device, and that session was broken
+    // down by source correctly.
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(),
+                                              400ns + USAGE_TIMEOUT + USAGE_TIMEOUT,
+                                              expectedSourceBreakdown));
+
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+}
+
+TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource_TrackSourceByDevice) {
+    mMetricsCollector.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID), generateTestDeviceInfo(DEVICE_ID_2)}});
+    InputDeviceMetricsLogger::SourceUsageBreakdown expectedSourceBreakdown1;
+    InputDeviceMetricsLogger::SourceUsageBreakdown expectedSourceBreakdown2;
+
+    // Use both devices, with different sources.
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN));
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID_2, STYLUS, {ToolType::STYLUS}));
+    setCurrentTime(TIME + 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN));
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID_2, STYLUS, {ToolType::STYLUS}));
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+
+    // Remove all devices to force the usage session to be logged.
+    mMetricsCollector.notifyInputDevicesChanged({});
+    expectedSourceBreakdown1.emplace_back(InputDeviceUsageSource::TOUCHSCREEN, 100ns);
+    expectedSourceBreakdown2.emplace_back(InputDeviceUsageSource::STYLUS_DIRECT, 100ns);
+    ASSERT_NO_FATAL_FAILURE(
+            assertUsageLogged(getIdentifier(DEVICE_ID), 100ns, expectedSourceBreakdown1));
+    ASSERT_NO_FATAL_FAILURE(
+            assertUsageLogged(getIdentifier(DEVICE_ID_2), 100ns, expectedSourceBreakdown2));
+
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+}
+
+TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource_MultiSourceEvent) {
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo(DEVICE_ID)}});
+    InputDeviceMetricsLogger::SourceUsageBreakdown expectedSourceBreakdown;
+
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN | STYLUS, //
+                                                      {ToolType::STYLUS}));
+    setCurrentTime(TIME + 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN | STYLUS, //
+                                                      {ToolType::STYLUS, ToolType::FINGER}));
+    setCurrentTime(TIME + 200ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN | STYLUS, //
+                                                      {ToolType::STYLUS, ToolType::FINGER}));
+    setCurrentTime(TIME + 300ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN | STYLUS, //
+                                                      {ToolType::FINGER}));
+    setCurrentTime(TIME + 400ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN | STYLUS, //
+                                                      {ToolType::FINGER}));
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+
+    // Remove all devices to force the usage session to be logged.
+    mMetricsCollector.notifyInputDevicesChanged({});
+    expectedSourceBreakdown.emplace_back(InputDeviceUsageSource::STYLUS_DIRECT, 200ns);
+    expectedSourceBreakdown.emplace_back(InputDeviceUsageSource::TOUCHSCREEN, 300ns);
+    ASSERT_NO_FATAL_FAILURE(
+            assertUsageLogged(getIdentifier(DEVICE_ID), 400ns, expectedSourceBreakdown));
 
     ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
 }
