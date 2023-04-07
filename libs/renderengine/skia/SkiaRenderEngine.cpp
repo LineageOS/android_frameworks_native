@@ -517,16 +517,18 @@ sk_sp<SkShader> SkiaRenderEngine::createRuntimeEffectShader(
         } else {
             runtimeEffect = effectIter->second;
         }
+
         mat4 colorTransform = parameters.layer.colorTransform;
 
         colorTransform *=
                 mat4::scale(vec4(parameters.layerDimmingRatio, parameters.layerDimmingRatio,
                                  parameters.layerDimmingRatio, 1.f));
+
         const auto targetBuffer = parameters.layer.source.buffer.buffer;
         const auto graphicBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
         const auto hardwareBuffer = graphicBuffer ? graphicBuffer->toAHardwareBuffer() : nullptr;
-        return createLinearEffectShader(parameters.shader, effect, runtimeEffect, colorTransform,
-                                        parameters.display.maxLuminance,
+        return createLinearEffectShader(parameters.shader, effect, runtimeEffect,
+                                        std::move(colorTransform), parameters.display.maxLuminance,
                                         parameters.display.currentLuminanceNits,
                                         parameters.layer.source.buffer.maxLuminanceNits,
                                         hardwareBuffer, parameters.display.renderIntent);
