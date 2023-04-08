@@ -167,6 +167,9 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.sequence = 0;
     mDrawingState.transform.set(0, 0);
     mDrawingState.frameNumber = 0;
+    mDrawingState.barrierFrameNumber = 0;
+    mDrawingState.producerId = 0;
+    mDrawingState.barrierProducerId = 0;
     mDrawingState.bufferTransform = 0;
     mDrawingState.transformToDisplayInverse = false;
     mDrawingState.crop.makeInvalid();
@@ -3070,7 +3073,13 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     }
 
     mDrawingState.producerId = bufferData.producerId;
+    mDrawingState.barrierProducerId =
+            std::max(mDrawingState.producerId, mDrawingState.barrierProducerId);
     mDrawingState.frameNumber = frameNumber;
+    mDrawingState.barrierFrameNumber =
+            std::max(mDrawingState.frameNumber, mDrawingState.barrierFrameNumber);
+
+    // TODO(b/277265947) log and flush transaction trace when we detect out of order updates
     mDrawingState.releaseBufferListener = bufferData.releaseBufferListener;
     mDrawingState.buffer = std::move(buffer);
     mDrawingState.clientCacheId = bufferData.cachedBuffer;
