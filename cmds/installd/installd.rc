@@ -1,6 +1,7 @@
 
 service installd /system/bin/installd
     class main
+    user root
     capabilities CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID KILL SETGID SETUID SYS_ADMIN
 
 on early-boot
