@@ -361,6 +361,8 @@ ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gam
  * luminances in linear space, and the hdr ratio to encode against.
  */
 uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata);
+uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
+                       float log2MinContentBoost, float log2MaxContentBoost);
 
 /*
  * Calculates the linear luminance in nits after applying the given recovery
