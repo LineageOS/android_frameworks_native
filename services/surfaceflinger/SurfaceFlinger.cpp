@@ -1149,7 +1149,10 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& displayToken,
         displayIdOpt = getPhysicalDisplayIdLocked(displayToken);
     }
 
-    if (!displayIdOpt) {
+    // TODO (b/277364366): Clients should be updated to pass in the display they
+    // want, rather than us picking an arbitrary one (the pacesetter, in this
+    // case).
+    if (displayToken && !displayIdOpt) {
         ALOGE("%s: Invalid physical display token %p", __func__, displayToken.get());
         return NAME_NOT_FOUND;
     }
