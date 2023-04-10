@@ -443,6 +443,12 @@ ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gam
 ////////////////////////////////////////////////////////////////////////////////
 // Recovery map calculations
 uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata) {
+  return encodeRecovery(y_sdr, y_hdr, metadata,
+                        log2(metadata->minContentBoost), log2(metadata->maxContentBoost));
+}
+
+uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
+                       float log2MinContentBoost, float log2MaxContentBoost) {
   float gain = 1.0f;
   if (y_sdr > 0.0f) {
     gain = y_hdr / y_sdr;
@@ -451,8 +457,8 @@ uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata) {
   if (gain < metadata->minContentBoost) gain = metadata->minContentBoost;
   if (gain > metadata->maxContentBoost) gain = metadata->maxContentBoost;
 
-  return static_cast<uint8_t>((log2(gain) - log2(metadata->minContentBoost))
-                            / (log2(metadata->maxContentBoost) - log2(metadata->minContentBoost))
+  return static_cast<uint8_t>((log2(gain) - log2MinContentBoost)
+                            / (log2MaxContentBoost - log2MinContentBoost)
                             * 255.0f);
 }
 

@@ -586,6 +586,8 @@ status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_ima
 
   metadata->maxContentBoost = hdr_white_nits / kSdrWhiteNits;
   metadata->minContentBoost = 1.0f;
+  float log2MinBoost = log2(metadata->minContentBoost);
+  float log2MaxBoost = log2(metadata->maxContentBoost);
 
   ColorTransformFn hdrGamutConversionFn = getHdrConversionFn(
       uncompressed_yuv_420_image->colorGamut, uncompressed_p010_image->colorGamut);
@@ -613,7 +615,8 @@ status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_ima
 
   std::function<void()> generateMap = [uncompressed_yuv_420_image, uncompressed_p010_image,
                                        metadata, dest, hdrInvOetf, hdrGamutConversionFn,
-                                       luminanceFn, hdr_white_nits, &jobQueue]() -> void {
+                                       luminanceFn, hdr_white_nits, log2MinBoost, log2MaxBoost,
+                                       &jobQueue]() -> void {
     size_t rowStart, rowEnd;
     size_t dest_map_width = uncompressed_yuv_420_image->width / kMapDimensionScaleFactor;
     size_t dest_map_stride = dest->width;
@@ -638,7 +641,7 @@ status_t JpegR::generateRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_ima
 
           size_t pixel_idx = x + y * dest_map_stride;
           reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
-              encodeRecovery(sdr_y_nits, hdr_y_nits, metadata);
+              encodeRecovery(sdr_y_nits, hdr_y_nits, metadata, log2MinBoost, log2MaxBoost);
         }
       }
     }
