@@ -33,7 +33,7 @@ namespace android {
  * InputMapper lifecycle:
  * - create and configure with 0 changes
  * - reset
- * - process, process, process (may occasionally reconfigure with non-zero changes or reset)
+ * - process, process, process (may occasionally reconfigure or reset)
  * - reset
  * - destroy
  */
