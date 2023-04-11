@@ -181,6 +181,7 @@ public:
         mFrameTimeValidSince = std::chrono::time_point<std::chrono::steady_clock>(timePoint);
         mLastRefreshRate = {};
         mRefreshRateHistory.clear();
+        mIsFrequencyConclusive = true;
     }
 
     void clearHistory(nsecs_t now) {
@@ -251,7 +252,15 @@ private:
         static constexpr float MARGIN_CONSISTENT_FPS = 1.0;
     };
 
-    bool isFrequent(nsecs_t now) const;
+    // Represents whether we were able to determine either layer is frequent or infrequent
+    bool mIsFrequencyConclusive = true;
+    struct Frequent {
+        bool isFrequent;
+        bool clearHistory;
+        // Represents whether we were able to determine isFrequent conclusively
+        bool isConclusive;
+    };
+    Frequent isFrequent(nsecs_t now) const;
     bool isAnimating(nsecs_t now) const;
     bool hasEnoughDataForHeuristic() const;
     std::optional<Fps> calculateRefreshRateIfPossible(const RefreshRateSelector&, nsecs_t now);
