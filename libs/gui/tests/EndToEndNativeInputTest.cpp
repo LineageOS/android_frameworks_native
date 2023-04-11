@@ -628,7 +628,7 @@ TEST_F(InputSurfacesTest, input_respects_scaled_touchable_region_overflow) {
 
     // Expect no crash for overflow.
     injectTap(12, 24);
-    fgSurface->expectTap(6, 12);
+    bgSurface->expectTap(12, 24);
 }
 
 // Ensure we ignore transparent region when getting screen bounds when positioning input frame.
