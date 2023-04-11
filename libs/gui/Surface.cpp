@@ -792,11 +792,15 @@ int Surface::dequeueBuffers(std::vector<BatchBuffer>* buffers) {
         return result;
     }
 
-    std::vector<CancelBufferInput> cancelBufferInputs(numBufferRequested);
+    std::vector<CancelBufferInput> cancelBufferInputs;
+    cancelBufferInputs.reserve(numBufferRequested);
     std::vector<status_t> cancelBufferOutputs;
     for (size_t i = 0; i < numBufferRequested; i++) {
-        cancelBufferInputs[i].slot = dequeueOutput[i].slot;
-        cancelBufferInputs[i].fence = dequeueOutput[i].fence;
+        if (dequeueOutput[i].result >= 0) {
+            CancelBufferInput& input = cancelBufferInputs.emplace_back();
+            input.slot = dequeueOutput[i].slot;
+            input.fence = dequeueOutput[i].fence;
+        }
     }
 
     for (const auto& output : dequeueOutput) {
