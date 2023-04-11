@@ -13,11 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <gestures/HardwareStateConverter.h>
+
+#include <memory>
 
 #include <EventHub.h>
-#include <gestures/HardwareStateConverter.h>
 #include <gtest/gtest.h>
 #include <linux/input-event-codes.h>
+#include <utils/StrongPointer.h>
 
 #include "FakeEventHub.h"
 #include "FakeInputReaderPolicy.h"
@@ -28,20 +31,20 @@
 namespace android {
 
 class HardwareStateConverterTest : public testing::Test {
+public:
+    HardwareStateConverterTest()
+          : mFakeEventHub(std::make_shared<FakeEventHub>()),
+            mFakePolicy(sp<FakeInputReaderPolicy>::make()),
+            mReader(mFakeEventHub, mFakePolicy, mFakeListener),
+            mDevice(newDevice()),
+            mDeviceContext(*mDevice, EVENTHUB_ID) {
+        mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_SLOT, 0, 7, 0, 0, 0);
+        mConverter = std::make_unique<HardwareStateConverter>(mDeviceContext);
+    }
+
 protected:
     static constexpr int32_t DEVICE_ID = END_RESERVED_ID + 1000;
     static constexpr int32_t EVENTHUB_ID = 1;
-
-    void SetUp() {
-        mFakeEventHub = std::make_unique<FakeEventHub>();
-        mFakePolicy = sp<FakeInputReaderPolicy>::make();
-        mFakeListener = std::make_unique<TestInputListener>();
-        mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
-                                                            *mFakeListener);
-        mDevice = newDevice();
-
-        mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_SLOT, 0, 7, 0, 0, 0);
-    }
 
     std::shared_ptr<InputDevice> newDevice() {
         InputDeviceIdentifier identifier;
@@ -49,17 +52,16 @@ protected:
         identifier.location = "USB1";
         identifier.bus = 0;
         std::shared_ptr<InputDevice> device =
-                std::make_shared<InputDevice>(mReader->getContext(), DEVICE_ID, /* generation= */ 2,
+                std::make_shared<InputDevice>(mReader.getContext(), DEVICE_ID, /*generation=*/2,
                                               identifier);
-        mReader->pushNextDevice(device);
+        mReader.pushNextDevice(device);
         mFakeEventHub->addDevice(EVENTHUB_ID, identifier.name, InputDeviceClass::TOUCHPAD,
                                  identifier.bus);
-        mReader->loopOnce();
+        mReader.loopOnce();
         return device;
     }
 
-    void processAxis(HardwareStateConverter& conv, nsecs_t when, int32_t type, int32_t code,
-                     int32_t value) {
+    void processAxis(nsecs_t when, int32_t type, int32_t code, int32_t value) {
         RawEvent event;
         event.when = when;
         event.readTime = READ_TIME;
@@ -67,12 +69,11 @@ protected:
         event.type = type;
         event.code = code;
         event.value = value;
-        std::optional<SelfContainedHardwareState> schs = conv.processRawEvent(&event);
+        std::optional<SelfContainedHardwareState> schs = mConverter->processRawEvent(&event);
         EXPECT_FALSE(schs.has_value());
     }
 
-    std::optional<SelfContainedHardwareState> processSync(HardwareStateConverter& conv,
-                                                          nsecs_t when) {
+    std::optional<SelfContainedHardwareState> processSync(nsecs_t when) {
         RawEvent event;
         event.when = when;
         event.readTime = READ_TIME;
@@ -80,37 +81,37 @@ protected:
         event.type = EV_SYN;
         event.code = SYN_REPORT;
         event.value = 0;
-        return conv.processRawEvent(&event);
+        return mConverter->processRawEvent(&event);
     }
 
     std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
-    std::unique_ptr<TestInputListener> mFakeListener;
-    std::unique_ptr<InstrumentedInputReader> mReader;
+    TestInputListener mFakeListener;
+    InstrumentedInputReader mReader;
     std::shared_ptr<InputDevice> mDevice;
+    InputDeviceContext mDeviceContext;
+    std::unique_ptr<HardwareStateConverter> mConverter;
 };
 
 TEST_F(HardwareStateConverterTest, OneFinger) {
     const nsecs_t time = 1500000000;
-    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
-    HardwareStateConverter conv(deviceContext);
 
-    processAxis(conv, time, EV_ABS, ABS_MT_SLOT, 0);
-    processAxis(conv, time, EV_ABS, ABS_MT_TRACKING_ID, 123);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 50);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 100);
-    processAxis(conv, time, EV_ABS, ABS_MT_TOUCH_MAJOR, 5);
-    processAxis(conv, time, EV_ABS, ABS_MT_TOUCH_MINOR, 4);
-    processAxis(conv, time, EV_ABS, ABS_MT_PRESSURE, 42);
-    processAxis(conv, time, EV_ABS, ABS_MT_ORIENTATION, 2);
+    processAxis(time, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(time, EV_ABS, ABS_MT_TRACKING_ID, 123);
+    processAxis(time, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(time, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(time, EV_ABS, ABS_MT_TOUCH_MAJOR, 5);
+    processAxis(time, EV_ABS, ABS_MT_TOUCH_MINOR, 4);
+    processAxis(time, EV_ABS, ABS_MT_PRESSURE, 42);
+    processAxis(time, EV_ABS, ABS_MT_ORIENTATION, 2);
 
-    processAxis(conv, time, EV_ABS, ABS_X, 50);
-    processAxis(conv, time, EV_ABS, ABS_Y, 100);
-    processAxis(conv, time, EV_ABS, ABS_PRESSURE, 42);
+    processAxis(time, EV_ABS, ABS_X, 50);
+    processAxis(time, EV_ABS, ABS_Y, 100);
+    processAxis(time, EV_ABS, ABS_PRESSURE, 42);
 
-    processAxis(conv, time, EV_KEY, BTN_TOUCH, 1);
-    processAxis(conv, time, EV_KEY, BTN_TOOL_FINGER, 1);
-    std::optional<SelfContainedHardwareState> schs = processSync(conv, time);
+    processAxis(time, EV_KEY, BTN_TOUCH, 1);
+    processAxis(time, EV_KEY, BTN_TOOL_FINGER, 1);
+    std::optional<SelfContainedHardwareState> schs = processSync(time);
 
     ASSERT_TRUE(schs.has_value());
     const HardwareState& state = schs->state;
@@ -138,35 +139,31 @@ TEST_F(HardwareStateConverterTest, OneFinger) {
 }
 
 TEST_F(HardwareStateConverterTest, TwoFingers) {
-    const nsecs_t time = ARBITRARY_TIME;
-    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
-    HardwareStateConverter conv(deviceContext);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TRACKING_ID, 123);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOUCH_MAJOR, 5);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOUCH_MINOR, 4);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_PRESSURE, 42);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_ORIENTATION, 2);
 
-    processAxis(conv, time, EV_ABS, ABS_MT_SLOT, 0);
-    processAxis(conv, time, EV_ABS, ABS_MT_TRACKING_ID, 123);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 50);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 100);
-    processAxis(conv, time, EV_ABS, ABS_MT_TOUCH_MAJOR, 5);
-    processAxis(conv, time, EV_ABS, ABS_MT_TOUCH_MINOR, 4);
-    processAxis(conv, time, EV_ABS, ABS_MT_PRESSURE, 42);
-    processAxis(conv, time, EV_ABS, ABS_MT_ORIENTATION, 2);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_SLOT, 1);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TRACKING_ID, 456);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, -20);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 40);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOUCH_MAJOR, 8);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOUCH_MINOR, 7);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_PRESSURE, 21);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_ORIENTATION, 1);
 
-    processAxis(conv, time, EV_ABS, ABS_MT_SLOT, 1);
-    processAxis(conv, time, EV_ABS, ABS_MT_TRACKING_ID, 456);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, -20);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 40);
-    processAxis(conv, time, EV_ABS, ABS_MT_TOUCH_MAJOR, 8);
-    processAxis(conv, time, EV_ABS, ABS_MT_TOUCH_MINOR, 7);
-    processAxis(conv, time, EV_ABS, ABS_MT_PRESSURE, 21);
-    processAxis(conv, time, EV_ABS, ABS_MT_ORIENTATION, 1);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_X, 50);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_Y, 100);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_PRESSURE, 42);
 
-    processAxis(conv, time, EV_ABS, ABS_X, 50);
-    processAxis(conv, time, EV_ABS, ABS_Y, 100);
-    processAxis(conv, time, EV_ABS, ABS_PRESSURE, 42);
-
-    processAxis(conv, time, EV_KEY, BTN_TOUCH, 1);
-    processAxis(conv, time, EV_KEY, BTN_TOOL_DOUBLETAP, 1);
-    std::optional<SelfContainedHardwareState> schs = processSync(conv, time);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOUCH, 1);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOOL_DOUBLETAP, 1);
+    std::optional<SelfContainedHardwareState> schs = processSync(ARBITRARY_TIME);
 
     ASSERT_TRUE(schs.has_value());
     ASSERT_EQ(2, schs->state.finger_cnt);
@@ -192,59 +189,58 @@ TEST_F(HardwareStateConverterTest, TwoFingers) {
 }
 
 TEST_F(HardwareStateConverterTest, OnePalm) {
-    const nsecs_t time = ARBITRARY_TIME;
-    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
-    HardwareStateConverter conv(deviceContext);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TRACKING_ID, 123);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 100);
 
-    processAxis(conv, time, EV_ABS, ABS_MT_SLOT, 0);
-    processAxis(conv, time, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
-    processAxis(conv, time, EV_ABS, ABS_MT_TRACKING_ID, 123);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 50);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 100);
-
-    processAxis(conv, time, EV_KEY, BTN_TOUCH, 1);
-    std::optional<SelfContainedHardwareState> schs = processSync(conv, time);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOUCH, 1);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOOL_FINGER, 1);
+    std::optional<SelfContainedHardwareState> schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(0, schs->state.touch_cnt);
     EXPECT_EQ(0, schs->state.finger_cnt);
 }
 
 TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
-    const nsecs_t time = ARBITRARY_TIME;
-    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
-    HardwareStateConverter conv(deviceContext);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TRACKING_ID, 123);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 100);
 
-    processAxis(conv, time, EV_ABS, ABS_MT_SLOT, 0);
-    processAxis(conv, time, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
-    processAxis(conv, time, EV_ABS, ABS_MT_TRACKING_ID, 123);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 50);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOUCH, 1);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOOL_FINGER, 1);
 
-    processAxis(conv, time, EV_KEY, BTN_TOUCH, 1);
-
-    std::optional<SelfContainedHardwareState> schs = processSync(conv, time);
+    std::optional<SelfContainedHardwareState> schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.touch_cnt);
     EXPECT_EQ(1, schs->state.finger_cnt);
 
-    processAxis(conv, time, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 51);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 99);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 51);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 99);
 
-    schs = processSync(conv, time);
+    schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(0, schs->state.touch_cnt);
     ASSERT_EQ(0, schs->state.finger_cnt);
 
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 53);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 97);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 53);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 97);
 
-    schs = processSync(conv, time);
+    schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(0, schs->state.touch_cnt);
     EXPECT_EQ(0, schs->state.finger_cnt);
 
-    processAxis(conv, time, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_X, 55);
-    processAxis(conv, time, EV_ABS, ABS_MT_POSITION_Y, 95);
-    schs = processSync(conv, time);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 55);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 95);
+    schs = processSync(ARBITRARY_TIME);
     ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.touch_cnt);
     ASSERT_EQ(1, schs->state.finger_cnt);
     const FingerState& newFinger = schs->state.fingers[0];
     EXPECT_EQ(123, newFinger.tracking_id);
@@ -253,25 +249,16 @@ TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
 }
 
 TEST_F(HardwareStateConverterTest, ButtonPressed) {
-    const nsecs_t time = ARBITRARY_TIME;
-    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
-    HardwareStateConverter conv(deviceContext);
-
-    processAxis(conv, time, EV_KEY, BTN_LEFT, 1);
-    std::optional<SelfContainedHardwareState> schs = processSync(conv, time);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_LEFT, 1);
+    std::optional<SelfContainedHardwareState> schs = processSync(ARBITRARY_TIME);
 
     ASSERT_TRUE(schs.has_value());
     EXPECT_EQ(GESTURES_BUTTON_LEFT, schs->state.buttons_down);
 }
 
 TEST_F(HardwareStateConverterTest, MscTimestamp) {
-    const nsecs_t time = ARBITRARY_TIME;
-    mFakeEventHub->setMscEvent(EVENTHUB_ID, MSC_TIMESTAMP);
-    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
-    HardwareStateConverter conv(deviceContext);
-
-    processAxis(conv, time, EV_MSC, MSC_TIMESTAMP, 1200000);
-    std::optional<SelfContainedHardwareState> schs = processSync(conv, time);
+    processAxis(ARBITRARY_TIME, EV_MSC, MSC_TIMESTAMP, 1200000);
+    std::optional<SelfContainedHardwareState> schs = processSync(ARBITRARY_TIME);
 
     ASSERT_TRUE(schs.has_value());
     EXPECT_NEAR(1.2, schs->state.msc_timestamp, EPSILON);

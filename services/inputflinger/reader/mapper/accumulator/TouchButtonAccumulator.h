@@ -41,6 +41,12 @@ public:
     bool isHovering() const;
     bool hasStylus() const;
     bool hasButtonTouch() const;
+
+    /*
+     * Returns the number of touches reported by the device through its BTN_TOOL_FINGER and
+     * BTN_TOOL_*TAP "buttons". Note that this count includes touches reported with their
+     * ABS_MT_TOOL_TYPE set to MT_TOOL_PALM.
+     */
     int getTouchCount() const;
 
 private:
