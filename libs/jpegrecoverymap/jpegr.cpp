@@ -339,6 +339,10 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
+  if (max_display_boost < 1.0f) {
+      return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
   if (output_format == JPEGR_OUTPUT_SDR) {
     JpegDecoderHelper jpeg_decoder;
     if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length,
@@ -683,9 +687,7 @@ status_t JpegR::applyRecoveryMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
   dest->width = uncompressed_yuv_420_image->width;
   dest->height = uncompressed_yuv_420_image->height;
   ShepardsIDW idwTable(kMapDimensionScaleFactor);
-  float display_boost = max_display_boost > 0 ?
-          std::min(max_display_boost, metadata->maxContentBoost)
-          : metadata->maxContentBoost;
+  float display_boost = std::min(max_display_boost, metadata->maxContentBoost);
   RecoveryLUT recoveryLUT(metadata, display_boost);
 
   JobQueue jobQueue;
