@@ -212,6 +212,11 @@ struct KeyboardLayoutInfo {
     std::string languageTag;
     // The layout type such as QWERTY or AZERTY.
     std::string layoutType;
+
+    inline bool operator==(const KeyboardLayoutInfo& other) const {
+        return languageTag == other.languageTag && layoutType == other.layoutType;
+    }
+    inline bool operator!=(const KeyboardLayoutInfo& other) const { return !(*this == other); }
 };
 
 // The version of the Universal Stylus Initiative (USI) protocol supported by the input device.
