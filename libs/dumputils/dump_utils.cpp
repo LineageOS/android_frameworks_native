@@ -16,6 +16,7 @@
 #include <set>
 
 #include <android-base/file.h>
+#include <android-base/parseint.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
@@ -209,4 +210,19 @@ bool IsZygote(int pid) {
 
     return cmdline == "zygote" || cmdline == "zygote64" || cmdline == "usap32" ||
             cmdline == "usap64" || cmdline == "webview_zygote";
+}
+
+bool IsCached(int pid) {
+    std::string oom_score_adj;
+    if (!android::base::ReadFileToString(android::base::StringPrintf("/proc/%d/oom_score_adj",
+                                                                     pid),
+                                         &oom_score_adj)) {
+        return false;
+    }
+    int32_t oom_score_adj_value;
+    if (!android::base::ParseInt(android::base::Trim(oom_score_adj), &oom_score_adj_value)) {
+        return false;
+    }
+    // An OOM score greater than 900 indicates a cached process.
+    return oom_score_adj_value >= 900;
 }
