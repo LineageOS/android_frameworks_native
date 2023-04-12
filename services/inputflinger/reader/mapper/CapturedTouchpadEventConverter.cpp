@@ -162,7 +162,6 @@ std::list<NotifyArgs> CapturedTouchpadEventConverter::process(const RawEvent& ra
 }
 
 std::list<NotifyArgs> CapturedTouchpadEventConverter::sync(nsecs_t when, nsecs_t readTime) {
-    // TODO(b/259547750): filter out touches marked as palms (using MT_TOOL_PALM).
     std::list<NotifyArgs> out;
     std::vector<PointerCoords> coords;
     std::vector<PointerProperties> properties;
@@ -187,7 +186,11 @@ std::list<NotifyArgs> CapturedTouchpadEventConverter::sync(nsecs_t when, nsecs_t
 
     std::vector<size_t> upSlots, downSlots;
     for (size_t i = 0; i < mMotionAccumulator.getSlotCount(); i++) {
-        const bool isInUse = mMotionAccumulator.getSlot(i).isInUse();
+        const MultiTouchMotionAccumulator::Slot& slot = mMotionAccumulator.getSlot(i);
+        // Some touchpads continue to report contacts even after they've identified them as palms.
+        // We don't currently have a way to mark these as palms when reporting to apps, so don't
+        // report them at all.
+        const bool isInUse = slot.isInUse() && slot.getToolType() != ToolType::PALM;
         const bool wasInUse = mPointerIdForSlotNumber.find(i) != mPointerIdForSlotNumber.end();
         if (isInUse && !wasInUse) {
             downSlots.push_back(i);
@@ -199,10 +202,15 @@ std::list<NotifyArgs> CapturedTouchpadEventConverter::sync(nsecs_t when, nsecs_t
     // For any touches that were lifted, send UP or POINTER_UP events.
     for (size_t slotNumber : upSlots) {
         const size_t indexToRemove = coordsIndexForSlotNumber.at(slotNumber);
-        const int32_t action = coords.size() == 1
-                ? AMOTION_EVENT_ACTION_UP
-                : actionWithIndex(AMOTION_EVENT_ACTION_POINTER_UP, indexToRemove);
-        out.push_back(makeMotionArgs(when, readTime, action, coords, properties));
+        const bool cancel = mMotionAccumulator.getSlot(slotNumber).getToolType() == ToolType::PALM;
+        int32_t action;
+        if (coords.size() == 1) {
+            action = cancel ? AMOTION_EVENT_ACTION_CANCEL : AMOTION_EVENT_ACTION_UP;
+        } else {
+            action = actionWithIndex(AMOTION_EVENT_ACTION_POINTER_UP, indexToRemove);
+        }
+        out.push_back(makeMotionArgs(when, readTime, action, coords, properties, /*actionButton=*/0,
+                                     /*flags=*/cancel ? AMOTION_EVENT_FLAG_CANCELED : 0));
 
         freePointerIdForSlot(slotNumber);
         coords.erase(coords.begin() + indexToRemove);
@@ -249,12 +257,12 @@ std::list<NotifyArgs> CapturedTouchpadEventConverter::sync(nsecs_t when, nsecs_t
 
 NotifyMotionArgs CapturedTouchpadEventConverter::makeMotionArgs(
         nsecs_t when, nsecs_t readTime, int32_t action, const std::vector<PointerCoords>& coords,
-        const std::vector<PointerProperties>& properties, int32_t actionButton) {
+        const std::vector<PointerProperties>& properties, int32_t actionButton, int32_t flags) {
     LOG_ALWAYS_FATAL_IF(coords.size() != properties.size(),
                         "Mismatched coords and properties arrays.");
     return NotifyMotionArgs(mReaderContext.getNextId(), when, readTime, mDeviceId, SOURCE,
                             ADISPLAY_ID_NONE, /*policyFlags=*/POLICY_FLAG_WAKE, action,
-                            /*actionButton=*/actionButton, /*flags=*/0,
+                            /*actionButton=*/actionButton, flags,
                             mReaderContext.getGlobalMetaState(), mButtonState,
                             MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, coords.size(),
                             properties.data(), coords.data(), /*xPrecision=*/1.0f,

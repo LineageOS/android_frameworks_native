@@ -53,7 +53,7 @@ private:
     [[nodiscard]] NotifyMotionArgs makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
                                                   const std::vector<PointerCoords>& coords,
                                                   const std::vector<PointerProperties>& properties,
-                                                  int32_t actionButton = 0);
+                                                  int32_t actionButton = 0, int32_t flags = 0);
     PointerCoords makePointerCoordsForSlot(const MultiTouchMotionAccumulator::Slot& slot) const;
     int32_t allocatePointerIdToSlot(size_t slotNumber);
     void freePointerIdForSlot(size_t slotNumber);

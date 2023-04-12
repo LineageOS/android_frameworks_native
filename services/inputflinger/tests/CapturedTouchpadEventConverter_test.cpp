@@ -22,6 +22,7 @@
 #include <EventHub.h>
 #include <gtest/gtest.h>
 #include <linux/input-event-codes.h>
+#include <linux/input.h>
 #include <utils/StrongPointer.h>
 
 #include "FakeEventHub.h"
@@ -413,6 +414,233 @@ TEST_F(CapturedTouchpadEventConverterTest,
                 processSyncAndExpectSingleMotionArg(conv).pointerCoords[0].getAxisValue(
                         AMOTION_EVENT_AXIS_SIZE),
                 EPSILON);
+}
+
+TEST_F(CapturedTouchpadEventConverterTest, OnePalm_neverReported) {
+    addBasicAxesToEventHub();
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_TOOL_TYPE, 0, MT_TOOL_PALM, 0, 0, 0);
+    CapturedTouchpadEventConverter conv(*mReader.getContext(), mDeviceContext, mAccumulator,
+                                        DEVICE_ID);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 1);
+
+    EXPECT_EQ(0u, processSync(conv).size());
+
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 51);
+
+    EXPECT_EQ(0u, processSync(conv).size());
+
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, -1);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 0);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 0);
+
+    EXPECT_EQ(0u, processSync(conv).size());
+}
+
+TEST_F(CapturedTouchpadEventConverterTest, FingerTurningIntoPalm_cancelled) {
+    addBasicAxesToEventHub();
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_TOOL_TYPE, 0, MT_TOOL_PALM, 0, 0, 0);
+    CapturedTouchpadEventConverter conv(*mReader.getContext(), mDeviceContext, mAccumulator,
+                                        DEVICE_ID);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 1);
+
+    EXPECT_THAT(processSyncAndExpectSingleMotionArg(conv),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithToolType(ToolType::FINGER),
+                      WithPointerCount(1u)));
+
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 51);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+
+    std::list<NotifyArgs> args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPointerCount(1u)));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL), WithPointerCount(1u)));
+
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 52);
+
+    EXPECT_EQ(0u, processSync(conv).size());
+
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, -1);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 0);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 0);
+
+    EXPECT_EQ(0u, processSync(conv).size());
+}
+
+TEST_F(CapturedTouchpadEventConverterTest, PalmTurningIntoFinger_reported) {
+    addBasicAxesToEventHub();
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_TOOL_TYPE, 0, MT_TOOL_PALM, 0, 0, 0);
+    CapturedTouchpadEventConverter conv(*mReader.getContext(), mDeviceContext, mAccumulator,
+                                        DEVICE_ID);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 1);
+
+    EXPECT_EQ(0u, processSync(conv).size());
+
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 51);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+
+    EXPECT_THAT(processSyncAndExpectSingleMotionArg(conv),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithPointerCount(1u),
+                      WithCoords(51, 100)));
+
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 52);
+
+    EXPECT_THAT(processSyncAndExpectSingleMotionArg(conv),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPointerCount(1u),
+                      WithCoords(52, 100)));
+}
+
+TEST_F(CapturedTouchpadEventConverterTest, FingerArrivingAfterPalm_onlyFingerReported) {
+    addBasicAxesToEventHub();
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_TOOL_TYPE, 0, MT_TOOL_PALM, 0, 0, 0);
+    CapturedTouchpadEventConverter conv(*mReader.getContext(), mDeviceContext, mAccumulator,
+                                        DEVICE_ID);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 1);
+
+    EXPECT_EQ(0u, processSync(conv).size());
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 1);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 2);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 100);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 150);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 0);
+    processAxis(conv, EV_KEY, BTN_TOOL_DOUBLETAP, 1);
+
+    EXPECT_THAT(processSyncAndExpectSingleMotionArg(conv),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithPointerCount(1u),
+                      WithCoords(100, 150)));
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 52);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 102);
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 98);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 148);
+
+    EXPECT_THAT(processSyncAndExpectSingleMotionArg(conv),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPointerCount(1u),
+                      WithCoords(98, 148)));
+}
+
+TEST_F(CapturedTouchpadEventConverterTest, FingerAndFingerTurningIntoPalm_partiallyCancelled) {
+    addBasicAxesToEventHub();
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_TOOL_TYPE, 0, MT_TOOL_PALM, 0, 0, 0);
+    CapturedTouchpadEventConverter conv(*mReader.getContext(), mDeviceContext, mAccumulator,
+                                        DEVICE_ID);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 1);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 2);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 250);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_DOUBLETAP, 1);
+
+    std::list<NotifyArgs> args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithPointerCount(1u),
+                      WithToolType(ToolType::FINGER)));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                      WithPointerCount(2u), WithPointerToolType(0, ToolType::FINGER),
+                      WithPointerToolType(1, ToolType::FINGER)));
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 51);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 251);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+
+    args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPointerCount(2u)));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
+                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                      WithFlags(AMOTION_EVENT_FLAG_CANCELED), WithPointerCount(2u)));
+}
+
+TEST_F(CapturedTouchpadEventConverterTest, FingerAndPalmTurningIntoFinger_reported) {
+    addBasicAxesToEventHub();
+    mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_TOOL_TYPE, 0, MT_TOOL_PALM, 0, 0, 0);
+    CapturedTouchpadEventConverter conv(*mReader.getContext(), mDeviceContext, mAccumulator,
+                                        DEVICE_ID);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 1);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 2);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 250);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_DOUBLETAP, 1);
+
+    EXPECT_THAT(processSyncAndExpectSingleMotionArg(conv),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithPointerCount(1u),
+                      WithToolType(ToolType::FINGER)));
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 51);
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 251);
+    processAxis(conv, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+
+    std::list<NotifyArgs> args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPointerCount(1u)));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                      WithPointerCount(2u)));
 }
 
 TEST_F(CapturedTouchpadEventConverterTest, TwoFingers_motionReportedCorrectly) {
