@@ -353,6 +353,27 @@ void DisplayState::merge(const DisplayState& other) {
     }
 }
 
+void DisplayState::sanitize(int32_t permissions) {
+    if (what & DisplayState::eLayerStackChanged) {
+        if (!(permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER)) {
+            what &= ~DisplayState::eLayerStackChanged;
+            ALOGE("Stripped attempt to set eLayerStackChanged in sanitize");
+        }
+    }
+    if (what & DisplayState::eDisplayProjectionChanged) {
+        if (!(permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER)) {
+            what &= ~DisplayState::eDisplayProjectionChanged;
+            ALOGE("Stripped attempt to set eDisplayProjectionChanged in sanitize");
+        }
+    }
+    if (what & DisplayState::eSurfaceChanged) {
+        if (!(permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER)) {
+            what &= ~DisplayState::eSurfaceChanged;
+            ALOGE("Stripped attempt to set eSurfaceChanged in sanitize");
+        }
+    }
+}
+
 void layer_state_t::sanitize(int32_t permissions) {
     // TODO: b/109894387
     //
