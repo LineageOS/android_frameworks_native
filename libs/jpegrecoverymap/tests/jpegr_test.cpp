@@ -24,10 +24,12 @@
 #include <utils/Log.h>
 
 #define RAW_P010_IMAGE "/sdcard/Documents/raw_p010_image.p010"
+#define RAW_P010_IMAGE_WITH_STRIDE "/sdcard/Documents/raw_p010_image_with_stride.p010"
 #define RAW_YUV420_IMAGE "/sdcard/Documents/raw_yuv420_image.yuv420"
 #define JPEG_IMAGE "/sdcard/Documents/jpeg_image.jpg"
 #define TEST_IMAGE_WIDTH 1280
 #define TEST_IMAGE_HEIGHT 720
+#define TEST_IMAGE_STRIDE 1288
 #define DEFAULT_JPEG_QUALITY 90
 
 #define SAVE_ENCODING_RESULT true
@@ -97,6 +99,7 @@ protected:
   virtual void TearDown();
 
   struct jpegr_uncompressed_struct mRawP010Image;
+  struct jpegr_uncompressed_struct mRawP010ImageWithStride;
   struct jpegr_uncompressed_struct mRawYuv420Image;
   struct jpegr_compressed_struct mJpegImage;
 };
@@ -107,6 +110,7 @@ JpegRTest::~JpegRTest() {}
 void JpegRTest::SetUp() {}
 void JpegRTest::TearDown() {
   free(mRawP010Image.data);
+  free(mRawP010ImageWithStride.data);
   free(mRawYuv420Image.data);
   free(mJpegImage.data);
 }
@@ -215,6 +219,61 @@ TEST_F(JpegRTest, encodeFromP010ThenDecode) {
   jpegR.data = malloc(jpegR.maxLength);
   ret = jpegRCodec.encodeJPEGR(
       &mRawP010Image, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR, DEFAULT_JPEG_QUALITY, nullptr);
+  if (ret != OK) {
+    FAIL() << "Error code is " << ret;
+  }
+  if (SAVE_ENCODING_RESULT) {
+    // Output image data to file
+    std::string filePath = "/sdcard/Documents/encoded_from_p010_input.jpgr";
+    std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
+    if (!imageFile.is_open()) {
+      ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
+    }
+    imageFile.write((const char*)jpegR.data, jpegR.length);
+  }
+
+  jpegr_uncompressed_struct decodedJpegR;
+  int decodedJpegRSize = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * 8;
+  decodedJpegR.data = malloc(decodedJpegRSize);
+  ret = jpegRCodec.decodeJPEGR(&jpegR, &decodedJpegR);
+  if (ret != OK) {
+    FAIL() << "Error code is " << ret;
+  }
+  if (SAVE_DECODING_RESULT) {
+    // Output image data to file
+    std::string filePath = "/sdcard/Documents/decoded_from_p010_input.rgb";
+    std::ofstream imageFile(filePath.c_str(), std::ofstream::binary);
+    if (!imageFile.is_open()) {
+      ALOGE("%s: Unable to create file %s", __FUNCTION__, filePath.c_str());
+    }
+    imageFile.write((const char*)decodedJpegR.data, decodedJpegRSize);
+  }
+
+  free(jpegR.data);
+  free(decodedJpegR.data);
+}
+
+/* Test Encode API-0 (with stride) and decode */
+TEST_F(JpegRTest, encodeFromP010WithStrideThenDecode) {
+  int ret;
+
+  // Load input files.
+  if (!loadFile(RAW_P010_IMAGE_WITH_STRIDE, mRawP010ImageWithStride.data, nullptr)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE_WITH_STRIDE << " failed";
+  }
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+
+  JpegR jpegRCodec;
+
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+  ret = jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
   }

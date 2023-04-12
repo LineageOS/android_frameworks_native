@@ -63,12 +63,26 @@ struct jpegr_info_struct {
 struct jpegr_uncompressed_struct {
     // Pointer to the data location.
     void* data;
-    // Width of the recovery map or image in pixels.
+    // Width of the recovery map or the luma plane of the image in pixels.
     int width;
-    // Height of the recovery map or image in pixels.
+    // Height of the recovery map or the luma plane of the image in pixels.
     int height;
     // Color gamut.
     jpegr_color_gamut colorGamut;
+
+    // Values below are optional
+    // Pointer to chroma data, if it's NULL, chroma plane is considered to be immediately
+    // following after the luma plane.
+    // Note: currently this feature is only supported for P010 image (HDR input).
+    void* chroma_data = nullptr;
+    // Strides of Y plane in number of pixels, using 0 to present uninitialized, must be
+    // larger than or equal to luma width.
+    // Note: currently this feature is only supported for P010 image (HDR input).
+    int luma_stride = 0;
+    // Strides of UV plane in number of pixels, using 0 to present uninitialized, must be
+    // larger than or equal to chroma width.
+    // Note: currently this feature is only supported for P010 image (HDR input).
+    int chroma_stride = 0;
 };
 
 /*
@@ -363,6 +377,16 @@ private:
      */
     status_t toneMap(jr_uncompressed_ptr src,
                      jr_uncompressed_ptr dest);
+
+    /*
+     * This method will check the validity of the input images.
+     *
+     * @param uncompressed_p010_image uncompressed HDR image in P010 color format
+     * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
+     * @return NO_ERROR if the input images are valid, error code is not valid.
+     */
+    status_t areInputImagesValid(jr_uncompressed_ptr uncompressed_p010_image,
+                                 jr_uncompressed_ptr uncompressed_yuv_420_image);
 };
 
 } // namespace android::jpegrecoverymap
