@@ -86,6 +86,54 @@ int GetCPUCoreCount() {
   return cpuCoreCount;
 }
 
+status_t JpegR::areInputImagesValid(jr_uncompressed_ptr uncompressed_p010_image,
+                                    jr_uncompressed_ptr uncompressed_yuv_420_image) {
+  if (uncompressed_p010_image == nullptr) {
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (uncompressed_p010_image->width % kJpegBlock != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image size can not be handled: %dx%d.",
+            uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (uncompressed_p010_image->luma_stride != 0
+          && uncompressed_p010_image->luma_stride < uncompressed_p010_image->width) {
+    ALOGE("Image stride can not be smaller than width, stride=%d, width=%d",
+                uncompressed_p010_image->luma_stride, uncompressed_p010_image->width);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (uncompressed_yuv_420_image == nullptr) {
+    return NO_ERROR;
+  }
+
+  if (uncompressed_yuv_420_image->luma_stride != 0) {
+    ALOGE("Stride is not supported for YUV420 image");
+    return ERROR_JPEGR_UNSUPPORTED_FEATURE;
+  }
+
+  if (uncompressed_yuv_420_image->chroma_data != nullptr) {
+    ALOGE("Pointer to chroma plane is not supported for YUV420 image, chroma data must"
+          "be immediately after the luma data.");
+    return ERROR_JPEGR_UNSUPPORTED_FEATURE;
+  }
+
+  if (uncompressed_p010_image->width != uncompressed_yuv_420_image->width
+      || uncompressed_p010_image->height != uncompressed_yuv_420_image->height) {
+    ALOGE("Image resolutions mismatch: P010: %dx%d, YUV420: %dx%d",
+              uncompressed_p010_image->width,
+              uncompressed_p010_image->height,
+              uncompressed_yuv_420_image->width,
+              uncompressed_yuv_420_image->height);
+    return ERROR_JPEGR_RESOLUTION_MISMATCH;
+  }
+
+  return NO_ERROR;
+}
+
 /* Encode API-0 */
 status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                             jpegr_transfer_function hdr_tf,
@@ -100,11 +148,9 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  if (uncompressed_p010_image->width % kJpegBlock != 0
-          || uncompressed_p010_image->height % 2 != 0) {
-    ALOGE("Image size can not be handled: %dx%d",
-            uncompressed_p010_image->width, uncompressed_p010_image->height);
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  if (status_t ret = areInputImagesValid(
+          uncompressed_p010_image, /* uncompressed_yuv_420_image */ nullptr) != NO_ERROR) {
+    return ret;
   }
 
   jpegr_metadata_struct metadata;
@@ -164,16 +210,9 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  if (uncompressed_p010_image->width != uncompressed_yuv_420_image->width
-   || uncompressed_p010_image->height != uncompressed_yuv_420_image->height) {
-    return ERROR_JPEGR_RESOLUTION_MISMATCH;
-  }
-
-  if (uncompressed_p010_image->width % kJpegBlock != 0
-          || uncompressed_p010_image->height % 2 != 0) {
-    ALOGE("Image size can not be handled: %dx%d",
-            uncompressed_p010_image->width, uncompressed_p010_image->height);
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  if (status_t ret = areInputImagesValid(
+          uncompressed_p010_image, uncompressed_yuv_420_image) != NO_ERROR) {
+    return ret;
   }
 
   jpegr_metadata_struct metadata;
@@ -223,16 +262,9 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (uncompressed_p010_image->width != uncompressed_yuv_420_image->width
-   || uncompressed_p010_image->height != uncompressed_yuv_420_image->height) {
-    return ERROR_JPEGR_RESOLUTION_MISMATCH;
-  }
-
-  if (uncompressed_p010_image->width % kJpegBlock != 0
-          || uncompressed_p010_image->height % 2 != 0) {
-    ALOGE("Image size can not be handled: %dx%d",
-            uncompressed_p010_image->width, uncompressed_p010_image->height);
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  if (status_t ret = areInputImagesValid(
+          uncompressed_p010_image, uncompressed_yuv_420_image) != NO_ERROR) {
+    return ret;
   }
 
   jpegr_metadata_struct metadata;
@@ -266,11 +298,9 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (uncompressed_p010_image->width % kJpegBlock != 0
-          || uncompressed_p010_image->height % 2 != 0) {
-    ALOGE("Image size can not be handled: %dx%d",
-            uncompressed_p010_image->width, uncompressed_p010_image->height);
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  if (status_t ret = areInputImagesValid(
+          uncompressed_p010_image, /* uncompressed_yuv_420_image */ nullptr) != NO_ERROR) {
+    return ret;
   }
 
   JpegDecoderHelper jpeg_decoder;
@@ -998,25 +1028,43 @@ status_t JpegR::toneMap(jr_uncompressed_ptr src, jr_uncompressed_ptr dest) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
+  size_t src_luma_stride = src->luma_stride;
+  size_t src_chroma_stride = src->chroma_stride;
+  uint16_t* src_luma_data = reinterpret_cast<uint16_t*>(src->data);
+  uint16_t* src_chroma_data = reinterpret_cast<uint16_t*>(src->chroma_data);
+
+  if (src_chroma_data == nullptr) {
+    src_chroma_data = &reinterpret_cast<uint16_t*>(src->data)[src->luma_stride * src->height];
+  }
+  if (src_luma_stride == 0) {
+    src_luma_stride = src->width;
+  }
+  if (src_chroma_stride == 0) {
+    src_chroma_stride = src_luma_stride;
+  }
+
   dest->width = src->width;
   dest->height = src->height;
 
-  size_t pixel_count = src->width * src->height;
+  size_t dest_luma_pixel_count = dest->width * dest->height;
+
   for (size_t y = 0; y < src->height; ++y) {
     for (size_t x = 0; x < src->width; ++x) {
-      size_t pixel_y_idx = x + y * src->width;
-      size_t pixel_uv_idx = x / 2 + (y / 2) * (src->width / 2);
+      size_t src_y_idx = y * src_luma_stride + x;
+      size_t src_u_idx = (y >> 1) * src_chroma_stride + (x & ~0x1);
+      size_t src_v_idx = src_u_idx + 1;
 
-      uint16_t y_uint = reinterpret_cast<uint16_t*>(src->data)[pixel_y_idx]
-                        >> 6;
-      uint16_t u_uint = reinterpret_cast<uint16_t*>(src->data)[pixel_count + pixel_uv_idx * 2]
-                        >> 6;
-      uint16_t v_uint = reinterpret_cast<uint16_t*>(src->data)[pixel_count + pixel_uv_idx * 2 + 1]
-                        >> 6;
+      uint16_t y_uint = src_luma_data[src_y_idx] >> 6;
+      uint16_t u_uint = src_chroma_data[src_u_idx] >> 6;
+      uint16_t v_uint = src_chroma_data[src_v_idx] >> 6;
 
-      uint8_t* y = &reinterpret_cast<uint8_t*>(dest->data)[pixel_y_idx];
-      uint8_t* u = &reinterpret_cast<uint8_t*>(dest->data)[pixel_count + pixel_uv_idx];
-      uint8_t* v = &reinterpret_cast<uint8_t*>(dest->data)[pixel_count * 5 / 4 + pixel_uv_idx];
+      size_t dest_y_idx = x + y * dest->width;
+      size_t dest_uv_idx = x / 2 + (y / 2) * (dest->width / 2);
+
+      uint8_t* y = &reinterpret_cast<uint8_t*>(dest->data)[dest_y_idx];
+      uint8_t* u = &reinterpret_cast<uint8_t*>(dest->data)[dest_luma_pixel_count + dest_uv_idx];
+      uint8_t* v = &reinterpret_cast<uint8_t*>(
+              dest->data)[dest_luma_pixel_count * 5 / 4 + dest_uv_idx];
 
       *y = static_cast<uint8_t>((y_uint >> 2) & 0xff);
       *u = static_cast<uint8_t>((u_uint >> 2) & 0xff);
