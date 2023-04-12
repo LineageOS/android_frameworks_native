@@ -116,14 +116,16 @@ public:
         mBlastBufferQueueAdapter->syncNextTransaction(callback, acquireSingleBuffer);
     }
 
-    void syncNextTransaction(std::function<void(Transaction*)> callback,
+    bool syncNextTransaction(std::function<void(Transaction*)> callback,
                              bool acquireSingleBuffer = true) {
-        mBlastBufferQueueAdapter->syncNextTransaction(callback, acquireSingleBuffer);
+        return mBlastBufferQueueAdapter->syncNextTransaction(callback, acquireSingleBuffer);
     }
 
     void stopContinuousSyncTransaction() {
         mBlastBufferQueueAdapter->stopContinuousSyncTransaction();
     }
+
+    void clearSyncTransaction() { mBlastBufferQueueAdapter->clearSyncTransaction(); }
 
     int getWidth() { return mBlastBufferQueueAdapter->mSize.width; }
 
@@ -1108,7 +1110,11 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionOverwrite) {
     ASSERT_NE(nullptr, adapter.getTransactionReadyCallback());
 
     auto callback2 = [](Transaction*) {};
-    adapter.syncNextTransaction(callback2);
+    ASSERT_FALSE(adapter.syncNextTransaction(callback2));
+
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+    queueBuffer(igbProducer, 0, 255, 0, 0);
 
     std::unique_lock<std::mutex> lock(mutex);
     if (!receivedCallback) {
@@ -1118,6 +1124,37 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionOverwrite) {
     }
 
     ASSERT_TRUE(receivedCallback);
+}
+
+TEST_F(BLASTBufferQueueTest, ClearSyncTransaction) {
+    std::mutex mutex;
+    std::condition_variable callbackReceivedCv;
+    bool receivedCallback = false;
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    ASSERT_EQ(nullptr, adapter.getTransactionReadyCallback());
+    auto callback = [&](Transaction*) {
+        std::unique_lock<std::mutex> lock(mutex);
+        receivedCallback = true;
+        callbackReceivedCv.notify_one();
+    };
+    adapter.syncNextTransaction(callback);
+    ASSERT_NE(nullptr, adapter.getTransactionReadyCallback());
+
+    adapter.clearSyncTransaction();
+
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+    queueBuffer(igbProducer, 0, 255, 0, 0);
+
+    std::unique_lock<std::mutex> lock(mutex);
+    if (!receivedCallback) {
+        ASSERT_EQ(callbackReceivedCv.wait_for(lock, std::chrono::seconds(3)),
+                  std::cv_status::timeout)
+                << "did not receive callback";
+    }
+
+    ASSERT_FALSE(receivedCallback);
 }
 
 TEST_F(BLASTBufferQueueTest, SyncNextTransactionDropBuffer) {
