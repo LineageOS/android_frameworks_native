@@ -952,6 +952,27 @@ TEST_F(RecoveryMapMathTest, ColorToRgba1010102) {
           | static_cast<uint32_t>(0.3f * static_cast<float>(0x3ff)) << 20);
 }
 
+TEST_F(RecoveryMapMathTest, ColorToRgbaF16) {
+  EXPECT_EQ(colorToRgbaF16(RgbBlack()), ((uint64_t) 0x3C00) << 48);
+  EXPECT_EQ(colorToRgbaF16(RgbWhite()), 0x3C003C003C003C00);
+  EXPECT_EQ(colorToRgbaF16(RgbRed()),   (((uint64_t) 0x3C00) << 48) | ((uint64_t) 0x3C00));
+  EXPECT_EQ(colorToRgbaF16(RgbGreen()), (((uint64_t) 0x3C00) << 48) | (((uint64_t) 0x3C00) << 16));
+  EXPECT_EQ(colorToRgbaF16(RgbBlue()),  (((uint64_t) 0x3C00) << 48) | (((uint64_t) 0x3C00) << 32));
+
+  Color e_gamma = {{{ 0.1f, 0.2f, 0.3f }}};
+  EXPECT_EQ(colorToRgbaF16(e_gamma), 0x3C0034CD32662E66);
+}
+
+TEST_F(RecoveryMapMathTest, Float32ToFloat16) {
+  EXPECT_EQ(floatToHalf(0.1f), 0x2E66);
+  EXPECT_EQ(floatToHalf(0.0f), 0x0);
+  EXPECT_EQ(floatToHalf(1.0f), 0x3C00);
+  EXPECT_EQ(floatToHalf(-1.0f), 0xBC00);
+  EXPECT_EQ(floatToHalf(0x1.fffffep127f), 0x7FFF);  // float max
+  EXPECT_EQ(floatToHalf(-0x1.fffffep127f), 0xFFFF);  // float min
+  EXPECT_EQ(floatToHalf(0x1.0p-126f), 0x0);  // float zero
+}
+
 TEST_F(RecoveryMapMathTest, GenerateMapLuminanceSrgb) {
   EXPECT_FLOAT_EQ(SrgbYuvToLuminance(YuvBlack(), srgbLuminance),
                   0.0f);
