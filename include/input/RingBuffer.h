@@ -103,6 +103,11 @@ public:
     iterator end() { return {*this, mSize}; }
     const_iterator end() const { return {*this, mSize}; }
 
+    reference front() { return mBuffer[mBegin]; }
+    const_reference front() const { return mBuffer[mBegin]; }
+    reference back() { return mBuffer[bufferIndex(mSize - 1)]; }
+    const_reference back() const { return mBuffer[bufferIndex(mSize - 1)]; }
+
     reference operator[](size_type i) { return mBuffer[bufferIndex(i)]; }
     const_reference operator[](size_type i) const { return mBuffer[bufferIndex(i)]; }
 

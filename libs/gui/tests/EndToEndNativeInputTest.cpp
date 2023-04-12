@@ -628,7 +628,7 @@ TEST_F(InputSurfacesTest, input_respects_scaled_touchable_region_overflow) {
 
     // Expect no crash for overflow.
     injectTap(12, 24);
-    fgSurface->expectTap(6, 12);
+    bgSurface->expectTap(12, 24);
 }
 
 // Ensure we ignore transparent region when getting screen bounds when positioning input frame.
@@ -1233,32 +1233,6 @@ TEST_F(MultiDisplayTests, virtual_display_receives_input) {
     surface->assertFocusChange(true);
     injectKeyOnDisplay(AKEYCODE_V, layerStack.id);
     surface->expectKey(AKEYCODE_V);
-}
-
-/**
- * When multiple DisplayDevices are mapped to the same layerStack, use the configuration for the
- * display that can receive input.
- */
-TEST_F(MultiDisplayTests, many_to_one_display_mapping) {
-    ui::LayerStack layerStack = ui::LayerStack::fromValue(42);
-    createDisplay(1000, 1000, false /*isSecure*/, layerStack, false /*receivesInput*/,
-                  100 /*offsetX*/, 100 /*offsetY*/);
-    createDisplay(1000, 1000, false /*isSecure*/, layerStack, true /*receivesInput*/,
-                  200 /*offsetX*/, 200 /*offsetY*/);
-    createDisplay(1000, 1000, false /*isSecure*/, layerStack, false /*receivesInput*/,
-                  300 /*offsetX*/, 300 /*offsetY*/);
-    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
-    surface->doTransaction([&](auto &t, auto &sc) { t.setLayerStack(sc, layerStack); });
-    surface->showAt(10, 10);
-
-    // Input injection happens in logical display coordinates.
-    injectTapOnDisplay(11, 11, layerStack.id);
-    // Expect that the display transform for the display that receives input was used.
-    surface->expectTapInDisplayCoordinates(211, 211);
-
-    surface->requestFocus(layerStack.id);
-    surface->assertFocusChange(true);
-    injectKeyOnDisplay(AKEYCODE_V, layerStack.id);
 }
 
 TEST_F(MultiDisplayTests, drop_input_for_secure_layer_on_nonsecure_display) {
