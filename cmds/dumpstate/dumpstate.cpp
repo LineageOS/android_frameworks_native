@@ -2206,6 +2206,16 @@ Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
             continue;
         }
 
+        // Skip cached processes.
+        if (IsCached(pid)) {
+            // For consistency, the header and footer to this message match those
+            // dumped by debuggerd in the success case.
+            dprintf(fd, "\n---- pid %d at [unknown] ----\n", pid);
+            dprintf(fd, "Dump skipped for cached process.\n");
+            dprintf(fd, "---- end %d ----", pid);
+            continue;
+        }
+
         const std::string link_name = android::base::StringPrintf("/proc/%d/exe", pid);
         std::string exe;
         if (!android::base::Readlink(link_name, &exe)) {

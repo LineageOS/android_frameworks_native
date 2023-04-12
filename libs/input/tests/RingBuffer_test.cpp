@@ -118,6 +118,21 @@ TEST(RingBufferTest, Assignment) {
     EXPECT_EQ(0u, d.capacity());
 }
 
+TEST(RingBufferTest, FrontBackAccess) {
+    RingBuffer<int> buffer(/*capacity=*/2);
+    buffer.pushBack(1);
+    EXPECT_EQ(1, buffer.front());
+    EXPECT_EQ(1, buffer.back());
+
+    buffer.pushFront(0);
+    EXPECT_EQ(0, buffer.front());
+    EXPECT_EQ(1, buffer.back());
+
+    buffer.pushFront(-1);
+    EXPECT_EQ(-1, buffer.front());
+    EXPECT_EQ(0, buffer.back());
+}
+
 TEST(RingBufferTest, Subscripting) {
     RingBuffer<int> buffer(/*capacity=*/2);
     buffer.pushBack(1);

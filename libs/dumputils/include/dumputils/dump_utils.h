@@ -25,4 +25,6 @@ std::set<int> get_interesting_pids();
 
 bool IsZygote(int pid);
 
+bool IsCached(int pid);
+
 #endif  // DUMPUTILS_H_
