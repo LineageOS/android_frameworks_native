@@ -662,10 +662,9 @@ TEST_F(LayerHierarchyTest, zorderRespectsLayerStack) {
     mLifecycleManager.commitChanges();
     LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
     UPDATE_AND_VERIFY(hierarchyBuilder);
-    std::vector<uint32_t> expectedTraversalPath = {1, 11, 2, 21};
+    std::vector<uint32_t> expectedTraversalPath = {2, 21, 1, 11};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
 
-    expectedTraversalPath = {1, 11, 2, 21};
     EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
     expectedTraversalPath = {};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expectedTraversalPath);
@@ -678,8 +677,8 @@ TEST_F(LayerHierarchyTest, canMirrorDisplay) {
     setLayerStack(3, 1);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
-    std::vector<uint32_t> expected = {3, 1,  11,  111, 12,  121, 122,  1221, 13, 2,
-                                      1, 11, 111, 12,  121, 122, 1221, 13,   2};
+    std::vector<uint32_t> expected = {1, 11, 111, 12, 121, 122, 1221, 13, 2, 3,
+                                      1, 11, 111, 12, 121, 122, 1221, 13, 2};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expected);
     EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expected);
     expected = {};
@@ -693,7 +692,7 @@ TEST_F(LayerHierarchyTest, mirrorNonExistingDisplay) {
     setLayerStack(3, 1);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
-    std::vector<uint32_t> expected = {3, 1, 11, 111, 12, 121, 122, 1221, 13, 2};
+    std::vector<uint32_t> expected = {1, 11, 111, 12, 121, 122, 1221, 13, 2, 3};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expected);
     EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expected);
     expected = {};
@@ -710,8 +709,8 @@ TEST_F(LayerHierarchyTest, newRootLayerIsMirrored) {
     createRootLayer(4);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
-    std::vector<uint32_t> expected = {3, 1,  11,  111, 12,  121, 122,  1221, 13, 2, 4,
-                                      1, 11, 111, 12,  121, 122, 1221, 13,   2,  4};
+    std::vector<uint32_t> expected = {1, 11, 111, 12, 121, 122, 1221, 13, 2, 4, 3,
+                                      1, 11, 111, 12, 121, 122, 1221, 13, 2, 4};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expected);
     EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expected);
     expected = {};
@@ -729,7 +728,7 @@ TEST_F(LayerHierarchyTest, removedRootLayerIsNoLongerMirrored) {
     destroyLayerHandle(1);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
-    std::vector<uint32_t> expected = {3, 2, 2};
+    std::vector<uint32_t> expected = {2, 3, 2};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expected);
     EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expected);
     expected = {11, 111, 12, 121, 122, 1221, 13};

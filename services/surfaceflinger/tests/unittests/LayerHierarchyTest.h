@@ -297,6 +297,17 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setBackgroundBlurRadius(uint32_t id, uint32_t backgroundBlurRadius) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eBackgroundBlurRadiusChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.backgroundBlurRadius = backgroundBlurRadius;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     LayerLifecycleManager mLifecycleManager;
 };
 
