@@ -1465,6 +1465,12 @@ void EventHub::setExcludedDevices(const std::vector<std::string>& devices) {
     mExcludedDevices = devices;
 }
 
+void EventHub::setExcludedDevices(const std::vector<std::pair<uint16_t, uint16_t>>& devices) {
+    std::scoped_lock _l(mLock);
+
+    mExcludedDevicesVidPid = devices;
+}
+
 bool EventHub::hasScanCode(int32_t deviceId, int32_t scanCode) const {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
@@ -2301,6 +2307,17 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     identifier.product = inputId.product;
     identifier.vendor = inputId.vendor;
     identifier.version = inputId.version;
+
+    // Check to see if the device is on our excluded list
+    for (size_t i = 0; i < mExcludedDevicesVidPid.size(); i++) {
+        const auto& item = mExcludedDevicesVidPid[i];
+        if (item.first == identifier.vendor && item.second == identifier.product) {
+            ALOGI("ignoring event id %s driver %u:%u\n", devicePath.c_str(), identifier.vendor,
+                  identifier.product);
+            close(fd);
+            return;
+        }
+    }
 
     // Get device physical location.
     if (ioctl(fd, EVIOCGPHYS(sizeof(buffer) - 1), &buffer) < 1) {

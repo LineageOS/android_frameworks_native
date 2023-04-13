@@ -110,6 +110,10 @@ struct InputReaderConfiguration {
     // Devices with these names will be ignored.
     std::vector<std::string> excludedDeviceNames;
 
+    // The excluded device vid/pid for the platform.
+    // Devices with these vid/pid combo will be ignored.
+    std::vector<std::pair<uint16_t, uint16_t>> excludedDevicesVidPid;
+
     // The associations between input ports and display ports.
     // Used to determine which DisplayViewport should be tied to which InputDevice.
     std::unordered_map<std::string, uint8_t> portAssociations;

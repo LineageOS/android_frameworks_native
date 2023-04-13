@@ -395,6 +395,7 @@ void InputReader::handleConfigurationChangedLocked(nsecs_t when) {
 void InputReader::refreshConfigurationLocked(ConfigurationChanges changes) {
     mPolicy->getReaderConfiguration(&mConfig);
     mEventHub->setExcludedDevices(mConfig.excludedDeviceNames);
+    mEventHub->setExcludedDevices(mConfig.excludedDevicesVidPid);
 
     using Change = InputReaderConfiguration::Change;
     if (!changes.any()) return;
