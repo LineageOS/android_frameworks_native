@@ -50,6 +50,9 @@ public:
     // setter and getter for updatable driver path.
     virtual void setUpdatableDriverPath(const std::string& driverPath) = 0;
     virtual std::string getUpdatableDriverPath() = 0;
+
+    // sets ANGLE as system GLES driver if enabled==true by setting persist.graphics.egl to true.
+    virtual void toggleAngleAsSystemDriver(bool enabled) = 0;
 };
 
 class BnGpuService : public BnInterface<IGpuService> {
@@ -59,6 +62,7 @@ public:
         SET_TARGET_STATS,
         SET_UPDATABLE_DRIVER_PATH,
         GET_UPDATABLE_DRIVER_PATH,
+        TOGGLE_ANGLE_AS_SYSTEM_DRIVER,
         // Always append new enum to the end.
     };
 
