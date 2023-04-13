@@ -31,7 +31,7 @@ cc_library {
     srcs: [
         "icc.cpp",
         "jpegr.cpp",
-        "recoverymapmath.cpp",
+        "gainmapmath.cpp",
         "jpegrutils.cpp",
         "multipictureformat.cpp",
     ],
