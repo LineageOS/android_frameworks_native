@@ -384,4 +384,23 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
     }
 }
 
+TEST_F(SchedulerTest, changingPacesetterChangesVsyncSchedule) {
+    // Add a second display so we can change the pacesetter.
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    // Ensure that the pacesetter is the one we expect.
+    mScheduler->setPacesetterDisplay(kDisplayId1);
+
+    // Switching to the other will call onNewVsyncSchedule.
+    EXPECT_CALL(*mEventThread, onNewVsyncSchedule(mScheduler->getVsyncSchedule(kDisplayId2)))
+            .Times(1);
+    mScheduler->setPacesetterDisplay(kDisplayId2);
+}
+
+TEST_F(SchedulerTest, promotingSamePacesetterDoesNotChangeVsyncSchedule) {
+    EXPECT_CALL(*mEventThread, onNewVsyncSchedule(_)).Times(0);
+    mScheduler->setPacesetterDisplay(kDisplayId1);
+}
+
 } // namespace android::scheduler
