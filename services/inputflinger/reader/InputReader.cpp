@@ -234,7 +234,7 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
     InputDeviceIdentifier identifier = mEventHub->getDeviceIdentifier(eventHubId);
     std::shared_ptr<InputDevice> device = createDeviceLocked(eventHubId, identifier);
 
-    notifyAll(device->configure(when, &mConfig, 0));
+    notifyAll(device->configure(when, mConfig, 0));
     notifyAll(device->reset(when));
 
     if (device->isIgnored()) {
@@ -310,7 +310,7 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
 
     std::list<NotifyArgs> resetEvents;
     if (device->hasEventHubDevices()) {
-        resetEvents += device->configure(when, &mConfig, 0);
+        resetEvents += device->configure(when, mConfig, 0);
     }
     resetEvents += device->reset(when);
     notifyAll(std::move(resetEvents));
@@ -408,7 +408,7 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
     } else {
         for (auto& devicePair : mDevices) {
             std::shared_ptr<InputDevice>& device = devicePair.second;
-            notifyAll(device->configure(now, &mConfig, changes));
+            notifyAll(device->configure(now, mConfig, changes));
         }
     }
 

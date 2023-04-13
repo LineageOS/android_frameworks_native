@@ -83,7 +83,7 @@ public:
     void addEventHubDevice(int32_t eventHubId, bool populateMappers = true);
     void removeEventHubDevice(int32_t eventHubId);
     [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
-                                                  const InputReaderConfiguration* config,
+                                                  const InputReaderConfiguration& readerConfig,
                                                   uint32_t changes);
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when);
     [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvents, size_t count);
