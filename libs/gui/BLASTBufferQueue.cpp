@@ -801,34 +801,24 @@ void BLASTBufferQueue::onFrameCancelled(const uint64_t bufferId) {
     mDequeueTimestamps.erase(bufferId);
 };
 
-void BLASTBufferQueue::syncNextTransaction(
+bool BLASTBufferQueue::syncNextTransaction(
         std::function<void(SurfaceComposerClient::Transaction*)> callback,
         bool acquireSingleBuffer) {
-    std::function<void(SurfaceComposerClient::Transaction*)> prevCallback = nullptr;
-    SurfaceComposerClient::Transaction* prevTransaction = nullptr;
+    LOG_ALWAYS_FATAL_IF(!callback,
+                        "BLASTBufferQueue: callback passed in to syncNextTransaction must not be "
+                        "NULL");
 
-    {
-        std::lock_guard _lock{mMutex};
-        BBQ_TRACE();
-        // We're about to overwrite the previous call so we should invoke that callback
-        // immediately.
-        if (mTransactionReadyCallback) {
-            prevCallback = mTransactionReadyCallback;
-            prevTransaction = mSyncTransaction;
-        }
-
-        mTransactionReadyCallback = callback;
-        if (callback) {
-            mSyncTransaction = new SurfaceComposerClient::Transaction();
-        } else {
-            mSyncTransaction = nullptr;
-        }
-        mAcquireSingleBuffer = mTransactionReadyCallback ? acquireSingleBuffer : true;
+    std::lock_guard _lock{mMutex};
+    BBQ_TRACE();
+    if (mTransactionReadyCallback) {
+        ALOGW("Attempting to overwrite transaction callback in syncNextTransaction");
+        return false;
     }
 
-    if (prevCallback) {
-        prevCallback(prevTransaction);
-    }
+    mTransactionReadyCallback = callback;
+    mSyncTransaction = new SurfaceComposerClient::Transaction();
+    mAcquireSingleBuffer = acquireSingleBuffer;
+    return true;
 }
 
 void BLASTBufferQueue::stopContinuousSyncTransaction() {
@@ -836,18 +826,33 @@ void BLASTBufferQueue::stopContinuousSyncTransaction() {
     SurfaceComposerClient::Transaction* prevTransaction = nullptr;
     {
         std::lock_guard _lock{mMutex};
-        bool invokeCallback = mTransactionReadyCallback && !mAcquireSingleBuffer;
-        if (invokeCallback) {
-            prevCallback = mTransactionReadyCallback;
-            prevTransaction = mSyncTransaction;
+        if (mAcquireSingleBuffer || !mTransactionReadyCallback) {
+            ALOGW("Attempting to stop continuous sync when none are active");
+            return;
         }
+
+        prevCallback = mTransactionReadyCallback;
+        prevTransaction = mSyncTransaction;
+
         mTransactionReadyCallback = nullptr;
         mSyncTransaction = nullptr;
         mAcquireSingleBuffer = true;
     }
+
     if (prevCallback) {
         prevCallback(prevTransaction);
     }
+}
+
+void BLASTBufferQueue::clearSyncTransaction() {
+    std::lock_guard _lock{mMutex};
+    if (!mAcquireSingleBuffer) {
+        ALOGW("Attempting to clear sync transaction when none are active");
+        return;
+    }
+
+    mTransactionReadyCallback = nullptr;
+    mSyncTransaction = nullptr;
 }
 
 bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
