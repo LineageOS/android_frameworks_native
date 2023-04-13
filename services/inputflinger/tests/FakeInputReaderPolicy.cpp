@@ -154,8 +154,8 @@ void FakeInputReaderPolicy::setPointerController(
     mPointerController = std::move(controller);
 }
 
-const InputReaderConfiguration* FakeInputReaderPolicy::getReaderConfiguration() const {
-    return &mConfig;
+const InputReaderConfiguration& FakeInputReaderPolicy::getReaderConfiguration() const {
+    return mConfig;
 }
 
 const std::vector<InputDeviceInfo>& FakeInputReaderPolicy::getInputDevices() const {

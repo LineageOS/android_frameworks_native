@@ -54,7 +54,7 @@ public:
     virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo);
     virtual void dump(std::string& dump);
     [[nodiscard]] virtual std::list<NotifyArgs> reconfigure(nsecs_t when,
-                                                            const InputReaderConfiguration* config,
+                                                            const InputReaderConfiguration& config,
                                                             uint32_t changes);
     [[nodiscard]] virtual std::list<NotifyArgs> reset(nsecs_t when);
     [[nodiscard]] virtual std::list<NotifyArgs> process(const RawEvent* rawEvent) = 0;
