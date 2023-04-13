@@ -8,6 +8,7 @@ service dumpstate /system/bin/dumpstate -s
     socket dumpstate stream 0660 shell log
     disabled
     oneshot
+    user root
 
 # dumpstatez generates a zipped bugreport but also uses a socket to print the file location once
 # it is finished.
@@ -16,9 +17,11 @@ service dumpstatez /system/bin/dumpstate -S
     class main
     disabled
     oneshot
+    user root
 
 # bugreportd starts dumpstate binder service and makes it wait for a listener to connect.
 service bugreportd /system/bin/dumpstate -w
     class main
     disabled
     oneshot
+    user root
