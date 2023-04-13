@@ -288,11 +288,11 @@ void TouchInputMapper::dump(std::string& dump) {
 }
 
 std::list<NotifyArgs> TouchInputMapper::reconfigure(nsecs_t when,
-                                                    const InputReaderConfiguration* config,
+                                                    const InputReaderConfiguration& config,
                                                     uint32_t changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
-    mConfig = *config;
+    mConfig = config;
 
     // Full configuration should happen the first time configure is called and
     // when the device type is changed. Changing a device type can affect
