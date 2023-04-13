@@ -67,51 +67,42 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
         fdp.PickValueInArray<std::function<void()>>({
                 [&]() -> void {
                     // SendToNextStage_NotifyConfigurationChangedArgs
-                    NotifyConfigurationChangedArgs
-                            args(/*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
-                                 /*eventTime=*/fdp.ConsumeIntegral<nsecs_t>());
-                    mClassifier->notifyConfigurationChanged(&args);
+                    mClassifier->notifyConfigurationChanged(
+                            {/*sequenceNum=*/fdp.ConsumeIntegral<int32_t>(),
+                             /*eventTime=*/fdp.ConsumeIntegral<nsecs_t>()});
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifyKeyArgs
                     const nsecs_t eventTime = fdp.ConsumeIntegral<nsecs_t>();
                     const nsecs_t readTime =
                             eventTime + fdp.ConsumeIntegralInRange<nsecs_t>(0, 1E8);
-                    NotifyKeyArgs keyArgs(/*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
-                                          eventTime, readTime,
-                                          /*deviceId=*/fdp.ConsumeIntegral<int32_t>(),
-                                          AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT,
-                                          /*policyFlags=*/fdp.ConsumeIntegral<uint32_t>(),
-                                          AKEY_EVENT_ACTION_DOWN,
-                                          /*flags=*/fdp.ConsumeIntegral<int32_t>(), AKEYCODE_HOME,
-                                          /*scanCode=*/fdp.ConsumeIntegral<int32_t>(), AMETA_NONE,
-                                          /*downTime=*/fdp.ConsumeIntegral<nsecs_t>());
-
-                    mClassifier->notifyKey(&keyArgs);
+                    mClassifier->notifyKey({/*sequenceNum=*/fdp.ConsumeIntegral<int32_t>(),
+                                            eventTime, readTime,
+                                            /*deviceId=*/fdp.ConsumeIntegral<int32_t>(),
+                                            AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT,
+                                            /*policyFlags=*/fdp.ConsumeIntegral<uint32_t>(),
+                                            AKEY_EVENT_ACTION_DOWN,
+                                            /*flags=*/fdp.ConsumeIntegral<int32_t>(), AKEYCODE_HOME,
+                                            /*scanCode=*/fdp.ConsumeIntegral<int32_t>(), AMETA_NONE,
+                                            /*downTime=*/fdp.ConsumeIntegral<nsecs_t>()});
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifyMotionArgs
-                    NotifyMotionArgs motionArgs = generateFuzzedMotionArgs(fdp);
-                    mClassifier->notifyMotion(&motionArgs);
+                    mClassifier->notifyMotion(generateFuzzedMotionArgs(fdp));
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifySwitchArgs
-                    NotifySwitchArgs switchArgs(/*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
-                                                /*eventTime=*/fdp.ConsumeIntegral<nsecs_t>(),
-                                                /*policyFlags=*/fdp.ConsumeIntegral<uint32_t>(),
-                                                /*switchValues=*/fdp.ConsumeIntegral<uint32_t>(),
-                                                /*switchMask=*/fdp.ConsumeIntegral<uint32_t>());
-
-                    mClassifier->notifySwitch(&switchArgs);
+                    mClassifier->notifySwitch({/*sequenceNum=*/fdp.ConsumeIntegral<int32_t>(),
+                                               /*eventTime=*/fdp.ConsumeIntegral<nsecs_t>(),
+                                               /*policyFlags=*/fdp.ConsumeIntegral<uint32_t>(),
+                                               /*switchValues=*/fdp.ConsumeIntegral<uint32_t>(),
+                                               /*switchMask=*/fdp.ConsumeIntegral<uint32_t>()});
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifyDeviceResetArgs
-                    NotifyDeviceResetArgs resetArgs(
-                            /*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
-                            /*eventTime=*/fdp.ConsumeIntegral<nsecs_t>(),
-                            /*deviceId=*/fdp.ConsumeIntegral<int32_t>());
-
-                    mClassifier->notifyDeviceReset(&resetArgs);
+                    mClassifier->notifyDeviceReset({/*sequenceNum=*/fdp.ConsumeIntegral<int32_t>(),
+                                                    /*eventTime=*/fdp.ConsumeIntegral<nsecs_t>(),
+                                                    /*deviceId=*/fdp.ConsumeIntegral<int32_t>()});
                 },
                 [&]() -> void {
                     // InputClassifierConverterTest
