@@ -582,7 +582,8 @@ status_t BLASTBufferQueue::acquireNextBufferLocked(
     // Only update mSize for destination bounds if the incoming buffer matches the requested size.
     // Otherwise, it could cause stretching since the destination bounds will update before the
     // buffer with the new size is acquired.
-    if (mRequestedSize == getBufferSize(bufferItem)) {
+    if (mRequestedSize == getBufferSize(bufferItem) ||
+        bufferItem.mScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE) {
         mSize = mRequestedSize;
     }
     Rect crop = computeCrop(bufferItem);
