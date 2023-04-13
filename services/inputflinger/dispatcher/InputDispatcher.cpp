@@ -117,11 +117,7 @@ inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
-inline const char* toString(bool value) {
-    return value ? "true" : "false";
-}
-
-inline const std::string toString(const sp<IBinder>& binder) {
+inline const std::string binderToString(const sp<IBinder>& binder) {
     if (binder == nullptr) {
         return "<null>";
     }
@@ -2909,7 +2905,7 @@ std::string InputDispatcher::dumpWindowForTouchOcclusion(const WindowInfo* info,
                         info->frameBottom, dumpRegion(info->touchableRegion).c_str(),
                         info->name.c_str(), info->inputConfig.string().c_str(),
                         toString(info->token != nullptr), info->applicationInfo.name.c_str(),
-                        toString(info->applicationInfo.token).c_str());
+                        binderToString(info->applicationInfo.token).c_str());
 }
 
 bool InputDispatcher::isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const {
@@ -3623,8 +3619,8 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
                                                      const sp<Connection>& connection,
                                                      bool notify) {
     if (DEBUG_DISPATCH_CYCLE) {
-        ALOGD("channel '%s' ~ abortBrokenDispatchCycle - notify=%s",
-              connection->getInputChannelName().c_str(), toString(notify));
+        LOG(DEBUG) << "channel '" << connection->getInputChannelName() << "'~ " << __func__
+                   << " - notify=" << toString(notify);
     }
 
     // Clear the dispatch queues.
@@ -4376,10 +4372,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                             std::chrono::milliseconds timeout,
                                                             uint32_t policyFlags) {
     if (debugInboundEventDetails()) {
-        ALOGD("injectInputEvent - eventType=%d, targetUid=%s, syncMode=%d, timeout=%lld, "
-              "policyFlags=0x%08x",
-              event->getType(), targetUid ? std::to_string(*targetUid).c_str() : "none", syncMode,
-              timeout.count(), policyFlags);
+        LOG(DEBUG) << __func__ << ": targetUid=" << toString(targetUid)
+                   << ", syncMode=" << ftl::enum_string(syncMode) << ", timeout=" << timeout.count()
+                   << "ms, policyFlags=0x" << std::hex << policyFlags << std::dec
+                   << ", event=" << *event;
     }
     nsecs_t endTime = now() + std::chrono::duration_cast<std::chrono::nanoseconds>(timeout).count();
 
@@ -4398,7 +4394,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
 
     std::queue<std::unique_ptr<EventEntry>> injectedEntries;
     switch (event->getType()) {
-        case AINPUT_EVENT_TYPE_KEY: {
+        case InputEventType::KEY: {
             const KeyEvent& incomingKey = static_cast<const KeyEvent&>(*event);
             int32_t action = incomingKey.getAction();
             if (!validateKeyEvent(action)) {
@@ -4444,7 +4440,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             break;
         }
 
-        case AINPUT_EVENT_TYPE_MOTION: {
+        case InputEventType::MOTION: {
             const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
             const int32_t action = motionEvent.getAction();
             const bool isPointerEvent =
@@ -4520,7 +4516,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
         }
 
         default:
-            ALOGW("Cannot inject %s events", inputEventTypeToString(event->getType()));
+            LOG(WARNING) << "Cannot inject " << ftl::enum_string(event->getType()) << " events";
             return InputEventInjectionResult::FAILED;
     }
 
@@ -4610,14 +4606,14 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
     std::array<uint8_t, 32> calculatedHmac;
     std::unique_ptr<VerifiedInputEvent> result;
     switch (event.getType()) {
-        case AINPUT_EVENT_TYPE_KEY: {
+        case InputEventType::KEY: {
             const KeyEvent& keyEvent = static_cast<const KeyEvent&>(event);
             VerifiedKeyEvent verifiedKeyEvent = verifiedKeyEventFromKeyEvent(keyEvent);
             result = std::make_unique<VerifiedKeyEvent>(verifiedKeyEvent);
             calculatedHmac = sign(verifiedKeyEvent);
             break;
         }
-        case AINPUT_EVENT_TYPE_MOTION: {
+        case InputEventType::MOTION: {
             const MotionEvent& motionEvent = static_cast<const MotionEvent&>(event);
             VerifiedMotionEvent verifiedMotionEvent =
                     verifiedMotionEventFromMotionEvent(motionEvent);
@@ -5519,14 +5515,14 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          windowInfo->frameTop, windowInfo->frameRight,
                                          windowInfo->frameBottom, windowInfo->globalScaleFactor,
                                          windowInfo->applicationInfo.name.c_str(),
-                                         toString(windowInfo->applicationInfo.token).c_str());
+                                         binderToString(windowInfo->applicationInfo.token).c_str());
                     dump += dumpRegion(windowInfo->touchableRegion);
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
                                          "ms, hasToken=%s, "
                                          "touchOcclusionMode=%s\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
                                          millis(windowInfo->dispatchingTimeout),
-                                         toString(windowInfo->token != nullptr),
+                                         binderToString(windowInfo->token).c_str(),
                                          toString(windowInfo->touchOcclusionMode).c_str());
                     windowInfo->transform.dump(dump, "transform", INDENT4);
                 }

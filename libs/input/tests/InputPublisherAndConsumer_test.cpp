@@ -98,8 +98,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
 
     ASSERT_TRUE(event != nullptr)
             << "consumer should have returned non-NULL event";
-    ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, event->getType())
-            << "consumer should have returned a key event";
+    ASSERT_EQ(InputEventType::KEY, event->getType()) << "consumer should have returned a key event";
 
     KeyEvent* keyEvent = static_cast<KeyEvent*>(event);
     EXPECT_EQ(seq, consumeSeq);
@@ -207,7 +206,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
 
     ASSERT_TRUE(event != nullptr)
             << "consumer should have returned non-NULL event";
-    ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType())
+    ASSERT_EQ(InputEventType::MOTION, event->getType())
             << "consumer should have returned a motion event";
 
     MotionEvent* motionEvent = static_cast<MotionEvent*>(event);
@@ -298,7 +297,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
     ASSERT_EQ(OK, status) << "consumer consume should return OK";
 
     ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
-    ASSERT_EQ(AINPUT_EVENT_TYPE_FOCUS, event->getType())
+    ASSERT_EQ(InputEventType::FOCUS, event->getType())
             << "consumer should have returned a focus event";
 
     FocusEvent* focusEvent = static_cast<FocusEvent*>(event);
@@ -339,7 +338,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeCaptureEvent() {
     ASSERT_EQ(OK, status) << "consumer consume should return OK";
 
     ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
-    ASSERT_EQ(AINPUT_EVENT_TYPE_CAPTURE, event->getType())
+    ASSERT_EQ(InputEventType::CAPTURE, event->getType())
             << "consumer should have returned a capture event";
 
     const CaptureEvent* captureEvent = static_cast<CaptureEvent*>(event);
@@ -381,7 +380,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeDragEvent() {
     ASSERT_EQ(OK, status) << "consumer consume should return OK";
 
     ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
-    ASSERT_EQ(AINPUT_EVENT_TYPE_DRAG, event->getType())
+    ASSERT_EQ(InputEventType::DRAG, event->getType())
             << "consumer should have returned a drag event";
 
     const DragEvent& dragEvent = static_cast<const DragEvent&>(*event);
@@ -423,7 +422,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeTouchModeEvent() {
     ASSERT_EQ(OK, status) << "consumer consume should return OK";
 
     ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
-    ASSERT_EQ(AINPUT_EVENT_TYPE_TOUCH_MODE, event->getType())
+    ASSERT_EQ(InputEventType::TOUCH_MODE, event->getType())
             << "consumer should have returned a touch mode event";
 
     const TouchModeEvent& touchModeEvent = static_cast<const TouchModeEvent&>(*event);
