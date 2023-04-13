@@ -26,7 +26,7 @@ cc_test {
     test_suites: ["device-tests"],
     srcs: [
         "jpegr_test.cpp",
-        "recoverymapmath_test.cpp",
+        "gainmapmath_test.cpp",
     ],
     shared_libs: [
         "libimage_io",
