@@ -130,7 +130,7 @@ void Scheduler::registerDisplayInternal(PhysicalDisplayId displayId,
 
         pacesetterVsyncSchedule = promotePacesetterDisplayLocked();
     }
-    applyNewVsyncSchedule(std::move(pacesetterVsyncSchedule));
+    applyNewVsyncScheduleIfNonNull(std::move(pacesetterVsyncSchedule));
 }
 
 void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
@@ -149,7 +149,7 @@ void Scheduler::unregisterDisplay(PhysicalDisplayId displayId) {
 
         pacesetterVsyncSchedule = promotePacesetterDisplayLocked();
     }
-    applyNewVsyncSchedule(std::move(pacesetterVsyncSchedule));
+    applyNewVsyncScheduleIfNonNull(std::move(pacesetterVsyncSchedule));
 }
 
 void Scheduler::run() {
@@ -693,16 +693,17 @@ void Scheduler::promotePacesetterDisplay(std::optional<PhysicalDisplayId> pacese
         pacesetterVsyncSchedule = promotePacesetterDisplayLocked(pacesetterIdOpt);
     }
 
-    applyNewVsyncSchedule(std::move(pacesetterVsyncSchedule));
+    applyNewVsyncScheduleIfNonNull(std::move(pacesetterVsyncSchedule));
 }
 
 std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
         std::optional<PhysicalDisplayId> pacesetterIdOpt) {
     // TODO(b/241286431): Choose the pacesetter display.
+    const auto oldPacesetterDisplayIdOpt = mPacesetterDisplayId;
     mPacesetterDisplayId = pacesetterIdOpt.value_or(mRefreshRateSelectors.begin()->first);
     ALOGI("Display %s is the pacesetter", to_string(*mPacesetterDisplayId).c_str());
 
-    auto vsyncSchedule = getVsyncScheduleLocked(*mPacesetterDisplayId);
+    auto newVsyncSchedule = getVsyncScheduleLocked(*mPacesetterDisplayId);
     if (const auto pacesetterPtr = pacesetterSelectorPtrLocked()) {
         pacesetterPtr->setIdleTimerCallbacks(
                 {.platform = {.onReset = [this] { idleTimerCallback(TimerState::Reset); },
@@ -713,15 +714,28 @@ std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
 
         pacesetterPtr->startIdleTimer();
 
+        // Track the new period, which may have changed due to switching to a
+        // new pacesetter or due to a hotplug event. In the former case, this
+        // is important so that VSYNC modulation does not get stuck in the
+        // initiated state if a transition started on the old pacesetter.
         const Fps refreshRate = pacesetterPtr->getActiveMode().modePtr->getFps();
-        vsyncSchedule->startPeriodTransition(mSchedulerCallback, refreshRate.getPeriod(),
-                                             true /* force */);
+        newVsyncSchedule->startPeriodTransition(mSchedulerCallback, refreshRate.getPeriod(),
+                                                true /* force */);
     }
-    return vsyncSchedule;
+    if (oldPacesetterDisplayIdOpt == mPacesetterDisplayId) {
+        return nullptr;
+    }
+    return newVsyncSchedule;
 }
 
-void Scheduler::applyNewVsyncSchedule(std::shared_ptr<VsyncSchedule> vsyncSchedule) {
-    onNewVsyncSchedule(vsyncSchedule->getDispatch());
+void Scheduler::applyNewVsyncScheduleIfNonNull(
+        std::shared_ptr<VsyncSchedule> pacesetterSchedulePtr) {
+    if (!pacesetterSchedulePtr) {
+        // The pacesetter has not changed, so there is no new VsyncSchedule to
+        // apply.
+        return;
+    }
+    onNewVsyncSchedule(pacesetterSchedulePtr->getDispatch());
     std::vector<android::EventThread*> threads;
     {
         std::lock_guard<std::mutex> lock(mConnectionsLock);
@@ -731,7 +745,7 @@ void Scheduler::applyNewVsyncSchedule(std::shared_ptr<VsyncSchedule> vsyncSchedu
         }
     }
     for (auto* thread : threads) {
-        thread->onNewVsyncSchedule(vsyncSchedule);
+        thread->onNewVsyncSchedule(pacesetterSchedulePtr);
     }
 }
 
