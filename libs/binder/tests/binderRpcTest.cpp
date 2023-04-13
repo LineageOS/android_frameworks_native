@@ -1126,6 +1126,11 @@ static bool testSupportVsockLoopback() {
 
     android::base::unique_fd serverFd(
             TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)));
+
+    if (errno == EAFNOSUPPORT) {
+        return false;
+    }
+
     LOG_ALWAYS_FATAL_IF(serverFd == -1, "Could not create socket: %s", strerror(errno));
 
     sockaddr_vm serverAddr{
