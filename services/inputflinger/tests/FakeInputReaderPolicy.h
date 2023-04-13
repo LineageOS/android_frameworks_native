@@ -63,7 +63,7 @@ public:
     void addDisabledDevice(int32_t deviceId);
     void removeDisabledDevice(int32_t deviceId);
     void setPointerController(std::shared_ptr<FakePointerController> controller);
-    const InputReaderConfiguration* getReaderConfiguration() const;
+    const InputReaderConfiguration& getReaderConfiguration() const;
     const std::vector<InputDeviceInfo>& getInputDevices() const;
     TouchAffineTransformation getTouchAffineTransformation(const std::string& inputDeviceDescriptor,
                                                            ui::Rotation surfaceRotation);
