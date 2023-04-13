@@ -15,7 +15,7 @@
  */
 
 #include <jpegrecoverymap/icc.h>
-#include <jpegrecoverymap/recoverymapmath.h>
+#include <jpegrecoverymap/gainmapmath.h>
 #include <vector>
 #include <utils/Log.h>
 
