@@ -204,8 +204,6 @@ MATCHER_P(WithPointers, pointers, "MotionEvent with specified pointers") {
 // --- FakeInputDispatcherPolicy ---
 
 class FakeInputDispatcherPolicy : public InputDispatcherPolicyInterface {
-    InputDispatcherConfiguration mConfig;
-
     using AnrResult = std::pair<sp<IBinder>, int32_t /*pid*/>;
 
 public:
@@ -344,11 +342,6 @@ public:
         ASSERT_TRUE(mResponsiveWindows.empty())
                 << "ANR was not called, but please also consume the 'connection is responsive' "
                    "signal";
-    }
-
-    void setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) {
-        mConfig.keyRepeatTimeout = timeout;
-        mConfig.keyRepeatDelay = delay;
     }
 
     PointerCaptureRequest assertSetPointerCaptureCalled(bool enabled) {
@@ -534,8 +527,6 @@ private:
                               InputDeviceSensorAccuracy accuracy) override {}
 
     void notifyVibratorState(int32_t deviceId, bool isOn) override {}
-
-    InputDispatcherConfiguration getDispatcherConfiguration() override { return mConfig; }
 
     bool filterInputEvent(const InputEvent& inputEvent, uint32_t policyFlags) override {
         std::scoped_lock lock(mLock);
@@ -5732,10 +5723,9 @@ protected:
 
     virtual void SetUp() override {
         mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
-        mFakePolicy->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
         mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy);
-        mDispatcher->requestRefreshConfiguration();
         mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
+        mDispatcher->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
         ASSERT_EQ(OK, mDispatcher->start());
 
         setUpWindow();

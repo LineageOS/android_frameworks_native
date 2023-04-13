@@ -226,11 +226,10 @@ public:
      */
     virtual void cancelCurrentTouch() = 0;
 
-    /**
-     * Request that the InputDispatcher's configuration, which can be obtained through the policy,
-     * be updated.
+    /*
+     * Updates key repeat configuration timeout and delay.
      */
-    virtual void requestRefreshConfiguration() = 0;
+    virtual void setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) = 0;
 };
 
 } // namespace android

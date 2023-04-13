@@ -148,10 +148,10 @@ public:
 
     void cancelCurrentTouch() override;
 
-    void requestRefreshConfiguration() override;
-
     // Public to allow tests to verify that a Monitor can get ANR.
     void setMonitorDispatchingTimeoutForTest(std::chrono::nanoseconds timeout);
+
+    void setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) override;
 
 private:
     enum class DropReason {

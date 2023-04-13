@@ -80,8 +80,6 @@ private:
 
     void notifyVibratorState(int32_t deviceId, bool isOn) override {}
 
-    InputDispatcherConfiguration getDispatcherConfiguration() override { return mConfig; }
-
     bool filterInputEvent(const InputEvent& inputEvent, uint32_t policyFlags) override {
         return true; // dispatch event normally
     }
