@@ -329,10 +329,12 @@ private:
     // MessageQueue and EventThread need to use the new pacesetter's
     // VsyncSchedule, and this must happen while mDisplayLock is *not* locked,
     // or else we may deadlock with EventThread.
+    // Returns the new pacesetter's VsyncSchedule, or null if the pacesetter is
+    // unchanged.
     std::shared_ptr<VsyncSchedule> promotePacesetterDisplayLocked(
             std::optional<PhysicalDisplayId> pacesetterIdOpt = std::nullopt)
             REQUIRES(kMainThreadContext, mDisplayLock);
-    void applyNewVsyncSchedule(std::shared_ptr<VsyncSchedule>) EXCLUDES(mDisplayLock);
+    void applyNewVsyncScheduleIfNonNull(std::shared_ptr<VsyncSchedule>) EXCLUDES(mDisplayLock);
 
     // Blocks until the pacesetter's idle timer thread exits. `mDisplayLock` must not be locked by
     // the caller on the main thread to avoid deadlock, since the timer thread locks it before exit.
