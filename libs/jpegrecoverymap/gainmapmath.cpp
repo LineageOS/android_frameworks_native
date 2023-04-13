@@ -16,7 +16,7 @@
 
 #include <cmath>
 #include <vector>
-#include <jpegrecoverymap/recoverymapmath.h>
+#include <jpegrecoverymap/gainmapmath.h>
 
 namespace android::jpegrecoverymap {
 
@@ -441,14 +441,14 @@ ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gam
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Recovery map calculations
-uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata) {
-  return encodeRecovery(y_sdr, y_hdr, metadata,
-                        log2(metadata->minContentBoost), log2(metadata->maxContentBoost));
+// Gain map calculations
+uint8_t encodeGain(float y_sdr, float y_hdr, jr_metadata_ptr metadata) {
+  return encodeGain(y_sdr, y_hdr, metadata,
+                    log2(metadata->minContentBoost), log2(metadata->maxContentBoost));
 }
 
-uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
-                       float log2MinContentBoost, float log2MaxContentBoost) {
+uint8_t encodeGain(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
+                   float log2MinContentBoost, float log2MaxContentBoost) {
   float gain = 1.0f;
   if (y_sdr > 0.0f) {
     gain = y_hdr / y_sdr;
@@ -462,23 +462,23 @@ uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
                             * 255.0f);
 }
 
-Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata) {
-  float logBoost = log2(metadata->minContentBoost) * (1.0f - recovery)
-                 + log2(metadata->maxContentBoost) * recovery;
-  float recoveryFactor = exp2(logBoost);
-  return e * recoveryFactor;
+Color applyGain(Color e, float gain, jr_metadata_ptr metadata) {
+  float logBoost = log2(metadata->minContentBoost) * (1.0f - gain)
+                 + log2(metadata->maxContentBoost) * gain;
+  float gainFactor = exp2(logBoost);
+  return e * gainFactor;
 }
 
-Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata, float displayBoost) {
-  float logBoost = log2(metadata->minContentBoost) * (1.0f - recovery)
-                 + log2(metadata->maxContentBoost) * recovery;
-  float recoveryFactor = exp2(logBoost * displayBoost / metadata->maxContentBoost);
-  return e * recoveryFactor;
+Color applyGain(Color e, float gain, jr_metadata_ptr metadata, float displayBoost) {
+  float logBoost = log2(metadata->minContentBoost) * (1.0f - gain)
+                 + log2(metadata->maxContentBoost) * gain;
+  float gainFactor = exp2(logBoost * displayBoost / metadata->maxContentBoost);
+  return e * gainFactor;
 }
 
-Color applyRecoveryLUT(Color e, float recovery, RecoveryLUT& recoveryLUT) {
-  float recoveryFactor = recoveryLUT.getRecoveryFactor(recovery);
-  return e * recoveryFactor;
+Color applyGainLUT(Color e, float gain, GainLUT& gainLUT) {
+  float gainFactor = gainLUT.getGainFactor(gain);
+  return e * gainFactor;
 }
 
 Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
