@@ -30,7 +30,7 @@ auto layerZCompare = [](const std::pair<LayerHierarchy*, LayerHierarchy::Variant
     auto lhsLayer = lhs.first->getLayer();
     auto rhsLayer = rhs.first->getLayer();
     if (lhsLayer->layerStack.id != rhsLayer->layerStack.id) {
-        return lhsLayer->layerStack.id > rhsLayer->layerStack.id;
+        return lhsLayer->layerStack.id < rhsLayer->layerStack.id;
     }
     if (lhsLayer->z != rhsLayer->z) {
         return lhsLayer->z < rhsLayer->z;

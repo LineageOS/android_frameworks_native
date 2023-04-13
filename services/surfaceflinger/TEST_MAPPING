@@ -7,6 +7,14 @@
       "name": "libcompositionengine_test"
     },
     {
+      "name": "libgui_test",
+      "options": [
+        {
+          "native-test-flag": "--gtest_filter=\"InputSurfacesTest*:MultiDisplayTests*\""
+        }
+      ]
+    },
+    {
       "name": "libscheduler_test"
     }
   ],
