@@ -79,7 +79,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {
                     std::list<NotifyArgs> unused =
-                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), &policyConfig,
+                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
                                                fdp->ConsumeIntegral<uint32_t>());
                 },
                 [&]() -> void {

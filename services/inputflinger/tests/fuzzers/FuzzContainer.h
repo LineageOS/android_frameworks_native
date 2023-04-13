@@ -59,7 +59,7 @@ public:
     void configureDevice() {
         nsecs_t arbitraryTime = mFdp->ConsumeIntegral<nsecs_t>();
         std::list<NotifyArgs> out;
-        out += mFuzzDevice->configure(arbitraryTime, &mPolicyConfig, 0);
+        out += mFuzzDevice->configure(arbitraryTime, mPolicyConfig, 0);
         out += mFuzzDevice->reset(arbitraryTime);
         for (const NotifyArgs& args : out) {
             mFuzzListener.notify(args);
