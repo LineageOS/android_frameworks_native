@@ -179,13 +179,13 @@ protected:
     BLASTBufferQueueTest() {
         const ::testing::TestInfo* const testInfo =
                 ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGV("Begin test: %s.%s", testInfo->test_case_name(), testInfo->name());
+        ALOGD("Begin test: %s.%s", testInfo->test_case_name(), testInfo->name());
     }
 
     ~BLASTBufferQueueTest() {
         const ::testing::TestInfo* const testInfo =
                 ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGV("End test:   %s.%s", testInfo->test_case_name(), testInfo->name());
+        ALOGD("End test:   %s.%s", testInfo->test_case_name(), testInfo->name());
     }
 
     void SetUp() {
@@ -206,7 +206,7 @@ protected:
         const ui::Size& resolution = displayState.layerStackSpaceRect;
         mDisplayWidth = resolution.getWidth();
         mDisplayHeight = resolution.getHeight();
-        ALOGV("Display: %dx%d orientation:%d", mDisplayWidth, mDisplayHeight,
+        ALOGD("Display: %dx%d orientation:%d", mDisplayWidth, mDisplayHeight,
               displayState.orientation);
 
         mSurfaceControl = mClient->createSurface(String8("TestSurface"), mDisplayWidth,
