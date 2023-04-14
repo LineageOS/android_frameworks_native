@@ -68,8 +68,12 @@ void CursorMotionAccumulator::finishSync() {
 
 // --- CursorInputMapper ---
 
-CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext), mLastEventTime(std::numeric_limits<nsecs_t>::min()) {}
+CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
+                                     const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig),
+        mLastEventTime(std::numeric_limits<nsecs_t>::min()) {
+    configureWithZeroChanges(readerConfig);
+}
 
 CursorInputMapper::~CursorInputMapper() {
     if (mPointerController != nullptr) {
@@ -134,119 +138,28 @@ void CursorInputMapper::dump(std::string& dump) {
 }
 
 std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
-                                                     const InputReaderConfiguration& config,
+                                                     const InputReaderConfiguration& readerConfig,
                                                      uint32_t changes) {
-    std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
+    std::list<NotifyArgs> out = InputMapper::reconfigure(when, readerConfig, changes);
 
-    if (!changes) { // first time only
-        mCursorScrollAccumulator.configure(getDeviceContext());
-
-        // Configure basic parameters.
-        configureParameters();
-
-        // Configure device mode.
-        switch (mParameters.mode) {
-            case Parameters::Mode::POINTER_RELATIVE:
-                // Should not happen during first time configuration.
-                ALOGE("Cannot start a device in MODE_POINTER_RELATIVE, starting in MODE_POINTER");
-                mParameters.mode = Parameters::Mode::POINTER;
-                [[fallthrough]];
-            case Parameters::Mode::POINTER:
-                mSource = AINPUT_SOURCE_MOUSE;
-                mXPrecision = 1.0f;
-                mYPrecision = 1.0f;
-                mXScale = 1.0f;
-                mYScale = 1.0f;
-                mPointerController = getContext()->getPointerController(getDeviceId());
-                break;
-            case Parameters::Mode::NAVIGATION:
-                mSource = AINPUT_SOURCE_TRACKBALL;
-                mXPrecision = TRACKBALL_MOVEMENT_THRESHOLD;
-                mYPrecision = TRACKBALL_MOVEMENT_THRESHOLD;
-                mXScale = 1.0f / TRACKBALL_MOVEMENT_THRESHOLD;
-                mYScale = 1.0f / TRACKBALL_MOVEMENT_THRESHOLD;
-                break;
-        }
-
-        mVWheelScale = 1.0f;
-        mHWheelScale = 1.0f;
+    if (!changes) {
+        configureWithZeroChanges(readerConfig);
+        return out;
     }
 
     const bool configurePointerCapture = mParameters.mode != Parameters::Mode::NAVIGATION &&
-            ((!changes && config.pointerCaptureRequest.enable) ||
-             (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE));
+            (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
     if (configurePointerCapture) {
-        if (config.pointerCaptureRequest.enable) {
-            if (mParameters.mode == Parameters::Mode::POINTER) {
-                mParameters.mode = Parameters::Mode::POINTER_RELATIVE;
-                mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
-                // Keep PointerController around in order to preserve the pointer position.
-                mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
-            } else {
-                ALOGE("Cannot request pointer capture, device is not in MODE_POINTER");
-            }
-        } else {
-            if (mParameters.mode == Parameters::Mode::POINTER_RELATIVE) {
-                mParameters.mode = Parameters::Mode::POINTER;
-                mSource = AINPUT_SOURCE_MOUSE;
-            } else {
-                ALOGE("Cannot release pointer capture, device is not in MODE_POINTER_RELATIVE");
-            }
-        }
-        bumpGeneration();
-        if (changes) {
-            out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
-        }
+        configureOnPointerCapture(readerConfig);
+        out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_POINTER_SPEED) ||
-        configurePointerCapture) {
-        if (mParameters.mode == Parameters::Mode::POINTER_RELATIVE) {
-            // Disable any acceleration or scaling for the pointer when Pointer Capture is enabled.
-            mPointerVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
-            mWheelXVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
-            mWheelYVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
-        } else {
-            mPointerVelocityControl.setParameters(config.pointerVelocityControlParameters);
-            mWheelXVelocityControl.setParameters(config.wheelVelocityControlParameters);
-            mWheelYVelocityControl.setParameters(config.wheelVelocityControlParameters);
-        }
+    if ((changes & InputReaderConfiguration::CHANGE_POINTER_SPEED) || configurePointerCapture) {
+        configureOnChangePointerSpeed(readerConfig);
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO) ||
-        configurePointerCapture) {
-        const bool isPointer = mParameters.mode == Parameters::Mode::POINTER;
-
-        mDisplayId = ADISPLAY_ID_NONE;
-        if (auto viewport = mDeviceContext.getAssociatedViewport(); viewport) {
-            // This InputDevice is associated with a viewport.
-            // Only generate events for the associated display.
-            const bool mismatchedPointerDisplay =
-                    isPointer && (viewport->displayId != mPointerController->getDisplayId());
-            mDisplayId = mismatchedPointerDisplay ? std::nullopt
-                                                  : std::make_optional(viewport->displayId);
-        } else if (isPointer) {
-            // The InputDevice is not associated with a viewport, but it controls the mouse pointer.
-            mDisplayId = mPointerController->getDisplayId();
-        }
-
-        mOrientation = ui::ROTATION_0;
-        const bool isOrientedDevice =
-                (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
-        // InputReader works in the un-rotated display coordinate space, so we don't need to do
-        // anything if the device is already orientation-aware. If the device is not
-        // orientation-aware, then we need to apply the inverse rotation of the display so that
-        // when the display rotation is applied later as a part of the per-window transform, we
-        // get the expected screen coordinates. When pointer capture is enabled, we do not apply any
-        // rotations and report values directly from the input device.
-        if (!isOrientedDevice && mDisplayId &&
-            mParameters.mode != Parameters::Mode::POINTER_RELATIVE) {
-            if (auto viewport = config.getDisplayViewportById(*mDisplayId); viewport) {
-                mOrientation = getInverseRotation(viewport->orientation);
-            }
-        }
-
-        bumpGeneration();
+    if ((changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO) || configurePointerCapture) {
+        configureOnChangeDisplayInfo(readerConfig);
     }
     return out;
 }
@@ -509,6 +422,119 @@ int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCod
 
 std::optional<int32_t> CursorInputMapper::getAssociatedDisplayId() {
     return mDisplayId;
+}
+
+void CursorInputMapper::configureWithZeroChanges(const InputReaderConfiguration& readerConfig) {
+    // Configuration with zero changes
+    configureBasicParams();
+    if (mParameters.mode != Parameters::Mode::NAVIGATION &&
+        readerConfig.pointerCaptureRequest.enable) {
+        configureOnPointerCapture(readerConfig);
+    }
+    configureOnChangePointerSpeed(readerConfig);
+    configureOnChangeDisplayInfo(readerConfig);
+}
+
+void CursorInputMapper::configureBasicParams() {
+    mCursorScrollAccumulator.configure(getDeviceContext());
+
+    // Configure basic parameters.
+    configureParameters();
+
+    // Configure device mode.
+    switch (mParameters.mode) {
+        case Parameters::Mode::POINTER_RELATIVE:
+            // Should not happen during first time configuration.
+            ALOGE("Cannot start a device in MODE_POINTER_RELATIVE, starting in MODE_POINTER");
+            mParameters.mode = Parameters::Mode::POINTER;
+            [[fallthrough]];
+        case Parameters::Mode::POINTER:
+            mSource = AINPUT_SOURCE_MOUSE;
+            mXPrecision = 1.0f;
+            mYPrecision = 1.0f;
+            mXScale = 1.0f;
+            mYScale = 1.0f;
+            mPointerController = getContext()->getPointerController(getDeviceId());
+            break;
+        case Parameters::Mode::NAVIGATION:
+            mSource = AINPUT_SOURCE_TRACKBALL;
+            mXPrecision = TRACKBALL_MOVEMENT_THRESHOLD;
+            mYPrecision = TRACKBALL_MOVEMENT_THRESHOLD;
+            mXScale = 1.0f / TRACKBALL_MOVEMENT_THRESHOLD;
+            mYScale = 1.0f / TRACKBALL_MOVEMENT_THRESHOLD;
+            break;
+    }
+
+    mVWheelScale = 1.0f;
+    mHWheelScale = 1.0f;
+}
+
+void CursorInputMapper::configureOnPointerCapture(const InputReaderConfiguration& config) {
+    if (config.pointerCaptureRequest.enable) {
+        if (mParameters.mode == Parameters::Mode::POINTER) {
+            mParameters.mode = Parameters::Mode::POINTER_RELATIVE;
+            mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
+            // Keep PointerController around in order to preserve the pointer position.
+            mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
+        } else {
+            ALOGE("Cannot request pointer capture, device is not in MODE_POINTER");
+        }
+    } else {
+        if (mParameters.mode == Parameters::Mode::POINTER_RELATIVE) {
+            mParameters.mode = Parameters::Mode::POINTER;
+            mSource = AINPUT_SOURCE_MOUSE;
+        } else {
+            ALOGE("Cannot release pointer capture, device is not in MODE_POINTER_RELATIVE");
+        }
+    }
+    bumpGeneration();
+}
+
+void CursorInputMapper::configureOnChangePointerSpeed(const InputReaderConfiguration& config) {
+    if (mParameters.mode == Parameters::Mode::POINTER_RELATIVE) {
+        // Disable any acceleration or scaling for the pointer when Pointer Capture is enabled.
+        mPointerVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
+        mWheelXVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
+        mWheelYVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
+    } else {
+        mPointerVelocityControl.setParameters(config.pointerVelocityControlParameters);
+        mWheelXVelocityControl.setParameters(config.wheelVelocityControlParameters);
+        mWheelYVelocityControl.setParameters(config.wheelVelocityControlParameters);
+    }
+}
+
+void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfiguration& config) {
+    const bool isPointer = mParameters.mode == Parameters::Mode::POINTER;
+
+    mDisplayId = ADISPLAY_ID_NONE;
+    if (auto viewport = mDeviceContext.getAssociatedViewport(); viewport) {
+        // This InputDevice is associated with a viewport.
+        // Only generate events for the associated display.
+        const bool mismatchedPointerDisplay =
+                isPointer && (viewport->displayId != mPointerController->getDisplayId());
+        mDisplayId =
+                mismatchedPointerDisplay ? std::nullopt : std::make_optional(viewport->displayId);
+    } else if (isPointer) {
+        // The InputDevice is not associated with a viewport, but it controls the mouse pointer.
+        mDisplayId = mPointerController->getDisplayId();
+    }
+
+    mOrientation = ui::ROTATION_0;
+    const bool isOrientedDevice =
+            (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
+    // InputReader works in the un-rotated display coordinate space, so we don't need to do
+    // anything if the device is already orientation-aware. If the device is not
+    // orientation-aware, then we need to apply the inverse rotation of the display so that
+    // when the display rotation is applied later as a part of the per-window transform, we
+    // get the expected screen coordinates. When pointer capture is enabled, we do not apply any
+    // rotations and report values directly from the input device.
+    if (!isOrientedDevice && mDisplayId && mParameters.mode != Parameters::Mode::POINTER_RELATIVE) {
+        if (auto viewport = config.getDisplayViewportById(*mDisplayId); viewport) {
+            mOrientation = getInverseRotation(viewport->orientation);
+        }
+    }
+
+    bumpGeneration();
 }
 
 } // namespace android

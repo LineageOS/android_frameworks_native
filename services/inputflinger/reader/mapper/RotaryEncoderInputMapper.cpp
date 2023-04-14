@@ -26,8 +26,9 @@
 
 namespace android {
 
-RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext), mOrientation(ui::ROTATION_0) {
+RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDeviceContext& deviceContext,
+                                                   const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig), mOrientation(ui::ROTATION_0) {
     mSource = AINPUT_SOURCE_ROTARY_ENCODER;
 }
 

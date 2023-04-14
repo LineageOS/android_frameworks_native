@@ -146,7 +146,8 @@ struct CookedPointerData {
 
 class TouchInputMapper : public InputMapper {
 public:
-    explicit TouchInputMapper(InputDeviceContext& deviceContext);
+    explicit TouchInputMapper(InputDeviceContext& deviceContext,
+                              const InputReaderConfiguration& readerConfig);
     ~TouchInputMapper() override;
 
     uint32_t getSources() const override;
