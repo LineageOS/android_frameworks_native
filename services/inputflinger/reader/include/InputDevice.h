@@ -80,7 +80,8 @@ public:
     [[nodiscard]] std::list<NotifyArgs> setEnabled(bool enabled, nsecs_t when);
 
     void dump(std::string& dump, const std::string& eventHubDevStr);
-    void addEventHubDevice(int32_t eventHubId, bool populateMappers = true);
+    void addEmptyEventHubDevice(int32_t eventHubId);
+    void addEventHubDevice(int32_t eventHubId, const InputReaderConfiguration& readerConfig);
     void removeEventHubDevice(int32_t eventHubId);
     [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
                                                   const InputReaderConfiguration& readerConfig,
@@ -137,7 +138,7 @@ public:
     template <class T, typename... Args>
     T& addMapper(int32_t eventHubId, Args... args) {
         // ensure a device entry exists for this eventHubId
-        addEventHubDevice(eventHubId, false);
+        addEmptyEventHubDevice(eventHubId);
 
         // create mapper
         auto& devicePair = mDevices[eventHubId];
@@ -152,7 +153,7 @@ public:
     template <class T>
     T& addController(int32_t eventHubId) {
         // ensure a device entry exists for this eventHubId
-        addEventHubDevice(eventHubId, false);
+        addEmptyEventHubDevice(eventHubId);
 
         // create controller
         auto& devicePair = mDevices[eventHubId];
@@ -190,6 +191,9 @@ private:
 
     typedef int32_t (InputMapper::*GetStateFunc)(uint32_t sourceMask, int32_t code);
     int32_t getState(uint32_t sourceMask, int32_t code, GetStateFunc getStateFunc);
+
+    std::vector<std::unique_ptr<InputMapper>> createMappers(
+            InputDeviceContext& contextPtr, const InputReaderConfiguration& readerConfig);
 
     PropertyMap mConfiguration;
 

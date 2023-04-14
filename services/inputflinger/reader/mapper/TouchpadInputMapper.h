@@ -37,7 +37,8 @@ namespace android {
 
 class TouchpadInputMapper : public InputMapper {
 public:
-    explicit TouchpadInputMapper(InputDeviceContext& deviceContext);
+    explicit TouchpadInputMapper(InputDeviceContext& deviceContext,
+                                 const InputReaderConfiguration& readerConfig);
     ~TouchpadInputMapper();
 
     uint32_t getSources() const override;

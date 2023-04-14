@@ -23,7 +23,8 @@ namespace android {
 
 class MultiTouchInputMapper : public TouchInputMapper {
 public:
-    explicit MultiTouchInputMapper(InputDeviceContext& deviceContext);
+    explicit MultiTouchInputMapper(InputDeviceContext& deviceContext,
+                                   const InputReaderConfiguration& readerConfig);
     ~MultiTouchInputMapper() override;
 
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;

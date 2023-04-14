@@ -146,98 +146,23 @@ void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
     }
 }
 
-void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
+void InputDevice::addEmptyEventHubDevice(int32_t eventHubId) {
     if (mDevices.find(eventHubId) != mDevices.end()) {
         return;
     }
     std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
-    ftl::Flags<InputDeviceClass> classes = contextPtr->getDeviceClasses();
     std::vector<std::unique_ptr<InputMapper>> mappers;
 
-    // Check if we should skip population
-    if (!populateMappers) {
-        mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
+    mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
+}
+
+void InputDevice::addEventHubDevice(int32_t eventHubId,
+                                    const InputReaderConfiguration& readerConfig) {
+    if (mDevices.find(eventHubId) != mDevices.end()) {
         return;
     }
-
-    // Switch-like devices.
-    if (classes.test(InputDeviceClass::SWITCH)) {
-        mappers.push_back(std::make_unique<SwitchInputMapper>(*contextPtr));
-    }
-
-    // Scroll wheel-like devices.
-    if (classes.test(InputDeviceClass::ROTARY_ENCODER)) {
-        mappers.push_back(std::make_unique<RotaryEncoderInputMapper>(*contextPtr));
-    }
-
-    // Vibrator-like devices.
-    if (classes.test(InputDeviceClass::VIBRATOR)) {
-        mappers.push_back(std::make_unique<VibratorInputMapper>(*contextPtr));
-    }
-
-    // Battery-like devices or light-containing devices.
-    // PeripheralController will be created with associated EventHub device.
-    if (classes.test(InputDeviceClass::BATTERY) || classes.test(InputDeviceClass::LIGHT)) {
-        mController = std::make_unique<PeripheralController>(*contextPtr);
-    }
-
-    // Keyboard-like devices.
-    uint32_t keyboardSource = 0;
-    int32_t keyboardType = AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC;
-    if (classes.test(InputDeviceClass::KEYBOARD)) {
-        keyboardSource |= AINPUT_SOURCE_KEYBOARD;
-    }
-    if (classes.test(InputDeviceClass::ALPHAKEY)) {
-        keyboardType = AINPUT_KEYBOARD_TYPE_ALPHABETIC;
-    }
-    if (classes.test(InputDeviceClass::DPAD)) {
-        keyboardSource |= AINPUT_SOURCE_DPAD;
-    }
-    if (classes.test(InputDeviceClass::GAMEPAD)) {
-        keyboardSource |= AINPUT_SOURCE_GAMEPAD;
-    }
-
-    if (keyboardSource != 0) {
-        mappers.push_back(
-                std::make_unique<KeyboardInputMapper>(*contextPtr, keyboardSource, keyboardType));
-    }
-
-    // Cursor-like devices.
-    if (classes.test(InputDeviceClass::CURSOR)) {
-        mappers.push_back(std::make_unique<CursorInputMapper>(*contextPtr));
-    }
-
-    // Touchscreens and touchpad devices.
-    static const bool ENABLE_TOUCHPAD_GESTURES_LIBRARY =
-            sysprop::InputProperties::enable_touchpad_gestures_library().value_or(true);
-    // TODO(b/272518665): Fix the new touchpad stack for Sony DualShock 4 (5c4, 9cc) touchpads, or
-    // at least load this setting from the IDC file.
-    const InputDeviceIdentifier identifier = contextPtr->getDeviceIdentifier();
-    const bool isSonyDualShock4Touchpad = identifier.vendor == 0x054c &&
-            (identifier.product == 0x05c4 || identifier.product == 0x09cc);
-    if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
-        classes.test(InputDeviceClass::TOUCH_MT) && !isSonyDualShock4Touchpad) {
-        mappers.push_back(std::make_unique<TouchpadInputMapper>(*contextPtr));
-    } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
-        mappers.push_back(std::make_unique<MultiTouchInputMapper>(*contextPtr));
-    } else if (classes.test(InputDeviceClass::TOUCH)) {
-        mappers.push_back(std::make_unique<SingleTouchInputMapper>(*contextPtr));
-    }
-
-    // Joystick-like devices.
-    if (classes.test(InputDeviceClass::JOYSTICK)) {
-        mappers.push_back(std::make_unique<JoystickInputMapper>(*contextPtr));
-    }
-
-    // Motion sensor enabled devices.
-    if (classes.test(InputDeviceClass::SENSOR)) {
-        mappers.push_back(std::make_unique<SensorInputMapper>(*contextPtr));
-    }
-
-    // External stylus-like devices.
-    if (classes.test(InputDeviceClass::EXTERNAL_STYLUS)) {
-        mappers.push_back(std::make_unique<ExternalStylusInputMapper>(*contextPtr));
-    }
+    std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
+    std::vector<std::unique_ptr<InputMapper>> mappers = createMappers(*contextPtr, readerConfig);
 
     // insert the context into the devices set
     mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
@@ -510,6 +435,92 @@ int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc ge
         }
     }
     return result;
+}
+
+std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
+        InputDeviceContext& contextPtr, const InputReaderConfiguration& readerConfig) {
+    ftl::Flags<InputDeviceClass> classes = contextPtr.getDeviceClasses();
+    std::vector<std::unique_ptr<InputMapper>> mappers;
+
+    // Switch-like devices.
+    if (classes.test(InputDeviceClass::SWITCH)) {
+        mappers.push_back(std::make_unique<SwitchInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Scroll wheel-like devices.
+    if (classes.test(InputDeviceClass::ROTARY_ENCODER)) {
+        mappers.push_back(std::make_unique<RotaryEncoderInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Vibrator-like devices.
+    if (classes.test(InputDeviceClass::VIBRATOR)) {
+        mappers.push_back(std::make_unique<VibratorInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Battery-like devices or light-containing devices.
+    // PeripheralController will be created with associated EventHub device.
+    if (classes.test(InputDeviceClass::BATTERY) || classes.test(InputDeviceClass::LIGHT)) {
+        mController = std::make_unique<PeripheralController>(contextPtr);
+    }
+
+    // Keyboard-like devices.
+    uint32_t keyboardSource = 0;
+    int32_t keyboardType = AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC;
+    if (classes.test(InputDeviceClass::KEYBOARD)) {
+        keyboardSource |= AINPUT_SOURCE_KEYBOARD;
+    }
+    if (classes.test(InputDeviceClass::ALPHAKEY)) {
+        keyboardType = AINPUT_KEYBOARD_TYPE_ALPHABETIC;
+    }
+    if (classes.test(InputDeviceClass::DPAD)) {
+        keyboardSource |= AINPUT_SOURCE_DPAD;
+    }
+    if (classes.test(InputDeviceClass::GAMEPAD)) {
+        keyboardSource |= AINPUT_SOURCE_GAMEPAD;
+    }
+
+    if (keyboardSource != 0) {
+        mappers.push_back(std::make_unique<KeyboardInputMapper>(contextPtr, readerConfig,
+                                                                keyboardSource, keyboardType));
+    }
+
+    // Cursor-like devices.
+    if (classes.test(InputDeviceClass::CURSOR)) {
+        mappers.push_back(std::make_unique<CursorInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Touchscreens and touchpad devices.
+    static const bool ENABLE_TOUCHPAD_GESTURES_LIBRARY =
+            sysprop::InputProperties::enable_touchpad_gestures_library().value_or(true);
+    // TODO(b/272518665): Fix the new touchpad stack for Sony DualShock 4 (5c4, 9cc) touchpads, or
+    // at least load this setting from the IDC file.
+    const InputDeviceIdentifier identifier = contextPtr.getDeviceIdentifier();
+    const bool isSonyDualShock4Touchpad = identifier.vendor == 0x054c &&
+            (identifier.product == 0x05c4 || identifier.product == 0x09cc);
+    if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
+        classes.test(InputDeviceClass::TOUCH_MT) && !isSonyDualShock4Touchpad) {
+        mappers.push_back(std::make_unique<TouchpadInputMapper>(contextPtr, readerConfig));
+    } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
+        mappers.push_back(std::make_unique<MultiTouchInputMapper>(contextPtr, readerConfig));
+    } else if (classes.test(InputDeviceClass::TOUCH)) {
+        mappers.push_back(std::make_unique<SingleTouchInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Joystick-like devices.
+    if (classes.test(InputDeviceClass::JOYSTICK)) {
+        mappers.push_back(std::make_unique<JoystickInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Motion sensor enabled devices.
+    if (classes.test(InputDeviceClass::SENSOR)) {
+        mappers.push_back(std::make_unique<SensorInputMapper>(contextPtr, readerConfig));
+    }
+
+    // External stylus-like devices.
+    if (classes.test(InputDeviceClass::EXTERNAL_STYLUS)) {
+        mappers.push_back(std::make_unique<ExternalStylusInputMapper>(contextPtr, readerConfig));
+    }
+    return mappers;
 }
 
 bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
