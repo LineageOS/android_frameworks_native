@@ -626,7 +626,9 @@ std::vector<TouchedWindow> getHoveringWindowsLocked(const TouchState* oldState,
             touchedWindow.targetFlags = InputTarget::Flags::DISPATCH_AS_HOVER_ENTER;
         } else {
             // This pointer was already sent to the window. Use ACTION_HOVER_MOVE.
-            LOG_ALWAYS_FATAL_IF(maskedAction != AMOTION_EVENT_ACTION_HOVER_MOVE);
+            if (CC_UNLIKELY(maskedAction != AMOTION_EVENT_ACTION_HOVER_MOVE)) {
+                LOG(FATAL) << "Expected ACTION_HOVER_MOVE instead of " << entry.getDescription();
+            }
             touchedWindow.targetFlags = InputTarget::Flags::DISPATCH_AS_IS;
         }
         touchedWindow.pointerIds.set(pointerId);

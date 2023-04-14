@@ -253,7 +253,8 @@ void InputDevice::removeEventHubDevice(int32_t eventHubId) {
     mDevices.erase(eventHubId);
 }
 
-std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config,
+std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
+                                             const InputReaderConfiguration& readerConfig,
                                              uint32_t changes) {
     std::list<NotifyArgs> out;
     mSources = 0;
@@ -291,7 +292,7 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
             });
 
             mAssociatedDeviceType =
-                    getValueByKey(config->deviceTypeAssociations, mIdentifier.location);
+                    getValueByKey(readerConfig.deviceTypeAssociations, mIdentifier.location);
         }
 
         if (!changes || (changes & InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUTS)) {
@@ -325,8 +326,8 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
             // Do not execute this code on the first configure, because 'setEnabled' would call
             // InputMapper::reset, and you can't reset a mapper before it has been configured.
             // The mappers are configured for the first time at the bottom of this function.
-            auto it = config->disabledDevices.find(mId);
-            bool enabled = it == config->disabledDevices.end();
+            auto it = readerConfig.disabledDevices.find(mId);
+            bool enabled = it == readerConfig.disabledDevices.end();
             out += setEnabled(enabled, when);
         }
 
@@ -338,13 +339,14 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
             // Find the display port that corresponds to the current input port.
             const std::string& inputPort = mIdentifier.location;
             if (!inputPort.empty()) {
-                const std::unordered_map<std::string, uint8_t>& ports = config->portAssociations;
+                const std::unordered_map<std::string, uint8_t>& ports =
+                        readerConfig.portAssociations;
                 const auto& displayPort = ports.find(inputPort);
                 if (displayPort != ports.end()) {
                     mAssociatedDisplayPort = std::make_optional(displayPort->second);
                 } else {
                     const std::unordered_map<std::string, std::string>& displayUniqueIds =
-                            config->uniqueIdAssociations;
+                            readerConfig.uniqueIdAssociations;
                     const auto& displayUniqueId = displayUniqueIds.find(inputPort);
                     if (displayUniqueId != displayUniqueIds.end()) {
                         mAssociatedDisplayUniqueId = displayUniqueId->second;
@@ -356,9 +358,11 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
             // "disabledDevices" list. If it is associated with a specific display, and it was not
             // explicitly disabled, then enable/disable the device based on whether we can find the
             // corresponding viewport.
-            bool enabled = (config->disabledDevices.find(mId) == config->disabledDevices.end());
+            bool enabled =
+                    (readerConfig.disabledDevices.find(mId) == readerConfig.disabledDevices.end());
             if (mAssociatedDisplayPort) {
-                mAssociatedViewport = config->getDisplayViewportByPort(*mAssociatedDisplayPort);
+                mAssociatedViewport =
+                        readerConfig.getDisplayViewportByPort(*mAssociatedDisplayPort);
                 if (!mAssociatedViewport) {
                     ALOGW("Input device %s should be associated with display on port %" PRIu8 ", "
                           "but the corresponding viewport is not found.",
@@ -367,7 +371,7 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
                 }
             } else if (mAssociatedDisplayUniqueId != std::nullopt) {
                 mAssociatedViewport =
-                        config->getDisplayViewportByUniqueId(*mAssociatedDisplayUniqueId);
+                        readerConfig.getDisplayViewportByUniqueId(*mAssociatedDisplayUniqueId);
                 if (!mAssociatedViewport) {
                     ALOGW("Input device %s should be associated with display %s but the "
                           "corresponding viewport cannot be found",
@@ -384,15 +388,16 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when, const InputReaderConf
             }
         }
 
-        for_each_mapper([this, when, &config, changes, &out](InputMapper& mapper) {
-            out += mapper.reconfigure(when, config, changes);
+        for_each_mapper([this, when, &readerConfig, changes, &out](InputMapper& mapper) {
+            out += mapper.reconfigure(when, readerConfig, changes);
             mSources |= mapper.getSources();
         });
 
         // If a device is just plugged but it might be disabled, we need to update some info like
         // axis range of touch from each InputMapper first, then disable it.
         if (!changes) {
-            out += setEnabled(config->disabledDevices.find(mId) == config->disabledDevices.end(),
+            out += setEnabled(readerConfig.disabledDevices.find(mId) ==
+                                      readerConfig.disabledDevices.end(),
                               when);
         }
     }

@@ -57,7 +57,7 @@ const std::vector<CurveSegment> segments = {
         {std::numeric_limits<double>::infinity(), 15.04, -857.758},
 };
 
-const std::vector<double> sensitivityFactors = {1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20};
+const std::vector<double> sensitivityFactors = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18};
 
 std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
                                                           size_t propertySize) {
@@ -220,7 +220,7 @@ void TouchpadInputMapper::dump(std::string& dump) {
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
-                                                       const InputReaderConfiguration* config,
+                                                       const InputReaderConfiguration& config,
                                                        uint32_t changes) {
     if (!changes) {
         // First time configuration
@@ -231,7 +231,7 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
         std::optional<int32_t> displayId = mPointerController->getDisplayId();
         ui::Rotation orientation = ui::ROTATION_0;
         if (displayId.has_value()) {
-            if (auto viewport = config->getDisplayViewportById(*displayId); viewport) {
+            if (auto viewport = config.getDisplayViewportById(*displayId); viewport) {
                 orientation = getInverseRotation(viewport->orientation);
             }
         }
@@ -242,14 +242,14 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
                 .setBoolValues({true});
         GesturesProp accelCurveProp = mPropertyProvider.getProperty("Pointer Accel Curve");
         accelCurveProp.setRealValues(
-                createAccelerationCurveForSensitivity(config->touchpadPointerSpeed,
+                createAccelerationCurveForSensitivity(config.touchpadPointerSpeed,
                                                       accelCurveProp.getCount()));
         mPropertyProvider.getProperty("Invert Scrolling")
-                .setBoolValues({config->touchpadNaturalScrollingEnabled});
+                .setBoolValues({config.touchpadNaturalScrollingEnabled});
         mPropertyProvider.getProperty("Tap Enable")
-                .setBoolValues({config->touchpadTapToClickEnabled});
+                .setBoolValues({config.touchpadTapToClickEnabled});
         mPropertyProvider.getProperty("Button Right Click Zone Enable")
-                .setBoolValues({config->touchpadRightClickZoneEnabled});
+                .setBoolValues({config.touchpadRightClickZoneEnabled});
     }
     return {};
 }
