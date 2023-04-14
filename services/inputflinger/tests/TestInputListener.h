@@ -77,25 +77,25 @@ private:
     void assertNotCalled(std::string message, std::optional<TimePoint> timeout = {});
 
     template <class NotifyArgsType>
-    void addToQueue(const NotifyArgsType* args);
+    void addToQueue(const NotifyArgsType& args);
 
     virtual void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
 
-    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
+    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
 
-    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
+    virtual void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
 
-    virtual void notifyKey(const NotifyKeyArgs* args) override;
+    virtual void notifyKey(const NotifyKeyArgs& args) override;
 
-    virtual void notifyMotion(const NotifyMotionArgs* args) override;
+    virtual void notifyMotion(const NotifyMotionArgs& args) override;
 
-    virtual void notifySwitch(const NotifySwitchArgs* args) override;
+    virtual void notifySwitch(const NotifySwitchArgs& args) override;
 
-    virtual void notifySensor(const NotifySensorArgs* args) override;
+    virtual void notifySensor(const NotifySensorArgs& args) override;
 
-    virtual void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
+    virtual void notifyVibratorState(const NotifyVibratorStateArgs& args) override;
 
-    virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
+    virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
     std::mutex mLock;
     std::condition_variable mCondition;
