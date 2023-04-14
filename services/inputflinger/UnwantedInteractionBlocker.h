@@ -90,6 +90,7 @@ public:
     explicit UnwantedInteractionBlocker(InputListenerInterface& listener);
     explicit UnwantedInteractionBlocker(InputListenerInterface& listener, bool enablePalmRejection);
 
+    void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
     void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
     void notifyKey(const NotifyKeyArgs* args) override;
     void notifyMotion(const NotifyMotionArgs* args) override;
@@ -99,7 +100,6 @@ public:
     void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
-    void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) override;
     void dump(std::string& dump) override;
     void monitor() override;
 
@@ -123,6 +123,8 @@ private:
 
     // Call this function for outbound events so that they can be logged when logging is enabled.
     void enqueueOutboundMotionLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+
+    void onInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices);
 };
 
 class SlotState {

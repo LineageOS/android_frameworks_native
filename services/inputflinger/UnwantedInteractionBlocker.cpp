@@ -411,6 +411,13 @@ void UnwantedInteractionBlocker::notifyPointerCaptureChanged(
 }
 
 void UnwantedInteractionBlocker::notifyInputDevicesChanged(
+        const NotifyInputDevicesChangedArgs& args) {
+    onInputDevicesChanged(args.inputDeviceInfos);
+    mQueuedListener.notify(args);
+    mQueuedListener.flush();
+}
+
+void UnwantedInteractionBlocker::onInputDevicesChanged(
         const std::vector<InputDeviceInfo>& inputDevices) {
     std::scoped_lock lock(mLock);
     if (!mEnablePalmRejection) {

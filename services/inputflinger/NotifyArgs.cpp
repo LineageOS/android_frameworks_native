@@ -29,6 +29,12 @@ using android::base::StringPrintf;
 
 namespace android {
 
+// --- NotifyInputDevicesChangedArgs ---
+
+NotifyInputDevicesChangedArgs::NotifyInputDevicesChangedArgs(int32_t id,
+                                                             std::vector<InputDeviceInfo> infos)
+      : id(id), inputDeviceInfos(std::move(infos)) {}
+
 // --- NotifyConfigurationChangedArgs ---
 
 NotifyConfigurationChangedArgs::NotifyConfigurationChangedArgs(int32_t id, nsecs_t eventTime)
@@ -234,6 +240,7 @@ Visitor(V...) -> Visitor<V...>;
 
 const char* toString(const NotifyArgs& args) {
     Visitor toStringVisitor{
+            [&](const NotifyInputDevicesChangedArgs&) { return "NotifyInputDevicesChangedArgs"; },
             [&](const NotifyConfigurationChangedArgs&) { return "NotifyConfigurationChangedArgs"; },
             [&](const NotifyKeyArgs&) { return "NotifyKeyArgs"; },
             [&](const NotifyMotionArgs&) { return "NotifyMotionArgs"; },
