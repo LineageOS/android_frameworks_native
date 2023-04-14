@@ -63,9 +63,10 @@ static bool isSupportedScanCode(int32_t scanCode) {
 
 // --- KeyboardInputMapper ---
 
-KeyboardInputMapper::KeyboardInputMapper(InputDeviceContext& deviceContext, uint32_t source,
-                                         int32_t keyboardType)
-      : InputMapper(deviceContext), mSource(source), mKeyboardType(keyboardType) {}
+KeyboardInputMapper::KeyboardInputMapper(InputDeviceContext& deviceContext,
+                                         const InputReaderConfiguration& readerConfig,
+                                         uint32_t source, int32_t keyboardType)
+      : InputMapper(deviceContext, readerConfig), mSource(source), mKeyboardType(keyboardType) {}
 
 uint32_t KeyboardInputMapper::getSources() const {
     return mSource;

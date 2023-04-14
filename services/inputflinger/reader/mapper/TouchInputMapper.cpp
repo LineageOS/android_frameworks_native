@@ -121,8 +121,9 @@ void RawPointerData::getCentroidOfTouchingPointers(float* outX, float* outY) con
 
 // --- TouchInputMapper ---
 
-TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext),
+TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext,
+                                   const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig),
         mTouchButtonAccumulator(deviceContext),
         mSource(0),
         mDeviceMode(DeviceMode::DISABLED),

@@ -52,8 +52,9 @@ static void convertFromLinuxToAndroid(std::vector<float>& values,
     }
 }
 
-SensorInputMapper::SensorInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext) {}
+SensorInputMapper::SensorInputMapper(InputDeviceContext& deviceContext,
+                                     const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig) {}
 
 SensorInputMapper::~SensorInputMapper() {}
 

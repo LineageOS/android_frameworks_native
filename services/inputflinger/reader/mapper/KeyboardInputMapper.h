@@ -23,7 +23,9 @@ namespace android {
 
 class KeyboardInputMapper : public InputMapper {
 public:
-    KeyboardInputMapper(InputDeviceContext& deviceContext, uint32_t source, int32_t keyboardType);
+    KeyboardInputMapper(InputDeviceContext& deviceContext,
+                        const InputReaderConfiguration& readerConfig, uint32_t source,
+                        int32_t keyboardType);
     ~KeyboardInputMapper() override = default;
 
     uint32_t getSources() const override;

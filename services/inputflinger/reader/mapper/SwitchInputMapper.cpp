@@ -20,8 +20,9 @@
 
 namespace android {
 
-SwitchInputMapper::SwitchInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext), mSwitchValues(0), mUpdatedSwitchMask(0) {}
+SwitchInputMapper::SwitchInputMapper(InputDeviceContext& deviceContext,
+                                     const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig), mSwitchValues(0), mUpdatedSwitchMask(0) {}
 
 SwitchInputMapper::~SwitchInputMapper() {}
 
