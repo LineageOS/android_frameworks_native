@@ -110,10 +110,6 @@ InputReaderInterface& InputManager::getReader() {
     return *mReader;
 }
 
-UnwantedInteractionBlockerInterface& InputManager::getBlocker() {
-    return *mBlocker;
-}
-
 InputProcessorInterface& InputManager::getProcessor() {
     return *mProcessor;
 }
@@ -127,6 +123,17 @@ void InputManager::monitor() {
     mBlocker->monitor();
     mProcessor->monitor();
     mDispatcher->monitor();
+}
+
+void InputManager::dump(std::string& dump) {
+    mReader->dump(dump);
+    dump += '\n';
+    mBlocker->dump(dump);
+    dump += '\n';
+    mProcessor->dump(dump);
+    dump += '\n';
+    mDispatcher->dump(dump);
+    dump += '\n';
 }
 
 // Used by tests only.

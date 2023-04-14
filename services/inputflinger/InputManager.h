@@ -82,9 +82,6 @@ public:
     /* Gets the input reader. */
     virtual InputReaderInterface& getReader() = 0;
 
-    /* Gets the unwanted interaction blocker. */
-    virtual UnwantedInteractionBlockerInterface& getBlocker() = 0;
-
     /* Gets the input processor */
     virtual InputProcessorInterface& getProcessor() = 0;
 
@@ -93,6 +90,9 @@ public:
 
     /* Check that the input stages have not deadlocked. */
     virtual void monitor() = 0;
+
+    /* Dump the state of the components controlled by the input manager. */
+    virtual void dump(std::string& dump) = 0;
 };
 
 class InputManager : public InputManagerInterface, public BnInputFlinger {
@@ -108,10 +108,10 @@ public:
     status_t stop() override;
 
     InputReaderInterface& getReader() override;
-    UnwantedInteractionBlockerInterface& getBlocker() override;
     InputProcessorInterface& getProcessor() override;
     InputDispatcherInterface& getDispatcher() override;
     void monitor() override;
+    void dump(std::string& dump) override;
 
     status_t dump(int fd, const Vector<String16>& args) override;
     binder::Status createInputChannel(const std::string& name, InputChannel* outChannel) override;
