@@ -157,6 +157,8 @@ void InputReader::loopOnce() {
         if (oldGeneration != mGeneration) {
             inputDevicesChanged = true;
             inputDevices = getInputDevicesLocked();
+            notifyArgs.emplace_back(
+                    NotifyInputDevicesChangedArgs{mContext.getNextId(), inputDevices});
         }
     } // release lock
 
