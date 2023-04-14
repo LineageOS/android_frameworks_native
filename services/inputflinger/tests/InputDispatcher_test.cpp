@@ -213,7 +213,7 @@ public:
 
     void assertFilterInputEventWasCalled(const NotifyKeyArgs& args) {
         assertFilterInputEventWasCalledInternal([&args](const InputEvent& event) {
-            ASSERT_EQ(event.getType(), AINPUT_EVENT_TYPE_KEY);
+            ASSERT_EQ(event.getType(), InputEventType::KEY);
             EXPECT_EQ(event.getDisplayId(), args.displayId);
 
             const auto& keyEvent = static_cast<const KeyEvent&>(event);
@@ -224,7 +224,7 @@ public:
 
     void assertFilterInputEventWasCalled(const NotifyMotionArgs& args, vec2 point) {
         assertFilterInputEventWasCalledInternal([&](const InputEvent& event) {
-            ASSERT_EQ(event.getType(), AINPUT_EVENT_TYPE_MOTION);
+            ASSERT_EQ(event.getType(), InputEventType::MOTION);
             EXPECT_EQ(event.getDisplayId(), args.displayId);
 
             const auto& motionEvent = static_cast<const MotionEvent&>(event);
@@ -530,15 +530,19 @@ private:
     bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
         std::scoped_lock lock(mLock);
         switch (inputEvent->getType()) {
-            case AINPUT_EVENT_TYPE_KEY: {
+            case InputEventType::KEY: {
                 const KeyEvent* keyEvent = static_cast<const KeyEvent*>(inputEvent);
                 mFilteredEvent = std::make_unique<KeyEvent>(*keyEvent);
                 break;
             }
 
-            case AINPUT_EVENT_TYPE_MOTION: {
+            case InputEventType::MOTION: {
                 const MotionEvent* motionEvent = static_cast<const MotionEvent*>(inputEvent);
                 mFilteredEvent = std::make_unique<MotionEvent>(*motionEvent);
+                break;
+            }
+            default: {
+                ADD_FAILURE() << "Should only filter keys or motions";
                 break;
             }
         }
@@ -924,7 +928,7 @@ public:
         ASSERT_EQ(OK, status);
     }
 
-    void consumeEvent(int32_t expectedEventType, int32_t expectedAction,
+    void consumeEvent(InputEventType expectedEventType, int32_t expectedAction,
                       std::optional<int32_t> expectedDisplayId,
                       std::optional<int32_t> expectedFlags) {
         InputEvent* event = consume();
@@ -932,15 +936,15 @@ public:
         ASSERT_NE(nullptr, event) << mName.c_str()
                                   << ": consumer should have returned non-NULL event.";
         ASSERT_EQ(expectedEventType, event->getType())
-                << mName.c_str() << " expected " << inputEventTypeToString(expectedEventType)
-                << " event, got " << inputEventTypeToString(event->getType()) << " event";
+                << mName.c_str() << " expected " << ftl::enum_string(expectedEventType)
+                << " event, got " << *event;
 
         if (expectedDisplayId.has_value()) {
             EXPECT_EQ(expectedDisplayId, event->getDisplayId());
         }
 
         switch (expectedEventType) {
-            case AINPUT_EVENT_TYPE_KEY: {
+            case InputEventType::KEY: {
                 const KeyEvent& keyEvent = static_cast<const KeyEvent&>(*event);
                 EXPECT_EQ(expectedAction, keyEvent.getAction());
                 if (expectedFlags.has_value()) {
@@ -948,7 +952,7 @@ public:
                 }
                 break;
             }
-            case AINPUT_EVENT_TYPE_MOTION: {
+            case InputEventType::MOTION: {
                 const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
                 assertMotionAction(expectedAction, motionEvent.getAction());
 
@@ -957,20 +961,17 @@ public:
                 }
                 break;
             }
-            case AINPUT_EVENT_TYPE_FOCUS: {
+            case InputEventType::FOCUS: {
                 FAIL() << "Use 'consumeFocusEvent' for FOCUS events";
             }
-            case AINPUT_EVENT_TYPE_CAPTURE: {
+            case InputEventType::CAPTURE: {
                 FAIL() << "Use 'consumeCaptureEvent' for CAPTURE events";
             }
-            case AINPUT_EVENT_TYPE_TOUCH_MODE: {
+            case InputEventType::TOUCH_MODE: {
                 FAIL() << "Use 'consumeTouchModeEvent' for TOUCH_MODE events";
             }
-            case AINPUT_EVENT_TYPE_DRAG: {
+            case InputEventType::DRAG: {
                 FAIL() << "Use 'consumeDragEvent' for DRAG events";
-            }
-            default: {
-                FAIL() << mName.c_str() << ": invalid event type: " << expectedEventType;
             }
         }
     }
@@ -983,9 +984,8 @@ public:
             return nullptr;
         }
 
-        if (event->getType() != AINPUT_EVENT_TYPE_MOTION) {
-            ADD_FAILURE() << mName << " expected a MotionEvent, got "
-                          << inputEventTypeToString(event->getType()) << " event";
+        if (event->getType() != InputEventType::MOTION) {
+            ADD_FAILURE() << mName << " expected a MotionEvent, got " << *event;
             return nullptr;
         }
         return static_cast<MotionEvent*>(event);
@@ -1001,9 +1001,8 @@ public:
         InputEvent* event = consume();
         ASSERT_NE(nullptr, event) << mName.c_str()
                                   << ": consumer should have returned non-NULL event.";
-        ASSERT_EQ(AINPUT_EVENT_TYPE_FOCUS, event->getType())
-                << "Got " << inputEventTypeToString(event->getType())
-                << " event instead of FOCUS event";
+        ASSERT_EQ(InputEventType::FOCUS, event->getType())
+                << "Instead of FocusEvent, got " << *event;
 
         ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
                 << mName.c_str() << ": event displayId should always be NONE.";
@@ -1016,9 +1015,8 @@ public:
         const InputEvent* event = consume();
         ASSERT_NE(nullptr, event) << mName.c_str()
                                   << ": consumer should have returned non-NULL event.";
-        ASSERT_EQ(AINPUT_EVENT_TYPE_CAPTURE, event->getType())
-                << "Got " << inputEventTypeToString(event->getType())
-                << " event instead of CAPTURE event";
+        ASSERT_EQ(InputEventType::CAPTURE, event->getType())
+                << "Instead of CaptureEvent, got " << *event;
 
         ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
                 << mName.c_str() << ": event displayId should always be NONE.";
@@ -1031,9 +1029,7 @@ public:
         const InputEvent* event = consume();
         ASSERT_NE(nullptr, event) << mName.c_str()
                                   << ": consumer should have returned non-NULL event.";
-        ASSERT_EQ(AINPUT_EVENT_TYPE_DRAG, event->getType())
-                << "Got " << inputEventTypeToString(event->getType())
-                << " event instead of DRAG event";
+        ASSERT_EQ(InputEventType::DRAG, event->getType()) << "Instead of DragEvent, got " << *event;
 
         EXPECT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
                 << mName.c_str() << ": event displayId should always be NONE.";
@@ -1048,9 +1044,8 @@ public:
         const InputEvent* event = consume();
         ASSERT_NE(nullptr, event) << mName.c_str()
                                   << ": consumer should have returned non-NULL event.";
-        ASSERT_EQ(AINPUT_EVENT_TYPE_TOUCH_MODE, event->getType())
-                << "Got " << inputEventTypeToString(event->getType())
-                << " event instead of TOUCH_MODE event";
+        ASSERT_EQ(InputEventType::TOUCH_MODE, event->getType())
+                << "Instead of TouchModeEvent, got " << *event;
 
         ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
                 << mName.c_str() << ": event displayId should always be NONE.";
@@ -1063,23 +1058,23 @@ public:
         if (event == nullptr) {
             return;
         }
-        if (event->getType() == AINPUT_EVENT_TYPE_KEY) {
+        if (event->getType() == InputEventType::KEY) {
             KeyEvent& keyEvent = static_cast<KeyEvent&>(*event);
             ADD_FAILURE() << "Received key event "
                           << KeyEvent::actionToString(keyEvent.getAction());
-        } else if (event->getType() == AINPUT_EVENT_TYPE_MOTION) {
+        } else if (event->getType() == InputEventType::MOTION) {
             MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
             ADD_FAILURE() << "Received motion event "
                           << MotionEvent::actionToString(motionEvent.getAction());
-        } else if (event->getType() == AINPUT_EVENT_TYPE_FOCUS) {
+        } else if (event->getType() == InputEventType::FOCUS) {
             FocusEvent& focusEvent = static_cast<FocusEvent&>(*event);
             ADD_FAILURE() << "Received focus event, hasFocus = "
                           << (focusEvent.getHasFocus() ? "true" : "false");
-        } else if (event->getType() == AINPUT_EVENT_TYPE_CAPTURE) {
+        } else if (event->getType() == InputEventType::CAPTURE) {
             const auto& captureEvent = static_cast<CaptureEvent&>(*event);
             ADD_FAILURE() << "Received capture event, pointerCaptureEnabled = "
                           << (captureEvent.getPointerCaptureEnabled() ? "true" : "false");
-        } else if (event->getType() == AINPUT_EVENT_TYPE_TOUCH_MODE) {
+        } else if (event->getType() == InputEventType::TOUCH_MODE) {
             const auto& touchModeEvent = static_cast<TouchModeEvent&>(*event);
             ADD_FAILURE() << "Received touch mode event, inTouchMode = "
                           << (touchModeEvent.isInTouchMode() ? "true" : "false");
@@ -1239,12 +1234,11 @@ public:
     void setWindowOffset(float offsetX, float offsetY) { mInfo.transform.set(offsetX, offsetY); }
 
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
-                     expectedFlags);
+        consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId, expectedFlags);
     }
 
     void consumeKeyUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, expectedDisplayId, expectedFlags);
+        consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_UP, expectedDisplayId, expectedFlags);
     }
 
     void consumeMotionCancel(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
@@ -1266,7 +1260,7 @@ public:
 
     void consumeAnyMotionDown(std::optional<int32_t> expectedDisplayId = std::nullopt,
                               std::optional<int32_t> expectedFlags = std::nullopt) {
-        consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_DOWN, expectedDisplayId,
+        consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN, expectedDisplayId,
                      expectedFlags);
     }
 
@@ -1275,25 +1269,25 @@ public:
                                   int32_t expectedFlags = 0) {
         int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        consumeEvent(AINPUT_EVENT_TYPE_MOTION, action, expectedDisplayId, expectedFlags);
+        consumeEvent(InputEventType::MOTION, action, expectedDisplayId, expectedFlags);
     }
 
     void consumeMotionPointerUp(int32_t pointerIdx, int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                                 int32_t expectedFlags = 0) {
         int32_t action = AMOTION_EVENT_ACTION_POINTER_UP |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        consumeEvent(AINPUT_EVENT_TYPE_MOTION, action, expectedDisplayId, expectedFlags);
+        consumeEvent(InputEventType::MOTION, action, expectedDisplayId, expectedFlags);
     }
 
     void consumeMotionUp(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                          int32_t expectedFlags = 0) {
-        consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_UP, expectedDisplayId,
+        consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_UP, expectedDisplayId,
                      expectedFlags);
     }
 
     void consumeMotionOutside(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                               int32_t expectedFlags = 0) {
-        consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_OUTSIDE, expectedDisplayId,
+        consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_OUTSIDE, expectedDisplayId,
                      expectedFlags);
     }
 
@@ -1301,7 +1295,7 @@ public:
                                               int32_t expectedFlags = 0) {
         InputEvent* event = consume();
         ASSERT_NE(nullptr, event);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
+        ASSERT_EQ(InputEventType::MOTION, event->getType());
         const MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
         EXPECT_EQ(AMOTION_EVENT_ACTION_OUTSIDE, motionEvent.getActionMasked());
         EXPECT_EQ(0.f, motionEvent.getRawPointerCoords(0)->getX());
@@ -1326,7 +1320,7 @@ public:
         ASSERT_THAT(*motionEvent, matcher);
     }
 
-    void consumeEvent(int32_t expectedEventType, int32_t expectedAction,
+    void consumeEvent(InputEventType expectedEventType, int32_t expectedAction,
                       std::optional<int32_t> expectedDisplayId,
                       std::optional<int32_t> expectedFlags) {
         ASSERT_NE(mInputReceiver, nullptr) << "Invalid consume event on window with no receiver";
@@ -1375,9 +1369,8 @@ public:
             ADD_FAILURE() << "Consume failed : no event";
             return nullptr;
         }
-        if (event->getType() != AINPUT_EVENT_TYPE_MOTION) {
-            ADD_FAILURE() << "Instead of motion event, got "
-                          << inputEventTypeToString(event->getType());
+        if (event->getType() != InputEventType::MOTION) {
+            ADD_FAILURE() << "Instead of motion event, got " << *event;
             return nullptr;
         }
         return static_cast<MotionEvent*>(event);
@@ -3678,7 +3671,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsKeyStream) {
     // on the app side.
     NotifyDeviceResetArgs args(/*id=*/10, /*eventTime=*/20, DEVICE_ID);
     mDispatcher->notifyDeviceReset(&args);
-    window->consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
+    window->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
                          AKEY_EVENT_FLAG_CANCELED);
 }
 
@@ -4752,8 +4745,8 @@ public:
     sp<IBinder> getToken() { return mInputReceiver->getToken(); }
 
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_DOWN,
-                                     expectedDisplayId, expectedFlags);
+        mInputReceiver->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
+                                     expectedFlags);
     }
 
     std::optional<int32_t> receiveEvent() { return mInputReceiver->receiveEvent(); }
@@ -4761,17 +4754,17 @@ public:
     void finishEvent(uint32_t consumeSeq) { return mInputReceiver->finishEvent(consumeSeq); }
 
     void consumeMotionDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_DOWN,
+        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN,
                                      expectedDisplayId, expectedFlags);
     }
 
     void consumeMotionMove(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_MOVE,
+        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_MOVE,
                                      expectedDisplayId, expectedFlags);
     }
 
     void consumeMotionUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_UP,
+        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_UP,
                                      expectedDisplayId, expectedFlags);
     }
 
@@ -4785,7 +4778,7 @@ public:
     void consumeMotionPointerDown(int32_t pointerIdx) {
         int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        mInputReceiver->consumeEvent(AINPUT_EVENT_TYPE_MOTION, action, ADISPLAY_ID_DEFAULT,
+        mInputReceiver->consumeEvent(InputEventType::MOTION, action, ADISPLAY_ID_DEFAULT,
                                      /*expectedFlags=*/0);
     }
 
@@ -4795,8 +4788,8 @@ public:
             ADD_FAILURE() << "No event was produced";
             return nullptr;
         }
-        if (event->getType() != AINPUT_EVENT_TYPE_MOTION) {
-            ADD_FAILURE() << "Received event of type " << event->getType() << " instead of motion";
+        if (event->getType() != InputEventType::MOTION) {
+            ADD_FAILURE() << "Expected MotionEvent, got " << *event;
             return nullptr;
         }
         return static_cast<MotionEvent*>(event);
@@ -4952,7 +4945,7 @@ TEST_F(InputDispatcherTest, TestMoveEvent) {
                                              motionArgs.pointerCoords[0].getX() - 10);
 
     mDispatcher->notifyMotion(&motionArgs);
-    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_MOVE, ADISPLAY_ID_DEFAULT,
+    window->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_MOVE, ADISPLAY_ID_DEFAULT,
                          /*expectedFlags=*/0);
 }
 
@@ -5423,8 +5416,7 @@ protected:
         InputEvent* repeatEvent = mWindow->consume();
         ASSERT_NE(nullptr, repeatEvent);
 
-        uint32_t eventType = repeatEvent->getType();
-        ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, eventType);
+        ASSERT_EQ(InputEventType::KEY, repeatEvent->getType());
 
         KeyEvent* repeatKeyEvent = static_cast<KeyEvent*>(repeatEvent);
         uint32_t eventAction = repeatKeyEvent->getAction();
@@ -5439,7 +5431,7 @@ protected:
         mDispatcher->notifyKey(&keyArgs);
 
         // Window should receive key down event.
-        mWindow->consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
+        mWindow->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
                               /*expectedFlags=*/0);
     }
 };
@@ -5612,7 +5604,7 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, SetInputWindow_MultiDisplayFocus) 
     mDispatcher->setInputWindows({{SECOND_DISPLAY_ID, {}}});
 
     // Old focus should receive a cancel event.
-    windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_NONE,
+    windowInSecondary->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_NONE,
                                     AKEY_EVENT_FLAG_CANCELED);
 
     // Test inject a key down, should timeout because of no target window.
@@ -5883,7 +5875,7 @@ protected:
         InputEvent* received = mWindow->consume();
         ASSERT_NE(nullptr, received);
         ASSERT_EQ(resolvedDeviceId, received->getDeviceId());
-        ASSERT_EQ(received->getType(), AINPUT_EVENT_TYPE_KEY);
+        ASSERT_EQ(received->getType(), InputEventType::KEY);
         KeyEvent& keyEvent = static_cast<KeyEvent&>(*received);
         ASSERT_EQ(flags, keyEvent.getFlags());
     }
@@ -5918,7 +5910,7 @@ protected:
         InputEvent* received = mWindow->consume();
         ASSERT_NE(nullptr, received);
         ASSERT_EQ(resolvedDeviceId, received->getDeviceId());
-        ASSERT_EQ(received->getType(), AINPUT_EVENT_TYPE_MOTION);
+        ASSERT_EQ(received->getType(), InputEventType::MOTION);
         MotionEvent& motionEvent = static_cast<MotionEvent&>(*received);
         ASSERT_EQ(flags, motionEvent.getFlags());
     }
@@ -6099,9 +6091,8 @@ protected:
         ASSERT_NE(nullptr, event) << name.c_str()
                                   << ": consumer should have returned non-NULL event.";
 
-        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType())
-                << name.c_str() << "expected " << inputEventTypeToString(AINPUT_EVENT_TYPE_MOTION)
-                << " event, got " << inputEventTypeToString(event->getType()) << " event";
+        ASSERT_EQ(InputEventType::MOTION, event->getType())
+                << name.c_str() << ": expected MotionEvent, got " << *event;
 
         const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
         assertMotionAction(expectedAction, motionEvent.getAction());
@@ -6798,7 +6789,7 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsive) {
                                FOCUSED_WINDOW_LOCATION))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mFocusedWindow->consumeMotionDown();
-    mUnfocusedWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
+    mUnfocusedWindow->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
                                    ADISPLAY_ID_DEFAULT, /*flags=*/0);
     // We consumed all events, so no ANR
     ASSERT_TRUE(mDispatcher->waitForIdle());
@@ -6872,7 +6863,7 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsiveWithSameTimeout
 // At the same time, FLAG_WATCH_OUTSIDE_TOUCH targets should not receive any events.
 TEST_F(InputDispatcherMultiWindowAnr, DuringAnr_SecondTapIsIgnored) {
     tapOnFocusedWindow();
-    mUnfocusedWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
+    mUnfocusedWindow->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
                                    ADISPLAY_ID_DEFAULT, /*flags=*/0);
     // Receive the events, but don't respond
     std::optional<uint32_t> downEventSequenceNum = mFocusedWindow->receiveEvent(); // ACTION_DOWN
@@ -7001,7 +6992,7 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
             generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
                                ADISPLAY_ID_DEFAULT, {FOCUSED_WINDOW_LOCATION});
     mDispatcher->notifyMotion(&motionArgs);
-    mUnfocusedWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
+    mUnfocusedWindow->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
                                    ADISPLAY_ID_DEFAULT, /*flags=*/0);
 
     // Touch Window 2
@@ -7022,7 +7013,7 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
     ASSERT_TRUE(moveOrCancelSequenceNum);
     mFocusedWindow->finishEvent(*moveOrCancelSequenceNum);
     ASSERT_NE(nullptr, event);
-    ASSERT_EQ(event->getType(), AINPUT_EVENT_TYPE_MOTION);
+    ASSERT_EQ(event->getType(), InputEventType::MOTION);
     MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
     if (motionEvent.getAction() == AMOTION_EVENT_ACTION_MOVE) {
         mFocusedWindow->consumeMotionCancel();
@@ -8234,7 +8225,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenMultiDisplays) {
                                         .displayId(SECOND_DISPLAY_ID)
                                         .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                                         .build()));
-    windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_DOWN,
+    windowInSecondary->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN,
                                     SECOND_DISPLAY_ID, /*expectedFlag=*/0);
     // Update window again.
     mDispatcher->setInputWindows({{SECOND_DISPLAY_ID, {windowInSecondary}}});
