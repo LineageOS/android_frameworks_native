@@ -61,6 +61,11 @@ public:
      */
     size_t getCompressedImageSize();
 
+    /*
+     * Process 16 lines of Y and 16 lines of U/V each time.
+     * We must pass at least 16 scanlines according to libjpeg documentation.
+     */
+    static const int kCompressBatchSize = 16;
 private:
     // initDestination(), emptyOutputBuffer() and emptyOutputBuffer() are callback functions to be
     // passed into jpeg library.
@@ -82,9 +87,6 @@ private:
 
     // The block size for encoded jpeg image buffer.
     static const int kBlockSize = 16384;
-    // Process 16 lines of Y and 16 lines of U/V each time.
-    // We must pass at least 16 scanlines according to libjpeg documentation.
-    static const int kCompressBatchSize = 16;
 
     // The buffer that holds the compressed result.
     std::vector<JOCTET> mResultBuffer;
