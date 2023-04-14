@@ -35,6 +35,9 @@ public:
 
     using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
 
+    void assertNotifyInputDevicesChangedWasCalled(
+            NotifyInputDevicesChangedArgs* outEventArgs = nullptr);
+
     void assertNotifyConfigurationChangedWasCalled(
             NotifyConfigurationChangedArgs* outEventArgs = nullptr);
 
@@ -76,6 +79,8 @@ private:
     template <class NotifyArgsType>
     void addToQueue(const NotifyArgsType* args);
 
+    virtual void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
+
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
 
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
@@ -97,7 +102,8 @@ private:
     const std::chrono::milliseconds mEventHappenedTimeout;
     const std::chrono::milliseconds mEventDidNotHappenTimeout;
 
-    std::tuple<std::vector<NotifyConfigurationChangedArgs>,  //
+    std::tuple<std::vector<NotifyInputDevicesChangedArgs>,   //
+               std::vector<NotifyConfigurationChangedArgs>,  //
                std::vector<NotifyDeviceResetArgs>,           //
                std::vector<NotifyKeyArgs>,                   //
                std::vector<NotifyMotionArgs>,                //

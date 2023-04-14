@@ -37,6 +37,7 @@ public:
     InputListenerInterface& operator=(const InputListenerInterface&) = delete;
     virtual ~InputListenerInterface() { }
 
+    virtual void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) = 0;
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) = 0;
     virtual void notifyKey(const NotifyKeyArgs* args) = 0;
     virtual void notifyMotion(const NotifyMotionArgs* args) = 0;
@@ -58,6 +59,7 @@ class QueuedInputListener : public InputListenerInterface {
 public:
     explicit QueuedInputListener(InputListenerInterface& innerListener);
 
+    virtual void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
     virtual void notifyKey(const NotifyKeyArgs* args) override;
     virtual void notifyMotion(const NotifyMotionArgs* args) override;
