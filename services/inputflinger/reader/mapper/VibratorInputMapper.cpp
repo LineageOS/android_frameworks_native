@@ -20,8 +20,9 @@
 
 namespace android {
 
-VibratorInputMapper::VibratorInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext), mVibrating(false), mSequence(0) {}
+VibratorInputMapper::VibratorInputMapper(InputDeviceContext& deviceContext,
+                                         const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig), mVibrating(false), mSequence(0) {}
 
 VibratorInputMapper::~VibratorInputMapper() {}
 

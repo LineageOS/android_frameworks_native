@@ -28,8 +28,9 @@ static constexpr size_t MAX_SLOTS = 32;
 
 // --- MultiTouchInputMapper ---
 
-MultiTouchInputMapper::MultiTouchInputMapper(InputDeviceContext& deviceContext)
-      : TouchInputMapper(deviceContext) {}
+MultiTouchInputMapper::MultiTouchInputMapper(InputDeviceContext& deviceContext,
+                                             const InputReaderConfiguration& readerConfig)
+      : TouchInputMapper(deviceContext, readerConfig) {}
 
 MultiTouchInputMapper::~MultiTouchInputMapper() {}
 

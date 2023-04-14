@@ -26,7 +26,8 @@ namespace android {
 
 class ExternalStylusInputMapper : public InputMapper {
 public:
-    explicit ExternalStylusInputMapper(InputDeviceContext& deviceContext);
+    explicit ExternalStylusInputMapper(InputDeviceContext& deviceContext,
+                                       const InputReaderConfiguration& readerConfig);
     virtual ~ExternalStylusInputMapper() = default;
 
     uint32_t getSources() const override;
