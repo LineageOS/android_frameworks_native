@@ -16,7 +16,7 @@
 
 #include <jpegrecoverymap/jpegr.h>
 #include <jpegrecoverymap/jpegrutils.h>
-#include <jpegrecoverymap/recoverymapmath.h>
+#include <jpegrecoverymap/gainmapmath.h>
 #include <fcntl.h>
 #include <fstream>
 #include <gtest/gtest.h>
@@ -117,18 +117,18 @@ void JpegRTest::TearDown() {
 
 class JpegRBenchmark : public JpegR {
 public:
- void BenchmarkGenerateRecoveryMap(jr_uncompressed_ptr yuv420Image, jr_uncompressed_ptr p010Image,
-                                   jr_metadata_ptr metadata, jr_uncompressed_ptr map);
- void BenchmarkApplyRecoveryMap(jr_uncompressed_ptr yuv420Image, jr_uncompressed_ptr map,
-                                jr_metadata_ptr metadata, jr_uncompressed_ptr dest);
+ void BenchmarkGenerateGainMap(jr_uncompressed_ptr yuv420Image, jr_uncompressed_ptr p010Image,
+                               jr_metadata_ptr metadata, jr_uncompressed_ptr map);
+ void BenchmarkApplyGainMap(jr_uncompressed_ptr yuv420Image, jr_uncompressed_ptr map,
+                            jr_metadata_ptr metadata, jr_uncompressed_ptr dest);
 private:
  const int kProfileCount = 10;
 };
 
-void JpegRBenchmark::BenchmarkGenerateRecoveryMap(jr_uncompressed_ptr yuv420Image,
-                                                        jr_uncompressed_ptr p010Image,
-                                                        jr_metadata_ptr metadata,
-                                                        jr_uncompressed_ptr map) {
+void JpegRBenchmark::BenchmarkGenerateGainMap(jr_uncompressed_ptr yuv420Image,
+                                              jr_uncompressed_ptr p010Image,
+                                              jr_metadata_ptr metadata,
+                                              jr_uncompressed_ptr map) {
   ASSERT_EQ(yuv420Image->width, p010Image->width);
   ASSERT_EQ(yuv420Image->height, p010Image->height);
 
@@ -136,38 +136,38 @@ void JpegRBenchmark::BenchmarkGenerateRecoveryMap(jr_uncompressed_ptr yuv420Imag
 
   timerStart(&genRecMapTime);
   for (auto i = 0; i < kProfileCount; i++) {
-      ASSERT_EQ(OK, generateRecoveryMap(
+      ASSERT_EQ(OK, generateGainMap(
           yuv420Image, p010Image, jpegr_transfer_function::JPEGR_TF_HLG, metadata, map));
       if (i != kProfileCount - 1) delete[] static_cast<uint8_t *>(map->data);
   }
   timerStop(&genRecMapTime);
 
-  ALOGE("Generate Recovery Map:- Res = %i x %i, time = %f ms",
+  ALOGE("Generate Gain Map:- Res = %i x %i, time = %f ms",
         yuv420Image->width, yuv420Image->height,
         elapsedTime(&genRecMapTime) / (kProfileCount * 1000.f));
 
 }
 
-void JpegRBenchmark::BenchmarkApplyRecoveryMap(jr_uncompressed_ptr yuv420Image,
-                                                     jr_uncompressed_ptr map,
-                                                     jr_metadata_ptr metadata,
-                                                     jr_uncompressed_ptr dest) {
+void JpegRBenchmark::BenchmarkApplyGainMap(jr_uncompressed_ptr yuv420Image,
+                                           jr_uncompressed_ptr map,
+                                           jr_metadata_ptr metadata,
+                                           jr_uncompressed_ptr dest) {
   Timer applyRecMapTime;
 
   timerStart(&applyRecMapTime);
   for (auto i = 0; i < kProfileCount; i++) {
-      ASSERT_EQ(OK, applyRecoveryMap(yuv420Image, map, metadata, JPEGR_OUTPUT_HDR_HLG,
-                                     metadata->maxContentBoost /* displayBoost */, dest));
+      ASSERT_EQ(OK, applyGainMap(yuv420Image, map, metadata, JPEGR_OUTPUT_HDR_HLG,
+                                 metadata->maxContentBoost /* displayBoost */, dest));
   }
   timerStop(&applyRecMapTime);
 
-  ALOGE("Apply Recovery Map:- Res = %i x %i, time = %f ms",
+  ALOGE("Apply Gain Map:- Res = %i x %i, time = %f ms",
         yuv420Image->width, yuv420Image->height,
         elapsedTime(&applyRecMapTime) / (kProfileCount * 1000.f));
 }
 
 TEST_F(JpegRTest, build) {
-  // Force all of the recovery map lib to be linked by calling all public functions.
+  // Force all of the gain map lib to be linked by calling all public functions.
   JpegR jpegRCodec;
   jpegRCodec.encodeJPEGR(nullptr, static_cast<jpegr_transfer_function>(0), nullptr, 0, nullptr);
   jpegRCodec.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
@@ -515,7 +515,7 @@ TEST_F(JpegRTest, encodeFromJpegThenDecode) {
   free(decodedJpegR.data);
 }
 
-TEST_F(JpegRTest, ProfileRecoveryMapFuncs) {
+TEST_F(JpegRTest, ProfileGainMapFuncs) {
   const size_t kWidth = TEST_IMAGE_WIDTH;
   const size_t kHeight = TEST_IMAGE_HEIGHT;
 
@@ -545,7 +545,7 @@ TEST_F(JpegRTest, ProfileRecoveryMapFuncs) {
                                     .height = 0,
                                     .colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED };
 
-  benchmark.BenchmarkGenerateRecoveryMap(&mRawYuv420Image, &mRawP010Image, &metadata, &map);
+  benchmark.BenchmarkGenerateGainMap(&mRawYuv420Image, &mRawP010Image, &metadata, &map);
 
   const int dstSize = mRawYuv420Image.width * mRawYuv420Image.height * 4;
   auto bufferDst = std::make_unique<uint8_t[]>(dstSize);
@@ -554,7 +554,7 @@ TEST_F(JpegRTest, ProfileRecoveryMapFuncs) {
                                      .height = 0,
                                      .colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED };
 
-  benchmark.BenchmarkApplyRecoveryMap(&mRawYuv420Image, &map, &metadata, &dest);
+  benchmark.BenchmarkApplyGainMap(&mRawYuv420Image, &map, &metadata, &dest);
 }
 
 } // namespace android::recoverymap

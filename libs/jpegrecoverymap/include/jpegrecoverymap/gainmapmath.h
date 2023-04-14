@@ -129,40 +129,40 @@ inline uint16_t floatToHalf(float f) {
             | (e > 143) * 0x7FFF;
 }
 
-constexpr size_t kRecoveryFactorPrecision = 10;
-constexpr size_t kRecoveryFactorNumEntries = 1 << kRecoveryFactorPrecision;
-struct RecoveryLUT {
-  RecoveryLUT(jr_metadata_ptr metadata) {
-    for (int idx = 0; idx < kRecoveryFactorNumEntries; idx++) {
-      float value = static_cast<float>(idx) / static_cast<float>(kRecoveryFactorNumEntries - 1);
+constexpr size_t kGainFactorPrecision = 10;
+constexpr size_t kGainFactorNumEntries = 1 << kGainFactorPrecision;
+struct GainLUT {
+  GainLUT(jr_metadata_ptr metadata) {
+    for (int idx = 0; idx < kGainFactorNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kGainFactorNumEntries - 1);
       float logBoost = log2(metadata->minContentBoost) * (1.0f - value)
                      + log2(metadata->maxContentBoost) * value;
-      mRecoveryTable[idx] = exp2(logBoost);
+      mGainTable[idx] = exp2(logBoost);
     }
   }
 
-  RecoveryLUT(jr_metadata_ptr metadata, float displayBoost) {
+  GainLUT(jr_metadata_ptr metadata, float displayBoost) {
     float boostFactor = displayBoost > 0 ? displayBoost / metadata->maxContentBoost : 1.0f;
-    for (int idx = 0; idx < kRecoveryFactorNumEntries; idx++) {
-      float value = static_cast<float>(idx) / static_cast<float>(kRecoveryFactorNumEntries - 1);
+    for (int idx = 0; idx < kGainFactorNumEntries; idx++) {
+      float value = static_cast<float>(idx) / static_cast<float>(kGainFactorNumEntries - 1);
       float logBoost = log2(metadata->minContentBoost) * (1.0f - value)
                      + log2(metadata->maxContentBoost) * value;
-      mRecoveryTable[idx] = exp2(logBoost * boostFactor);
+      mGainTable[idx] = exp2(logBoost * boostFactor);
     }
   }
 
-  ~RecoveryLUT() {
+  ~GainLUT() {
   }
 
-  float getRecoveryFactor(float recovery) {
-    uint32_t idx = static_cast<uint32_t>(recovery * (kRecoveryFactorNumEntries - 1));
+  float getGainFactor(float gain) {
+    uint32_t idx = static_cast<uint32_t>(gain * (kGainFactorNumEntries - 1));
     //TODO() : Remove once conversion modules have appropriate clamping in place
-    idx = CLIP3(idx, 0, kRecoveryFactorNumEntries - 1);
-    return mRecoveryTable[idx];
+    idx = CLIP3(idx, 0, kGainFactorNumEntries - 1);
+    return mGainTable[idx];
   }
 
 private:
-  float mRecoveryTable[kRecoveryFactorNumEntries];
+  float mGainTable[kGainFactorNumEntries];
 };
 
 struct ShepardsIDW {
@@ -195,11 +195,11 @@ struct ShepardsIDW {
   // p60 p61 p62 p63 p64 p65 p66 p67
   // p70 p71 p72 p73 p74 p75 p76 p77
 
-  // Recovery Map (for 4 scale factor) :-
+  // Gain Map (for 4 scale factor) :-
   // m00 p01
   // m10 m11
 
-  // Recovery sample of curr 4x4, right 4x4, bottom 4x4, bottom right 4x4 are used during
+  // Gain sample of curr 4x4, right 4x4, bottom 4x4, bottom right 4x4 are used during
   // reconstruction. hence table weight size is 4.
   float* mWeights;
   // TODO: check if its ok to mWeights at places
@@ -354,29 +354,29 @@ Color bt2100ToP3(Color e);
 inline Color identityConversion(Color e) { return e; }
 
 /*
- * Get the conversion to apply to the HDR image for recovery map generation
+ * Get the conversion to apply to the HDR image for gain map generation
  */
 ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gamut hdr_gamut);
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Recovery map calculations
+// Gain map calculations
 
 /*
- * Calculate the 8-bit unsigned integer recovery value for the given SDR and HDR
+ * Calculate the 8-bit unsigned integer gain value for the given SDR and HDR
  * luminances in linear space, and the hdr ratio to encode against.
  */
-uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata);
-uint8_t encodeRecovery(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
-                       float log2MinContentBoost, float log2MaxContentBoost);
+uint8_t encodeGain(float y_sdr, float y_hdr, jr_metadata_ptr metadata);
+uint8_t encodeGain(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
+                   float log2MinContentBoost, float log2MaxContentBoost);
 
 /*
- * Calculates the linear luminance in nits after applying the given recovery
+ * Calculates the linear luminance in nits after applying the given gain
  * value, with the given hdr ratio, to the given sdr input in the range [0, 1].
  */
-Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata);
-Color applyRecovery(Color e, float recovery, jr_metadata_ptr metadata, float displayBoost);
-Color applyRecoveryLUT(Color e, float recovery, RecoveryLUT& recoveryLUT);
+Color applyGain(Color e, float gain, jr_metadata_ptr metadata);
+Color applyGain(Color e, float gain, jr_metadata_ptr metadata, float displayBoost);
+Color applyGainLUT(Color e, float gain, GainLUT& gainLUT);
 
 /*
  * Helper for sampling from YUV 420 images.
@@ -405,7 +405,7 @@ Color sampleYuv420(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, s
 Color sampleP010(jr_uncompressed_ptr map, size_t map_scale_factor, size_t x, size_t y);
 
 /*
- * Sample the recovery value for the map from a given x,y coordinate on a scale
+ * Sample the gain value for the map from a given x,y coordinate on a scale
  * that is map scale factor larger than the map size.
  */
 float sampleMap(jr_uncompressed_ptr map, float map_scale_factor, size_t x, size_t y);

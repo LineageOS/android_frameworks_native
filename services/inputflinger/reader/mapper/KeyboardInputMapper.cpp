@@ -118,21 +118,21 @@ void KeyboardInputMapper::dump(std::string& dump) {
 }
 
 std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
-        const InputReaderConfiguration* config) {
+        const InputReaderConfiguration& readerConfig) {
     if (getDeviceContext().getAssociatedViewport()) {
         return getDeviceContext().getAssociatedViewport();
     }
 
     // No associated display defined, try to find default display if orientationAware.
     if (mParameters.orientationAware) {
-        return config->getDisplayViewportByType(ViewportType::INTERNAL);
+        return readerConfig.getDisplayViewportByType(ViewportType::INTERNAL);
     }
 
     return std::nullopt;
 }
 
 std::list<NotifyArgs> KeyboardInputMapper::reconfigure(nsecs_t when,
-                                                       const InputReaderConfiguration* config,
+                                                       const InputReaderConfiguration& config,
                                                        uint32_t changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
@@ -147,7 +147,7 @@ std::list<NotifyArgs> KeyboardInputMapper::reconfigure(nsecs_t when,
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUT_ASSOCIATION)) {
         mKeyboardLayoutInfo =
-                getValueByKey(config->keyboardLayoutAssociations, getDeviceContext().getLocation());
+                getValueByKey(config.keyboardLayoutAssociations, getDeviceContext().getLocation());
     }
 
     return out;

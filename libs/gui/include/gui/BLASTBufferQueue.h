@@ -97,9 +97,10 @@ public:
     void releaseBufferCallbackLocked(const ReleaseCallbackId& id, const sp<Fence>& releaseFence,
                                      std::optional<uint32_t> currentMaxAcquiredBufferCount,
                                      bool fakeRelease) REQUIRES(mMutex);
-    void syncNextTransaction(std::function<void(SurfaceComposerClient::Transaction*)> callback,
+    bool syncNextTransaction(std::function<void(SurfaceComposerClient::Transaction*)> callback,
                              bool acquireSingleBuffer = true);
     void stopContinuousSyncTransaction();
+    void clearSyncTransaction();
 
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void applyPendingTransactions(uint64_t frameNumber);

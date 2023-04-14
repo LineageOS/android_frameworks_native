@@ -263,7 +263,7 @@ private:
         }
     }
 
-    std::list<NotifyArgs> reconfigure(nsecs_t, const InputReaderConfiguration* config,
+    std::list<NotifyArgs> reconfigure(nsecs_t, const InputReaderConfiguration& config,
                                       uint32_t changes) override {
         std::scoped_lock<std::mutex> lock(mLock);
         mConfigureWasCalled = true;
@@ -271,7 +271,7 @@ private:
         // Find the associated viewport if exist.
         const std::optional<uint8_t> displayPort = getDeviceContext().getAssociatedDisplayPort();
         if (displayPort && (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-            mViewport = config->getDisplayViewportByPort(*displayPort);
+            mViewport = config.getDisplayViewportByPort(*displayPort);
         }
 
         mStateChangedCondition.notify_all();
@@ -2319,7 +2319,7 @@ TEST_F(InputDeviceTest, WhenDeviceCreated_EnabledIsFalse) {
 TEST_F(InputDeviceTest, WhenNoMappersAreRegistered_DeviceIsIgnored) {
     // Configuration.
     InputReaderConfiguration config;
-    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, &config, 0);
+    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, config, 0);
 
     // Reset.
     unused += mDevice->reset(ARBITRARY_TIME);
@@ -2378,7 +2378,7 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     mapper2.setMetaState(AMETA_SHIFT_ON);
 
     InputReaderConfiguration config;
-    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, &config, 0);
+    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, config, 0);
 
     std::optional<std::string> propertyValue = mDevice->getConfiguration().getString("key");
     ASSERT_TRUE(propertyValue.has_value())
@@ -3669,7 +3669,7 @@ TEST_F(KeyboardInputMapperTest, LayoutInfoCorrectlyMapped) {
     addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     InputReaderConfiguration config;
-    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, &config, 0);
+    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, config, 0);
 
     ASSERT_EQ("en", mDevice->getDeviceInfo().getKeyboardLayoutInfo()->languageTag);
     ASSERT_EQ("extended", mDevice->getDeviceInfo().getKeyboardLayoutInfo()->layoutType);
