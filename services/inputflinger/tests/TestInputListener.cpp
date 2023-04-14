@@ -29,6 +29,14 @@ TestInputListener::TestInputListener(std::chrono::milliseconds eventHappenedTime
 
 TestInputListener::~TestInputListener() {}
 
+void TestInputListener::assertNotifyInputDevicesChangedWasCalled(
+        NotifyInputDevicesChangedArgs* outEventArgs) {
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifyInputDevicesChangedArgs>(outEventArgs,
+                                                        "Expected notifyInputDevicesChanged() "
+                                                        "to have been called."));
+}
+
 void TestInputListener::assertNotifyConfigurationChangedWasCalled(
         NotifyConfigurationChangedArgs* outEventArgs) {
     ASSERT_NO_FATAL_FAILURE(
@@ -166,6 +174,10 @@ void TestInputListener::addToQueue(const NotifyArgsType* args) {
     std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
     queue.push_back(*args);
     mCondition.notify_all();
+}
+
+void TestInputListener::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
+    addToQueue<NotifyInputDevicesChangedArgs>(&args);
 }
 
 void TestInputListener::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {

@@ -413,6 +413,12 @@ void InputProcessor::setMotionClassifierEnabled(bool enabled) {
     }
 }
 
+void InputProcessor::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
+    // pass through
+    mQueuedListener.notify(args);
+    mQueuedListener.flush();
+}
+
 void InputProcessor::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
     // pass through
     mQueuedListener.notifyConfigurationChanged(args);

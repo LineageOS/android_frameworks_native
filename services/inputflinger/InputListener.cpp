@@ -24,7 +24,6 @@
 
 #include <android-base/stringprintf.h>
 #include <android/log.h>
-#include <math.h>
 #include <utils/Trace.h>
 
 using android::base::StringPrintf;
@@ -47,6 +46,7 @@ Visitor(V...) -> Visitor<V...>;
 
 void InputListenerInterface::notify(const NotifyArgs& generalArgs) {
     Visitor v{
+            [&](const NotifyInputDevicesChangedArgs& args) { notifyInputDevicesChanged(args); },
             [&](const NotifyConfigurationChangedArgs& args) { notifyConfigurationChanged(&args); },
             [&](const NotifyKeyArgs& args) { notifyKey(&args); },
             [&](const NotifyMotionArgs& args) { notifyMotion(&args); },
@@ -72,6 +72,11 @@ static inline void traceEvent(const char* functionName, int32_t id) {
 
 QueuedInputListener::QueuedInputListener(InputListenerInterface& innerListener)
       : mInnerListener(innerListener) {}
+
+void QueuedInputListener::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
+}
 
 void QueuedInputListener::notifyConfigurationChanged(
         const NotifyConfigurationChangedArgs* args) {
