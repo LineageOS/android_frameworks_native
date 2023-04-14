@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegencoderhelper.h>
+#include <ultrahdr/jpegencoderhelper.h>
 #include <gtest/gtest.h>
 #include <utils/Log.h>
 
 #include <fcntl.h>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 #define VALID_IMAGE "/sdcard/Documents/minnie-320x240.yu12"
 #define VALID_IMAGE_WIDTH 320
@@ -121,5 +121,5 @@ TEST_F(JpegEncoderHelperTest, singleChannelImage) {
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-}  // namespace android::jpegrecoverymap
+}  // namespace android::ultrahdr
 

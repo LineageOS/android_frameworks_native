@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_ICC_H
-#define ANDROID_JPEGRECOVERYMAP_ICC_H
+#ifndef ANDROID_ULTRAHDR_ICC_H
+#define ANDROID_ULTRAHDR_ICC_H
 
-#include <jpegrecoverymap/jpegr.h>
-#include <jpegrecoverymap/jpegrutils.h>
+#include <ultrahdr/jpegr.h>
+#include <ultrahdr/jpegrutils.h>
 #include <utils/RefBase.h>
 #include <cmath>
 #include <string>
@@ -28,7 +28,7 @@
 #define USE_BIG_ENDIAN true
 #endif
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 typedef int32_t              Fixed;
 #define Fixed1               (1 << 16)
@@ -210,12 +210,12 @@ private:
     static constexpr size_t kNumChannels = 3;
 
     static sp<DataStruct> write_text_tag(const char* text);
-    static std::string get_desc_string(const jpegr_transfer_function tf,
-                                       const jpegr_color_gamut gamut);
+    static std::string get_desc_string(const ultrahdr_transfer_function tf,
+                                       const ultrahdr_color_gamut gamut);
     static sp<DataStruct> write_xyz_tag(float x, float y, float z);
     static sp<DataStruct> write_trc_tag(const int table_entries, const void* table_16);
     static sp<DataStruct> write_trc_tag_for_linear();
-    static float compute_tone_map_gain(const jpegr_transfer_function tf, float L);
+    static float compute_tone_map_gain(const ultrahdr_transfer_function tf, float L);
     static sp<DataStruct> write_cicp_tag(uint32_t color_primaries,
                                          uint32_t transfer_characteristics);
     static sp<DataStruct> write_mAB_or_mBA_tag(uint32_t type,
@@ -226,9 +226,9 @@ private:
     static sp<DataStruct> write_clut(const uint8_t* grid_points, const uint8_t* grid_16);
 
 public:
-    static sp<DataStruct> writeIccProfile(const jpegr_transfer_function tf,
-                                          const jpegr_color_gamut gamut);
+    static sp<DataStruct> writeIccProfile(const ultrahdr_transfer_function tf,
+                                          const ultrahdr_color_gamut gamut);
 };
-}  // namespace android::jpegrecoverymap
+}  // namespace android::ultrahdr
 
-#endif //ANDROID_JPEGRECOVERYMAP_ICC_H
+#endif //ANDROID_ULTRAHDR_ICC_H

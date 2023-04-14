@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H
-#define ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H
+#ifndef ANDROID_ULTRAHDR_JPEGENCODERHELPER_H
+#define ANDROID_ULTRAHDR_JPEGENCODERHELPER_H
 
 // We must include cstdio before jpeglib.h. It is a requirement of libjpeg.
 #include <cstdio>
@@ -28,7 +28,7 @@ extern "C" {
 #include <utils/Errors.h>
 #include <vector>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 /*
  * Encapsulates a converter from raw image (YUV420planer or grey-scale) to JPEG format.
@@ -90,6 +90,6 @@ private:
     std::vector<JOCTET> mResultBuffer;
 };
 
-} /* namespace android::jpegrecoverymap  */
+} /* namespace android::ultrahdr  */
 
-#endif // ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H
+#endif // ANDROID_ULTRAHDR_JPEGENCODERHELPER_H

@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_MULTIPICTUREFORMAT_H
-#define ANDROID_JPEGRECOVERYMAP_MULTIPICTUREFORMAT_H
+#ifndef ANDROID_ULTRAHDR_MULTIPICTUREFORMAT_H
+#define ANDROID_ULTRAHDR_MULTIPICTUREFORMAT_H
 
-#include <jpegrecoverymap/jpegrutils.h>
+#include <ultrahdr/jpegrutils.h>
 
 #ifdef USE_BIG_ENDIAN
 #undef USE_BIG_ENDIAN
 #define USE_BIG_ENDIAN true
 #endif
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 constexpr size_t kNumPictures = 2;
 constexpr size_t kMpEndianSize = 4;
@@ -59,6 +59,6 @@ size_t calculateMpfSize();
 sp<DataStruct> generateMpf(int primary_image_size, int primary_image_offset,
                            int secondary_image_size, int secondary_image_offset);
 
-}  // namespace android::jpegrecoverymap
+}  // namespace android::ultrahdr
 
-#endif //ANDROID_JPEGRECOVERYMAP_MULTIPICTUREFORMAT_H
+#endif //ANDROID_ULTRAHDR_MULTIPICTUREFORMAT_H

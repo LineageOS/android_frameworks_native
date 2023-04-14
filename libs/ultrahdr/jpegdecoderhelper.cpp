@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegdecoderhelper.h>
+#include <ultrahdr/jpegdecoderhelper.h>
 
 #include <utils/Log.h>
 
@@ -24,7 +24,7 @@
 
 using namespace std;
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 const uint32_t kAPP0Marker = JPEG_APP0;      // JFIF
 const uint32_t kAPP1Marker = JPEG_APP0 + 1;  // EXIF, XMP
@@ -413,4 +413,4 @@ bool JpegDecoderHelper::decompressSingleChannel(jpeg_decompress_struct* cinfo, c
     return true;
 }
 
-} // namespace jpegrecoverymap
+} // namespace ultrahdr
