@@ -23,8 +23,9 @@
 
 namespace android {
 
-ExternalStylusInputMapper::ExternalStylusInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext), mTouchButtonAccumulator(deviceContext) {}
+ExternalStylusInputMapper::ExternalStylusInputMapper(InputDeviceContext& deviceContext,
+                                                     const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig), mTouchButtonAccumulator(deviceContext) {}
 
 uint32_t ExternalStylusInputMapper::getSources() const {
     return AINPUT_SOURCE_STYLUS;

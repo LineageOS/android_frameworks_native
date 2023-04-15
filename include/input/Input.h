@@ -210,7 +210,20 @@ vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy)
  */
 float transformAngle(const ui::Transform& transform, float angleRadians);
 
-const char* inputEventTypeToString(int32_t type);
+/**
+ * The type of the InputEvent.
+ * This should have 1:1 correspondence with the values of anonymous enum defined in input.h.
+ */
+enum class InputEventType {
+    KEY = AINPUT_EVENT_TYPE_KEY,
+    MOTION = AINPUT_EVENT_TYPE_MOTION,
+    FOCUS = AINPUT_EVENT_TYPE_FOCUS,
+    CAPTURE = AINPUT_EVENT_TYPE_CAPTURE,
+    DRAG = AINPUT_EVENT_TYPE_DRAG,
+    TOUCH_MODE = AINPUT_EVENT_TYPE_TOUCH_MODE,
+    ftl_first = KEY,
+    ftl_last = TOUCH_MODE,
+};
 
 std::string inputEventSourceToString(int32_t source);
 
@@ -482,7 +495,7 @@ class InputEvent : public AInputEvent {
 public:
     virtual ~InputEvent() { }
 
-    virtual int32_t getType() const = 0;
+    virtual InputEventType getType() const = 0;
 
     inline int32_t getId() const { return mId; }
 
@@ -513,6 +526,8 @@ protected:
     std::array<uint8_t, 32> mHmac;
 };
 
+std::ostream& operator<<(std::ostream& out, const InputEvent& event);
+
 /*
  * Key events.
  */
@@ -520,7 +535,7 @@ class KeyEvent : public InputEvent {
 public:
     virtual ~KeyEvent() { }
 
-    virtual int32_t getType() const { return AINPUT_EVENT_TYPE_KEY; }
+    virtual InputEventType getType() const { return InputEventType::KEY; }
 
     inline int32_t getAction() const { return mAction; }
 
@@ -571,7 +586,7 @@ class MotionEvent : public InputEvent {
 public:
     virtual ~MotionEvent() { }
 
-    virtual int32_t getType() const { return AINPUT_EVENT_TYPE_MOTION; }
+    virtual InputEventType getType() const { return InputEventType::MOTION; }
 
     inline int32_t getAction() const { return mAction; }
 
@@ -899,7 +914,7 @@ class FocusEvent : public InputEvent {
 public:
     virtual ~FocusEvent() {}
 
-    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_FOCUS; }
+    virtual InputEventType getType() const override { return InputEventType::FOCUS; }
 
     inline bool getHasFocus() const { return mHasFocus; }
 
@@ -918,7 +933,7 @@ class CaptureEvent : public InputEvent {
 public:
     virtual ~CaptureEvent() {}
 
-    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_CAPTURE; }
+    virtual InputEventType getType() const override { return InputEventType::CAPTURE; }
 
     inline bool getPointerCaptureEnabled() const { return mPointerCaptureEnabled; }
 
@@ -937,7 +952,7 @@ class DragEvent : public InputEvent {
 public:
     virtual ~DragEvent() {}
 
-    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_DRAG; }
+    virtual InputEventType getType() const override { return InputEventType::DRAG; }
 
     inline bool isExiting() const { return mIsExiting; }
 
@@ -961,7 +976,7 @@ class TouchModeEvent : public InputEvent {
 public:
     virtual ~TouchModeEvent() {}
 
-    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_TOUCH_MODE; }
+    virtual InputEventType getType() const override { return InputEventType::TOUCH_MODE; }
 
     inline bool isInTouchMode() const { return mIsInTouchMode; }
 

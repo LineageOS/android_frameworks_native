@@ -37,14 +37,15 @@ public:
     InputListenerInterface& operator=(const InputListenerInterface&) = delete;
     virtual ~InputListenerInterface() { }
 
-    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) = 0;
-    virtual void notifyKey(const NotifyKeyArgs* args) = 0;
-    virtual void notifyMotion(const NotifyMotionArgs* args) = 0;
-    virtual void notifySwitch(const NotifySwitchArgs* args) = 0;
-    virtual void notifySensor(const NotifySensorArgs* args) = 0;
-    virtual void notifyVibratorState(const NotifyVibratorStateArgs* args) = 0;
-    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) = 0;
-    virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) = 0;
+    virtual void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) = 0;
+    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) = 0;
+    virtual void notifyKey(const NotifyKeyArgs& args) = 0;
+    virtual void notifyMotion(const NotifyMotionArgs& args) = 0;
+    virtual void notifySwitch(const NotifySwitchArgs& args) = 0;
+    virtual void notifySensor(const NotifySensorArgs& args) = 0;
+    virtual void notifyVibratorState(const NotifyVibratorStateArgs& args) = 0;
+    virtual void notifyDeviceReset(const NotifyDeviceResetArgs& args) = 0;
+    virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) = 0;
 
     void notify(const NotifyArgs& args);
 };
@@ -58,14 +59,15 @@ class QueuedInputListener : public InputListenerInterface {
 public:
     explicit QueuedInputListener(InputListenerInterface& innerListener);
 
-    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
-    virtual void notifyKey(const NotifyKeyArgs* args) override;
-    virtual void notifyMotion(const NotifyMotionArgs* args) override;
-    virtual void notifySwitch(const NotifySwitchArgs* args) override;
-    virtual void notifySensor(const NotifySensorArgs* args) override;
-    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
-    void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
-    void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
+    virtual void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
+    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
+    virtual void notifyKey(const NotifyKeyArgs& args) override;
+    virtual void notifyMotion(const NotifyMotionArgs& args) override;
+    virtual void notifySwitch(const NotifySwitchArgs& args) override;
+    virtual void notifySensor(const NotifySensorArgs& args) override;
+    virtual void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
+    void notifyVibratorState(const NotifyVibratorStateArgs& args) override;
+    void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
     void flush();
 

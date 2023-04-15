@@ -121,8 +121,9 @@ void RawPointerData::getCentroidOfTouchingPointers(float* outX, float* outY) con
 
 // --- TouchInputMapper ---
 
-TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext),
+TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext,
+                                   const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig),
         mTouchButtonAccumulator(deviceContext),
         mSource(0),
         mDeviceMode(DeviceMode::DISABLED),
@@ -3600,16 +3601,18 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                         "%s cannot be used when the device is not in POINTER mode.", __func__);
     std::list<NotifyArgs> out;
     int32_t metaState = getContext()->getGlobalMetaState();
+    auto cursorPosition = mPointerSimple.currentCoords.getXYValue();
 
-    if (down || hovering) {
-        mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
-        mPointerController->clearSpots();
-        mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
-    } else if (!down && !hovering && (mPointerSimple.down || mPointerSimple.hovering)) {
-        mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
+    if (displayId == mPointerController->getDisplayId()) {
+        std::tie(cursorPosition.x, cursorPosition.y) = mPointerController->getPosition();
+        if (down || hovering) {
+            mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
+            mPointerController->clearSpots();
+            mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
+        } else if (!down && !hovering && (mPointerSimple.down || mPointerSimple.hovering)) {
+            mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
+        }
     }
-
-    const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
 
     if (mPointerSimple.down && !down) {
         mPointerSimple.down = false;
@@ -3620,8 +3623,9 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                        0, metaState, mLastRawState.buttonState,
                                        MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
                                        &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
-                                       mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
-                                       yCursorPosition, mPointerSimple.downTime,
+                                       mOrientedXPrecision, mOrientedYPrecision,
+                                       mPointerSimple.lastCursorX, mPointerSimple.lastCursorY,
+                                       mPointerSimple.downTime,
                                        /* videoFrames */ {}));
     }
 
@@ -3629,15 +3633,15 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
         mPointerSimple.hovering = false;
 
         // Send hover exit.
-        out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                       mSource, displayId, policyFlags,
-                                       AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0, metaState,
-                                       mLastRawState.buttonState, MotionClassification::NONE,
-                                       AMOTION_EVENT_EDGE_FLAG_NONE, 1,
-                                       &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
-                                       mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
-                                       yCursorPosition, mPointerSimple.downTime,
-                                       /* videoFrames */ {}));
+        out.push_back(
+                NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
+                                 displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0,
+                                 metaState, mLastRawState.buttonState, MotionClassification::NONE,
+                                 AMOTION_EVENT_EDGE_FLAG_NONE, 1, &mPointerSimple.lastProperties,
+                                 &mPointerSimple.lastCoords, mOrientedXPrecision,
+                                 mOrientedYPrecision, mPointerSimple.lastCursorX,
+                                 mPointerSimple.lastCursorY, mPointerSimple.downTime,
+                                 /* videoFrames */ {}));
     }
 
     if (down) {
@@ -3653,7 +3657,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                            AMOTION_EVENT_EDGE_FLAG_NONE, 1,
                                            &mPointerSimple.currentProperties,
                                            &mPointerSimple.currentCoords, mOrientedXPrecision,
-                                           mOrientedYPrecision, xCursorPosition, yCursorPosition,
+                                           mOrientedYPrecision, cursorPosition.x, cursorPosition.y,
                                            mPointerSimple.downTime, /* videoFrames */ {}));
         }
 
@@ -3664,7 +3668,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                        MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
                                        &mPointerSimple.currentProperties,
                                        &mPointerSimple.currentCoords, mOrientedXPrecision,
-                                       mOrientedYPrecision, xCursorPosition, yCursorPosition,
+                                       mOrientedYPrecision, cursorPosition.x, cursorPosition.y,
                                        mPointerSimple.downTime, /* videoFrames */ {}));
     }
 
@@ -3680,7 +3684,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                            AMOTION_EVENT_EDGE_FLAG_NONE, 1,
                                            &mPointerSimple.currentProperties,
                                            &mPointerSimple.currentCoords, mOrientedXPrecision,
-                                           mOrientedYPrecision, xCursorPosition, yCursorPosition,
+                                           mOrientedYPrecision, cursorPosition.x, cursorPosition.y,
                                            mPointerSimple.downTime, /* videoFrames */ {}));
         }
 
@@ -3691,8 +3695,8 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                  metaState, mCurrentRawState.buttonState,
                                  MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
                                  &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
-                                 mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
-                                 yCursorPosition, mPointerSimple.downTime, /* videoFrames */ {}));
+                                 mOrientedXPrecision, mOrientedYPrecision, cursorPosition.x,
+                                 cursorPosition.y, mPointerSimple.downTime, /* videoFrames */ {}));
     }
 
     if (mCurrentRawState.rawVScroll || mCurrentRawState.rawHScroll) {
@@ -3712,8 +3716,8 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                        0, 0, metaState, mCurrentRawState.buttonState,
                                        MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
                                        &mPointerSimple.currentProperties, &pointerCoords,
-                                       mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
-                                       yCursorPosition, mPointerSimple.downTime,
+                                       mOrientedXPrecision, mOrientedYPrecision, cursorPosition.x,
+                                       cursorPosition.y, mPointerSimple.downTime,
                                        /* videoFrames */ {}));
     }
 
@@ -3723,8 +3727,8 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
         mPointerSimple.lastProperties.copyFrom(mPointerSimple.currentProperties);
         mPointerSimple.displayId = displayId;
         mPointerSimple.source = mSource;
-        mPointerSimple.lastCursorX = xCursorPosition;
-        mPointerSimple.lastCursorY = yCursorPosition;
+        mPointerSimple.lastCursorX = cursorPosition.x;
+        mPointerSimple.lastCursorY = cursorPosition.y;
     } else {
         mPointerSimple.reset();
     }

@@ -23,7 +23,8 @@ namespace android {
 
 class SingleTouchInputMapper : public TouchInputMapper {
 public:
-    explicit SingleTouchInputMapper(InputDeviceContext& deviceContext);
+    explicit SingleTouchInputMapper(InputDeviceContext& deviceContext,
+                                    const InputReaderConfiguration& readerConfig);
     ~SingleTouchInputMapper() override;
 
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;

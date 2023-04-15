@@ -24,8 +24,8 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
             std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
     FuzzContainer fuzzer(fdp);
 
-    SwitchInputMapper& mapper = fuzzer.getMapper<SwitchInputMapper>();
     auto policyConfig = fuzzer.getPolicyConfig();
+    SwitchInputMapper& mapper = fuzzer.getMapper<SwitchInputMapper>(policyConfig);
 
     // Loop through mapper operations until randomness is exhausted.
     while (fdp->remaining_bytes() > 0) {

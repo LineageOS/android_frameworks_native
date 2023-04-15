@@ -20,8 +20,9 @@
 
 namespace android {
 
-JoystickInputMapper::JoystickInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext) {}
+JoystickInputMapper::JoystickInputMapper(InputDeviceContext& deviceContext,
+                                         const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig) {}
 
 JoystickInputMapper::~JoystickInputMapper() {}
 

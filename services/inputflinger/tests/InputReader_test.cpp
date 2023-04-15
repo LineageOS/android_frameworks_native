@@ -171,8 +171,9 @@ class FakeInputMapper : public InputMapper {
 
     std::optional<DisplayViewport> mViewport;
 public:
-    FakeInputMapper(InputDeviceContext& deviceContext, uint32_t sources)
-          : InputMapper(deviceContext),
+    FakeInputMapper(InputDeviceContext& deviceContext, const InputReaderConfiguration& readerConfig,
+                    uint32_t sources)
+          : InputMapper(deviceContext, readerConfig),
             mSources(sources),
             mKeyboardType(AINPUT_KEYBOARD_TYPE_NONE),
             mMetaState(0),
@@ -603,6 +604,7 @@ protected:
         mReader->loopOnce();
         mReader->loopOnce();
         ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyInputDevicesChangedWasCalled());
         ASSERT_NO_FATAL_FAILURE(mFakeEventHub->assertQueueIsEmpty());
     }
 
@@ -622,7 +624,9 @@ protected:
                                                   uint32_t sources,
                                                   const PropertyMap* configuration) {
         std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, name);
-        FakeInputMapper& mapper = device->addMapper<FakeInputMapper>(eventHubId, sources);
+        FakeInputMapper& mapper =
+                device->addMapper<FakeInputMapper>(eventHubId,
+                                                   mFakePolicy->getReaderConfiguration(), sources);
         mReader->pushNextDevice(device);
         addDevice(eventHubId, name, classes, configuration);
         return mapper;
@@ -674,8 +678,10 @@ TEST_F(InputReaderTest, GetMergedInputDevices) {
     // Add two subdevices to device
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
-    device->addMapper<FakeInputMapper>(eventHubIds[0], AINPUT_SOURCE_KEYBOARD);
-    device->addMapper<FakeInputMapper>(eventHubIds[1], AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubIds[0], mFakePolicy->getReaderConfiguration(),
+                                       AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubIds[1], mFakePolicy->getReaderConfiguration(),
+                                       AINPUT_SOURCE_KEYBOARD);
 
     // Push same device instance for next device to be added, so they'll have same identifier.
     mReader->pushNextDevice(device);
@@ -695,8 +701,10 @@ TEST_F(InputReaderTest, GetMergedInputDevicesEnabled) {
     // Add two subdevices to device
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
-    device->addMapper<FakeInputMapper>(eventHubIds[0], AINPUT_SOURCE_KEYBOARD);
-    device->addMapper<FakeInputMapper>(eventHubIds[1], AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubIds[0], mFakePolicy->getReaderConfiguration(),
+                                       AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubIds[1], mFakePolicy->getReaderConfiguration(),
+                                       AINPUT_SOURCE_KEYBOARD);
 
     // Push same device instance for next device to be added, so they'll have same identifier.
     mReader->pushNextDevice(device);
@@ -721,7 +729,8 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     constexpr int32_t eventHubId = 1;
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
-    device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubId, mFakePolicy->getReaderConfiguration(),
+                                       AINPUT_SOURCE_KEYBOARD);
     mReader->pushNextDevice(device);
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
 
@@ -967,7 +976,8 @@ TEST_F(InputReaderTest, DeviceReset_RandomId) {
     constexpr int32_t eventHubId = 1;
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
-    device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubId, mFakePolicy->getReaderConfiguration(),
+                                       AINPUT_SOURCE_KEYBOARD);
     mReader->pushNextDevice(device);
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
 
@@ -1000,7 +1010,8 @@ TEST_F(InputReaderTest, DeviceReset_GenerateIdWithInputReaderSource) {
     constexpr int32_t eventHubId = 1;
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
-    device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubId, mFakePolicy->getReaderConfiguration(),
+                                       AINPUT_SOURCE_KEYBOARD);
     mReader->pushNextDevice(device);
     ASSERT_NO_FATAL_FAILURE(addDevice(deviceId, "fake", deviceClass, nullptr));
 
@@ -1016,7 +1027,8 @@ TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     const char* DEVICE_LOCATION = "USB1";
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake", DEVICE_LOCATION);
     FakeInputMapper& mapper =
-            device->addMapper<FakeInputMapper>(eventHubId, AINPUT_SOURCE_TOUCHSCREEN);
+            device->addMapper<FakeInputMapper>(eventHubId, mFakePolicy->getReaderConfiguration(),
+                                               AINPUT_SOURCE_TOUCHSCREEN);
     mReader->pushNextDevice(device);
 
     const uint8_t hdmi1 = 1;
@@ -1059,8 +1071,10 @@ TEST_F(InputReaderTest, WhenEnabledChanges_AllSubdevicesAreUpdated) {
     constexpr int32_t eventHubIds[2] = {END_RESERVED_ID, END_RESERVED_ID + 1};
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
-    device->addMapper<FakeInputMapper>(eventHubIds[0], AINPUT_SOURCE_KEYBOARD);
-    device->addMapper<FakeInputMapper>(eventHubIds[1], AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubIds[0], mFakePolicy->getReaderConfiguration(),
+                                       AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubIds[1], mFakePolicy->getReaderConfiguration(),
+                                       AINPUT_SOURCE_KEYBOARD);
     mReader->pushNextDevice(device);
     mReader->pushNextDevice(device);
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubIds[0], "fake1", deviceClass, nullptr));
@@ -1101,9 +1115,13 @@ TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToSubdeviceMappers) {
     // Add two subdevices to device
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     FakeInputMapper& mapperDevice1 =
-            device->addMapper<FakeInputMapper>(eventHubIds[0], AINPUT_SOURCE_KEYBOARD);
+            device->addMapper<FakeInputMapper>(eventHubIds[0],
+                                               mFakePolicy->getReaderConfiguration(),
+                                               AINPUT_SOURCE_KEYBOARD);
     FakeInputMapper& mapperDevice2 =
-            device->addMapper<FakeInputMapper>(eventHubIds[1], AINPUT_SOURCE_KEYBOARD);
+            device->addMapper<FakeInputMapper>(eventHubIds[1],
+                                               mFakePolicy->getReaderConfiguration(),
+                                               AINPUT_SOURCE_KEYBOARD);
     mReader->pushNextDevice(device);
     mReader->pushNextDevice(device);
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubIds[0], "fake1", deviceClass, nullptr));
@@ -1145,8 +1163,9 @@ TEST_F(InputReaderTest, ChangingPointerCaptureNotifiesInputListener) {
 
 class FakeVibratorInputMapper : public FakeInputMapper {
 public:
-    FakeVibratorInputMapper(InputDeviceContext& deviceContext, uint32_t sources)
-          : FakeInputMapper(deviceContext, sources) {}
+    FakeVibratorInputMapper(InputDeviceContext& deviceContext,
+                            const InputReaderConfiguration& readerConfig, uint32_t sources)
+          : FakeInputMapper(deviceContext, readerConfig, sources) {}
 
     std::vector<int32_t> getVibratorIds() override { return getDeviceContext().getVibratorIds(); }
 };
@@ -1159,7 +1178,9 @@ TEST_F(InputReaderTest, VibratorGetVibratorIds) {
     const char* DEVICE_LOCATION = "BLUETOOTH";
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake", DEVICE_LOCATION);
     FakeVibratorInputMapper& mapper =
-            device->addMapper<FakeVibratorInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+            device->addMapper<FakeVibratorInputMapper>(eventHubId,
+                                                       mFakePolicy->getReaderConfiguration(),
+                                                       AINPUT_SOURCE_KEYBOARD);
     mReader->pushNextDevice(device);
 
     ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
@@ -1324,6 +1345,7 @@ protected:
         // to the test device will show up in mReader. We wait for those input devices to
         // show up before beginning the tests.
         ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+        ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyInputDevicesChangedWasCalled());
         ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
     }
 
@@ -2362,7 +2384,8 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, "key", "value");
 
     FakeInputMapper& mapper1 =
-            mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
+            mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                                AINPUT_SOURCE_KEYBOARD);
     mapper1.setKeyboardType(AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     mapper1.setMetaState(AMETA_ALT_ON);
     mapper1.addSupportedKeyCode(AKEYCODE_A);
@@ -2374,7 +2397,8 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     mapper1.setSwitchState(4, AKEY_STATE_DOWN);
 
     FakeInputMapper& mapper2 =
-            mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_TOUCHSCREEN);
+            mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                                AINPUT_SOURCE_TOUCHSCREEN);
     mapper2.setMetaState(AMETA_SHIFT_ON);
 
     InputReaderConfiguration config;
@@ -2455,7 +2479,8 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
 // 1. Device is disabled if the viewport corresponding to the associated display is not found
 // 2. Device is disabled when setEnabled API is called
 TEST_F(InputDeviceTest, Configure_AssignsDisplayPort) {
-    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_TOUCHSCREEN);
+    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                        AINPUT_SOURCE_TOUCHSCREEN);
 
     // First Configuration.
     std::list<NotifyArgs> unused =
@@ -2498,7 +2523,8 @@ TEST_F(InputDeviceTest, Configure_AssignsDisplayPort) {
 TEST_F(InputDeviceTest, Configure_AssignsDisplayUniqueId) {
     // Device should be enabled by default.
     mFakePolicy->clearViewports();
-    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
+    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                        AINPUT_SOURCE_KEYBOARD);
     std::list<NotifyArgs> unused =
             mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0);
     ASSERT_TRUE(mDevice->isEnabled());
@@ -2532,7 +2558,8 @@ TEST_F(InputDeviceTest, Configure_AssignsDisplayUniqueId) {
 
 TEST_F(InputDeviceTest, Configure_UniqueId_CorrectlyMatches) {
     mFakePolicy->clearViewports();
-    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
+    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                        AINPUT_SOURCE_KEYBOARD);
     std::list<NotifyArgs> unused =
             mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0);
 
@@ -2554,7 +2581,7 @@ TEST_F(InputDeviceTest, DumpDoesNotCrash) {
     mFakeEventHub->addDevice(TEST_EVENTHUB_ID, "Test EventHub device", InputDeviceClass::BATTERY);
 
     InputDevice device(mReader->getContext(), /*id=*/1, /*generation=*/2, /*identifier=*/{});
-    device.addEventHubDevice(TEST_EVENTHUB_ID, /*populateMappers=*/true);
+    device.addEventHubDevice(TEST_EVENTHUB_ID, mFakePolicy->getReaderConfiguration());
     device.removeEventHubDevice(TEST_EVENTHUB_ID);
     std::string dumpStr, eventHubDevStr;
     device.dump(dumpStr, eventHubDevStr);
@@ -3390,7 +3417,9 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     KeyboardInputMapper& mapper2 =
-            device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD,
+            device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID,
+                                                    mFakePolicy->getReaderConfiguration(),
+                                                    AINPUT_SOURCE_KEYBOARD,
                                                     AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
@@ -3500,7 +3529,9 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleAfterReattach) {
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
 
     KeyboardInputMapper& mapper2 =
-            device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD,
+            device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID,
+                                                    mFakePolicy->getReaderConfiguration(),
+                                                    AINPUT_SOURCE_KEYBOARD,
                                                     AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
@@ -3561,7 +3592,9 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleInMultiDevices) {
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
 
     KeyboardInputMapper& mapper2 =
-            device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD,
+            device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID,
+                                                    mFakePolicy->getReaderConfiguration(),
+                                                    AINPUT_SOURCE_KEYBOARD,
                                                     AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
@@ -3644,7 +3677,8 @@ TEST_F(KeyboardInputMapperTest, Process_DisabledDevice) {
 }
 
 TEST_F(KeyboardInputMapperTest, Configure_AssignKeyboardLayoutInfo) {
-    mDevice->addMapper<KeyboardInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD,
+    mDevice->addMapper<KeyboardInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                            AINPUT_SOURCE_KEYBOARD,
                                             AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0);
@@ -9366,7 +9400,9 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
                                             String8("touchScreen"));
 
     // Setup the second touch screen device.
-    MultiTouchInputMapper& mapper2 = device2->addMapper<MultiTouchInputMapper>(SECOND_EVENTHUB_ID);
+    MultiTouchInputMapper& mapper2 =
+            device2->addMapper<MultiTouchInputMapper>(SECOND_EVENTHUB_ID,
+                                                      mFakePolicy->getReaderConfiguration());
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                                /*changes=*/0);

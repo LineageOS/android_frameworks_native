@@ -169,8 +169,9 @@ void gestureInterpreterCallback(void* clientData, const Gesture* gesture) {
 
 } // namespace
 
-TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext),
+TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
+                                         const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig),
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
         mPointerController(getContext()->getPointerController(getDeviceId())),
         mStateConverter(deviceContext),

@@ -700,6 +700,11 @@ Status ServiceManager::registerClientCallback(const std::string& name, const sp<
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Couldn't linkToDeath.");
     }
 
+    // make sure all callbacks have been told about a consistent state - b/278038751
+    if (serviceIt->second.hasClients) {
+        cb->onClients(service, true);
+    }
+
     mNameToClientCallback[name].push_back(cb);
 
     return Status::ok();

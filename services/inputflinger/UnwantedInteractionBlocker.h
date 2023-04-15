@@ -90,16 +90,16 @@ public:
     explicit UnwantedInteractionBlocker(InputListenerInterface& listener);
     explicit UnwantedInteractionBlocker(InputListenerInterface& listener, bool enablePalmRejection);
 
-    void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
-    void notifyKey(const NotifyKeyArgs* args) override;
-    void notifyMotion(const NotifyMotionArgs* args) override;
-    void notifySwitch(const NotifySwitchArgs* args) override;
-    void notifySensor(const NotifySensorArgs* args) override;
-    void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
-    void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
-    void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
+    void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
+    void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
+    void notifyKey(const NotifyKeyArgs& args) override;
+    void notifyMotion(const NotifyMotionArgs& args) override;
+    void notifySwitch(const NotifySwitchArgs& args) override;
+    void notifySensor(const NotifySensorArgs& args) override;
+    void notifyVibratorState(const NotifyVibratorStateArgs& args) override;
+    void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
+    void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
-    void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) override;
     void dump(std::string& dump) override;
     void monitor() override;
 
@@ -119,10 +119,12 @@ private:
     // Use a separate palm rejector for every touch device.
     std::map<int32_t /*deviceId*/, PalmRejector> mPalmRejectors GUARDED_BY(mLock);
     // TODO(b/210159205): delete this when simultaneous stylus and touch is supported
-    void notifyMotionLocked(const NotifyMotionArgs* args) REQUIRES(mLock);
+    void notifyMotionLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
 
     // Call this function for outbound events so that they can be logged when logging is enabled.
     void enqueueOutboundMotionLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+
+    void onInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices);
 };
 
 class SlotState {

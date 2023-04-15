@@ -29,6 +29,14 @@ TestInputListener::TestInputListener(std::chrono::milliseconds eventHappenedTime
 
 TestInputListener::~TestInputListener() {}
 
+void TestInputListener::assertNotifyInputDevicesChangedWasCalled(
+        NotifyInputDevicesChangedArgs* outEventArgs) {
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifyInputDevicesChangedArgs>(outEventArgs,
+                                                        "Expected notifyInputDevicesChanged() "
+                                                        "to have been called."));
+}
+
 void TestInputListener::assertNotifyConfigurationChangedWasCalled(
         NotifyConfigurationChangedArgs* outEventArgs) {
     ASSERT_NO_FATAL_FAILURE(
@@ -160,43 +168,47 @@ void TestInputListener::assertNotCalled(std::string message, std::optional<TimeP
 }
 
 template <class NotifyArgsType>
-void TestInputListener::addToQueue(const NotifyArgsType* args) {
+void TestInputListener::addToQueue(const NotifyArgsType& args) {
     std::scoped_lock<std::mutex> lock(mLock);
 
     std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
-    queue.push_back(*args);
+    queue.push_back(args);
     mCondition.notify_all();
 }
 
-void TestInputListener::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
+void TestInputListener::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
+    addToQueue<NotifyInputDevicesChangedArgs>(args);
+}
+
+void TestInputListener::notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) {
     addToQueue<NotifyConfigurationChangedArgs>(args);
 }
 
-void TestInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
+void TestInputListener::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
     addToQueue<NotifyDeviceResetArgs>(args);
 }
 
-void TestInputListener::notifyKey(const NotifyKeyArgs* args) {
+void TestInputListener::notifyKey(const NotifyKeyArgs& args) {
     addToQueue<NotifyKeyArgs>(args);
 }
 
-void TestInputListener::notifyMotion(const NotifyMotionArgs* args) {
+void TestInputListener::notifyMotion(const NotifyMotionArgs& args) {
     addToQueue<NotifyMotionArgs>(args);
 }
 
-void TestInputListener::notifySwitch(const NotifySwitchArgs* args) {
+void TestInputListener::notifySwitch(const NotifySwitchArgs& args) {
     addToQueue<NotifySwitchArgs>(args);
 }
 
-void TestInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+void TestInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) {
     addToQueue<NotifyPointerCaptureChangedArgs>(args);
 }
 
-void TestInputListener::notifySensor(const NotifySensorArgs* args) {
+void TestInputListener::notifySensor(const NotifySensorArgs& args) {
     addToQueue<NotifySensorArgs>(args);
 }
 
-void TestInputListener::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+void TestInputListener::notifyVibratorState(const NotifyVibratorStateArgs& args) {
     addToQueue<NotifyVibratorStateArgs>(args);
 }
 
