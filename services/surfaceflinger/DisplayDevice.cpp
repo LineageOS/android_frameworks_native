@@ -535,8 +535,8 @@ void DisplayDevice::clearDesiredActiveModeState() {
 }
 
 void DisplayDevice::adjustRefreshRate(Fps pacesetterDisplayRefreshRate) {
-    using fps_approx_ops::operator==;
-    if (mRequestedRefreshRate == 0_Hz) {
+    using fps_approx_ops::operator<=;
+    if (mRequestedRefreshRate <= 0_Hz) {
         return;
     }
 
@@ -547,7 +547,12 @@ void DisplayDevice::adjustRefreshRate(Fps pacesetterDisplayRefreshRate) {
     }
 
     unsigned divisor = static_cast<unsigned>(
-            std::round(pacesetterDisplayRefreshRate.getValue() / mRequestedRefreshRate.getValue()));
+            std::floor(pacesetterDisplayRefreshRate.getValue() / mRequestedRefreshRate.getValue()));
+    if (divisor == 0) {
+        mAdjustedRefreshRate = 0_Hz;
+        return;
+    }
+
     mAdjustedRefreshRate = pacesetterDisplayRefreshRate / divisor;
 }
 
