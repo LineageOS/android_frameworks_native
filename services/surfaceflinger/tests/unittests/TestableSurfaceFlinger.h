@@ -48,10 +48,12 @@
 #include "TestableScheduler.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
+#include "mock/DisplayHardware/MockPowerAdvisor.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockFrameTimeline.h"
 #include "mock/MockFrameTracer.h"
 #include "mock/MockSchedulerCallback.h"
+#include "mock/system/window/MockNativeWindow.h"
 
 namespace android {
 namespace renderengine {
@@ -375,8 +377,8 @@ public:
 
     void commitAndComposite() { mFlinger->composite(commit(), kVsyncId); }
 
-    auto createDisplay(const String8& displayName, bool secure) {
-        return mFlinger->createDisplay(displayName, secure);
+    auto createDisplay(const String8& displayName, bool secure, float requestedRefreshRate = 0.0f) {
+        return mFlinger->createDisplay(displayName, secure, requestedRefreshRate);
     }
 
     auto destroyDisplay(const sp<IBinder>& displayToken) {
@@ -523,6 +525,24 @@ public:
     void getDynamicDisplayInfoFromToken(const sp<IBinder>& displayToken,
                                         ui::DynamicDisplayInfo* dynamicDisplayInfo) {
         mFlinger->getDynamicDisplayInfoFromToken(displayToken, dynamicDisplayInfo);
+    }
+
+    sp<DisplayDevice> createVirtualDisplayDevice(const sp<IBinder> displayToken,
+                                                 VirtualDisplayId displayId,
+                                                 float requestedRefreshRate) {
+        constexpr ui::Size kResolution = {1080, 1920};
+        auto compositionDisplay = compositionengine::impl::
+                createDisplay(mFlinger->getCompositionEngine(),
+                              compositionengine::DisplayCreationArgsBuilder()
+                                      .setId(displayId)
+                                      .setPixels(kResolution)
+                                      .setPowerAdvisor(&mPowerAdvisor)
+                                      .build());
+        DisplayDeviceCreationArgs creationArgs(mFlinger, mFlinger->getHwComposer(), displayToken,
+                                               compositionDisplay);
+        creationArgs.requestedRefreshRate = Fps::fromValue(requestedRefreshRate);
+        creationArgs.nativeWindow = sp<mock::NativeWindow>::make();
+        return sp<DisplayDevice>::make(creationArgs);
     }
 
     /* ------------------------------------------------------------------------
@@ -962,6 +982,7 @@ private:
     scheduler::mock::NoOpSchedulerCallback mNoOpSchedulerCallback;
     std::unique_ptr<frametimeline::impl::TokenManager> mTokenManager;
     scheduler::TestableScheduler* mScheduler = nullptr;
+    Hwc2::mock::PowerAdvisor mPowerAdvisor;
 };
 
 } // namespace android
