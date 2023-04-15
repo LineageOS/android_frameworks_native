@@ -499,7 +499,7 @@ private:
 
     // Implements ISurfaceComposer
     sp<IBinder> createDisplay(const String8& displayName, bool secure,
-                              float requestedRefreshRate = 0);
+                              float requestedRefreshRate = 0.0f);
     void destroyDisplay(const sp<IBinder>& displayToken);
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const EXCLUDES(mStateLock) {
         Mutex::Autolock lock(mStateLock);
