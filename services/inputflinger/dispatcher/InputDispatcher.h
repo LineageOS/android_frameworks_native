@@ -93,14 +93,15 @@ public:
     status_t start() override;
     status_t stop() override;
 
-    void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
-    void notifyKey(const NotifyKeyArgs* args) override;
-    void notifyMotion(const NotifyMotionArgs* args) override;
-    void notifySwitch(const NotifySwitchArgs* args) override;
-    void notifySensor(const NotifySensorArgs* args) override;
-    void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
-    void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
-    void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
+    void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override{};
+    void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
+    void notifyKey(const NotifyKeyArgs& args) override;
+    void notifyMotion(const NotifyMotionArgs& args) override;
+    void notifySwitch(const NotifySwitchArgs& args) override;
+    void notifySensor(const NotifySensorArgs& args) override;
+    void notifyVibratorState(const NotifyVibratorStateArgs& args) override;
+    void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
+    void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
     android::os::InputEventInjectionResult injectInputEvent(
             const InputEvent* event, std::optional<int32_t> targetUid,
@@ -331,8 +332,8 @@ private:
             REQUIRES(mLock);
 
     // Input filter processing.
-    bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args) REQUIRES(mLock);
-    bool shouldSendMotionToInputFilterLocked(const NotifyMotionArgs* args) REQUIRES(mLock);
+    bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs& args) REQUIRES(mLock);
+    bool shouldSendMotionToInputFilterLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
 
     // Inbound event processing.
     void drainInboundQueueLocked() REQUIRES(mLock);

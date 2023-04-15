@@ -27,7 +27,8 @@ static constexpr ssize_t SENSOR_VEC_LEN = 3;
 
 class SensorInputMapper : public InputMapper {
 public:
-    explicit SensorInputMapper(InputDeviceContext& deviceContext);
+    explicit SensorInputMapper(InputDeviceContext& deviceContext,
+                               const InputReaderConfiguration& readerConfig);
     ~SensorInputMapper() override;
 
     uint32_t getSources() const override;

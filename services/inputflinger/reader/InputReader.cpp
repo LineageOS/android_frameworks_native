@@ -157,6 +157,8 @@ void InputReader::loopOnce() {
         if (oldGeneration != mGeneration) {
             inputDevicesChanged = true;
             inputDevices = getInputDevicesLocked();
+            notifyArgs.emplace_back(
+                    NotifyInputDevicesChangedArgs{mContext.getNextId(), inputDevices});
         }
     } // release lock
 
@@ -332,7 +334,7 @@ std::shared_ptr<InputDevice> InputReader::createDeviceLocked(
         device = std::make_shared<InputDevice>(&mContext, deviceId, bumpGenerationLocked(),
                                                identifier);
     }
-    device->addEventHubDevice(eventHubId);
+    device->addEventHubDevice(eventHubId, mConfig);
     return device;
 }
 
@@ -385,8 +387,7 @@ void InputReader::handleConfigurationChangedLocked(nsecs_t when) {
     updateGlobalMetaStateLocked();
 
     // Enqueue configuration changed.
-    NotifyConfigurationChangedArgs args(mContext.getNextId(), when);
-    mQueuedListener.notifyConfigurationChanged(&args);
+    mQueuedListener.notifyConfigurationChanged({mContext.getNextId(), when});
 }
 
 void InputReader::refreshConfigurationLocked(uint32_t changes) {
@@ -418,9 +419,8 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
                   "There was no change in the pointer capture state.");
         } else {
             mCurrentPointerCaptureRequest = mConfig.pointerCaptureRequest;
-            const NotifyPointerCaptureChangedArgs args(mContext.getNextId(), now,
-                                                       mCurrentPointerCaptureRequest);
-            mQueuedListener.notifyPointerCaptureChanged(&args);
+            mQueuedListener.notifyPointerCaptureChanged(
+                    {mContext.getNextId(), now, mCurrentPointerCaptureRequest});
         }
     }
 }

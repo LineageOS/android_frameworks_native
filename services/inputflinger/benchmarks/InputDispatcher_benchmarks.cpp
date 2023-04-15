@@ -277,12 +277,12 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
         motionArgs.action = AMOTION_EVENT_ACTION_DOWN;
         motionArgs.downTime = now();
         motionArgs.eventTime = motionArgs.downTime;
-        dispatcher.notifyMotion(&motionArgs);
+        dispatcher.notifyMotion(motionArgs);
 
         // Send ACTION_UP
         motionArgs.action = AMOTION_EVENT_ACTION_UP;
         motionArgs.eventTime = now();
-        dispatcher.notifyMotion(&motionArgs);
+        dispatcher.notifyMotion(motionArgs);
 
         window->consumeEvent();
         window->consumeEvent();

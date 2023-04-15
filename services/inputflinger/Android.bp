@@ -213,6 +213,7 @@ phony {
     name: "checkinput",
     required: [
         // native targets
+        "libgui_test",
         "libinput",
         "libinputflinger",
         "inputflinger_tests",

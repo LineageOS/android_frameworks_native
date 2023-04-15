@@ -60,7 +60,8 @@ protected:
                                            ftl::Flags<InputDeviceClass> classes, int bus = 0);
     template <class T, typename... Args>
     T& addMapperAndConfigure(Args... args) {
-        T& mapper = mDevice->addMapper<T>(EVENTHUB_ID, args...);
+        T& mapper =
+                mDevice->addMapper<T>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(), args...);
         configureDevice(0);
         std::list<NotifyArgs> resetArgList = mDevice->reset(ARBITRARY_TIME);
         resetArgList += mapper.reset(ARBITRARY_TIME);

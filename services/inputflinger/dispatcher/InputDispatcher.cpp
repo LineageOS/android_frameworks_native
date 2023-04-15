@@ -117,11 +117,7 @@ inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
-inline const char* toString(bool value) {
-    return value ? "true" : "false";
-}
-
-inline const std::string toString(const sp<IBinder>& binder) {
+inline const std::string binderToString(const sp<IBinder>& binder) {
     if (binder == nullptr) {
         return "<null>";
     }
@@ -2909,7 +2905,7 @@ std::string InputDispatcher::dumpWindowForTouchOcclusion(const WindowInfo* info,
                         info->frameBottom, dumpRegion(info->touchableRegion).c_str(),
                         info->name.c_str(), info->inputConfig.string().c_str(),
                         toString(info->token != nullptr), info->applicationInfo.name.c_str(),
-                        toString(info->applicationInfo.token).c_str());
+                        binderToString(info->applicationInfo.token).c_str());
 }
 
 bool InputDispatcher::isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const {
@@ -3623,8 +3619,8 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
                                                      const sp<Connection>& connection,
                                                      bool notify) {
     if (DEBUG_DISPATCH_CYCLE) {
-        ALOGD("channel '%s' ~ abortBrokenDispatchCycle - notify=%s",
-              connection->getInputChannelName().c_str(), toString(notify));
+        LOG(DEBUG) << "channel '" << connection->getInputChannelName() << "'~ " << __func__
+                   << " - notify=" << toString(notify);
     }
 
     // Clear the dispatch queues.
@@ -4029,9 +4025,9 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
     return splitMotionEntry;
 }
 
-void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
+void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) {
     if (debugInboundEventDetails()) {
-        ALOGD("notifyConfigurationChanged - eventTime=%" PRId64, args->eventTime);
+        ALOGD("notifyConfigurationChanged - eventTime=%" PRId64, args.eventTime);
     }
 
     bool needWake = false;
@@ -4039,7 +4035,7 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
         std::scoped_lock _l(mLock);
 
         std::unique_ptr<ConfigurationChangedEntry> newEntry =
-                std::make_unique<ConfigurationChangedEntry>(args->id, args->eventTime);
+                std::make_unique<ConfigurationChangedEntry>(args.id, args.eventTime);
         needWake = enqueueInboundEventLocked(std::move(newEntry));
     } // release lock
 
@@ -4087,23 +4083,22 @@ void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int3
     }
 }
 
-void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
+void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
     ALOGD_IF(debugInboundEventDetails(),
              "notifyKey - id=%" PRIx32 ", eventTime=%" PRId64
              ", deviceId=%d, source=%s, displayId=%" PRId32
              "policyFlags=0x%x, action=%s, flags=0x%x, keyCode=%s, scanCode=0x%x, metaState=0x%x, "
              "downTime=%" PRId64,
-             args->id, args->eventTime, args->deviceId,
-             inputEventSourceToString(args->source).c_str(), args->displayId, args->policyFlags,
-             KeyEvent::actionToString(args->action), args->flags, KeyEvent::getLabel(args->keyCode),
-             args->scanCode, args->metaState, args->downTime);
-    if (!validateKeyEvent(args->action)) {
+             args.id, args.eventTime, args.deviceId, inputEventSourceToString(args.source).c_str(),
+             args.displayId, args.policyFlags, KeyEvent::actionToString(args.action), args.flags,
+             KeyEvent::getLabel(args.keyCode), args.scanCode, args.metaState, args.downTime);
+    if (!validateKeyEvent(args.action)) {
         return;
     }
 
-    uint32_t policyFlags = args->policyFlags;
-    int32_t flags = args->flags;
-    int32_t metaState = args->metaState;
+    uint32_t policyFlags = args.policyFlags;
+    int32_t flags = args.flags;
+    int32_t metaState = args.metaState;
     // InputDispatcher tracks and generates key repeats on behalf of
     // whatever notifies it, so repeatCount should always be set to 0
     constexpr int32_t repeatCount = 0;
@@ -4117,13 +4112,13 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 
     policyFlags |= POLICY_FLAG_TRUSTED;
 
-    int32_t keyCode = args->keyCode;
-    accelerateMetaShortcuts(args->deviceId, args->action, keyCode, metaState);
+    int32_t keyCode = args.keyCode;
+    accelerateMetaShortcuts(args.deviceId, args.action, keyCode, metaState);
 
     KeyEvent event;
-    event.initialize(args->id, args->deviceId, args->source, args->displayId, INVALID_HMAC,
-                     args->action, flags, keyCode, args->scanCode, metaState, repeatCount,
-                     args->downTime, args->eventTime);
+    event.initialize(args.id, args.deviceId, args.source, args.displayId, INVALID_HMAC, args.action,
+                     flags, keyCode, args.scanCode, metaState, repeatCount, args.downTime,
+                     args.eventTime);
 
     android::base::Timer t;
     mPolicy->interceptKeyBeforeQueueing(&event, /*byref*/ policyFlags);
@@ -4148,10 +4143,9 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
         }
 
         std::unique_ptr<KeyEntry> newEntry =
-                std::make_unique<KeyEntry>(args->id, args->eventTime, args->deviceId, args->source,
-                                           args->displayId, policyFlags, args->action, flags,
-                                           keyCode, args->scanCode, metaState, repeatCount,
-                                           args->downTime);
+                std::make_unique<KeyEntry>(args.id, args.eventTime, args.deviceId, args.source,
+                                           args.displayId, policyFlags, args.action, flags, keyCode,
+                                           args.scanCode, metaState, repeatCount, args.downTime);
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
         mLock.unlock();
@@ -4162,50 +4156,50 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
     }
 }
 
-bool InputDispatcher::shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args) {
+bool InputDispatcher::shouldSendKeyToInputFilterLocked(const NotifyKeyArgs& args) {
     return mInputFilterEnabled;
 }
 
-void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
+void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
     if (debugInboundEventDetails()) {
         ALOGD("notifyMotion - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=%s, "
               "displayId=%" PRId32 ", policyFlags=0x%x, "
               "action=%s, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x, "
               "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, xCursorPosition=%f, "
               "yCursorPosition=%f, downTime=%" PRId64,
-              args->id, args->eventTime, args->deviceId,
-              inputEventSourceToString(args->source).c_str(), args->displayId, args->policyFlags,
-              MotionEvent::actionToString(args->action).c_str(), args->actionButton, args->flags,
-              args->metaState, args->buttonState, args->edgeFlags, args->xPrecision,
-              args->yPrecision, args->xCursorPosition, args->yCursorPosition, args->downTime);
-        for (uint32_t i = 0; i < args->pointerCount; i++) {
+              args.id, args.eventTime, args.deviceId, inputEventSourceToString(args.source).c_str(),
+              args.displayId, args.policyFlags, MotionEvent::actionToString(args.action).c_str(),
+              args.actionButton, args.flags, args.metaState, args.buttonState, args.edgeFlags,
+              args.xPrecision, args.yPrecision, args.xCursorPosition, args.yCursorPosition,
+              args.downTime);
+        for (uint32_t i = 0; i < args.pointerCount; i++) {
             ALOGD("  Pointer %d: id=%d, toolType=%s, x=%f, y=%f, pressure=%f, size=%f, "
                   "touchMajor=%f, touchMinor=%f, toolMajor=%f, toolMinor=%f, orientation=%f",
-                  i, args->pointerProperties[i].id,
-                  ftl::enum_string(args->pointerProperties[i].toolType).c_str(),
-                  args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X),
-                  args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y),
-                  args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE),
-                  args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_SIZE),
-                  args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR),
-                  args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR),
-                  args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR),
-                  args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR),
-                  args->pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION));
+                  i, args.pointerProperties[i].id,
+                  ftl::enum_string(args.pointerProperties[i].toolType).c_str(),
+                  args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X),
+                  args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y),
+                  args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE),
+                  args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_SIZE),
+                  args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR),
+                  args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR),
+                  args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR),
+                  args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR),
+                  args.pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION));
         }
     }
 
-    if (!validateMotionEvent(args->action, args->actionButton, args->pointerCount,
-                             args->pointerProperties)) {
-        LOG(ERROR) << "Invalid event: " << args->dump();
+    if (!validateMotionEvent(args.action, args.actionButton, args.pointerCount,
+                             args.pointerProperties)) {
+        LOG(ERROR) << "Invalid event: " << args.dump();
         return;
     }
 
-    uint32_t policyFlags = args->policyFlags;
+    uint32_t policyFlags = args.policyFlags;
     policyFlags |= POLICY_FLAG_TRUSTED;
 
     android::base::Timer t;
-    mPolicy->interceptMotionBeforeQueueing(args->displayId, args->eventTime, /*byref*/ policyFlags);
+    mPolicy->interceptMotionBeforeQueueing(args.displayId, args.eventTime, policyFlags);
     if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
         ALOGW("Excessive delay in interceptMotionBeforeQueueing; took %s ms",
               std::to_string(t.duration().count()).c_str());
@@ -4217,10 +4211,10 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
         if (!(policyFlags & POLICY_FLAG_PASS_TO_USER)) {
             // Set the flag anyway if we already have an ongoing gesture. That would allow us to
             // complete the processing of the current stroke.
-            const auto touchStateIt = mTouchStatesByDisplay.find(args->displayId);
+            const auto touchStateIt = mTouchStatesByDisplay.find(args.displayId);
             if (touchStateIt != mTouchStatesByDisplay.end()) {
                 const TouchState& touchState = touchStateIt->second;
-                if (touchState.deviceId == args->deviceId && touchState.isDown()) {
+                if (touchState.deviceId == args.deviceId && touchState.isDown()) {
                     policyFlags |= POLICY_FLAG_PASS_TO_USER;
                 }
             }
@@ -4228,20 +4222,20 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 
         if (shouldSendMotionToInputFilterLocked(args)) {
             ui::Transform displayTransform;
-            if (const auto it = mDisplayInfos.find(args->displayId); it != mDisplayInfos.end()) {
+            if (const auto it = mDisplayInfos.find(args.displayId); it != mDisplayInfos.end()) {
                 displayTransform = it->second.transform;
             }
 
             mLock.unlock();
 
             MotionEvent event;
-            event.initialize(args->id, args->deviceId, args->source, args->displayId, INVALID_HMAC,
-                             args->action, args->actionButton, args->flags, args->edgeFlags,
-                             args->metaState, args->buttonState, args->classification,
-                             displayTransform, args->xPrecision, args->yPrecision,
-                             args->xCursorPosition, args->yCursorPosition, displayTransform,
-                             args->downTime, args->eventTime, args->pointerCount,
-                             args->pointerProperties, args->pointerCoords);
+            event.initialize(args.id, args.deviceId, args.source, args.displayId, INVALID_HMAC,
+                             args.action, args.actionButton, args.flags, args.edgeFlags,
+                             args.metaState, args.buttonState, args.classification,
+                             displayTransform, args.xPrecision, args.yPrecision,
+                             args.xCursorPosition, args.yCursorPosition, displayTransform,
+                             args.downTime, args.eventTime, args.pointerCount,
+                             args.pointerProperties, args.pointerCoords);
 
             policyFlags |= POLICY_FLAG_FILTERED;
             if (!mPolicy->filterInputEvent(&event, policyFlags)) {
@@ -4253,21 +4247,20 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 
         // Just enqueue a new motion event.
         std::unique_ptr<MotionEntry> newEntry =
-                std::make_unique<MotionEntry>(args->id, args->eventTime, args->deviceId,
-                                              args->source, args->displayId, policyFlags,
-                                              args->action, args->actionButton, args->flags,
-                                              args->metaState, args->buttonState,
-                                              args->classification, args->edgeFlags,
-                                              args->xPrecision, args->yPrecision,
-                                              args->xCursorPosition, args->yCursorPosition,
-                                              args->downTime, args->pointerCount,
-                                              args->pointerProperties, args->pointerCoords);
+                std::make_unique<MotionEntry>(args.id, args.eventTime, args.deviceId, args.source,
+                                              args.displayId, policyFlags, args.action,
+                                              args.actionButton, args.flags, args.metaState,
+                                              args.buttonState, args.classification, args.edgeFlags,
+                                              args.xPrecision, args.yPrecision,
+                                              args.xCursorPosition, args.yCursorPosition,
+                                              args.downTime, args.pointerCount,
+                                              args.pointerProperties, args.pointerCoords);
 
-        if (args->id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
-            IdGenerator::getSource(args->id) == IdGenerator::Source::INPUT_READER &&
+        if (args.id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
+            IdGenerator::getSource(args.id) == IdGenerator::Source::INPUT_READER &&
             !mInputFilterEnabled) {
-            const bool isDown = args->action == AMOTION_EVENT_ACTION_DOWN;
-            mLatencyTracker.trackListener(args->id, isDown, args->eventTime, args->readTime);
+            const bool isDown = args.action == AMOTION_EVENT_ACTION_DOWN;
+            mLatencyTracker.trackListener(args.id, isDown, args.eventTime, args.readTime);
         }
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
@@ -4279,12 +4272,12 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
     }
 }
 
-void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
+void InputDispatcher::notifySensor(const NotifySensorArgs& args) {
     if (debugInboundEventDetails()) {
         ALOGD("notifySensor - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=0x%x, "
               " sensorType=%s",
-              args->id, args->eventTime, args->deviceId, args->source,
-              ftl::enum_string(args->sensorType).c_str());
+              args.id, args.eventTime, args.deviceId, args.source,
+              ftl::enum_string(args.sensorType).c_str());
     }
 
     bool needWake = false;
@@ -4293,10 +4286,9 @@ void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
 
         // Just enqueue a new sensor event.
         std::unique_ptr<SensorEntry> newEntry =
-                std::make_unique<SensorEntry>(args->id, args->eventTime, args->deviceId,
-                                              args->source, /* policyFlags=*/0, args->hwTimestamp,
-                                              args->sensorType, args->accuracy,
-                                              args->accuracyChanged, args->values);
+                std::make_unique<SensorEntry>(args.id, args.eventTime, args.deviceId, args.source,
+                                              /* policyFlags=*/0, args.hwTimestamp, args.sensorType,
+                                              args.accuracy, args.accuracyChanged, args.values);
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
         mLock.unlock();
@@ -4307,34 +4299,34 @@ void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
     }
 }
 
-void InputDispatcher::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+void InputDispatcher::notifyVibratorState(const NotifyVibratorStateArgs& args) {
     if (debugInboundEventDetails()) {
-        ALOGD("notifyVibratorState - eventTime=%" PRId64 ", device=%d,  isOn=%d", args->eventTime,
-              args->deviceId, args->isOn);
+        ALOGD("notifyVibratorState - eventTime=%" PRId64 ", device=%d,  isOn=%d", args.eventTime,
+              args.deviceId, args.isOn);
     }
-    mPolicy->notifyVibratorState(args->deviceId, args->isOn);
+    mPolicy->notifyVibratorState(args.deviceId, args.isOn);
 }
 
-bool InputDispatcher::shouldSendMotionToInputFilterLocked(const NotifyMotionArgs* args) {
+bool InputDispatcher::shouldSendMotionToInputFilterLocked(const NotifyMotionArgs& args) {
     return mInputFilterEnabled;
 }
 
-void InputDispatcher::notifySwitch(const NotifySwitchArgs* args) {
+void InputDispatcher::notifySwitch(const NotifySwitchArgs& args) {
     if (debugInboundEventDetails()) {
         ALOGD("notifySwitch - eventTime=%" PRId64 ", policyFlags=0x%x, switchValues=0x%08x, "
               "switchMask=0x%08x",
-              args->eventTime, args->policyFlags, args->switchValues, args->switchMask);
+              args.eventTime, args.policyFlags, args.switchValues, args.switchMask);
     }
 
-    uint32_t policyFlags = args->policyFlags;
+    uint32_t policyFlags = args.policyFlags;
     policyFlags |= POLICY_FLAG_TRUSTED;
-    mPolicy->notifySwitch(args->eventTime, args->switchValues, args->switchMask, policyFlags);
+    mPolicy->notifySwitch(args.eventTime, args.switchValues, args.switchMask, policyFlags);
 }
 
-void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
+void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
     if (debugInboundEventDetails()) {
-        ALOGD("notifyDeviceReset - eventTime=%" PRId64 ", deviceId=%d", args->eventTime,
-              args->deviceId);
+        ALOGD("notifyDeviceReset - eventTime=%" PRId64 ", deviceId=%d", args.eventTime,
+              args.deviceId);
     }
 
     bool needWake = false;
@@ -4342,7 +4334,7 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
         std::scoped_lock _l(mLock);
 
         std::unique_ptr<DeviceResetEntry> newEntry =
-                std::make_unique<DeviceResetEntry>(args->id, args->eventTime, args->deviceId);
+                std::make_unique<DeviceResetEntry>(args.id, args.eventTime, args.deviceId);
         needWake = enqueueInboundEventLocked(std::move(newEntry));
     } // release lock
 
@@ -4351,17 +4343,17 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     }
 }
 
-void InputDispatcher::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+void InputDispatcher::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) {
     if (debugInboundEventDetails()) {
-        ALOGD("notifyPointerCaptureChanged - eventTime=%" PRId64 ", enabled=%s", args->eventTime,
-              args->request.enable ? "true" : "false");
+        ALOGD("notifyPointerCaptureChanged - eventTime=%" PRId64 ", enabled=%s", args.eventTime,
+              args.request.enable ? "true" : "false");
     }
 
     bool needWake = false;
     { // acquire lock
         std::scoped_lock _l(mLock);
-        auto entry = std::make_unique<PointerCaptureChangedEntry>(args->id, args->eventTime,
-                                                                  args->request);
+        auto entry =
+                std::make_unique<PointerCaptureChangedEntry>(args.id, args.eventTime, args.request);
         needWake = enqueueInboundEventLocked(std::move(entry));
     } // release lock
 
@@ -4376,10 +4368,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                             std::chrono::milliseconds timeout,
                                                             uint32_t policyFlags) {
     if (debugInboundEventDetails()) {
-        ALOGD("injectInputEvent - eventType=%d, targetUid=%s, syncMode=%d, timeout=%lld, "
-              "policyFlags=0x%08x",
-              event->getType(), targetUid ? std::to_string(*targetUid).c_str() : "none", syncMode,
-              timeout.count(), policyFlags);
+        LOG(DEBUG) << __func__ << ": targetUid=" << toString(targetUid)
+                   << ", syncMode=" << ftl::enum_string(syncMode) << ", timeout=" << timeout.count()
+                   << "ms, policyFlags=0x" << std::hex << policyFlags << std::dec
+                   << ", event=" << *event;
     }
     nsecs_t endTime = now() + std::chrono::duration_cast<std::chrono::nanoseconds>(timeout).count();
 
@@ -4398,7 +4390,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
 
     std::queue<std::unique_ptr<EventEntry>> injectedEntries;
     switch (event->getType()) {
-        case AINPUT_EVENT_TYPE_KEY: {
+        case InputEventType::KEY: {
             const KeyEvent& incomingKey = static_cast<const KeyEvent&>(*event);
             int32_t action = incomingKey.getAction();
             if (!validateKeyEvent(action)) {
@@ -4444,7 +4436,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             break;
         }
 
-        case AINPUT_EVENT_TYPE_MOTION: {
+        case InputEventType::MOTION: {
             const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
             const int32_t action = motionEvent.getAction();
             const bool isPointerEvent =
@@ -4520,7 +4512,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
         }
 
         default:
-            ALOGW("Cannot inject %s events", inputEventTypeToString(event->getType()));
+            LOG(WARNING) << "Cannot inject " << ftl::enum_string(event->getType()) << " events";
             return InputEventInjectionResult::FAILED;
     }
 
@@ -4610,14 +4602,14 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
     std::array<uint8_t, 32> calculatedHmac;
     std::unique_ptr<VerifiedInputEvent> result;
     switch (event.getType()) {
-        case AINPUT_EVENT_TYPE_KEY: {
+        case InputEventType::KEY: {
             const KeyEvent& keyEvent = static_cast<const KeyEvent&>(event);
             VerifiedKeyEvent verifiedKeyEvent = verifiedKeyEventFromKeyEvent(keyEvent);
             result = std::make_unique<VerifiedKeyEvent>(verifiedKeyEvent);
             calculatedHmac = sign(verifiedKeyEvent);
             break;
         }
-        case AINPUT_EVENT_TYPE_MOTION: {
+        case InputEventType::MOTION: {
             const MotionEvent& motionEvent = static_cast<const MotionEvent&>(event);
             VerifiedMotionEvent verifiedMotionEvent =
                     verifiedMotionEventFromMotionEvent(motionEvent);
@@ -5519,14 +5511,14 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          windowInfo->frameTop, windowInfo->frameRight,
                                          windowInfo->frameBottom, windowInfo->globalScaleFactor,
                                          windowInfo->applicationInfo.name.c_str(),
-                                         toString(windowInfo->applicationInfo.token).c_str());
+                                         binderToString(windowInfo->applicationInfo.token).c_str());
                     dump += dumpRegion(windowInfo->touchableRegion);
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
                                          "ms, hasToken=%s, "
                                          "touchOcclusionMode=%s\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
                                          millis(windowInfo->dispatchingTimeout),
-                                         toString(windowInfo->token != nullptr),
+                                         binderToString(windowInfo->token).c_str(),
                                          toString(windowInfo->touchOcclusionMode).c_str());
                     windowInfo->transform.dump(dump, "transform", INDENT4);
                 }

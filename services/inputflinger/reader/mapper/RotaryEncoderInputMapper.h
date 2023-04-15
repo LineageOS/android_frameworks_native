@@ -25,7 +25,8 @@ namespace android {
 
 class RotaryEncoderInputMapper : public InputMapper {
 public:
-    explicit RotaryEncoderInputMapper(InputDeviceContext& deviceContext);
+    explicit RotaryEncoderInputMapper(InputDeviceContext& deviceContext,
+                                      const InputReaderConfiguration& readerConfig);
     virtual ~RotaryEncoderInputMapper();
 
     virtual uint32_t getSources() const override;

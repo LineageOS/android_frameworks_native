@@ -74,6 +74,14 @@ void BatteryService::disableSensorImpl(uid_t uid, int handle) {
     }
 }
 
+void BatteryService::noteWakeupSensorEventImpl(int64_t elapsedNanos, uid_t uid, int handle) {
+    if (checkService()) {
+        int64_t identity = IPCThreadState::self()->clearCallingIdentity();
+        mBatteryStatService->noteWakeupSensorEvent(elapsedNanos, uid, handle);
+        IPCThreadState::self()->restoreCallingIdentity(identity);
+    }
+}
+
 bool BatteryService::checkService() {
     if (mBatteryStatService == nullptr) {
         const sp<IServiceManager> sm(defaultServiceManager());
