@@ -372,6 +372,21 @@ public:
     bool canReceiveInput() const;
 
     /*
+     * Whether or not the layer should be considered visible for input calculations.
+     */
+    virtual bool isVisibleForInput() const {
+        // For compatibility reasons we let layers which can receive input
+        // receive input before they have actually submitted a buffer. Because
+        // of this we use canReceiveInput instead of isVisible to check the
+        // policy-visibility, ignoring the buffer state. However for layers with
+        // hasInputInfo()==false we can use the real visibility state.
+        // We are just using these layers for occlusion detection in
+        // InputDispatcher, and obviously if they aren't visible they can't occlude
+        // anything.
+        return hasInputInfo() ? canReceiveInput() : isVisible();
+    }
+
+    /*
      * isProtected - true if the layer may contain protected contents in the
      * GRALLOC_USAGE_PROTECTED sense.
      */
