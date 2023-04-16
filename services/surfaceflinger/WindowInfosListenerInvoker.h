@@ -23,34 +23,42 @@
 #include <android/gui/IWindowInfosReportedListener.h>
 #include <binder/IBinder.h>
 #include <ftl/small_map.h>
+#include <gui/SpHash.h>
 #include <utils/Mutex.h>
 
 namespace android {
 
-class SurfaceFlinger;
+using WindowInfosReportedListenerSet =
+        std::unordered_set<sp<gui::IWindowInfosReportedListener>,
+                           gui::SpHash<gui::IWindowInfosReportedListener>>;
 
-class WindowInfosListenerInvoker : public IBinder::DeathRecipient {
+class WindowInfosListenerInvoker : public gui::BnWindowInfosReportedListener,
+                                   public IBinder::DeathRecipient {
 public:
     void addWindowInfosListener(sp<gui::IWindowInfosListener>);
     void removeWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
 
-    void windowInfosChanged(const std::vector<gui::WindowInfo>&,
-                            const std::vector<gui::DisplayInfo>&,
-                            const std::unordered_set<sp<gui::IWindowInfosReportedListener>,
-                                                     SpHash<gui::IWindowInfosReportedListener>>&
-                                    windowInfosReportedListeners);
+    void windowInfosChanged(std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>,
+                            WindowInfosReportedListenerSet windowInfosReportedListeners,
+                            bool forceImmediateCall);
+
+    binder::Status onWindowInfosReported() override;
 
 protected:
     void binderDied(const wp<IBinder>& who) override;
 
 private:
-    struct WindowInfosReportedListener;
-
     std::mutex mListenersMutex;
 
     static constexpr size_t kStaticCapacity = 3;
     ftl::SmallMap<wp<IBinder>, const sp<gui::IWindowInfosListener>, kStaticCapacity>
             mWindowInfosListeners GUARDED_BY(mListenersMutex);
+
+    std::mutex mMessagesMutex;
+    uint32_t mActiveMessageCount GUARDED_BY(mMessagesMutex) = 0;
+    std::function<void(WindowInfosReportedListenerSet)> mWindowInfosChangedDelayed
+            GUARDED_BY(mMessagesMutex);
+    WindowInfosReportedListenerSet mReportedListenersDelayed;
 };
 
 } // namespace android

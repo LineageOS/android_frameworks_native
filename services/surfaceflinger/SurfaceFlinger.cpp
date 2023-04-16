@@ -3715,17 +3715,33 @@ void SurfaceFlinger::updateInputFlinger() {
         return;
     }
 
+    std::unordered_set<Layer*> visibleLayers;
+    mDrawingState.traverse([&visibleLayers](Layer* layer) {
+        if (layer->isVisibleForInput()) {
+            visibleLayers.insert(layer);
+        }
+    });
+    bool visibleLayersChanged = false;
+    if (visibleLayers != mVisibleLayers) {
+        visibleLayersChanged = true;
+        mVisibleLayers = std::move(visibleLayers);
+    }
+
     BackgroundExecutor::getInstance().sendCallbacks({[updateWindowInfo,
                                                       windowInfos = std::move(windowInfos),
                                                       displayInfos = std::move(displayInfos),
                                                       inputWindowCommands =
                                                               std::move(mInputWindowCommands),
-                                                      inputFlinger = mInputFlinger, this]() {
+                                                      inputFlinger = mInputFlinger, this,
+                                                      visibleLayersChanged]() {
         ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
             mWindowInfosListenerInvoker
-                    ->windowInfosChanged(windowInfos, displayInfos,
-                                         inputWindowCommands.windowInfosReportedListeners);
+                    ->windowInfosChanged(std::move(windowInfos), std::move(displayInfos),
+                                         std::move(
+                                                 inputWindowCommands.windowInfosReportedListeners),
+                                         /* forceImmediateCall= */ visibleLayersChanged ||
+                                                 !inputWindowCommands.focusRequests.empty());
         } else {
             // If there are listeners but no changes to input windows, call the listeners
             // immediately.
