@@ -406,11 +406,13 @@ void Scheduler::setVsyncConfig(const VsyncConfig& config, Period vsyncPeriod) {
 
 void Scheduler::enableHardwareVsync(PhysicalDisplayId id) {
     auto schedule = getVsyncSchedule(id);
+    LOG_ALWAYS_FATAL_IF(!schedule);
     schedule->enableHardwareVsync(mSchedulerCallback);
 }
 
 void Scheduler::disableHardwareVsync(PhysicalDisplayId id, bool disallow) {
     auto schedule = getVsyncSchedule(id);
+    LOG_ALWAYS_FATAL_IF(!schedule);
     schedule->disableHardwareVsync(mSchedulerCallback, disallow);
 }
 
@@ -427,7 +429,10 @@ void Scheduler::resyncAllToHardwareVsync(bool allowToEnable) {
 void Scheduler::resyncToHardwareVsyncLocked(PhysicalDisplayId id, bool allowToEnable,
                                             std::optional<Fps> refreshRate) {
     const auto displayOpt = mDisplays.get(id);
-    LOG_ALWAYS_FATAL_IF(!displayOpt);
+    if (!displayOpt) {
+        ALOGW("%s: Invalid display %s!", __func__, to_string(id).c_str());
+        return;
+    }
     const Display& display = *displayOpt;
 
     if (display.schedulePtr->isHardwareVsyncAllowed(allowToEnable)) {
@@ -446,7 +451,10 @@ void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
     ftl::FakeGuard guard(kMainThreadContext);
 
     const auto displayOpt = mDisplays.get(id);
-    LOG_ALWAYS_FATAL_IF(!displayOpt);
+    if (!displayOpt) {
+        ALOGW("%s: Invalid display %s!", __func__, to_string(id).c_str());
+        return;
+    }
     const Display& display = *displayOpt;
     const auto mode = display.selectorPtr->getActiveMode();
 
@@ -478,12 +486,18 @@ bool Scheduler::addResyncSample(PhysicalDisplayId id, nsecs_t timestamp,
     const auto hwcVsyncPeriod = ftl::Optional(hwcVsyncPeriodIn).transform([](nsecs_t nanos) {
         return Period::fromNs(nanos);
     });
-    return getVsyncSchedule(id)->addResyncSample(mSchedulerCallback, TimePoint::fromNs(timestamp),
-                                                 hwcVsyncPeriod);
+    auto schedule = getVsyncSchedule(id);
+    if (!schedule) {
+        ALOGW("%s: Invalid display %s!", __func__, to_string(id).c_str());
+        return false;
+    }
+    return schedule->addResyncSample(mSchedulerCallback, TimePoint::fromNs(timestamp),
+                                     hwcVsyncPeriod);
 }
 
 void Scheduler::addPresentFence(PhysicalDisplayId id, std::shared_ptr<FenceTime> fence) {
     auto schedule = getVsyncSchedule(id);
+    LOG_ALWAYS_FATAL_IF(!schedule);
     const bool needMoreSignals = schedule->getController().addPresentFence(std::move(fence));
     if (needMoreSignals) {
         schedule->enableHardwareVsync(mSchedulerCallback);
@@ -553,6 +567,7 @@ void Scheduler::setDisplayPowerMode(PhysicalDisplayId id, hal::PowerMode powerMo
     {
         std::scoped_lock lock(mDisplayLock);
         auto vsyncSchedule = getVsyncScheduleLocked(id);
+        LOG_ALWAYS_FATAL_IF(!vsyncSchedule);
         vsyncSchedule->getController().setDisplayPowerMode(powerMode);
     }
     if (!isPacesetter) return;
@@ -582,7 +597,9 @@ auto Scheduler::getVsyncScheduleLocked(std::optional<PhysicalDisplayId> idOpt) c
     }
 
     const auto displayOpt = mDisplays.get(*idOpt);
-    LOG_ALWAYS_FATAL_IF(!displayOpt);
+    if (!displayOpt) {
+        return nullptr;
+    }
     return displayOpt->get().schedulePtr;
 }
 

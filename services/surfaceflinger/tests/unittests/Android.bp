@@ -104,6 +104,7 @@ cc_test {
         "SurfaceFlinger_DisplayTransactionCommitTest.cpp",
         "SurfaceFlinger_ExcludeDolbyVisionTest.cpp",
         "SurfaceFlinger_GetDisplayNativePrimariesTest.cpp",
+        "SurfaceFlinger_GetDisplayStatsTest.cpp",
         "SurfaceFlinger_HdrOutputControlTest.cpp",
         "SurfaceFlinger_HotplugTest.cpp",
         "SurfaceFlinger_InitializeDisplaysTest.cpp",
