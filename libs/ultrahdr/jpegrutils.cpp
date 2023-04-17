@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegrutils.h>
+#include <ultrahdr/jpegrutils.h>
 
 #include <algorithm>
 #include <cmath>
@@ -30,7 +30,7 @@
 using namespace photos_editing_formats::image_io;
 using namespace std;
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 /*
  * Helper function used for generating XMP metadata.
  *
@@ -256,7 +256,7 @@ const string kMapBaseRenditionIsHDR = Name(kGainMapPrefix, "BaseRenditionIsHDR")
 const string XMPXmlHandler::minContentBoostAttrName = kMapGainMapMin;
 const string XMPXmlHandler::maxContentBoostAttrName = kMapGainMapMax;
 
-bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata_struct* metadata) {
+bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, ultrahdr_metadata_struct* metadata) {
     string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
 
     if (xmp_size < nameSpace.size()+2) {
@@ -338,7 +338,7 @@ string generateXmpForPrimaryImage(int secondary_image_length) {
   return ss.str();
 }
 
-string generateXmpForSecondaryImage(jpegr_metadata_struct& metadata) {
+string generateXmpForSecondaryImage(ultrahdr_metadata_struct& metadata) {
   const vector<string> kConDirSeq({kConDirectory, string("rdf:Seq")});
 
   std::stringstream ss;
@@ -365,4 +365,4 @@ string generateXmpForSecondaryImage(jpegr_metadata_struct& metadata) {
   return ss.str();
 }
 
-} // namespace android::jpegrecoverymap
+} // namespace android::ultrahdr
