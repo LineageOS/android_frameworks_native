@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
+#ifndef ANDROID_ULTRAHDR_JPEGRERRORCODE_H
+#define ANDROID_ULTRAHDR_JPEGRERRORCODE_H
+
 #include <utils/Errors.h>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 enum {
     // status_t map for errors in the media framework
@@ -50,4 +53,6 @@ enum {
     ERROR_JPEGR_UNSUPPORTED_FEATURE     = -20000,
 };
 
-}  // namespace android::jpegrecoverymap
+}  // namespace android::ultrahdr
+
+#endif // ANDROID_ULTRAHDR_JPEGRERRORCODE_H

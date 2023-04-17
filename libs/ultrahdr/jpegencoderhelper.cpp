@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegencoderhelper.h>
+#include <ultrahdr/jpegencoderhelper.h>
 
 #include <utils/Log.h>
 
 #include <errno.h>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 // The destination manager that can access |mResultBuffer| in JpegEncoderHelper.
 struct destination_mgr {
@@ -236,4 +236,4 @@ bool JpegEncoderHelper::compressSingleChannel(jpeg_compress_struct* cinfo, const
     return true;
 }
 
-} // namespace jpegrecoverymap
+} // namespace ultrahdr
