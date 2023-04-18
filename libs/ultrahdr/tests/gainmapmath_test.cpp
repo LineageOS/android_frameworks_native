@@ -17,9 +17,9 @@
 #include <cmath>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <jpegrecoverymap/gainmapmath.h>
+#include <ultrahdr/gainmapmath.h>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 class GainMapMathTest : public testing::Test {
 public:
@@ -88,7 +88,7 @@ public:
     return luminance_scaled * scale_factor;
   }
 
-  Color Recover(Color yuv_gamma, float gain, jr_metadata_ptr metadata) {
+  Color Recover(Color yuv_gamma, float gain, ultrahdr_metadata_ptr metadata) {
     Color rgb_gamma = srgbYuvToRgb(yuv_gamma);
     Color rgb = srgbInvOetf(rgb_gamma);
     return applyGain(rgb, gain, metadata);
@@ -108,7 +108,7 @@ public:
       0xB0, 0xB1,
       0xB2, 0xB3,
     };
-    return { pixels, 4, 4, JPEGR_COLORGAMUT_BT709 };
+    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709 };
   }
 
   Color (*Yuv420Colors())[4] {
@@ -141,7 +141,7 @@ public:
       0xA0 << 6, 0xB0 << 6, 0xA1 << 6, 0xB1 << 6,
       0xA2 << 6, 0xB2 << 6, 0xA3 << 6, 0xB3 << 6,
     };
-    return { pixels, 4, 4, JPEGR_COLORGAMUT_BT709 };
+    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709 };
   }
 
   Color (*P010Colors())[4] {
@@ -170,7 +170,7 @@ public:
       0x02, 0x12, 0x22, 0x32,
       0x03, 0x13, 0x23, 0x33,
     };
-    return { pixels, 4, 4, JPEGR_COLORGAMUT_UNSPECIFIED };
+    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_UNSPECIFIED };
   }
 
   float (*MapValues())[4] {
@@ -554,7 +554,7 @@ TEST_F(GainMapMathTest, srgbInvOetfLUT) {
 
 TEST_F(GainMapMathTest, applyGainLUT) {
   for (int boost = 1; boost <= 10; boost++) {
-    jpegr_metadata_struct metadata = { .maxContentBoost = static_cast<float>(boost),
+    ultrahdr_metadata_struct metadata = { .maxContentBoost = static_cast<float>(boost),
                                        .minContentBoost = 1.0f / static_cast<float>(boost) };
     GainLUT gainLUT(&metadata);
     GainLUT gainLUTWithBoost(&metadata, metadata.maxContentBoost);
@@ -584,7 +584,7 @@ TEST_F(GainMapMathTest, applyGainLUT) {
   }
 
   for (int boost = 1; boost <= 10; boost++) {
-    jpegr_metadata_struct metadata = { .maxContentBoost = static_cast<float>(boost),
+    ultrahdr_metadata_struct metadata = { .maxContentBoost = static_cast<float>(boost),
                                        .minContentBoost = 1.0f };
     GainLUT gainLUT(&metadata);
     GainLUT gainLUTWithBoost(&metadata, metadata.maxContentBoost);
@@ -614,7 +614,7 @@ TEST_F(GainMapMathTest, applyGainLUT) {
   }
 
   for (int boost = 1; boost <= 10; boost++) {
-    jpegr_metadata_struct metadata = { .maxContentBoost = static_cast<float>(boost),
+    ultrahdr_metadata_struct metadata = { .maxContentBoost = static_cast<float>(boost),
                                        .minContentBoost = 1.0f / pow(static_cast<float>(boost),
                                                               1.0f / 3.0f) };
     GainLUT gainLUT(&metadata);
@@ -654,45 +654,45 @@ TEST_F(GainMapMathTest, PqTransferFunctionRoundtrip) {
 }
 
 TEST_F(GainMapMathTest, ColorConversionLookup) {
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_BT709, JPEGR_COLORGAMUT_UNSPECIFIED),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_BT709, ULTRAHDR_COLORGAMUT_UNSPECIFIED),
             nullptr);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_BT709, JPEGR_COLORGAMUT_BT709),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_BT709, ULTRAHDR_COLORGAMUT_BT709),
             identityConversion);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_BT709, JPEGR_COLORGAMUT_P3),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_BT709, ULTRAHDR_COLORGAMUT_P3),
             p3ToBt709);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_BT709, JPEGR_COLORGAMUT_BT2100),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_BT709, ULTRAHDR_COLORGAMUT_BT2100),
             bt2100ToBt709);
 
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_P3, JPEGR_COLORGAMUT_UNSPECIFIED),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_P3, ULTRAHDR_COLORGAMUT_UNSPECIFIED),
             nullptr);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_P3, JPEGR_COLORGAMUT_BT709),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_P3, ULTRAHDR_COLORGAMUT_BT709),
             bt709ToP3);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_P3, JPEGR_COLORGAMUT_P3),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_P3, ULTRAHDR_COLORGAMUT_P3),
             identityConversion);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_P3, JPEGR_COLORGAMUT_BT2100),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_P3, ULTRAHDR_COLORGAMUT_BT2100),
             bt2100ToP3);
 
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_BT2100, JPEGR_COLORGAMUT_UNSPECIFIED),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_BT2100, ULTRAHDR_COLORGAMUT_UNSPECIFIED),
             nullptr);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_BT2100, JPEGR_COLORGAMUT_BT709),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_BT2100, ULTRAHDR_COLORGAMUT_BT709),
             bt709ToBt2100);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_BT2100, JPEGR_COLORGAMUT_P3),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_BT2100, ULTRAHDR_COLORGAMUT_P3),
             p3ToBt2100);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_BT2100, JPEGR_COLORGAMUT_BT2100),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_BT2100, ULTRAHDR_COLORGAMUT_BT2100),
             identityConversion);
 
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_UNSPECIFIED, JPEGR_COLORGAMUT_UNSPECIFIED),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_UNSPECIFIED, ULTRAHDR_COLORGAMUT_UNSPECIFIED),
             nullptr);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_UNSPECIFIED, JPEGR_COLORGAMUT_BT709),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_UNSPECIFIED, ULTRAHDR_COLORGAMUT_BT709),
             nullptr);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_UNSPECIFIED, JPEGR_COLORGAMUT_P3),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_UNSPECIFIED, ULTRAHDR_COLORGAMUT_P3),
             nullptr);
-  EXPECT_EQ(getHdrConversionFn(JPEGR_COLORGAMUT_UNSPECIFIED, JPEGR_COLORGAMUT_BT2100),
+  EXPECT_EQ(getHdrConversionFn(ULTRAHDR_COLORGAMUT_UNSPECIFIED, ULTRAHDR_COLORGAMUT_BT2100),
             nullptr);
 }
 
 TEST_F(GainMapMathTest, EncodeGain) {
-  jpegr_metadata_struct metadata = { .maxContentBoost = 4.0f,
+  ultrahdr_metadata_struct metadata = { .maxContentBoost = 4.0f,
                                      .minContentBoost = 1.0f / 4.0f };
 
   EXPECT_EQ(encodeGain(0.0f, 0.0f, &metadata), 127);
@@ -750,7 +750,7 @@ TEST_F(GainMapMathTest, EncodeGain) {
 }
 
 TEST_F(GainMapMathTest, ApplyGain) {
-  jpegr_metadata_struct metadata = { .maxContentBoost = 4.0f,
+  ultrahdr_metadata_struct metadata = { .maxContentBoost = 4.0f,
                                      .minContentBoost = 1.0f / 4.0f };
   float displayBoost = metadata.maxContentBoost;
 
@@ -1049,7 +1049,7 @@ TEST_F(GainMapMathTest, GenerateMapLuminancePq) {
 }
 
 TEST_F(GainMapMathTest, ApplyMap) {
-  jpegr_metadata_struct metadata = { .maxContentBoost = 8.0f,
+  ultrahdr_metadata_struct metadata = { .maxContentBoost = 8.0f,
                                      .minContentBoost = 1.0f / 8.0f };
 
   EXPECT_RGB_EQ(Recover(YuvWhite(), 1.0f, &metadata),
@@ -1134,4 +1134,4 @@ TEST_F(GainMapMathTest, ApplyMap) {
                 RgbWhite() / 2.0f);
 }
 
-} // namespace android::jpegrecoverymap
+} // namespace android::ultrahdr

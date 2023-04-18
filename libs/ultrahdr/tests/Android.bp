@@ -22,7 +22,7 @@ package {
 }
 
 cc_test {
-    name: "libjpegrecoverymap_test",
+    name: "libultrahdr_test",
     test_suites: ["device-tests"],
     srcs: [
         "jpegr_test.cpp",
@@ -38,7 +38,7 @@ cc_test {
         "libgtest",
         "libjpegdecoder",
         "libjpegencoder",
-        "libjpegrecoverymap",
+        "libultrahdr",
         "libutils",
     ],
 }

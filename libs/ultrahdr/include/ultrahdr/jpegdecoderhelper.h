@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_JPEGDECODERHELPER_H
-#define ANDROID_JPEGRECOVERYMAP_JPEGDECODERHELPER_H
+#ifndef ANDROID_ULTRAHDR_JPEGDECODERHELPER_H
+#define ANDROID_ULTRAHDR_JPEGDECODERHELPER_H
 
 // We must include cstdio before jpeglib.h. It is a requirement of libjpeg.
 #include <cstdio>
@@ -25,7 +25,7 @@ extern "C" {
 }
 #include <utils/Errors.h>
 #include <vector>
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 /*
  * Encapsulates a converter from JPEG to raw image (YUV420planer or grey-scale) format.
  * This class is not thread-safe.
@@ -115,6 +115,6 @@ private:
     // Position of EXIF package, default value is -1 which means no EXIF package appears.
     size_t mExifPos;
 };
-} /* namespace android::jpegrecoverymap  */
+} /* namespace android::ultrahdr  */
 
-#endif // ANDROID_JPEGRECOVERYMAP_JPEGDECODERHELPER_H
+#endif // ANDROID_ULTRAHDR_JPEGDECODERHELPER_H
