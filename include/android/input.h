@@ -249,13 +249,13 @@ enum {
     AKEY_EVENT_FLAG_LONG_PRESS = 0x80,
 
     /**
-     * Set when a key event has AKEY_EVENT_FLAG_CANCELED set because a long
+     * Set when a key event has #AKEY_EVENT_FLAG_CANCELED set because a long
      * press action was executed while it was down.
      */
     AKEY_EVENT_FLAG_CANCELED_LONG_PRESS = 0x100,
 
     /**
-     * Set for AKEY_EVENT_ACTION_UP when this event's key code is still being
+     * Set for #AKEY_EVENT_ACTION_UP when this event's key code is still being
      * tracked from its initial down.  That is, somebody requested that tracking
      * started on the key down and a long press has not caused
      * the tracking to be canceled.
@@ -275,7 +275,7 @@ enum {
 
 /**
  * Bit shift for the action bits holding the pointer index as
- * defined by AMOTION_EVENT_ACTION_POINTER_INDEX_MASK.
+ * defined by #AMOTION_EVENT_ACTION_POINTER_INDEX_MASK.
  */
 #define AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT 8
 
@@ -286,8 +286,8 @@ enum {
 
     /**
      * Bits in the action code that represent a pointer index, used with
-     * AMOTION_EVENT_ACTION_POINTER_DOWN and AMOTION_EVENT_ACTION_POINTER_UP.  Shifting
-     * down by AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT provides the actual pointer
+     * #AMOTION_EVENT_ACTION_POINTER_DOWN and AMOTION_EVENT_ACTION_POINTER_UP.  Shifting
+     * down by #AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT provides the actual pointer
      * index where the data for the pointer going up or down can be found.
      */
     AMOTION_EVENT_ACTION_POINTER_INDEX_MASK  = 0xff00,
@@ -302,8 +302,8 @@ enum {
     AMOTION_EVENT_ACTION_UP = 1,
 
     /**
-     * A change has happened during a press gesture (between AMOTION_EVENT_ACTION_DOWN and
-     * AMOTION_EVENT_ACTION_UP).  The motion contains the most recent point, as well as
+     * A change has happened during a press gesture (between #AMOTION_EVENT_ACTION_DOWN and
+     * #AMOTION_EVENT_ACTION_UP).  The motion contains the most recent point, as well as
      * any intermediate points since the last down or move event.
      */
     AMOTION_EVENT_ACTION_MOVE = 2,
@@ -323,18 +323,18 @@ enum {
 
     /**
      * A non-primary pointer has gone down.
-     * The bits in AMOTION_EVENT_ACTION_POINTER_INDEX_MASK indicate which pointer changed.
+     * The bits in #AMOTION_EVENT_ACTION_POINTER_INDEX_MASK indicate which pointer changed.
      */
     AMOTION_EVENT_ACTION_POINTER_DOWN = 5,
 
     /**
      * A non-primary pointer has gone up.
-     * The bits in AMOTION_EVENT_ACTION_POINTER_INDEX_MASK indicate which pointer changed.
+     * The bits in #AMOTION_EVENT_ACTION_POINTER_INDEX_MASK indicate which pointer changed.
      */
     AMOTION_EVENT_ACTION_POINTER_UP = 6,
 
     /**
-     * A change happened but the pointer is not down (unlike AMOTION_EVENT_ACTION_MOVE).
+     * A change happened but the pointer is not down (unlike #AMOTION_EVENT_ACTION_MOVE).
      * The motion contains the most recent point, as well as any intermediate points since
      * the last hover move event.
      */
@@ -342,8 +342,8 @@ enum {
 
     /**
      * The motion event contains relative vertical and/or horizontal scroll offsets.
-     * Use getAxisValue to retrieve the information from AMOTION_EVENT_AXIS_VSCROLL
-     * and AMOTION_EVENT_AXIS_HSCROLL.
+     * Use {@link AMotionEvent_getAxisValue} to retrieve the information from
+     * #AMOTION_EVENT_AXIS_VSCROLL and #AMOTION_EVENT_AXIS_HSCROLL.
      * The pointer may or may not be down when this event is dispatched.
      * This action is always delivered to the winder under the pointer, which
      * may not be the window currently touched.
@@ -528,7 +528,7 @@ enum {
      * is pointing in relation to the vertical axis of the current orientation of the screen.
      * The range is from -PI radians to PI radians, where 0 is pointing up,
      * -PI/2 radians is pointing left, -PI or PI radians is pointing down, and PI/2 radians
-     * is pointing right.  See also {@link AMOTION_EVENT_AXIS_TILT}.
+     * is pointing right.  See also #AMOTION_EVENT_AXIS_TILT.
      */
     AMOTION_EVENT_AXIS_ORIENTATION = 8,
     /**
@@ -681,7 +681,7 @@ enum {
     /**
      * Axis constant: The movement of y position of a motion event.
      *
-     * Same as {@link AMOTION_EVENT_AXIS_RELATIVE_X}, but for y position.
+     * Same as #AMOTION_EVENT_AXIS_RELATIVE_X, but for y position.
      */
     AMOTION_EVENT_AXIS_RELATIVE_Y = 28,
     /**
@@ -821,7 +821,8 @@ enum AMotionClassification : uint32_t {
      * Classification constant: Ambiguous gesture.
      *
      * The user's intent with respect to the current event stream is not yet determined. Events
-     * starting in AMBIGUOUS_GESTURE will eventually resolve into either DEEP_PRESS or NONE.
+     * starting in #AMOTION_EVENT_CLASSIFICATION_AMBIGUOUS_GESTURE will eventually resolve into
+     * either #AMOTION_EVENT_CLASSIFICATION_DEEP_PRESS or #AMOTION_EVENT_CLASSIFICATION_NONE.
      * Gestural actions, such as scrolling, should be inhibited until the classification resolves
      * to another value or the event stream ends.
      */
@@ -923,7 +924,8 @@ enum {
  * Refer to the documentation on android.view.InputDevice for more details about input sources
  * and their correct interpretation.
  *
- * @deprecated These constants are deprecated. Use {@link AMOTION_EVENT_AXIS AMOTION_EVENT_AXIS_*} constants instead.
+ * @deprecated These constants are deprecated. Use {@link AMOTION_EVENT_AXIS AMOTION_EVENT_AXIS_*}
+ * constants instead.
  */
 enum {
     /** x */
@@ -977,8 +979,8 @@ int32_t AInputEvent_getSource(const AInputEvent* event);
 /**
  * Releases interface objects created by {@link AKeyEvent_fromJava()}
  * and {@link AMotionEvent_fromJava()}.
- * After returning, the specified AInputEvent* object becomes invalid and should no longer be used.
- * The underlying Java object remains valid and does not change its state.
+ * After returning, the specified {@link AInputEvent}* object becomes invalid and should no longer
+ * be used. The underlying Java object remains valid and does not change its state.
  *
  * Available since API level 31.
  */
@@ -1031,9 +1033,10 @@ int64_t AKeyEvent_getDownTime(const AInputEvent* key_event);
 int64_t AKeyEvent_getEventTime(const AInputEvent* key_event);
 
 /**
- * Creates a native AInputEvent* object that is a copy of the specified Java android.view.KeyEvent.
- * The result may be used with generic and KeyEvent-specific AInputEvent_* functions. The object
- * returned by this function must be disposed using {@link AInputEvent_release()}.
+ * Creates a native {@link AInputEvent}* object that is a copy of the specified Java
+ * android.view.KeyEvent. The result may be used with generic and KeyEvent-specific AInputEvent_*
+ * functions. The object returned by this function must be disposed using
+ * {@link AInputEvent_release()}.
  *
  * Available since API level 31.
  */
@@ -1221,7 +1224,7 @@ float AMotionEvent_getAxisValue(const AInputEvent* motion_event,
 /**
  * Get the number of historical points in this event.  These are movements that
  * have occurred between this event and the previous event.  This only applies
- * to AMOTION_EVENT_ACTION_MOVE events -- all other actions will have a size of 0.
+ * to #AMOTION_EVENT_ACTION_MOVE events -- all other actions will have a size of 0.
  * Historical samples are indexed from oldest to newest.
  */
 size_t AMotionEvent_getHistorySize(const AInputEvent* motion_event);
@@ -1382,7 +1385,7 @@ int32_t AMotionEvent_getClassification(const AInputEvent* motion_event)
         __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
- * Creates a native AInputEvent* object that is a copy of the specified Java
+ * Creates a native {@link AInputEvent}* object that is a copy of the specified Java
  * android.view.MotionEvent. The result may be used with generic and MotionEvent-specific
  * AInputEvent_* functions. The object returned by this function must be disposed using
  * {@link AInputEvent_release()}.
@@ -1402,7 +1405,7 @@ typedef struct AInputQueue AInputQueue;
 
 /**
  * Add this input queue to a looper for processing.  See
- * ALooper_addFd() for information on the ident, callback, and data params.
+ * {@link ALooper_addFd()} for information on the ident, callback, and data params.
  */
 void AInputQueue_attachLooper(AInputQueue* queue, ALooper* looper,
         int ident, ALooper_callbackFunc callback, void* data);
@@ -1437,12 +1440,12 @@ int32_t AInputQueue_preDispatchEvent(AInputQueue* queue, AInputEvent* event);
 
 /**
  * Report that dispatching has finished with the given event.
- * This must be called after receiving an event with AInputQueue_get_event().
+ * This must be called after receiving an event with {@link AInputQueue_getEvent()}.
  */
 void AInputQueue_finishEvent(AInputQueue* queue, AInputEvent* event, int handled);
 
 /**
- * Returns the AInputQueue* object associated with the supplied Java InputQueue
+ * Returns the {@link AInputQueue}* object associated with the supplied Java InputQueue
  * object. The returned native object holds a weak reference to the Java object,
  * and is only valid as long as the Java object has not yet been disposed. You
  * should ensure that there is a strong reference to the Java object and that it
