@@ -1048,7 +1048,7 @@ status_t KeyCharacterMap::Parser::parseKeyProperty() {
     String8 token = mTokenizer->nextToken(WHITESPACE_OR_PROPERTY_DELIMITER);
     if (token == "}") {
         mState = STATE_TOP;
-        return finishKey(key);
+        return finishKey(*key);
     }
 
     Vector<Property> properties;
@@ -1230,12 +1230,12 @@ status_t KeyCharacterMap::Parser::parseKeyProperty() {
     return NO_ERROR;
 }
 
-status_t KeyCharacterMap::Parser::finishKey(Key* key) {
+status_t KeyCharacterMap::Parser::finishKey(Key& key) {
     // Fill in default number property.
-    if (!key->number) {
+    if (!key.number) {
         char16_t digit = 0;
         char16_t symbol = 0;
-        for (const Behavior& b : key->behaviors) {
+        for (const Behavior& b : key.behaviors) {
             char16_t ch = b.character;
             if (ch) {
                 if (ch >= '0' && ch <= '9') {
@@ -1247,7 +1247,7 @@ status_t KeyCharacterMap::Parser::finishKey(Key* key) {
                 }
             }
         }
-        key->number = digit ? digit : symbol;
+        key.number = digit ? digit : symbol;
     }
     return NO_ERROR;
 }
