@@ -222,13 +222,13 @@ void TouchpadInputMapper::dump(std::string& dump) {
 
 std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
                                                        const InputReaderConfiguration& config,
-                                                       uint32_t changes) {
-    if (!changes) {
+                                                       ConfigurationChanges changes) {
+    if (!changes.any()) {
         // First time configuration
         mPropertyProvider.loadPropertiesFromIdcFile(getDeviceContext().getConfiguration());
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO)) {
         std::optional<int32_t> displayId = mPointerController->getDisplayId();
         ui::Rotation orientation = ui::ROTATION_0;
         if (displayId.has_value()) {
@@ -238,7 +238,7 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
         }
         mGestureConverter.setOrientation(orientation);
     }
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_TOUCHPAD_SETTINGS)) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::TOUCHPAD_SETTINGS)) {
         mPropertyProvider.getProperty("Use Custom Touchpad Pointer Accel Curve")
                 .setBoolValues({true});
         GesturesProp accelCurveProp = mPropertyProvider.getProperty("Pointer Accel Curve");

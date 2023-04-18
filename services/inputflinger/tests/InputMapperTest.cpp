@@ -50,12 +50,12 @@ void InputMapperTest::addConfigurationProperty(const char* key, const char* valu
     mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, key, value);
 }
 
-std::list<NotifyArgs> InputMapperTest::configureDevice(uint32_t changes) {
-    if (!changes ||
-        (changes &
-         (InputReaderConfiguration::CHANGE_DISPLAY_INFO |
-          InputReaderConfiguration::CHANGE_POINTER_CAPTURE |
-          InputReaderConfiguration::CHANGE_DEVICE_TYPE))) {
+std::list<NotifyArgs> InputMapperTest::configureDevice(ConfigurationChanges changes) {
+    using namespace ftl::flag_operators;
+    if (!changes.any() ||
+        (changes.any(InputReaderConfiguration::Change::DISPLAY_INFO |
+                     InputReaderConfiguration::Change::POINTER_CAPTURE |
+                     InputReaderConfiguration::Change::DEVICE_TYPE))) {
         mReader->requestRefreshConfiguration(changes);
         mReader->loopOnce();
     }
@@ -94,7 +94,7 @@ void InputMapperTest::setDisplayInfoAndReconfigure(int32_t displayId, int32_t wi
                                                    ViewportType viewportType) {
     mFakePolicy->addDisplayViewport(displayId, width, height, orientation, /* isActive= */ true,
                                     uniqueId, physicalPort, viewportType);
-    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    configureDevice(InputReaderConfiguration::Change::DISPLAY_INFO);
 }
 
 void InputMapperTest::clearViewports() {

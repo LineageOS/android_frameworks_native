@@ -85,7 +85,7 @@ public:
     void removeEventHubDevice(int32_t eventHubId);
     [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
                                                   const InputReaderConfiguration& readerConfig,
-                                                  uint32_t changes);
+                                                  ConfigurationChanges changes);
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when);
     [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvents, size_t count);
     [[nodiscard]] std::list<NotifyArgs> timeoutExpired(nsecs_t when);
