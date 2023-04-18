@@ -103,7 +103,10 @@ public:
      * JPEG.
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param hdr_tf transfer function of the HDR image
-     * @param dest destination of the compressed JPEGR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
      * @param quality target quality of the JPEG encoding, must be in range of 0-100 where 100 is
      *                the highest quality
      * @param exif pointer to the exif metadata.
@@ -125,7 +128,10 @@ public:
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param hdr_tf transfer function of the HDR image
-     * @param dest destination of the compressed JPEGR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
      * @param quality target quality of the JPEG encoding, must be in range of 0-100 where 100 is
      *                the highest quality
      * @param exif pointer to the exif metadata.
@@ -152,7 +158,10 @@ public:
      *                                         input
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param hdr_tf transfer function of the HDR image
-     * @param dest destination of the compressed JPEGR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
@@ -173,12 +182,34 @@ public:
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param hdr_tf transfer function of the HDR image
-     * @param dest destination of the compressed JPEGR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                          jr_compressed_ptr compressed_jpeg_image,
                          ultrahdr_transfer_function hdr_tf,
+                         jr_compressed_ptr dest);
+
+    /*
+     * Encode API-4
+     * Assemble JPEGR image from SDR JPEG and gainmap JPEG.
+     *
+     * Assemble the primary JPEG image, the gain map and the metadata to JPEG/R format.
+     * @param compressed_jpeg_image compressed 8-bit JPEG image
+     * @param compressed_gainmap compressed 8-bit JPEG single channel image
+     * @param metadata metadata to be written in XMP of the primary jpeg
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
+     * @return NO_ERROR if encoding succeeds, error code if error occurs.
+     */
+    status_t encodeJPEGR(jr_compressed_ptr compressed_jpeg_image,
+                         jr_compressed_ptr compressed_gainmap,
+                         ultrahdr_metadata_ptr metadata,
                          jr_compressed_ptr dest);
 
     /*
