@@ -338,6 +338,16 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   return NO_ERROR;
 }
 
+/* Encode API-4 */
+status_t JpegR::encodeJPEGR(jr_compressed_ptr compressed_jpeg_image,
+                            jr_compressed_ptr compressed_gainmap,
+                            ultrahdr_metadata_ptr metadata,
+                            jr_compressed_ptr dest) {
+  JPEGR_CHECK(appendGainMap(compressed_jpeg_image, compressed_gainmap, /* exif */ nullptr,
+          metadata, dest));
+  return NO_ERROR;
+}
+
 status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image, jr_info_ptr jpegr_info) {
   if (compressed_jpegr_image == nullptr || jpegr_info == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
