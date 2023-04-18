@@ -52,6 +52,20 @@ struct VulkanFuncs {
     PFN_vkDestroyInstance vkDestroyInstance = nullptr;
 };
 
+// Ref-Count a semaphore
+struct DestroySemaphoreInfo {
+    VkSemaphore mSemaphore;
+    // We need to make sure we don't delete the VkSemaphore until it is done being used by both Skia
+    // (including by the GPU) and inside SkiaVkRenderEngine. So we always start with two refs, one
+    // owned by Skia and one owned by the SkiaVkRenderEngine. The refs are decremented each time
+    // delete_semaphore* is called with this object. Skia will call destroy_semaphore* once it is
+    // done with the semaphore and the GPU has finished work on the semaphore. SkiaVkRenderEngine
+    // calls delete_semaphore* after sending the semaphore to Skia and exporting it if need be.
+    int mRefs = 2;
+
+    DestroySemaphoreInfo(VkSemaphore semaphore) : mSemaphore(semaphore) {}
+};
+
 struct VulkanInterface {
     bool initialized = false;
     VkInstance instance;
@@ -588,14 +602,22 @@ bool SkiaVkRenderEngine::useProtectedContextImpl(GrProtected) {
     return true;
 }
 
-static void delete_semaphore(void* _semaphore) {
-    VkSemaphore semaphore = (VkSemaphore)_semaphore;
-    sVulkanInterface.destroySemaphore(semaphore);
+static void delete_semaphore(void* semaphore) {
+    DestroySemaphoreInfo* info = reinterpret_cast<DestroySemaphoreInfo*>(semaphore);
+    --info->mRefs;
+    if (!info->mRefs) {
+        sVulkanInterface.destroySemaphore(info->mSemaphore);
+        delete info;
+    }
 }
 
-static void delete_semaphore_protected(void* _semaphore) {
-    VkSemaphore semaphore = (VkSemaphore)_semaphore;
-    sProtectedContentVulkanInterface.destroySemaphore(semaphore);
+static void delete_semaphore_protected(void* semaphore) {
+    DestroySemaphoreInfo* info = reinterpret_cast<DestroySemaphoreInfo*>(semaphore);
+    --info->mRefs;
+    if (!info->mRefs) {
+        sProtectedContentVulkanInterface.destroySemaphore(info->mSemaphore);
+        delete info;
+    }
 }
 
 static VulkanInterface& getVulkanInterface(bool protectedContext) {
@@ -624,19 +646,30 @@ void SkiaVkRenderEngine::waitFence(GrDirectContext* grContext, base::borrowed_fd
 }
 
 base::unique_fd SkiaVkRenderEngine::flushAndSubmit(GrDirectContext* grContext) {
-    VkSemaphore signalSemaphore = getVulkanInterface(isProtected()).createExportableSemaphore();
-    GrBackendSemaphore beSignalSemaphore;
-    beSignalSemaphore.initVulkan(signalSemaphore);
+    VulkanInterface& vi = getVulkanInterface(isProtected());
+    VkSemaphore semaphore = vi.createExportableSemaphore();
+
+    GrBackendSemaphore backendSemaphore;
+    backendSemaphore.initVulkan(semaphore);
+
     GrFlushInfo flushInfo;
-    flushInfo.fNumSemaphores = 1;
-    flushInfo.fSignalSemaphores = &beSignalSemaphore;
-    flushInfo.fFinishedProc = isProtected() ? delete_semaphore_protected : delete_semaphore;
-    flushInfo.fFinishedContext = (void*)signalSemaphore;
+    DestroySemaphoreInfo* destroySemaphoreInfo = nullptr;
+    if (semaphore != VK_NULL_HANDLE) {
+        destroySemaphoreInfo = new DestroySemaphoreInfo(semaphore);
+        flushInfo.fNumSemaphores = 1;
+        flushInfo.fSignalSemaphores = &backendSemaphore;
+        flushInfo.fFinishedProc = isProtected() ? delete_semaphore_protected : delete_semaphore;
+        flushInfo.fFinishedContext = destroySemaphoreInfo;
+    }
     GrSemaphoresSubmitted submitted = grContext->flush(flushInfo);
     grContext->submit(false /* no cpu sync */);
     int drawFenceFd = -1;
-    if (GrSemaphoresSubmitted::kYes == submitted) {
-        drawFenceFd = getVulkanInterface(isProtected()).exportSemaphoreSyncFd(signalSemaphore);
+    if (semaphore != VK_NULL_HANDLE) {
+        if (GrSemaphoresSubmitted::kYes == submitted) {
+            drawFenceFd = vi.exportSemaphoreSyncFd(semaphore);
+        }
+        // Now that drawFenceFd has been created, we can delete our reference to this semaphore
+        flushInfo.fFinishedProc(destroySemaphoreInfo);
     }
     base::unique_fd res(drawFenceFd);
     return res;
