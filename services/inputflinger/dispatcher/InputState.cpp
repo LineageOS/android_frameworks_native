@@ -42,13 +42,8 @@ bool InputState::trackKey(const KeyEntry& entry, int32_t action, int32_t flags) 
     switch (action) {
         case AKEY_EVENT_ACTION_UP: {
             if (entry.flags & AKEY_EVENT_FLAG_FALLBACK) {
-                for (size_t i = 0; i < mFallbackKeys.size();) {
-                    if (mFallbackKeys.valueAt(i) == entry.keyCode) {
-                        mFallbackKeys.removeItemsAt(i);
-                    } else {
-                        i += 1;
-                    }
-                }
+                std::erase_if(mFallbackKeys,
+                              [&entry](const auto& item) { return item.second == entry.keyCode; });
             }
             ssize_t index = findKeyMemento(entry);
             if (index >= 0) {
@@ -481,22 +476,20 @@ void InputState::mergePointerStateTo(InputState& other) {
     }
 }
 
-int32_t InputState::getFallbackKey(int32_t originalKeyCode) {
-    ssize_t index = mFallbackKeys.indexOfKey(originalKeyCode);
-    return index >= 0 ? mFallbackKeys.valueAt(index) : -1;
+std::optional<int32_t> InputState::getFallbackKey(int32_t originalKeyCode) {
+    auto it = mFallbackKeys.find(originalKeyCode);
+    if (it == mFallbackKeys.end()) {
+        return {};
+    }
+    return it->second;
 }
 
 void InputState::setFallbackKey(int32_t originalKeyCode, int32_t fallbackKeyCode) {
-    ssize_t index = mFallbackKeys.indexOfKey(originalKeyCode);
-    if (index >= 0) {
-        mFallbackKeys.replaceValueAt(index, fallbackKeyCode);
-    } else {
-        mFallbackKeys.add(originalKeyCode, fallbackKeyCode);
-    }
+    mFallbackKeys.insert_or_assign(originalKeyCode, fallbackKeyCode);
 }
 
 void InputState::removeFallbackKey(int32_t originalKeyCode) {
-    mFallbackKeys.removeItem(originalKeyCode);
+    mFallbackKeys.erase(originalKeyCode);
 }
 
 bool InputState::shouldCancelKey(const KeyMemento& memento, const CancelationOptions& options) {
