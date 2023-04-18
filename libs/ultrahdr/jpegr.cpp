@@ -66,9 +66,12 @@ static const uint32_t kJpegrVersion = 1;
 // Map is quarter res / sixteenth size
 static const size_t kMapDimensionScaleFactor = 4;
 // JPEG block size.
-// JPEG encoding / decoding will require 8 x 8 DCT transform.
-// Width must be 8 dividable, and height must be 2 dividable.
-static const size_t kJpegBlock = 8;
+// JPEG encoding / decoding will require block based DCT transform 16 x 16 for luma,
+// and 8 x 8 for chroma.
+// Width must be 16 dividable for luma, and 8 dividable for chroma.
+// If this criteria is not ficilitated, we will pad zeros based on the required block size.
+static const size_t kJpegBlock = JpegEncoderHelper::kCompressBatchSize;
+static const size_t kJpegBlockSquare = kJpegBlock * kJpegBlock;
 // JPEG compress quality (0 ~ 100) for gain map
 static const int kMapCompressQuality = 85;
 
@@ -90,13 +93,6 @@ status_t JpegR::areInputImagesValid(jr_uncompressed_ptr uncompressed_p010_image,
                                     jr_uncompressed_ptr uncompressed_yuv_420_image) {
   if (uncompressed_p010_image == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
-  }
-
-  if (uncompressed_p010_image->width % kJpegBlock != 0
-          || uncompressed_p010_image->height % 2 != 0) {
-    ALOGE("Image size can not be handled: %dx%d.",
-            uncompressed_p010_image->width, uncompressed_p010_image->height);
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   if (uncompressed_p010_image->luma_stride != 0
@@ -157,8 +153,13 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   metadata.version = kJpegrVersion;
 
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
-  unique_ptr<uint8_t[]> uncompressed_yuv_420_image_data = make_unique<uint8_t[]>(
-      uncompressed_p010_image->width * uncompressed_p010_image->height * 3 / 2);
+  size_t gain_map_length = uncompressed_p010_image->width * uncompressed_p010_image->height * 3 / 2;
+  // Pad a pseudo chroma block (kJpegBlock / 2) x (kJpegBlock / 2)
+  // if width is not kJpegBlock aligned.
+  if (uncompressed_p010_image->width % kJpegBlock != 0) {
+    gain_map_length += kJpegBlockSquare / 4;
+  }
+  unique_ptr<uint8_t[]> uncompressed_yuv_420_image_data = make_unique<uint8_t[]>(gain_map_length);
   uncompressed_yuv_420_image.data = uncompressed_yuv_420_image_data.get();
   JPEGR_CHECK(toneMap(uncompressed_p010_image, &uncompressed_yuv_420_image));
 

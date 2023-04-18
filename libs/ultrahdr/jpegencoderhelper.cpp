@@ -38,11 +38,6 @@ JpegEncoderHelper::~JpegEncoderHelper() {
 bool JpegEncoderHelper::compressImage(const void* image, int width, int height, int quality,
                                    const void* iccBuffer, unsigned int iccSize,
                                    bool isSingleChannel) {
-    if (width % 8 != 0 || height % 2 != 0) {
-        ALOGE("Image size can not be handled: %dx%d", width, height);
-        return false;
-    }
-
     mResultBuffer.clear();
     if (!encode(image, width, height, quality, iccBuffer, iccSize, isSingleChannel)) {
         return false;
