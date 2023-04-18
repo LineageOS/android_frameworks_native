@@ -65,6 +65,10 @@ RpcServerTrusty::RpcServerTrusty(std::unique_ptr<RpcTransportCtx> ctx, std::stri
     mTipcPort.msg_queue_len = 6; // Three each way
     mTipcPort.priv = this;
 
+    // TODO(b/266741352): follow-up to prevent needing this in the future
+    // Trusty needs to be set to the latest stable version that is in prebuilts there.
+    mRpcServer->setProtocolVersion(0);
+
     if (mPortAcl) {
         // Initialize the array of pointers to uuids.
         // The pointers in mUuidPtrs should stay valid across moves of
