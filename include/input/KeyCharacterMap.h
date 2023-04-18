@@ -243,7 +243,7 @@ private:
 
     KeyCharacterMap(const std::string& filename);
 
-    bool getKey(int32_t keyCode, const Key** outKey) const;
+    const Key* getKey(int32_t keyCode) const;
     const Behavior* getKeyBehavior(int32_t keyCode, int32_t metaState) const;
     static bool matchesMetaState(int32_t eventMetaState, int32_t behaviorMetaState);
 
