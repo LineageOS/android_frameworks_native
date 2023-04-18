@@ -827,6 +827,15 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
         SAFE_PARCEL(parcel->readUint64, &uncacheBuffers[i].id);
     }
 
+    count = static_cast<size_t>(parcel->readUint32());
+    if (count > parcel->dataSize()) {
+        return BAD_VALUE;
+    }
+    std::vector<uint64_t> mergedTransactionIds(count);
+    for (size_t i = 0; i < count; i++) {
+        SAFE_PARCEL(parcel->readUint64, &mergedTransactionIds[i]);
+    }
+
     // Parsing was successful. Update the object.
     mId = transactionId;
     mTransactionNestCount = transactionNestCount;
@@ -842,6 +851,7 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     mInputWindowCommands = inputWindowCommands;
     mApplyToken = applyToken;
     mUncacheBuffers = std::move(uncacheBuffers);
+    mMergedTransactionIds = std::move(mergedTransactionIds);
     return NO_ERROR;
 }
 
@@ -900,6 +910,11 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
         SAFE_PARCEL(parcel->writeUint64, uncacheBuffer.id);
     }
 
+    SAFE_PARCEL(parcel->writeUint32, static_cast<uint32_t>(mMergedTransactionIds.size()));
+    for (auto mergedTransactionId : mMergedTransactionIds) {
+        SAFE_PARCEL(parcel->writeUint64, mergedTransactionId);
+    }
+
     return NO_ERROR;
 }
 
@@ -924,6 +939,22 @@ void SurfaceComposerClient::Transaction::releaseBufferIfOverwriting(const layer_
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Transaction&& other) {
+    while (mMergedTransactionIds.size() + other.mMergedTransactionIds.size() >
+                   MAX_MERGE_HISTORY_LENGTH - 1 &&
+           mMergedTransactionIds.size() > 0) {
+        mMergedTransactionIds.pop_back();
+    }
+    if (other.mMergedTransactionIds.size() == MAX_MERGE_HISTORY_LENGTH) {
+        mMergedTransactionIds.insert(mMergedTransactionIds.begin(),
+                                     other.mMergedTransactionIds.begin(),
+                                     other.mMergedTransactionIds.end() - 1);
+    } else if (other.mMergedTransactionIds.size() > 0u) {
+        mMergedTransactionIds.insert(mMergedTransactionIds.begin(),
+                                     other.mMergedTransactionIds.begin(),
+                                     other.mMergedTransactionIds.end());
+    }
+    mMergedTransactionIds.insert(mMergedTransactionIds.begin(), other.mId);
+
     for (auto const& [handle, composerState] : other.mComposerStates) {
         if (mComposerStates.count(handle) == 0) {
             mComposerStates[handle] = composerState;
@@ -998,10 +1029,15 @@ void SurfaceComposerClient::Transaction::clear() {
     mIsAutoTimestamp = true;
     clearFrameTimelineInfo(mFrameTimelineInfo);
     mApplyToken = nullptr;
+    mMergedTransactionIds.clear();
 }
 
 uint64_t SurfaceComposerClient::Transaction::getId() {
     return mId;
+}
+
+std::vector<uint64_t> SurfaceComposerClient::Transaction::getMergedTransactionIds() {
+    return mMergedTransactionIds;
 }
 
 void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
@@ -1014,7 +1050,7 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     status_t status = sf->setTransactionState(FrameTimelineInfo{}, composerStates, {},
                                               ISurfaceComposer::eOneWay,
                                               Transaction::getDefaultApplyToken(), {}, systemTime(),
-                                              true, {uncacheBuffer}, false, {}, generateId());
+                                              true, {uncacheBuffer}, false, {}, generateId(), {});
     if (status != NO_ERROR) {
         ALOGE_AND_TRACE("SurfaceComposerClient::doUncacheBufferTransaction - %s",
                         strerror(-status));
@@ -1189,7 +1225,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     sf->setTransactionState(mFrameTimelineInfo, composerStates, displayStates, flags, applyToken,
                             mInputWindowCommands, mDesiredPresentTime, mIsAutoTimestamp,
-                            mUncacheBuffers, hasListenerCallbacks, listenerCallbacks, mId);
+                            mUncacheBuffers, hasListenerCallbacks, listenerCallbacks, mId,
+                            mMergedTransactionIds);
     mId = generateId();
 
     // Clear the current states and flags
