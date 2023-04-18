@@ -687,7 +687,7 @@ void SurfaceFlinger::bootFinished() {
 
     // wait patiently for the window manager death
     const String16 name("window");
-    mWindowManager = defaultServiceManager()->getService(name);
+    mWindowManager = defaultServiceManager()->waitForService(name);
     if (mWindowManager != 0) {
         mWindowManager->linkToDeath(sp<IBinder::DeathRecipient>::fromExisting(this));
     }
@@ -701,7 +701,7 @@ void SurfaceFlinger::bootFinished() {
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
 
-    sp<IBinder> input(defaultServiceManager()->getService(String16("inputflinger")));
+    sp<IBinder> input(defaultServiceManager()->waitForService(String16("inputflinger")));
 
     static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(kMainThreadContext) {
         if (input == nullptr) {

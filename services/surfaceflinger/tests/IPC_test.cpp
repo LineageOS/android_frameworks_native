@@ -289,7 +289,7 @@ sp<IIPCTest> IPCTest::initRemoteService() {
             IPCThreadState::self()->joinThreadPool();
             [&]() { exit(0); }();
         }
-        sp<IBinder> binder = defaultServiceManager()->getService(serviceName);
+        sp<IBinder> binder = defaultServiceManager()->waitForService(serviceName);
         remote = interface_cast<IIPCTest>(binder);
         remote->setDeathToken(mDeathRecipient);
     }
