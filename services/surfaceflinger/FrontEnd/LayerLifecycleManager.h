@@ -108,6 +108,9 @@ private:
     std::vector<std::unique_ptr<RequestedLayerState>> mLayers;
     // Layers pending destruction. Layers will be destroyed once changes are committed.
     std::vector<std::unique_ptr<RequestedLayerState>> mDestroyedLayers;
+    // Keeps track of all the layers that were added in order. Changes will be cleared once
+    // committed.
+    std::vector<RequestedLayerState*> mAddedLayers;
 };
 
 } // namespace android::surfaceflinger::frontend

@@ -27,7 +27,6 @@ using namespace ftl::flag_operators;
 LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
                              const LayerHierarchy::TraversalPath& path)
       : path(path) {
-    static uint32_t sUniqueSequenceId = 0;
     // Provide a unique id for all snapshots.
     // A front end layer can generate multiple snapshots if its mirrored.
     // Additionally, if the layer is not reachable, we may choose to destroy
@@ -35,7 +34,12 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
     // change. The consumer shouldn't tie any lifetimes to this unique id but
     // register a LayerLifecycleManager::ILifecycleListener or get a list of
     // destroyed layers from LayerLifecycleManager.
-    uniqueSequence = sUniqueSequenceId++;
+    if (path.isClone()) {
+        uniqueSequence =
+                LayerCreationArgs::getInternalLayerId(LayerCreationArgs::sInternalSequence++);
+    } else {
+        uniqueSequence = state.id;
+    }
     sequence = static_cast<int32_t>(state.id);
     name = state.name;
     textureName = state.textureName;

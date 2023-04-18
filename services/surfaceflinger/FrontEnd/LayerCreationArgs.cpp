@@ -23,6 +23,7 @@
 namespace android::surfaceflinger {
 
 std::atomic<uint32_t> LayerCreationArgs::sSequence{1};
+std::atomic<uint32_t> LayerCreationArgs::sInternalSequence{1};
 
 uint32_t LayerCreationArgs::getInternalLayerId(uint32_t id) {
     return id | INTERNAL_LAYER_PREFIX;
@@ -48,13 +49,11 @@ LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client,
                 metadata.getInt32(gui::METADATA_OWNER_UID, static_cast<int32_t>(ownerUid)));
     }
 
-    if (id) {
+    if (internalLayer) {
+        sequence = getInternalLayerId(sInternalSequence++);
+    } else if (id) {
         sequence = *id;
-        if (internalLayer) {
-            sequence = getInternalLayerId(*id);
-        } else {
-            sSequence = *id + 1;
-        }
+        sSequence = *id + 1;
     } else {
         sequence = sSequence++;
         if (sequence >= INTERNAL_LAYER_PREFIX) {
