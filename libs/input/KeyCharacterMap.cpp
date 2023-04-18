@@ -272,8 +272,8 @@ const std::string KeyCharacterMap::getLoadFileName() const {
 
 char16_t KeyCharacterMap::getDisplayLabel(int32_t keyCode) const {
     char16_t result = 0;
-    const Key* key;
-    if (getKey(keyCode, &key)) {
+    const Key* key = getKey(keyCode);
+    if (key != nullptr) {
         result = key->label;
     }
 #if DEBUG_MAPPING
@@ -284,8 +284,8 @@ char16_t KeyCharacterMap::getDisplayLabel(int32_t keyCode) const {
 
 char16_t KeyCharacterMap::getNumber(int32_t keyCode) const {
     char16_t result = 0;
-    const Key* key;
-    if (getKey(keyCode, &key)) {
+    const Key* key = getKey(keyCode);
+    if (key != nullptr) {
         result = key->number;
     }
 #if DEBUG_MAPPING
@@ -332,8 +332,8 @@ bool KeyCharacterMap::getFallbackAction(int32_t keyCode, int32_t metaState,
 char16_t KeyCharacterMap::getMatch(int32_t keyCode, const char16_t* chars, size_t numChars,
         int32_t metaState) const {
     char16_t result = 0;
-    const Key* key;
-    if (getKey(keyCode, &key)) {
+    const Key* key = getKey(keyCode);
+    if (key != nullptr) {
         // Try to find the most general behavior that maps to this character.
         // For example, the base key behavior will usually be last in the list.
         // However, if we find a perfect meta state match for one behavior then use that one.
@@ -493,19 +493,18 @@ std::pair<int32_t, int32_t> KeyCharacterMap::applyKeyBehavior(int32_t fromKeyCod
     return std::make_pair(toKeyCode, toMetaState);
 }
 
-bool KeyCharacterMap::getKey(int32_t keyCode, const Key** outKey) const {
+const KeyCharacterMap::Key* KeyCharacterMap::getKey(int32_t keyCode) const {
     ssize_t index = mKeys.indexOfKey(keyCode);
     if (index >= 0) {
-        *outKey = mKeys.valueAt(index);
-        return true;
+        return mKeys.valueAt(index);
     }
-    return false;
+    return nullptr;
 }
 
 const KeyCharacterMap::Behavior* KeyCharacterMap::getKeyBehavior(int32_t keyCode,
                                                                  int32_t metaState) const {
-    const Key* key;
-    if (getKey(keyCode, &key)) {
+    const Key* key = getKey(keyCode);
+    if (key != nullptr) {
         for (const Behavior& behavior : key->behaviors) {
             if (matchesMetaState(metaState, behavior.metaState)) {
                 return &behavior;
