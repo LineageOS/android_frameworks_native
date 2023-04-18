@@ -227,7 +227,7 @@ private:
         status_t parseMapKey();
         status_t parseKey();
         status_t parseKeyProperty();
-        status_t finishKey(Key* key);
+        status_t finishKey(Key& key);
         status_t parseModifier(const std::string& token, int32_t* outMetaState);
         status_t parseCharacterLiteral(char16_t* outCharacter);
     };
