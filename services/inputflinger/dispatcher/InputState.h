@@ -62,9 +62,9 @@ public:
     void mergePointerStateTo(InputState& other);
 
     // Gets the fallback key associated with a keycode.
-    // Returns -1 if none.
+    // Returns std::nullopt if none.
     // Returns AKEYCODE_UNKNOWN if we are only dispatching the unhandled key to the policy.
-    int32_t getFallbackKey(int32_t originalKeyCode);
+    std::optional<int32_t> getFallbackKey(int32_t originalKeyCode);
 
     // Sets the fallback key for a particular keycode.
     void setFallbackKey(int32_t originalKeyCode, int32_t fallbackKeyCode);
@@ -72,7 +72,7 @@ public:
     // Removes the fallback key for a particular keycode.
     void removeFallbackKey(int32_t originalKeyCode);
 
-    inline const KeyedVector<int32_t, int32_t>& getFallbackKeys() const { return mFallbackKeys; }
+    inline const std::map<int32_t, int32_t>& getFallbackKeys() const { return mFallbackKeys; }
 
 private:
     struct KeyMemento {
@@ -113,7 +113,7 @@ private:
 
     std::vector<KeyMemento> mKeyMementos;
     std::vector<MotionMemento> mMotionMementos;
-    KeyedVector<int32_t, int32_t> mFallbackKeys;
+    std::map</*originalKeyCode*/int32_t, /*fallbackKeyCode*/int32_t> mFallbackKeys;
 
     ssize_t findKeyMemento(const KeyEntry& entry) const;
     ssize_t findMotionMemento(const MotionEntry& entry, bool hovering) const;
