@@ -96,5 +96,23 @@ TEST_F(SetDisplayBrightnessTest, persistDisplayBrightnessWithCompositeShortCircu
     EXPECT_EQ(std::nullopt, displayDevice->getCompositionDisplay()->getState().displayBrightness);
 }
 
+TEST_F(SetDisplayBrightnessTest, firstDisplayBrightnessWithComposite) {
+    ftl::FakeGuard guard(kMainThreadContext);
+    sp<DisplayDevice> displayDevice = getDisplayDevice();
+
+    EXPECT_EQ(std::nullopt, displayDevice->getStagedBrightness());
+
+    constexpr float kDisplayBrightness = -1.0f;
+    displayDevice->stageBrightness(kDisplayBrightness);
+
+    EXPECT_EQ(-1.0f, displayDevice->getStagedBrightness());
+
+    displayDevice->persistBrightness(true);
+
+    EXPECT_EQ(std::nullopt, displayDevice->getStagedBrightness());
+    EXPECT_EQ(kDisplayBrightness,
+              displayDevice->getCompositionDisplay()->getState().displayBrightness);
+}
+
 } // namespace
 } // namespace android

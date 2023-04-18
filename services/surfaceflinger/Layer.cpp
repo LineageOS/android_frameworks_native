@@ -2398,16 +2398,7 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
         info.inputConfig |= WindowInfo::InputConfig::NOT_TOUCHABLE;
     }
 
-    // For compatibility reasons we let layers which can receive input
-    // receive input before they have actually submitted a buffer. Because
-    // of this we use canReceiveInput instead of isVisible to check the
-    // policy-visibility, ignoring the buffer state. However for layers with
-    // hasInputInfo()==false we can use the real visibility state.
-    // We are just using these layers for occlusion detection in
-    // InputDispatcher, and obviously if they aren't visible they can't occlude
-    // anything.
-    const bool visible = hasInputInfo() ? canReceiveInput() : isVisible();
-    info.setInputConfig(WindowInfo::InputConfig::NOT_VISIBLE, !visible);
+    info.setInputConfig(WindowInfo::InputConfig::NOT_VISIBLE, !isVisibleForInput());
 
     info.alpha = getAlpha();
     fillTouchOcclusionMode(info);
