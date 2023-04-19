@@ -232,7 +232,7 @@ private:
     nsecs_t mAppSwitchDueTime GUARDED_BY(mLock);
 
     bool isAppSwitchKeyEvent(const KeyEntry& keyEntry);
-    bool isAppSwitchPendingLocked() REQUIRES(mLock);
+    bool isAppSwitchPendingLocked() const REQUIRES(mLock);
     void resetPendingAppSwitchLocked(bool handled) REQUIRES(mLock);
 
     // Blocked event latency optimization.  Drops old events when the user intends
@@ -647,10 +647,10 @@ private:
     void resetAndDropEverythingLocked(const char* reason) REQUIRES(mLock);
 
     // Dump state.
-    void dumpDispatchStateLocked(std::string& dump) REQUIRES(mLock);
-    void dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors);
-    void logDispatchStateLocked() REQUIRES(mLock);
-    std::string dumpPointerCaptureStateLocked() REQUIRES(mLock);
+    void dumpDispatchStateLocked(std::string& dump) const REQUIRES(mLock);
+    void dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors) const;
+    void logDispatchStateLocked() const REQUIRES(mLock);
+    std::string dumpPointerCaptureStateLocked() const REQUIRES(mLock);
 
     // Registration.
     void removeMonitorChannelLocked(const sp<IBinder>& connectionToken) REQUIRES(mLock);
