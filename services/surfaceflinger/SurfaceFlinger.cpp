@@ -6924,7 +6924,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                         // Transaction tracing is always running but allow the user to temporarily
                         // increase the buffer when actively debugging.
                         mTransactionTracing->setBufferSize(
-                                TransactionTracing::ACTIVE_TRACING_BUFFER_SIZE);
+                                TransactionTracing::LEGACY_ACTIVE_TRACING_BUFFER_SIZE);
                     } else {
                         TransactionTraceWriter::getInstance().invoke("", /* overwrite= */ true);
                         mTransactionTracing->setBufferSize(
@@ -6934,7 +6934,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }
-            case 1042: { // Write layers trace or transaction trace to file
+            case 1042: { // Write transaction trace to file
                 if (mTransactionTracing) {
                     mTransactionTracing->writeToFile();
                 }

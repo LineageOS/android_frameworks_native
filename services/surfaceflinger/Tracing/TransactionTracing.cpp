@@ -25,6 +25,7 @@
 
 #include "Client.h"
 #include "FrontEnd/LayerCreationArgs.h"
+#include "TransactionDataSource.h"
 #include "TransactionTracing.h"
 
 namespace android {
@@ -34,15 +35,20 @@ TransactionTracing::TransactionTracing()
       : mProtoParser(std::make_unique<TransactionProtoParser::FlingerDataMapper>()) {
     std::scoped_lock lock(mTraceLock);
 
-    mBuffer.setSize(mBufferSizeInBytes);
+    mBuffer.setSize(CONTINUOUS_TRACING_BUFFER_SIZE);
+
     mStartingTimestamp = systemTime();
+
     {
         std::scoped_lock lock(mMainThreadLock);
         mThread = std::thread(&TransactionTracing::loop, this);
     }
+
+    TransactionDataSource::Initialize(*this);
 }
 
 TransactionTracing::~TransactionTracing() {
+    TransactionDataSource::UnregisterTransactionTracing();
     std::thread thread;
     {
         std::scoped_lock lock(mMainThreadLock);
@@ -53,21 +59,94 @@ TransactionTracing::~TransactionTracing() {
     if (thread.joinable()) {
         thread.join();
     }
+}
 
-    writeToFile();
+void TransactionTracing::onStart(TransactionTracing::Mode mode) {
+    // In "active" mode write the ring buffer (starting state + following sequence of transactions)
+    // to perfetto when tracing starts (only once).
+    if (mode != Mode::MODE_ACTIVE) {
+        return;
+    }
+
+    writeRingBufferToPerfetto(TransactionTracing::Mode::MODE_ACTIVE);
+
+    ALOGV("Started active mode tracing (wrote initial transactions ring buffer to perfetto)");
+}
+
+void TransactionTracing::onFlush(TransactionTracing::Mode mode) {
+    // In "continuous" mode write the ring buffer (starting state + following sequence of
+    // transactions) to perfetto when a "flush" event is received (bugreport is taken or tracing is
+    // stopped).
+    if (mode != Mode::MODE_CONTINUOUS) {
+        return;
+    }
+
+    writeRingBufferToPerfetto(TransactionTracing::Mode::MODE_CONTINUOUS);
+
+    ALOGV("Flushed continuous mode tracing (wrote transactions ring buffer to perfetto");
+}
+
+void TransactionTracing::writeRingBufferToPerfetto(TransactionTracing::Mode mode) {
+    // Write the ring buffer (starting state + following sequence of transactions) to perfetto
+    // tracing sessions with the specified mode.
+    const auto fileProto = writeToProto();
+
+    TransactionDataSource::Trace([&](TransactionDataSource::TraceContext context) {
+        // Write packets only to tracing sessions with specified mode
+        if (context.GetCustomTlsState()->mMode != mode) {
+            return;
+        }
+        for (const auto& entryProto : fileProto.entry()) {
+            const auto entryBytes = entryProto.SerializeAsString();
+
+            auto packet = context.NewTracePacket();
+            packet->set_timestamp(static_cast<uint64_t>(entryProto.elapsed_realtime_nanos()));
+            packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+
+            auto* transactionsProto = packet->set_surfaceflinger_transactions();
+            transactionsProto->AppendRawProtoBytes(entryBytes.data(), entryBytes.size());
+        }
+        {
+            // TODO (b/162206162): remove empty packet when perfetto bug is fixed.
+            //  It is currently needed in order not to lose the last trace entry.
+            context.NewTracePacket();
+        }
+    });
 }
 
 status_t TransactionTracing::writeToFile(const std::string& filename) {
-    std::scoped_lock lock(mTraceLock);
+    auto fileProto = writeToProto();
+
+    std::string output;
+    if (!fileProto.SerializeToString(&output)) {
+        ALOGE("Could not serialize proto.");
+        return UNKNOWN_ERROR;
+    }
+
+    // -rw-r--r--
+    const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    if (!android::base::WriteStringToFile(output, filename, mode, getuid(), getgid(), true)) {
+        ALOGE("Could not save the proto file %s", filename.c_str());
+        return PERMISSION_DENIED;
+    }
+
+    return NO_ERROR;
+}
+
+perfetto::protos::TransactionTraceFile TransactionTracing::writeToProto() {
+    std::scoped_lock<std::mutex> lock(mTraceLock);
     perfetto::protos::TransactionTraceFile fileProto = createTraceFileProto();
-    addStartingStateToProtoLocked(fileProto);
-    return mBuffer.writeToFile(fileProto, filename);
+    const auto startingStateProto = createStartingStateProtoLocked();
+    if (startingStateProto) {
+        *fileProto.add_entry() = std::move(*startingStateProto);
+    }
+    mBuffer.writeToProto(fileProto);
+    return fileProto;
 }
 
 void TransactionTracing::setBufferSize(size_t bufferSizeInBytes) {
     std::scoped_lock lock(mTraceLock);
-    mBufferSizeInBytes = bufferSizeInBytes;
-    mBuffer.setSize(mBufferSizeInBytes);
+    mBuffer.setSize(bufferSizeInBytes);
 }
 
 perfetto::protos::TransactionTraceFile TransactionTracing::createTraceFileProto() const {
@@ -75,8 +154,8 @@ perfetto::protos::TransactionTraceFile TransactionTracing::createTraceFileProto(
     proto.set_magic_number(
             uint64_t(perfetto::protos::TransactionTraceFile_MagicNumber_MAGIC_NUMBER_H) << 32 |
             perfetto::protos::TransactionTraceFile_MagicNumber_MAGIC_NUMBER_L);
-    auto timeOffsetNs = static_cast<std::uint64_t>(systemTime(SYSTEM_TIME_REALTIME) -
-                                                   systemTime(SYSTEM_TIME_MONOTONIC));
+    auto timeOffsetNs = static_cast<uint64_t>(systemTime(SYSTEM_TIME_REALTIME) -
+                                              systemTime(SYSTEM_TIME_MONOTONIC));
     proto.set_real_to_elapsed_time_offset_nanos(timeOffsetNs);
     proto.set_version(TRACING_VERSION);
     return proto;
@@ -206,11 +285,34 @@ void TransactionTracing::addEntry(const std::vector<CommittedUpdates>& committed
 
         std::string serializedProto;
         entryProto.SerializeToString(&serializedProto);
-        entryProto.Clear();
+
+        TransactionDataSource::Trace([&](TransactionDataSource::TraceContext context) {
+            // In "active" mode write each committed transaction to perfetto.
+            // Note: the starting state is written (once) when the perfetto "start" event is
+            // received.
+            if (context.GetCustomTlsState()->mMode != Mode::MODE_ACTIVE) {
+                return;
+            }
+            {
+                auto packet = context.NewTracePacket();
+                packet->set_timestamp(static_cast<uint64_t>(entryProto.elapsed_realtime_nanos()));
+                packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+                auto* transactions = packet->set_surfaceflinger_transactions();
+                transactions->AppendRawProtoBytes(serializedProto.data(), serializedProto.size());
+            }
+            {
+                // TODO (b/162206162): remove empty packet when perfetto bug is fixed.
+                //  It is currently needed in order not to lose the last trace entry.
+                context.NewTracePacket();
+            }
+        });
+
         std::vector<std::string> entries = mBuffer.emplace(std::move(serializedProto));
         removedEntries.reserve(removedEntries.size() + entries.size());
         removedEntries.insert(removedEntries.end(), std::make_move_iterator(entries.begin()),
                               std::make_move_iterator(entries.end()));
+
+        entryProto.Clear();
     }
 
     perfetto::protos::TransactionTraceEntry removedEntryProto;
@@ -309,44 +411,38 @@ void TransactionTracing::updateStartingStateLocked(
     }
 }
 
-void TransactionTracing::addStartingStateToProtoLocked(
-        perfetto::protos::TransactionTraceFile& proto) {
-    if (mStartingStates.size() == 0) {
-        return;
+std::optional<perfetto::protos::TransactionTraceEntry>
+TransactionTracing::createStartingStateProtoLocked() {
+    if (mStartingStates.empty()) {
+        return std::nullopt;
     }
 
-    perfetto::protos::TransactionTraceEntry* entryProto = proto.add_entry();
-    entryProto->set_elapsed_realtime_nanos(mStartingTimestamp);
-    entryProto->set_vsync_id(0);
+    perfetto::protos::TransactionTraceEntry entryProto;
+    entryProto.set_elapsed_realtime_nanos(mStartingTimestamp);
+    entryProto.set_vsync_id(0);
 
-    entryProto->mutable_added_layers()->Reserve(static_cast<int32_t>(mStartingStates.size()));
+    entryProto.mutable_added_layers()->Reserve(static_cast<int32_t>(mStartingStates.size()));
     for (auto& [layerId, state] : mStartingStates) {
-        entryProto->mutable_added_layers()->Add(mProtoParser.toProto(state.args));
+        entryProto.mutable_added_layers()->Add(mProtoParser.toProto(state.args));
     }
 
     perfetto::protos::TransactionState transactionProto = mProtoParser.toProto(mStartingStates);
     transactionProto.set_vsync_id(0);
     transactionProto.set_post_time(mStartingTimestamp);
-    entryProto->mutable_transactions()->Add(std::move(transactionProto));
+    entryProto.mutable_transactions()->Add(std::move(transactionProto));
 
-    entryProto->mutable_destroyed_layer_handles()->Reserve(
+    entryProto.mutable_destroyed_layer_handles()->Reserve(
             static_cast<int32_t>(mRemovedLayerHandlesAtStart.size()));
     for (const uint32_t destroyedLayerHandleId : mRemovedLayerHandlesAtStart) {
-        entryProto->mutable_destroyed_layer_handles()->Add(destroyedLayerHandleId);
+        entryProto.mutable_destroyed_layer_handles()->Add(destroyedLayerHandleId);
     }
 
-    entryProto->mutable_displays()->Reserve(static_cast<int32_t>(mStartingDisplayInfos.size()));
+    entryProto.mutable_displays()->Reserve(static_cast<int32_t>(mStartingDisplayInfos.size()));
     for (auto& [layerStack, displayInfo] : mStartingDisplayInfos) {
-        entryProto->mutable_displays()->Add(mProtoParser.toProto(displayInfo, layerStack.id));
+        entryProto.mutable_displays()->Add(mProtoParser.toProto(displayInfo, layerStack.id));
     }
-}
 
-perfetto::protos::TransactionTraceFile TransactionTracing::writeToProto() {
-    std::scoped_lock<std::mutex> lock(mTraceLock);
-    perfetto::protos::TransactionTraceFile proto = createTraceFileProto();
-    addStartingStateToProtoLocked(proto);
-    mBuffer.writeToProto(proto);
-    return proto;
+    return entryProto;
 }
 
 } // namespace android
