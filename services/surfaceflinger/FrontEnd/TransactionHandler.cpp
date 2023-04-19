@@ -21,6 +21,7 @@
 
 #include <cutils/trace.h>
 #include <utils/Log.h>
+#include <utils/Trace.h>
 
 #include "TransactionHandler.h"
 
@@ -73,12 +74,13 @@ std::vector<TransactionState> TransactionHandler::flushTransactions() {
 
 void TransactionHandler::applyUnsignaledBufferTransaction(
         std::vector<TransactionState>& transactions, TransactionFlushState& flushState) {
-    // only apply an unsignaled buffer transaction if it's the first one
-    if (!transactions.empty()) {
+    if (!flushState.queueWithUnsignaledBuffer) {
         return;
     }
 
-    if (!flushState.queueWithUnsignaledBuffer) {
+    // only apply an unsignaled buffer transaction if it's the first one
+    if (!transactions.empty()) {
+        ATRACE_NAME("fence unsignaled");
         return;
     }
 
