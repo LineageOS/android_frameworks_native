@@ -14,41 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_JPEGR_H
-#define ANDROID_JPEGRECOVERYMAP_JPEGR_H
+#ifndef ANDROID_ULTRAHDR_JPEGR_H
+#define ANDROID_ULTRAHDR_JPEGR_H
 
 #include "jpegrerrorcode.h"
+#include "ultrahdr.h"
 
 #ifndef FLT_MAX
 #define FLT_MAX 0x1.fffffep127f
 #endif
 
-namespace android::jpegrecoverymap {
-
-// Color gamuts for image data
-typedef enum {
-  JPEGR_COLORGAMUT_UNSPECIFIED,
-  JPEGR_COLORGAMUT_BT709,
-  JPEGR_COLORGAMUT_P3,
-  JPEGR_COLORGAMUT_BT2100,
-} jpegr_color_gamut;
-
-// Transfer functions for image data
-typedef enum {
-  JPEGR_TF_UNSPECIFIED = -1,
-  JPEGR_TF_LINEAR = 0,
-  JPEGR_TF_HLG = 1,
-  JPEGR_TF_PQ = 2,
-  JPEGR_TF_SRGB = 3,
-} jpegr_transfer_function;
-
-// Target output formats for decoder
-typedef enum {
-  JPEGR_OUTPUT_SDR,          // SDR in RGBA_8888 color format
-  JPEGR_OUTPUT_HDR_LINEAR,   // HDR in F16 color format (linear)
-  JPEGR_OUTPUT_HDR_PQ,       // HDR in RGBA_1010102 color format (PQ transfer function)
-  JPEGR_OUTPUT_HDR_HLG,      // HDR in RGBA_1010102 color format (HLG transfer function)
-} jpegr_output_format;
+namespace android::ultrahdr {
 
 struct jpegr_info_struct {
     size_t width;
@@ -68,7 +44,7 @@ struct jpegr_uncompressed_struct {
     // Height of the gain map or the luma plane of the image in pixels.
     int height;
     // Color gamut.
-    jpegr_color_gamut colorGamut;
+    ultrahdr_color_gamut colorGamut;
 
     // Values below are optional
     // Pointer to chroma data, if it's NULL, chroma plane is considered to be immediately
@@ -96,7 +72,7 @@ struct jpegr_compressed_struct {
     // Maximum available data length in bytes.
     int maxLength;
     // Color gamut.
-    jpegr_color_gamut colorGamut;
+    ultrahdr_color_gamut colorGamut;
 };
 
 /*
@@ -109,22 +85,9 @@ struct jpegr_exif_struct {
     int length;
 };
 
-/*
- * Holds information for gain map related metadata.
- */
-struct jpegr_metadata_struct {
-  // JPEG/R version
-  uint32_t version;
-  // Max Content Boost for the map
-  float maxContentBoost;
-  // Min Content Boost for the map
-  float minContentBoost;
-};
-
 typedef struct jpegr_uncompressed_struct* jr_uncompressed_ptr;
 typedef struct jpegr_compressed_struct* jr_compressed_ptr;
 typedef struct jpegr_exif_struct* jr_exif_ptr;
-typedef struct jpegr_metadata_struct* jr_metadata_ptr;
 typedef struct jpegr_info_struct* jr_info_ptr;
 
 class JpegR {
@@ -140,14 +103,17 @@ public:
      * JPEG.
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param hdr_tf transfer function of the HDR image
-     * @param dest destination of the compressed JPEGR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
      * @param quality target quality of the JPEG encoding, must be in range of 0-100 where 100 is
      *                the highest quality
      * @param exif pointer to the exif metadata.
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
-                         jpegr_transfer_function hdr_tf,
+                         ultrahdr_transfer_function hdr_tf,
                          jr_compressed_ptr dest,
                          int quality,
                          jr_exif_ptr exif);
@@ -162,7 +128,10 @@ public:
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param hdr_tf transfer function of the HDR image
-     * @param dest destination of the compressed JPEGR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
      * @param quality target quality of the JPEG encoding, must be in range of 0-100 where 100 is
      *                the highest quality
      * @param exif pointer to the exif metadata.
@@ -170,7 +139,7 @@ public:
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                          jr_uncompressed_ptr uncompressed_yuv_420_image,
-                         jpegr_transfer_function hdr_tf,
+                         ultrahdr_transfer_function hdr_tf,
                          jr_compressed_ptr dest,
                          int quality,
                          jr_exif_ptr exif);
@@ -189,13 +158,16 @@ public:
      *                                         input
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param hdr_tf transfer function of the HDR image
-     * @param dest destination of the compressed JPEGR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                          jr_uncompressed_ptr uncompressed_yuv_420_image,
                          jr_compressed_ptr compressed_jpeg_image,
-                         jpegr_transfer_function hdr_tf,
+                         ultrahdr_transfer_function hdr_tf,
                          jr_compressed_ptr dest);
 
     /*
@@ -210,12 +182,34 @@ public:
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param hdr_tf transfer function of the HDR image
-     * @param dest destination of the compressed JPEGR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                          jr_compressed_ptr compressed_jpeg_image,
-                         jpegr_transfer_function hdr_tf,
+                         ultrahdr_transfer_function hdr_tf,
+                         jr_compressed_ptr dest);
+
+    /*
+     * Encode API-4
+     * Assemble JPEGR image from SDR JPEG and gainmap JPEG.
+     *
+     * Assemble the primary JPEG image, the gain map and the metadata to JPEG/R format.
+     * @param compressed_jpeg_image compressed 8-bit JPEG image
+     * @param compressed_gainmap compressed 8-bit JPEG single channel image
+     * @param metadata metadata to be written in XMP of the primary jpeg
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
+     * @return NO_ERROR if encoding succeeds, error code if error occurs.
+     */
+    status_t encodeJPEGR(jr_compressed_ptr compressed_jpeg_image,
+                         jr_compressed_ptr compressed_gainmap,
+                         ultrahdr_metadata_ptr metadata,
                          jr_compressed_ptr dest);
 
     /*
@@ -249,16 +243,16 @@ public:
      * @param metadata destination of the decoded metadata. The default value is NULL where the
                        decoder will do nothing about it. If configured not NULL the decoder will
                        write metadata into this structure. the format of metadata is defined in
-                       {@code jpegr_metadata}.
+                       {@code ultrahdr_metadata_struct}.
      * @return NO_ERROR if decoding succeeds, error code if error occurs.
      */
     status_t decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                          jr_uncompressed_ptr dest,
                          float max_display_boost = FLT_MAX,
                          jr_exif_ptr exif = nullptr,
-                         jpegr_output_format output_format = JPEGR_OUTPUT_HDR_LINEAR,
+                         ultrahdr_output_format output_format = ULTRAHDR_OUTPUT_HDR_LINEAR,
                          jr_uncompressed_ptr gain_map = nullptr,
-                         jr_metadata_ptr metadata = nullptr);
+                         ultrahdr_metadata_ptr metadata = nullptr);
 
     /*
     * Gets Info from JPEGR file without decoding it.
@@ -286,8 +280,8 @@ protected:
      */
     status_t generateGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                              jr_uncompressed_ptr uncompressed_p010_image,
-                             jpegr_transfer_function hdr_tf,
-                             jr_metadata_ptr metadata,
+                             ultrahdr_transfer_function hdr_tf,
+                             ultrahdr_metadata_ptr metadata,
                              jr_uncompressed_ptr dest);
 
     /*
@@ -308,8 +302,8 @@ protected:
      */
     status_t applyGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                           jr_uncompressed_ptr uncompressed_gain_map,
-                          jr_metadata_ptr metadata,
-                          jpegr_output_format output_format,
+                          ultrahdr_metadata_ptr metadata,
+                          ultrahdr_output_format output_format,
                           float max_display_boost,
                           jr_uncompressed_ptr dest);
 
@@ -365,7 +359,7 @@ private:
     status_t appendGainMap(jr_compressed_ptr compressed_jpeg_image,
                            jr_compressed_ptr compressed_gain_map,
                            jr_exif_ptr exif,
-                           jr_metadata_ptr metadata,
+                           ultrahdr_metadata_ptr metadata,
                            jr_compressed_ptr dest);
 
     /*
@@ -389,6 +383,6 @@ private:
                                  jr_uncompressed_ptr uncompressed_yuv_420_image);
 };
 
-} // namespace android::jpegrecoverymap
+} // namespace android::ultrahdr
 
-#endif // ANDROID_JPEGRECOVERYMAP_JPEGR_H
+#endif // ANDROID_ULTRAHDR_JPEGR_H

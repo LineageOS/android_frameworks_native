@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_RECOVERYMAPMATH_H
-#define ANDROID_JPEGRECOVERYMAP_RECOVERYMAPMATH_H
+#ifndef ANDROID_ULTRAHDR_RECOVERYMAPMATH_H
+#define ANDROID_ULTRAHDR_RECOVERYMAPMATH_H
 
 #include <cmath>
 #include <stdint.h>
 
-#include <jpegrecoverymap/jpegr.h>
+#include <ultrahdr/jpegr.h>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 #define CLIP3(x, min, max) ((x) < (min)) ? (min) : ((x) > (max)) ? (max) : (x)
 
@@ -132,7 +132,7 @@ inline uint16_t floatToHalf(float f) {
 constexpr size_t kGainFactorPrecision = 10;
 constexpr size_t kGainFactorNumEntries = 1 << kGainFactorPrecision;
 struct GainLUT {
-  GainLUT(jr_metadata_ptr metadata) {
+  GainLUT(ultrahdr_metadata_ptr metadata) {
     for (int idx = 0; idx < kGainFactorNumEntries; idx++) {
       float value = static_cast<float>(idx) / static_cast<float>(kGainFactorNumEntries - 1);
       float logBoost = log2(metadata->minContentBoost) * (1.0f - value)
@@ -141,7 +141,7 @@ struct GainLUT {
     }
   }
 
-  GainLUT(jr_metadata_ptr metadata, float displayBoost) {
+  GainLUT(ultrahdr_metadata_ptr metadata, float displayBoost) {
     float boostFactor = displayBoost > 0 ? displayBoost / metadata->maxContentBoost : 1.0f;
     for (int idx = 0; idx < kGainFactorNumEntries; idx++) {
       float value = static_cast<float>(idx) / static_cast<float>(kGainFactorNumEntries - 1);
@@ -356,7 +356,7 @@ inline Color identityConversion(Color e) { return e; }
 /*
  * Get the conversion to apply to the HDR image for gain map generation
  */
-ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gamut hdr_gamut);
+ColorTransformFn getHdrConversionFn(ultrahdr_color_gamut sdr_gamut, ultrahdr_color_gamut hdr_gamut);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,16 +366,16 @@ ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gam
  * Calculate the 8-bit unsigned integer gain value for the given SDR and HDR
  * luminances in linear space, and the hdr ratio to encode against.
  */
-uint8_t encodeGain(float y_sdr, float y_hdr, jr_metadata_ptr metadata);
-uint8_t encodeGain(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
+uint8_t encodeGain(float y_sdr, float y_hdr, ultrahdr_metadata_ptr metadata);
+uint8_t encodeGain(float y_sdr, float y_hdr, ultrahdr_metadata_ptr metadata,
                    float log2MinContentBoost, float log2MaxContentBoost);
 
 /*
  * Calculates the linear luminance in nits after applying the given gain
  * value, with the given hdr ratio, to the given sdr input in the range [0, 1].
  */
-Color applyGain(Color e, float gain, jr_metadata_ptr metadata);
-Color applyGain(Color e, float gain, jr_metadata_ptr metadata, float displayBoost);
+Color applyGain(Color e, float gain, ultrahdr_metadata_ptr metadata);
+Color applyGain(Color e, float gain, ultrahdr_metadata_ptr metadata, float displayBoost);
 Color applyGainLUT(Color e, float gain, GainLUT& gainLUT);
 
 /*
@@ -426,6 +426,6 @@ uint32_t colorToRgba1010102(Color e_gamma);
  */
 uint64_t colorToRgbaF16(Color e_gamma);
 
-} // namespace android::jpegrecoverymap
+} // namespace android::ultrahdr
 
-#endif // ANDROID_JPEGRECOVERYMAP_RECOVERYMAPMATH_H
+#endif // ANDROID_ULTRAHDR_RECOVERYMAPMATH_H

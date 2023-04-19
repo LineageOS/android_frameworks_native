@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/icc.h>
-#include <jpegrecoverymap/gainmapmath.h>
+#include <ultrahdr/icc.h>
+#include <ultrahdr/gainmapmath.h>
 #include <vector>
 #include <utils/Log.h>
 
@@ -23,7 +23,7 @@
 #define FLT_MAX 0x1.fffffep127f
 #endif
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 static void Matrix3x3_apply(const Matrix3x3* m, float* x) {
     float y0 = x[0] * m->vals[0][0] + x[1] * m->vals[0][1] + x[2] * m->vals[0][2];
     float y1 = x[0] * m->vals[1][0] + x[1] * m->vals[1][1] + x[2] * m->vals[1][2];
@@ -127,17 +127,17 @@ static void float_XYZD50_to_grid16_lab(const float* xyz_float, uint8_t* grid16_l
     }
 }
 
-std::string IccHelper::get_desc_string(const jpegr_transfer_function tf,
-                                       const jpegr_color_gamut gamut) {
+std::string IccHelper::get_desc_string(const ultrahdr_transfer_function tf,
+                                       const ultrahdr_color_gamut gamut) {
     std::string result;
     switch (gamut) {
-        case JPEGR_COLORGAMUT_BT709:
+        case ULTRAHDR_COLORGAMUT_BT709:
             result += "sRGB";
             break;
-        case JPEGR_COLORGAMUT_P3:
+        case ULTRAHDR_COLORGAMUT_P3:
             result += "Display P3";
             break;
-        case JPEGR_COLORGAMUT_BT2100:
+        case ULTRAHDR_COLORGAMUT_BT2100:
             result += "Rec2020";
             break;
         default:
@@ -146,16 +146,16 @@ std::string IccHelper::get_desc_string(const jpegr_transfer_function tf,
     }
     result += " Gamut with ";
     switch (tf) {
-        case JPEGR_TF_SRGB:
+        case ULTRAHDR_TF_SRGB:
             result += "sRGB";
             break;
-        case JPEGR_TF_LINEAR:
+        case ULTRAHDR_TF_LINEAR:
             result += "Linear";
             break;
-        case JPEGR_TF_PQ:
+        case ULTRAHDR_TF_PQ:
             result += "PQ";
             break;
-        case JPEGR_TF_HLG:
+        case ULTRAHDR_TF_HLG:
             result += "HLG";
             break;
         default:
@@ -234,11 +234,11 @@ sp<DataStruct> IccHelper::write_trc_tag_for_linear() {
     return dataStruct;
 }
 
-float IccHelper::compute_tone_map_gain(const jpegr_transfer_function tf, float L) {
+float IccHelper::compute_tone_map_gain(const ultrahdr_transfer_function tf, float L) {
     if (L <= 0.f) {
         return 1.f;
     }
-    if (tf == JPEGR_TF_PQ) {
+    if (tf == ULTRAHDR_TF_PQ) {
         // The PQ transfer function will map to the range [0, 1]. Linearly scale
         // it up to the range [0, 10,000/203]. We will then tone map that back
         // down to [0, 1].
@@ -251,7 +251,7 @@ float IccHelper::compute_tone_map_gain(const jpegr_transfer_function tf, float L
         constexpr float kToneMapB = 1.f / kOutputMaxLuminance;
         return kInputMaxLuminance * (1.f + kToneMapA * L) / (1.f + kToneMapB * L);
     }
-    if (tf == JPEGR_TF_HLG) {
+    if (tf == ULTRAHDR_TF_HLG) {
         // Let Lw be the brightness of the display in nits.
         constexpr float Lw = 203.f;
         const float gamma = 1.2f + 0.42f * std::log(Lw / 1000.f) / std::log(10.f);
@@ -295,7 +295,7 @@ void IccHelper::compute_lut_entry(const Matrix3x3& src_to_XYZD50, float rgb[3]) 
     float L = bt2100Luminance({{{rgb[0], rgb[1], rgb[2]}}});
 
     // Compute the tone map gain based on the luminance.
-    float tone_map_gain = compute_tone_map_gain(JPEGR_TF_PQ, L);
+    float tone_map_gain = compute_tone_map_gain(ULTRAHDR_TF_PQ, L);
 
     // Apply the tone map gain.
     for (size_t i = 0; i < kNumChannels; ++i) {
@@ -397,7 +397,8 @@ sp<DataStruct> IccHelper::write_mAB_or_mBA_tag(uint32_t type,
     return dataStruct;
 }
 
-sp<DataStruct> IccHelper::writeIccProfile(jpegr_transfer_function tf, jpegr_color_gamut gamut) {
+sp<DataStruct> IccHelper::writeIccProfile(ultrahdr_transfer_function tf,
+                                          ultrahdr_color_gamut gamut) {
     ICCHeader header;
 
     std::vector<std::pair<uint32_t, sp<DataStruct>>> tags;
@@ -409,13 +410,13 @@ sp<DataStruct> IccHelper::writeIccProfile(jpegr_transfer_function tf, jpegr_colo
 
     Matrix3x3 toXYZD50;
     switch (gamut) {
-        case JPEGR_COLORGAMUT_BT709:
+        case ULTRAHDR_COLORGAMUT_BT709:
             toXYZD50 = kSRGB;
             break;
-        case JPEGR_COLORGAMUT_P3:
+        case ULTRAHDR_COLORGAMUT_P3:
             toXYZD50 = kDisplayP3;
             break;
-        case JPEGR_COLORGAMUT_BT2100:
+        case ULTRAHDR_COLORGAMUT_BT2100:
             toXYZD50 = kRec2020;
             break;
         default:
@@ -437,8 +438,8 @@ sp<DataStruct> IccHelper::writeIccProfile(jpegr_transfer_function tf, jpegr_colo
     tags.emplace_back(kTAG_wtpt, write_xyz_tag(kD50_x, kD50_y, kD50_z));
 
     // Compute transfer curves.
-    if (tf != JPEGR_TF_PQ) {
-        if (tf == JPEGR_TF_HLG) {
+    if (tf != ULTRAHDR_TF_PQ) {
+        if (tf == ULTRAHDR_TF_HLG) {
             std::vector<uint8_t> trc_table;
             trc_table.resize(kTrcTableSize * 2);
             for (uint32_t i = 0; i < kTrcTableSize; ++i) {
@@ -462,32 +463,32 @@ sp<DataStruct> IccHelper::writeIccProfile(jpegr_transfer_function tf, jpegr_colo
     }
 
     // Compute CICP.
-    if (tf == JPEGR_TF_HLG || tf == JPEGR_TF_PQ) {
+    if (tf == ULTRAHDR_TF_HLG || tf == ULTRAHDR_TF_PQ) {
         // The CICP tag is present in ICC 4.4, so update the header's version.
         header.version = Endian_SwapBE32(0x04400000);
 
         uint32_t color_primaries = 0;
-        if (gamut == JPEGR_COLORGAMUT_BT709) {
+        if (gamut == ULTRAHDR_COLORGAMUT_BT709) {
             color_primaries = kCICPPrimariesSRGB;
-        } else if (gamut == JPEGR_COLORGAMUT_P3) {
+        } else if (gamut == ULTRAHDR_COLORGAMUT_P3) {
             color_primaries = kCICPPrimariesP3;
         }
 
         uint32_t transfer_characteristics = 0;
-        if (tf == JPEGR_TF_SRGB) {
+        if (tf == ULTRAHDR_TF_SRGB) {
             transfer_characteristics = kCICPTrfnSRGB;
-        } else if (tf == JPEGR_TF_LINEAR) {
+        } else if (tf == ULTRAHDR_TF_LINEAR) {
             transfer_characteristics = kCICPTrfnLinear;
-        } else if (tf == JPEGR_TF_PQ) {
+        } else if (tf == ULTRAHDR_TF_PQ) {
             transfer_characteristics = kCICPTrfnPQ;
-        } else if (tf == JPEGR_TF_HLG) {
+        } else if (tf == ULTRAHDR_TF_HLG) {
             transfer_characteristics = kCICPTrfnHLG;
         }
         tags.emplace_back(kTAG_cicp, write_cicp_tag(color_primaries, transfer_characteristics));
     }
 
     // Compute A2B0.
-    if (tf == JPEGR_TF_PQ) {
+    if (tf == ULTRAHDR_TF_PQ) {
         std::vector<uint8_t> a2b_grid;
         a2b_grid.resize(kGridSize * kGridSize * kGridSize * kNumChannels * 2);
         size_t a2b_grid_index = 0;
@@ -520,7 +521,7 @@ sp<DataStruct> IccHelper::writeIccProfile(jpegr_transfer_function tf, jpegr_colo
     }
 
     // Compute B2A0.
-    if (tf == JPEGR_TF_PQ) {
+    if (tf == ULTRAHDR_TF_PQ) {
         auto b2a_data = write_mAB_or_mBA_tag(kTAG_mBAType,
                                              /* has_a_curves */ false,
                                              /* grid_points */ nullptr,
@@ -541,7 +542,7 @@ sp<DataStruct> IccHelper::writeIccProfile(jpegr_transfer_function tf, jpegr_colo
 
     // Write the header.
     header.data_color_space = Endian_SwapBE32(Signature_RGB);
-    header.pcs = Endian_SwapBE32(tf == JPEGR_TF_PQ ? Signature_Lab : Signature_XYZ);
+    header.pcs = Endian_SwapBE32(tf == ULTRAHDR_TF_PQ ? Signature_Lab : Signature_XYZ);
     header.size = Endian_SwapBE32(profile_size);
     header.tag_count = Endian_SwapBE32(tags.size());
 
@@ -581,4 +582,4 @@ sp<DataStruct> IccHelper::writeIccProfile(jpegr_transfer_function tf, jpegr_colo
     return dataStruct;
 }
 
-} // namespace android::jpegrecoverymap
+} // namespace android::ultrahdr

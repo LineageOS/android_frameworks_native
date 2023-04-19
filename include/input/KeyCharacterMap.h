@@ -227,7 +227,7 @@ private:
         status_t parseMapKey();
         status_t parseKey();
         status_t parseKeyProperty();
-        status_t finishKey(Key* key);
+        status_t finishKey(Key& key);
         status_t parseModifier(const std::string& token, int32_t* outMetaState);
         status_t parseCharacterLiteral(char16_t* outCharacter);
     };
@@ -243,7 +243,7 @@ private:
 
     KeyCharacterMap(const std::string& filename);
 
-    bool getKey(int32_t keyCode, const Key** outKey) const;
+    const Key* getKey(int32_t keyCode) const;
     const Behavior* getKeyBehavior(int32_t keyCode, int32_t metaState) const;
     static bool matchesMetaState(int32_t eventMetaState, int32_t behaviorMetaState);
 

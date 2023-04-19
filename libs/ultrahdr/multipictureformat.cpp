@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <jpegrecoverymap/multipictureformat.h>
-#include <jpegrecoverymap/jpegrutils.h>
+#include <ultrahdr/multipictureformat.h>
+#include <ultrahdr/jpegrutils.h>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 size_t calculateMpfSize() {
     return sizeof(kMpfSig) +                 // Signature
             kMpEndianSize +                   // Endianness
@@ -91,4 +91,4 @@ sp<DataStruct> generateMpf(int primary_image_size, int primary_image_offset,
     return dataStruct;
 }
 
-} // namespace android::jpegrecoverymap
+} // namespace android::ultrahdr

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H
-#define ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H
+#ifndef ANDROID_ULTRAHDR_JPEGENCODERHELPER_H
+#define ANDROID_ULTRAHDR_JPEGENCODERHELPER_H
 
 // We must include cstdio before jpeglib.h. It is a requirement of libjpeg.
 #include <cstdio>
@@ -28,7 +28,7 @@ extern "C" {
 #include <utils/Errors.h>
 #include <vector>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 /*
  * Encapsulates a converter from raw image (YUV420planer or grey-scale) to JPEG format.
@@ -61,6 +61,11 @@ public:
      */
     size_t getCompressedImageSize();
 
+    /*
+     * Process 16 lines of Y and 16 lines of U/V each time.
+     * We must pass at least 16 scanlines according to libjpeg documentation.
+     */
+    static const int kCompressBatchSize = 16;
 private:
     // initDestination(), emptyOutputBuffer() and emptyOutputBuffer() are callback functions to be
     // passed into jpeg library.
@@ -82,14 +87,11 @@ private:
 
     // The block size for encoded jpeg image buffer.
     static const int kBlockSize = 16384;
-    // Process 16 lines of Y and 16 lines of U/V each time.
-    // We must pass at least 16 scanlines according to libjpeg documentation.
-    static const int kCompressBatchSize = 16;
 
     // The buffer that holds the compressed result.
     std::vector<JOCTET> mResultBuffer;
 };
 
-} /* namespace android::jpegrecoverymap  */
+} /* namespace android::ultrahdr  */
 
-#endif // ANDROID_JPEGRECOVERYMAP_JPEGENCODERHELPER_H
+#endif // ANDROID_ULTRAHDR_JPEGENCODERHELPER_H

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H
-#define ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H
+#ifndef ANDROID_ULTRAHDR_JPEGRUTILS_H
+#define ANDROID_ULTRAHDR_JPEGRUTILS_H
 
-#include <jpegrecoverymap/jpegr.h>
+#include <ultrahdr/jpegr.h>
 #include <utils/RefBase.h>
 
 #include <sstream>
@@ -25,7 +25,7 @@
 #include <string>
 #include <cstdio>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 static constexpr uint32_t EndianSwap32(uint32_t value) {
     return ((value & 0xFF) << 24) |
@@ -45,7 +45,7 @@ static inline uint16_t EndianSwap16(uint16_t value) {
     #define Endian_SwapBE16(n) (n)
 #endif
 
-struct jpegr_metadata_struct;
+struct ultrahdr_metadata_struct;
 /*
  * Mutable data structure. Holds information for metadata.
  */
@@ -87,7 +87,7 @@ status_t Write(jr_compressed_ptr destination, const void* source, size_t length,
  * @param metadata place to store HDR metadata values
  * @return true if metadata is successfully retrieved, false otherwise
 */
-bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, jpegr_metadata_struct* metadata);
+bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, ultrahdr_metadata_struct* metadata);
 
 /*
  * This method generates XMP metadata for the primary image.
@@ -158,7 +158,7 @@ std::string generateXmpForPrimaryImage(int secondary_image_length);
  * @param metadata JPEG/R metadata to encode as XMP
  * @return XMP metadata in type of string
  */
- std::string generateXmpForSecondaryImage(jpegr_metadata_struct& metadata);
-}  // namespace android::jpegrecoverymap
+ std::string generateXmpForSecondaryImage(ultrahdr_metadata_struct& metadata);
+}  // namespace android::ultrahdr
 
-#endif //ANDROID_JPEGRECOVERYMAP_JPEGRUTILS_H
+#endif //ANDROID_ULTRAHDR_JPEGRUTILS_H

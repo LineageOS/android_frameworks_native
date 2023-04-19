@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegr.h>
-#include <jpegrecoverymap/jpegrutils.h>
-#include <jpegrecoverymap/gainmapmath.h>
+#include <ultrahdr/jpegr.h>
+#include <ultrahdr/jpegrutils.h>
+#include <ultrahdr/gainmapmath.h>
 #include <fcntl.h>
 #include <fstream>
 #include <gtest/gtest.h>
@@ -36,7 +36,7 @@
 #define SAVE_DECODING_RESULT true
 #define SAVE_INPUT_RGBA true
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 struct Timer {
   struct timeval StartingTime;
@@ -118,16 +118,16 @@ void JpegRTest::TearDown() {
 class JpegRBenchmark : public JpegR {
 public:
  void BenchmarkGenerateGainMap(jr_uncompressed_ptr yuv420Image, jr_uncompressed_ptr p010Image,
-                               jr_metadata_ptr metadata, jr_uncompressed_ptr map);
+                               ultrahdr_metadata_ptr metadata, jr_uncompressed_ptr map);
  void BenchmarkApplyGainMap(jr_uncompressed_ptr yuv420Image, jr_uncompressed_ptr map,
-                            jr_metadata_ptr metadata, jr_uncompressed_ptr dest);
+                            ultrahdr_metadata_ptr metadata, jr_uncompressed_ptr dest);
 private:
  const int kProfileCount = 10;
 };
 
 void JpegRBenchmark::BenchmarkGenerateGainMap(jr_uncompressed_ptr yuv420Image,
                                               jr_uncompressed_ptr p010Image,
-                                              jr_metadata_ptr metadata,
+                                              ultrahdr_metadata_ptr metadata,
                                               jr_uncompressed_ptr map) {
   ASSERT_EQ(yuv420Image->width, p010Image->width);
   ASSERT_EQ(yuv420Image->height, p010Image->height);
@@ -137,7 +137,7 @@ void JpegRBenchmark::BenchmarkGenerateGainMap(jr_uncompressed_ptr yuv420Image,
   timerStart(&genRecMapTime);
   for (auto i = 0; i < kProfileCount; i++) {
       ASSERT_EQ(OK, generateGainMap(
-          yuv420Image, p010Image, jpegr_transfer_function::JPEGR_TF_HLG, metadata, map));
+          yuv420Image, p010Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, metadata, map));
       if (i != kProfileCount - 1) delete[] static_cast<uint8_t *>(map->data);
   }
   timerStop(&genRecMapTime);
@@ -150,13 +150,13 @@ void JpegRBenchmark::BenchmarkGenerateGainMap(jr_uncompressed_ptr yuv420Image,
 
 void JpegRBenchmark::BenchmarkApplyGainMap(jr_uncompressed_ptr yuv420Image,
                                            jr_uncompressed_ptr map,
-                                           jr_metadata_ptr metadata,
+                                           ultrahdr_metadata_ptr metadata,
                                            jr_uncompressed_ptr dest) {
   Timer applyRecMapTime;
 
   timerStart(&applyRecMapTime);
   for (auto i = 0; i < kProfileCount; i++) {
-      ASSERT_EQ(OK, applyGainMap(yuv420Image, map, metadata, JPEGR_OUTPUT_HDR_HLG,
+      ASSERT_EQ(OK, applyGainMap(yuv420Image, map, metadata, ULTRAHDR_OUTPUT_HDR_HLG,
                                  metadata->maxContentBoost /* displayBoost */, dest));
   }
   timerStop(&applyRecMapTime);
@@ -169,17 +169,17 @@ void JpegRBenchmark::BenchmarkApplyGainMap(jr_uncompressed_ptr yuv420Image,
 TEST_F(JpegRTest, build) {
   // Force all of the gain map lib to be linked by calling all public functions.
   JpegR jpegRCodec;
-  jpegRCodec.encodeJPEGR(nullptr, static_cast<jpegr_transfer_function>(0), nullptr, 0, nullptr);
-  jpegRCodec.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
+  jpegRCodec.encodeJPEGR(nullptr, static_cast<ultrahdr_transfer_function>(0), nullptr, 0, nullptr);
+  jpegRCodec.encodeJPEGR(nullptr, nullptr, static_cast<ultrahdr_transfer_function>(0),
                          nullptr, 0, nullptr);
-  jpegRCodec.encodeJPEGR(nullptr, nullptr, nullptr, static_cast<jpegr_transfer_function>(0),
+  jpegRCodec.encodeJPEGR(nullptr, nullptr, nullptr, static_cast<ultrahdr_transfer_function>(0),
                          nullptr);
-  jpegRCodec.encodeJPEGR(nullptr, nullptr, static_cast<jpegr_transfer_function>(0), nullptr);
+  jpegRCodec.encodeJPEGR(nullptr, nullptr, static_cast<ultrahdr_transfer_function>(0), nullptr);
   jpegRCodec.decodeJPEGR(nullptr, nullptr);
 }
 
 TEST_F(JpegRTest, writeXmpThenRead) {
-  jpegr_metadata_struct metadata_expected;
+  ultrahdr_metadata_struct metadata_expected;
   metadata_expected.maxContentBoost = 1.25;
   metadata_expected.minContentBoost = 0.75;
   const std::string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
@@ -194,7 +194,7 @@ TEST_F(JpegRTest, writeXmpThenRead) {
   xmpData.insert(xmpData.end(), reinterpret_cast<const uint8_t*>(xmp.c_str()),
                   reinterpret_cast<const uint8_t*>(xmp.c_str()) + xmp.size());
 
-  jpegr_metadata_struct metadata_read;
+  ultrahdr_metadata_struct metadata_read;
   EXPECT_TRUE(getMetadataFromXMP(xmpData.data(), xmpData.size(), &metadata_read));
   EXPECT_FLOAT_EQ(metadata_expected.maxContentBoost, metadata_read.maxContentBoost);
   EXPECT_FLOAT_EQ(metadata_expected.minContentBoost, metadata_read.minContentBoost);
@@ -210,7 +210,7 @@ TEST_F(JpegRTest, encodeFromP010ThenDecode) {
   }
   mRawP010Image.width = TEST_IMAGE_WIDTH;
   mRawP010Image.height = TEST_IMAGE_HEIGHT;
-  mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+  mRawP010Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
 
   JpegR jpegRCodec;
 
@@ -218,7 +218,8 @@ TEST_F(JpegRTest, encodeFromP010ThenDecode) {
   jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
   ret = jpegRCodec.encodeJPEGR(
-      &mRawP010Image, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR, DEFAULT_JPEG_QUALITY, nullptr);
+      &mRawP010Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR, DEFAULT_JPEG_QUALITY,
+      nullptr);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
   }
@@ -264,7 +265,7 @@ TEST_F(JpegRTest, encodeFromP010WithStrideThenDecode) {
   mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
   mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
   mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
-  mRawP010ImageWithStride.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
 
   JpegR jpegRCodec;
 
@@ -272,7 +273,7 @@ TEST_F(JpegRTest, encodeFromP010WithStrideThenDecode) {
   jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
   ret = jpegRCodec.encodeJPEGR(
-      &mRawP010ImageWithStride, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR,
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
       DEFAULT_JPEG_QUALITY, nullptr);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
@@ -318,14 +319,14 @@ TEST_F(JpegRTest, encodeFromRawHdrAndSdrThenDecode) {
   }
   mRawP010Image.width = TEST_IMAGE_WIDTH;
   mRawP010Image.height = TEST_IMAGE_HEIGHT;
-  mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+  mRawP010Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
 
   if (!loadFile(RAW_YUV420_IMAGE, mRawYuv420Image.data, nullptr)) {
     FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
   }
   mRawYuv420Image.width = TEST_IMAGE_WIDTH;
   mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
-  mRawYuv420Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
+  mRawYuv420Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709;
 
   JpegR jpegRCodec;
 
@@ -333,7 +334,7 @@ TEST_F(JpegRTest, encodeFromRawHdrAndSdrThenDecode) {
   jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
   ret = jpegRCodec.encodeJPEGR(
-      &mRawP010Image, &mRawYuv420Image, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR,
+      &mRawP010Image, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
       DEFAULT_JPEG_QUALITY, nullptr);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
@@ -379,19 +380,19 @@ TEST_F(JpegRTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
   }
   mRawP010Image.width = TEST_IMAGE_WIDTH;
   mRawP010Image.height = TEST_IMAGE_HEIGHT;
-  mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+  mRawP010Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
 
   if (!loadFile(RAW_YUV420_IMAGE, mRawYuv420Image.data, nullptr)) {
     FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
   }
   mRawYuv420Image.width = TEST_IMAGE_WIDTH;
   mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
-  mRawYuv420Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
+  mRawYuv420Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709;
 
   if (!loadFile(JPEG_IMAGE, mJpegImage.data, &mJpegImage.length)) {
     FAIL() << "Load file " << JPEG_IMAGE << " failed";
   }
-  mJpegImage.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
+  mJpegImage.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709;
 
   JpegR jpegRCodec;
 
@@ -399,7 +400,8 @@ TEST_F(JpegRTest, encodeFromRawHdrAndSdrAndJpegThenDecode) {
   jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
   ret = jpegRCodec.encodeJPEGR(
-      &mRawP010Image, &mRawYuv420Image, &mJpegImage, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR);
+      &mRawP010Image, &mRawYuv420Image, &mJpegImage, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
   }
@@ -444,7 +446,7 @@ TEST_F(JpegRTest, encodeFromJpegThenDecode) {
   }
   mRawP010Image.width = TEST_IMAGE_WIDTH;
   mRawP010Image.height = TEST_IMAGE_HEIGHT;
-  mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+  mRawP010Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
 
   if (SAVE_INPUT_RGBA) {
     size_t rgbaSize = mRawP010Image.width * mRawP010Image.height * sizeof(uint32_t);
@@ -472,7 +474,7 @@ TEST_F(JpegRTest, encodeFromJpegThenDecode) {
   if (!loadFile(JPEG_IMAGE, mJpegImage.data, &mJpegImage.length)) {
     FAIL() << "Load file " << JPEG_IMAGE << " failed";
   }
-  mJpegImage.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
+  mJpegImage.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709;
 
   JpegR jpegRCodec;
 
@@ -480,7 +482,7 @@ TEST_F(JpegRTest, encodeFromJpegThenDecode) {
   jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
   jpegR.data = malloc(jpegR.maxLength);
   ret = jpegRCodec.encodeJPEGR(
-      &mRawP010Image, &mJpegImage, jpegr_transfer_function::JPEGR_TF_HLG, &jpegR);
+      &mRawP010Image, &mJpegImage, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR);
   if (ret != OK) {
     FAIL() << "Error code is " << ret;
   }
@@ -525,25 +527,25 @@ TEST_F(JpegRTest, ProfileGainMapFuncs) {
   }
   mRawP010Image.width = kWidth;
   mRawP010Image.height = kHeight;
-  mRawP010Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT2100;
+  mRawP010Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
 
   if (!loadFile(RAW_YUV420_IMAGE, mRawYuv420Image.data, nullptr)) {
     FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
   }
   mRawYuv420Image.width = kWidth;
   mRawYuv420Image.height = kHeight;
-  mRawYuv420Image.colorGamut = jpegr_color_gamut::JPEGR_COLORGAMUT_BT709;
+  mRawYuv420Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709;
 
   JpegRBenchmark benchmark;
 
-  jpegr_metadata_struct metadata = { .version = 1,
+  ultrahdr_metadata_struct metadata = { .version = 1,
                               .maxContentBoost = 8.0f,
                               .minContentBoost = 1.0f / 8.0f };
 
   jpegr_uncompressed_struct map = { .data = NULL,
                                     .width = 0,
                                     .height = 0,
-                                    .colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED };
+                                    .colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED };
 
   benchmark.BenchmarkGenerateGainMap(&mRawYuv420Image, &mRawP010Image, &metadata, &map);
 
@@ -552,9 +554,9 @@ TEST_F(JpegRTest, ProfileGainMapFuncs) {
   jpegr_uncompressed_struct dest = { .data = bufferDst.get(),
                                      .width = 0,
                                      .height = 0,
-                                     .colorGamut = JPEGR_COLORGAMUT_UNSPECIFIED };
+                                     .colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED };
 
   benchmark.BenchmarkApplyGainMap(&mRawYuv420Image, &map, &metadata, &dest);
 }
 
-} // namespace android::recoverymap
+} // namespace android::ultrahdr

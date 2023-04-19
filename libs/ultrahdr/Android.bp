@@ -22,7 +22,7 @@ package {
 }
 
 cc_library {
-    name: "libjpegrecoverymap",
+    name: "libultrahdr",
     host_supported: true,
     vendor_available: true,
     export_include_dirs: ["include"],

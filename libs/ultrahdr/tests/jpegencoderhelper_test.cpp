@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-#include <jpegrecoverymap/jpegencoderhelper.h>
+#include <ultrahdr/jpegencoderhelper.h>
 #include <gtest/gtest.h>
 #include <utils/Log.h>
 
 #include <fcntl.h>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
-#define VALID_IMAGE "/sdcard/Documents/minnie-320x240.yu12"
-#define VALID_IMAGE_WIDTH 320
-#define VALID_IMAGE_HEIGHT 240
+#define ALIGNED_IMAGE "/sdcard/Documents/minnie-320x240.yu12"
+#define ALIGNED_IMAGE_WIDTH 320
+#define ALIGNED_IMAGE_HEIGHT 240
 #define SINGLE_CHANNEL_IMAGE "/sdcard/Documents/minnie-320x240.y"
-#define SINGLE_CHANNEL_IMAGE_WIDTH VALID_IMAGE_WIDTH
-#define SINGLE_CHANNEL_IMAGE_HEIGHT VALID_IMAGE_HEIGHT
-#define INVALID_SIZE_IMAGE "/sdcard/Documents/minnie-318x240.yu12"
-#define INVALID_SIZE_IMAGE_WIDTH 318
-#define INVALID_SIZE_IMAGE_HEIGHT 240
+#define SINGLE_CHANNEL_IMAGE_WIDTH ALIGNED_IMAGE_WIDTH
+#define SINGLE_CHANNEL_IMAGE_HEIGHT ALIGNED_IMAGE_HEIGHT
+#define UNALIGNED_IMAGE "/sdcard/Documents/minnie-318x240.yu12"
+#define UNALIGNED_IMAGE_WIDTH 318
+#define UNALIGNED_IMAGE_HEIGHT 240
 #define JPEG_QUALITY 90
 
 class JpegEncoderHelperTest : public testing::Test {
@@ -46,7 +46,7 @@ protected:
     virtual void SetUp();
     virtual void TearDown();
 
-    Image mValidImage, mInvalidSizeImage, mSingleChannelImage;
+    Image mAlignedImage, mUnalignedImage, mSingleChannelImage;
 };
 
 JpegEncoderHelperTest::JpegEncoderHelperTest() {}
@@ -82,16 +82,16 @@ static bool loadFile(const char filename[], JpegEncoderHelperTest::Image* result
 }
 
 void JpegEncoderHelperTest::SetUp() {
-    if (!loadFile(VALID_IMAGE, &mValidImage)) {
-        FAIL() << "Load file " << VALID_IMAGE << " failed";
+    if (!loadFile(ALIGNED_IMAGE, &mAlignedImage)) {
+        FAIL() << "Load file " << ALIGNED_IMAGE << " failed";
     }
-    mValidImage.width = VALID_IMAGE_WIDTH;
-    mValidImage.height = VALID_IMAGE_HEIGHT;
-    if (!loadFile(INVALID_SIZE_IMAGE, &mInvalidSizeImage)) {
-        FAIL() << "Load file " << INVALID_SIZE_IMAGE << " failed";
+    mAlignedImage.width = ALIGNED_IMAGE_WIDTH;
+    mAlignedImage.height = ALIGNED_IMAGE_HEIGHT;
+    if (!loadFile(UNALIGNED_IMAGE, &mUnalignedImage)) {
+        FAIL() << "Load file " << UNALIGNED_IMAGE << " failed";
     }
-    mInvalidSizeImage.width = INVALID_SIZE_IMAGE_WIDTH;
-    mInvalidSizeImage.height = INVALID_SIZE_IMAGE_HEIGHT;
+    mUnalignedImage.width = UNALIGNED_IMAGE_WIDTH;
+    mUnalignedImage.height = UNALIGNED_IMAGE_HEIGHT;
     if (!loadFile(SINGLE_CHANNEL_IMAGE, &mSingleChannelImage)) {
         FAIL() << "Load file " << SINGLE_CHANNEL_IMAGE << " failed";
     }
@@ -101,25 +101,35 @@ void JpegEncoderHelperTest::SetUp() {
 
 void JpegEncoderHelperTest::TearDown() {}
 
-TEST_F(JpegEncoderHelperTest, validImage) {
+TEST_F(JpegEncoderHelperTest, encodeAlignedImage) {
     JpegEncoderHelper encoder;
-    EXPECT_TRUE(encoder.compressImage(mValidImage.buffer.get(), mValidImage.width,
-                                         mValidImage.height, JPEG_QUALITY, NULL, 0));
+    EXPECT_TRUE(encoder.compressImage(mAlignedImage.buffer.get(), mAlignedImage.width,
+                                      mAlignedImage.height, JPEG_QUALITY, NULL, 0));
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-TEST_F(JpegEncoderHelperTest, invalidSizeImage) {
+// The width of the "unaligned" image is not 16-aligned, and will fail if encoded directly.
+// Should pass with the padding zero method.
+TEST_F(JpegEncoderHelperTest, encodeUnalignedImage) {
     JpegEncoderHelper encoder;
-    EXPECT_FALSE(encoder.compressImage(mInvalidSizeImage.buffer.get(), mInvalidSizeImage.width,
-                                          mInvalidSizeImage.height, JPEG_QUALITY, NULL, 0));
+    const size_t paddingZeroLength = JpegEncoderHelper::kCompressBatchSize
+            * JpegEncoderHelper::kCompressBatchSize / 4;
+    std::unique_ptr<uint8_t[]> imageWithPaddingZeros(
+            new uint8_t[UNALIGNED_IMAGE_WIDTH * UNALIGNED_IMAGE_HEIGHT * 3 / 2
+            + paddingZeroLength]);
+    memcpy(imageWithPaddingZeros.get(), mUnalignedImage.buffer.get(),
+            UNALIGNED_IMAGE_WIDTH * UNALIGNED_IMAGE_HEIGHT * 3 / 2);
+    EXPECT_TRUE(encoder.compressImage(imageWithPaddingZeros.get(), mUnalignedImage.width,
+                                      mUnalignedImage.height, JPEG_QUALITY, NULL, 0));
+    ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-TEST_F(JpegEncoderHelperTest, singleChannelImage) {
+TEST_F(JpegEncoderHelperTest, encodeSingleChannelImage) {
     JpegEncoderHelper encoder;
     EXPECT_TRUE(encoder.compressImage(mSingleChannelImage.buffer.get(), mSingleChannelImage.width,
                                          mSingleChannelImage.height, JPEG_QUALITY, NULL, 0, true));
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-}  // namespace android::jpegrecoverymap
+}  // namespace android::ultrahdr
 

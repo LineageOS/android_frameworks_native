@@ -16,9 +16,9 @@
 
 #include <cmath>
 #include <vector>
-#include <jpegrecoverymap/gainmapmath.h>
+#include <ultrahdr/gainmapmath.h>
 
-namespace android::jpegrecoverymap {
+namespace android::ultrahdr {
 
 static const std::vector<float> kPqOETF = [] {
     std::vector<float> result;
@@ -396,45 +396,46 @@ Color bt2100ToP3(Color e) {
 
 // TODO: confirm we always want to convert like this before calculating
 // luminance.
-ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gamut hdr_gamut) {
+ColorTransformFn getHdrConversionFn(ultrahdr_color_gamut sdr_gamut,
+                                    ultrahdr_color_gamut hdr_gamut) {
   switch (sdr_gamut) {
-    case JPEGR_COLORGAMUT_BT709:
+    case ULTRAHDR_COLORGAMUT_BT709:
       switch (hdr_gamut) {
-        case JPEGR_COLORGAMUT_BT709:
+        case ULTRAHDR_COLORGAMUT_BT709:
           return identityConversion;
-        case JPEGR_COLORGAMUT_P3:
+        case ULTRAHDR_COLORGAMUT_P3:
           return p3ToBt709;
-        case JPEGR_COLORGAMUT_BT2100:
+        case ULTRAHDR_COLORGAMUT_BT2100:
           return bt2100ToBt709;
-        case JPEGR_COLORGAMUT_UNSPECIFIED:
+        case ULTRAHDR_COLORGAMUT_UNSPECIFIED:
           return nullptr;
       }
       break;
-    case JPEGR_COLORGAMUT_P3:
+    case ULTRAHDR_COLORGAMUT_P3:
       switch (hdr_gamut) {
-        case JPEGR_COLORGAMUT_BT709:
+        case ULTRAHDR_COLORGAMUT_BT709:
           return bt709ToP3;
-        case JPEGR_COLORGAMUT_P3:
+        case ULTRAHDR_COLORGAMUT_P3:
           return identityConversion;
-        case JPEGR_COLORGAMUT_BT2100:
+        case ULTRAHDR_COLORGAMUT_BT2100:
           return bt2100ToP3;
-        case JPEGR_COLORGAMUT_UNSPECIFIED:
+        case ULTRAHDR_COLORGAMUT_UNSPECIFIED:
           return nullptr;
       }
       break;
-    case JPEGR_COLORGAMUT_BT2100:
+    case ULTRAHDR_COLORGAMUT_BT2100:
       switch (hdr_gamut) {
-        case JPEGR_COLORGAMUT_BT709:
+        case ULTRAHDR_COLORGAMUT_BT709:
           return bt709ToBt2100;
-        case JPEGR_COLORGAMUT_P3:
+        case ULTRAHDR_COLORGAMUT_P3:
           return p3ToBt2100;
-        case JPEGR_COLORGAMUT_BT2100:
+        case ULTRAHDR_COLORGAMUT_BT2100:
           return identityConversion;
-        case JPEGR_COLORGAMUT_UNSPECIFIED:
+        case ULTRAHDR_COLORGAMUT_UNSPECIFIED:
           return nullptr;
       }
       break;
-    case JPEGR_COLORGAMUT_UNSPECIFIED:
+    case ULTRAHDR_COLORGAMUT_UNSPECIFIED:
       return nullptr;
   }
 }
@@ -442,12 +443,12 @@ ColorTransformFn getHdrConversionFn(jpegr_color_gamut sdr_gamut, jpegr_color_gam
 
 ////////////////////////////////////////////////////////////////////////////////
 // Gain map calculations
-uint8_t encodeGain(float y_sdr, float y_hdr, jr_metadata_ptr metadata) {
+uint8_t encodeGain(float y_sdr, float y_hdr, ultrahdr_metadata_ptr metadata) {
   return encodeGain(y_sdr, y_hdr, metadata,
                     log2(metadata->minContentBoost), log2(metadata->maxContentBoost));
 }
 
-uint8_t encodeGain(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
+uint8_t encodeGain(float y_sdr, float y_hdr, ultrahdr_metadata_ptr metadata,
                    float log2MinContentBoost, float log2MaxContentBoost) {
   float gain = 1.0f;
   if (y_sdr > 0.0f) {
@@ -462,14 +463,14 @@ uint8_t encodeGain(float y_sdr, float y_hdr, jr_metadata_ptr metadata,
                             * 255.0f);
 }
 
-Color applyGain(Color e, float gain, jr_metadata_ptr metadata) {
+Color applyGain(Color e, float gain, ultrahdr_metadata_ptr metadata) {
   float logBoost = log2(metadata->minContentBoost) * (1.0f - gain)
                  + log2(metadata->maxContentBoost) * gain;
   float gainFactor = exp2(logBoost);
   return e * gainFactor;
 }
 
-Color applyGain(Color e, float gain, jr_metadata_ptr metadata, float displayBoost) {
+Color applyGain(Color e, float gain, ultrahdr_metadata_ptr metadata, float displayBoost) {
   float logBoost = log2(metadata->minContentBoost) * (1.0f - gain)
                  + log2(metadata->maxContentBoost) * gain;
   float gainFactor = exp2(logBoost * displayBoost / metadata->maxContentBoost);
@@ -511,7 +512,7 @@ Color getP010Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
     chroma_stride = luma_stride;
   }
   if (chroma_data == nullptr) {
-    chroma_data = &reinterpret_cast<uint16_t*>(image->data)[image->luma_stride * image->height];
+    chroma_data = &reinterpret_cast<uint16_t*>(image->data)[luma_stride * image->height];
   }
 
   size_t pixel_y_idx = y * luma_stride + x;
@@ -662,4 +663,4 @@ uint64_t colorToRgbaF16(Color e_gamma) {
        | (((uint64_t) floatToHalf(1.0f)) << 48);
 }
 
-} // namespace android::jpegrecoverymap
+} // namespace android::ultrahdr
