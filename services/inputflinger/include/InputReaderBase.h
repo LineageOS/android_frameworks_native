@@ -42,118 +42,6 @@
 
 namespace android {
 
-// --- InputReaderInterface ---
-
-/* The interface for the InputReader shared library.
- *
- * Manages one or more threads that process raw input events and sends cooked event data to an
- * input listener.
- *
- * The implementation must guarantee thread safety for this interface. However, since the input
- * listener is NOT thread safe, all calls to the listener must happen from the same thread.
- */
-class InputReaderInterface {
-public:
-    InputReaderInterface() { }
-    virtual ~InputReaderInterface() { }
-
-    /* Dumps the state of the input reader.
-     *
-     * This method may be called on any thread (usually by the input manager). */
-    virtual void dump(std::string& dump) = 0;
-
-    /* Called by the heartbeat to ensures that the reader has not deadlocked. */
-    virtual void monitor() = 0;
-
-    /* Returns true if the input device is enabled. */
-    virtual bool isInputDeviceEnabled(int32_t deviceId) = 0;
-
-    /* Makes the reader start processing events from the kernel. */
-    virtual status_t start() = 0;
-
-    /* Makes the reader stop processing any more events. */
-    virtual status_t stop() = 0;
-
-    /* Gets information about all input devices.
-     *
-     * This method may be called on any thread (usually by the input manager).
-     */
-    virtual std::vector<InputDeviceInfo> getInputDevices() const = 0;
-
-    /* Query current input state. */
-    virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask,
-            int32_t scanCode) = 0;
-    virtual int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask,
-            int32_t keyCode) = 0;
-    virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask,
-            int32_t sw) = 0;
-
-    virtual void addKeyRemapping(int32_t deviceId, int32_t fromKeyCode,
-                                 int32_t toKeyCode) const = 0;
-
-    virtual int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const = 0;
-
-    /* Toggle Caps Lock */
-    virtual void toggleCapsLockState(int32_t deviceId) = 0;
-
-    /* Determine whether physical keys exist for the given framework-domain key codes. */
-    virtual bool hasKeys(int32_t deviceId, uint32_t sourceMask,
-                         const std::vector<int32_t>& keyCodes, uint8_t* outFlags) = 0;
-
-    /* Requests that a reconfiguration of all input devices.
-     * The changes flag is a bitfield that indicates what has changed and whether
-     * the input devices must all be reopened. */
-    virtual void requestRefreshConfiguration(uint32_t changes) = 0;
-
-    /* Controls the vibrator of a particular input device. */
-    virtual void vibrate(int32_t deviceId, const VibrationSequence& sequence, ssize_t repeat,
-                         int32_t token) = 0;
-    virtual void cancelVibrate(int32_t deviceId, int32_t token) = 0;
-
-    virtual bool isVibrating(int32_t deviceId) = 0;
-
-    virtual std::vector<int32_t> getVibratorIds(int32_t deviceId) = 0;
-    /* Get battery level of a particular input device. */
-    virtual std::optional<int32_t> getBatteryCapacity(int32_t deviceId) = 0;
-    /* Get battery status of a particular input device. */
-    virtual std::optional<int32_t> getBatteryStatus(int32_t deviceId) = 0;
-    /* Get the device path for the battery of an input device. */
-    virtual std::optional<std::string> getBatteryDevicePath(int32_t deviceId) = 0;
-
-    virtual std::vector<InputDeviceLightInfo> getLights(int32_t deviceId) = 0;
-
-    virtual std::vector<InputDeviceSensorInfo> getSensors(int32_t deviceId) = 0;
-
-    /* Return true if the device can send input events to the specified display. */
-    virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) = 0;
-
-    /* Enable sensor in input reader mapper. */
-    virtual bool enableSensor(int32_t deviceId, InputDeviceSensorType sensorType,
-                              std::chrono::microseconds samplingPeriod,
-                              std::chrono::microseconds maxBatchReportLatency) = 0;
-
-    /* Disable sensor in input reader mapper. */
-    virtual void disableSensor(int32_t deviceId, InputDeviceSensorType sensorType) = 0;
-
-    /* Flush sensor data in input reader mapper. */
-    virtual void flushSensor(int32_t deviceId, InputDeviceSensorType sensorType) = 0;
-
-    /* Set color for the light */
-    virtual bool setLightColor(int32_t deviceId, int32_t lightId, int32_t color) = 0;
-    /* Set player ID for the light */
-    virtual bool setLightPlayerId(int32_t deviceId, int32_t lightId, int32_t playerId) = 0;
-    /* Get light color */
-    virtual std::optional<int32_t> getLightColor(int32_t deviceId, int32_t lightId) = 0;
-    /* Get light player ID */
-    virtual std::optional<int32_t> getLightPlayerId(int32_t deviceId, int32_t lightId) = 0;
-
-    /* Get the Bluetooth address of an input device, if known. */
-    virtual std::optional<std::string> getBluetoothAddress(int32_t deviceId) const = 0;
-
-    /* Sysfs node change reported. Recreate device if required to incorporate the new sysfs nodes */
-    virtual void sysfsNodeChanged(const std::string& sysfsNodePath) = 0;
-};
-
 // --- InputReaderConfiguration ---
 
 /*
@@ -163,51 +51,51 @@ public:
  */
 struct InputReaderConfiguration {
     // Describes changes that have occurred.
-    enum {
+    enum class Change : uint32_t {
         // The mouse pointer speed changed.
-        CHANGE_POINTER_SPEED = 1 << 0,
+        POINTER_SPEED = 1u << 0,
 
         // The pointer gesture control changed.
-        CHANGE_POINTER_GESTURE_ENABLEMENT = 1 << 1,
+        POINTER_GESTURE_ENABLEMENT = 1u << 1,
 
         // The display size or orientation changed.
-        CHANGE_DISPLAY_INFO = 1 << 2,
+        DISPLAY_INFO = 1u << 2,
 
         // The visible touches option changed.
-        CHANGE_SHOW_TOUCHES = 1 << 3,
+        SHOW_TOUCHES = 1u << 3,
 
         // The keyboard layouts must be reloaded.
-        CHANGE_KEYBOARD_LAYOUTS = 1 << 4,
+        KEYBOARD_LAYOUTS = 1u << 4,
 
         // The device name alias supplied by the may have changed for some devices.
-        CHANGE_DEVICE_ALIAS = 1 << 5,
+        DEVICE_ALIAS = 1u << 5,
 
         // The location calibration matrix changed.
-        CHANGE_TOUCH_AFFINE_TRANSFORMATION = 1 << 6,
+        TOUCH_AFFINE_TRANSFORMATION = 1u << 6,
 
         // The presence of an external stylus has changed.
-        CHANGE_EXTERNAL_STYLUS_PRESENCE = 1 << 7,
+        EXTERNAL_STYLUS_PRESENCE = 1u << 7,
 
         // The pointer capture mode has changed.
-        CHANGE_POINTER_CAPTURE = 1 << 8,
+        POINTER_CAPTURE = 1u << 8,
 
         // The set of disabled input devices (disabledDevices) has changed.
-        CHANGE_ENABLED_STATE = 1 << 9,
+        ENABLED_STATE = 1u << 9,
 
         // The device type has been updated.
-        CHANGE_DEVICE_TYPE = 1 << 10,
+        DEVICE_TYPE = 1u << 10,
 
         // The keyboard layout association has changed.
-        CHANGE_KEYBOARD_LAYOUT_ASSOCIATION = 1 << 11,
+        KEYBOARD_LAYOUT_ASSOCIATION = 1u << 11,
 
         // The stylus button reporting configurations has changed.
-        CHANGE_STYLUS_BUTTON_REPORTING = 1 << 12,
+        STYLUS_BUTTON_REPORTING = 1u << 12,
 
         // The touchpad settings changed.
-        CHANGE_TOUCHPAD_SETTINGS = 1 << 13,
+        TOUCHPAD_SETTINGS = 1u << 13,
 
         // All devices must be reopened.
-        CHANGE_MUST_REOPEN = 1 << 31,
+        MUST_REOPEN = 1u << 31,
     };
 
     // Gets the amount of time to disable virtual keys after the screen is touched
@@ -367,8 +255,6 @@ struct InputReaderConfiguration {
             stylusButtonMotionEventsEnabled(true),
             stylusPointerIconEnabled(false) {}
 
-    static std::string changesToString(uint32_t changes);
-
     std::optional<DisplayViewport> getDisplayViewportByType(ViewportType type) const;
     std::optional<DisplayViewport> getDisplayViewportByUniqueId(const std::string& uniqueDisplayId)
             const;
@@ -381,6 +267,116 @@ struct InputReaderConfiguration {
 
 private:
     std::vector<DisplayViewport> mDisplays;
+};
+
+using ConfigurationChanges = ftl::Flags<InputReaderConfiguration::Change>;
+
+// --- InputReaderInterface ---
+
+/* The interface for the InputReader shared library.
+ *
+ * Manages one or more threads that process raw input events and sends cooked event data to an
+ * input listener.
+ *
+ * The implementation must guarantee thread safety for this interface. However, since the input
+ * listener is NOT thread safe, all calls to the listener must happen from the same thread.
+ */
+class InputReaderInterface {
+public:
+    InputReaderInterface() {}
+    virtual ~InputReaderInterface() {}
+    /* Dumps the state of the input reader.
+     *
+     * This method may be called on any thread (usually by the input manager). */
+    virtual void dump(std::string& dump) = 0;
+
+    /* Called by the heartbeat to ensures that the reader has not deadlocked. */
+    virtual void monitor() = 0;
+
+    /* Returns true if the input device is enabled. */
+    virtual bool isInputDeviceEnabled(int32_t deviceId) = 0;
+
+    /* Makes the reader start processing events from the kernel. */
+    virtual status_t start() = 0;
+
+    /* Makes the reader stop processing any more events. */
+    virtual status_t stop() = 0;
+
+    /* Gets information about all input devices.
+     *
+     * This method may be called on any thread (usually by the input manager).
+     */
+    virtual std::vector<InputDeviceInfo> getInputDevices() const = 0;
+
+    /* Query current input state. */
+    virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask, int32_t scanCode) = 0;
+    virtual int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode) = 0;
+    virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t sw) = 0;
+
+    virtual void addKeyRemapping(int32_t deviceId, int32_t fromKeyCode,
+                                 int32_t toKeyCode) const = 0;
+
+    virtual int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const = 0;
+
+    /* Toggle Caps Lock */
+    virtual void toggleCapsLockState(int32_t deviceId) = 0;
+
+    /* Determine whether physical keys exist for the given framework-domain key codes. */
+    virtual bool hasKeys(int32_t deviceId, uint32_t sourceMask,
+                         const std::vector<int32_t>& keyCodes, uint8_t* outFlags) = 0;
+
+    /* Requests that a reconfiguration of all input devices.
+     * The changes flag is a bitfield that indicates what has changed and whether
+     * the input devices must all be reopened. */
+    virtual void requestRefreshConfiguration(ConfigurationChanges changes) = 0;
+
+    /* Controls the vibrator of a particular input device. */
+    virtual void vibrate(int32_t deviceId, const VibrationSequence& sequence, ssize_t repeat,
+                         int32_t token) = 0;
+    virtual void cancelVibrate(int32_t deviceId, int32_t token) = 0;
+
+    virtual bool isVibrating(int32_t deviceId) = 0;
+
+    virtual std::vector<int32_t> getVibratorIds(int32_t deviceId) = 0;
+    /* Get battery level of a particular input device. */
+    virtual std::optional<int32_t> getBatteryCapacity(int32_t deviceId) = 0;
+    /* Get battery status of a particular input device. */
+    virtual std::optional<int32_t> getBatteryStatus(int32_t deviceId) = 0;
+    /* Get the device path for the battery of an input device. */
+    virtual std::optional<std::string> getBatteryDevicePath(int32_t deviceId) = 0;
+
+    virtual std::vector<InputDeviceLightInfo> getLights(int32_t deviceId) = 0;
+
+    virtual std::vector<InputDeviceSensorInfo> getSensors(int32_t deviceId) = 0;
+
+    /* Return true if the device can send input events to the specified display. */
+    virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) = 0;
+
+    /* Enable sensor in input reader mapper. */
+    virtual bool enableSensor(int32_t deviceId, InputDeviceSensorType sensorType,
+                              std::chrono::microseconds samplingPeriod,
+                              std::chrono::microseconds maxBatchReportLatency) = 0;
+
+    /* Disable sensor in input reader mapper. */
+    virtual void disableSensor(int32_t deviceId, InputDeviceSensorType sensorType) = 0;
+
+    /* Flush sensor data in input reader mapper. */
+    virtual void flushSensor(int32_t deviceId, InputDeviceSensorType sensorType) = 0;
+
+    /* Set color for the light */
+    virtual bool setLightColor(int32_t deviceId, int32_t lightId, int32_t color) = 0;
+    /* Set player ID for the light */
+    virtual bool setLightPlayerId(int32_t deviceId, int32_t lightId, int32_t playerId) = 0;
+    /* Get light color */
+    virtual std::optional<int32_t> getLightColor(int32_t deviceId, int32_t lightId) = 0;
+    /* Get light player ID */
+    virtual std::optional<int32_t> getLightPlayerId(int32_t deviceId, int32_t lightId) = 0;
+
+    /* Get the Bluetooth address of an input device, if known. */
+    virtual std::optional<std::string> getBluetoothAddress(int32_t deviceId) const = 0;
+
+    /* Sysfs node change reported. Recreate device if required to incorporate the new sysfs nodes */
+    virtual void sysfsNodeChanged(const std::string& sysfsNodePath) = 0;
 };
 
 // --- TouchAffineTransformation ---
