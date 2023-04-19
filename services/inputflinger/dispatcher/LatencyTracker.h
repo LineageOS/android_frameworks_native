@@ -55,7 +55,7 @@ public:
     void trackGraphicsLatency(int32_t inputEventId, const sp<IBinder>& connectionToken,
                               std::array<nsecs_t, GraphicsTimeline::SIZE> timeline);
 
-    std::string dump(const char* prefix);
+    std::string dump(const char* prefix) const;
 
 private:
     /**
