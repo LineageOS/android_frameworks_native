@@ -252,27 +252,31 @@ struct Swapchain {
     Swapchain(Surface& surface_,
               uint32_t num_images_,
               VkPresentModeKHR present_mode,
-              int pre_transform_)
+              int pre_transform_,
+              int64_t refresh_duration_)
         : surface(surface_),
           num_images(num_images_),
           mailbox_mode(present_mode == VK_PRESENT_MODE_MAILBOX_KHR),
           pre_transform(pre_transform_),
           frame_timestamps_enabled(false),
+          refresh_duration(refresh_duration_),
           acquire_next_image_timeout(-1),
           shared(IsSharedPresentMode(present_mode)) {
-        ANativeWindow* window = surface.window.get();
-        native_window_get_refresh_cycle_duration(
-            window,
-            &refresh_duration);
     }
-    uint64_t get_refresh_duration()
+
+    VkResult get_refresh_duration(uint64_t& outRefreshDuration)
     {
         ANativeWindow* window = surface.window.get();
-        native_window_get_refresh_cycle_duration(
+        int err = native_window_get_refresh_cycle_duration(
             window,
             &refresh_duration);
-        return static_cast<uint64_t>(refresh_duration);
-
+        if (err != android::OK) {
+            ALOGE("%s:native_window_get_refresh_cycle_duration failed: %s (%d)",
+                __func__, strerror(-err), err );
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        outRefreshDuration = refresh_duration;
+        return VK_SUCCESS;
     }
 
     Surface& surface;
@@ -1626,6 +1630,13 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
+    int64_t refresh_duration;
+    err = native_window_get_refresh_cycle_duration(window, &refresh_duration);
+    if (err != android::OK) {
+        ALOGE("native_window_get_refresh_cycle_duration query failed: %s (%d)",
+              strerror(-err), err);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
     // -- Allocate our Swapchain object --
     // After this point, we must deallocate the swapchain on error.
 
@@ -1636,8 +1647,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     Swapchain* swapchain = new (mem)
         Swapchain(surface, num_images, create_info->presentMode,
-                  TranslateVulkanToNativeTransform(create_info->preTransform));
-
+                  TranslateVulkanToNativeTransform(create_info->preTransform),
+                  refresh_duration);
     VkSwapchainImageCreateInfoANDROID swapchain_image_create = {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
@@ -2308,9 +2319,7 @@ VkResult GetRefreshCycleDurationGOOGLE(
     ATRACE_CALL();
 
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
-    VkResult result = VK_SUCCESS;
-
-    pDisplayTimingProperties->refreshDuration = swapchain.get_refresh_duration();
+    VkResult result = swapchain.get_refresh_duration(pDisplayTimingProperties->refreshDuration);
 
     return result;
 }

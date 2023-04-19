@@ -66,6 +66,18 @@ filegroup {
     ],
 }
 
+filegroup {
+    name: "android_gui_aidl",
+    srcs: [
+        "android/gui/DisplayInfo.aidl",
+        "android/gui/FocusRequest.aidl",
+        "android/gui/InputApplicationInfo.aidl",
+        "android/gui/IWindowInfosListener.aidl",
+        "android/gui/IWindowInfosReportedListener.aidl",
+        "android/gui/WindowInfo.aidl",
+    ],
+}
+
 cc_library_static {
     name: "libgui_window_info_static",
     vendor_available: true,
@@ -118,6 +130,9 @@ filegroup {
     name: "libgui_aidl",
     srcs: ["aidl/**/*.aidl"],
     path: "aidl/",
+    aidl: {
+        deps: [":android_gui_aidl"],
+    },
 }
 
 filegroup {
