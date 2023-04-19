@@ -61,7 +61,7 @@ namespace android::ultrahdr {
   }
 
 // The current JPEGR version that we encode to
-static const uint32_t kJpegrVersion = 1;
+static const char* const kJpegrVersion = "1.0";
 
 // Map is quarter res / sixteenth size
 static const size_t kMapDimensionScaleFactor = 4;
@@ -943,7 +943,7 @@ status_t JpegR::appendGainMap(jr_compressed_ptr compressed_jpeg_image,
                                  + xmp_secondary_length
                                  + compressed_gain_map->length;
   // primary image
-  const string xmp_primary = generateXmpForPrimaryImage(secondary_image_size);
+  const string xmp_primary = generateXmpForPrimaryImage(secondary_image_size, *metadata);
   // same as primary
   const int xmp_primary_length = 2 + nameSpaceLength + xmp_primary.size();
 

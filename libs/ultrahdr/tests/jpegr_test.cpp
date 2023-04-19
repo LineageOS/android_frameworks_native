@@ -180,6 +180,7 @@ TEST_F(JpegRTest, build) {
 
 TEST_F(JpegRTest, writeXmpThenRead) {
   ultrahdr_metadata_struct metadata_expected;
+  metadata_expected.version = "1.0";
   metadata_expected.maxContentBoost = 1.25;
   metadata_expected.minContentBoost = 0.75;
   const std::string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
@@ -538,7 +539,7 @@ TEST_F(JpegRTest, ProfileGainMapFuncs) {
 
   JpegRBenchmark benchmark;
 
-  ultrahdr_metadata_struct metadata = { .version = 1,
+  ultrahdr_metadata_struct metadata = { .version = "1.0",
                               .maxContentBoost = 8.0f,
                               .minContentBoost = 1.0f / 8.0f };
 
