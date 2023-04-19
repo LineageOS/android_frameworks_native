@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    proto::TransactionTraceFile transactionTraceFile;
+    perfetto::protos::TransactionTraceFile transactionTraceFile;
     if (!transactionTraceFile.ParseFromIstream(&input)) {
         std::cout << "Error: Failed to parse " << transactionTracePath;
         return -1;

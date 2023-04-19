@@ -149,7 +149,7 @@ static LayerInfo getLayerInfoFromProto(::android::surfaceflinger::LayerProto& pr
 }
 
 static std::vector<LayerInfo> getLayerInfosFromProto(
-        android::surfaceflinger::LayersTraceProto& entry) {
+        perfetto::protos::pbzero::LayersSnapshotProto& entry) {
     std::unordered_map<uint64_t /* snapshotId*/, uint64_t /*layerId*/> snapshotIdToLayerId;
     std::vector<LayerInfo> layers;
     layers.reserve(static_cast<size_t>(entry.layers().layers_size()));

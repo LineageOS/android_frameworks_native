@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
+#pragma once
+
 // disable the warnings emitted from the protobuf headers. This file should be included instead of
 // directly including the generated header file
 #pragma GCC system_header
-#include <transactions.pb.h>
+#include <perfetto/config/android/surfaceflinger_transactions_config.pbzero.h>
+#include <perfetto/trace/android/surfaceflinger_transactions.pb.h>
+#include <perfetto/trace/android/surfaceflinger_transactions.pbzero.h>
