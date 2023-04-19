@@ -1050,14 +1050,14 @@ status_t KeyCharacterMap::Parser::parseKeyProperty() {
         return finishKey(*key);
     }
 
-    Vector<Property> properties;
+    std::vector<Property> properties;
 
     // Parse all comma-delimited property names up to the first colon.
     for (;;) {
         if (token == "label") {
-            properties.add(Property(PROPERTY_LABEL));
+            properties.emplace_back(PROPERTY_LABEL);
         } else if (token == "number") {
-            properties.add(Property(PROPERTY_NUMBER));
+            properties.emplace_back(PROPERTY_NUMBER);
         } else {
             int32_t metaState;
             status_t status = parseModifier(token.string(), &metaState);
@@ -1066,7 +1066,7 @@ status_t KeyCharacterMap::Parser::parseKeyProperty() {
                         mTokenizer->getLocation().string(), token.string());
                 return status;
             }
-            properties.add(Property(PROPERTY_META, metaState));
+            properties.emplace_back(PROPERTY_META, metaState);
         }
 
         mTokenizer->skipDelimiters(WHITESPACE);
@@ -1181,8 +1181,7 @@ status_t KeyCharacterMap::Parser::parseKeyProperty() {
     } while (!mTokenizer->isEol() && mTokenizer->peekChar() != '#');
 
     // Add the behavior.
-    for (size_t i = 0; i < properties.size(); i++) {
-        const Property& property = properties.itemAt(i);
+    for (const Property& property : properties) {
         switch (property.property) {
         case PROPERTY_LABEL:
             if (key->label) {
