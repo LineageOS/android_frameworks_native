@@ -48,7 +48,7 @@ typedef enum {
  */
 struct ultrahdr_metadata_struct {
   // Ultra HDR library version
-  uint32_t version;
+  const char* version;
   // Max Content Boost for the map
   float maxContentBoost;
   // Min Content Boost for the map
