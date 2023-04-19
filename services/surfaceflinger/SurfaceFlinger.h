@@ -28,6 +28,7 @@
 #include <android/gui/ISurfaceComposerClient.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
+#include <ftl/algorithm.h>
 #include <ftl/future.h>
 #include <ftl/non_null.h>
 #include <gui/BufferQueue.h>
@@ -854,8 +855,9 @@ private:
     }
 
     sp<DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) REQUIRES(mStateLock) {
-        const sp<DisplayDevice> nullDisplay;
-        return mDisplays.get(displayToken).value_or(std::cref(nullDisplay));
+        return mDisplays.get(displayToken)
+                .or_else(ftl::static_ref<sp<DisplayDevice>>([] { return nullptr; }))
+                .value();
     }
 
     sp<const DisplayDevice> getDisplayDeviceLocked(PhysicalDisplayId id) const
@@ -1011,10 +1013,10 @@ private:
      */
     sp<display::DisplayToken> getPhysicalDisplayTokenLocked(PhysicalDisplayId displayId) const
             REQUIRES(mStateLock) {
-        const sp<display::DisplayToken> nullToken;
         return mPhysicalDisplays.get(displayId)
                 .transform([](const display::PhysicalDisplay& display) { return display.token(); })
-                .value_or(std::cref(nullToken));
+                .or_else([] { return std::optional<sp<display::DisplayToken>>(nullptr); })
+                .value();
     }
 
     std::optional<PhysicalDisplayId> getPhysicalDisplayIdLocked(

@@ -32,6 +32,7 @@
 #include <ui/GraphicTypes.h>
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
+#include <ftl/algorithm.h>
 #include <ftl/fake_guard.h>
 #include <ftl/optional.h>
 #include <scheduler/Features.h>
@@ -438,13 +439,13 @@ private:
 
     RefreshRateSelectorPtr pacesetterSelectorPtrLocked() const REQUIRES(mDisplayLock) {
         ftl::FakeGuard guard(kMainThreadContext);
-        const RefreshRateSelectorPtr noPacesetter;
         return mPacesetterDisplayId
                 .and_then([this](PhysicalDisplayId pacesetterId)
                                   REQUIRES(mDisplayLock, kMainThreadContext) {
                                       return mRefreshRateSelectors.get(pacesetterId);
                                   })
-                .value_or(std::cref(noPacesetter));
+                .or_else(ftl::static_ref<RefreshRateSelectorPtr>([] { return nullptr; }))
+                .value();
     }
 
     std::shared_ptr<const VsyncSchedule> getVsyncScheduleLocked(
