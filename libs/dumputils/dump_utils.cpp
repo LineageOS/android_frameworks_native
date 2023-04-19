@@ -62,7 +62,10 @@ static const char* hidl_hal_interfaces_to_dump[] {
         "android.hardware.audio@7.0::IDevicesFactory",
         "android.hardware.automotive.audiocontrol@1.0::IAudioControl",
         "android.hardware.automotive.audiocontrol@2.0::IAudioControl",
+        "android.hardware.automotive.can@1.0::ICanBus",
+        "android.hardware.automotive.can@1.0::ICanController",
         "android.hardware.automotive.evs@1.0::IEvsCamera",
+        "android.hardware.automotive.sv@1.0::ISurroundViewService",
         "android.hardware.automotive.vehicle@2.0::IVehicle",
         "android.hardware.biometrics.face@1.0::IBiometricsFace",
         "android.hardware.biometrics.fingerprint@2.1::IBiometricsFingerprint",
@@ -87,7 +90,12 @@ static const char* hidl_hal_interfaces_to_dump[] {
 /* list of hal interface to dump containing process during native dumps */
 static const std::vector<std::string> aidl_interfaces_to_dump {
         "android.hardware.automotive.audiocontrol.IAudioControl",
+        "android.hardware.automotive.can.ICanController",
         "android.hardware.automotive.evs.IEvsEnumerator",
+        "android.hardware.automotive.ivn.IIvnAndroidDevice",
+        "android.hardware.automotive.occupant_awareness.IOccupantAwareness",
+        "android.hardware.automotive.remoteaccess.IRemoteAccess",
+        "android.hardware.automotive.vehicle.IVehicle",
         "android.hardware.biometrics.face.IBiometricsFace",
         "android.hardware.biometrics.fingerprint.IBiometricsFingerprint",
         "android.hardware.camera.provider.ICameraProvider",
