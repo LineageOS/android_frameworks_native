@@ -692,17 +692,27 @@ const char* EventThread::toCString(State state) {
 }
 
 void EventThread::onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule> schedule) {
+    // Hold onto the old registration until after releasing the mutex to avoid deadlock.
+    scheduler::VSyncCallbackRegistration oldRegistration =
+            onNewVsyncScheduleInternal(std::move(schedule));
+}
+
+scheduler::VSyncCallbackRegistration EventThread::onNewVsyncScheduleInternal(
+        std::shared_ptr<scheduler::VsyncSchedule> schedule) {
     std::lock_guard<std::mutex> lock(mMutex);
     const bool reschedule = mVsyncRegistration.cancel() == scheduler::CancelResult::Cancelled;
     mVsyncSchedule = std::move(schedule);
-    mVsyncRegistration =
-            scheduler::VSyncCallbackRegistration(mVsyncSchedule->getDispatch(),
-                                                 createDispatchCallback(), mThreadName);
+    auto oldRegistration =
+            std::exchange(mVsyncRegistration,
+                          scheduler::VSyncCallbackRegistration(mVsyncSchedule->getDispatch(),
+                                                               createDispatchCallback(),
+                                                               mThreadName));
     if (reschedule) {
         mVsyncRegistration.schedule({.workDuration = mWorkDuration.get().count(),
                                      .readyDuration = mReadyDuration.count(),
                                      .earliestVsync = mLastVsyncCallbackTime.ns()});
     }
+    return oldRegistration;
 }
 
 scheduler::VSyncDispatch::Callback EventThread::createDispatchCallback() {
