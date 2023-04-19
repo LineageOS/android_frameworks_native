@@ -85,14 +85,16 @@ private:
     }
 
     mutable std::mutex mTraceLock;
-    TransactionRingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry> mBuffer
-            GUARDED_BY(mTraceLock);
+    TransactionRingBuffer<perfetto::protos::TransactionTraceFile,
+                          perfetto::protos::TransactionTraceEntry>
+            mBuffer GUARDED_BY(mTraceLock);
     size_t mBufferSizeInBytes GUARDED_BY(mTraceLock) = CONTINUOUS_TRACING_BUFFER_SIZE;
-    std::unordered_map<uint64_t, proto::TransactionState> mQueuedTransactions
+    std::unordered_map<uint64_t, perfetto::protos::TransactionState> mQueuedTransactions
             GUARDED_BY(mTraceLock);
-    LocklessStack<proto::TransactionState> mTransactionQueue;
+    LocklessStack<perfetto::protos::TransactionState> mTransactionQueue;
     nsecs_t mStartingTimestamp GUARDED_BY(mTraceLock);
-    std::unordered_map<int, proto::LayerCreationArgs> mCreatedLayers GUARDED_BY(mTraceLock);
+    std::unordered_map<int, perfetto::protos::LayerCreationArgs> mCreatedLayers
+            GUARDED_BY(mTraceLock);
     std::map<uint32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
     frontend::DisplayInfos mStartingDisplayInfos GUARDED_BY(mTraceLock);
 
@@ -122,17 +124,19 @@ private:
     std::vector<uint32_t /* layerId */> mPendingDestroyedLayers; // only accessed by main thread
     int64_t mLastUpdatedVsyncId = -1;
 
-    proto::TransactionTraceFile createTraceFileProto() const;
+    perfetto::protos::TransactionTraceFile createTraceFileProto() const;
     void loop();
     void addEntry(const std::vector<CommittedUpdates>& committedTransactions,
                   const std::vector<uint32_t>& removedLayers) EXCLUDES(mTraceLock);
     int32_t getLayerIdLocked(const sp<IBinder>& layerHandle) REQUIRES(mTraceLock);
     void tryPushToTracingThread() EXCLUDES(mMainThreadLock);
-    void addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) REQUIRES(mTraceLock);
-    void updateStartingStateLocked(const proto::TransactionTraceEntry& entry) REQUIRES(mTraceLock);
+    void addStartingStateToProtoLocked(perfetto::protos::TransactionTraceFile& proto)
+            REQUIRES(mTraceLock);
+    void updateStartingStateLocked(const perfetto::protos::TransactionTraceEntry& entry)
+            REQUIRES(mTraceLock);
     // TEST
     // Return buffer contents as trace file proto
-    proto::TransactionTraceFile writeToProto() EXCLUDES(mMainThreadLock);
+    perfetto::protos::TransactionTraceFile writeToProto() EXCLUDES(mMainThreadLock);
 };
 
 class TransactionTraceWriter : public Singleton<TransactionTraceWriter> {

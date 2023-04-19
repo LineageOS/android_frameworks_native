@@ -131,19 +131,22 @@ public:
         std::vector<Layer*> topLevelLayers;
     };
 
-    static LayerTree generateLayerTree(const LayersProto& layersProto);
+    static LayerTree generateLayerTree(const perfetto::protos::LayersProto& layersProto);
     static std::string layerTreeToString(const LayerTree& layerTree);
 
 private:
-    static std::vector<Layer> generateLayerList(const LayersProto& layersProto);
-    static LayerProtoParser::Layer generateLayer(const LayerProto& layerProto);
-    static LayerProtoParser::Region generateRegion(const RegionProto& regionProto);
-    static LayerProtoParser::Rect generateRect(const RectProto& rectProto);
-    static LayerProtoParser::FloatRect generateFloatRect(const FloatRectProto& rectProto);
-    static LayerProtoParser::Transform generateTransform(const TransformProto& transformProto);
+    static std::vector<Layer> generateLayerList(const perfetto::protos::LayersProto& layersProto);
+    static LayerProtoParser::Layer generateLayer(const perfetto::protos::LayerProto& layerProto);
+    static LayerProtoParser::Region generateRegion(
+            const perfetto::protos::RegionProto& regionProto);
+    static LayerProtoParser::Rect generateRect(const perfetto::protos::RectProto& rectProto);
+    static LayerProtoParser::FloatRect generateFloatRect(
+            const perfetto::protos::FloatRectProto& rectProto);
+    static LayerProtoParser::Transform generateTransform(
+            const perfetto::protos::TransformProto& transformProto);
     static LayerProtoParser::ActiveBuffer generateActiveBuffer(
-            const ActiveBufferProto& activeBufferProto);
-    static void updateChildrenAndRelative(const LayerProto& layerProto,
+            const perfetto::protos::ActiveBufferProto& activeBufferProto);
+    static void updateChildrenAndRelative(const perfetto::protos::LayerProto& layerProto,
                                           std::unordered_map<int32_t, Layer*>& layerMap);
 
     static std::string layerToString(const LayerProtoParser::Layer* layer);
