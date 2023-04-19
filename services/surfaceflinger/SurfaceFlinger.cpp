@@ -4203,20 +4203,20 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyTimelin
         const TransactionHandler::TransactionFlushState& flushState) {
     using TransactionReadiness = TransactionHandler::TransactionReadiness;
     const auto& transaction = *flushState.transaction;
-    ATRACE_FORMAT("transactionIsReadyToBeApplied vsyncId: %" PRId64,
-                  transaction.frameTimelineInfo.vsyncId);
     TimePoint desiredPresentTime = TimePoint::fromNs(transaction.desiredPresentTime);
     // Do not present if the desiredPresentTime has not passed unless it is more than
     // one second in the future. We ignore timestamps more than 1 second in the future
     // for stability reasons.
     if (!transaction.isAutoTimestamp && desiredPresentTime >= mExpectedPresentTime &&
         desiredPresentTime < mExpectedPresentTime + 1s) {
-        ATRACE_NAME("not current");
+        ATRACE_FORMAT("not current desiredPresentTime: %" PRId64 " expectedPresentTime: %" PRId64,
+                      desiredPresentTime, mExpectedPresentTime);
         return TransactionReadiness::NotReady;
     }
 
     if (!mScheduler->isVsyncValid(mExpectedPresentTime, transaction.originUid)) {
-        ATRACE_NAME("!isVsyncValid");
+        ATRACE_FORMAT("!isVsyncValid expectedPresentTime: %" PRId64 " uid: %d",
+                      mExpectedPresentTime, transaction.originUid);
         return TransactionReadiness::NotReady;
     }
 
@@ -4224,7 +4224,8 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyTimelin
     // expected present time of this transaction.
     if (transaction.isAutoTimestamp &&
         frameIsEarly(mExpectedPresentTime, VsyncId{transaction.frameTimelineInfo.vsyncId})) {
-        ATRACE_NAME("frameIsEarly");
+        ATRACE_FORMAT("frameIsEarly vsyncId: %" PRId64 " expectedPresentTime: %" PRId64,
+                      transaction.frameTimelineInfo.vsyncId, mExpectedPresentTime);
         return TransactionReadiness::NotReady;
     }
     return TransactionReadiness::Ready;
@@ -4254,7 +4255,9 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
                                                  s.bufferData->acquireFence);
                 // Delete the entire state at this point and not just release the buffer because
                 // everything associated with the Layer in this Transaction is now out of date.
-                ATRACE_NAME("DeleteStaleBuffer");
+                ATRACE_FORMAT("DeleteStaleBuffer %s barrierProducerId:%d > %d",
+                              layer->getDebugName(), layer->getDrawingState().barrierProducerId,
+                              s.bufferData->producerId);
                 return TraverseBuffersReturnValues::DELETE_AND_CONTINUE_TRAVERSAL;
             }
 
@@ -4264,7 +4267,10 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
                         ((flushState.bufferLayersReadyToPresent.get(s.surface.get()) >=
                           s.bufferData->barrierFrameNumber));
                 if (!willApplyBarrierFrame) {
-                    ATRACE_NAME("NotReadyBarrier");
+                    ATRACE_FORMAT("NotReadyBarrier %s barrierFrameNumber:%" PRId64 " > %" PRId64,
+                                  layer->getDebugName(),
+                                  layer->getDrawingState().barrierFrameNumber,
+                                  s.bufferData->barrierFrameNumber);
                     ready = TransactionReadiness::NotReadyBarrier;
                     return TraverseBuffersReturnValues::STOP_TRAVERSAL;
                 }
@@ -4276,7 +4282,7 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
         const bool hasPendingBuffer =
                 flushState.bufferLayersReadyToPresent.contains(s.surface.get());
         if (layer->backpressureEnabled() && hasPendingBuffer && transaction.isAutoTimestamp) {
-            ATRACE_NAME("hasPendingBuffer");
+            ATRACE_FORMAT("hasPendingBuffer %s", layer->getDebugName());
             ready = TransactionReadiness::NotReady;
             return TraverseBuffersReturnValues::STOP_TRAVERSAL;
         }
@@ -4293,9 +4299,9 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
             const bool allowLatchUnsignaled =
                     shouldLatchUnsignaled(layer, s, transaction.states.size(),
                                           flushState.firstTransaction);
-            ATRACE_FORMAT("%s allowLatchUnsignaled=%s", layer->getName().c_str(),
-                          allowLatchUnsignaled ? "true" : "false");
             if (allowLatchUnsignaled) {
+                ATRACE_FORMAT("fence unsignaled try allowLatchUnsignaled %s",
+                              layer->getDebugName());
                 ready = TransactionReadiness::NotReadyUnsignaled;
             } else {
                 ready = TransactionReadiness::NotReady;
@@ -4308,12 +4314,12 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
                                                        "Buffer processing hung up due to stuck "
                                                        "fence. Indicates GPU hang");
                 }
+                ATRACE_FORMAT("fence unsignaled %s", layer->getDebugName());
                 return TraverseBuffersReturnValues::STOP_TRAVERSAL;
             }
         }
         return TraverseBuffersReturnValues::CONTINUE_TRAVERSAL;
     });
-    ATRACE_INT("TransactionReadiness", static_cast<int>(ready));
     return ready;
 }
 
