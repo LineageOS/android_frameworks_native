@@ -27,10 +27,7 @@ namespace android::inputdispatcher {
 struct DispatchEntry;
 
 /* Manages the dispatch state associated with a single input channel. */
-class Connection : public RefBase {
-protected:
-    virtual ~Connection();
-
+class Connection {
 public:
     enum class Status {
         // Everything is peachy.
