@@ -125,9 +125,8 @@ TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext,
                                    const InputReaderConfiguration& readerConfig)
       : InputMapper(deviceContext, readerConfig),
         mTouchButtonAccumulator(deviceContext),
-        mSource(0),
-        mDeviceMode(DeviceMode::DISABLED),
-        mInputDeviceOrientation(ui::ROTATION_0) {}
+        mConfig(readerConfig),
+        mParameters(computeParameters(deviceContext)) {}
 
 TouchInputMapper::~TouchInputMapper() {}
 
@@ -300,7 +299,7 @@ std::list<NotifyArgs> TouchInputMapper::reconfigure(nsecs_t when,
     // various other parameters so should result in a reconfiguration.
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::DEVICE_TYPE)) {
         // Configure basic parameters.
-        configureParameters();
+        mParameters = computeParameters(getDeviceContext());
 
         // Configure common accumulators.
         mCursorScrollAccumulator.configure(getDeviceContext());
@@ -361,112 +360,119 @@ void TouchInputMapper::resolveExternalStylusPresence() {
     }
 }
 
-void TouchInputMapper::configureParameters() {
+TouchInputMapper::Parameters TouchInputMapper::computeParameters(
+        const InputDeviceContext& deviceContext) {
+    Parameters parameters;
     // Use the pointer presentation mode for devices that do not support distinct
     // multitouch.  The spot-based presentation relies on being able to accurately
     // locate two or more fingers on the touch pad.
-    mParameters.gestureMode = getDeviceContext().hasInputProperty(INPUT_PROP_SEMI_MT)
+    parameters.gestureMode = deviceContext.hasInputProperty(INPUT_PROP_SEMI_MT)
             ? Parameters::GestureMode::SINGLE_TOUCH
             : Parameters::GestureMode::MULTI_TOUCH;
 
-    const PropertyMap& config = getDeviceContext().getConfiguration();
+    const PropertyMap& config = deviceContext.getConfiguration();
     std::optional<std::string> gestureModeString = config.getString("touch.gestureMode");
     if (gestureModeString.has_value()) {
         if (*gestureModeString == "single-touch") {
-            mParameters.gestureMode = Parameters::GestureMode::SINGLE_TOUCH;
+            parameters.gestureMode = Parameters::GestureMode::SINGLE_TOUCH;
         } else if (*gestureModeString == "multi-touch") {
-            mParameters.gestureMode = Parameters::GestureMode::MULTI_TOUCH;
+            parameters.gestureMode = Parameters::GestureMode::MULTI_TOUCH;
         } else if (*gestureModeString != "default") {
             ALOGW("Invalid value for touch.gestureMode: '%s'", gestureModeString->c_str());
         }
     }
 
-    configureDeviceType();
+    parameters.deviceType = computeDeviceType(deviceContext);
 
-    mParameters.hasButtonUnderPad = getDeviceContext().hasInputProperty(INPUT_PROP_BUTTONPAD);
+    parameters.hasButtonUnderPad = deviceContext.hasInputProperty(INPUT_PROP_BUTTONPAD);
 
-    mParameters.orientationAware =
+    parameters.orientationAware =
             config.getBool("touch.orientationAware")
-                    .value_or(mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN);
+                    .value_or(parameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN);
 
-    mParameters.orientation = ui::ROTATION_0;
+    parameters.orientation = ui::ROTATION_0;
     std::optional<std::string> orientationString = config.getString("touch.orientation");
     if (orientationString.has_value()) {
-        if (mParameters.deviceType != Parameters::DeviceType::TOUCH_SCREEN) {
+        if (parameters.deviceType != Parameters::DeviceType::TOUCH_SCREEN) {
             ALOGW("The configuration 'touch.orientation' is only supported for touchscreens.");
         } else if (*orientationString == "ORIENTATION_90") {
-            mParameters.orientation = ui::ROTATION_90;
+            parameters.orientation = ui::ROTATION_90;
         } else if (*orientationString == "ORIENTATION_180") {
-            mParameters.orientation = ui::ROTATION_180;
+            parameters.orientation = ui::ROTATION_180;
         } else if (*orientationString == "ORIENTATION_270") {
-            mParameters.orientation = ui::ROTATION_270;
+            parameters.orientation = ui::ROTATION_270;
         } else if (*orientationString != "ORIENTATION_0") {
             ALOGW("Invalid value for touch.orientation: '%s'", orientationString->c_str());
         }
     }
 
-    mParameters.hasAssociatedDisplay = false;
-    mParameters.associatedDisplayIsExternal = false;
-    if (mParameters.orientationAware ||
-        mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN ||
-        mParameters.deviceType == Parameters::DeviceType::POINTER ||
-        (mParameters.deviceType == Parameters::DeviceType::TOUCH_NAVIGATION &&
-         getDeviceContext().getAssociatedViewport())) {
-        mParameters.hasAssociatedDisplay = true;
-        if (mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN) {
-            mParameters.associatedDisplayIsExternal = getDeviceContext().isExternal();
-            mParameters.uniqueDisplayId = config.getString("touch.displayId").value_or("").c_str();
+    parameters.hasAssociatedDisplay = false;
+    parameters.associatedDisplayIsExternal = false;
+    if (parameters.orientationAware ||
+        parameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN ||
+        parameters.deviceType == Parameters::DeviceType::POINTER ||
+        (parameters.deviceType == Parameters::DeviceType::TOUCH_NAVIGATION &&
+         deviceContext.getAssociatedViewport())) {
+        parameters.hasAssociatedDisplay = true;
+        if (parameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN) {
+            parameters.associatedDisplayIsExternal = deviceContext.isExternal();
+            parameters.uniqueDisplayId = config.getString("touch.displayId").value_or("").c_str();
         }
     }
-    if (getDeviceContext().getAssociatedDisplayPort()) {
-        mParameters.hasAssociatedDisplay = true;
+    if (deviceContext.getAssociatedDisplayPort()) {
+        parameters.hasAssociatedDisplay = true;
     }
 
     // Initial downs on external touch devices should wake the device.
     // Normally we don't do this for internal touch screens to prevent them from waking
     // up in your pocket but you can enable it using the input device configuration.
-    mParameters.wake = config.getBool("touch.wake").value_or(getDeviceContext().isExternal());
+    parameters.wake = config.getBool("touch.wake").value_or(deviceContext.isExternal());
 
     std::optional<int32_t> usiVersionMajor = config.getInt("touch.usiVersionMajor");
     std::optional<int32_t> usiVersionMinor = config.getInt("touch.usiVersionMinor");
     if (usiVersionMajor.has_value() && usiVersionMinor.has_value()) {
-        mParameters.usiVersion = {
+        parameters.usiVersion = {
                 .majorVersion = *usiVersionMajor,
                 .minorVersion = *usiVersionMinor,
         };
     }
 
-    mParameters.enableForInactiveViewport =
+    parameters.enableForInactiveViewport =
             config.getBool("touch.enableForInactiveViewport").value_or(false);
+
+    return parameters;
 }
 
-void TouchInputMapper::configureDeviceType() {
-    if (getDeviceContext().hasInputProperty(INPUT_PROP_DIRECT)) {
+TouchInputMapper::Parameters::DeviceType TouchInputMapper::computeDeviceType(
+        const InputDeviceContext& deviceContext) {
+    Parameters::DeviceType deviceType;
+    if (deviceContext.hasInputProperty(INPUT_PROP_DIRECT)) {
         // The device is a touch screen.
-        mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
-    } else if (getDeviceContext().hasInputProperty(INPUT_PROP_POINTER)) {
+        deviceType = Parameters::DeviceType::TOUCH_SCREEN;
+    } else if (deviceContext.hasInputProperty(INPUT_PROP_POINTER)) {
         // The device is a pointing device like a track pad.
-        mParameters.deviceType = Parameters::DeviceType::POINTER;
+        deviceType = Parameters::DeviceType::POINTER;
     } else {
         // The device is a touch pad of unknown purpose.
-        mParameters.deviceType = Parameters::DeviceType::POINTER;
+        deviceType = Parameters::DeviceType::POINTER;
     }
 
     // Type association takes precedence over the device type found in the idc file.
-    std::string deviceTypeString = getDeviceContext().getDeviceTypeAssociation().value_or("");
+    std::string deviceTypeString = deviceContext.getDeviceTypeAssociation().value_or("");
     if (deviceTypeString.empty()) {
         deviceTypeString =
-                getDeviceContext().getConfiguration().getString("touch.deviceType").value_or("");
+                deviceContext.getConfiguration().getString("touch.deviceType").value_or("");
     }
     if (deviceTypeString == "touchScreen") {
-        mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
+        deviceType = Parameters::DeviceType::TOUCH_SCREEN;
     } else if (deviceTypeString == "touchNavigation") {
-        mParameters.deviceType = Parameters::DeviceType::TOUCH_NAVIGATION;
+        deviceType = Parameters::DeviceType::TOUCH_NAVIGATION;
     } else if (deviceTypeString == "pointer") {
-        mParameters.deviceType = Parameters::DeviceType::POINTER;
+        deviceType = Parameters::DeviceType::POINTER;
     } else if (deviceTypeString != "default" && deviceTypeString != "") {
         ALOGW("Invalid value for touch.deviceType: '%s'", deviceTypeString.c_str());
     }
+    return deviceType;
 }
 
 void TouchInputMapper::dumpParameters(std::string& dump) {
