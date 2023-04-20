@@ -5825,8 +5825,8 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
         return layersProto;
     }
 
-    return LayerProtoFromSnapshotGenerator(mLayerSnapshotBuilder, mFrontEndDisplayInfos, {},
-                                           traceFlags)
+    return LayerProtoFromSnapshotGenerator(mLayerSnapshotBuilder, mFrontEndDisplayInfos,
+                                           mLegacyLayers, traceFlags)
             .generate(mLayerHierarchyBuilder.getHierarchy());
 }
 
