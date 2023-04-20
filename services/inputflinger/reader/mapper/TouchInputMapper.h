@@ -192,7 +192,7 @@ protected:
     };
 
     // Input sources and device mode.
-    uint32_t mSource;
+    uint32_t mSource{0};
 
     enum class DeviceMode {
         DISABLED,   // input is disabled
@@ -203,7 +203,7 @@ protected:
 
         ftl_last = POINTER
     };
-    DeviceMode mDeviceMode;
+    DeviceMode mDeviceMode{DeviceMode::DISABLED};
 
     // The reader's configuration.
     InputReaderConfiguration mConfig;
@@ -377,7 +377,6 @@ protected:
 
     std::vector<VirtualKey> mVirtualKeys;
 
-    virtual void configureParameters();
     virtual void dumpParameters(std::string& dump);
     virtual void configureRawPointerAxes();
     virtual void dumpRawPointerAxes(std::string& dump);
@@ -413,7 +412,7 @@ private:
     // The orientation of the input device relative to that of the display panel. It specifies
     // the rotation of the input device coordinates required to produce the display panel
     // orientation, so it will depend on whether the device is orientation aware.
-    ui::Rotation mInputDeviceOrientation;
+    ui::Rotation mInputDeviceOrientation{ui::ROTATION_0};
 
     // The transform that maps the input device's raw coordinate space to the un-rotated display's
     // coordinate space. InputReader generates events in the un-rotated display's coordinate space.
@@ -824,8 +823,8 @@ private:
 
     // Compute input transforms for DIRECT and POINTER modes.
     void computeInputTransforms();
-
-    void configureDeviceType();
+    static Parameters::DeviceType computeDeviceType(const InputDeviceContext& deviceContext);
+    static Parameters computeParameters(const InputDeviceContext& deviceContext);
 };
 
 } // namespace android
