@@ -66,12 +66,12 @@ void RotaryEncoderInputMapper::dump(std::string& dump) {
 
 std::list<NotifyArgs> RotaryEncoderInputMapper::reconfigure(nsecs_t when,
                                                             const InputReaderConfiguration& config,
-                                                            uint32_t changes) {
+                                                            ConfigurationChanges changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
-    if (!changes) {
+    if (!changes.any()) {
         mRotaryEncoderScrollAccumulator.configure(getDeviceContext());
     }
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO)) {
         std::optional<DisplayViewport> internalViewport =
                 config.getDisplayViewportByType(ViewportType::INTERNAL);
         if (internalViewport) {

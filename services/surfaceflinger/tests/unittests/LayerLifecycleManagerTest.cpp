@@ -36,13 +36,13 @@ namespace android::surfaceflinger::frontend {
 class ExpectLayerLifecycleListener : public LayerLifecycleManager::ILifecycleListener {
 public:
     void onLayerAdded(const RequestedLayerState& layer) override {
-        mActualLayersAdded.emplace(layer.id);
+        mActualLayersAdded.push_back(layer.id);
     };
     void onLayerDestroyed(const RequestedLayerState& layer) override {
         mActualLayersDestroyed.emplace(layer.id);
     };
 
-    void expectLayersAdded(const std::unordered_set<uint32_t>& expectedLayersAdded) {
+    void expectLayersAdded(const std::vector<uint32_t>& expectedLayersAdded) {
         EXPECT_EQ(expectedLayersAdded, mActualLayersAdded);
         mActualLayersAdded.clear();
     }
@@ -51,7 +51,7 @@ public:
         mActualLayersDestroyed.clear();
     }
 
-    std::unordered_set<uint32_t> mActualLayersAdded;
+    std::vector<uint32_t> mActualLayersAdded;
     std::unordered_set<uint32_t> mActualLayersDestroyed;
 };
 
@@ -318,7 +318,8 @@ TEST_F(LayerLifecycleManagerTest, canAddBackgroundLayer) {
 
     EXPECT_TRUE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     lifecycleManager.commitChanges();
-    auto bgLayerId = LayerCreationArgs::getInternalLayerId(1);
+    ASSERT_EQ(listener->mActualLayersAdded.size(), 2u);
+    auto bgLayerId = listener->mActualLayersAdded[1];
     listener->expectLayersAdded({1, bgLayerId});
     listener->expectLayersDestroyed({});
     EXPECT_EQ(getRequestedLayerState(lifecycleManager, bgLayerId)->color.a, 0.5_hf);
@@ -352,7 +353,8 @@ TEST_F(LayerLifecycleManagerTest, canDestroyBackgroundLayer) {
 
     EXPECT_TRUE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     lifecycleManager.commitChanges();
-    auto bgLayerId = LayerCreationArgs::getInternalLayerId(1);
+    ASSERT_EQ(listener->mActualLayersAdded.size(), 2u);
+    auto bgLayerId = listener->mActualLayersAdded[1];
     listener->expectLayersAdded({1, bgLayerId});
     listener->expectLayersDestroyed({bgLayerId});
 }
@@ -381,7 +383,8 @@ TEST_F(LayerLifecycleManagerTest, onParentDestroyDestroysBackgroundLayer) {
 
     EXPECT_TRUE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     lifecycleManager.commitChanges();
-    auto bgLayerId = LayerCreationArgs::getInternalLayerId(1);
+    ASSERT_EQ(listener->mActualLayersAdded.size(), 2u);
+    auto bgLayerId = listener->mActualLayersAdded[1];
     listener->expectLayersAdded({1, bgLayerId});
     listener->expectLayersDestroyed({1, bgLayerId});
 }

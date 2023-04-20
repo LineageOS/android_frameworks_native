@@ -1297,7 +1297,7 @@ bool InputDispatcher::isAppSwitchKeyEvent(const KeyEntry& keyEntry) {
             (keyEntry.policyFlags & POLICY_FLAG_PASS_TO_USER);
 }
 
-bool InputDispatcher::isAppSwitchPendingLocked() {
+bool InputDispatcher::isAppSwitchPendingLocked() const {
     return mAppSwitchDueTime != LLONG_MAX;
 }
 
@@ -5411,7 +5411,7 @@ void InputDispatcher::resetAndDropEverythingLocked(const char* reason) {
     mReplacedKeys.clear();
 }
 
-void InputDispatcher::logDispatchStateLocked() {
+void InputDispatcher::logDispatchStateLocked() const {
     std::string dump;
     dumpDispatchStateLocked(dump);
 
@@ -5423,7 +5423,7 @@ void InputDispatcher::logDispatchStateLocked() {
     }
 }
 
-std::string InputDispatcher::dumpPointerCaptureStateLocked() {
+std::string InputDispatcher::dumpPointerCaptureStateLocked() const {
     std::string dump;
 
     dump += StringPrintf(INDENT "Pointer Capture Requested: %s\n",
@@ -5441,7 +5441,7 @@ std::string InputDispatcher::dumpPointerCaptureStateLocked() {
     return dump;
 }
 
-void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
+void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
     dump += StringPrintf(INDENT "DispatchEnabled: %s\n", toString(mDispatchEnabled));
     dump += StringPrintf(INDENT "DispatchFrozen: %s\n", toString(mDispatchFrozen));
     dump += StringPrintf(INDENT "InputFilterEnabled: %s\n", toString(mInputFilterEnabled));
@@ -5544,7 +5544,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     // Dump recently dispatched or dropped events from oldest to newest.
     if (!mRecentQueue.empty()) {
         dump += StringPrintf(INDENT "RecentQueue: length=%zu\n", mRecentQueue.size());
-        for (std::shared_ptr<EventEntry>& entry : mRecentQueue) {
+        for (const std::shared_ptr<EventEntry>& entry : mRecentQueue) {
             dump += INDENT2;
             dump += entry->getDescription();
             dump += StringPrintf(", age=%" PRId64 "ms\n", ns2ms(currentTime - entry->eventTime));
@@ -5567,7 +5567,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     // Dump inbound events from oldest to newest.
     if (!mInboundQueue.empty()) {
         dump += StringPrintf(INDENT "InboundQueue: length=%zu\n", mInboundQueue.size());
-        for (std::shared_ptr<EventEntry>& entry : mInboundQueue) {
+        for (const std::shared_ptr<EventEntry>& entry : mInboundQueue) {
             dump += INDENT2;
             dump += entry->getDescription();
             dump += StringPrintf(", age=%" PRId64 "ms\n", ns2ms(currentTime - entry->eventTime));
@@ -5649,7 +5649,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     dump += mLatencyAggregator.dump(INDENT2);
 }
 
-void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors) {
+void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors) const {
     const size_t numMonitors = monitors.size();
     for (size_t i = 0; i < numMonitors; i++) {
         const Monitor& monitor = monitors[i];

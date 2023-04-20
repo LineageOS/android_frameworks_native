@@ -56,7 +56,7 @@ public:
      */
     void processTimeline(const InputEventTimeline& timeline) override;
 
-    std::string dump(const char* prefix);
+    std::string dump(const char* prefix) const;
 
     ~LatencyAggregator();
 

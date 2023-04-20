@@ -466,7 +466,8 @@ TEST_F(LayerHierarchyTest, backgroundLayersAreBehindParentLayer) {
 
     updateBackgroundColor(1, 0.5);
     UPDATE_AND_VERIFY(hierarchyBuilder);
-    auto bgLayerId = LayerCreationArgs::getInternalLayerId(1);
+    auto hierarchy = hierarchyBuilder.getPartialHierarchy(1, /*childrenOnly=*/true);
+    auto bgLayerId = hierarchy.mChildren.front().first->getLayer()->id;
     std::vector<uint32_t> expectedTraversalPath = {1,   bgLayerId, 11,   111, 12,
                                                    121, 122,       1221, 13,  2};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);

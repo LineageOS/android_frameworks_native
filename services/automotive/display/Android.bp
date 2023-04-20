@@ -53,6 +53,4 @@ cc_binary {
     vintf_fragments: [
         "manifest_android.frameworks.automotive.display@1.0.xml",
     ],
-
-    system_ext_specific: true,
 }
