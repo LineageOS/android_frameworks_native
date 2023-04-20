@@ -5284,6 +5284,7 @@ protected:
         mFakePolicy = sp<FakeInputDispatcherPolicy>::make();
         mFakePolicy->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
         mDispatcher = std::make_unique<InputDispatcher>(mFakePolicy);
+        mDispatcher->requestRefreshConfiguration();
         mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
         ASSERT_EQ(OK, mDispatcher->start());
 
