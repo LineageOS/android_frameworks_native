@@ -142,6 +142,8 @@ public:
     const std::string& getDebugLayers();
     // Get the debug layers to load.
     const std::string& getDebugLayersGLES();
+    // Set the persist.graphics.egl system property value.
+    void nativeToggleAngleAsSystemDriver(bool enabled);
 
 private:
     enum UseAngle { UNKNOWN, YES, NO };
