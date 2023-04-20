@@ -34,10 +34,12 @@ public:
 
 protected:
     const android::base::unique_fd mFd;
-    bool writeInputEvent(uint16_t type, uint16_t code, int32_t value);
+    bool writeInputEvent(uint16_t type, uint16_t code, int32_t value,
+                         std::chrono::nanoseconds eventTime);
     bool writeEvKeyEvent(int32_t androidCode, int32_t androidAction,
                          const std::map<int, int>& evKeyCodeMapping,
-                         const std::map<int, UinputAction>& actionMapping);
+                         const std::map<int, UinputAction>& actionMapping,
+                         std::chrono::nanoseconds eventTime);
 };
 
 class VirtualKeyboard : public VirtualInputDevice {
@@ -47,7 +49,8 @@ public:
     static const std::map<int, UinputAction> KEY_ACTION_MAPPING;
     VirtualKeyboard(android::base::unique_fd fd);
     virtual ~VirtualKeyboard() override;
-    bool writeKeyEvent(int32_t androidKeyCode, int32_t androidAction);
+    bool writeKeyEvent(int32_t androidKeyCode, int32_t androidAction,
+                       std::chrono::nanoseconds eventTime);
 };
 
 class VirtualDpad : public VirtualInputDevice {
@@ -55,17 +58,20 @@ public:
     static const std::map<int, int> DPAD_KEY_CODE_MAPPING;
     VirtualDpad(android::base::unique_fd fd);
     virtual ~VirtualDpad() override;
-    bool writeDpadKeyEvent(int32_t androidKeyCode, int32_t androidAction);
+    bool writeDpadKeyEvent(int32_t androidKeyCode, int32_t androidAction,
+                           std::chrono::nanoseconds eventTime);
 };
 
 class VirtualMouse : public VirtualInputDevice {
 public:
     VirtualMouse(android::base::unique_fd fd);
     virtual ~VirtualMouse() override;
-    bool writeButtonEvent(int32_t androidButtonCode, int32_t androidAction);
+    bool writeButtonEvent(int32_t androidButtonCode, int32_t androidAction,
+                          std::chrono::nanoseconds eventTime);
     // TODO(b/259554911): changing float parameters to int32_t.
-    bool writeRelativeEvent(float relativeX, float relativeY);
-    bool writeScrollEvent(float xAxisMovement, float yAxisMovement);
+    bool writeRelativeEvent(float relativeX, float relativeY, std::chrono::nanoseconds eventTime);
+    bool writeScrollEvent(float xAxisMovement, float yAxisMovement,
+                          std::chrono::nanoseconds eventTime);
 
 private:
     static const std::map<int, UinputAction> BUTTON_ACTION_MAPPING;
@@ -78,7 +84,8 @@ public:
     virtual ~VirtualTouchscreen() override;
     // TODO(b/259554911): changing float parameters to int32_t.
     bool writeTouchEvent(int32_t pointerId, int32_t toolType, int32_t action, float locationX,
-                         float locationY, float pressure, float majorAxisSize);
+                         float locationY, float pressure, float majorAxisSize,
+                         std::chrono::nanoseconds eventTime);
 
 private:
     static const std::map<int, UinputAction> TOUCH_ACTION_MAPPING;
@@ -91,7 +98,7 @@ private:
      */
     std::bitset<MAX_POINTERS> mActivePointers{};
     bool isValidPointerId(int32_t pointerId, UinputAction uinputAction);
-    bool handleTouchDown(int32_t pointerId);
-    bool handleTouchUp(int32_t pointerId);
+    bool handleTouchDown(int32_t pointerId, std::chrono::nanoseconds eventTime);
+    bool handleTouchUp(int32_t pointerId, std::chrono::nanoseconds eventTime);
 };
 } // namespace android

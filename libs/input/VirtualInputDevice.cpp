@@ -44,15 +44,24 @@ VirtualInputDevice::~VirtualInputDevice() {
     ioctl(mFd, UI_DEV_DESTROY);
 }
 
-bool VirtualInputDevice::writeInputEvent(uint16_t type, uint16_t code, int32_t value) {
-    struct input_event ev = {.type = type, .code = code, .value = value};
+bool VirtualInputDevice::writeInputEvent(uint16_t type, uint16_t code, int32_t value,
+                                         std::chrono::nanoseconds eventTime) {
+    std::chrono::seconds seconds = std::chrono::duration_cast<std::chrono::seconds>(eventTime);
+    std::chrono::microseconds microseconds =
+            std::chrono::duration_cast<std::chrono::microseconds>(eventTime - seconds);
+    struct input_event ev = {.type = type,
+                             .code = code,
+                             .value = value,
+                             .input_event_sec = static_cast<time_t>(seconds.count()),
+                             .input_event_usec = static_cast<suseconds_t>(microseconds.count())};
     return TEMP_FAILURE_RETRY(write(mFd, &ev, sizeof(struct input_event))) == sizeof(ev);
 }
 
 /** Utility method to write keyboard key events or mouse button events. */
 bool VirtualInputDevice::writeEvKeyEvent(int32_t androidCode, int32_t androidAction,
                                          const std::map<int, int>& evKeyCodeMapping,
-                                         const std::map<int, UinputAction>& actionMapping) {
+                                         const std::map<int, UinputAction>& actionMapping,
+                                         std::chrono::nanoseconds eventTime) {
     auto evKeyCodeIterator = evKeyCodeMapping.find(androidCode);
     if (evKeyCodeIterator == evKeyCodeMapping.end()) {
         ALOGE("Unsupported native EV keycode for android code %d", androidCode);
@@ -63,10 +72,10 @@ bool VirtualInputDevice::writeEvKeyEvent(int32_t androidCode, int32_t androidAct
         return false;
     }
     if (!writeInputEvent(EV_KEY, static_cast<uint16_t>(evKeyCodeIterator->second),
-                         static_cast<int32_t>(actionIterator->second))) {
+                         static_cast<int32_t>(actionIterator->second), eventTime)) {
         return false;
     }
-    if (!writeInputEvent(EV_SYN, SYN_REPORT, 0)) {
+    if (!writeInputEvent(EV_SYN, SYN_REPORT, 0, eventTime)) {
         return false;
     }
     return true;
@@ -189,8 +198,10 @@ const std::map<int, int> VirtualKeyboard::KEY_CODE_MAPPING = {
 VirtualKeyboard::VirtualKeyboard(unique_fd fd) : VirtualInputDevice(std::move(fd)) {}
 VirtualKeyboard::~VirtualKeyboard() {}
 
-bool VirtualKeyboard::writeKeyEvent(int32_t androidKeyCode, int32_t androidAction) {
-    return writeEvKeyEvent(androidKeyCode, androidAction, KEY_CODE_MAPPING, KEY_ACTION_MAPPING);
+bool VirtualKeyboard::writeKeyEvent(int32_t androidKeyCode, int32_t androidAction,
+                                    std::chrono::nanoseconds eventTime) {
+    return writeEvKeyEvent(androidKeyCode, androidAction, KEY_CODE_MAPPING, KEY_ACTION_MAPPING,
+                           eventTime);
 }
 
 // --- VirtualDpad ---
@@ -210,9 +221,10 @@ VirtualDpad::VirtualDpad(unique_fd fd) : VirtualInputDevice(std::move(fd)) {}
 
 VirtualDpad::~VirtualDpad() {}
 
-bool VirtualDpad::writeDpadKeyEvent(int32_t androidKeyCode, int32_t androidAction) {
+bool VirtualDpad::writeDpadKeyEvent(int32_t androidKeyCode, int32_t androidAction,
+                                    std::chrono::nanoseconds eventTime) {
     return writeEvKeyEvent(androidKeyCode, androidAction, DPAD_KEY_CODE_MAPPING,
-                           VirtualKeyboard::KEY_ACTION_MAPPING);
+                           VirtualKeyboard::KEY_ACTION_MAPPING, eventTime);
 }
 
 // --- VirtualMouse ---
@@ -236,20 +248,24 @@ VirtualMouse::VirtualMouse(unique_fd fd) : VirtualInputDevice(std::move(fd)) {}
 
 VirtualMouse::~VirtualMouse() {}
 
-bool VirtualMouse::writeButtonEvent(int32_t androidButtonCode, int32_t androidAction) {
+bool VirtualMouse::writeButtonEvent(int32_t androidButtonCode, int32_t androidAction,
+                                    std::chrono::nanoseconds eventTime) {
     return writeEvKeyEvent(androidButtonCode, androidAction, BUTTON_CODE_MAPPING,
-                           BUTTON_ACTION_MAPPING);
+                           BUTTON_ACTION_MAPPING, eventTime);
 }
 
-bool VirtualMouse::writeRelativeEvent(float relativeX, float relativeY) {
-    return writeInputEvent(EV_REL, REL_X, relativeX) && writeInputEvent(EV_REL, REL_Y, relativeY) &&
-            writeInputEvent(EV_SYN, SYN_REPORT, 0);
+bool VirtualMouse::writeRelativeEvent(float relativeX, float relativeY,
+                                      std::chrono::nanoseconds eventTime) {
+    return writeInputEvent(EV_REL, REL_X, relativeX, eventTime) &&
+            writeInputEvent(EV_REL, REL_Y, relativeY, eventTime) &&
+            writeInputEvent(EV_SYN, SYN_REPORT, 0, eventTime);
 }
 
-bool VirtualMouse::writeScrollEvent(float xAxisMovement, float yAxisMovement) {
-    return writeInputEvent(EV_REL, REL_HWHEEL, xAxisMovement) &&
-            writeInputEvent(EV_REL, REL_WHEEL, yAxisMovement) &&
-            writeInputEvent(EV_SYN, SYN_REPORT, 0);
+bool VirtualMouse::writeScrollEvent(float xAxisMovement, float yAxisMovement,
+                                    std::chrono::nanoseconds eventTime) {
+    return writeInputEvent(EV_REL, REL_HWHEEL, xAxisMovement, eventTime) &&
+            writeInputEvent(EV_REL, REL_WHEEL, yAxisMovement, eventTime) &&
+            writeInputEvent(EV_SYN, SYN_REPORT, 0, eventTime);
 }
 
 // --- VirtualTouchscreen ---
@@ -291,7 +307,7 @@ bool VirtualTouchscreen::isValidPointerId(int32_t pointerId, UinputAction uinput
 
 bool VirtualTouchscreen::writeTouchEvent(int32_t pointerId, int32_t toolType, int32_t action,
                                          float locationX, float locationY, float pressure,
-                                         float majorAxisSize) {
+                                         float majorAxisSize, std::chrono::nanoseconds eventTime) {
     auto actionIterator = TOUCH_ACTION_MAPPING.find(action);
     if (actionIterator == TOUCH_ACTION_MAPPING.end()) {
         return false;
@@ -300,44 +316,44 @@ bool VirtualTouchscreen::writeTouchEvent(int32_t pointerId, int32_t toolType, in
     if (!isValidPointerId(pointerId, uinputAction)) {
         return false;
     }
-    if (!writeInputEvent(EV_ABS, ABS_MT_SLOT, pointerId)) {
+    if (!writeInputEvent(EV_ABS, ABS_MT_SLOT, pointerId, eventTime)) {
         return false;
     }
     auto toolTypeIterator = TOOL_TYPE_MAPPING.find(toolType);
     if (toolTypeIterator == TOOL_TYPE_MAPPING.end()) {
         return false;
     }
-    if (!writeInputEvent(EV_ABS, ABS_MT_TOOL_TYPE,
-                         static_cast<int32_t>(toolTypeIterator->second))) {
+    if (!writeInputEvent(EV_ABS, ABS_MT_TOOL_TYPE, static_cast<int32_t>(toolTypeIterator->second),
+                         eventTime)) {
         return false;
     }
-    if (uinputAction == UinputAction::PRESS && !handleTouchDown(pointerId)) {
+    if (uinputAction == UinputAction::PRESS && !handleTouchDown(pointerId, eventTime)) {
         return false;
     }
-    if (uinputAction == UinputAction::RELEASE && !handleTouchUp(pointerId)) {
+    if (uinputAction == UinputAction::RELEASE && !handleTouchUp(pointerId, eventTime)) {
         return false;
     }
-    if (!writeInputEvent(EV_ABS, ABS_MT_POSITION_X, locationX)) {
+    if (!writeInputEvent(EV_ABS, ABS_MT_POSITION_X, locationX, eventTime)) {
         return false;
     }
-    if (!writeInputEvent(EV_ABS, ABS_MT_POSITION_Y, locationY)) {
+    if (!writeInputEvent(EV_ABS, ABS_MT_POSITION_Y, locationY, eventTime)) {
         return false;
     }
     if (!isnan(pressure)) {
-        if (!writeInputEvent(EV_ABS, ABS_MT_PRESSURE, pressure)) {
+        if (!writeInputEvent(EV_ABS, ABS_MT_PRESSURE, pressure, eventTime)) {
             return false;
         }
     }
     if (!isnan(majorAxisSize)) {
-        if (!writeInputEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, majorAxisSize)) {
+        if (!writeInputEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, majorAxisSize, eventTime)) {
             return false;
         }
     }
-    return writeInputEvent(EV_SYN, SYN_REPORT, 0);
+    return writeInputEvent(EV_SYN, SYN_REPORT, 0, eventTime);
 }
 
-bool VirtualTouchscreen::handleTouchUp(int32_t pointerId) {
-    if (!writeInputEvent(EV_ABS, ABS_MT_TRACKING_ID, static_cast<int32_t>(-1))) {
+bool VirtualTouchscreen::handleTouchUp(int32_t pointerId, std::chrono::nanoseconds eventTime) {
+    if (!writeInputEvent(EV_ABS, ABS_MT_TRACKING_ID, static_cast<int32_t>(-1), eventTime)) {
         return false;
     }
     // When a pointer is no longer in touch, remove the pointer id from the corresponding
@@ -347,7 +363,8 @@ bool VirtualTouchscreen::handleTouchUp(int32_t pointerId) {
 
     // Only sends the BTN UP event when there's no pointers on the touchscreen.
     if (mActivePointers.none()) {
-        if (!writeInputEvent(EV_KEY, BTN_TOUCH, static_cast<int32_t>(UinputAction::RELEASE))) {
+        if (!writeInputEvent(EV_KEY, BTN_TOUCH, static_cast<int32_t>(UinputAction::RELEASE),
+                             eventTime)) {
             return false;
         }
         ALOGD_IF(isDebug(), "No pointers on touchscreen %d, BTN UP event sent.", mFd.get());
@@ -355,12 +372,13 @@ bool VirtualTouchscreen::handleTouchUp(int32_t pointerId) {
     return true;
 }
 
-bool VirtualTouchscreen::handleTouchDown(int32_t pointerId) {
+bool VirtualTouchscreen::handleTouchDown(int32_t pointerId, std::chrono::nanoseconds eventTime) {
     // When a new pointer is down on the touchscreen, add the pointer id in the corresponding
     // entry in the unreleased touches map.
     if (mActivePointers.none()) {
         // Only sends the BTN Down event when the first pointer on the touchscreen is down.
-        if (!writeInputEvent(EV_KEY, BTN_TOUCH, static_cast<int32_t>(UinputAction::PRESS))) {
+        if (!writeInputEvent(EV_KEY, BTN_TOUCH, static_cast<int32_t>(UinputAction::PRESS),
+                             eventTime)) {
             return false;
         }
         ALOGD_IF(isDebug(), "First pointer %d down under touchscreen %d, BTN DOWN event sent",
@@ -369,7 +387,7 @@ bool VirtualTouchscreen::handleTouchDown(int32_t pointerId) {
 
     mActivePointers.set(pointerId);
     ALOGD_IF(isDebug(), "Added pointer %d under touchscreen %d in the map", pointerId, mFd.get());
-    if (!writeInputEvent(EV_ABS, ABS_MT_TRACKING_ID, static_cast<int32_t>(pointerId))) {
+    if (!writeInputEvent(EV_ABS, ABS_MT_TRACKING_ID, static_cast<int32_t>(pointerId), eventTime)) {
         return false;
     }
     return true;
