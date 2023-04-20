@@ -119,10 +119,10 @@ void SensorInputMapper::dump(std::string& dump) {
 
 std::list<NotifyArgs> SensorInputMapper::reconfigure(nsecs_t when,
                                                      const InputReaderConfiguration& config,
-                                                     uint32_t changes) {
+                                                     ConfigurationChanges changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
-    if (!changes) { // first time only
+    if (!changes.any()) { // first time only
         mDeviceEnabled = true;
         // Check if device has MSC_TIMESTAMP event.
         mHasHardwareTimestamp = getDeviceContext().hasMscEvent(MSC_TIMESTAMP);

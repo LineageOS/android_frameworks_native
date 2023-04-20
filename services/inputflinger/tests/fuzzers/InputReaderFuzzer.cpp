@@ -82,7 +82,7 @@ public:
         return reader->hasKeys(deviceId, sourceMask, keyCodes, outFlags);
     }
 
-    void requestRefreshConfiguration(uint32_t changes) {
+    void requestRefreshConfiguration(ConfigurationChanges changes) {
         reader->requestRefreshConfiguration(changes);
     }
 
@@ -232,7 +232,8 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                                     fdp->ConsumeIntegral<uint32_t>(), keyCodes, outFlags.data());
                 },
                 [&]() -> void {
-                    reader->requestRefreshConfiguration(fdp->ConsumeIntegral<uint32_t>());
+                    reader->requestRefreshConfiguration(
+                            InputReaderConfiguration::Change(fdp->ConsumeIntegral<uint32_t>()));
                 },
                 [&]() -> void {
                     reader->cancelVibrate(fdp->ConsumeIntegral<int32_t>(),

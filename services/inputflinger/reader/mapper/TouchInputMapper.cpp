@@ -290,7 +290,7 @@ void TouchInputMapper::dump(std::string& dump) {
 
 std::list<NotifyArgs> TouchInputMapper::reconfigure(nsecs_t when,
                                                     const InputReaderConfiguration& config,
-                                                    uint32_t changes) {
+                                                    ConfigurationChanges changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
     mConfig = config;
@@ -298,7 +298,7 @@ std::list<NotifyArgs> TouchInputMapper::reconfigure(nsecs_t when,
     // Full configuration should happen the first time configure is called and
     // when the device type is changed. Changing a device type can affect
     // various other parameters so should result in a reconfiguration.
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_DEVICE_TYPE)) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::DEVICE_TYPE)) {
         // Configure basic parameters.
         configureParameters();
 
@@ -314,33 +314,34 @@ std::list<NotifyArgs> TouchInputMapper::reconfigure(nsecs_t when,
         resolveCalibration();
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_TOUCH_AFFINE_TRANSFORMATION)) {
+    if (!changes.any() ||
+        changes.test(InputReaderConfiguration::Change::TOUCH_AFFINE_TRANSFORMATION)) {
         // Update location calibration to reflect current settings
         updateAffineTransformation();
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_POINTER_SPEED)) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::POINTER_SPEED)) {
         // Update pointer speed.
         mPointerVelocityControl.setParameters(mConfig.pointerVelocityControlParameters);
         mWheelXVelocityControl.setParameters(mConfig.wheelVelocityControlParameters);
         mWheelYVelocityControl.setParameters(mConfig.wheelVelocityControlParameters);
     }
 
+    using namespace ftl::flag_operators;
     bool resetNeeded = false;
-    if (!changes ||
-        (changes &
-         (InputReaderConfiguration::CHANGE_DISPLAY_INFO |
-          InputReaderConfiguration::CHANGE_POINTER_CAPTURE |
-          InputReaderConfiguration::CHANGE_POINTER_GESTURE_ENABLEMENT |
-          InputReaderConfiguration::CHANGE_SHOW_TOUCHES |
-          InputReaderConfiguration::CHANGE_EXTERNAL_STYLUS_PRESENCE |
-          InputReaderConfiguration::CHANGE_DEVICE_TYPE))) {
+    if (!changes.any() ||
+        changes.any(InputReaderConfiguration::Change::DISPLAY_INFO |
+                    InputReaderConfiguration::Change::POINTER_CAPTURE |
+                    InputReaderConfiguration::Change::POINTER_GESTURE_ENABLEMENT |
+                    InputReaderConfiguration::Change::SHOW_TOUCHES |
+                    InputReaderConfiguration::Change::EXTERNAL_STYLUS_PRESENCE |
+                    InputReaderConfiguration::Change::DEVICE_TYPE)) {
         // Configure device sources, display dimensions, orientation and
         // scaling factors.
         configureInputDevice(when, &resetNeeded);
     }
 
-    if (changes && resetNeeded) {
+    if (changes.any() && resetNeeded) {
         out += reset(when);
 
         // Send reset, unless this is the first time the device has been configured,

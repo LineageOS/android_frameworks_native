@@ -134,19 +134,20 @@ std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
 
 std::list<NotifyArgs> KeyboardInputMapper::reconfigure(nsecs_t when,
                                                        const InputReaderConfiguration& config,
-                                                       uint32_t changes) {
+                                                       ConfigurationChanges changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
-    if (!changes) { // first time only
+    if (!changes.any()) { // first time only
         // Configure basic parameters.
         configureParameters();
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO)) {
         mViewport = findViewport(config);
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUT_ASSOCIATION)) {
+    if (!changes.any() ||
+        changes.test(InputReaderConfiguration::Change::KEYBOARD_LAYOUT_ASSOCIATION)) {
         mKeyboardLayoutInfo =
                 getValueByKey(config.keyboardLayoutAssociations, getDeviceContext().getLocation());
     }
