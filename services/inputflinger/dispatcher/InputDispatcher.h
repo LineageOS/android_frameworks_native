@@ -249,12 +249,12 @@ private:
     sp<android::gui::WindowInfoHandle> findTouchedForegroundWindowLocked(int32_t displayId) const
             REQUIRES(mLock);
 
-    sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
+    std::shared_ptr<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
             REQUIRES(mLock);
 
     std::string getConnectionNameLocked(const sp<IBinder>& connectionToken) const REQUIRES(mLock);
 
-    void removeConnectionLocked(const sp<Connection>& connection) REQUIRES(mLock);
+    void removeConnectionLocked(const std::shared_ptr<Connection>& connection) REQUIRES(mLock);
 
     status_t pilferPointersLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
@@ -264,8 +264,8 @@ private:
     };
 
     // All registered connections mapped by input channel token.
-    std::unordered_map<sp<IBinder>, sp<Connection>, StrongPointerHash<IBinder>> mConnectionsByToken
-            GUARDED_BY(mLock);
+    std::unordered_map<sp<IBinder>, std::shared_ptr<Connection>, StrongPointerHash<IBinder>>
+            mConnectionsByToken GUARDED_BY(mLock);
 
     // Find a monitor pid by the provided token.
     std::optional<int32_t> findMonitorPidByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
@@ -328,8 +328,8 @@ private:
     std::chrono::nanoseconds mMonitorDispatchingTimeout GUARDED_BY(mLock);
 
     nsecs_t processAnrsLocked() REQUIRES(mLock);
-    std::chrono::nanoseconds getDispatchingTimeoutLocked(const sp<Connection>& connection)
-            REQUIRES(mLock);
+    std::chrono::nanoseconds getDispatchingTimeoutLocked(
+            const std::shared_ptr<Connection>& connection) REQUIRES(mLock);
 
     // Input filter processing.
     bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs& args) REQUIRES(mLock);
@@ -533,7 +533,7 @@ private:
     // prevent unneeded wakeups.
     AnrTracker mAnrTracker GUARDED_BY(mLock);
 
-    void cancelEventsForAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
+    void cancelEventsForAnrLocked(const std::shared_ptr<Connection>& connection) REQUIRES(mLock);
     // If a focused application changes, we should stop counting down the "no focused window" time,
     // because we will have no way of knowing when the previous application actually added a window.
     // This also means that we will miss cases like pulling down notification shade when the
@@ -594,22 +594,26 @@ private:
     // These methods are deliberately not Interruptible because doing all of the work
     // with the mutex held makes it easier to ensure that connection invariants are maintained.
     // If needed, the methods post commands to run later once the critical bits are done.
-    void prepareDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
+    void prepareDispatchCycleLocked(nsecs_t currentTime,
+                                    const std::shared_ptr<Connection>& connection,
                                     std::shared_ptr<EventEntry>, const InputTarget& inputTarget)
             REQUIRES(mLock);
-    void enqueueDispatchEntriesLocked(nsecs_t currentTime, const sp<Connection>& connection,
+    void enqueueDispatchEntriesLocked(nsecs_t currentTime,
+                                      const std::shared_ptr<Connection>& connection,
                                       std::shared_ptr<EventEntry>, const InputTarget& inputTarget)
             REQUIRES(mLock);
-    void enqueueDispatchEntryLocked(const sp<Connection>& connection, std::shared_ptr<EventEntry>,
-                                    const InputTarget& inputTarget,
+    void enqueueDispatchEntryLocked(const std::shared_ptr<Connection>& connection,
+                                    std::shared_ptr<EventEntry>, const InputTarget& inputTarget,
                                     ftl::Flags<InputTarget::Flags> dispatchMode) REQUIRES(mLock);
     status_t publishMotionEvent(Connection& connection, DispatchEntry& dispatchEntry) const;
-    void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
+    void startDispatchCycleLocked(nsecs_t currentTime,
+                                  const std::shared_ptr<Connection>& connection) REQUIRES(mLock);
+    void finishDispatchCycleLocked(nsecs_t currentTime,
+                                   const std::shared_ptr<Connection>& connection, uint32_t seq,
+                                   bool handled, nsecs_t consumeTime) REQUIRES(mLock);
+    void abortBrokenDispatchCycleLocked(nsecs_t currentTime,
+                                        const std::shared_ptr<Connection>& connection, bool notify)
             REQUIRES(mLock);
-    void finishDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-                                   uint32_t seq, bool handled, nsecs_t consumeTime) REQUIRES(mLock);
-    void abortBrokenDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-                                        bool notify) REQUIRES(mLock);
     void drainDispatchQueue(std::deque<DispatchEntry*>& queue);
     void releaseDispatchEntry(DispatchEntry* dispatchEntry);
     int handleReceiveCallback(int events, sp<IBinder> connectionToken);
@@ -624,14 +628,13 @@ private:
     void synthesizeCancelationEventsForInputChannelLocked(
             const std::shared_ptr<InputChannel>& channel, const CancelationOptions& options)
             REQUIRES(mLock);
-    void synthesizeCancelationEventsForConnectionLocked(const sp<Connection>& connection,
-                                                        const CancelationOptions& options)
+    void synthesizeCancelationEventsForConnectionLocked(
+            const std::shared_ptr<Connection>& connection, const CancelationOptions& options)
             REQUIRES(mLock);
 
-    void synthesizePointerDownEventsForConnectionLocked(const nsecs_t downTime,
-                                                        const sp<Connection>& connection,
-                                                        ftl::Flags<InputTarget::Flags> targetFlags)
-            REQUIRES(mLock);
+    void synthesizePointerDownEventsForConnectionLocked(
+            const nsecs_t downTime, const std::shared_ptr<Connection>& connection,
+            ftl::Flags<InputTarget::Flags> targetFlags) REQUIRES(mLock);
 
     void synthesizeCancelationEventsForWindowLocked(
             const sp<android::gui::WindowInfoHandle>& windowHandle,
@@ -658,16 +661,16 @@ private:
             REQUIRES(mLock);
 
     // Interesting events that we might like to log or tell the framework about.
-    void doDispatchCycleFinishedCommand(nsecs_t finishTime, const sp<Connection>& connection,
-                                        uint32_t seq, bool handled, nsecs_t consumeTime)
-            REQUIRES(mLock);
+    void doDispatchCycleFinishedCommand(nsecs_t finishTime,
+                                        const std::shared_ptr<Connection>& connection, uint32_t seq,
+                                        bool handled, nsecs_t consumeTime) REQUIRES(mLock);
     void doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& focusedWindowToken,
                                                 KeyEntry& entry) REQUIRES(mLock);
     void onFocusChangedLocked(const FocusResolver::FocusChanges& changes) REQUIRES(mLock);
     void sendFocusChangedCommandLocked(const sp<IBinder>& oldToken, const sp<IBinder>& newToken)
             REQUIRES(mLock);
     void sendDropWindowCommandLocked(const sp<IBinder>& token, float x, float y) REQUIRES(mLock);
-    void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
+    void onAnrLocked(const std::shared_ptr<Connection>& connection) REQUIRES(mLock);
     void onAnrLocked(std::shared_ptr<InputApplicationHandle> application) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<android::gui::WindowInfoHandle>& window,
                                   const std::string& reason) REQUIRES(mLock);
@@ -675,10 +678,10 @@ private:
                                   const std::string& reason) REQUIRES(mLock);
     void updateLastAnrStateLocked(const std::string& windowLabel, const std::string& reason)
             REQUIRES(mLock);
-    bool afterKeyEventLockedInterruptable(const sp<Connection>& connection,
+    bool afterKeyEventLockedInterruptable(const std::shared_ptr<Connection>& connection,
                                           DispatchEntry* dispatchEntry, KeyEntry& keyEntry,
                                           bool handled) REQUIRES(mLock);
-    bool afterMotionEventLockedInterruptable(const sp<Connection>& connection,
+    bool afterMotionEventLockedInterruptable(const std::shared_ptr<Connection>& connection,
                                              DispatchEntry* dispatchEntry, MotionEntry& motionEntry,
                                              bool handled) REQUIRES(mLock);
 
