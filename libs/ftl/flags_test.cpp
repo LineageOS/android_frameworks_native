@@ -35,6 +35,7 @@ TEST(Flags, Test) {
 
 TEST(Flags, Any) {
     Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
+    ASSERT_TRUE(flags.any());
     ASSERT_TRUE(flags.any(TestFlags::ONE));
     ASSERT_TRUE(flags.any(TestFlags::TWO));
     ASSERT_FALSE(flags.any(TestFlags::THREE));
@@ -42,6 +43,9 @@ TEST(Flags, Any) {
     ASSERT_TRUE(flags.any(TestFlags::TWO | TestFlags::THREE));
     ASSERT_TRUE(flags.any(TestFlags::ONE | TestFlags::THREE));
     ASSERT_TRUE(flags.any(TestFlags::ONE | TestFlags::TWO | TestFlags::THREE));
+
+    Flags<TestFlags> emptyFlags;
+    ASSERT_FALSE(emptyFlags.any());
 }
 
 TEST(Flags, All) {

@@ -53,12 +53,14 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 [&]() -> void {
                     std::list<NotifyArgs> unused =
                             mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
-                                               fdp->ConsumeIntegral<int32_t>());
+                                               InputReaderConfiguration::Change(
+                                                       fdp->ConsumeIntegral<int32_t>()));
                 },
                 [&]() -> void {
                     // Need to reconfigure with 0 or you risk a NPE.
                     std::list<NotifyArgs> unused =
-                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig, 0);
+                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
+                                               InputReaderConfiguration::Change(0));
                     InputDeviceInfo info;
                     mapper.populateDeviceInfo(info);
                 },
@@ -71,7 +73,8 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
 
                     // Need to reconfigure with 0 or you risk a NPE.
                     std::list<NotifyArgs> unused =
-                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig, 0);
+                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
+                                               InputReaderConfiguration::Change(0));
                     RawEvent rawEvent{fdp->ConsumeIntegral<nsecs_t>(),
                                       fdp->ConsumeIntegral<nsecs_t>(),
                                       fdp->ConsumeIntegral<int32_t>(),
@@ -90,7 +93,8 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 [&]() -> void {
                     // Need to reconfigure with 0 or you risk a NPE.
                     std::list<NotifyArgs> unused =
-                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig, 0);
+                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
+                                               InputReaderConfiguration::Change(0));
                     mapper.getAssociatedDisplayId();
                 },
         })();

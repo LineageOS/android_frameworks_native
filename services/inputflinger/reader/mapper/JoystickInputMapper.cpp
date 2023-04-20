@@ -106,10 +106,10 @@ void JoystickInputMapper::dump(std::string& dump) {
 
 std::list<NotifyArgs> JoystickInputMapper::reconfigure(nsecs_t when,
                                                        const InputReaderConfiguration& config,
-                                                       uint32_t changes) {
+                                                       ConfigurationChanges changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
 
-    if (!changes) { // first time only
+    if (!changes.any()) { // first time only
         // Collect all axes.
         for (int32_t abs = 0; abs <= ABS_MAX; abs++) {
             if (!(getAbsAxisUsage(abs, getDeviceContext().getDeviceClasses())

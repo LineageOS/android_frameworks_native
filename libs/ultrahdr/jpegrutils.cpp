@@ -302,7 +302,7 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, ultrahdr_metadata_st
     return true;
 }
 
-string generateXmpForPrimaryImage(int secondary_image_length) {
+string generateXmpForPrimaryImage(int secondary_image_length, ultrahdr_metadata_struct& metadata) {
   const vector<string> kConDirSeq({kConDirectory, string("rdf:Seq")});
   const vector<string> kLiItem({string("rdf:li"), kConItem});
 
@@ -316,6 +316,8 @@ string generateXmpForPrimaryImage(int secondary_image_length) {
   writer.StartWritingElement("rdf:Description");
   writer.WriteXmlns(kContainerPrefix, kContainerUri);
   writer.WriteXmlns(kItemPrefix, kItemUri);
+  writer.WriteXmlns(kGainMapPrefix, kGainMapUri);
+  writer.WriteAttributeNameAndValue(kMapVersion, metadata.version);
 
   writer.StartWritingElements(kConDirSeq);
 

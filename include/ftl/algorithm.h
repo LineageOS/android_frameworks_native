@@ -68,4 +68,29 @@ constexpr auto to_mapped_ref(const Pair& pair) -> std::reference_wrapper<const M
   return std::cref(pair.second);
 }
 
+// Combinator for ftl::Optional<T>::or_else when T is std::reference_wrapper<const V>. Given a
+// lambda argument that returns a `constexpr` value, ftl::static_ref<T> binds a reference to a
+// static T initialized to that constant.
+//
+//   const ftl::SmallMap map = ftl::init::map(13, "tiramisu"sv)(14, "upside-down cake"sv);
+//   assert("???"sv ==
+//          map.get(20).or_else(ftl::static_ref<std::string_view>([] { return "???"sv; }))->get());
+//
+//   using Map = decltype(map);
+//
+//   assert("snow cone"sv ==
+//          ftl::find_if(map, [](const auto& pair) { return pair.second.front() == 's'; })
+//              .transform(ftl::to_mapped_ref<Map>)
+//              .or_else(ftl::static_ref<std::string_view>([] { return "snow cone"sv; }))
+//              ->get());
+//
+template <typename T, typename F>
+constexpr auto static_ref(F&& f) {
+  return [f = std::forward<F>(f)] {
+    constexpr auto kInitializer = f();
+    static const T kValue = kInitializer;
+    return Optional(std::cref(kValue));
+  };
+}
+
 }  // namespace android::ftl
