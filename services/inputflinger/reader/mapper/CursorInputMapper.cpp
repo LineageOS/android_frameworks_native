@@ -139,26 +139,26 @@ void CursorInputMapper::dump(std::string& dump) {
 
 std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
                                                      const InputReaderConfiguration& readerConfig,
-                                                     uint32_t changes) {
+                                                     ConfigurationChanges changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, readerConfig, changes);
 
-    if (!changes) {
+    if (!changes.any()) {
         configureWithZeroChanges(readerConfig);
         return out;
     }
 
     const bool configurePointerCapture = mParameters.mode != Parameters::Mode::NAVIGATION &&
-            (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+            changes.test(InputReaderConfiguration::Change::POINTER_CAPTURE);
     if (configurePointerCapture) {
         configureOnPointerCapture(readerConfig);
         out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
     }
 
-    if ((changes & InputReaderConfiguration::CHANGE_POINTER_SPEED) || configurePointerCapture) {
+    if (changes.test(InputReaderConfiguration::Change::POINTER_SPEED) || configurePointerCapture) {
         configureOnChangePointerSpeed(readerConfig);
     }
 
-    if ((changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO) || configurePointerCapture) {
+    if (changes.test(InputReaderConfiguration::Change::DISPLAY_INFO) || configurePointerCapture) {
         configureOnChangeDisplayInfo(readerConfig);
     }
     return out;

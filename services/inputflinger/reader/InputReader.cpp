@@ -85,7 +85,7 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
         mDisableVirtualKeysTimeout(LLONG_MIN),
         mNextTimeout(LLONG_MAX),
         mConfigurationChangesToRefresh(0) {
-    refreshConfigurationLocked(0);
+    refreshConfigurationLocked(/*changes=*/{});
     updateGlobalMetaStateLocked();
 }
 
@@ -122,9 +122,9 @@ void InputReader::loopOnce() {
         oldGeneration = mGeneration;
         timeoutMillis = -1;
 
-        uint32_t changes = mConfigurationChangesToRefresh;
-        if (changes) {
-            mConfigurationChangesToRefresh = 0;
+        auto changes = mConfigurationChangesToRefresh;
+        if (changes.any()) {
+            mConfigurationChangesToRefresh.clear();
             timeoutMillis = 0;
             refreshConfigurationLocked(changes);
         } else if (mNextTimeout != LLONG_MAX) {
@@ -236,7 +236,7 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
     InputDeviceIdentifier identifier = mEventHub->getDeviceIdentifier(eventHubId);
     std::shared_ptr<InputDevice> device = createDeviceLocked(eventHubId, identifier);
 
-    notifyAll(device->configure(when, mConfig, 0));
+    notifyAll(device->configure(when, mConfig, /*changes=*/{}));
     notifyAll(device->reset(when));
 
     if (device->isIgnored()) {
@@ -312,7 +312,7 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
 
     std::list<NotifyArgs> resetEvents;
     if (device->hasEventHubDevices()) {
-        resetEvents += device->configure(when, mConfig, 0);
+        resetEvents += device->configure(when, mConfig, /*changes=*/{});
     }
     resetEvents += device->reset(when);
     notifyAll(std::move(resetEvents));
@@ -390,21 +390,21 @@ void InputReader::handleConfigurationChangedLocked(nsecs_t when) {
     mQueuedListener.notifyConfigurationChanged({mContext.getNextId(), when});
 }
 
-void InputReader::refreshConfigurationLocked(uint32_t changes) {
+void InputReader::refreshConfigurationLocked(ConfigurationChanges changes) {
     mPolicy->getReaderConfiguration(&mConfig);
     mEventHub->setExcludedDevices(mConfig.excludedDeviceNames);
 
-    if (!changes) return;
+    using Change = InputReaderConfiguration::Change;
+    if (!changes.any()) return;
 
-    ALOGI("Reconfiguring input devices, changes=%s",
-          InputReaderConfiguration::changesToString(changes).c_str());
+    ALOGI("Reconfiguring input devices, changes=%s", changes.string().c_str());
     nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
 
-    if (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO) {
+    if (changes.test(Change::DISPLAY_INFO)) {
         updatePointerDisplayLocked();
     }
 
-    if (changes & InputReaderConfiguration::CHANGE_MUST_REOPEN) {
+    if (changes.test(Change::MUST_REOPEN)) {
         mEventHub->requestReopenDevices();
     } else {
         for (auto& devicePair : mDevices) {
@@ -413,7 +413,7 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
         }
     }
 
-    if (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE) {
+    if (changes.test(Change::POINTER_CAPTURE)) {
         if (mCurrentPointerCaptureRequest == mConfig.pointerCaptureRequest) {
             ALOGV("Skipping notifying pointer capture changes: "
                   "There was no change in the pointer capture state.");
@@ -457,7 +457,7 @@ int32_t InputReader::getLedMetaStateLocked() {
 }
 
 void InputReader::notifyExternalStylusPresenceChangedLocked() {
-    refreshConfigurationLocked(InputReaderConfiguration::CHANGE_EXTERNAL_STYLUS_PRESENCE);
+    refreshConfigurationLocked(InputReaderConfiguration::Change::EXTERNAL_STYLUS_PRESENCE);
 }
 
 void InputReader::getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices) {
@@ -671,11 +671,11 @@ int32_t InputReader::getKeyCodeForKeyLocation(int32_t deviceId, int32_t location
     return device->getKeyCodeForKeyLocation(locationKeyCode);
 }
 
-void InputReader::requestRefreshConfiguration(uint32_t changes) {
+void InputReader::requestRefreshConfiguration(ConfigurationChanges changes) {
     std::scoped_lock _l(mLock);
 
-    if (changes) {
-        bool needWake = !mConfigurationChangesToRefresh;
+    if (changes.any()) {
+        bool needWake = !mConfigurationChangesToRefresh.any();
         mConfigurationChangesToRefresh |= changes;
 
         if (needWake) {
