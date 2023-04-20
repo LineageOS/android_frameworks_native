@@ -100,9 +100,8 @@ protected:
     ~InputManager() override;
 
 public:
-    InputManager(
-            const sp<InputReaderPolicyInterface>& readerPolicy,
-            const sp<InputDispatcherPolicyInterface>& dispatcherPolicy);
+    InputManager(const sp<InputReaderPolicyInterface>& readerPolicy,
+                 InputDispatcherPolicyInterface& dispatcherPolicy);
 
     status_t start() override;
     status_t stop() override;

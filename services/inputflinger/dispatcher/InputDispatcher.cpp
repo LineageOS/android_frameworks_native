@@ -646,10 +646,10 @@ std::vector<T>& operator+=(std::vector<T>& left, const std::vector<T>& right) {
 
 // --- InputDispatcher ---
 
-InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
+InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
       : InputDispatcher(policy, STALE_EVENT_TIMEOUT) {}
 
-InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy,
+InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
                                  std::chrono::nanoseconds staleEventTimeout)
       : mPolicy(policy),
         mPendingEvent(nullptr),
@@ -1401,7 +1401,7 @@ bool InputDispatcher::dispatchConfigurationChangedLocked(nsecs_t currentTime,
     // Enqueue a command to run outside the lock to tell the policy that the configuration changed.
     auto command = [this, eventTime = entry.eventTime]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyConfigurationChanged(eventTime);
+        mPolicy.notifyConfigurationChanged(eventTime);
     };
     postCommandLocked(std::move(command));
     return true;
@@ -1716,10 +1716,10 @@ void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime,
         scoped_unlock unlock(mLock);
 
         if (entry->accuracyChanged) {
-            mPolicy->notifySensorAccuracy(entry->deviceId, entry->sensorType, entry->accuracy);
+            mPolicy.notifySensorAccuracy(entry->deviceId, entry->sensorType, entry->accuracy);
         }
-        mPolicy->notifySensorEvent(entry->deviceId, entry->sensorType, entry->accuracy,
-                                   entry->hwTimestamp, entry->values);
+        mPolicy.notifySensorEvent(entry->deviceId, entry->sensorType, entry->accuracy,
+                                  entry->hwTimestamp, entry->values);
     };
     postCommandLocked(std::move(command));
 }
@@ -3021,7 +3021,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
     auto command = [this, eventTime = eventEntry.eventTime, eventType, displayId]()
                            REQUIRES(mLock) {
                                scoped_unlock unlock(mLock);
-                               mPolicy->pokeUserActivity(eventTime, eventType, displayId);
+                               mPolicy.pokeUserActivity(eventTime, eventType, displayId);
                            };
     postCommandLocked(std::move(command));
 }
@@ -3362,7 +3362,7 @@ void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t a
 
     auto command = [this, token]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->onPointerDownOutsideFocus(token);
+        mPolicy.onPointerDownOutsideFocus(token);
     };
     postCommandLocked(std::move(command));
 }
@@ -3641,7 +3641,7 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
 
             auto command = [this, connection]() REQUIRES(mLock) {
                 scoped_unlock unlock(mLock);
-                mPolicy->notifyInputChannelBroken(connection->inputChannel->getConnectionToken());
+                mPolicy.notifyInputChannelBroken(connection->inputChannel->getConnectionToken());
             };
             postCommandLocked(std::move(command));
         }
@@ -4122,7 +4122,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
                      args.eventTime);
 
     android::base::Timer t;
-    mPolicy->interceptKeyBeforeQueueing(&event, /*byref*/ policyFlags);
+    mPolicy.interceptKeyBeforeQueueing(event, /*byref*/ policyFlags);
     if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
         ALOGW("Excessive delay in interceptKeyBeforeQueueing; took %s ms",
               std::to_string(t.duration().count()).c_str());
@@ -4136,7 +4136,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
             mLock.unlock();
 
             policyFlags |= POLICY_FLAG_FILTERED;
-            if (!mPolicy->filterInputEvent(&event, policyFlags)) {
+            if (!mPolicy.filterInputEvent(event, policyFlags)) {
                 return; // event was consumed by the filter
             }
 
@@ -4200,7 +4200,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
     policyFlags |= POLICY_FLAG_TRUSTED;
 
     android::base::Timer t;
-    mPolicy->interceptMotionBeforeQueueing(args.displayId, args.eventTime, policyFlags);
+    mPolicy.interceptMotionBeforeQueueing(args.displayId, args.eventTime, policyFlags);
     if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
         ALOGW("Excessive delay in interceptMotionBeforeQueueing; took %s ms",
               std::to_string(t.duration().count()).c_str());
@@ -4239,7 +4239,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
                              args.pointerProperties, args.pointerCoords);
 
             policyFlags |= POLICY_FLAG_FILTERED;
-            if (!mPolicy->filterInputEvent(&event, policyFlags)) {
+            if (!mPolicy.filterInputEvent(event, policyFlags)) {
                 return; // event was consumed by the filter
             }
 
@@ -4305,7 +4305,7 @@ void InputDispatcher::notifyVibratorState(const NotifyVibratorStateArgs& args) {
         ALOGD("notifyVibratorState - eventTime=%" PRId64 ", device=%d,  isOn=%d", args.eventTime,
               args.deviceId, args.isOn);
     }
-    mPolicy->notifyVibratorState(args.deviceId, args.isOn);
+    mPolicy.notifyVibratorState(args.deviceId, args.isOn);
 }
 
 bool InputDispatcher::shouldSendMotionToInputFilterLocked(const NotifyMotionArgs& args) {
@@ -4321,7 +4321,7 @@ void InputDispatcher::notifySwitch(const NotifySwitchArgs& args) {
 
     uint32_t policyFlags = args.policyFlags;
     policyFlags |= POLICY_FLAG_TRUSTED;
-    mPolicy->notifySwitch(args.eventTime, args.switchValues, args.switchMask, policyFlags);
+    mPolicy.notifySwitch(args.eventTime, args.switchValues, args.switchMask, policyFlags);
 }
 
 void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
@@ -4418,7 +4418,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
 
             if (!(policyFlags & POLICY_FLAG_FILTERED)) {
                 android::base::Timer t;
-                mPolicy->interceptKeyBeforeQueueing(&keyEvent, /*byref*/ policyFlags);
+                mPolicy.interceptKeyBeforeQueueing(keyEvent, /*byref*/ policyFlags);
                 if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
                     ALOGW("Excessive delay in interceptKeyBeforeQueueing; took %s ms",
                           std::to_string(t.duration().count()).c_str());
@@ -4457,7 +4457,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             if (!(policyFlags & POLICY_FLAG_FILTERED)) {
                 nsecs_t eventTime = motionEvent.getEventTime();
                 android::base::Timer t;
-                mPolicy->interceptMotionBeforeQueueing(displayId, eventTime, /*byref*/ policyFlags);
+                mPolicy.interceptMotionBeforeQueueing(displayId, eventTime, /*byref*/ policyFlags);
                 if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
                     ALOGW("Excessive delay in interceptMotionBeforeQueueing; took %s ms",
                           std::to_string(t.duration().count()).c_str());
@@ -6008,7 +6008,7 @@ void InputDispatcher::sendFocusChangedCommandLocked(const sp<IBinder>& oldToken,
                                                     const sp<IBinder>& newToken) {
     auto command = [this, oldToken, newToken]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyFocusChanged(oldToken, newToken);
+        mPolicy.notifyFocusChanged(oldToken, newToken);
     };
     postCommandLocked(std::move(command));
 }
@@ -6016,7 +6016,7 @@ void InputDispatcher::sendFocusChangedCommandLocked(const sp<IBinder>& oldToken,
 void InputDispatcher::sendDropWindowCommandLocked(const sp<IBinder>& token, float x, float y) {
     auto command = [this, token, x, y]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyDropWindow(token, x, y);
+        mPolicy.notifyDropWindow(token, x, y);
     };
     postCommandLocked(std::move(command));
 }
@@ -6063,7 +6063,7 @@ void InputDispatcher::onAnrLocked(std::shared_ptr<InputApplicationHandle> applic
 
     auto command = [this, application = std::move(application)]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyNoFocusedWindowAnr(application);
+        mPolicy.notifyNoFocusedWindowAnr(application);
     };
     postCommandLocked(std::move(command));
 }
@@ -6103,8 +6103,7 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& 
     { // release lock
         scoped_unlock unlock(mLock);
         android::base::Timer t;
-        delay = mPolicy->interceptKeyBeforeDispatching(focusedWindowToken, &event,
-                                                       entry.policyFlags);
+        delay = mPolicy.interceptKeyBeforeDispatching(focusedWindowToken, event, entry.policyFlags);
         if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
             ALOGW("Excessive delay in interceptKeyBeforeDispatching; took %s ms",
                   std::to_string(t.duration().count()).c_str());
@@ -6126,7 +6125,7 @@ void InputDispatcher::sendWindowUnresponsiveCommandLocked(const sp<IBinder>& tok
                                                           std::string reason) {
     auto command = [this, token, pid, reason = std::move(reason)]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyWindowUnresponsive(token, pid, reason);
+        mPolicy.notifyWindowUnresponsive(token, pid, reason);
     };
     postCommandLocked(std::move(command));
 }
@@ -6135,7 +6134,7 @@ void InputDispatcher::sendWindowResponsiveCommandLocked(const sp<IBinder>& token
                                                         std::optional<int32_t> pid) {
     auto command = [this, token, pid]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyWindowResponsive(token, pid);
+        mPolicy.notifyWindowResponsive(token, pid);
     };
     postCommandLocked(std::move(command));
 }
@@ -6219,8 +6218,12 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(
 
             mLock.unlock();
 
-            mPolicy->dispatchUnhandledKey(connection->inputChannel->getConnectionToken(), &event,
-                                          keyEntry.policyFlags, &event);
+            if (const auto unhandledKeyFallback =
+                        mPolicy.dispatchUnhandledKey(connection->inputChannel->getConnectionToken(),
+                                                     event, keyEntry.policyFlags);
+                unhandledKeyFallback) {
+                event = *unhandledKeyFallback;
+            }
 
             mLock.lock();
 
@@ -6260,9 +6263,13 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(
 
         mLock.unlock();
 
-        bool fallback =
-                mPolicy->dispatchUnhandledKey(connection->inputChannel->getConnectionToken(),
-                                              &event, keyEntry.policyFlags, &event);
+        bool fallback = false;
+        if (auto fb = mPolicy.dispatchUnhandledKey(connection->inputChannel->getConnectionToken(),
+                                                   event, keyEntry.policyFlags);
+            fb) {
+            fallback = true;
+            event = *fb;
+        }
 
         mLock.lock();
 
@@ -6514,7 +6521,7 @@ void InputDispatcher::setPointerCaptureLocked(bool enable) {
     mCurrentPointerCaptureRequest.seq++;
     auto command = [this, request = mCurrentPointerCaptureRequest]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->setPointerCapture(request);
+        mPolicy.setPointerCapture(request);
     };
     postCommandLocked(std::move(command));
 }
@@ -6607,8 +6614,7 @@ void InputDispatcher::cancelCurrentTouch() {
 }
 
 void InputDispatcher::requestRefreshConfiguration() {
-    InputDispatcherConfiguration config;
-    mPolicy->getDispatcherConfiguration(&config);
+    InputDispatcherConfiguration config = mPolicy.getDispatcherConfiguration();
 
     std::scoped_lock _l(mLock);
     mConfig = config;
