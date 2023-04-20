@@ -102,7 +102,9 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, ultrahdr_metadata_st
  *     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
  *     <rdf:Description
  *       xmlns:Container="http://ns.google.com/photos/1.0/container/"
- *       xmlns:Item="http://ns.google.com/photos/1.0/container/item/">
+ *       xmlns:Item="http://ns.google.com/photos/1.0/container/item/"
+ *       xmlns:hdrgm="http://ns.adobe.com/hdr-gain-map/1.0/"
+ *       hdrgm:Version="1">
  *       <Container:Directory>
  *         <rdf:Seq>
  *           <rdf:li
@@ -127,7 +129,8 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, ultrahdr_metadata_st
  * @param secondary_image_length length of secondary image
  * @return XMP metadata in type of string
  */
-std::string generateXmpForPrimaryImage(int secondary_image_length);
+std::string generateXmpForPrimaryImage(int secondary_image_length,
+                                       ultrahdr_metadata_struct& metadata);
 
 /*
  * This method generates XMP metadata for the recovery map image.
