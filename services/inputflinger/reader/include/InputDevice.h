@@ -407,7 +407,7 @@ public:
     inline const std::string getName() const { return mDevice.getName(); }
     inline const std::string getDescriptor() { return mDevice.getDescriptor(); }
     inline const std::string getLocation() { return mDevice.getLocation(); }
-    inline bool isExternal() { return mDevice.isExternal(); }
+    inline bool isExternal() const { return mDevice.isExternal(); }
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mDevice.getAssociatedDisplayPort();
     }
@@ -424,7 +424,7 @@ public:
         return mDevice.cancelTouch(when, readTime);
     }
     inline void bumpGeneration() { mDevice.bumpGeneration(); }
-    inline const PropertyMap& getConfiguration() { return mDevice.getConfiguration(); }
+    inline const PropertyMap& getConfiguration() const { return mDevice.getConfiguration(); }
 
 private:
     InputDevice& mDevice;

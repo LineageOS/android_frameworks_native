@@ -688,7 +688,7 @@ InputDispatcher::~InputDispatcher() {
     mCommandQueue.clear();
 
     while (!mConnectionsByToken.empty()) {
-        sp<Connection> connection = mConnectionsByToken.begin()->second;
+        std::shared_ptr<Connection> connection = mConnectionsByToken.begin()->second;
         removeInputChannelLocked(connection->inputChannel->getConnectionToken(), /*notify=*/false);
     }
 }
@@ -802,7 +802,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     }
 
     // If we reached here, we have an unresponsive connection.
-    sp<Connection> connection = getConnectionLocked(mAnrTracker.firstToken());
+    std::shared_ptr<Connection> connection = getConnectionLocked(mAnrTracker.firstToken());
     if (connection == nullptr) {
         ALOGE("Could not find connection for entry %" PRId64, mAnrTracker.firstTimeout());
         return nextAnrCheck;
@@ -815,7 +815,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
 }
 
 std::chrono::nanoseconds InputDispatcher::getDispatchingTimeoutLocked(
-        const sp<Connection>& connection) {
+        const std::shared_ptr<Connection>& connection) {
     if (connection->monitor) {
         return mMonitorDispatchingTimeout;
     }
@@ -1058,7 +1058,8 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
         const std::vector<sp<WindowInfoHandle>> touchedSpies =
                 findTouchedSpyWindowsAtLocked(displayId, x, y, isStylus);
         for (const auto& windowHandle : touchedSpies) {
-            const sp<Connection> connection = getConnectionLocked(windowHandle->getToken());
+            const std::shared_ptr<Connection> connection =
+                    getConnectionLocked(windowHandle->getToken());
             if (connection != nullptr && connection->responsive) {
                 // This spy window could take more input. Drop all events preceding this
                 // event, so that the spy window can get a chance to receive the stream.
@@ -1895,7 +1896,7 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
     pokeUserActivityLocked(*eventEntry);
 
     for (const InputTarget& inputTarget : inputTargets) {
-        sp<Connection> connection =
+        std::shared_ptr<Connection> connection =
                 getConnectionLocked(inputTarget.inputChannel->getConnectionToken());
         if (connection != nullptr) {
             prepareDispatchCycleLocked(currentTime, connection, eventEntry, inputTarget);
@@ -1909,7 +1910,7 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
     }
 }
 
-void InputDispatcher::cancelEventsForAnrLocked(const sp<Connection>& connection) {
+void InputDispatcher::cancelEventsForAnrLocked(const std::shared_ptr<Connection>& connection) {
     // We will not be breaking any connections here, even if the policy wants us to abort dispatch.
     // If the policy decides to close the app, we will get a channel removal event via
     // unregisterInputChannel, and will clean up the connection that way. We are already not
@@ -2101,7 +2102,7 @@ std::vector<Monitor> InputDispatcher::selectResponsiveMonitorsLocked(
     std::vector<Monitor> responsiveMonitors;
     std::copy_if(monitors.begin(), monitors.end(), std::back_inserter(responsiveMonitors),
                  [this](const Monitor& monitor) REQUIRES(mLock) {
-                     sp<Connection> connection =
+                     std::shared_ptr<Connection> connection =
                              getConnectionLocked(monitor.inputChannel->getConnectionToken());
                      if (connection == nullptr) {
                          ALOGE("Could not find connection for monitor %s",
@@ -3027,7 +3028,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
 }
 
 void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
-                                                 const sp<Connection>& connection,
+                                                 const std::shared_ptr<Connection>& connection,
                                                  std::shared_ptr<EventEntry> eventEntry,
                                                  const InputTarget& inputTarget) {
     if (ATRACE_ENABLED()) {
@@ -3097,7 +3098,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
 }
 
 void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
-                                                   const sp<Connection>& connection,
+                                                   const std::shared_ptr<Connection>& connection,
                                                    std::shared_ptr<EventEntry> eventEntry,
                                                    const InputTarget& inputTarget) {
     if (ATRACE_ENABLED()) {
@@ -3131,7 +3132,7 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
     }
 }
 
-void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connection,
+void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connection>& connection,
                                                  std::shared_ptr<EventEntry> eventEntry,
                                                  const InputTarget& inputTarget,
                                                  ftl::Flags<InputTarget::Flags> dispatchMode) {
@@ -3316,14 +3317,14 @@ void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
     }
 
     std::unordered_set<sp<IBinder>, StrongPointerHash<IBinder>> newConnectionTokens;
-    std::vector<sp<Connection>> newConnections;
+    std::vector<std::shared_ptr<Connection>> newConnections;
     for (const InputTarget& target : targets) {
         if (target.flags.test(InputTarget::Flags::DISPATCH_AS_OUTSIDE)) {
             continue; // Skip windows that receive ACTION_OUTSIDE
         }
 
         sp<IBinder> token = target.inputChannel->getConnectionToken();
-        sp<Connection> connection = getConnectionLocked(token);
+        std::shared_ptr<Connection> connection = getConnectionLocked(token);
         if (connection == nullptr) {
             continue;
         }
@@ -3336,7 +3337,7 @@ void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
     mInteractionConnectionTokens = newConnectionTokens;
 
     std::string targetList;
-    for (const sp<Connection>& connection : newConnections) {
+    for (const std::shared_ptr<Connection>& connection : newConnections) {
         targetList += connection->getWindowName() + ", ";
     }
     std::string message = "Interaction with: " + targetList;
@@ -3416,7 +3417,7 @@ status_t InputDispatcher::publishMotionEvent(Connection& connection,
 }
 
 void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
-                                               const sp<Connection>& connection) {
+                                               const std::shared_ptr<Connection>& connection) {
     if (ATRACE_ENABLED()) {
         std::string message = StringPrintf("startDispatchCycleLocked(inputChannel=%s)",
                                            connection->getInputChannelName().c_str());
@@ -3596,8 +3597,8 @@ const std::array<uint8_t, 32> InputDispatcher::getSignature(
 }
 
 void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
-                                                const sp<Connection>& connection, uint32_t seq,
-                                                bool handled, nsecs_t consumeTime) {
+                                                const std::shared_ptr<Connection>& connection,
+                                                uint32_t seq, bool handled, nsecs_t consumeTime) {
     if (DEBUG_DISPATCH_CYCLE) {
         ALOGD("channel '%s' ~ finishDispatchCycle - seq=%u, handled=%s",
               connection->getInputChannelName().c_str(), seq, toString(handled));
@@ -3616,7 +3617,7 @@ void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
 }
 
 void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
-                                                     const sp<Connection>& connection,
+                                                     const std::shared_ptr<Connection>& connection,
                                                      bool notify) {
     if (DEBUG_DISPATCH_CYCLE) {
         LOG(DEBUG) << "channel '" << connection->getInputChannelName() << "'~ " << __func__
@@ -3665,7 +3666,7 @@ void InputDispatcher::releaseDispatchEntry(DispatchEntry* dispatchEntry) {
 
 int InputDispatcher::handleReceiveCallback(int events, sp<IBinder> connectionToken) {
     std::scoped_lock _l(mLock);
-    sp<Connection> connection = getConnectionLocked(connectionToken);
+    std::shared_ptr<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
         ALOGW("Received looper callback for unknown input channel token %p.  events=0x%x",
               connectionToken.get(), events);
@@ -3757,7 +3758,7 @@ void InputDispatcher::synthesizeCancelationEventsForMonitorsLocked(
 
 void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
         const std::shared_ptr<InputChannel>& channel, const CancelationOptions& options) {
-    sp<Connection> connection = getConnectionLocked(channel->getConnectionToken());
+    std::shared_ptr<Connection> connection = getConnectionLocked(channel->getConnectionToken());
     if (connection == nullptr) {
         return;
     }
@@ -3766,7 +3767,7 @@ void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
 }
 
 void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
-        const sp<Connection>& connection, const CancelationOptions& options) {
+        const std::shared_ptr<Connection>& connection, const CancelationOptions& options) {
     if (connection->status == Connection::Status::BROKEN) {
         return;
     }
@@ -3844,7 +3845,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 }
 
 void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
-        const nsecs_t downTime, const sp<Connection>& connection,
+        const nsecs_t downTime, const std::shared_ptr<Connection>& connection,
         ftl::Flags<InputTarget::Flags> targetFlags) {
     if (connection->status == Connection::Status::BROKEN) {
         return;
@@ -3909,7 +3910,8 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
 void InputDispatcher::synthesizeCancelationEventsForWindowLocked(
         const sp<WindowInfoHandle>& windowHandle, const CancelationOptions& options) {
     if (windowHandle != nullptr) {
-        sp<Connection> wallpaperConnection = getConnectionLocked(windowHandle->getToken());
+        std::shared_ptr<Connection> wallpaperConnection =
+                getConnectionLocked(windowHandle->getToken());
         if (wallpaperConnection != nullptr) {
             synthesizeCancelationEventsForConnectionLocked(wallpaperConnection, options);
         }
@@ -4796,7 +4798,7 @@ bool InputDispatcher::canWindowReceiveMotionLocked(const sp<WindowInfoHandle>& w
         return false;
     }
 
-    sp<Connection> connection = getConnectionLocked(window->getToken());
+    std::shared_ptr<Connection> connection = getConnectionLocked(window->getToken());
     if (connection == nullptr) {
         ALOGW("Not sending touch to %s because there's no corresponding connection",
               window->getName().c_str());
@@ -5318,8 +5320,8 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         }
 
         // Synthesize cancel for old window and down for new window.
-        sp<Connection> fromConnection = getConnectionLocked(fromToken);
-        sp<Connection> toConnection = getConnectionLocked(toToken);
+        std::shared_ptr<Connection> fromConnection = getConnectionLocked(fromToken);
+        std::shared_ptr<Connection> toConnection = getConnectionLocked(toToken);
         if (fromConnection != nullptr && toConnection != nullptr) {
             fromConnection->inputState.mergePointerStateTo(toConnection->inputState);
             CancelationOptions
@@ -5685,8 +5687,9 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
         std::scoped_lock _l(mLock);
         const sp<IBinder>& token = serverChannel->getConnectionToken();
         int fd = serverChannel->getFd();
-        sp<Connection> connection =
-                sp<Connection>::make(std::move(serverChannel), /*monitor=*/false, mIdGenerator);
+        std::shared_ptr<Connection> connection =
+                std::make_shared<Connection>(std::move(serverChannel), /*monitor=*/false,
+                                             mIdGenerator);
 
         if (mConnectionsByToken.find(token) != mConnectionsByToken.end()) {
             ALOGE("Created a new connection, but the token %p is already known", token.get());
@@ -5723,8 +5726,8 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
                                           << " without a specified display.";
         }
 
-        sp<Connection> connection =
-                sp<Connection>::make(serverChannel, /*monitor=*/true, mIdGenerator);
+        std::shared_ptr<Connection> connection =
+                std::make_shared<Connection>(serverChannel, /*monitor=*/true, mIdGenerator);
         const sp<IBinder>& token = serverChannel->getConnectionToken();
         const int fd = serverChannel->getFd();
 
@@ -5764,7 +5767,7 @@ status_t InputDispatcher::removeInputChannel(const sp<IBinder>& connectionToken)
 
 status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connectionToken,
                                                    bool notify) {
-    sp<Connection> connection = getConnectionLocked(connectionToken);
+    std::shared_ptr<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
         // Connection can be removed via socket hang up or an explicit call to 'removeInputChannel'
         return BAD_VALUE;
@@ -5910,7 +5913,8 @@ std::optional<int32_t> InputDispatcher::findMonitorPidByTokenLocked(const sp<IBi
     return std::nullopt;
 }
 
-sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConnectionToken) const {
+std::shared_ptr<Connection> InputDispatcher::getConnectionLocked(
+        const sp<IBinder>& inputConnectionToken) const {
     if (inputConnectionToken == nullptr) {
         return nullptr;
     }
@@ -5925,21 +5929,22 @@ sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConn
 }
 
 std::string InputDispatcher::getConnectionNameLocked(const sp<IBinder>& connectionToken) const {
-    sp<Connection> connection = getConnectionLocked(connectionToken);
+    std::shared_ptr<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
         return "<nullptr>";
     }
     return connection->getInputChannelName();
 }
 
-void InputDispatcher::removeConnectionLocked(const sp<Connection>& connection) {
+void InputDispatcher::removeConnectionLocked(const std::shared_ptr<Connection>& connection) {
     mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
     mConnectionsByToken.erase(connection->inputChannel->getConnectionToken());
 }
 
 void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
-                                                     const sp<Connection>& connection, uint32_t seq,
-                                                     bool handled, nsecs_t consumeTime) {
+                                                     const std::shared_ptr<Connection>& connection,
+                                                     uint32_t seq, bool handled,
+                                                     nsecs_t consumeTime) {
     // Handle post-event policy actions.
     std::deque<DispatchEntry*>::iterator dispatchEntryIt = connection->findWaitQueueEntry(seq);
     if (dispatchEntryIt == connection->waitQueue.end()) {
@@ -6017,7 +6022,7 @@ void InputDispatcher::sendDropWindowCommandLocked(const sp<IBinder>& token, floa
     postCommandLocked(std::move(command));
 }
 
-void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
+void InputDispatcher::onAnrLocked(const std::shared_ptr<Connection>& connection) {
     if (connection == nullptr) {
         LOG_ALWAYS_FATAL("Caller must check for nullness");
     }
@@ -6179,9 +6184,9 @@ void InputDispatcher::processConnectionResponsiveLocked(const Connection& connec
     sendWindowResponsiveCommandLocked(connectionToken, pid);
 }
 
-bool InputDispatcher::afterKeyEventLockedInterruptable(const sp<Connection>& connection,
-                                                       DispatchEntry* dispatchEntry,
-                                                       KeyEntry& keyEntry, bool handled) {
+bool InputDispatcher::afterKeyEventLockedInterruptable(
+        const std::shared_ptr<Connection>& connection, DispatchEntry* dispatchEntry,
+        KeyEntry& keyEntry, bool handled) {
     if (keyEntry.flags & AKEY_EVENT_FLAG_FALLBACK) {
         if (!handled) {
             // Report the key as unhandled, since the fallback was not handled.
@@ -6356,9 +6361,9 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(const sp<Connection>& con
     return false;
 }
 
-bool InputDispatcher::afterMotionEventLockedInterruptable(const sp<Connection>& connection,
-                                                          DispatchEntry* dispatchEntry,
-                                                          MotionEntry& motionEntry, bool handled) {
+bool InputDispatcher::afterMotionEventLockedInterruptable(
+        const std::shared_ptr<Connection>& connection, DispatchEntry* dispatchEntry,
+        MotionEntry& motionEntry, bool handled) {
     return false;
 }
 
@@ -6680,9 +6685,11 @@ void InputDispatcher::transferWallpaperTouch(ftl::Flags<InputTarget::Flags> oldT
         wallpaperFlags |= InputTarget::Flags::WINDOW_IS_OBSCURED |
                 InputTarget::Flags::WINDOW_IS_PARTIALLY_OBSCURED;
         state.addOrUpdateWindow(newWallpaper, wallpaperFlags, pointerIds, downTimeInTarget);
-        sp<Connection> wallpaperConnection = getConnectionLocked(newWallpaper->getToken());
+        std::shared_ptr<Connection> wallpaperConnection =
+                getConnectionLocked(newWallpaper->getToken());
         if (wallpaperConnection != nullptr) {
-            sp<Connection> toConnection = getConnectionLocked(toWindowHandle->getToken());
+            std::shared_ptr<Connection> toConnection =
+                    getConnectionLocked(toWindowHandle->getToken());
             toConnection->inputState.mergePointerStateTo(wallpaperConnection->inputState);
             synthesizePointerDownEventsForConnectionLocked(downTimeInTarget, wallpaperConnection,
                                                            wallpaperFlags);
