@@ -120,7 +120,7 @@ public:
     }
 
     /* Tests whether any of the given flags are set */
-    bool any(Flags<F> f) const { return (mFlags & f.mFlags) != 0; }
+    bool any(Flags<F> f = ~Flags<F>()) const { return (mFlags & f.mFlags) != 0; }
 
     /* Tests whether all of the given flags are set */
     bool all(Flags<F> f) const { return (mFlags & f.mFlags) == f.mFlags; }
