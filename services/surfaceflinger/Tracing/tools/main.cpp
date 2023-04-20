@@ -21,6 +21,7 @@
 #include <iostream>
 #include <string>
 
+#include <Tracing/LayerTracing.h>
 #include "LayerTraceGenerator.h"
 
 using namespace android;
@@ -47,16 +48,19 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    const char* outputLayersTracePath =
-            (argc >= 3) ? argv[2] : "/data/misc/wmtrace/layers_trace.winscope";
+    const auto* outputLayersTracePath =
+            (argc == 3) ? argv[2] : "/data/misc/wmtrace/layers_trace.winscope";
+    auto outStream = std::ofstream{outputLayersTracePath, std::ios::binary | std::ios::app};
 
     const bool generateLastEntryOnly =
             argc >= 4 && std::string_view(argv[3]) == "--last-entry-only";
 
+    auto traceFlags = LayerTracing::Flag::TRACE_INPUT | LayerTracing::Flag::TRACE_BUFFERS;
+
     ALOGD("Generating %s...", outputLayersTracePath);
     std::cout << "Generating " << outputLayersTracePath << "\n";
 
-    if (!LayerTraceGenerator().generate(transactionTraceFile, outputLayersTracePath,
+    if (!LayerTraceGenerator().generate(transactionTraceFile, traceFlags, outStream,
                                         generateLastEntryOnly)) {
         std::cout << "Error: Failed to generate layers trace " << outputLayersTracePath;
         return -1;
