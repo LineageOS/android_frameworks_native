@@ -1224,4 +1224,75 @@ TEST_F(LayerCallbackTest, TransactionCommittedCallback_NoLayer) {
     EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
 }
 
+TEST_F(LayerCallbackTest, SetNullBuffer) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
+
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback, layer, /*setBuffer=*/true,
+                              /*setBackgroundColor=*/false);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+    transaction.apply();
+
+    {
+        ExpectedResult expected;
+        expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
+                            ExpectedResult::Buffer::ACQUIRED,
+                            ExpectedResult::PreviousBuffer::NOT_RELEASED);
+        EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+    }
+
+    transaction.setBuffer(layer, nullptr);
+    transaction.addTransactionCompletedCallback(callback.function, callback.getContext());
+    transaction.apply();
+
+    {
+        ExpectedResult expected;
+        expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
+                            ExpectedResult::Buffer::ACQUIRED_NULL,
+                            ExpectedResult::PreviousBuffer::RELEASED);
+        EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+    }
+
+    err = fillTransaction(transaction, &callback, layer, /*setBuffer=*/true,
+                          /*setBackgroundColor=*/false);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    transaction.apply();
+
+    {
+        ExpectedResult expected;
+        expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
+                            ExpectedResult::Buffer::ACQUIRED,
+                            ExpectedResult::PreviousBuffer::NOT_RELEASED);
+        EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+    }
+}
+
+TEST_F(LayerCallbackTest, SetNullBufferOnLayerWithoutBuffer) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayerWithBuffer());
+
+    Transaction transaction;
+    transaction.setBuffer(layer, nullptr);
+    CallbackHelper callback;
+    transaction.addTransactionCompletedCallback(callback.function, callback.getContext());
+    transaction.apply();
+
+    {
+        ExpectedResult expected;
+        expected.addSurface(ExpectedResult::Transaction::NOT_PRESENTED, layer,
+                            ExpectedResult::Buffer::NOT_ACQUIRED,
+                            ExpectedResult::PreviousBuffer::NOT_RELEASED);
+        EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+    }
+}
+
 } // namespace android

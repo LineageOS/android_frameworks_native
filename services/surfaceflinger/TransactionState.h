@@ -78,8 +78,7 @@ struct TransactionState {
     template <typename Visitor>
     void traverseStatesWithBuffers(Visitor&& visitor) const {
         for (const auto& state : states) {
-            if (state.state.hasBufferChanges() && state.state.hasValidBuffer() &&
-                state.state.surface) {
+            if (state.state.hasBufferChanges() && state.externalTexture && state.state.surface) {
                 visitor(state.state);
             }
         }
@@ -88,8 +87,7 @@ struct TransactionState {
     template <typename Visitor>
     void traverseStatesWithBuffersWhileTrue(Visitor&& visitor) {
         for (auto state = states.begin(); state != states.end();) {
-            if (state->state.hasBufferChanges() && state->state.hasValidBuffer() &&
-                state->state.surface) {
+            if (state->state.hasBufferChanges() && state->externalTexture && state->state.surface) {
                 int result = visitor(state->state, state->externalTexture);
                 if (result == STOP_TRAVERSAL) return;
                 if (result == DELETE_AND_CONTINUE_TRAVERSAL) {

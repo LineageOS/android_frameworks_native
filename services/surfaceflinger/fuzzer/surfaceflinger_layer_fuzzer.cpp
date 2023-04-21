@@ -125,9 +125,12 @@ void LayerFuzzer::invokeBufferStateLayer() {
                                             mFdp.ConsumeIntegral<int64_t>(),
                                             mFdp.ConsumeIntegral<int64_t>());
 
-    layer->onLayerDisplayed(ftl::yield<FenceResult>(fence).share());
-    layer->onLayerDisplayed(
-            ftl::yield<FenceResult>(base::unexpected(mFdp.ConsumeIntegral<status_t>())).share());
+    layer->onLayerDisplayed(ftl::yield<FenceResult>(fence).share(),
+                            ui::LayerStack::fromValue(mFdp.ConsumeIntegral<uint32_t>()));
+    layer->onLayerDisplayed(ftl::yield<FenceResult>(
+                                    base::unexpected(mFdp.ConsumeIntegral<status_t>()))
+                                    .share(),
+                            ui::LayerStack::fromValue(mFdp.ConsumeIntegral<uint32_t>()));
 
     layer->releasePendingBuffer(mFdp.ConsumeIntegral<int64_t>());
     layer->onPostComposition(nullptr, fenceTime, fenceTime, compositorTiming);
