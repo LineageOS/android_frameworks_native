@@ -2402,6 +2402,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             const bool isStylus = isPointerFromStylus(entry, /*pointerIndex=*/0);
             sp<WindowInfoHandle> oldTouchedWindowHandle =
                     tempTouchState.getFirstForegroundWindowHandle();
+            LOG_ALWAYS_FATAL_IF(oldTouchedWindowHandle == nullptr);
             auto [newTouchedWindowHandle, _] = findTouchedWindowAtLocked(displayId, x, y, isStylus);
 
             // Verify targeted injection.
@@ -2417,13 +2418,11 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                 newTouchedWindowHandle = nullptr;
             }
 
-            if (oldTouchedWindowHandle != newTouchedWindowHandle &&
-                oldTouchedWindowHandle != nullptr && newTouchedWindowHandle != nullptr) {
-                if (DEBUG_FOCUS) {
-                    ALOGD("Touch is slipping out of window %s into window %s in display %" PRId32,
-                          oldTouchedWindowHandle->getName().c_str(),
-                          newTouchedWindowHandle->getName().c_str(), displayId);
-                }
+            if (!haveSameToken(oldTouchedWindowHandle, newTouchedWindowHandle)) {
+                ALOGD("Touch is slipping out of window %s into window %s in display %" PRId32,
+                      oldTouchedWindowHandle->getName().c_str(),
+                      newTouchedWindowHandle->getName().c_str(), displayId);
+
                 // Make a slippery exit from the old window.
                 std::bitset<MAX_POINTER_ID + 1> pointerIds;
                 const int32_t pointerId = entry.pointerProperties[0].id;
