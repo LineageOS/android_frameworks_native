@@ -2795,7 +2795,8 @@ void Layer::callReleaseBufferCallback(const sp<ITransactionCompletedListener>& l
                               currentMaxAcquiredBufferCount);
 }
 
-void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
+void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
+                             ui::LayerStack layerStack) {
     // If we are displayed on multiple displays in a single composition cycle then we would
     // need to do careful tracking to enable the use of the mLastClientCompositionFence.
     //  For example we can only use it if all the displays are client comp, and we need
@@ -2825,8 +2826,7 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
     // transaction doesn't need a previous release fence.
     sp<CallbackHandle> ch;
     for (auto& handle : mDrawingState.callbackHandles) {
-        if (handle->releasePreviousBuffer &&
-            mDrawingState.releaseBufferEndpoint == handle->listener) {
+        if (handle->releasePreviousBuffer && mPreviousReleaseBufferEndpoint == handle->listener) {
             ch = handle;
             break;
         }
@@ -2842,6 +2842,7 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
         ch->previousReleaseFences.emplace_back(std::move(futureFenceResult));
         ch->name = mName;
     }
+    mPreviouslyPresentedLayerStacks.push_back(layerStack);
 }
 
 void Layer::onSurfaceFrameCreated(
@@ -2880,8 +2881,7 @@ void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     }
 
     for (auto& handle : mDrawingState.callbackHandles) {
-        if (handle->releasePreviousBuffer &&
-            mDrawingState.releaseBufferEndpoint == handle->listener) {
+        if (handle->releasePreviousBuffer && mPreviousReleaseBufferEndpoint == handle->listener) {
             handle->previousReleaseCallbackId = mPreviousReleaseCallbackId;
             break;
         }
@@ -3018,14 +3018,22 @@ bool Layer::setPosition(float x, float y) {
     return true;
 }
 
+void Layer::resetDrawingStateBufferInfo() {
+    mDrawingState.producerId = 0;
+    mDrawingState.frameNumber = 0;
+    mDrawingState.releaseBufferListener = nullptr;
+    mDrawingState.buffer = nullptr;
+    mDrawingState.acquireFence = sp<Fence>::make(-1);
+    mDrawingState.acquireFenceTime = std::make_unique<FenceTime>(mDrawingState.acquireFence);
+    mCallbackHandleAcquireTimeOrFence = mDrawingState.acquireFenceTime->getSignalTime();
+    mDrawingState.releaseBufferEndpoint = nullptr;
+}
+
 bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
                       const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
                       bool isAutoTimestamp, std::optional<nsecs_t> dequeueTime,
                       const FrameTimelineInfo& info) {
     ATRACE_FORMAT("setBuffer %s - hasBuffer=%s", getDebugName(), (buffer ? "true" : "false"));
-    if (!buffer) {
-        return false;
-    }
 
     const bool frameNumberChanged =
             bufferData.flags.test(BufferData::BufferDataChange::frameNumberChanged);
@@ -3057,10 +3065,22 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
                                       mLastClientCompositionFence);
             mLastClientCompositionFence = nullptr;
         }
-    } else {
+    } else if (buffer) {
         // if we are latching a buffer for the first time then clear the mLastLatchTime since
         // we don't want to incorrectly classify a frame if we miss the desired present time.
         updateLastLatchTime(0);
+    }
+
+    mDrawingState.desiredPresentTime = desiredPresentTime;
+    mDrawingState.isAutoTimestamp = isAutoTimestamp;
+    mDrawingState.latchedVsyncId = info.vsyncId;
+    mDrawingState.modified = true;
+    if (!buffer) {
+        resetDrawingStateBufferInfo();
+        setTransactionFlags(eTransactionNeeded);
+        mDrawingState.bufferSurfaceFrameTX = nullptr;
+        setFrameTimelineVsyncForBufferlessTransaction(info, postTime);
+        return true;
     }
 
     mDrawingState.producerId = bufferData.producerId;
@@ -3073,7 +3093,6 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     // TODO(b/277265947) log and flush transaction trace when we detect out of order updates
     mDrawingState.releaseBufferListener = bufferData.releaseBufferListener;
     mDrawingState.buffer = std::move(buffer);
-    mDrawingState.clientCacheId = bufferData.cachedBuffer;
     mDrawingState.acquireFence = bufferData.flags.test(BufferData::BufferDataChange::fenceChanged)
             ? bufferData.acquireFence
             : Fence::NO_FENCE;
@@ -3086,15 +3105,11 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     } else {
         mCallbackHandleAcquireTimeOrFence = mDrawingState.acquireFenceTime->getSignalTime();
     }
-    mDrawingState.latchedVsyncId = info.vsyncId;
-    mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
 
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->setPostTime(layerId, mDrawingState.frameNumber, getName().c_str(),
                                       mOwnerUid, postTime, getGameMode());
-    mDrawingState.desiredPresentTime = desiredPresentTime;
-    mDrawingState.isAutoTimestamp = isAutoTimestamp;
 
     if (mFlinger->mLegacyFrontEndEnabled) {
         recordLayerHistoryBufferUpdate(getLayerProps());
@@ -3342,7 +3357,7 @@ void Layer::updateTexImage(nsecs_t latchTime, bool bgColorOnly) {
     const State& s(getDrawingState());
 
     if (!s.buffer) {
-        if (bgColorOnly) {
+        if (bgColorOnly || mBufferInfo.mBuffer) {
             for (auto& handle : mDrawingState.callbackHandles) {
                 handle->latchTime = latchTime;
             }
@@ -3389,12 +3404,19 @@ void Layer::updateTexImage(nsecs_t latchTime, bool bgColorOnly) {
 }
 
 void Layer::gatherBufferInfo() {
-    if (!mBufferInfo.mBuffer || !mDrawingState.buffer->hasSameBuffer(*mBufferInfo.mBuffer)) {
+    mPreviousReleaseCallbackId = {getCurrentBufferId(), mBufferInfo.mFrameNumber};
+    mPreviousReleaseBufferEndpoint = mBufferInfo.mReleaseBufferEndpoint;
+    if (!mDrawingState.buffer) {
+        mBufferInfo = {};
+        return;
+    }
+
+    if ((!mBufferInfo.mBuffer || !mDrawingState.buffer->hasSameBuffer(*mBufferInfo.mBuffer))) {
         decrementPendingBufferCount();
     }
 
-    mPreviousReleaseCallbackId = {getCurrentBufferId(), mBufferInfo.mFrameNumber};
     mBufferInfo.mBuffer = mDrawingState.buffer;
+    mBufferInfo.mReleaseBufferEndpoint = mDrawingState.releaseBufferEndpoint;
     mBufferInfo.mFence = mDrawingState.acquireFence;
     mBufferInfo.mFrameNumber = mDrawingState.frameNumber;
     mBufferInfo.mPixelFormat =
@@ -3924,6 +3946,10 @@ void Layer::onPostComposition(const DisplayDevice* display,
     mBufferInfo.mFrameLatencyNeeded = false;
 }
 
+bool Layer::willReleaseBufferOnLatch() const {
+    return !mDrawingState.buffer && mBufferInfo.mBuffer;
+}
+
 bool Layer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) {
     const bool bgColorOnly = mDrawingState.bgColorLayer != nullptr;
     return latchBufferImpl(recomputeVisibleRegions, latchTime, bgColorOnly);
@@ -3947,9 +3973,6 @@ bool Layer::latchBufferImpl(bool& recomputeVisibleRegions, nsecs_t latchTime, bo
         return false;
     }
     updateTexImage(latchTime, bgColorOnly);
-    if (mDrawingState.buffer == nullptr) {
-        return false;
-    }
 
     // Capture the old state of the layer for comparisons later
     BufferInfo oldBufferInfo = mBufferInfo;
@@ -3957,6 +3980,18 @@ bool Layer::latchBufferImpl(bool& recomputeVisibleRegions, nsecs_t latchTime, bo
     mPreviousFrameNumber = mCurrentFrameNumber;
     mCurrentFrameNumber = mDrawingState.frameNumber;
     gatherBufferInfo();
+
+    if (mBufferInfo.mBuffer) {
+        // We latched a buffer that will be presented soon. Clear the previously presented layer
+        // stack list.
+        mPreviouslyPresentedLayerStacks.clear();
+    }
+
+    if (mDrawingState.buffer == nullptr) {
+        const bool bufferReleased = oldBufferInfo.mBuffer != nullptr;
+        recomputeVisibleRegions = bufferReleased;
+        return bufferReleased;
+    }
 
     if (oldBufferInfo.mBuffer == nullptr) {
         // the first time we receive a buffer, we need to trigger a
