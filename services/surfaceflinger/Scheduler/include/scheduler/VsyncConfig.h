@@ -22,6 +22,8 @@
 
 namespace android::scheduler {
 
+using namespace std::chrono_literals;
+
 // Phase offsets and work durations for SF and app deadlines from VSYNC.
 struct VsyncConfig {
     nsecs_t sfOffset;
@@ -35,6 +37,10 @@ struct VsyncConfig {
     }
 
     bool operator!=(const VsyncConfig& other) const { return !(*this == other); }
+
+    // The duration for which SF can delay a frame if it is considered early based on the
+    // VsyncConfig::appWorkDuration.
+    static constexpr std::chrono::nanoseconds kEarlyLatchMaxThreshold = 100ms;
 };
 
 struct VsyncConfigSet {
