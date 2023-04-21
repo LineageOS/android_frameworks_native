@@ -548,11 +548,15 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
  *                     to the max display brightness. The system may not be able to, or may choose
  *                     not to, deliver the requested range.
  *
- *                     If unspecified, the system will attempt to provide the best range it can
- *                     for the given ambient conditions & device state. However, voluntarily
- *                     reducing the requested range can help improve battery life as well as can
- *                     improve quality by ensuring greater bit depth is allocated to the luminance
- *                     range in use.
+ *                     While requesting a large desired ratio will result in the most
+ *                     dynamic range, voluntarily reducing the requested range can help
+ *                     improve battery life as well as can improve quality by ensuring
+ *                     greater bit depth is allocated to the luminance range in use.
+ *
+ *                     Default value is 1.0f and indicates that extended range brightness
+ *                     is not being used, so the resulting SDR or HDR behavior will be
+ *                     determined entirely by the dataspace being used (ie, typically SDR
+ *                     however PQ or HLG transfer functions will still result in HDR)
  *
  *                     Must be finite && >= 1.0f
  *
