@@ -3220,16 +3220,19 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
     // are passed. This happens to work with the current implementation, but
     // would not survive certain calls like Fence::merge() which would return a
     // new instance.
-    EXPECT_CALL(*mLayer1.layerFE, onLayerDisplayed(_))
-            .WillOnce([&layer1Fence](ftl::SharedFuture<FenceResult> futureFenceResult) {
+    EXPECT_CALL(*mLayer1.layerFE, onLayerDisplayed(_, _))
+            .WillOnce([&layer1Fence](ftl::SharedFuture<FenceResult> futureFenceResult,
+                                     ui::LayerStack) {
                 EXPECT_EQ(FenceResult(layer1Fence), futureFenceResult.get());
             });
-    EXPECT_CALL(*mLayer2.layerFE, onLayerDisplayed(_))
-            .WillOnce([&layer2Fence](ftl::SharedFuture<FenceResult> futureFenceResult) {
+    EXPECT_CALL(*mLayer2.layerFE, onLayerDisplayed(_, _))
+            .WillOnce([&layer2Fence](ftl::SharedFuture<FenceResult> futureFenceResult,
+                                     ui::LayerStack) {
                 EXPECT_EQ(FenceResult(layer2Fence), futureFenceResult.get());
             });
-    EXPECT_CALL(*mLayer3.layerFE, onLayerDisplayed(_))
-            .WillOnce([&layer3Fence](ftl::SharedFuture<FenceResult> futureFenceResult) {
+    EXPECT_CALL(*mLayer3.layerFE, onLayerDisplayed(_, _))
+            .WillOnce([&layer3Fence](ftl::SharedFuture<FenceResult> futureFenceResult,
+                                     ui::LayerStack) {
                 EXPECT_EQ(FenceResult(layer3Fence), futureFenceResult.get());
             });
 
@@ -3285,16 +3288,19 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
     // Each released layer should be given the presentFence.
-    EXPECT_CALL(*releasedLayer1, onLayerDisplayed(_))
-            .WillOnce([&presentFence](ftl::SharedFuture<FenceResult> futureFenceResult) {
+    EXPECT_CALL(*releasedLayer1, onLayerDisplayed(_, _))
+            .WillOnce([&presentFence](ftl::SharedFuture<FenceResult> futureFenceResult,
+                                      ui::LayerStack) {
                 EXPECT_EQ(FenceResult(presentFence), futureFenceResult.get());
             });
-    EXPECT_CALL(*releasedLayer2, onLayerDisplayed(_))
-            .WillOnce([&presentFence](ftl::SharedFuture<FenceResult> futureFenceResult) {
+    EXPECT_CALL(*releasedLayer2, onLayerDisplayed(_, _))
+            .WillOnce([&presentFence](ftl::SharedFuture<FenceResult> futureFenceResult,
+                                      ui::LayerStack) {
                 EXPECT_EQ(FenceResult(presentFence), futureFenceResult.get());
             });
-    EXPECT_CALL(*releasedLayer3, onLayerDisplayed(_))
-            .WillOnce([&presentFence](ftl::SharedFuture<FenceResult> futureFenceResult) {
+    EXPECT_CALL(*releasedLayer3, onLayerDisplayed(_, _))
+            .WillOnce([&presentFence](ftl::SharedFuture<FenceResult> futureFenceResult,
+                                      ui::LayerStack) {
                 EXPECT_EQ(FenceResult(presentFence), futureFenceResult.get());
             });
 

@@ -274,6 +274,34 @@ TEST_F(TransactionApplicationTest, FromHandle) {
     EXPECT_EQ(nullptr, ret.get());
 }
 
+class FakeExternalTexture : public renderengine::ExternalTexture {
+    const sp<GraphicBuffer> mEmptyBuffer = nullptr;
+    uint32_t mWidth;
+    uint32_t mHeight;
+    uint64_t mId;
+    PixelFormat mPixelFormat;
+    uint64_t mUsage;
+
+public:
+    FakeExternalTexture(BufferData& bufferData)
+          : mWidth(bufferData.getWidth()),
+            mHeight(bufferData.getHeight()),
+            mId(bufferData.getId()),
+            mPixelFormat(bufferData.getPixelFormat()),
+            mUsage(bufferData.getUsage()) {}
+    const sp<GraphicBuffer>& getBuffer() const { return mEmptyBuffer; }
+    bool hasSameBuffer(const renderengine::ExternalTexture& other) const override {
+        return getId() == other.getId();
+    }
+    uint32_t getWidth() const override { return mWidth; }
+    uint32_t getHeight() const override { return mHeight; }
+    uint64_t getId() const override { return mId; }
+    PixelFormat getPixelFormat() const override { return mPixelFormat; }
+    uint64_t getUsage() const override { return mUsage; }
+    void remapBuffer() override {}
+    ~FakeExternalTexture() = default;
+};
+
 class LatchUnsignaledTest : public TransactionApplicationTest {
 public:
     void TearDown() override {
@@ -346,7 +374,11 @@ public:
             std::vector<ResolvedComposerState> resolvedStates;
             resolvedStates.reserve(transaction.states.size());
             for (auto& state : transaction.states) {
-                resolvedStates.emplace_back(std::move(state));
+                ResolvedComposerState resolvedState;
+                resolvedState.state = std::move(state.state);
+                resolvedState.externalTexture =
+                        std::make_shared<FakeExternalTexture>(*resolvedState.state.bufferData);
+                resolvedStates.emplace_back(resolvedState);
             }
 
             TransactionState transactionState(transaction.frameTimelineInfo, resolvedStates,
