@@ -1556,8 +1556,9 @@ void Output::postFramebuffer() {
             releaseFence =
                     Fence::merge("LayerRelease", releaseFence, frame.clientTargetAcquireFence);
         }
-        layer->getLayerFE().onLayerDisplayed(
-                ftl::yield<FenceResult>(std::move(releaseFence)).share());
+        layer->getLayerFE()
+                .onLayerDisplayed(ftl::yield<FenceResult>(std::move(releaseFence)).share(),
+                                  outputState.layerFilter.layerStack);
     }
 
     // We've got a list of layers needing fences, that are disjoint with
@@ -1565,7 +1566,8 @@ void Output::postFramebuffer() {
     // supply them with the present fence.
     for (auto& weakLayer : mReleasedLayers) {
         if (const auto layer = weakLayer.promote()) {
-            layer->onLayerDisplayed(ftl::yield<FenceResult>(frame.presentFence).share());
+            layer->onLayerDisplayed(ftl::yield<FenceResult>(frame.presentFence).share(),
+                                    outputState.layerFilter.layerStack);
         }
     }
 
