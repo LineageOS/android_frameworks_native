@@ -111,6 +111,28 @@ cc_test {
 }
 
 cc_test {
+    name: "binderRecordReplayTest",
+    srcs: ["binderRecordReplayTest.cpp"],
+    shared_libs: [
+        "libbinder",
+        "libcutils",
+        "libutils",
+    ],
+    static_libs: [
+        "binderRecordReplayTestIface-cpp",
+    ],
+    test_suites: ["general-tests"],
+}
+
+aidl_interface {
+    name: "binderRecordReplayTestIface",
+    unstable: true,
+    srcs: [
+        "IBinderRecordReplayTest.aidl",
+    ],
+}
+
+cc_test {
     name: "binderLibTest",
     defaults: ["binder_test_defaults"],
     product_variables: {

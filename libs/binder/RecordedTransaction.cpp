@@ -161,17 +161,6 @@ static_assert(sizeof(ChunkDescriptor) % 8 == 0);
 constexpr uint32_t kMaxChunkDataSize = 0xfffffff0;
 typedef uint64_t transaction_checksum_t;
 
-static android::status_t readChunkDescriptor(borrowed_fd fd, ChunkDescriptor* chunkOut,
-                                             transaction_checksum_t* sum) {
-    if (!android::base::ReadFully(fd, chunkOut, sizeof(ChunkDescriptor))) {
-        LOG(ERROR) << "Failed to read Chunk Descriptor from fd " << fd.get();
-        return android::UNKNOWN_ERROR;
-    }
-
-    *sum ^= *reinterpret_cast<transaction_checksum_t*>(chunkOut);
-    return android::NO_ERROR;
-}
-
 std::optional<RecordedTransaction> RecordedTransaction::fromFile(const unique_fd& fd) {
     RecordedTransaction t;
     ChunkDescriptor chunk;
@@ -192,11 +181,13 @@ std::optional<RecordedTransaction> RecordedTransaction::fromFile(const unique_fd
             LOG(ERROR) << "Not enough file remains to contain expected chunk descriptor";
             return std::nullopt;
         }
-        transaction_checksum_t checksum = 0;
-        if (NO_ERROR != readChunkDescriptor(fd, &chunk, &checksum)) {
-            LOG(ERROR) << "Failed to read chunk descriptor.";
+
+        if (!android::base::ReadFully(fd, &chunk, sizeof(ChunkDescriptor))) {
+            LOG(ERROR) << "Failed to read ChunkDescriptor from fd " << fd.get() << ". "
+                       << strerror(errno);
             return std::nullopt;
         }
+        transaction_checksum_t checksum = *reinterpret_cast<transaction_checksum_t*>(&chunk);
 
         fdCurrentPosition = lseek(fd.get(), 0, SEEK_CUR);
         if (fdCurrentPosition == -1) {
