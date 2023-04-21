@@ -18,6 +18,7 @@
 
 #include "egl_platform_entries.h"
 
+#include <aidl/android/hardware/graphics/common/PixelFormat.h>
 #include <android-base/properties.h>
 #include <android-base/strings.h>
 #include <android/hardware_buffer.h>
@@ -29,7 +30,6 @@
 #include <private/android/AHardwareBufferHelpers.h>
 #include <stdlib.h>
 #include <string.h>
-#include <aidl/android/hardware/graphics/common/PixelFormat.h>
 
 #include <condition_variable>
 #include <deque>
@@ -421,11 +421,14 @@ static android_dataspace dataSpaceFromEGLColorSpace(EGLint colorspace) {
         return HAL_DATASPACE_V0_SCRGB;
     } else if (colorspace == EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT) {
         return HAL_DATASPACE_V0_SCRGB_LINEAR;
+    } else if (colorspace == EGL_GL_COLORSPACE_BT2020_HLG_EXT) {
+        return static_cast<android_dataspace>(HAL_DATASPACE_BT2020_HLG);
     } else if (colorspace == EGL_GL_COLORSPACE_BT2020_LINEAR_EXT) {
         return HAL_DATASPACE_BT2020_LINEAR;
     } else if (colorspace == EGL_GL_COLORSPACE_BT2020_PQ_EXT) {
         return HAL_DATASPACE_BT2020_PQ;
     }
+
     return HAL_DATASPACE_UNKNOWN;
 }
 
@@ -451,6 +454,9 @@ static std::vector<EGLint> getDriverColorSpaces(egl_display_t* dp) {
     }
     if (findExtension(dp->disp.queryString.extensions, "EGL_EXT_gl_colorspace_scrgb_linear")) {
         colorSpaces.push_back(EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT);
+    }
+    if (findExtension(dp->disp.queryString.extensions, "EGL_EXT_gl_colorspace_bt2020_hlg")) {
+        colorSpaces.push_back(EGL_GL_COLORSPACE_BT2020_HLG_EXT);
     }
     if (findExtension(dp->disp.queryString.extensions, "EGL_EXT_gl_colorspace_bt2020_linear")) {
         colorSpaces.push_back(EGL_GL_COLORSPACE_BT2020_LINEAR_EXT);
@@ -485,6 +491,7 @@ static EGLBoolean processAttributes(egl_display_t* dp, ANativeWindow* window,
                 case EGL_GL_COLORSPACE_DISPLAY_P3_PASSTHROUGH_EXT:
                 case EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT:
                 case EGL_GL_COLORSPACE_SCRGB_EXT:
+                case EGL_GL_COLORSPACE_BT2020_HLG_EXT:
                 case EGL_GL_COLORSPACE_BT2020_LINEAR_EXT:
                 case EGL_GL_COLORSPACE_BT2020_PQ_EXT:
                 case EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT:
