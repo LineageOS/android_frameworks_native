@@ -27,6 +27,8 @@
 
 #define ATRACE_FORMAT_BEGIN(fmt, ...) TraceUtils::atraceFormatBegin(fmt, ##__VA_ARGS__)
 
+#define ATRACE_FORMAT_INSTANT(fmt, ...) TraceUtils::intantFormat(fmt, ##__VA_ARGS__)
+
 namespace android {
 
 class TraceUtils {
@@ -48,6 +50,20 @@ public:
         va_end(ap);
 
         ATRACE_BEGIN(buf);
+    }
+
+    static void intantFormat(const char* fmt, ...) {
+        if (CC_LIKELY(!ATRACE_ENABLED())) return;
+
+        const int BUFFER_SIZE = 256;
+        va_list ap;
+        char buf[BUFFER_SIZE];
+
+        va_start(ap, fmt);
+        vsnprintf(buf, BUFFER_SIZE, fmt, ap);
+        va_end(ap);
+
+        ATRACE_INSTANT(buf);
     }
 
 }; // class TraceUtils
