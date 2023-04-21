@@ -3718,10 +3718,10 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
 }
 
 void SurfaceFlinger::updateInputFlinger() {
-    ATRACE_CALL();
-    if (!mInputFlinger) {
+    if (!mInputFlinger || (!mUpdateInputInfo && mInputWindowCommands.empty())) {
         return;
     }
+    ATRACE_CALL();
 
     std::vector<WindowInfo> windowInfos;
     std::vector<DisplayInfo> displayInfos;
@@ -3730,20 +3730,18 @@ void SurfaceFlinger::updateInputFlinger() {
         mUpdateInputInfo = false;
         updateWindowInfo = true;
         buildWindowInfos(windowInfos, displayInfos);
-    } else if (mInputWindowCommands.empty()) {
-        return;
     }
 
-    std::unordered_set<Layer*> visibleLayers;
-    mDrawingState.traverse([&visibleLayers](Layer* layer) {
-        if (layer->isVisibleForInput()) {
-            visibleLayers.insert(layer);
+    std::unordered_set<int32_t> visibleWindowIds;
+    for (WindowInfo& windowInfo : windowInfos) {
+        if (!windowInfo.inputConfig.test(WindowInfo::InputConfig::NOT_VISIBLE)) {
+            visibleWindowIds.insert(windowInfo.id);
         }
-    });
-    bool visibleLayersChanged = false;
-    if (visibleLayers != mVisibleLayers) {
-        visibleLayersChanged = true;
-        mVisibleLayers = std::move(visibleLayers);
+    }
+    bool visibleWindowsChanged = false;
+    if (visibleWindowIds != mVisibleWindowIds) {
+        visibleWindowsChanged = true;
+        mVisibleWindowIds = std::move(visibleWindowIds);
     }
 
     BackgroundExecutor::getInstance().sendCallbacks({[updateWindowInfo,
@@ -3752,14 +3750,14 @@ void SurfaceFlinger::updateInputFlinger() {
                                                       inputWindowCommands =
                                                               std::move(mInputWindowCommands),
                                                       inputFlinger = mInputFlinger, this,
-                                                      visibleLayersChanged]() {
+                                                      visibleWindowsChanged]() {
         ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
             mWindowInfosListenerInvoker
                     ->windowInfosChanged(std::move(windowInfos), std::move(displayInfos),
                                          std::move(
                                                  inputWindowCommands.windowInfosReportedListeners),
-                                         /* forceImmediateCall= */ visibleLayersChanged ||
+                                         /* forceImmediateCall= */ visibleWindowsChanged ||
                                                  !inputWindowCommands.focusRequests.empty());
         } else {
             // If there are listeners but no changes to input windows, call the listeners
