@@ -2303,13 +2303,17 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, frontend::Update& upd
                                           std::make_optional(layer->parentId), true));
                 mLegacyLayers[bgColorLayer->sequence] = bgColorLayer;
             }
-            if (!layer->hasReadyFrame()) continue;
+            const bool willReleaseBufferOnLatch = layer->willReleaseBufferOnLatch();
+            if (!layer->hasReadyFrame() && !willReleaseBufferOnLatch) continue;
 
             auto it = mLegacyLayers.find(layer->id);
             LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
                                 layer->getDebugString().c_str());
             const bool bgColorOnly =
                     !layer->externalTexture && (layer->bgColorLayerId != UNASSIGNED_LAYER_ID);
+            if (willReleaseBufferOnLatch) {
+                mLayersWithBuffersRemoved.emplace(it->second);
+            }
             it->second->latchBufferImpl(unused, latchTime, bgColorOnly);
             mLayersWithQueuedFrames.emplace(it->second);
         }
@@ -2644,10 +2648,10 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     for (auto [layer, layerFE] : layers) {
         CompositionResult compositionResult{layerFE->stealCompositionResult()};
         layer->onPreComposition(compositionResult.refreshStartTime);
-        for (auto releaseFence : compositionResult.releaseFences) {
+        for (auto& [releaseFence, layerStack] : compositionResult.releaseFences) {
             Layer* clonedFrom = layer->getClonedFrom().get();
             auto owningLayer = clonedFrom ? clonedFrom : layer;
-            owningLayer->onLayerDisplayed(releaseFence);
+            owningLayer->onLayerDisplayed(std::move(releaseFence), layerStack);
         }
         if (compositionResult.lastClientCompositionFence) {
             layer->setWasClientComposed(compositionResult.lastClientCompositionFence);
@@ -2858,6 +2862,29 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
     const CompositorTiming compositorTiming(vsyncDeadline.ns(), vsyncPeriod.ns(), vsyncPhase,
                                             presentLatency.ns());
 
+    display::DisplayMap<ui::LayerStack, const DisplayDevice*> layerStackToDisplay;
+    {
+        if (!mLayersWithBuffersRemoved.empty() || mNumTrustedPresentationListeners > 0) {
+            Mutex::Autolock lock(mStateLock);
+            for (const auto& [token, display] : mDisplays) {
+                layerStackToDisplay.emplace_or_replace(display->getLayerStack(), display.get());
+            }
+        }
+    }
+
+    for (auto layer : mLayersWithBuffersRemoved) {
+        for (auto layerStack : layer->mPreviouslyPresentedLayerStacks) {
+            auto optDisplay = layerStackToDisplay.get(layerStack);
+            if (optDisplay && !optDisplay->get()->isVirtual()) {
+                auto fence = getHwComposer().getPresentFence(optDisplay->get()->getPhysicalId());
+                layer->onLayerDisplayed(ftl::yield<FenceResult>(fence).share(),
+                                        ui::INVALID_LAYER_STACK);
+            }
+        }
+        layer->releasePendingBuffer(presentTime.ns());
+    }
+    mLayersWithBuffersRemoved.clear();
+
     for (const auto& layer: mLayersWithQueuedFrames) {
         layer->onPostComposition(defaultDisplay, glCompositionDoneFenceTime, presentFenceTime,
                                  compositorTiming);
@@ -2984,14 +3011,6 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
     }
 
     if (mNumTrustedPresentationListeners > 0) {
-        display::DisplayMap<ui::LayerStack, const DisplayDevice*> layerStackToDisplay;
-        {
-            Mutex::Autolock lock(mStateLock);
-            for (const auto& [token, display] : mDisplays) {
-                layerStackToDisplay.emplace_or_replace(display->getLayerStack(), display.get());
-            }
-        }
-
         // We avoid any reverse traversal upwards so this shouldn't be too expensive
         traverseLegacyLayers([&](Layer* layer) {
             if (!layer->hasTrustedPresentationListener()) {
@@ -4039,7 +4058,7 @@ bool SurfaceFlinger::latchBuffers() {
             }
         }
 
-        if (layer->hasReadyFrame()) {
+        if (layer->hasReadyFrame() || layer->willReleaseBufferOnLatch()) {
             frameQueued = true;
             mLayersWithQueuedFrames.emplace(sp<Layer>::fromExisting(layer));
         } else {
@@ -4070,6 +4089,9 @@ bool SurfaceFlinger::latchBuffers() {
         Mutex::Autolock lock(mStateLock);
 
         for (const auto& layer : mLayersWithQueuedFrames) {
+            if (layer->willReleaseBufferOnLatch()) {
+                mLayersWithBuffersRemoved.emplace(layer);
+            }
             if (layer->latchBuffer(visibleRegions, latchTime)) {
                 mLayersPendingRefresh.push_back(layer);
                 newDataLatched = true;
@@ -5069,7 +5091,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
 
     if (layer->setTransactionCompletedListeners(callbackHandles,
-                                                layer->willPresentCurrentTransaction())) {
+                                                layer->willPresentCurrentTransaction() ||
+                                                        layer->willReleaseBufferOnLatch())) {
         flags |= eTraversalNeeded;
     }
 
@@ -5183,8 +5206,9 @@ uint32_t SurfaceFlinger::updateLayerCallbacksAndStats(const FrameTimelineInfo& f
     }
 
     const auto& requestedLayerState = mLayerLifecycleManager.getLayerFromId(layer->getSequence());
-    bool willPresentCurrentTransaction =
-            requestedLayerState && requestedLayerState->hasReadyFrame();
+    bool willPresentCurrentTransaction = requestedLayerState &&
+            (requestedLayerState->hasReadyFrame() ||
+             requestedLayerState->willReleaseBufferOnLatch());
     if (layer->setTransactionCompletedListeners(callbackHandles, willPresentCurrentTransaction))
         flags |= eTraversalNeeded;
 
@@ -5847,8 +5871,8 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
         return layersProto;
     }
 
-    return LayerProtoFromSnapshotGenerator(mLayerSnapshotBuilder, mFrontEndDisplayInfos, {},
-                                           traceFlags)
+    return LayerProtoFromSnapshotGenerator(mLayerSnapshotBuilder, mFrontEndDisplayInfos,
+                                           mLegacyLayers, traceFlags)
             .generate(mLayerHierarchyBuilder.getHierarchy());
 }
 
@@ -7380,12 +7404,14 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                                 : ftl::yield(present()).share();
 
     for (auto& [layer, layerFE] : layers) {
-        layer->onLayerDisplayed(
-                ftl::Future(presentFuture)
-                        .then([layerFE = std::move(layerFE)](FenceResult) {
-                            return layerFE->stealCompositionResult().releaseFences.back().get();
-                        })
-                        .share());
+        layer->onLayerDisplayed(ftl::Future(presentFuture)
+                                        .then([layerFE = std::move(layerFE)](FenceResult) {
+                                            return layerFE->stealCompositionResult()
+                                                    .releaseFences.back()
+                                                    .first.get();
+                                        })
+                                        .share(),
+                                ui::INVALID_LAYER_STACK);
     }
 
     return presentFuture;
