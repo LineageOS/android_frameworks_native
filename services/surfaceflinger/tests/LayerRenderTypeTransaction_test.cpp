@@ -1636,6 +1636,65 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorTransformOnChildAndParent) {
         getScreenCapture()->expectColor(Rect(0, 0, 32, 32), expectedColor, tolerance);
     }
 }
+
+TEST_P(LayerRenderTypeTransactionTest, SetNullBuffer) {
+    const Rect bounds(0, 0, 32, 32);
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> buffer =
+            sp<GraphicBuffer>::make(32u, 32u, PIXEL_FORMAT_RGBA_8888, 1u, kUsageFlags, "test");
+
+    ASSERT_NO_FATAL_FAILURE(TransactionUtils::fillGraphicBufferColor(buffer, bounds, Color::GREEN));
+    Transaction().setBuffer(layer, buffer).apply();
+    {
+        SCOPED_TRACE("before null buffer");
+        auto shot = getScreenCapture();
+        shot->expectColor(bounds, Color::GREEN);
+    }
+
+    Transaction().setBuffer(layer, nullptr).apply();
+    {
+        SCOPED_TRACE("null buffer removes buffer");
+        auto shot = getScreenCapture();
+        shot->expectColor(bounds, Color::BLACK);
+    }
+
+    Transaction().setBuffer(layer, buffer).apply();
+    {
+        SCOPED_TRACE("after null buffer");
+        auto shot = getScreenCapture();
+        shot->expectColor(bounds, Color::GREEN);
+    }
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetNullBufferOnLayerWithoutBuffer) {
+    const Rect bounds(0, 0, 32, 32);
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    {
+        SCOPED_TRACE("starting state");
+        auto shot = getScreenCapture();
+        shot->expectColor(bounds, Color::BLACK);
+    }
+
+    Transaction().setBuffer(layer, nullptr).apply();
+    {
+        SCOPED_TRACE("null buffer has no effect");
+        auto shot = getScreenCapture();
+        shot->expectColor(bounds, Color::BLACK);
+    }
+
+    Transaction().setBuffer(layer, nullptr).apply();
+    {
+        SCOPED_TRACE("null buffer has no effect");
+        auto shot = getScreenCapture();
+        shot->expectColor(bounds, Color::BLACK);
+    }
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

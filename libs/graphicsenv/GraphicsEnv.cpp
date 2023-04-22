@@ -689,4 +689,13 @@ android_namespace_t* GraphicsEnv::getAngleNamespace() {
     return mAngleNamespace;
 }
 
+void GraphicsEnv::nativeToggleAngleAsSystemDriver(bool enabled) {
+    const sp<IGpuService> gpuService = getGpuService();
+    if (!gpuService) {
+        ALOGE("No GPU service");
+        return;
+    }
+    gpuService->toggleAngleAsSystemDriver(enabled);
+}
+
 } // namespace android
