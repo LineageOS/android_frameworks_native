@@ -148,8 +148,12 @@ std::list<NotifyArgs> KeyboardInputMapper::reconfigure(nsecs_t when,
 
     if (!changes.any() ||
         changes.test(InputReaderConfiguration::Change::KEYBOARD_LAYOUT_ASSOCIATION)) {
-        mKeyboardLayoutInfo =
+        std::optional<KeyboardLayoutInfo> newKeyboardLayoutInfo =
                 getValueByKey(config.keyboardLayoutAssociations, getDeviceContext().getLocation());
+        if (mKeyboardLayoutInfo != newKeyboardLayoutInfo) {
+            mKeyboardLayoutInfo = newKeyboardLayoutInfo;
+            bumpGeneration();
+        }
     }
 
     return out;
