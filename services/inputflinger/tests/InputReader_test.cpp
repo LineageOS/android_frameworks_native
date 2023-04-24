@@ -3687,6 +3687,7 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignKeyboardLayoutInfo) {
             mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                                /*changes=*/{});
 
+    uint32_t generation = mReader->getContext()->getGeneration();
     mFakePolicy->addKeyboardLayoutAssociation(DEVICE_LOCATION, DEVICE_KEYBOARD_LAYOUT_INFO);
 
     unused += mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
@@ -3697,6 +3698,14 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignKeyboardLayoutInfo) {
               deviceInfo.getKeyboardLayoutInfo()->languageTag);
     ASSERT_EQ(DEVICE_KEYBOARD_LAYOUT_INFO.layoutType,
               deviceInfo.getKeyboardLayoutInfo()->layoutType);
+    ASSERT_TRUE(mReader->getContext()->getGeneration() != generation);
+
+    // Call change layout association with the same values: Generation shouldn't change
+    generation = mReader->getContext()->getGeneration();
+    mFakePolicy->addKeyboardLayoutAssociation(DEVICE_LOCATION, DEVICE_KEYBOARD_LAYOUT_INFO);
+    unused += mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                                 InputReaderConfiguration::Change::KEYBOARD_LAYOUT_ASSOCIATION);
+    ASSERT_TRUE(mReader->getContext()->getGeneration() == generation);
 }
 
 TEST_F(KeyboardInputMapperTest, LayoutInfoCorrectlyMapped) {
