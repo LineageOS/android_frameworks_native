@@ -21,11 +21,15 @@
 #include <android-base/stringprintf.h>
 #include <ftl/concat.h>
 #include <utils/Trace.h>
+#include <log/log_main.h>
 
 #include <scheduler/TimeKeeper.h>
 
 #include "VSyncDispatchTimerQueue.h"
 #include "VSyncTracker.h"
+
+#undef LOG_TAG
+#define LOG_TAG "VSyncDispatch"
 
 namespace android::scheduler {
 
@@ -225,6 +229,10 @@ VSyncDispatchTimerQueue::VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper> tk,
 VSyncDispatchTimerQueue::~VSyncDispatchTimerQueue() {
     std::lock_guard lock(mMutex);
     cancelTimer();
+    for (auto& [_, entry] : mCallbacks) {
+        ALOGE("Forgot to unregister a callback on VSyncDispatch!");
+        entry->ensureNotRunning();
+    }
 }
 
 void VSyncDispatchTimerQueue::cancelTimer() {
