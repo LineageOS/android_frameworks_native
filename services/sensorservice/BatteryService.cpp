@@ -30,8 +30,8 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
-BatteryService::BatteryService() : mBatteryStatService(nullptr) {
-}
+BatteryService::BatteryService()
+    : mBatteryStatService(nullptr), mLastWakeupSensorEventReportedMs(0) {}
 
 bool BatteryService::addSensor(uid_t uid, int handle) {
     Mutex::Autolock _l(mActivationsLock);
