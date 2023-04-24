@@ -37,9 +37,9 @@ class RpcState;
 class RpcTransport;
 class FdTrigger;
 
-constexpr uint32_t RPC_WIRE_PROTOCOL_VERSION_NEXT = 1;
+constexpr uint32_t RPC_WIRE_PROTOCOL_VERSION_NEXT = 2;
 constexpr uint32_t RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL = 0xF0000000;
-constexpr uint32_t RPC_WIRE_PROTOCOL_VERSION = RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL;
+constexpr uint32_t RPC_WIRE_PROTOCOL_VERSION = 1;
 
 // Starting with this version:
 //
