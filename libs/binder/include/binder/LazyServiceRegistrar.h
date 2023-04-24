@@ -93,7 +93,17 @@ class LazyServiceRegistrar {
       */
      void reRegister();
 
-   private:
+     /**
+      * Create a second instance of lazy service registrar.
+      *
+      * WARNING: dangerous! DO NOT USE THIS - LazyServiceRegistrar
+      * should be single-instanced, so that the service will only
+      * shut down when all services are unused. A separate instance
+      * is only used to test race conditions.
+      */
+     static LazyServiceRegistrar createExtraTestInstance();
+
+ private:
      std::shared_ptr<internal::ClientCounterCallback> mClientCC;
      LazyServiceRegistrar();
 };
