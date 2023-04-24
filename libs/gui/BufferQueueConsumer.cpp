@@ -33,6 +33,7 @@
 #include <gui/BufferQueueCore.h>
 #include <gui/IConsumerListener.h>
 #include <gui/IProducerListener.h>
+#include <gui/TraceUtils.h>
 
 #include <private/gui/BufferQueueThreadState.h>
 #ifndef __ANDROID_VNDK__
@@ -646,7 +647,7 @@ status_t BufferQueueConsumer::setMaxBufferCount(int bufferCount) {
 
 status_t BufferQueueConsumer::setMaxAcquiredBufferCount(
         int maxAcquiredBuffers) {
-    ATRACE_CALL();
+    ATRACE_FORMAT("%s(%d)", __func__, maxAcquiredBuffers);
 
     if (maxAcquiredBuffers < 1 ||
             maxAcquiredBuffers > BufferQueueCore::MAX_MAX_ACQUIRED_BUFFERS) {
