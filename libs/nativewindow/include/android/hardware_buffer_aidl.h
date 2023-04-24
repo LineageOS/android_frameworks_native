@@ -34,6 +34,10 @@
 #include <android/hardware_buffer.h>
 #include <sys/cdefs.h>
 
+#ifdef __cplusplus
+#include <string>
+#endif
+
 __BEGIN_DECLS
 
 /**
@@ -140,6 +144,15 @@ public:
         AHardwareBuffer* _Nullable ret = mBuffer;
         mBuffer = nullptr;
         return ret;
+    }
+
+    inline std::string toString() const {
+        if (!mBuffer) {
+            return "<HardwareBuffer: Invalid>";
+        }
+        uint64_t id = 0;
+        AHardwareBuffer_getId(mBuffer, &id);
+        return "<HardwareBuffer " + std::to_string(id) + ">";
     }
 
 private:
