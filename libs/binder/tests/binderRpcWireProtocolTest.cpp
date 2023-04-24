@@ -237,13 +237,24 @@ TEST(RpcWire, V0) {
     checkRepr(kCurrentRepr, 0);
 }
 
+TEST(RpcWire, V1) {
+    checkRepr(kCurrentRepr, 1);
+}
+
 TEST(RpcWire, CurrentVersion) {
     checkRepr(kCurrentRepr, RPC_WIRE_PROTOCOL_VERSION);
 }
 
-static_assert(RPC_WIRE_PROTOCOL_VERSION == RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL,
+static_assert(RPC_WIRE_PROTOCOL_VERSION == 1,
               "If the binder wire protocol is updated, this test should test additional versions. "
               "The binder wire protocol should only be updated on upstream AOSP.");
+
+TEST(RpcWire, NextIsPlusOneReminder) {
+    if (RPC_WIRE_PROTOCOL_VERSION != RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL) {
+        EXPECT_EQ(RPC_WIRE_PROTOCOL_VERSION + 1, RPC_WIRE_PROTOCOL_VERSION_NEXT)
+                << "Make sure to note what the next version should be.";
+    }
+}
 
 TEST(RpcWire, ReleaseBranchHasFrozenRpcWireProtocol) {
     if (RPC_WIRE_PROTOCOL_VERSION == RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL) {
