@@ -2146,7 +2146,14 @@ void SurfaceFlinger::setVsyncEnabled(PhysicalDisplayId id, bool enabled) {
     }));
 }
 
-auto SurfaceFlinger::getPreviousPresentFence(TimePoint frameTime, Period vsyncPeriod)
+bool SurfaceFlinger::wouldPresentEarly(TimePoint frameTime, Period vsyncPeriod) const {
+    const bool isThreeVsyncsAhead = mExpectedPresentTime - frameTime > 2 * vsyncPeriod;
+    return isThreeVsyncsAhead ||
+            getPreviousPresentFence(frameTime, vsyncPeriod)->getSignalTime() !=
+            Fence::SIGNAL_TIME_PENDING;
+}
+
+auto SurfaceFlinger::getPreviousPresentFence(TimePoint frameTime, Period vsyncPeriod) const
         -> const FenceTimePtr& {
     const bool isTwoVsyncsAhead = mExpectedPresentTime - frameTime > vsyncPeriod;
     const size_t i = static_cast<size_t>(isTwoVsyncsAhead);
@@ -2614,21 +2621,14 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         refreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::milliseconds(mDebugFlashDelay);
     }
 
-    const auto prevVsyncTime = mExpectedPresentTime - mScheduler->getVsyncSchedule()->period();
-    const auto hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration;
-
     const Period vsyncPeriod = mScheduler->getVsyncSchedule()->period();
-    const bool threeVsyncsAhead = mExpectedPresentTime - frameTime > 2 * vsyncPeriod;
 
-    // We should wait for the earliest present time if HWC doesn't support ExpectedPresentTime,
-    // and the next vsync is not already taken by the previous frame.
-    const bool waitForEarliestPresent =
-            !getHwComposer().getComposer()->isSupported(
-                    Hwc2::Composer::OptionalFeature::ExpectedPresentTime) &&
-            (threeVsyncsAhead ||
-             mPreviousPresentFences[0].fenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING);
+    if (!getHwComposer().getComposer()->isSupported(
+                Hwc2::Composer::OptionalFeature::ExpectedPresentTime) &&
+        wouldPresentEarly(frameTime, vsyncPeriod)) {
+        const auto prevVsyncTime = mExpectedPresentTime - vsyncPeriod;
+        const auto hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration;
 
-    if (waitForEarliestPresent) {
         refreshArgs.earliestPresentTime = prevVsyncTime - hwcMinWorkDuration;
     }
 
@@ -2662,9 +2662,10 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
 
     // Send a power hint hint after presentation is finished
     if (mPowerHintSessionEnabled) {
-        mPowerAdvisor->setSfPresentTiming(TimePoint::fromNs(mPreviousPresentFences[0]
-                                                                    .fenceTime->getSignalTime()),
-                                          TimePoint::now());
+        const nsecs_t pastPresentTime =
+                getPreviousPresentFence(frameTime, vsyncPeriod)->getSignalTime();
+
+        mPowerAdvisor->setSfPresentTiming(TimePoint::fromNs(pastPresentTime), TimePoint::now());
         mPowerAdvisor->reportActualWorkDuration();
     }
 
