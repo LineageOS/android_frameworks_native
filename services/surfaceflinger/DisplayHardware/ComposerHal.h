@@ -110,10 +110,6 @@ public:
 
     virtual void registerCallback(HWC2::ComposerCallback& callback) = 0;
 
-    // Reset all pending commands in the command buffer. Useful if you want to
-    // skip a frame but have already queued some commands.
-    virtual void resetCommands(Display) = 0;
-
     // Explicitly flush all pending commands in the command buffer.
     virtual Error executeCommands(Display) = 0;
 
