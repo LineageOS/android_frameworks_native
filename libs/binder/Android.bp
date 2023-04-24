@@ -144,10 +144,6 @@ cc_defaults {
         "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
     ],
     product_variables: {
-        binder32bit: {
-            cflags: ["-DBINDER_IPC_32BIT=1"],
-        },
-
         debuggable: {
             cflags: [
                 "-DBINDER_RPC_DEV_SERVERS",
