@@ -1430,10 +1430,8 @@ private:
     display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
     bool mFrontEndDisplayInfosChanged = false;
 
-    // Layers visible during the last commit. This set should only be used for testing set equality
-    // and membership. The pointers should not be dereferenced as it's possible the set contains
-    // pointers to freed layers.
-    std::unordered_set<Layer*> mVisibleLayers;
+    // WindowInfo ids visible during the last commit.
+    std::unordered_set<int32_t> mVisibleWindowIds;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
