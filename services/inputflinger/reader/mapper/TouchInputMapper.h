@@ -146,8 +146,6 @@ struct CookedPointerData {
 
 class TouchInputMapper : public InputMapper {
 public:
-    explicit TouchInputMapper(InputDeviceContext& deviceContext,
-                              const InputReaderConfiguration& readerConfig);
     ~TouchInputMapper() override;
 
     uint32_t getSources() const override;
@@ -358,24 +356,27 @@ protected:
     nsecs_t mExternalStylusFusionTimeout;
     bool mExternalStylusDataPending;
     // A subset of the buttons in mCurrentRawState that came from an external stylus.
-    int32_t mExternalStylusButtonsApplied;
+    int32_t mExternalStylusButtonsApplied{0};
 
     // True if we sent a HOVER_ENTER event.
-    bool mSentHoverEnter;
+    bool mSentHoverEnter{false};
 
     // Have we assigned pointer IDs for this stream
-    bool mHavePointerIds;
+    bool mHavePointerIds{false};
 
     // Is the current stream of direct touch events aborted
-    bool mCurrentMotionAborted;
+    bool mCurrentMotionAborted{false};
 
     // The time the primary pointer last went down.
-    nsecs_t mDownTime;
+    nsecs_t mDownTime{0};
 
     // The pointer controller, or null if the device is not a pointer.
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
     std::vector<VirtualKey> mVirtualKeys;
+
+    explicit TouchInputMapper(InputDeviceContext& deviceContext,
+                              const InputReaderConfiguration& readerConfig);
 
     virtual void dumpParameters(std::string& dump);
     virtual void configureRawPointerAxes();
@@ -513,7 +514,7 @@ private:
         STYLUS,
         MOUSE,
     };
-    PointerUsage mPointerUsage;
+    PointerUsage mPointerUsage{PointerUsage::NONE};
 
     struct PointerGesture {
         enum class Mode {
