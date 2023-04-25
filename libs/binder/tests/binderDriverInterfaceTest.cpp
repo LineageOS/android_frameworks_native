@@ -25,8 +25,6 @@
 #include <sys/mman.h>
 #include <poll.h>
 
-#include "binderAbiHelper.h"
-
 #define BINDER_DEV_NAME "/dev/binder"
 
 testing::Environment* binder_env;
@@ -362,8 +360,7 @@ TEST_F(BinderDriverInterfaceTest, RequestDeathNotification) {
     binderTestReadEmpty();
 }
 
-int main(int argc, char **argv) {
-    ExitIfWrongAbi();
+int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
     binder_env = AddGlobalTestEnvironment(new BinderDriverInterfaceTestEnv());
