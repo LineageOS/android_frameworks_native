@@ -48,7 +48,6 @@
 #include <sys/un.h>
 
 #include "../binder_module.h"
-#include "binderAbiHelper.h"
 
 #define ARRAY_SIZE(array) (sizeof array / sizeof array[0])
 
@@ -2022,9 +2021,7 @@ int run_server(int index, int readypipefd, bool usePoll)
     return 1; /* joinThreadPool should not return */
 }
 
-int main(int argc, char **argv) {
-    ExitIfWrongAbi();
-
+int main(int argc, char** argv) {
     if (argc == 4 && !strcmp(argv[1], "--servername")) {
         binderservername = argv[2];
     } else {
