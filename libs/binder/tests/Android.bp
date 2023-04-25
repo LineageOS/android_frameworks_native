@@ -32,58 +32,14 @@ cc_defaults {
 }
 
 cc_test {
-    name: "binderDriverInterfaceTest_IPC_32",
-    defaults: ["binder_test_defaults"],
-    srcs: ["binderDriverInterfaceTest.cpp"],
-    header_libs: ["libbinder_headers"],
-    compile_multilib: "32",
-    multilib: {
-        lib32: {
-            suffix: "",
-        },
-    },
-    cflags: ["-DBINDER_IPC_32BIT=1"],
-    test_suites: ["vts"],
-}
-
-cc_test {
     name: "binderDriverInterfaceTest",
     defaults: ["binder_test_defaults"],
-    product_variables: {
-        binder32bit: {
-            cflags: ["-DBINDER_IPC_32BIT=1"],
-        },
-    },
     header_libs: ["libbinder_headers"],
     srcs: ["binderDriverInterfaceTest.cpp"],
     test_suites: [
         "device-tests",
         "vts",
     ],
-}
-
-cc_test {
-    name: "binderLibTest_IPC_32",
-    defaults: ["binder_test_defaults"],
-    srcs: ["binderLibTest.cpp"],
-    shared_libs: [
-        "libbase",
-        "libbinder",
-        "liblog",
-        "libutils",
-    ],
-    static_libs: [
-        "libgmock",
-    ],
-    compile_multilib: "32",
-    multilib: {
-        lib32: {
-            suffix: "",
-        },
-    },
-    cflags: ["-DBINDER_IPC_32BIT=1"],
-    test_suites: ["vts"],
-    require_root: true,
 }
 
 // unit test only, which can run on host and doesn't use /dev/binder
@@ -135,11 +91,6 @@ aidl_interface {
 cc_test {
     name: "binderLibTest",
     defaults: ["binder_test_defaults"],
-    product_variables: {
-        binder32bit: {
-            cflags: ["-DBINDER_IPC_32BIT=1"],
-        },
-    },
 
     srcs: ["binderLibTest.cpp"],
     shared_libs: [
