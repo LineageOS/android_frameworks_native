@@ -23,7 +23,7 @@ package {
 
 cc_library_shared {
     name: "libinputflingerhost",
-
+    cpp_std: "c++20",
     srcs: [
         "InputFlinger.cpp",
         "InputDriver.cpp",
@@ -64,14 +64,17 @@ cc_binary {
 
     srcs: ["main.cpp"],
 
-    cflags: ["-Wall", "-Werror"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 
     shared_libs: [
         "libbase",
         "libbinder",
         "libinputflingerhost",
         "libutils",
-        "libinput"
+        "libinput",
     ],
     static_libs: [
         "libarect",
