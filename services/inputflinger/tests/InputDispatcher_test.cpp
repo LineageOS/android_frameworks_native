@@ -6140,6 +6140,28 @@ TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleWindowsFirstTouchWithSc
     touchAndAssertPositions(AMOTION_EVENT_ACTION_MOVE, touchedPoints, expectedPoints);
 }
 
+/**
+ * When one of the windows is slippery, the touch should not slip into the other window with the
+ * same input channel.
+ */
+TEST_F(InputDispatcherMultiWindowSameTokenTests, TouchDoesNotSlipEvenIfSlippery) {
+    mWindow1->setSlippery(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow1, mWindow2}}});
+
+    // Touch down in window 1
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                                 ADISPLAY_ID_DEFAULT, {{50, 50}}));
+    consumeMotionEvent(mWindow1, ACTION_DOWN, {{50, 50}});
+
+    // Move touch to be above window 2. Even though window 1 is slippery, touch should not slip.
+    // That means the gesture should continue normally, without any ACTION_CANCEL or ACTION_DOWN
+    // getting generated.
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                                 ADISPLAY_ID_DEFAULT, {{150, 150}}));
+
+    consumeMotionEvent(mWindow1, ACTION_MOVE, {{150, 150}});
+}
+
 class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
     virtual void SetUp() override {
         InputDispatcherTest::SetUp();
