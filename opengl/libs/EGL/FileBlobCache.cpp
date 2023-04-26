@@ -14,6 +14,8 @@
  ** limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include "FileBlobCache.h"
 
 #include <errno.h>
@@ -24,6 +26,7 @@
 #include <unistd.h>
 
 #include <log/log.h>
+#include <utils/Trace.h>
 
 // Cache file header
 static const char* cacheFileMagic = "EGL$";
@@ -51,6 +54,8 @@ FileBlobCache::FileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxT
         const std::string& filename)
         : BlobCache(maxKeySize, maxValueSize, maxTotalSize)
         , mFilename(filename) {
+    ATRACE_CALL();
+
     if (mFilename.length() > 0) {
         size_t headerSize = cacheFileHeaderSize;
 
@@ -117,6 +122,8 @@ FileBlobCache::FileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxT
 }
 
 void FileBlobCache::writeToFile() {
+    ATRACE_CALL();
+
     if (mFilename.length() > 0) {
         size_t cacheSize = getFlattenedSize();
         size_t headerSize = cacheFileHeaderSize;

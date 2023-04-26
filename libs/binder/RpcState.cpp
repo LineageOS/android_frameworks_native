@@ -928,7 +928,7 @@ processTransactInternalTailCall:
                                           transactionData.size() -
                                                   offsetof(RpcWireTransaction, data)};
         Span<const uint32_t> objectTableSpan;
-        if (session->getProtocolVersion().value() >
+        if (session->getProtocolVersion().value() >=
             RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_SIZE) {
             std::optional<Span<const uint8_t>> objectTableBytes =
                     parcelSpan.splitOff(transaction->parcelDataSize);
