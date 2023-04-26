@@ -412,11 +412,13 @@ sp<IBinder> ServiceManagerShim::waitForService(const String16& name16)
             // command, so we hang indefinitely.
             std::unique_lock<std::mutex> lock(waiter->mMutex);
             using std::literals::chrono_literals::operator""s;
-            waiter->mCv.wait_for(lock, 2s, [&] { return waiter->mBinder != nullptr; });
+            waiter->mCv.wait_for(lock, 1s, [&] {
+                return waiter->mBinder != nullptr;
+            });
             if (waiter->mBinder != nullptr) return waiter->mBinder;
         }
 
-        ALOGW("Waited two seconds for %s (is service started? Number of threads started in the "
+        ALOGW("Waited one second for %s (is service started? Number of threads started in the "
               "threadpool: %zu. Are binder threads started and available?)",
               name.c_str(), ProcessState::self()->getThreadPoolMaxTotalThreadCount());
 
