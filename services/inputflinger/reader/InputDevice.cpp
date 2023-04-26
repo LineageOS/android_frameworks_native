@@ -482,8 +482,8 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
     }
 
     if (keyboardSource != 0) {
-        mappers.push_back(std::make_unique<KeyboardInputMapper>(contextPtr, readerConfig,
-                                                                keyboardSource, keyboardType));
+        mappers.push_back(createInputMapper<KeyboardInputMapper>(contextPtr, readerConfig,
+                                                                 keyboardSource, keyboardType));
     }
 
     // Cursor-like devices.
