@@ -359,12 +359,33 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         EXPECT_EQ(expectedChoices, actualChoices);
     }
     {
-        // This display does not support 120 Hz, so we should choose 60 Hz despite the touch signal.
+        // The kDisplayId3 does not support 120Hz, The pacesetter display rate is chosen to be 120
+        // Hz. In this case only the display kDisplayId3 choose 60Hz as it does not support 120Hz.
         mScheduler
                 ->registerDisplay(kDisplayId3,
                                   std::make_shared<RefreshRateSelector>(kDisplay3Modes,
                                                                         kDisplay3Mode60->getId()));
 
+        const GlobalSignals globalSignals = {.touch = true};
+        mScheduler->replaceTouchTimer(10);
+        mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
+
+        expectedChoices = ftl::init::map<
+                const PhysicalDisplayId&,
+                DisplayModeChoice>(kDisplayId1, FrameRateMode{120_Hz, kDisplay1Mode120},
+                                   globalSignals)(kDisplayId2,
+                                                  FrameRateMode{120_Hz, kDisplay2Mode120},
+                                                  globalSignals)(kDisplayId3,
+                                                                 FrameRateMode{60_Hz,
+                                                                               kDisplay3Mode60},
+                                                                 globalSignals);
+
+        const auto actualChoices = mScheduler->chooseDisplayModes();
+        EXPECT_EQ(expectedChoices, actualChoices);
+    }
+    {
+        // We should choose 60Hz despite the touch signal as pacesetter only supports 60Hz
+        mScheduler->setPacesetterDisplay(kDisplayId3);
         const GlobalSignals globalSignals = {.touch = true};
         mScheduler->replaceTouchTimer(10);
         mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
