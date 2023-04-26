@@ -2603,13 +2603,13 @@ protected:
 };
 
 TEST_F(SwitchInputMapperTest, GetSources) {
-    SwitchInputMapper& mapper = addMapperAndConfigure<SwitchInputMapper>();
+    SwitchInputMapper& mapper = constructAndAddMapper<SwitchInputMapper>();
 
     ASSERT_EQ(uint32_t(AINPUT_SOURCE_SWITCH), mapper.getSources());
 }
 
 TEST_F(SwitchInputMapperTest, GetSwitchState) {
-    SwitchInputMapper& mapper = addMapperAndConfigure<SwitchInputMapper>();
+    SwitchInputMapper& mapper = constructAndAddMapper<SwitchInputMapper>();
 
     mFakeEventHub->setSwitchState(EVENTHUB_ID, SW_LID, 1);
     ASSERT_EQ(1, mapper.getSwitchState(AINPUT_SOURCE_ANY, SW_LID));
@@ -2619,7 +2619,7 @@ TEST_F(SwitchInputMapperTest, GetSwitchState) {
 }
 
 TEST_F(SwitchInputMapperTest, Process) {
-    SwitchInputMapper& mapper = addMapperAndConfigure<SwitchInputMapper>();
+    SwitchInputMapper& mapper = constructAndAddMapper<SwitchInputMapper>();
     std::list<NotifyArgs> out;
     out = process(mapper, ARBITRARY_TIME, READ_TIME, EV_SW, SW_LID, 1);
     ASSERT_TRUE(out.empty());

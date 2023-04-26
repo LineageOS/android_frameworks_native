@@ -22,8 +22,10 @@ namespace android {
 
 class SwitchInputMapper : public InputMapper {
 public:
-    explicit SwitchInputMapper(InputDeviceContext& deviceContext,
-                               const InputReaderConfiguration& readerConfig);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     virtual ~SwitchInputMapper();
 
     virtual uint32_t getSources() const override;
@@ -36,6 +38,8 @@ private:
     uint32_t mSwitchValues;
     uint32_t mUpdatedSwitchMask;
 
+    explicit SwitchInputMapper(InputDeviceContext& deviceContext,
+                               const InputReaderConfiguration& readerConfig);
     void processSwitch(int32_t switchCode, int32_t switchValue);
     [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when);
 };
