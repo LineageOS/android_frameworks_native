@@ -30,7 +30,7 @@ cc_test {
     ],
     test_suites: ["device-tests"],
     sanitize: {
-        address: false,
+        address: true,
     },
     srcs: [
         ":libsurfaceflinger_sources",
