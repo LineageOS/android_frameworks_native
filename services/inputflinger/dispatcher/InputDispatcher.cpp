@@ -676,7 +676,6 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
     SurfaceComposerClient::getDefault()->addWindowInfosListener(mWindowInfoListener);
 #endif
     mKeyRepeatState.lastKeyEntry = nullptr;
-    policy->getDispatcherConfiguration(&mConfig);
 }
 
 InputDispatcher::~InputDispatcher() {
@@ -6604,6 +6603,14 @@ void InputDispatcher::cancelCurrentTouch() {
     }
     // Wake up poll loop since there might be work to do.
     mLooper->wake();
+}
+
+void InputDispatcher::requestRefreshConfiguration() {
+    InputDispatcherConfiguration config;
+    mPolicy->getDispatcherConfiguration(&config);
+
+    std::scoped_lock _l(mLock);
+    mConfig = config;
 }
 
 void InputDispatcher::setMonitorDispatchingTimeoutForTest(std::chrono::nanoseconds timeout) {
