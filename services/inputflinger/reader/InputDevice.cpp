@@ -510,7 +510,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
 
     // Joystick-like devices.
     if (classes.test(InputDeviceClass::JOYSTICK)) {
-        mappers.push_back(std::make_unique<JoystickInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<JoystickInputMapper>(contextPtr, readerConfig));
     }
 
     // Motion sensor enabled devices.

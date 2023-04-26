@@ -10917,7 +10917,7 @@ const int32_t JoystickInputMapperTest::RAW_Y_MAX = 32767;
 
 TEST_F(JoystickInputMapperTest, Configure_AssignsDisplayUniqueId) {
     prepareAxes();
-    JoystickInputMapper& mapper = addMapperAndConfigure<JoystickInputMapper>();
+    JoystickInputMapper& mapper = constructAndAddMapper<JoystickInputMapper>();
 
     mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, VIRTUAL_DISPLAY_UNIQUE_ID);
 
