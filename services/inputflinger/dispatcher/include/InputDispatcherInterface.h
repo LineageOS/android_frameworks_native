@@ -225,6 +225,12 @@ public:
      * Abort the current touch stream.
      */
     virtual void cancelCurrentTouch() = 0;
+
+    /**
+     * Request that the InputDispatcher's configuration, which can be obtained through the policy,
+     * be updated.
+     */
+    virtual void requestRefreshConfiguration() = 0;
 };
 
 } // namespace android
