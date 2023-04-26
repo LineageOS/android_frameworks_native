@@ -22,8 +22,10 @@ namespace android {
 
 class VibratorInputMapper : public InputMapper {
 public:
-    explicit VibratorInputMapper(InputDeviceContext& deviceContext,
-                                 const InputReaderConfiguration& readerConfig);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     virtual ~VibratorInputMapper();
 
     virtual uint32_t getSources() const override;
@@ -46,6 +48,8 @@ private:
     ssize_t mIndex;
     nsecs_t mNextStepTime;
 
+    explicit VibratorInputMapper(InputDeviceContext& deviceContext,
+                                 const InputReaderConfiguration& readerConfig);
     [[nodiscard]] std::list<NotifyArgs> nextStep();
     [[nodiscard]] NotifyVibratorStateArgs stopVibrating();
 };
