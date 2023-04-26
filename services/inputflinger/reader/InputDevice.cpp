@@ -451,7 +451,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
 
     // Scroll wheel-like devices.
     if (classes.test(InputDeviceClass::ROTARY_ENCODER)) {
-        mappers.push_back(std::make_unique<RotaryEncoderInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<RotaryEncoderInputMapper>(contextPtr, readerConfig));
     }
 
     // Vibrator-like devices.
