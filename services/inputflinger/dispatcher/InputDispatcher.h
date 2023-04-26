@@ -149,6 +149,8 @@ public:
 
     void cancelCurrentTouch() override;
 
+    void requestRefreshConfiguration() override;
+
     // Public to allow tests to verify that a Monitor can get ANR.
     void setMonitorDispatchingTimeoutForTest(std::chrono::nanoseconds timeout);
 
@@ -166,7 +168,7 @@ private:
     std::unique_ptr<InputThread> mThread;
 
     sp<InputDispatcherPolicyInterface> mPolicy;
-    android::InputDispatcherConfiguration mConfig;
+    android::InputDispatcherConfiguration mConfig GUARDED_BY(mLock);
 
     std::mutex mLock;
 
