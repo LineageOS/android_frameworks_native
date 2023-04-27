@@ -3362,23 +3362,25 @@ void Dumpstate::MaybeSnapshotUiTraces() {
         return;
     }
 
-    // Include the proto logging from WMShell.
-    RunCommand(
-        // Empty name because it's not intended to be classified as a bugreport section.
-        // Actual logging files can be found as "/data/misc/wmtrace/shell_log.winscope"
-        // in the bugreport.
-        "", {"dumpsys", "activity", "service", "SystemUIService",
-             "WMShell", "protolog", "save-for-bugreport"},
-        CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
+    const std::vector<std::vector<std::string>> dumpTracesForBugReportCommands = {
+        {"dumpsys", "activity", "service", "SystemUIService", "WMShell", "protolog",
+         "save-for-bugreport"},
+        {"dumpsys", "activity", "service", "SystemUIService", "WMShell", "transitions", "tracing",
+         "save-for-bugreport"},
+        {"cmd", "input_method", "tracing", "save-for-bugreport"},
+        {"cmd", "window", "tracing", "save-for-bugreport"},
+        {"cmd", "window", "shell", "tracing", "save-for-bugreport"},
+    };
 
-    for (const auto& service : {"input_method", "window", "window shell"}) {
+    for (const auto& command : dumpTracesForBugReportCommands) {
         RunCommand(
             // Empty name because it's not intended to be classified as a bugreport section.
             // Actual tracing files can be found in "/data/misc/wmtrace/" in the bugreport.
-            "", {"cmd", service, "tracing", "save-for-bugreport"},
+            "", command,
             CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
     }
 
+    // This command needs to be run as root
     static const auto SURFACEFLINGER_COMMAND_SAVE_ALL_TRACES = std::vector<std::string> {
         "service", "call", "SurfaceFlinger", "1042"
     };
