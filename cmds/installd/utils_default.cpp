@@ -23,7 +23,7 @@ namespace installd {
 // platform dependent logic.
 
 int rm_package_dir(const std::string& package_dir) {
-    return delete_dir_contents_and_dir(package_dir);
+    return rename_delete_dir_contents_and_dir(package_dir);
 }
 
 }  // namespace installd
