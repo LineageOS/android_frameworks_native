@@ -2381,7 +2381,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
     mExpectedPresentTime = expectedVsyncTime >= frameTime ? expectedVsyncTime
                                                           : calculateExpectedPresentTime(frameTime);
 
-    ATRACE_FORMAT("%s %" PRId64 " vsyncIn %.2fms%s", __func__, vsyncId.value,
+    ATRACE_FORMAT("%s %" PRId64 " vsyncIn %.2fms%s", __func__, ftl::to_underlying(vsyncId),
                   ticks<std::milli, float>(mExpectedPresentTime - TimePoint::now()),
                   mExpectedPresentTime == expectedVsyncTime ? "" : " (adjusted)");
 
@@ -2495,7 +2495,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
     // Composite if transactions were committed, or if requested by HWC.
     bool mustComposite = mMustComposite.exchange(false);
     {
-        mFrameTimeline->setSfWakeUp(vsyncId.value, frameTime.ns(),
+        mFrameTimeline->setSfWakeUp(ftl::to_underlying(vsyncId), frameTime.ns(),
                                     Fps::fromPeriodNsecs(vsyncPeriod.ns()));
 
         const bool flushTransactions = clearTransactionFlags(eTransactionFlushNeeded);
@@ -2503,8 +2503,9 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
         if (flushTransactions) {
             updates = flushLifecycleUpdates();
             if (mTransactionTracing) {
-                mTransactionTracing->addCommittedTransactions(vsyncId.value, frameTime.ns(),
-                                                              updates, mFrontEndDisplayInfos,
+                mTransactionTracing->addCommittedTransactions(ftl::to_underlying(vsyncId),
+                                                              frameTime.ns(), updates,
+                                                              mFrontEndDisplayInfos,
                                                               mFrontEndDisplayInfosChanged);
             }
         }
@@ -2548,7 +2549,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
 
     if (mLayerTracingEnabled && !mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         // This will block and tracing should only be enabled for debugging.
-        addToLayerTracing(mVisibleRegionsDirty, frameTime.ns(), vsyncId.value);
+        addToLayerTracing(mVisibleRegionsDirty, frameTime, vsyncId);
     }
     mLastCommittedVsyncId = vsyncId;
 
@@ -2559,7 +2560,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
 
 void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
         FTL_FAKE_GUARD(kMainThreadContext) {
-    ATRACE_FORMAT("%s %" PRId64, __func__, vsyncId.value);
+    ATRACE_NAME(ftl::Concat(__func__, ' ', ftl::to_underlying(vsyncId)).c_str());
 
     compositionengine::CompositionRefreshArgs refreshArgs;
     const auto& displays = FTL_FAKE_GUARD(mStateLock, mDisplays);
@@ -2651,8 +2652,9 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     // the scheduler.
     const auto presentTime = systemTime();
 
-    std::vector<std::pair<Layer*, LayerFE*>> layers =
-            moveSnapshotsToCompositionArgs(refreshArgs, /*cursorOnly=*/false, vsyncId.value);
+    constexpr bool kCursorOnly = false;
+    const auto layers = moveSnapshotsToCompositionArgs(refreshArgs, kCursorOnly);
+
     mCompositionEngine->present(refreshArgs);
     moveSnapshotsFromCompositionArgs(refreshArgs, layers);
 
@@ -2727,7 +2729,7 @@ void SurfaceFlinger::composite(TimePoint frameTime, VsyncId vsyncId)
     mLayersWithQueuedFrames.clear();
     if (mLayerTracingEnabled && mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         // This will block and should only be used for debugging.
-        addToLayerTracing(mVisibleRegionsDirty, frameTime.ns(), vsyncId.value);
+        addToLayerTracing(mVisibleRegionsDirty, frameTime, vsyncId);
     }
 
     if (mVisibleRegionsDirty) mHdrLayerInfoChanged = true;
@@ -3863,7 +3865,9 @@ void SurfaceFlinger::updateCursorAsync() {
             refreshArgs.outputs.push_back(display->getCompositionDisplay());
         }
     }
-    auto layers = moveSnapshotsToCompositionArgs(refreshArgs, /*cursorOnly=*/true, 0);
+
+    constexpr bool kCursorOnly = true;
+    const auto layers = moveSnapshotsToCompositionArgs(refreshArgs, kCursorOnly);
     mCompositionEngine->updateCursorAsync(refreshArgs);
     moveSnapshotsFromCompositionArgs(refreshArgs, layers);
 }
@@ -4405,7 +4409,7 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 
 bool SurfaceFlinger::frameIsEarly(TimePoint expectedPresentTime, VsyncId vsyncId) const {
     const auto prediction =
-            mFrameTimeline->getTokenManager()->getPredictionsForToken(vsyncId.value);
+            mFrameTimeline->getTokenManager()->getPredictionsForToken(ftl::to_underlying(vsyncId));
     if (!prediction) {
         return false;
     }
@@ -6124,15 +6128,15 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
 
     result.append("Window Infos:\n");
     StringAppendF(&result, "  input flinger update vsync id: %" PRId64 "\n",
-                  mLastInputFlingerUpdateVsyncId.value);
+                  ftl::to_underlying(mLastInputFlingerUpdateVsyncId));
     StringAppendF(&result, "  input flinger update timestamp (ns): %" PRId64 "\n",
                   mLastInputFlingerUpdateTimestamp);
     result.append("\n");
 
-    if (int64_t unsentVsyncId = mWindowInfosListenerInvoker->getUnsentMessageVsyncId().value;
-        unsentVsyncId != -1) {
+    if (VsyncId unsentVsyncId = mWindowInfosListenerInvoker->getUnsentMessageVsyncId();
+        unsentVsyncId != VsyncId()) {
         StringAppendF(&result, "  unsent input flinger update vsync id: %" PRId64 "\n",
-                      unsentVsyncId);
+                      ftl::to_underlying(unsentVsyncId));
         StringAppendF(&result, "  unsent input flinger update timestamp (ns): %" PRId64 "\n",
                       mWindowInfosListenerInvoker->getUnsentMessageTimestamp());
         result.append("\n");
@@ -6458,13 +6462,16 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     ALOGD("LayerTracing enabled");
                     tracingEnabledChanged = mLayerTracing.enable();
                     if (tracingEnabledChanged) {
-                        int64_t startingTime =
-                                (fixedStartingTime) ? fixedStartingTime : systemTime();
+                        const TimePoint startingTime = fixedStartingTime
+                                ? TimePoint::fromNs(fixedStartingTime)
+                                : TimePoint::now();
+
                         mScheduler
-                                ->schedule([&]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(
-                                                   kMainThreadContext) {
-                                    addToLayerTracing(true /* visibleRegionDirty */, startingTime,
-                                                      mLastCommittedVsyncId.value);
+                                ->schedule([this, startingTime]() FTL_FAKE_GUARD(
+                                                   mStateLock) FTL_FAKE_GUARD(kMainThreadContext) {
+                                    constexpr bool kVisibleRegionDirty = true;
+                                    addToLayerTracing(kVisibleRegionDirty, startingTime,
+                                                      mLastCommittedVsyncId);
                                 })
                                 .wait();
                     }
@@ -8112,7 +8119,7 @@ void SurfaceFlinger::updateLayerMetadataSnapshot() {
 
 void SurfaceFlinger::moveSnapshotsFromCompositionArgs(
         compositionengine::CompositionRefreshArgs& refreshArgs,
-        std::vector<std::pair<Layer*, LayerFE*>>& layers) {
+        const std::vector<std::pair<Layer*, LayerFE*>>& layers) {
     if (mLayerLifecycleManagerEnabled) {
         std::vector<std::unique_ptr<frontend::LayerSnapshot>>& snapshots =
                 mLayerSnapshotBuilder.getSnapshots();
@@ -8129,7 +8136,7 @@ void SurfaceFlinger::moveSnapshotsFromCompositionArgs(
 }
 
 std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToCompositionArgs(
-        compositionengine::CompositionRefreshArgs& refreshArgs, bool cursorOnly, int64_t vsyncId) {
+        compositionengine::CompositionRefreshArgs& refreshArgs, bool cursorOnly) {
     std::vector<std::pair<Layer*, LayerFE*>> layers;
     if (mLayerLifecycleManagerEnabled) {
         nsecs_t currentTime = systemTime();
@@ -8314,7 +8321,7 @@ frontend::Update SurfaceFlinger::flushLifecycleUpdates() {
     return update;
 }
 
-void SurfaceFlinger::addToLayerTracing(bool visibleRegionDirty, int64_t time, int64_t vsyncId) {
+void SurfaceFlinger::addToLayerTracing(bool visibleRegionDirty, TimePoint time, VsyncId vsyncId) {
     const uint32_t tracingFlags = mLayerTracing.getFlags();
     LayersProto layers(dumpDrawingStateProto(tracingFlags));
     if (tracingFlags & LayerTracing::TRACE_EXTRA) {
@@ -8325,7 +8332,8 @@ void SurfaceFlinger::addToLayerTracing(bool visibleRegionDirty, int64_t time, in
         dumpHwc(hwcDump);
     }
     auto displays = dumpDisplayProto();
-    mLayerTracing.notify(visibleRegionDirty, time, vsyncId, &layers, std::move(hwcDump), &displays);
+    mLayerTracing.notify(visibleRegionDirty, time.ns(), ftl::to_underlying(vsyncId), &layers,
+                         std::move(hwcDump), &displays);
 }
 
 // gui::ISurfaceComposer

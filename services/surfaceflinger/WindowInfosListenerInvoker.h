@@ -75,7 +75,7 @@ private:
     uint32_t mActiveMessageCount GUARDED_BY(mMessagesMutex) = 0;
     std::function<void(WindowInfosReportedListenerSet)> mWindowInfosChangedDelayed
             GUARDED_BY(mMessagesMutex);
-    VsyncId mUnsentVsyncId GUARDED_BY(mMessagesMutex) = {-1};
+    VsyncId mUnsentVsyncId GUARDED_BY(mMessagesMutex);
     nsecs_t mUnsentTimestamp GUARDED_BY(mMessagesMutex) = -1;
     WindowInfosReportedListenerSet mReportedListenersDelayed;
 };

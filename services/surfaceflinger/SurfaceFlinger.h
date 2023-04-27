@@ -705,10 +705,9 @@ private:
     void updateLayerGeometry();
     void updateLayerMetadataSnapshot();
     std::vector<std::pair<Layer*, LayerFE*>> moveSnapshotsToCompositionArgs(
-            compositionengine::CompositionRefreshArgs& refreshArgs, bool cursorOnly,
-            int64_t vsyncId);
+            compositionengine::CompositionRefreshArgs& refreshArgs, bool cursorOnly);
     void moveSnapshotsFromCompositionArgs(compositionengine::CompositionRefreshArgs& refreshArgs,
-                                          std::vector<std::pair<Layer*, LayerFE*>>& layers);
+                                          const std::vector<std::pair<Layer*, LayerFE*>>& layers);
     bool updateLayerSnapshotsLegacy(VsyncId vsyncId, frontend::Update& update,
                                     bool transactionsFlushed, bool& out)
             REQUIRES(kMainThreadContext);
@@ -1080,7 +1079,7 @@ private:
     void dumpOffscreenLayersProto(LayersProto& layersProto,
                                   uint32_t traceFlags = LayerTracing::TRACE_ALL) const;
     google::protobuf::RepeatedPtrField<DisplayProto> dumpDisplayProto() const;
-    void addToLayerTracing(bool visibleRegionDirty, int64_t time, int64_t vsyncId)
+    void addToLayerTracing(bool visibleRegionDirty, TimePoint, VsyncId)
             REQUIRES(kMainThreadContext);
 
     // Dumps state from HW Composer
