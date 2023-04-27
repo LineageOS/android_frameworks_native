@@ -997,17 +997,22 @@ TEST_F(DumpstateTest, DumpPool_withParallelRunDisabled_isNull) {
     EXPECT_FALSE(ds.dump_pool_);
 }
 
-TEST_F(DumpstateBaseTest, PreDumpUiData) {
-    // SurfaceFlinger's transactions trace is always enabled, i.e. it is always pre-dumped
-    static const auto kTransactionsTrace =
-            std::filesystem::path {"/data/misc/wmtrace/transactions_trace.winscope"};
+TEST_F(DumpstateTest, PreDumpUiData) {
+    // These traces are always enabled, i.e. they are always pre-dumped
+    const std::vector<std::filesystem::path> uiTraces = {
+        std::filesystem::path{"/data/misc/wmtrace/transactions_trace.winscope"},
+        std::filesystem::path{"/data/misc/wmtrace/transition_trace.winscope"},
+        std::filesystem::path{"/data/misc/wmtrace/shell_transition_trace.winscope"},
+    };
 
-    std::system(("rm " + kTransactionsTrace.string()).c_str());
-    EXPECT_FALSE(std::filesystem::exists(kTransactionsTrace));
+    for (const auto traceFile : uiTraces) {
+        std::system(("rm -f " + traceFile.string()).c_str());
+        EXPECT_FALSE(std::filesystem::exists(traceFile)) << traceFile << " was not deleted.";
 
-    Dumpstate& ds_ = Dumpstate::GetInstance();
-    ds_.PreDumpUiData();
-    EXPECT_TRUE(std::filesystem::exists(kTransactionsTrace));
+        Dumpstate& ds_ = Dumpstate::GetInstance();
+        ds_.PreDumpUiData();
+        EXPECT_TRUE(std::filesystem::exists(traceFile)) << traceFile << " was not created.";
+    }
 }
 
 class ZippedBugReportStreamTest : public DumpstateBaseTest {
