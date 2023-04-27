@@ -355,6 +355,8 @@ SurfaceComposerClient::Transaction RefreshRateOverlay::createTransaction() const
     if (isSetByHwc()) {
         transaction.setFlags(surface, layer_state_t::eLayerIsRefreshRateIndicator,
                              layer_state_t::eLayerIsRefreshRateIndicator);
+        // Disable overlay layer caching when refresh rate is updated by the HWC.
+        transaction.setCachingHint(surface, gui::CachingHint::Disabled);
     }
     transaction.setFrameRate(surface, kFrameRate, kCompatibility, kSeamlessness);
     return transaction;
