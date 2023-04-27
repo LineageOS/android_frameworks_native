@@ -193,13 +193,13 @@ void LayerProtoParser::updateChildrenAndRelative(const perfetto::protos::LayerPr
         }
     }
 
-    if (layerProto.parent() != -1) {
+    if (layerProto.has_parent()) {
         if (layerMap.count(layerProto.parent()) > 0) {
             currLayer->parent = layerMap[layerProto.parent()];
         }
     }
 
-    if (layerProto.z_order_relative_of() != -1) {
+    if (layerProto.has_z_order_relative_of()) {
         if (layerMap.count(layerProto.z_order_relative_of()) > 0) {
             currLayer->zOrderRelativeOf = layerMap[layerProto.z_order_relative_of()];
         }
