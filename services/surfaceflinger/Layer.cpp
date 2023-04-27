@@ -2325,15 +2325,11 @@ void Layer::writeToProtoCommonState(perfetto::protos::LayerProto* layerInfo,
     auto parent = useDrawing ? mDrawingParent.promote() : mCurrentParent.promote();
     if (parent != nullptr) {
         layerInfo->set_parent(parent->sequence);
-    } else {
-        layerInfo->set_parent(-1);
     }
 
     auto zOrderRelativeOf = state.zOrderRelativeOf.promote();
     if (zOrderRelativeOf != nullptr) {
         layerInfo->set_z_order_relative_of(zOrderRelativeOf->sequence);
-    } else {
-        layerInfo->set_z_order_relative_of(-1);
     }
 
     layerInfo->set_is_relative_of(state.isRelativeOf);
