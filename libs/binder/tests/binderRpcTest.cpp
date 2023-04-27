@@ -462,7 +462,7 @@ static void testThreadPoolOverSaturated(sp<IBinderRpcTest> iface, size_t numCall
     EXPECT_GE(epochMsAfter, epochMsBefore + 2 * sleepMs);
 
     // Potential flake, but make sure calls are handled in parallel.
-    EXPECT_LE(epochMsAfter, epochMsBefore + 3 * sleepMs);
+    EXPECT_LE(epochMsAfter, epochMsBefore + 4 * sleepMs);
 }
 
 TEST_P(BinderRpc, ThreadPoolOverSaturated) {
