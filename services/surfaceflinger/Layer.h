@@ -645,7 +645,7 @@ public:
 
     gui::WindowInfo::Type getWindowType() const { return mWindowType; }
 
-    void updateMirrorInfo();
+    bool updateMirrorInfo(const std::deque<Layer*>& cloneRootsPendingUpdates);
 
     /*
      * doTransaction - process the transaction. This is a good place to figure
