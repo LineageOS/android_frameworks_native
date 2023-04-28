@@ -230,6 +230,10 @@ interface ISurfaceComposer {
      */
     void captureDisplay(in DisplayCaptureArgs args, IScreenCaptureListener listener);
 
+    /**
+     * Capture the specified screen. This requires the READ_FRAME_BUFFER
+     * permission.
+     */
     void captureDisplayById(long displayId, IScreenCaptureListener listener);
 
     /**

@@ -200,7 +200,7 @@ void CompositionTest::captureScreenComposition() {
     constexpr bool regionSampling = false;
 
     auto renderArea = DisplayRenderArea::create(mDisplay, sourceCrop, sourceCrop.getSize(),
-                                                ui::Dataspace::V0_SRGB, ui::Transform::ROT_0);
+                                                ui::Dataspace::V0_SRGB, true, true);
 
     auto traverseLayers = [this](const LayerVector::Visitor& visitor) {
         return mFlinger.traverseLayersInLayerStack(mDisplay->getLayerStack(),
