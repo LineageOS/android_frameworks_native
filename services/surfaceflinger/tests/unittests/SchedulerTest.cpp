@@ -359,12 +359,33 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         EXPECT_EQ(expectedChoices, actualChoices);
     }
     {
-        // This display does not support 120 Hz, so we should choose 60 Hz despite the touch signal.
+        // The kDisplayId3 does not support 120Hz, The pacesetter display rate is chosen to be 120
+        // Hz. In this case only the display kDisplayId3 choose 60Hz as it does not support 120Hz.
         mScheduler
                 ->registerDisplay(kDisplayId3,
                                   std::make_shared<RefreshRateSelector>(kDisplay3Modes,
                                                                         kDisplay3Mode60->getId()));
 
+        const GlobalSignals globalSignals = {.touch = true};
+        mScheduler->replaceTouchTimer(10);
+        mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
+
+        expectedChoices = ftl::init::map<
+                const PhysicalDisplayId&,
+                DisplayModeChoice>(kDisplayId1, FrameRateMode{120_Hz, kDisplay1Mode120},
+                                   globalSignals)(kDisplayId2,
+                                                  FrameRateMode{120_Hz, kDisplay2Mode120},
+                                                  globalSignals)(kDisplayId3,
+                                                                 FrameRateMode{60_Hz,
+                                                                               kDisplay3Mode60},
+                                                                 globalSignals);
+
+        const auto actualChoices = mScheduler->chooseDisplayModes();
+        EXPECT_EQ(expectedChoices, actualChoices);
+    }
+    {
+        // We should choose 60Hz despite the touch signal as pacesetter only supports 60Hz
+        mScheduler->setPacesetterDisplay(kDisplayId3);
         const GlobalSignals globalSignals = {.touch = true};
         mScheduler->replaceTouchTimer(10);
         mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
@@ -382,25 +403,6 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         const auto actualChoices = mScheduler->chooseDisplayModes();
         EXPECT_EQ(expectedChoices, actualChoices);
     }
-}
-
-TEST_F(SchedulerTest, changingPacesetterChangesVsyncSchedule) {
-    // Add a second display so we can change the pacesetter.
-    mScheduler->registerDisplay(kDisplayId2,
-                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
-                                                                      kDisplay2Mode60->getId()));
-    // Ensure that the pacesetter is the one we expect.
-    mScheduler->setPacesetterDisplay(kDisplayId1);
-
-    // Switching to the other will call onNewVsyncSchedule.
-    EXPECT_CALL(*mEventThread, onNewVsyncSchedule(mScheduler->getVsyncSchedule(kDisplayId2)))
-            .Times(1);
-    mScheduler->setPacesetterDisplay(kDisplayId2);
-}
-
-TEST_F(SchedulerTest, promotingSamePacesetterDoesNotChangeVsyncSchedule) {
-    EXPECT_CALL(*mEventThread, onNewVsyncSchedule(_)).Times(0);
-    mScheduler->setPacesetterDisplay(kDisplayId1);
 }
 
 } // namespace android::scheduler

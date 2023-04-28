@@ -57,7 +57,7 @@ const std::vector<CurveSegment> segments = {
         {std::numeric_limits<double>::infinity(), 15.04, -857.758},
 };
 
-const std::vector<double> sensitivityFactors = {1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20};
+const std::vector<double> sensitivityFactors = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18};
 
 std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
                                                           size_t propertySize) {
@@ -169,8 +169,9 @@ void gestureInterpreterCallback(void* clientData, const Gesture* gesture) {
 
 } // namespace
 
-TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext),
+TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
+                                         const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig),
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
         mPointerController(getContext()->getPointerController(getDeviceId())),
         mStateConverter(deviceContext),
@@ -221,13 +222,13 @@ void TouchpadInputMapper::dump(std::string& dump) {
 
 std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
                                                        const InputReaderConfiguration& config,
-                                                       uint32_t changes) {
-    if (!changes) {
+                                                       ConfigurationChanges changes) {
+    if (!changes.any()) {
         // First time configuration
         mPropertyProvider.loadPropertiesFromIdcFile(getDeviceContext().getConfiguration());
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO)) {
         std::optional<int32_t> displayId = mPointerController->getDisplayId();
         ui::Rotation orientation = ui::ROTATION_0;
         if (displayId.has_value()) {
@@ -237,7 +238,7 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
         }
         mGestureConverter.setOrientation(orientation);
     }
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_TOUCHPAD_SETTINGS)) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::TOUCHPAD_SETTINGS)) {
         mPropertyProvider.getProperty("Use Custom Touchpad Pointer Accel Curve")
                 .setBoolValues({true});
         GesturesProp accelCurveProp = mPropertyProvider.getProperty("Pointer Accel Curve");

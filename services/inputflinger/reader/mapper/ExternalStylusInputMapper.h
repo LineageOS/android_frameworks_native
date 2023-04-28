@@ -26,7 +26,8 @@ namespace android {
 
 class ExternalStylusInputMapper : public InputMapper {
 public:
-    explicit ExternalStylusInputMapper(InputDeviceContext& deviceContext);
+    explicit ExternalStylusInputMapper(InputDeviceContext& deviceContext,
+                                       const InputReaderConfiguration& readerConfig);
     virtual ~ExternalStylusInputMapper() = default;
 
     uint32_t getSources() const override;
@@ -34,7 +35,7 @@ public:
     void dump(std::string& dump) override;
     [[nodiscard]] std::list<NotifyArgs> reconfigure(nsecs_t when,
                                                     const InputReaderConfiguration& config,
-                                                    uint32_t changes) override;
+                                                    ConfigurationChanges changes) override;
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
     [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 

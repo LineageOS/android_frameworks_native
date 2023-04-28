@@ -72,10 +72,6 @@ public:
 
     void registerCallback(HWC2::ComposerCallback& callback) override;
 
-    // Reset all pending commands in the command buffer. Useful if you want to
-    // skip a frame but have already queued some commands.
-    void resetCommands(Display) override;
-
     // Explicitly flush all pending commands in the command buffer.
     Error executeCommands(Display) override;
 

@@ -24,6 +24,21 @@
 
 namespace android {
 
+/* Describes a change in any of the connected input devices. */
+struct NotifyInputDevicesChangedArgs {
+    int32_t id;
+    std::vector<InputDeviceInfo> inputDeviceInfos;
+
+    inline NotifyInputDevicesChangedArgs() {}
+
+    NotifyInputDevicesChangedArgs(int32_t id, std::vector<InputDeviceInfo> infos);
+
+    bool operator==(const NotifyInputDevicesChangedArgs& rhs) const = default;
+
+    NotifyInputDevicesChangedArgs(const NotifyInputDevicesChangedArgs& other) = default;
+    NotifyInputDevicesChangedArgs& operator=(const NotifyInputDevicesChangedArgs&) = default;
+};
+
 /* Describes a configuration change event. */
 struct NotifyConfigurationChangedArgs {
     int32_t id;
@@ -36,6 +51,7 @@ struct NotifyConfigurationChangedArgs {
     bool operator==(const NotifyConfigurationChangedArgs& rhs) const = default;
 
     NotifyConfigurationChangedArgs(const NotifyConfigurationChangedArgs& other) = default;
+    NotifyConfigurationChangedArgs& operator=(const NotifyConfigurationChangedArgs&) = default;
 };
 
 /* Describes a key event. */
@@ -65,6 +81,7 @@ struct NotifyKeyArgs {
     bool operator==(const NotifyKeyArgs& rhs) const = default;
 
     NotifyKeyArgs(const NotifyKeyArgs& other) = default;
+    NotifyKeyArgs& operator=(const NotifyKeyArgs&) = default;
 };
 
 /* Describes a motion event. */
@@ -115,7 +132,6 @@ struct NotifyMotionArgs {
                      const std::vector<TouchVideoFrame>& videoFrames);
 
     NotifyMotionArgs(const NotifyMotionArgs& other);
-
     NotifyMotionArgs& operator=(const android::NotifyMotionArgs&) = default;
 
     bool operator==(const NotifyMotionArgs& rhs) const;
@@ -143,6 +159,7 @@ struct NotifySensorArgs {
                      bool accuracyChanged, nsecs_t hwTimestamp, std::vector<float> values);
 
     NotifySensorArgs(const NotifySensorArgs& other) = default;
+    NotifySensorArgs& operator=(const NotifySensorArgs&) = default;
 };
 
 /* Describes a switch event. */
@@ -160,6 +177,7 @@ struct NotifySwitchArgs {
                      uint32_t switchMask);
 
     NotifySwitchArgs(const NotifySwitchArgs& other) = default;
+    NotifySwitchArgs& operator=(const NotifySwitchArgs&) = default;
 
     bool operator==(const NotifySwitchArgs& rhs) const = default;
 };
@@ -177,13 +195,13 @@ struct NotifyDeviceResetArgs {
     NotifyDeviceResetArgs(int32_t id, nsecs_t eventTime, int32_t deviceId);
 
     NotifyDeviceResetArgs(const NotifyDeviceResetArgs& other) = default;
+    NotifyDeviceResetArgs& operator=(const NotifyDeviceResetArgs&) = default;
 
     bool operator==(const NotifyDeviceResetArgs& rhs) const = default;
 };
 
 /* Describes a change in the state of Pointer Capture. */
 struct NotifyPointerCaptureChangedArgs {
-    // The sequence number of the Pointer Capture request, if enabled.
     int32_t id;
     nsecs_t eventTime;
 
@@ -194,6 +212,7 @@ struct NotifyPointerCaptureChangedArgs {
     NotifyPointerCaptureChangedArgs(int32_t id, nsecs_t eventTime, const PointerCaptureRequest&);
 
     NotifyPointerCaptureChangedArgs(const NotifyPointerCaptureChangedArgs& other) = default;
+    NotifyPointerCaptureChangedArgs& operator=(const NotifyPointerCaptureChangedArgs&) = default;
 };
 
 /* Describes a vibrator state event. */
@@ -209,11 +228,13 @@ struct NotifyVibratorStateArgs {
     NotifyVibratorStateArgs(int32_t id, nsecs_t eventTIme, int32_t deviceId, bool isOn);
 
     NotifyVibratorStateArgs(const NotifyVibratorStateArgs& other) = default;
+    NotifyVibratorStateArgs& operator=(const NotifyVibratorStateArgs&) = default;
 };
 
-using NotifyArgs = std::variant<NotifyConfigurationChangedArgs, NotifyKeyArgs, NotifyMotionArgs,
-                                NotifySensorArgs, NotifySwitchArgs, NotifyDeviceResetArgs,
-                                NotifyPointerCaptureChangedArgs, NotifyVibratorStateArgs>;
+using NotifyArgs =
+        std::variant<NotifyInputDevicesChangedArgs, NotifyConfigurationChangedArgs, NotifyKeyArgs,
+                     NotifyMotionArgs, NotifySensorArgs, NotifySwitchArgs, NotifyDeviceResetArgs,
+                     NotifyPointerCaptureChangedArgs, NotifyVibratorStateArgs>;
 
 const char* toString(const NotifyArgs& args);
 

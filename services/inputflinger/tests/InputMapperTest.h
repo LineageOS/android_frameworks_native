@@ -54,14 +54,15 @@ protected:
     void TearDown() override;
 
     void addConfigurationProperty(const char* key, const char* value);
-    std::list<NotifyArgs> configureDevice(uint32_t changes);
+    std::list<NotifyArgs> configureDevice(ConfigurationChanges changes);
     std::shared_ptr<InputDevice> newDevice(int32_t deviceId, const std::string& name,
                                            const std::string& location, int32_t eventHubId,
                                            ftl::Flags<InputDeviceClass> classes, int bus = 0);
     template <class T, typename... Args>
     T& addMapperAndConfigure(Args... args) {
-        T& mapper = mDevice->addMapper<T>(EVENTHUB_ID, args...);
-        configureDevice(0);
+        T& mapper =
+                mDevice->addMapper<T>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(), args...);
+        configureDevice(/*changes=*/{});
         std::list<NotifyArgs> resetArgList = mDevice->reset(ARBITRARY_TIME);
         resetArgList += mapper.reset(ARBITRARY_TIME);
         // Loop the reader to flush the input listener queue.

@@ -325,8 +325,9 @@ void LayerFE::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
     caster.shadow = state;
 }
 
-void LayerFE::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult) {
-    mCompositionResult.releaseFences.emplace_back(std::move(futureFenceResult));
+void LayerFE::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
+                               ui::LayerStack layerStack) {
+    mCompositionResult.releaseFences.emplace_back(std::move(futureFenceResult), layerStack);
 }
 
 CompositionResult&& LayerFE::stealCompositionResult() {

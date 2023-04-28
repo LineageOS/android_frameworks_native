@@ -165,7 +165,7 @@ void LatencyTracker::reportAndPruneMatureRecords(nsecs_t newEventTime) {
     }
 }
 
-std::string LatencyTracker::dump(const char* prefix) {
+std::string LatencyTracker::dump(const char* prefix) const {
     return StringPrintf("%sLatencyTracker:\n", prefix) +
             StringPrintf("%s  mTimelines.size() = %zu\n", prefix, mTimelines.size()) +
             StringPrintf("%s  mEventTimes.size() = %zu\n", prefix, mEventTimes.size());

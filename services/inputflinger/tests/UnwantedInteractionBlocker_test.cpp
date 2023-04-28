@@ -421,7 +421,7 @@ TEST_F(UnwantedInteractionBlockerTest, ConfigurationChangedIsPassedToNextListene
     // Create a basic configuration change and send to blocker
     NotifyConfigurationChangedArgs args(/*sequenceNum=*/1, /*eventTime=*/2);
 
-    mBlocker->notifyConfigurationChanged(&args);
+    mBlocker->notifyConfigurationChanged(args);
     NotifyConfigurationChangedArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyConfigurationChangedWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
@@ -438,10 +438,8 @@ TEST_F(UnwantedInteractionBlockerTest, KeyIsPassedToNextListener) {
                        AKEY_EVENT_ACTION_DOWN, /*flags=*/4, AKEYCODE_HOME, /*scanCode=*/5,
                        AMETA_NONE, /*downTime=*/6);
 
-    mBlocker->notifyKey(&args);
-    NotifyKeyArgs outArgs;
-    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyKeyWasCalled(&outArgs));
-    ASSERT_EQ(args, outArgs);
+    mBlocker->notifyKey(args);
+    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyKeyWasCalled(testing::Eq(args)));
 }
 
 /**
@@ -452,10 +450,8 @@ TEST_F(UnwantedInteractionBlockerTest, KeyIsPassedToNextListener) {
 TEST_F(UnwantedInteractionBlockerTest, DownEventIsPassedToNextListener) {
     NotifyMotionArgs motionArgs =
             generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2, 3}});
-    mBlocker->notifyMotion(&motionArgs);
-    NotifyMotionArgs args;
-    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyMotionWasCalled(&args));
-    ASSERT_EQ(motionArgs, args);
+    mBlocker->notifyMotion(motionArgs);
+    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyMotionWasCalled(testing::Eq(motionArgs)));
 }
 
 /**
@@ -466,7 +462,7 @@ TEST_F(UnwantedInteractionBlockerTest, SwitchIsPassedToNextListener) {
     NotifySwitchArgs args(/*sequenceNum=*/1, /*eventTime=*/2, /*policyFlags=*/3,
                           /*switchValues=*/4, /*switchMask=*/5);
 
-    mBlocker->notifySwitch(&args);
+    mBlocker->notifySwitch(args);
     NotifySwitchArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifySwitchWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
@@ -479,7 +475,7 @@ TEST_F(UnwantedInteractionBlockerTest, SwitchIsPassedToNextListener) {
 TEST_F(UnwantedInteractionBlockerTest, DeviceResetIsPassedToNextListener) {
     NotifyDeviceResetArgs args(/*sequenceNum=*/1, /*eventTime=*/2, DEVICE_ID);
 
-    mBlocker->notifyDeviceReset(&args);
+    mBlocker->notifyDeviceReset(args);
     NotifyDeviceResetArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyDeviceResetWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
@@ -491,25 +487,20 @@ TEST_F(UnwantedInteractionBlockerTest, DeviceResetIsPassedToNextListener) {
  * a crash due to inconsistent event stream could have occurred.
  */
 TEST_F(UnwantedInteractionBlockerTest, NoCrashWhenResetHappens) {
-    NotifyMotionArgs args;
-    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
-    mBlocker->notifyMotion(
-            &(args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, DOWN, {{1, 2, 3}})));
-    mBlocker->notifyMotion(
-            &(args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, MOVE, {{4, 5, 6}})));
-    NotifyDeviceResetArgs resetArgs(/*sequenceNum=*/1, /*eventTime=*/3, DEVICE_ID);
-    mBlocker->notifyDeviceReset(&resetArgs);
+    mBlocker->notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, DOWN, {{1, 2, 3}}));
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, MOVE, {{4, 5, 6}}));
+    mBlocker->notifyDeviceReset({/*sequenceNum=*/1, /*eventTime=*/3, DEVICE_ID});
     // Start a new gesture with a DOWN event, even though the previous event stream was incomplete.
-    mBlocker->notifyMotion(
-            &(args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/4, DOWN, {{7, 8, 9}})));
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/4, DOWN, {{7, 8, 9}}));
 }
 
 TEST_F(UnwantedInteractionBlockerTest, NoCrashWhenStylusSourceWithFingerToolIsReceived) {
-    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
+    mBlocker->notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
     NotifyMotionArgs args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, DOWN, {{1, 2, 3}});
     args.pointerProperties[0].toolType = ToolType::FINGER;
     args.source = AINPUT_SOURCE_STYLUS;
-    mBlocker->notifyMotion(&args);
+    mBlocker->notifyMotion(args);
 }
 
 /**
@@ -517,48 +508,41 @@ TEST_F(UnwantedInteractionBlockerTest, NoCrashWhenStylusSourceWithFingerToolIsRe
  * UnwantedInteractionBlocker has not changed, there should not be a reset.
  */
 TEST_F(UnwantedInteractionBlockerTest, NoResetIfDeviceInfoChanges) {
-    NotifyMotionArgs args;
-    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
-    mBlocker->notifyMotion(
-            &(args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, DOWN, {{1, 2, 3}})));
-    mBlocker->notifyMotion(
-            &(args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, MOVE, {{4, 5, 6}})));
+    mBlocker->notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, DOWN, {{1, 2, 3}}));
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, MOVE, {{4, 5, 6}}));
 
     // Now pretend the device changed, even though nothing is different for DEVICE_ID in practice.
-    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
+    mBlocker->notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
 
     // The MOVE event continues the gesture that started before 'devices changed', so it should not
     // cause a crash.
-    mBlocker->notifyMotion(
-            &(args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/4, MOVE, {{7, 8, 9}})));
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/4, MOVE, {{7, 8, 9}}));
 }
 
 /**
  * Send a touch event, and then a stylus event. Make sure that both work.
  */
 TEST_F(UnwantedInteractionBlockerTest, StylusAfterTouchWorks) {
-    NotifyMotionArgs args;
-    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
-    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2, 3}});
-    mBlocker->notifyMotion(&args);
-    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{4, 5, 6}});
-    mBlocker->notifyMotion(&args);
-    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, UP, {{4, 5, 6}});
-    mBlocker->notifyMotion(&args);
+    mBlocker->notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2, 3}}));
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{4, 5, 6}}));
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, UP, {{4, 5, 6}}));
 
     // Now touch down stylus
+    NotifyMotionArgs args;
     args = generateMotionArgs(/*downTime=*/3, /*eventTime=*/3, DOWN, {{10, 20, 30}});
     args.pointerProperties[0].toolType = ToolType::STYLUS;
     args.source |= AINPUT_SOURCE_STYLUS;
-    mBlocker->notifyMotion(&args);
+    mBlocker->notifyMotion(args);
     args = generateMotionArgs(/*downTime=*/3, /*eventTime=*/4, MOVE, {{40, 50, 60}});
     args.pointerProperties[0].toolType = ToolType::STYLUS;
     args.source |= AINPUT_SOURCE_STYLUS;
-    mBlocker->notifyMotion(&args);
+    mBlocker->notifyMotion(args);
     args = generateMotionArgs(/*downTime=*/3, /*eventTime=*/5, UP, {{40, 50, 60}});
     args.pointerProperties[0].toolType = ToolType::STYLUS;
     args.source |= AINPUT_SOURCE_STYLUS;
-    mBlocker->notifyMotion(&args);
+    mBlocker->notifyMotion(args);
 }
 
 /**
@@ -568,17 +552,14 @@ TEST_F(UnwantedInteractionBlockerTest, StylusAfterTouchWorks) {
  * options
  */
 TEST_F(UnwantedInteractionBlockerTest, DumpCanBeAccessedOnAnotherThread) {
-    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
-    NotifyMotionArgs args1 = generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2, 3}});
-    mBlocker->notifyMotion(&args1);
+    mBlocker->notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2, 3}}));
     std::thread dumpThread([this]() {
         std::string dump;
         mBlocker->dump(dump);
     });
-    NotifyMotionArgs args2 = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{4, 5, 6}});
-    mBlocker->notifyMotion(&args2);
-    NotifyMotionArgs args3 = generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, UP, {{4, 5, 6}});
-    mBlocker->notifyMotion(&args3);
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{4, 5, 6}}));
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, UP, {{4, 5, 6}}));
     dumpThread.join();
 }
 
@@ -587,22 +568,19 @@ TEST_F(UnwantedInteractionBlockerTest, DumpCanBeAccessedOnAnotherThread) {
  * of the touch is large. This is an integration test that checks that this filter kicks in.
  */
 TEST_F(UnwantedInteractionBlockerTest, HeuristicFilterWorks) {
-    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
+    mBlocker->notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
     // Small touch down
-    NotifyMotionArgs args1 = generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2, 3}});
-    mBlocker->notifyMotion(&args1);
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2, 3}}));
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(DOWN));
 
     // Large touch oval on the next move
-    NotifyMotionArgs args2 =
-            generateMotionArgs(/*downTime=*/0, RESAMPLE_PERIOD, MOVE, {{4, 5, 200}});
-    mBlocker->notifyMotion(&args2);
+    mBlocker->notifyMotion(
+            generateMotionArgs(/*downTime=*/0, RESAMPLE_PERIOD, MOVE, {{4, 5, 200}}));
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(MOVE));
 
     // Lift up the touch to force the model to decide on whether it's a palm
-    NotifyMotionArgs args3 =
-            generateMotionArgs(/*downTime=*/0, 2 * RESAMPLE_PERIOD, UP, {{4, 5, 200}});
-    mBlocker->notifyMotion(&args3);
+    mBlocker->notifyMotion(
+            generateMotionArgs(/*downTime=*/0, 2 * RESAMPLE_PERIOD, UP, {{4, 5, 200}}));
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(CANCEL));
 }
 
@@ -613,19 +591,19 @@ TEST_F(UnwantedInteractionBlockerTest, HeuristicFilterWorks) {
  * This is similar to `HeuristicFilterWorks` test, but for stylus tool.
  */
 TEST_F(UnwantedInteractionBlockerTest, StylusIsNotBlocked) {
-    InputDeviceInfo info = generateTestDeviceInfo();
-    info.addSource(AINPUT_SOURCE_STYLUS);
-    mBlocker->notifyInputDevicesChanged({info});
+    NotifyInputDevicesChangedArgs deviceChangedArgs = {/*id=*/0, {generateTestDeviceInfo()}};
+    deviceChangedArgs.inputDeviceInfos[0].addSource(AINPUT_SOURCE_STYLUS);
+    mBlocker->notifyInputDevicesChanged(deviceChangedArgs);
     NotifyMotionArgs args1 = generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2, 3}});
     args1.pointerProperties[0].toolType = ToolType::STYLUS;
-    mBlocker->notifyMotion(&args1);
+    mBlocker->notifyMotion(args1);
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(DOWN));
 
     // Move the stylus, setting large TOUCH_MAJOR/TOUCH_MINOR dimensions
     NotifyMotionArgs args2 =
             generateMotionArgs(/*downTime=*/0, RESAMPLE_PERIOD, MOVE, {{4, 5, 200}});
     args2.pointerProperties[0].toolType = ToolType::STYLUS;
-    mBlocker->notifyMotion(&args2);
+    mBlocker->notifyMotion(args2);
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(MOVE));
 
     // Lift up the stylus. If it were a touch event, this would force the model to decide on whether
@@ -633,7 +611,7 @@ TEST_F(UnwantedInteractionBlockerTest, StylusIsNotBlocked) {
     NotifyMotionArgs args3 =
             generateMotionArgs(/*downTime=*/0, 2 * RESAMPLE_PERIOD, UP, {{4, 5, 200}});
     args3.pointerProperties[0].toolType = ToolType::STYLUS;
-    mBlocker->notifyMotion(&args3);
+    mBlocker->notifyMotion(args3);
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(UP));
 }
 
@@ -643,34 +621,34 @@ TEST_F(UnwantedInteractionBlockerTest, StylusIsNotBlocked) {
  * Stylus event should continue to work even after touch is detected as a palm.
  */
 TEST_F(UnwantedInteractionBlockerTest, TouchIsBlockedWhenMixedWithStylus) {
-    InputDeviceInfo info = generateTestDeviceInfo();
-    info.addSource(AINPUT_SOURCE_STYLUS);
-    mBlocker->notifyInputDevicesChanged({info});
+    NotifyInputDevicesChangedArgs deviceChangedArgs = {/*id=*/0, {generateTestDeviceInfo()}};
+    deviceChangedArgs.inputDeviceInfos[0].addSource(AINPUT_SOURCE_STYLUS);
+    mBlocker->notifyInputDevicesChanged(deviceChangedArgs);
 
     // Touch down
     NotifyMotionArgs args1 = generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2, 3}});
-    mBlocker->notifyMotion(&args1);
+    mBlocker->notifyMotion(args1);
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(DOWN));
 
     // Stylus pointer down
     NotifyMotionArgs args2 = generateMotionArgs(/*downTime=*/0, RESAMPLE_PERIOD, POINTER_1_DOWN,
                                                 {{1, 2, 3}, {10, 20, 30}});
     args2.pointerProperties[1].toolType = ToolType::STYLUS;
-    mBlocker->notifyMotion(&args2);
+    mBlocker->notifyMotion(args2);
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(POINTER_1_DOWN));
 
     // Large touch oval on the next finger move
     NotifyMotionArgs args3 = generateMotionArgs(/*downTime=*/0, 2 * RESAMPLE_PERIOD, MOVE,
                                                 {{1, 2, 300}, {11, 21, 30}});
     args3.pointerProperties[1].toolType = ToolType::STYLUS;
-    mBlocker->notifyMotion(&args3);
+    mBlocker->notifyMotion(args3);
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(MOVE));
 
     // Lift up the finger pointer. It should be canceled due to the heuristic filter.
     NotifyMotionArgs args4 = generateMotionArgs(/*downTime=*/0, 3 * RESAMPLE_PERIOD, POINTER_0_UP,
                                                 {{1, 2, 300}, {11, 21, 30}});
     args4.pointerProperties[1].toolType = ToolType::STYLUS;
-    mBlocker->notifyMotion(&args4);
+    mBlocker->notifyMotion(args4);
     mTestListener.assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(POINTER_0_UP), WithFlags(FLAG_CANCELED)));
 
@@ -678,7 +656,7 @@ TEST_F(UnwantedInteractionBlockerTest, TouchIsBlockedWhenMixedWithStylus) {
             generateMotionArgs(/*downTime=*/0, 4 * RESAMPLE_PERIOD, MOVE, {{12, 22, 30}});
     args5.pointerProperties[0].id = args4.pointerProperties[1].id;
     args5.pointerProperties[0].toolType = ToolType::STYLUS;
-    mBlocker->notifyMotion(&args5);
+    mBlocker->notifyMotion(args5);
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(MOVE));
 
     // Lift up the stylus pointer
@@ -686,7 +664,7 @@ TEST_F(UnwantedInteractionBlockerTest, TouchIsBlockedWhenMixedWithStylus) {
             generateMotionArgs(/*downTime=*/0, 5 * RESAMPLE_PERIOD, UP, {{4, 5, 200}});
     args6.pointerProperties[0].id = args4.pointerProperties[1].id;
     args6.pointerProperties[0].toolType = ToolType::STYLUS;
-    mBlocker->notifyMotion(&args6);
+    mBlocker->notifyMotion(args6);
     mTestListener.assertNotifyMotionWasCalled(WithMotionAction(UP));
 }
 
@@ -699,18 +677,16 @@ using UnwantedInteractionBlockerTestDeathTest = UnwantedInteractionBlockerTest;
 TEST_F(UnwantedInteractionBlockerTestDeathTest, InconsistentEventAfterResetCausesACrash) {
     ScopedSilentDeath _silentDeath;
     NotifyMotionArgs args;
-    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
-    mBlocker->notifyMotion(
-            &(args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, DOWN, {{1, 2, 3}})));
-    mBlocker->notifyMotion(
-            &(args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, MOVE, {{4, 5, 6}})));
+    mBlocker->notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, DOWN, {{1, 2, 3}}));
+    mBlocker->notifyMotion(generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, MOVE, {{4, 5, 6}}));
     NotifyDeviceResetArgs resetArgs(/*sequenceNum=*/1, /*eventTime=*/3, DEVICE_ID);
-    mBlocker->notifyDeviceReset(&resetArgs);
+    mBlocker->notifyDeviceReset(resetArgs);
     // Sending MOVE without a DOWN -> should crash!
     ASSERT_DEATH(
             {
-                mBlocker->notifyMotion(&(args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/4,
-                                                                   MOVE, {{7, 8, 9}})));
+                mBlocker->notifyMotion(
+                        generateMotionArgs(/*downTime=*/0, /*eventTime=*/4, MOVE, {{7, 8, 9}}));
             },
             "Could not find slot");
 }
@@ -720,9 +696,13 @@ TEST_F(UnwantedInteractionBlockerTestDeathTest, InconsistentEventAfterResetCause
  */
 TEST_F(UnwantedInteractionBlockerTestDeathTest, WhenMoveWithoutDownCausesACrash) {
     ScopedSilentDeath _silentDeath;
-    NotifyMotionArgs args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{1, 2, 3}});
-    mBlocker->notifyInputDevicesChanged({generateTestDeviceInfo()});
-    ASSERT_DEATH({ mBlocker->notifyMotion(&args); }, "Could not find slot");
+    mBlocker->notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    ASSERT_DEATH(
+            {
+                mBlocker->notifyMotion(
+                        generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{1, 2, 3}}));
+            },
+            "Could not find slot");
 }
 
 class PalmRejectorTest : public testing::Test {

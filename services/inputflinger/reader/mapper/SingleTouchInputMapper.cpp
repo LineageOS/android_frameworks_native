@@ -18,8 +18,9 @@
 
 namespace android {
 
-SingleTouchInputMapper::SingleTouchInputMapper(InputDeviceContext& deviceContext)
-      : TouchInputMapper(deviceContext) {}
+SingleTouchInputMapper::SingleTouchInputMapper(InputDeviceContext& deviceContext,
+                                               const InputReaderConfiguration& readerConfig)
+      : TouchInputMapper(deviceContext, readerConfig) {}
 
 SingleTouchInputMapper::~SingleTouchInputMapper() {}
 

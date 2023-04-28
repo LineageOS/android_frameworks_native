@@ -24,7 +24,6 @@
 
 #include <android-base/stringprintf.h>
 #include <android/log.h>
-#include <math.h>
 #include <utils/Trace.h>
 
 using android::base::StringPrintf;
@@ -47,16 +46,15 @@ Visitor(V...) -> Visitor<V...>;
 
 void InputListenerInterface::notify(const NotifyArgs& generalArgs) {
     Visitor v{
-            [&](const NotifyConfigurationChangedArgs& args) { notifyConfigurationChanged(&args); },
-            [&](const NotifyKeyArgs& args) { notifyKey(&args); },
-            [&](const NotifyMotionArgs& args) { notifyMotion(&args); },
-            [&](const NotifySwitchArgs& args) { notifySwitch(&args); },
-            [&](const NotifySensorArgs& args) { notifySensor(&args); },
-            [&](const NotifyVibratorStateArgs& args) { notifyVibratorState(&args); },
-            [&](const NotifyDeviceResetArgs& args) { notifyDeviceReset(&args); },
-            [&](const NotifyPointerCaptureChangedArgs& args) {
-                notifyPointerCaptureChanged(&args);
-            },
+            [&](const NotifyInputDevicesChangedArgs& args) { notifyInputDevicesChanged(args); },
+            [&](const NotifyConfigurationChangedArgs& args) { notifyConfigurationChanged(args); },
+            [&](const NotifyKeyArgs& args) { notifyKey(args); },
+            [&](const NotifyMotionArgs& args) { notifyMotion(args); },
+            [&](const NotifySwitchArgs& args) { notifySwitch(args); },
+            [&](const NotifySensorArgs& args) { notifySensor(args); },
+            [&](const NotifyVibratorStateArgs& args) { notifyVibratorState(args); },
+            [&](const NotifyDeviceResetArgs& args) { notifyDeviceReset(args); },
+            [&](const NotifyPointerCaptureChangedArgs& args) { notifyPointerCaptureChanged(args); },
     };
     std::visit(v, generalArgs);
 }
@@ -73,45 +71,49 @@ static inline void traceEvent(const char* functionName, int32_t id) {
 QueuedInputListener::QueuedInputListener(InputListenerInterface& innerListener)
       : mInnerListener(innerListener) {}
 
-void QueuedInputListener::notifyConfigurationChanged(
-        const NotifyConfigurationChangedArgs* args) {
-    traceEvent(__func__, args->id);
-    mArgsQueue.emplace_back(*args);
+void QueuedInputListener::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
 }
 
-void QueuedInputListener::notifyKey(const NotifyKeyArgs* args) {
-    traceEvent(__func__, args->id);
-    mArgsQueue.emplace_back(*args);
+void QueuedInputListener::notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
 }
 
-void QueuedInputListener::notifyMotion(const NotifyMotionArgs* args) {
-    traceEvent(__func__, args->id);
-    mArgsQueue.emplace_back(*args);
+void QueuedInputListener::notifyKey(const NotifyKeyArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
 }
 
-void QueuedInputListener::notifySwitch(const NotifySwitchArgs* args) {
-    traceEvent(__func__, args->id);
-    mArgsQueue.emplace_back(*args);
+void QueuedInputListener::notifyMotion(const NotifyMotionArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
 }
 
-void QueuedInputListener::notifySensor(const NotifySensorArgs* args) {
-    traceEvent(__func__, args->id);
-    mArgsQueue.emplace_back(*args);
+void QueuedInputListener::notifySwitch(const NotifySwitchArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
 }
 
-void QueuedInputListener::notifyVibratorState(const NotifyVibratorStateArgs* args) {
-    traceEvent(__func__, args->id);
-    mArgsQueue.emplace_back(*args);
+void QueuedInputListener::notifySensor(const NotifySensorArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
 }
 
-void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
-    traceEvent(__func__, args->id);
-    mArgsQueue.emplace_back(*args);
+void QueuedInputListener::notifyVibratorState(const NotifyVibratorStateArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
 }
 
-void QueuedInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
-    traceEvent(__func__, args->id);
-    mArgsQueue.emplace_back(*args);
+void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
+}
+
+void QueuedInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) {
+    traceEvent(__func__, args.id);
+    mArgsQueue.emplace_back(args);
 }
 
 void QueuedInputListener::flush() {

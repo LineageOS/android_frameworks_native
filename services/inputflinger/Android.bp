@@ -213,6 +213,7 @@ phony {
     name: "checkinput",
     required: [
         // native targets
+        "libgui_test",
         "libinput",
         "libinputflinger",
         "inputflinger_tests",
@@ -223,6 +224,9 @@ phony {
         "libinputservice_test",
         "Bug-115739809",
         "StructLayout_test",
+        // currently unused, but still must build correctly
+        "inputflinger",
+        "libinputflingerhost",
 
         // native fuzzers
         "inputflinger_latencytracker_fuzzer",

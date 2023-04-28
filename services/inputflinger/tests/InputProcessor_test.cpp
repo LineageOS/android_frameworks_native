@@ -72,7 +72,7 @@ TEST_F(InputProcessorTest, SendToNextStage_NotifyConfigurationChangedArgs) {
     // Create a basic configuration change and send to processor
     NotifyConfigurationChangedArgs args(/*sequenceNum=*/1, /*eventTime=*/2);
 
-    mProcessor->notifyConfigurationChanged(&args);
+    mProcessor->notifyConfigurationChanged(args);
     NotifyConfigurationChangedArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyConfigurationChangedWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
@@ -85,10 +85,8 @@ TEST_F(InputProcessorTest, SendToNextStage_NotifyKeyArgs) {
                        AKEY_EVENT_ACTION_DOWN, /*flags=*/4, AKEYCODE_HOME, /*scanCode=*/5,
                        AMETA_NONE, /*downTime=*/6);
 
-    mProcessor->notifyKey(&args);
-    NotifyKeyArgs outArgs;
-    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyKeyWasCalled(&outArgs));
-    ASSERT_EQ(args, outArgs);
+    mProcessor->notifyKey(args);
+    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyKeyWasCalled(testing::Eq(args)));
 }
 
 /**
@@ -97,10 +95,8 @@ TEST_F(InputProcessorTest, SendToNextStage_NotifyKeyArgs) {
  */
 TEST_F(InputProcessorTest, SendToNextStage_NotifyMotionArgs) {
     NotifyMotionArgs motionArgs = generateBasicMotionArgs();
-    mProcessor->notifyMotion(&motionArgs);
-    NotifyMotionArgs args;
-    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyMotionWasCalled(&args));
-    ASSERT_EQ(motionArgs, args);
+    mProcessor->notifyMotion(motionArgs);
+    ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyMotionWasCalled(testing::Eq(motionArgs)));
 }
 
 /**
@@ -111,7 +107,7 @@ TEST_F(InputProcessorTest, SendToNextStage_NotifySwitchArgs) {
     NotifySwitchArgs args(/*sequenceNum=*/1, /*eventTime=*/2, /*policyFlags=*/3,
                           /*switchValues=*/4, /*switchMask=*/5);
 
-    mProcessor->notifySwitch(&args);
+    mProcessor->notifySwitch(args);
     NotifySwitchArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifySwitchWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);
@@ -124,7 +120,7 @@ TEST_F(InputProcessorTest, SendToNextStage_NotifySwitchArgs) {
 TEST_F(InputProcessorTest, SendToNextStage_NotifyDeviceResetArgs) {
     NotifyDeviceResetArgs args(/*sequenceNum=*/1, /*eventTime=*/2, /*deviceId=*/3);
 
-    mProcessor->notifyDeviceReset(&args);
+    mProcessor->notifyDeviceReset(args);
     NotifyDeviceResetArgs outArgs;
     ASSERT_NO_FATAL_FAILURE(mTestListener.assertNotifyDeviceResetWasCalled(&outArgs));
     ASSERT_EQ(args, outArgs);

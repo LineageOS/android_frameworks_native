@@ -41,7 +41,7 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
             LOG_ALWAYS_FATAL("Duplicate layer id %d found. Existing layer: %s", layer.id,
                              it->second.owner.getDebugString().c_str());
         }
-
+        mAddedLayers.push_back(newLayer.get());
         layer.parentId = linkLayer(layer.parentId, layer.id);
         layer.relativeParentId = linkLayer(layer.relativeParentId, layer.id);
         if (layer.layerStackToMirror != ui::INVALID_LAYER_STACK) {
@@ -258,23 +258,19 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
 }
 
 void LayerLifecycleManager::commitChanges() {
-    for (auto& layer : mLayers) {
-        if (layer->changes.test(RequestedLayerState::Changes::Created)) {
-            for (auto listener : mListeners) {
-                listener->onLayerAdded(*layer);
-            }
+    for (auto layer : mAddedLayers) {
+        for (auto& listener : mListeners) {
+            listener->onLayerAdded(*layer);
         }
+    }
+    mAddedLayers.clear();
+
+    for (auto& layer : mLayers) {
         layer->clearChanges();
     }
 
     for (auto& destroyedLayer : mDestroyedLayers) {
-        if (destroyedLayer->changes.test(RequestedLayerState::Changes::Created)) {
-            for (auto listener : mListeners) {
-                listener->onLayerAdded(*destroyedLayer);
-            }
-        }
-
-        for (auto listener : mListeners) {
+        for (auto& listener : mListeners) {
             listener->onLayerDestroyed(*destroyedLayer);
         }
     }

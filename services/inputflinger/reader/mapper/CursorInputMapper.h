@@ -53,15 +53,16 @@ private:
 
 class CursorInputMapper : public InputMapper {
 public:
-    explicit CursorInputMapper(InputDeviceContext& deviceContext);
+    explicit CursorInputMapper(InputDeviceContext& deviceContext,
+                               const InputReaderConfiguration& readerConfig);
     virtual ~CursorInputMapper();
 
     virtual uint32_t getSources() const override;
     virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo) override;
     virtual void dump(std::string& dump) override;
     [[nodiscard]] std::list<NotifyArgs> reconfigure(nsecs_t when,
-                                                    const InputReaderConfiguration& config,
-                                                    uint32_t changes) override;
+                                                    const InputReaderConfiguration& readerConfig,
+                                                    ConfigurationChanges changes) override;
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
     [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
@@ -126,6 +127,11 @@ private:
 
     void configureParameters();
     void dumpParameters(std::string& dump);
+    void configureWithZeroChanges(const InputReaderConfiguration& readerConfig);
+    void configureBasicParams();
+    void configureOnPointerCapture(const InputReaderConfiguration& config);
+    void configureOnChangePointerSpeed(const InputReaderConfiguration& config);
+    void configureOnChangeDisplayInfo(const InputReaderConfiguration& config);
 
     [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when, nsecs_t readTime);
 };

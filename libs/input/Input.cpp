@@ -170,30 +170,6 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
     return atan2f(transformedPoint.x, -transformedPoint.y);
 }
 
-const char* inputEventTypeToString(int32_t type) {
-    switch (type) {
-        case AINPUT_EVENT_TYPE_KEY: {
-            return "KEY";
-        }
-        case AINPUT_EVENT_TYPE_MOTION: {
-            return "MOTION";
-        }
-        case AINPUT_EVENT_TYPE_FOCUS: {
-            return "FOCUS";
-        }
-        case AINPUT_EVENT_TYPE_CAPTURE: {
-            return "CAPTURE";
-        }
-        case AINPUT_EVENT_TYPE_DRAG: {
-            return "DRAG";
-        }
-        case AINPUT_EVENT_TYPE_TOUCH_MODE: {
-            return "TOUCH_MODE";
-        }
-    }
-    return "UNKNOWN";
-}
-
 std::string inputEventSourceToString(int32_t source) {
     if (source == AINPUT_SOURCE_UNKNOWN) {
         return "UNKNOWN";
@@ -285,6 +261,37 @@ void InputEvent::initialize(const InputEvent& from) {
 int32_t InputEvent::nextId() {
     static IdGenerator idGen(IdGenerator::Source::OTHER);
     return idGen.nextId();
+}
+
+std::ostream& operator<<(std::ostream& out, const InputEvent& event) {
+    switch (event.getType()) {
+        case InputEventType::KEY: {
+            const KeyEvent& keyEvent = static_cast<const KeyEvent&>(event);
+            out << keyEvent;
+            return out;
+        }
+        case InputEventType::MOTION: {
+            const MotionEvent& motionEvent = static_cast<const MotionEvent&>(event);
+            out << motionEvent;
+            return out;
+        }
+        case InputEventType::FOCUS: {
+            out << "FocusEvent";
+            return out;
+        }
+        case InputEventType::CAPTURE: {
+            out << "CaptureEvent";
+            return out;
+        }
+        case InputEventType::DRAG: {
+            out << "DragEvent";
+            return out;
+        }
+        case InputEventType::TOUCH_MODE: {
+            out << "TouchModeEvent";
+            return out;
+        }
+    }
 }
 
 // --- KeyEvent ---
@@ -1165,44 +1172,51 @@ TouchModeEvent* PooledInputEventFactory::createTouchModeEvent() {
 
 void PooledInputEventFactory::recycle(InputEvent* event) {
     switch (event->getType()) {
-    case AINPUT_EVENT_TYPE_KEY:
-        if (mKeyEventPool.size() < mMaxPoolSize) {
-            mKeyEventPool.push(std::unique_ptr<KeyEvent>(static_cast<KeyEvent*>(event)));
-            return;
+        case InputEventType::KEY: {
+            if (mKeyEventPool.size() < mMaxPoolSize) {
+                mKeyEventPool.push(std::unique_ptr<KeyEvent>(static_cast<KeyEvent*>(event)));
+                return;
+            }
+            break;
         }
-        break;
-    case AINPUT_EVENT_TYPE_MOTION:
-        if (mMotionEventPool.size() < mMaxPoolSize) {
-            mMotionEventPool.push(std::unique_ptr<MotionEvent>(static_cast<MotionEvent*>(event)));
-            return;
+        case InputEventType::MOTION: {
+            if (mMotionEventPool.size() < mMaxPoolSize) {
+                mMotionEventPool.push(
+                        std::unique_ptr<MotionEvent>(static_cast<MotionEvent*>(event)));
+                return;
+            }
+            break;
         }
-        break;
-    case AINPUT_EVENT_TYPE_FOCUS:
-        if (mFocusEventPool.size() < mMaxPoolSize) {
-            mFocusEventPool.push(std::unique_ptr<FocusEvent>(static_cast<FocusEvent*>(event)));
-            return;
+        case InputEventType::FOCUS: {
+            if (mFocusEventPool.size() < mMaxPoolSize) {
+                mFocusEventPool.push(std::unique_ptr<FocusEvent>(static_cast<FocusEvent*>(event)));
+                return;
+            }
+            break;
         }
-        break;
-    case AINPUT_EVENT_TYPE_CAPTURE:
-        if (mCaptureEventPool.size() < mMaxPoolSize) {
-            mCaptureEventPool.push(
-                    std::unique_ptr<CaptureEvent>(static_cast<CaptureEvent*>(event)));
-            return;
+        case InputEventType::CAPTURE: {
+            if (mCaptureEventPool.size() < mMaxPoolSize) {
+                mCaptureEventPool.push(
+                        std::unique_ptr<CaptureEvent>(static_cast<CaptureEvent*>(event)));
+                return;
+            }
+            break;
         }
-        break;
-    case AINPUT_EVENT_TYPE_DRAG:
-        if (mDragEventPool.size() < mMaxPoolSize) {
-            mDragEventPool.push(std::unique_ptr<DragEvent>(static_cast<DragEvent*>(event)));
-            return;
+        case InputEventType::DRAG: {
+            if (mDragEventPool.size() < mMaxPoolSize) {
+                mDragEventPool.push(std::unique_ptr<DragEvent>(static_cast<DragEvent*>(event)));
+                return;
+            }
+            break;
         }
-        break;
-    case AINPUT_EVENT_TYPE_TOUCH_MODE:
-        if (mTouchModeEventPool.size() < mMaxPoolSize) {
-            mTouchModeEventPool.push(
-                    std::unique_ptr<TouchModeEvent>(static_cast<TouchModeEvent*>(event)));
-            return;
+        case InputEventType::TOUCH_MODE: {
+            if (mTouchModeEventPool.size() < mMaxPoolSize) {
+                mTouchModeEventPool.push(
+                        std::unique_ptr<TouchModeEvent>(static_cast<TouchModeEvent*>(event)));
+                return;
+            }
+            break;
         }
-        break;
     }
     delete event;
 }

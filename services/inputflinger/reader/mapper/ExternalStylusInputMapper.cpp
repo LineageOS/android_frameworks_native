@@ -23,8 +23,9 @@
 
 namespace android {
 
-ExternalStylusInputMapper::ExternalStylusInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext), mTouchButtonAccumulator(deviceContext) {}
+ExternalStylusInputMapper::ExternalStylusInputMapper(InputDeviceContext& deviceContext,
+                                                     const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig), mTouchButtonAccumulator(deviceContext) {}
 
 uint32_t ExternalStylusInputMapper::getSources() const {
     return AINPUT_SOURCE_STYLUS;
@@ -48,7 +49,7 @@ void ExternalStylusInputMapper::dump(std::string& dump) {
 
 std::list<NotifyArgs> ExternalStylusInputMapper::reconfigure(nsecs_t when,
                                                              const InputReaderConfiguration& config,
-                                                             uint32_t changes) {
+                                                             ConfigurationChanges changes) {
     getAbsoluteAxisInfo(ABS_PRESSURE, &mRawPressureAxis);
     mTouchButtonAccumulator.configure();
     return {};

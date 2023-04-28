@@ -197,7 +197,7 @@ TEST_F(KeyEventTest, Properties) {
                      ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME);
 
     ASSERT_EQ(id, event.getId());
-    ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, event.getType());
+    ASSERT_EQ(InputEventType::KEY, event.getType());
     ASSERT_EQ(2, event.getDeviceId());
     ASSERT_EQ(AINPUT_SOURCE_GAMEPAD, event.getSource());
     ASSERT_EQ(DISPLAY_ID, event.getDisplayId());
@@ -346,7 +346,7 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
 void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     // Check properties.
     ASSERT_EQ(mId, event->getId());
-    ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
+    ASSERT_EQ(InputEventType::MOTION, event->getType());
     ASSERT_EQ(2, event->getDeviceId());
     ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, event->getSource());
     ASSERT_EQ(DISPLAY_ID, event->getDisplayId());

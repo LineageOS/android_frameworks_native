@@ -153,7 +153,6 @@ public:
         bool transformToDisplayInverse;
         Region transparentRegionHint;
         std::shared_ptr<renderengine::ExternalTexture> buffer;
-        client_cache_t clientCacheId;
         sp<Fence> acquireFence;
         std::shared_ptr<FenceTime> acquireFenceTime;
         HdrMetadata hdrMetadata;
@@ -372,6 +371,21 @@ public:
     bool canReceiveInput() const;
 
     /*
+     * Whether or not the layer should be considered visible for input calculations.
+     */
+    virtual bool isVisibleForInput() const {
+        // For compatibility reasons we let layers which can receive input
+        // receive input before they have actually submitted a buffer. Because
+        // of this we use canReceiveInput instead of isVisible to check the
+        // policy-visibility, ignoring the buffer state. However for layers with
+        // hasInputInfo()==false we can use the real visibility state.
+        // We are just using these layers for occlusion detection in
+        // InputDispatcher, and obviously if they aren't visible they can't occlude
+        // anything.
+        return hasInputInfo() ? canReceiveInput() : isVisible();
+    }
+
+    /*
      * isProtected - true if the layer may contain protected contents in the
      * GRALLOC_USAGE_PROTECTED sense.
      */
@@ -438,6 +452,12 @@ public:
 
     bool latchBufferImpl(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
                          bool bgColorOnly);
+
+    /*
+     * Returns true if the currently presented buffer will be released when this layer state
+     * is latched. This will return false if there is no buffer currently presented.
+     */
+    bool willReleaseBufferOnLatch() const;
 
     /*
      * Calls latchBuffer if the buffer has a frame queued and then releases the buffer.
@@ -521,6 +541,7 @@ public:
 
         std::shared_ptr<renderengine::ExternalTexture> mBuffer;
         uint64_t mFrameNumber;
+        sp<IBinder> mReleaseBufferEndpoint;
 
         bool mFrameLatencyNeeded{false};
         float mDesiredHdrSdrRatio = 1.f;
@@ -532,7 +553,7 @@ public:
     const compositionengine::LayerFECompositionState* getCompositionState() const;
     bool fenceHasSignaled() const;
     void onPreComposition(nsecs_t refreshStartTime);
-    void onLayerDisplayed(ftl::SharedFuture<FenceResult>);
+    void onLayerDisplayed(ftl::SharedFuture<FenceResult>, ui::LayerStack layerStack);
 
     void setWasClientComposed(const sp<Fence>& fence) {
         mLastClientCompositionFence = fence;
@@ -885,7 +906,10 @@ public:
     void setTransformHint(std::optional<ui::Transform::RotationFlags> transformHint) {
         mTransformHint = transformHint;
     }
-
+    // Keeps track of the previously presented layer stacks. This is used to get
+    // the release fences from the correct displays when we release the last buffer
+    // from the layer.
+    std::vector<ui::LayerStack> mPreviouslyPresentedLayerStacks;
     // Exposed so SurfaceFlinger can assert that it's held
     const sp<SurfaceFlinger> mFlinger;
 
@@ -1162,6 +1186,7 @@ private:
     half4 mBorderColor;
 
     void setTransformHintLegacy(ui::Transform::RotationFlags);
+    void resetDrawingStateBufferInfo();
 
     const uint32_t mTextureName;
 
@@ -1172,6 +1197,7 @@ private:
     std::optional<ui::Transform::RotationFlags> mTransformHint = std::nullopt;
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
+    sp<IBinder> mPreviousReleaseBufferEndpoint;
     uint64_t mPreviousReleasedFrameNumber = 0;
 
     uint64_t mPreviousBarrierFrameNumber = 0;
