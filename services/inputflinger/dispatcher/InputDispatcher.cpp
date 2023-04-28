@@ -54,6 +54,7 @@
 #define INDENT4 "        "
 
 using namespace android::ftl::flag_operators;
+using android::base::Error;
 using android::base::HwTimeoutMultiplier;
 using android::base::Result;
 using android::base::StringPrintf;
@@ -129,48 +130,68 @@ inline int32_t getMotionEventActionPointerIndex(int32_t action) {
             AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
 }
 
-bool isValidKeyAction(int32_t action) {
+Result<void> checkKeyAction(int32_t action) {
     switch (action) {
         case AKEY_EVENT_ACTION_DOWN:
         case AKEY_EVENT_ACTION_UP:
-            return true;
+            return {};
         default:
-            return false;
+            return Error() << "Key event has invalid action code " << action;
     }
 }
 
-bool validateKeyEvent(int32_t action) {
-    if (!isValidKeyAction(action)) {
-        ALOGE("Key event has invalid action code 0x%x", action);
-        return false;
-    }
-    return true;
+Result<void> validateKeyEvent(int32_t action) {
+    return checkKeyAction(action);
 }
 
-bool isValidMotionAction(int32_t action, int32_t actionButton, int32_t pointerCount) {
+Result<void> checkMotionAction(int32_t action, int32_t actionButton, int32_t pointerCount) {
     switch (MotionEvent::getActionMasked(action)) {
         case AMOTION_EVENT_ACTION_DOWN:
-        case AMOTION_EVENT_ACTION_UP:
-            return pointerCount == 1;
+        case AMOTION_EVENT_ACTION_UP: {
+            if (pointerCount != 1) {
+                return Error() << "invalid pointer count " << pointerCount;
+            }
+            return {};
+        }
         case AMOTION_EVENT_ACTION_MOVE:
         case AMOTION_EVENT_ACTION_HOVER_ENTER:
         case AMOTION_EVENT_ACTION_HOVER_MOVE:
-        case AMOTION_EVENT_ACTION_HOVER_EXIT:
-            return pointerCount >= 1;
+        case AMOTION_EVENT_ACTION_HOVER_EXIT: {
+            if (pointerCount < 1) {
+                return Error() << "invalid pointer count " << pointerCount;
+            }
+            return {};
+        }
         case AMOTION_EVENT_ACTION_CANCEL:
         case AMOTION_EVENT_ACTION_OUTSIDE:
         case AMOTION_EVENT_ACTION_SCROLL:
-            return true;
+            return {};
         case AMOTION_EVENT_ACTION_POINTER_DOWN:
         case AMOTION_EVENT_ACTION_POINTER_UP: {
             const int32_t index = MotionEvent::getActionIndex(action);
-            return index >= 0 && index < pointerCount && pointerCount > 1;
+            if (index < 0) {
+                return Error() << "invalid index " << index << " for "
+                               << MotionEvent::actionToString(action);
+            }
+            if (index >= pointerCount) {
+                return Error() << "invalid index " << index << " for pointerCount " << pointerCount;
+            }
+            if (pointerCount <= 1) {
+                return Error() << "invalid pointer count " << pointerCount << " for "
+                               << MotionEvent::actionToString(action);
+            }
+            return {};
         }
         case AMOTION_EVENT_ACTION_BUTTON_PRESS:
-        case AMOTION_EVENT_ACTION_BUTTON_RELEASE:
-            return actionButton != 0;
+        case AMOTION_EVENT_ACTION_BUTTON_RELEASE: {
+            if (actionButton == 0) {
+                return Error() << "action button should be nonzero for "
+                               << MotionEvent::actionToString(action);
+            }
+            return {};
+        }
         default:
-            return false;
+            return Error() << "invalid action " << action;
     }
 }
 
@@ -178,32 +199,50 @@ int64_t millis(std::chrono::nanoseconds t) {
     return std::chrono::duration_cast<std::chrono::milliseconds>(t).count();
 }
 
-bool validateMotionEvent(int32_t action, int32_t actionButton, size_t pointerCount,
-                         const PointerProperties* pointerProperties) {
-    if (!isValidMotionAction(action, actionButton, pointerCount)) {
-        ALOGE("Motion event has invalid action code 0x%x", action);
-        return false;
+Result<void> validateMotionEvent(int32_t action, int32_t actionButton, size_t pointerCount,
+                                 const PointerProperties* pointerProperties) {
+    Result<void> actionCheck = checkMotionAction(action, actionButton, pointerCount);
+    if (!actionCheck.ok()) {
+        return actionCheck;
     }
     if (pointerCount < 1 || pointerCount > MAX_POINTERS) {
-        ALOGE("Motion event has invalid pointer count %zu; value must be between 1 and %zu.",
-              pointerCount, MAX_POINTERS);
-        return false;
+        return Error() << "Motion event has invalid pointer count " << pointerCount
+                       << "; value must be between 1 and " << MAX_POINTERS << ".";
     }
     std::bitset<MAX_POINTER_ID + 1> pointerIdBits;
     for (size_t i = 0; i < pointerCount; i++) {
         int32_t id = pointerProperties[i].id;
         if (id < 0 || id > MAX_POINTER_ID) {
-            ALOGE("Motion event has invalid pointer id %d; value must be between 0 and %d", id,
-                  MAX_POINTER_ID);
-            return false;
+            return Error() << "Motion event has invalid pointer id " << id
+                           << "; value must be between 0 and " << MAX_POINTER_ID;
         }
         if (pointerIdBits.test(id)) {
-            ALOGE("Motion event has duplicate pointer id %d", id);
-            return false;
+            return Error() << "Motion event has duplicate pointer id " << id;
         }
         pointerIdBits.set(id);
     }
-    return true;
+    return {};
+}
+
+Result<void> validateInputEvent(const InputEvent& event) {
+    switch (event.getType()) {
+        case InputEventType::KEY: {
+            const KeyEvent& key = static_cast<const KeyEvent&>(event);
+            const int32_t action = key.getAction();
+            return validateKeyEvent(action);
+        }
+        case InputEventType::MOTION: {
+            const MotionEvent& motion = static_cast<const MotionEvent&>(event);
+            const int32_t action = motion.getAction();
+            const size_t pointerCount = motion.getPointerCount();
+            const PointerProperties* pointerProperties = motion.getPointerProperties();
+            const int32_t actionButton = motion.getActionButton();
+            return validateMotionEvent(action, actionButton, pointerCount, pointerProperties);
+        }
+        default: {
+            return {};
+        }
+    }
 }
 
 std::string dumpRegion(const Region& region) {
@@ -4092,7 +4131,9 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
              args.id, args.eventTime, args.deviceId, inputEventSourceToString(args.source).c_str(),
              args.displayId, args.policyFlags, KeyEvent::actionToString(args.action), args.flags,
              KeyEvent::getLabel(args.keyCode), args.scanCode, args.metaState, args.downTime);
-    if (!validateKeyEvent(args.action)) {
+    Result<void> keyCheck = validateKeyEvent(args.action);
+    if (!keyCheck.ok()) {
+        LOG(ERROR) << "invalid key event: " << keyCheck.error();
         return;
     }
 
@@ -4189,9 +4230,10 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
         }
     }
 
-    if (!validateMotionEvent(args.action, args.actionButton, args.pointerCount,
-                             args.pointerProperties)) {
-        LOG(ERROR) << "Invalid event: " << args.dump();
+    Result<void> motionCheck = validateMotionEvent(args.action, args.actionButton,
+                                                   args.pointerCount, args.pointerProperties);
+    if (!motionCheck.ok()) {
+        LOG(ERROR) << "Invalid event: " << args.dump() << "; reason: " << motionCheck.error();
         return;
     }
 
@@ -4367,6 +4409,12 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                             InputEventInjectionSync syncMode,
                                                             std::chrono::milliseconds timeout,
                                                             uint32_t policyFlags) {
+    Result<void> eventValidation = validateInputEvent(*event);
+    if (!eventValidation.ok()) {
+        LOG(INFO) << "Injection failed: invalid event: " << eventValidation.error();
+        return InputEventInjectionResult::FAILED;
+    }
+
     if (debugInboundEventDetails()) {
         LOG(DEBUG) << __func__ << ": targetUid=" << toString(targetUid)
                    << ", syncMode=" << ftl::enum_string(syncMode) << ", timeout=" << timeout.count()
@@ -4392,11 +4440,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
     switch (event->getType()) {
         case InputEventType::KEY: {
             const KeyEvent& incomingKey = static_cast<const KeyEvent&>(*event);
-            int32_t action = incomingKey.getAction();
-            if (!validateKeyEvent(action)) {
-                return InputEventInjectionResult::FAILED;
-            }
-
+            const int32_t action = incomingKey.getAction();
             int32_t flags = incomingKey.getFlags();
             if (policyFlags & POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY) {
                 flags |= AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
@@ -4438,20 +4482,13 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
 
         case InputEventType::MOTION: {
             const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
-            const int32_t action = motionEvent.getAction();
             const bool isPointerEvent =
                     isFromSource(event->getSource(), AINPUT_SOURCE_CLASS_POINTER);
             // If a pointer event has no displayId specified, inject it to the default display.
             const uint32_t displayId = isPointerEvent && (event->getDisplayId() == ADISPLAY_ID_NONE)
                     ? ADISPLAY_ID_DEFAULT
                     : event->getDisplayId();
-            const size_t pointerCount = motionEvent.getPointerCount();
-            const PointerProperties* pointerProperties = motionEvent.getPointerProperties();
-            const int32_t actionButton = motionEvent.getActionButton();
             int32_t flags = motionEvent.getFlags();
-            if (!validateMotionEvent(action, actionButton, pointerCount, pointerProperties)) {
-                return InputEventInjectionResult::FAILED;
-            }
 
             if (!(policyFlags & POLICY_FLAG_FILTERED)) {
                 nsecs_t eventTime = motionEvent.getEventTime();
@@ -4473,8 +4510,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             std::unique_ptr<MotionEntry> injectedEntry =
                     std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
                                                   resolvedDeviceId, motionEvent.getSource(),
-                                                  displayId, policyFlags, action, actionButton,
-                                                  flags, motionEvent.getMetaState(),
+                                                  displayId, policyFlags, motionEvent.getAction(),
+                                                  motionEvent.getActionButton(), flags,
+                                                  motionEvent.getMetaState(),
                                                   motionEvent.getButtonState(),
                                                   motionEvent.getClassification(),
                                                   motionEvent.getEdgeFlags(),
@@ -4482,18 +4520,22 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                   motionEvent.getYPrecision(),
                                                   motionEvent.getRawXCursorPosition(),
                                                   motionEvent.getRawYCursorPosition(),
-                                                  motionEvent.getDownTime(), uint32_t(pointerCount),
-                                                  pointerProperties, samplePointerCoords);
+                                                  motionEvent.getDownTime(),
+                                                  motionEvent.getPointerCount(),
+                                                  motionEvent.getPointerProperties(),
+                                                  samplePointerCoords);
             transformMotionEntryForInjectionLocked(*injectedEntry, motionEvent.getTransform());
             injectedEntries.push(std::move(injectedEntry));
             for (size_t i = motionEvent.getHistorySize(); i > 0; i--) {
                 sampleEventTimes += 1;
-                samplePointerCoords += pointerCount;
+                samplePointerCoords += motionEvent.getPointerCount();
                 std::unique_ptr<MotionEntry> nextInjectedEntry =
                         std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
                                                       resolvedDeviceId, motionEvent.getSource(),
-                                                      displayId, policyFlags, action, actionButton,
-                                                      flags, motionEvent.getMetaState(),
+                                                      displayId, policyFlags,
+                                                      motionEvent.getAction(),
+                                                      motionEvent.getActionButton(), flags,
+                                                      motionEvent.getMetaState(),
                                                       motionEvent.getButtonState(),
                                                       motionEvent.getClassification(),
                                                       motionEvent.getEdgeFlags(),
@@ -4502,7 +4544,8 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                       motionEvent.getRawXCursorPosition(),
                                                       motionEvent.getRawYCursorPosition(),
                                                       motionEvent.getDownTime(),
-                                                      uint32_t(pointerCount), pointerProperties,
+                                                      motionEvent.getPointerCount(),
+                                                      motionEvent.getPointerProperties(),
                                                       samplePointerCoords);
                 transformMotionEntryForInjectionLocked(*nextInjectedEntry,
                                                        motionEvent.getTransform());
