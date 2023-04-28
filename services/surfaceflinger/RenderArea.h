@@ -25,12 +25,14 @@ public:
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(ui::Size reqSize, CaptureFill captureFill, ui::Dataspace reqDataSpace,
-               bool allowSecureLayers = false, RotationFlags rotation = ui::Transform::ROT_0)
+               bool hintForSeamlessTransition, bool allowSecureLayers = false,
+               RotationFlags rotation = ui::Transform::ROT_0)
           : mAllowSecureLayers(allowSecureLayers),
             mReqSize(reqSize),
             mReqDataSpace(reqDataSpace),
             mCaptureFill(captureFill),
-            mRotationFlags(rotation) {}
+            mRotationFlags(rotation),
+            mHintForSeamlessTransition(hintForSeamlessTransition) {}
 
     static std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> fromTraverseLayersLambda(
             std::function<void(const LayerVector::Visitor&)> traverseLayers) {
@@ -90,6 +92,10 @@ public:
     // capture operation.
     virtual sp<Layer> getParentLayer() const { return nullptr; }
 
+    // Returns whether the render result may be used for system animations that
+    // must preserve the exact colors of the display.
+    bool getHintForSeamlessTransition() const { return mHintForSeamlessTransition; }
+
 protected:
     const bool mAllowSecureLayers;
 
@@ -98,7 +104,7 @@ private:
     const ui::Dataspace mReqDataSpace;
     const CaptureFill mCaptureFill;
     const RotationFlags mRotationFlags;
-    const Rect mLayerStackSpaceRect;
+    const bool mHintForSeamlessTransition;
 };
 
 } // namespace android

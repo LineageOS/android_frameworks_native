@@ -35,21 +35,24 @@ std::unique_ptr<RenderArea> DisplayRenderArea::create(wp<const DisplayDevice> di
                                                       const Rect& sourceCrop, ui::Size reqSize,
                                                       ui::Dataspace reqDataSpace,
                                                       bool useIdentityTransform,
+                                                      bool hintForSeamlessTransition,
                                                       bool allowSecureLayers) {
     if (auto display = displayWeak.promote()) {
         // Using new to access a private constructor.
         return std::unique_ptr<DisplayRenderArea>(
                 new DisplayRenderArea(std::move(display), sourceCrop, reqSize, reqDataSpace,
-                                      useIdentityTransform, allowSecureLayers));
+                                      useIdentityTransform, hintForSeamlessTransition,
+                                      allowSecureLayers));
     }
     return nullptr;
 }
 
 DisplayRenderArea::DisplayRenderArea(sp<const DisplayDevice> display, const Rect& sourceCrop,
                                      ui::Size reqSize, ui::Dataspace reqDataSpace,
-                                     bool useIdentityTransform, bool allowSecureLayers)
-      : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, allowSecureLayers,
-                   applyDeviceOrientation(useIdentityTransform, *display)),
+                                     bool useIdentityTransform, bool hintForSeamlessTransition,
+                                     bool allowSecureLayers)
+      : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, hintForSeamlessTransition,
+                   allowSecureLayers, applyDeviceOrientation(useIdentityTransform, *display)),
         mDisplay(std::move(display)),
         mSourceCrop(sourceCrop) {}
 
