@@ -36,6 +36,7 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
     output->setLayerFilter({args.layerStack});
     output->setRenderSurface(std::make_unique<ScreenCaptureRenderSurface>(std::move(args.buffer)));
     output->setDisplayBrightness(args.sdrWhitePointNits, args.displayBrightnessNits);
+    output->editState().clientTargetBrightness = args.targetBrightness;
 
     output->setDisplayColorProfile(std::make_unique<compositionengine::impl::DisplayColorProfile>(
             compositionengine::DisplayColorProfileCreationArgsBuilder()
@@ -75,7 +76,6 @@ renderengine::DisplaySettings ScreenCaptureOutput::generateClientCompositionDisp
     auto clientCompositionDisplay =
             compositionengine::impl::Output::generateClientCompositionDisplaySettings();
     clientCompositionDisplay.clip = mRenderArea.getSourceCrop();
-    clientCompositionDisplay.targetLuminanceNits = -1;
     return clientCompositionDisplay;
 }
 

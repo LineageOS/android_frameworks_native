@@ -34,7 +34,8 @@ class LayerRenderArea : public RenderArea {
 public:
     LayerRenderArea(SurfaceFlinger& flinger, sp<Layer> layer, const Rect& crop, ui::Size reqSize,
                     ui::Dataspace reqDataSpace, bool childrenOnly, bool allowSecureLayers,
-                    const ui::Transform& layerTransform, const Rect& layerBufferSize);
+                    const ui::Transform& layerTransform, const Rect& layerBufferSize,
+                    bool hintForSeamlessTransition);
 
     const ui::Transform& getTransform() const override;
     bool isSecure() const override;
