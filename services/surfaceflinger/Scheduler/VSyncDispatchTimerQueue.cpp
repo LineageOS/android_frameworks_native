@@ -21,11 +21,15 @@
 #include <android-base/stringprintf.h>
 #include <ftl/concat.h>
 #include <utils/Trace.h>
+#include <log/log_main.h>
 
 #include <scheduler/TimeKeeper.h>
 
 #include "VSyncDispatchTimerQueue.h"
 #include "VSyncTracker.h"
+
+#undef LOG_TAG
+#define LOG_TAG "VSyncDispatch"
 
 namespace android::scheduler {
 
@@ -225,6 +229,10 @@ VSyncDispatchTimerQueue::VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper> tk,
 VSyncDispatchTimerQueue::~VSyncDispatchTimerQueue() {
     std::lock_guard lock(mMutex);
     cancelTimer();
+    for (auto& [_, entry] : mCallbacks) {
+        ALOGE("Forgot to unregister a callback on VSyncDispatch!");
+        entry->ensureNotRunning();
+    }
 }
 
 void VSyncDispatchTimerQueue::cancelTimer() {
@@ -438,47 +446,44 @@ VSyncCallbackRegistration::VSyncCallbackRegistration(std::shared_ptr<VSyncDispat
                                                      VSyncDispatch::Callback callback,
                                                      std::string callbackName)
       : mDispatch(std::move(dispatch)),
-        mToken(mDispatch->registerCallback(std::move(callback), std::move(callbackName))),
-        mValidToken(true) {}
+        mToken(mDispatch->registerCallback(std::move(callback), std::move(callbackName))) {}
 
 VSyncCallbackRegistration::VSyncCallbackRegistration(VSyncCallbackRegistration&& other)
-      : mDispatch(std::move(other.mDispatch)),
-        mToken(std::move(other.mToken)),
-        mValidToken(std::move(other.mValidToken)) {
-    other.mValidToken = false;
-}
+      : mDispatch(std::move(other.mDispatch)), mToken(std::exchange(other.mToken, std::nullopt)) {}
 
 VSyncCallbackRegistration& VSyncCallbackRegistration::operator=(VSyncCallbackRegistration&& other) {
+    if (this == &other) return *this;
+    if (mToken) {
+        mDispatch->unregisterCallback(*mToken);
+    }
     mDispatch = std::move(other.mDispatch);
-    mToken = std::move(other.mToken);
-    mValidToken = std::move(other.mValidToken);
-    other.mValidToken = false;
+    mToken = std::exchange(other.mToken, std::nullopt);
     return *this;
 }
 
 VSyncCallbackRegistration::~VSyncCallbackRegistration() {
-    if (mValidToken) mDispatch->unregisterCallback(mToken);
+    if (mToken) mDispatch->unregisterCallback(*mToken);
 }
 
 ScheduleResult VSyncCallbackRegistration::schedule(VSyncDispatch::ScheduleTiming scheduleTiming) {
-    if (!mValidToken) {
+    if (!mToken) {
         return std::nullopt;
     }
-    return mDispatch->schedule(mToken, scheduleTiming);
+    return mDispatch->schedule(*mToken, scheduleTiming);
 }
 
 ScheduleResult VSyncCallbackRegistration::update(VSyncDispatch::ScheduleTiming scheduleTiming) {
-    if (!mValidToken) {
+    if (!mToken) {
         return std::nullopt;
     }
-    return mDispatch->update(mToken, scheduleTiming);
+    return mDispatch->update(*mToken, scheduleTiming);
 }
 
 CancelResult VSyncCallbackRegistration::cancel() {
-    if (!mValidToken) {
+    if (!mToken) {
         return CancelResult::Error;
     }
-    return mDispatch->cancel(mToken);
+    return mDispatch->cancel(*mToken);
 }
 
 } // namespace android::scheduler
