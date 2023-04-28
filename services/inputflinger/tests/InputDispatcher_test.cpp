@@ -3771,7 +3771,7 @@ TEST_F(InputDispatcherTest, OnWindowInfosChanged_RemoveAllWindowsOnDisplay) {
                                                              "Fake Window", ADISPLAY_ID_DEFAULT);
     window->setFocusable(true);
 
-    mDispatcher->onWindowInfosChanged({*window->getInfo()}, {});
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
     setFocusedWindow(window);
 
     window->consumeFocusEvent(true);
@@ -3785,7 +3785,7 @@ TEST_F(InputDispatcherTest, OnWindowInfosChanged_RemoveAllWindowsOnDisplay) {
     window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
 
     // All windows are removed from the display. Ensure that we can no longer dispatch to it.
-    mDispatcher->onWindowInfosChanged({}, {});
+    mDispatcher->onWindowInfosChanged({{}, {}, 0, 0});
 
     window->consumeFocusEvent(false);
 
@@ -3801,7 +3801,7 @@ TEST_F(InputDispatcherTest, NonSplitTouchableWindowReceivesMultiTouch) {
     // Ensure window is non-split and have some transform.
     window->setPreventSplitting(true);
     window->setWindowOffset(20, 40);
-    mDispatcher->onWindowInfosChanged({*window->getInfo()}, {});
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
@@ -3848,12 +3848,12 @@ public:
         info.displayId = displayId;
         info.transform = transform;
         mDisplayInfos.push_back(std::move(info));
-        mDispatcher->onWindowInfosChanged(mWindowInfos, mDisplayInfos);
+        mDispatcher->onWindowInfosChanged({mWindowInfos, mDisplayInfos, 0, 0});
     }
 
     void addWindow(const sp<WindowInfoHandle>& windowHandle) {
         mWindowInfos.push_back(*windowHandle->getInfo());
-        mDispatcher->onWindowInfosChanged(mWindowInfos, mDisplayInfos);
+        mDispatcher->onWindowInfosChanged({mWindowInfos, mDisplayInfos, 0, 0});
     }
 
     void removeAllWindowsAndDisplays() {
@@ -4952,7 +4952,7 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
     displayInfo.displayId = ADISPLAY_ID_DEFAULT;
     displayInfo.transform = transform;
 
-    mDispatcher->onWindowInfosChanged({*window->getInfo()}, {displayInfo});
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {displayInfo}, 0, 0});
 
     const NotifyMotionArgs motionArgs =
             generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
@@ -5722,7 +5722,7 @@ TEST_F(InputFilterTest, MotionEvent_UsesLogicalDisplayCoordinates_notifyMotion) 
     displayInfos[1].displayId = SECOND_DISPLAY_ID;
     displayInfos[1].transform = secondDisplayTransform;
 
-    mDispatcher->onWindowInfosChanged({}, displayInfos);
+    mDispatcher->onWindowInfosChanged({{}, displayInfos, 0, 0});
 
     // Enable InputFilter
     mDispatcher->setInputFilterEnabled(true);

@@ -75,6 +75,7 @@ filegroup {
         "android/gui/IWindowInfosListener.aidl",
         "android/gui/IWindowInfosReportedListener.aidl",
         "android/gui/WindowInfo.aidl",
+        "android/gui/WindowInfosUpdate.aidl",
     ],
 }
 
@@ -90,9 +91,11 @@ cc_library_static {
         "android/gui/InputApplicationInfo.aidl",
         "android/gui/IWindowInfosListener.aidl",
         "android/gui/IWindowInfosReportedListener.aidl",
+        "android/gui/WindowInfosUpdate.aidl",
         "android/gui/WindowInfo.aidl",
         "DisplayInfo.cpp",
         "WindowInfo.cpp",
+        "WindowInfosUpdate.cpp",
     ],
 
     shared_libs: [

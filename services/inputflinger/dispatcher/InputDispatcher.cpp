@@ -5572,6 +5572,14 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
     } else {
         dump += INDENT "Displays: <none>\n";
     }
+    dump += INDENT "Window Infos:\n";
+    dump += StringPrintf(INDENT2 "vsync id: %" PRId64 "\n", mWindowInfosVsyncId);
+    dump += StringPrintf(INDENT2 "timestamp (ns): %" PRId64 "\n", mWindowInfosTimestamp);
+    dump += "\n";
+    dump += StringPrintf(INDENT2 "max update delay (ns): %" PRId64 "\n", mMaxWindowInfosDelay);
+    dump += StringPrintf(INDENT2 "max update delay vsync id: %" PRId64 "\n",
+                         mMaxWindowInfosDelayVsyncId);
+    dump += "\n";
 
     if (!mGlobalMonitorsByDisplay.empty()) {
         for (const auto& [displayId, monitors] : mGlobalMonitorsByDisplay) {
@@ -6580,12 +6588,11 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
     mLooper->wake();
 }
 
-void InputDispatcher::onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos,
-                                           const std::vector<DisplayInfo>& displayInfos) {
+void InputDispatcher::onWindowInfosChanged(const gui::WindowInfosUpdate& update) {
     // The listener sends the windows as a flattened array. Separate the windows by display for
     // more convenient parsing.
     std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>> handlesPerDisplay;
-    for (const auto& info : windowInfos) {
+    for (const auto& info : update.windowInfos) {
         handlesPerDisplay.emplace(info.displayId, std::vector<sp<WindowInfoHandle>>());
         handlesPerDisplay[info.displayId].push_back(sp<WindowInfoHandle>::make(info));
     }
@@ -6600,12 +6607,21 @@ void InputDispatcher::onWindowInfosChanged(const std::vector<WindowInfo>& window
         }
 
         mDisplayInfos.clear();
-        for (const auto& displayInfo : displayInfos) {
+        for (const auto& displayInfo : update.displayInfos) {
             mDisplayInfos.emplace(displayInfo.displayId, displayInfo);
         }
 
         for (const auto& [displayId, handles] : handlesPerDisplay) {
             setInputWindowsLocked(handles, displayId);
+        }
+
+        mWindowInfosVsyncId = update.vsyncId;
+        mWindowInfosTimestamp = update.timestamp;
+
+        int64_t delay = systemTime() - update.timestamp;
+        if (delay > mMaxWindowInfosDelay) {
+            mMaxWindowInfosDelay = delay;
+            mMaxWindowInfosDelayVsyncId = update.vsyncId;
         }
     }
     // Wake up poll loop since it may need to make new input dispatching choices.
@@ -6629,9 +6645,8 @@ bool InputDispatcher::shouldDropInput(
 }
 
 void InputDispatcher::DispatcherWindowListener::onWindowInfosChanged(
-        const std::vector<gui::WindowInfo>& windowInfos,
-        const std::vector<DisplayInfo>& displayInfos) {
-    mDispatcher.onWindowInfosChanged(windowInfos, displayInfos);
+        const gui::WindowInfosUpdate& update) {
+    mDispatcher.onWindowInfosChanged(update);
 }
 
 void InputDispatcher::cancelCurrentTouch() {
