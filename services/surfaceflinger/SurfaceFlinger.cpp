@@ -6915,6 +6915,32 @@ status_t SurfaceFlinger::setSchedAttr(bool enabled) {
     return NO_ERROR;
 }
 
+namespace {
+
+ui::Dataspace pickBestDataspace(ui::Dataspace requestedDataspace, const DisplayDevice* display,
+                                bool capturingHdrLayers, bool hintForSeamlessTransition) {
+    if (requestedDataspace != ui::Dataspace::UNKNOWN || display == nullptr) {
+        return requestedDataspace;
+    }
+
+    const auto& state = display->getCompositionDisplay()->getState();
+
+    const auto dataspaceForColorMode = ui::pickDataspaceFor(state.colorMode);
+
+    if (capturingHdrLayers && !hintForSeamlessTransition) {
+        // For now since we only support 8-bit screenshots, just use HLG and
+        // assume that 1.0 >= display max luminance. This isn't quite as future
+        // proof as PQ is, but is good enough.
+        // Consider using PQ once we support 16-bit screenshots and we're able
+        // to consistently supply metadata to image encoders.
+        return ui::Dataspace::BT2020_HLG;
+    }
+
+    return dataspaceForColorMode;
+}
+
+} // namespace
+
 status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                                         const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
@@ -6930,7 +6956,6 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     ui::LayerStack layerStack;
     ui::Size reqSize(args.width, args.height);
     std::unordered_set<uint32_t> excludeLayerIds;
-    ui::Dataspace dataspace;
     {
         Mutex::Autolock lock(mStateLock);
         sp<DisplayDevice> display = getDisplayDeviceLocked(args.displayToken);
@@ -6952,17 +6977,12 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                 return NAME_NOT_FOUND;
             }
         }
-
-        // Allow the caller to specify a dataspace regardless of the display's color mode, e.g. if
-        // it wants sRGB regardless of the display's wide color mode.
-        dataspace = args.dataspace == ui::Dataspace::UNKNOWN
-                ? ui::pickDataspaceFor(display->getCompositionDisplay()->getState().colorMode)
-                : args.dataspace;
     }
 
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize, dataspace,
-                                         args.useIdentityTransform, args.captureSecureLayers);
+        return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize,
+                                         ui::Dataspace::UNKNOWN, args.useIdentityTransform,
+                                         args.hintForSeamlessTransition, args.captureSecureLayers);
     });
 
     GetLayerSnapshotsFunction getLayerSnapshots;
@@ -6988,7 +7008,6 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
     ui::LayerStack layerStack;
     wp<const DisplayDevice> displayWeak;
     ui::Size size;
-    ui::Dataspace dataspace;
     {
         Mutex::Autolock lock(mStateLock);
 
@@ -7000,12 +7019,12 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
         displayWeak = display;
         layerStack = display->getLayerStack();
         size = display->getLayerStackSpaceRect().getSize();
-        dataspace = ui::pickDataspaceFor(display->getCompositionDisplay()->getState().colorMode);
     }
 
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        return DisplayRenderArea::create(displayWeak, Rect(), size, dataspace,
+        return DisplayRenderArea::create(displayWeak, Rect(), size, ui::Dataspace::UNKNOWN,
                                          false /* useIdentityTransform */,
+                                         false /* hintForSeamlessTransition */,
                                          false /* captureSecureLayers */);
     });
 
@@ -7047,7 +7066,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     sp<Layer> parent;
     Rect crop(args.sourceCrop);
     std::unordered_set<uint32_t> excludeLayerIds;
-    ui::Dataspace dataspace;
+    ui::Dataspace dataspace = args.dataspace;
 
     // Call this before holding mStateLock to avoid any deadlocking.
     bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
@@ -7094,12 +7113,6 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                 return NAME_NOT_FOUND;
             }
         }
-
-        // The dataspace is depended on the color mode of display, that could use non-native mode
-        // (ex. displayP3) to enhance the content, but some cases are checking native RGB in bytes,
-        // and failed if display is not in native mode. This provide a way to force using native
-        // colors when capture.
-        dataspace = args.dataspace;
     } // mStateLock
 
     // really small crop or frameScale
@@ -7128,7 +7141,8 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
                                                  childrenOnly, args.captureSecureLayers,
-                                                 layerTransform, layerBufferSize);
+                                                 layerTransform, layerBufferSize,
+                                                 args.hintForSeamlessTransition);
     });
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
@@ -7314,29 +7328,48 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         return ftl::yield<FenceResult>(base::unexpected(PERMISSION_DENIED)).share();
     }
 
-    captureResults.buffer = buffer->getBuffer();
-    auto dataspace = renderArea->getReqDataSpace();
+    auto capturedBuffer = buffer;
+
+    auto requestedDataspace = renderArea->getReqDataSpace();
     auto parent = renderArea->getParentLayer();
     auto renderIntent = RenderIntent::TONE_MAP_COLORIMETRIC;
     auto sdrWhitePointNits = DisplayDevice::sDefaultMaxLumiance;
     auto displayBrightnessNits = DisplayDevice::sDefaultMaxLumiance;
 
-    if (dataspace == ui::Dataspace::UNKNOWN && parent) {
+    captureResults.capturedDataspace = requestedDataspace;
+
+    {
         Mutex::Autolock lock(mStateLock);
-        auto display = findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
-            return display.getLayerStack() == layerStack;
-        });
-        if (!display) {
-            // If the layer is not on a display, use the dataspace for the default display.
-            display = getDefaultDisplayDeviceLocked();
+        const DisplayDevice* display = nullptr;
+        if (parent) {
+            display = findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
+                          return display.getLayerStack() == layerStack;
+                      }).get();
         }
 
-        dataspace = ui::pickDataspaceFor(display->getCompositionDisplay()->getState().colorMode);
-        renderIntent = display->getCompositionDisplay()->getState().renderIntent;
-        sdrWhitePointNits = display->getCompositionDisplay()->getState().sdrWhitePointNits;
-        displayBrightnessNits = display->getCompositionDisplay()->getState().displayBrightnessNits;
+        if (display == nullptr) {
+            display = renderArea->getDisplayDevice().get();
+        }
+
+        if (display == nullptr) {
+            display = getDefaultDisplayDeviceLocked().get();
+        }
+
+        if (display != nullptr) {
+            const auto& state = display->getCompositionDisplay()->getState();
+            captureResults.capturedDataspace =
+                    pickBestDataspace(requestedDataspace, display, captureResults.capturedHdrLayers,
+                                      renderArea->getHintForSeamlessTransition());
+            sdrWhitePointNits = state.sdrWhitePointNits;
+            displayBrightnessNits = state.displayBrightnessNits;
+
+            if (requestedDataspace == ui::Dataspace::UNKNOWN) {
+                renderIntent = state.renderIntent;
+            }
+        }
     }
-    captureResults.capturedDataspace = dataspace;
+
+    captureResults.buffer = capturedBuffer->getBuffer();
 
     ui::LayerStack layerStack{ui::DEFAULT_LAYER_STACK};
     if (!layers.empty()) {
@@ -7353,9 +7386,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         return layerFEs;
     };
 
-    auto present = [this, buffer = std::move(buffer), dataspace, sdrWhitePointNits,
-                    displayBrightnessNits, grayscale, layerFEs = copyLayerFEs(), layerStack,
-                    regionSampling, renderArea = std::move(renderArea),
+    auto present = [this, buffer = capturedBuffer, dataspace = captureResults.capturedDataspace,
+                    sdrWhitePointNits, displayBrightnessNits, grayscale, layerFEs = copyLayerFEs(),
+                    layerStack, regionSampling, renderArea = std::move(renderArea),
                     renderIntent]() -> FenceResult {
         std::unique_ptr<compositionengine::CompositionEngine> compositionEngine =
                 mFactory.createCompositionEngine();
@@ -7363,6 +7396,16 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
 
         compositionengine::Output::ColorProfile colorProfile{.dataspace = dataspace,
                                                              .renderIntent = renderIntent};
+
+        float targetBrightness = 1.0f;
+        if (dataspace == ui::Dataspace::BT2020_HLG) {
+            const float maxBrightnessNits = displayBrightnessNits / sdrWhitePointNits * 203;
+            // With a low dimming ratio, don't fit the entire curve. Otherwise mixed content
+            // will appear way too bright.
+            if (maxBrightnessNits < 1000.f) {
+                targetBrightness = 1000.f / maxBrightnessNits;
+            }
+        }
 
         std::shared_ptr<ScreenCaptureOutput> output = createScreenCaptureOutput(
                 ScreenCaptureOutputArgs{.compositionEngine = *compositionEngine,
@@ -7372,6 +7415,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                         .buffer = std::move(buffer),
                                         .sdrWhitePointNits = sdrWhitePointNits,
                                         .displayBrightnessNits = displayBrightnessNits,
+                                        .targetBrightness = targetBrightness,
                                         .regionSampling = regionSampling});
 
         const float colorSaturation = grayscale ? 0 : 1;
