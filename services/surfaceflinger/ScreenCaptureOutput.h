@@ -33,6 +33,8 @@ struct ScreenCaptureOutputArgs {
     std::shared_ptr<renderengine::ExternalTexture> buffer;
     float sdrWhitePointNits;
     float displayBrightnessNits;
+    // Counterintuitively, when targetBrightness > 1.0 then dim the scene.
+    float targetBrightness;
     bool regionSampling;
 };
 
