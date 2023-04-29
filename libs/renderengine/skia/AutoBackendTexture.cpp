@@ -43,10 +43,12 @@ AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer
                                                        createProtectedImage, backendFormat,
                                                        isOutputBuffer);
     mColorType = GrAHardwareBufferUtils::GetSkColorTypeFromBufferFormat(desc.format);
-    ALOGE_IF(!mBackendTexture.isValid(),
-             "Failed to create a valid texture. [%p]:[%d,%d] isProtected:%d isWriteable:%d "
-             "format:%d",
-             this, desc.width, desc.height, createProtectedImage, isOutputBuffer, desc.format);
+    if (!mBackendTexture.isValid() || !desc.width || !desc.height) {
+        LOG_ALWAYS_FATAL("Failed to create a valid texture. [%p]:[%d,%d] isProtected:%d "
+                         "isWriteable:%d format:%d",
+                         this, desc.width, desc.height, createProtectedImage, isOutputBuffer,
+                         desc.format);
+    }
 }
 
 AutoBackendTexture::~AutoBackendTexture() {
