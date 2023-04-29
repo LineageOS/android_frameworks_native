@@ -174,7 +174,7 @@ public:
 
     size_t getEventThreadConnectionCount() override;
 
-    void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) override;
+    void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) override EXCLUDES(mMutex);
 
 private:
     friend EventThreadTest;
@@ -200,6 +200,11 @@ private:
                                nsecs_t preferredDeadlineTimestamp) const;
 
     scheduler::VSyncDispatch::Callback createDispatchCallback();
+
+    // Returns the old registration so it can be destructed outside the lock to
+    // avoid deadlock.
+    scheduler::VSyncCallbackRegistration onNewVsyncScheduleInternal(
+            std::shared_ptr<scheduler::VsyncSchedule>) EXCLUDES(mMutex);
 
     const char* const mThreadName;
     TracedOrdinal<int> mVsyncTracer;

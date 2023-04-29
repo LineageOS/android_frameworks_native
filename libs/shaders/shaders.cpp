@@ -191,31 +191,35 @@ void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace, ui::Dataspace 
                 )");
             break;
         default:
+            // Input is SDR so map to its white point luminance
             switch (outputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
-                case HAL_DATASPACE_TRANSFER_ST2084:
+                // Max HLG output is nominally 1000 nits, but BT. 2100-2 allows
+                // for gamma correcting the HLG OOTF for displays with a different
+                // dynamic range. Scale to 1000 nits to apply an inverse OOTF against
+                // a reference display correctly.
+                // TODO: Use knowledge of the dimming ratio here to prevent
+                // unintended gamma shaft.
                 case HAL_DATASPACE_TRANSFER_HLG:
-                    // SDR -> HDR tonemap
                     shader.append(R"(
                             float3 ScaleLuminance(float3 xyz) {
-                                return xyz * in_libtonemap_inputMaxLuminance;
+                                return xyz * 1000.0;
                             }
                         )");
                     break;
                 default:
-                    // Input and output are both SDR, so no tone-mapping is expected so
-                    // no-op the luminance normalization.
                     shader.append(R"(
-                                float3 ScaleLuminance(float3 xyz) {
-                                    return xyz * in_libtonemap_displayMaxLuminance;
-                                }
-                            )");
+                            float3 ScaleLuminance(float3 xyz) {
+                                return xyz * in_libtonemap_displayMaxLuminance;
+                            }
+                        )");
                     break;
             }
     }
 }
 
 // Normalizes from absolute light back to relative light (maps from [0, maxNits] back to [0, 1])
-static void generateLuminanceNormalizationForOOTF(ui::Dataspace outputDataspace,
+static void generateLuminanceNormalizationForOOTF(ui::Dataspace inputDataspace,
+                                                  ui::Dataspace outputDataspace,
                                                   std::string& shader) {
     switch (outputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
         case HAL_DATASPACE_TRANSFER_ST2084:
@@ -226,11 +230,28 @@ static void generateLuminanceNormalizationForOOTF(ui::Dataspace outputDataspace,
                 )");
             break;
         case HAL_DATASPACE_TRANSFER_HLG:
-            shader.append(R"(
-                    float3 NormalizeLuminance(float3 xyz) {
-                        return xyz / 1000.0;
-                    }
-                )");
+            switch (inputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
+                case HAL_DATASPACE_TRANSFER_HLG:
+                    shader.append(R"(
+                            float3 NormalizeLuminance(float3 xyz) {
+                                return xyz / 1000.0;
+                            }
+                        )");
+                    break;
+                default:
+                    // Transcoding to HLG requires applying the inverse OOTF
+                    // with the expectation that the OOTF is then applied during
+                    // tonemapping downstream.
+                    shader.append(R"(
+                            float3 NormalizeLuminance(float3 xyz) {
+                                // BT. 2100-2 operates on normalized luminances,
+                                // so renormalize to the input
+                                float ootfGain = pow(xyz.y / 1000.0, -0.2 / 1.2) / 1000.0;
+                                return xyz * ootfGain;
+                            }
+                        )");
+                    break;
+            }
             break;
         default:
             shader.append(R"(
@@ -250,7 +271,7 @@ void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDataspace,
                           .c_str());
 
     generateLuminanceScalesForOOTF(inputDataspace, outputDataspace, shader);
-    generateLuminanceNormalizationForOOTF(outputDataspace, shader);
+    generateLuminanceNormalizationForOOTF(inputDataspace, outputDataspace, shader);
 
     shader.append(R"(
             float3 OOTF(float3 linearRGB, float3 xyz) {
@@ -501,9 +522,8 @@ std::vector<tonemap::ShaderUniform> buildLinearEffectUniforms(
 
     tonemap::Metadata metadata{.displayMaxLuminance = maxDisplayLuminance,
                                // If the input luminance is unknown, use display luminance (aka,
-                               // no-op any luminance changes)
-                               // This will be the case for eg screenshots in addition to
-                               // uncalibrated displays
+                               // no-op any luminance changes).
+                               // This is expected to only be meaningful for PQ content
                                .contentMaxLuminance =
                                        maxLuminance > 0 ? maxLuminance : maxDisplayLuminance,
                                .currentDisplayLuminance = currentDisplayLuminanceNits > 0
