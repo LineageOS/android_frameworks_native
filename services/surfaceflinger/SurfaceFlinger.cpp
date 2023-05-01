@@ -2874,7 +2874,10 @@ void SurfaceFlinger::postComposition(nsecs_t callTime) {
     }
 
     for (auto layer : mLayersWithBuffersRemoved) {
-        for (auto layerStack : layer->mPreviouslyPresentedLayerStacks) {
+        std::vector<ui::LayerStack> previouslyPresentedLayerStacks =
+                std::move(layer->mPreviouslyPresentedLayerStacks);
+        layer->mPreviouslyPresentedLayerStacks.clear();
+        for (auto layerStack : previouslyPresentedLayerStacks) {
             auto optDisplay = layerStackToDisplay.get(layerStack);
             if (optDisplay && !optDisplay->get()->isVirtual()) {
                 auto fence = getHwComposer().getPresentFence(optDisplay->get()->getPhysicalId());
