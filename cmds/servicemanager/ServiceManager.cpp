@@ -372,8 +372,10 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
     }
 
     auto it = mNameToService.find(name);
+    bool prevClients = false;
     if (it != mNameToService.end()) {
         const Service& existing = it->second;
+        prevClients = existing.hasClients;
 
         // We could do better than this because if the other service dies, it
         // may not have an entry here. However, this case is unlikely. We are
@@ -401,10 +403,13 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
             .binder = binder,
             .allowIsolated = allowIsolated,
             .dumpPriority = dumpPriority,
+            .hasClients = prevClients, // see b/279898063, matters if existing callbacks
+            .guaranteeClient = false,  // handled below
             .ctx = ctx,
     };
 
     if (auto it = mNameToRegistrationCallback.find(name); it != mNameToRegistrationCallback.end()) {
+        // TODO: this is only needed once
         // See also getService - handles case where client never gets the service,
         // we want the service to quit.
         mNameToService[name].guaranteeClient = true;
@@ -623,6 +628,14 @@ void ServiceManager::removeRegistrationCallback(const wp<IBinder>& who,
 void ServiceManager::binderDied(const wp<IBinder>& who) {
     for (auto it = mNameToService.begin(); it != mNameToService.end();) {
         if (who == it->second.binder) {
+            // TODO: currently, this entry contains the state also
+            // associated with mNameToClientCallback. If we allowed
+            // other processes to register client callbacks, we
+            // would have to preserve hasClients (perhaps moving
+            // that state into mNameToClientCallback, which is complicated
+            // because those callbacks are associated w/ particular binder
+            // objects, though they are indexed by name now, they may
+            // need to be indexed by binder at that point).
             it = mNameToService.erase(it);
         } else {
             ++it;
@@ -690,7 +703,10 @@ Status ServiceManager::registerClientCallback(const std::string& name, const sp<
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Couldn't linkToDeath.");
     }
 
-    // make sure all callbacks have been told about a consistent state - b/278038751
+    // WARNING: binderDied makes an assumption about this. If we open up client
+    // callbacks to other services, certain race conditions may lead to services
+    // getting extra client callback notifications.
+    // Make sure all callbacks have been told about a consistent state - b/278038751
     if (serviceIt->second.hasClients) {
         cb->onClients(service, true);
     }
