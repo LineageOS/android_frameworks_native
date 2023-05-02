@@ -913,12 +913,10 @@ void SkiaRenderEngine::drawLayersInternal(
             continue;
         }
 
-        // If we need to map to linear space or color management is disabled, then mark the source
-        // image with the same colorspace as the destination surface so that Skia's color
-        // management is a no-op.
-        const ui::Dataspace layerDataspace = (!mUseColorManagement || requiresLinearEffect)
-                ? display.outputDataspace
-                : layer.sourceDataspace;
+        // If color management is disabled, then mark the source image with the same colorspace as
+        // the destination surface so that Skia's color management is a no-op.
+        const ui::Dataspace layerDataspace =
+                !mUseColorManagement ? display.outputDataspace : layer.sourceDataspace;
 
         SkPaint paint;
         if (layer.source.buffer.buffer) {
