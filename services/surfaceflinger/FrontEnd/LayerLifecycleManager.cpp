@@ -38,7 +38,8 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
         RequestedLayerState& layer = *newLayer.get();
         auto [it, inserted] = mIdToLayer.try_emplace(layer.id, References{.owner = layer});
         if (!inserted) {
-            LOG_ALWAYS_FATAL("Duplicate layer id %d found. Existing layer: %s", layer.id,
+            LOG_ALWAYS_FATAL("Duplicate layer id found. New layer: %s Existing layer: %s",
+                             layer.getDebugString().c_str(),
                              it->second.owner.getDebugString().c_str());
         }
         mAddedLayers.push_back(newLayer.get());
@@ -200,8 +201,10 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
 
             if (layer->what & layer_state_t::eBackgroundColorChanged) {
                 if (layer->bgColorLayerId == UNASSIGNED_LAYER_ID && layer->bgColor.a != 0) {
-                    LayerCreationArgs backgroundLayerArgs(layer->id,
-                                                          /*internalLayer=*/true);
+                    LayerCreationArgs
+                            backgroundLayerArgs(LayerCreationArgs::getInternalLayerId(
+                                                        LayerCreationArgs::sInternalSequence++),
+                                                /*internalLayer=*/true);
                     backgroundLayerArgs.parentId = layer->id;
                     backgroundLayerArgs.name = layer->name + "BackgroundColorLayer";
                     backgroundLayerArgs.flags = ISurfaceComposerClient::eFXSurfaceEffect;
