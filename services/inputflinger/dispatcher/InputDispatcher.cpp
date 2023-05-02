@@ -2203,7 +2203,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     // event injection will be allowed.
     const int32_t displayId = entry.displayId;
     const int32_t action = entry.action;
-    const int32_t maskedAction = action & AMOTION_EVENT_ACTION_MASK;
+    const int32_t maskedAction = MotionEvent::getActionMasked(action);
 
     // Update the touch state as needed based on the properties of the touch event.
     outInjectionResult = InputEventInjectionResult::PENDING;
@@ -2704,9 +2704,6 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
 
     if (uint32_t(pointerIndex) == entry.pointerCount) {
         LOG_ALWAYS_FATAL("Should find a valid pointer index by id %d", mDragState->pointerId);
-        sendDropWindowCommandLocked(nullptr, 0, 0);
-        mDragState.reset();
-        return;
     }
 
     const int32_t maskedAction = entry.action & AMOTION_EVENT_ACTION_MASK;
@@ -3611,7 +3608,7 @@ std::array<uint8_t, 32> InputDispatcher::sign(const VerifiedInputEvent& event) c
 
 const std::array<uint8_t, 32> InputDispatcher::getSignature(
         const MotionEntry& motionEntry, const DispatchEntry& dispatchEntry) const {
-    const int32_t actionMasked = dispatchEntry.resolvedAction & AMOTION_EVENT_ACTION_MASK;
+    const int32_t actionMasked = MotionEvent::getActionMasked(dispatchEntry.resolvedAction);
     if (actionMasked != AMOTION_EVENT_ACTION_UP && actionMasked != AMOTION_EVENT_ACTION_DOWN) {
         // Only sign events up and down events as the purely move events
         // are tied to their up/down counterparts so signing would be redundant.
@@ -6665,7 +6662,7 @@ void InputDispatcher::slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFl
                                          const sp<WindowInfoHandle>& oldWindowHandle,
                                          const sp<WindowInfoHandle>& newWindowHandle,
                                          TouchState& state, int32_t pointerId,
-                                         std::vector<InputTarget>& targets) {
+                                         std::vector<InputTarget>& targets) const {
     std::bitset<MAX_POINTER_ID + 1> pointerIds;
     pointerIds.set(pointerId);
     const bool oldHasWallpaper = oldWindowHandle->getInfo()->inputConfig.test(
