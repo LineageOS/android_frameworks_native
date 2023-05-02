@@ -1148,17 +1148,26 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& displayToken,
     std::optional<PhysicalDisplayId> displayIdOpt;
     {
         Mutex::Autolock lock(mStateLock);
-        displayIdOpt = getPhysicalDisplayIdLocked(displayToken);
+        if (displayToken) {
+            displayIdOpt = getPhysicalDisplayIdLocked(displayToken);
+            if (!displayIdOpt) {
+                ALOGW("%s: Invalid physical display token %p", __func__, displayToken.get());
+                return NAME_NOT_FOUND;
+            }
+        } else {
+            // TODO (b/277364366): Clients should be updated to pass in the display they
+            // want, rather than us picking an arbitrary one (the active display, in this
+            // case).
+            displayIdOpt = mActiveDisplayId;
+        }
     }
 
-    // TODO (b/277364366): Clients should be updated to pass in the display they
-    // want, rather than us picking an arbitrary one (the pacesetter, in this
-    // case).
-    if (displayToken && !displayIdOpt) {
-        ALOGE("%s: Invalid physical display token %p", __func__, displayToken.get());
+    const auto schedule = mScheduler->getVsyncSchedule(displayIdOpt);
+    if (!schedule) {
+        ALOGE("%s: Missing VSYNC schedule for display %s!", __func__,
+              to_string(*displayIdOpt).c_str());
         return NAME_NOT_FOUND;
     }
-    const auto schedule = mScheduler->getVsyncSchedule(displayIdOpt);
     outStats->vsyncTime = schedule->vsyncDeadlineAfter(TimePoint::now()).ns();
     outStats->vsyncPeriod = schedule->period().ns();
     return NO_ERROR;
@@ -2138,7 +2147,9 @@ void SurfaceFlinger::setVsyncEnabled(PhysicalDisplayId id, bool enabled) {
     static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
         {
             ftl::FakeGuard guard(kMainThreadContext);
-            mScheduler->getVsyncSchedule(id)->setPendingHardwareVsyncState(enabled);
+            if (auto schedule = mScheduler->getVsyncSchedule(id)) {
+                schedule->setPendingHardwareVsyncState(enabled);
+            }
         }
 
         ATRACE_FORMAT("%s (%d) for %" PRIu64 " (main thread)", whence, enabled, id.value);
