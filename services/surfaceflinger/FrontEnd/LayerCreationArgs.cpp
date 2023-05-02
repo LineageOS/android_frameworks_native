@@ -50,7 +50,7 @@ LayerCreationArgs::LayerCreationArgs(SurfaceFlinger* flinger, sp<Client> client,
     }
 
     if (internalLayer) {
-        sequence = getInternalLayerId(sInternalSequence++);
+        sequence = id.value_or(getInternalLayerId(sInternalSequence++));
     } else if (id) {
         sequence = *id;
         sSequence = *id + 1;

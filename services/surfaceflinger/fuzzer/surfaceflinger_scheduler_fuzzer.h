@@ -75,7 +75,7 @@ public:
 
     bool isVisible() const override { return true; }
 
-    sp<Layer> createClone() override { return nullptr; }
+    sp<Layer> createClone(uint32_t /* mirrorRootId */) override { return nullptr; }
 };
 
 class FuzzImplVSyncTracker : public scheduler::VSyncTracker {

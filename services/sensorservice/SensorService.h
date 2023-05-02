@@ -288,7 +288,7 @@ private:
             void onUidStateChanged(uid_t uid __unused, int32_t procState __unused,
                                    int64_t procStateSeq __unused,
                                    int32_t capability __unused) override {}
-            void onUidProcAdjChanged(uid_t uid __unused) override {}
+            void onUidProcAdjChanged(uid_t uid __unused, int32_t adj __unused) override {}
 
             void addOverrideUid(uid_t uid, bool active);
             void removeOverrideUid(uid_t uid);

@@ -67,9 +67,10 @@ public:
         remote()->transact(ON_UID_STATE_CHANGED_TRANSACTION, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
-    virtual void onUidProcAdjChanged(uid_t uid) {
+    virtual void onUidProcAdjChanged(uid_t uid, int32_t adj) {
         Parcel data, reply;
         data.writeInt32((int32_t)uid);
+        data.writeInt32((int32_t)adj);
         remote()->transact(ON_UID_PROC_ADJ_CHANGED_TRANSACTION, data, &reply, IBinder::FLAG_ONEWAY);
     }
 };
@@ -121,7 +122,8 @@ status_t BnUidObserver::onTransact(
         case ON_UID_PROC_ADJ_CHANGED_TRANSACTION: {
             CHECK_INTERFACE(IUidObserver, data, reply);
             uid_t uid = data.readInt32();
-            onUidProcAdjChanged(uid);
+            int32_t adj = data.readInt32();
+            onUidProcAdjChanged(uid, adj);
             return NO_ERROR;
         } break;
 
