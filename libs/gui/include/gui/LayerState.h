@@ -233,9 +233,10 @@ struct layer_state_t {
 
     // Geometry updates.
     static constexpr uint64_t GEOMETRY_CHANGES = layer_state_t::eBufferCropChanged |
-            layer_state_t::eBufferTransformChanged | layer_state_t::eCropChanged |
-            layer_state_t::eDestinationFrameChanged | layer_state_t::eMatrixChanged |
-            layer_state_t::ePositionChanged | layer_state_t::eTransformToDisplayInverseChanged |
+            layer_state_t::eBufferTransformChanged | layer_state_t::eCornerRadiusChanged |
+            layer_state_t::eCropChanged | layer_state_t::eDestinationFrameChanged |
+            layer_state_t::eMatrixChanged | layer_state_t::ePositionChanged |
+            layer_state_t::eTransformToDisplayInverseChanged |
             layer_state_t::eTransparentRegionChanged;
 
     // Buffer and related updates.
