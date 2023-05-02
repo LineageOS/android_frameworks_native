@@ -617,9 +617,11 @@ void FakeEventHub::sysfsNodeChanged(const std::string& sysfsNodePath) {
     }
     // If device sysfs changed -> reopen the device
     if (!mRawLightInfos.empty() && !foundDevice->classes.test(InputDeviceClass::LIGHT)) {
+        InputDeviceIdentifier identifier = foundDevice->identifier;
+        ftl::Flags<InputDeviceClass> classes = foundDevice->classes;
         removeDevice(foundDeviceId);
-        addDevice(foundDeviceId, foundDevice->identifier.name,
-                  foundDevice->classes | InputDeviceClass::LIGHT, foundDevice->identifier.bus);
+        addDevice(foundDeviceId, identifier.name, classes | InputDeviceClass::LIGHT,
+                  identifier.bus);
     }
 }
 
