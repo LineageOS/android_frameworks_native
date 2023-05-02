@@ -196,8 +196,8 @@ public:
     // Sets the render rate for the scheduler to run at.
     void setRenderRate(PhysicalDisplayId, Fps);
 
-    void enableHardwareVsync(PhysicalDisplayId);
-    void disableHardwareVsync(PhysicalDisplayId, bool disallow);
+    void enableHardwareVsync(PhysicalDisplayId) REQUIRES(kMainThreadContext);
+    void disableHardwareVsync(PhysicalDisplayId, bool disallow) REQUIRES(kMainThreadContext);
 
     // Resyncs the scheduler to hardware vsync.
     // If allowToEnable is true, then hardware vsync will be turned on.
@@ -219,7 +219,8 @@ public:
     // otherwise.
     bool addResyncSample(PhysicalDisplayId, nsecs_t timestamp,
                          std::optional<nsecs_t> hwcVsyncPeriod);
-    void addPresentFence(PhysicalDisplayId, std::shared_ptr<FenceTime>) EXCLUDES(mDisplayLock);
+    void addPresentFence(PhysicalDisplayId, std::shared_ptr<FenceTime>) EXCLUDES(mDisplayLock)
+            REQUIRES(kMainThreadContext);
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
