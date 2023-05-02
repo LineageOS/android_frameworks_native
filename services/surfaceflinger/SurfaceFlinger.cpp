@@ -2318,7 +2318,7 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, frontend::Update& upd
                 sp<Layer> bgColorLayer = getFactory().createEffectLayer(
                         LayerCreationArgs(this, nullptr, layer->name,
                                           ISurfaceComposerClient::eFXSurfaceEffect, LayerMetadata(),
-                                          std::make_optional(layer->parentId), true));
+                                          std::make_optional(layer->id), true));
                 mLegacyLayers[bgColorLayer->sequence] = bgColorLayer;
             }
             const bool willReleaseBufferOnLatch = layer->willReleaseBufferOnLatch();
