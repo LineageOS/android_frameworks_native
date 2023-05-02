@@ -54,6 +54,12 @@ typedef struct ASurfaceControl ASurfaceControl;
  * The caller takes ownership of the ASurfaceControl returned and must release it
  * using ASurfaceControl_release below.
  *
+ * By default the \a ASurfaceControl will be visible and display any buffer submitted. In
+ * addition, the default buffer submission control may release and not display all buffers
+ * that are submitted before receiving a callback for the previous buffer. See
+ * \a ASurfaceTransaction_setVisibility and \a ASurfaceTransaction_setEnableBackPressure to
+ * change the default behaviors after creation.
+ *
  * Available since API level 29.
  */
 ASurfaceControl* ASurfaceControl_createFromWindow(ANativeWindow* parent, const char* debug_name)
