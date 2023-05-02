@@ -56,6 +56,9 @@
 #include "mock/system/window/MockNativeWindow.h"
 
 namespace android {
+
+struct DisplayStatInfo;
+
 namespace renderengine {
 
 class RenderEngine;
@@ -543,6 +546,10 @@ public:
         creationArgs.requestedRefreshRate = Fps::fromValue(requestedRefreshRate);
         creationArgs.nativeWindow = sp<mock::NativeWindow>::make();
         return sp<DisplayDevice>::make(creationArgs);
+    }
+
+    status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* outInfo) {
+        return mFlinger->getDisplayStats(displayToken, outInfo);
     }
 
     /* ------------------------------------------------------------------------
