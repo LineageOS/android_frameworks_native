@@ -2552,7 +2552,10 @@ Region Layer::getVisibleRegion(const DisplayDevice* display) const {
     return outputLayer ? outputLayer->getState().visibleRegion : Region();
 }
 
-void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
+void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom, uint32_t mirrorRootId) {
+    mSnapshot->path.id = clonedFrom->getSequence();
+    mSnapshot->path.mirrorRootId = mirrorRootId;
+
     cloneDrawingState(clonedFrom.get());
     mClonedFrom = clonedFrom;
     mPremultipliedAlpha = clonedFrom->mPremultipliedAlpha;
@@ -2653,7 +2656,7 @@ void Layer::updateClonedChildren(const sp<Layer>& mirrorRoot,
         }
         sp<Layer> clonedChild = clonedLayersMap[child];
         if (clonedChild == nullptr) {
-            clonedChild = child->createClone();
+            clonedChild = child->createClone(mirrorRoot->getSequence());
             clonedLayersMap[child] = clonedChild;
         }
         addChildToDrawing(clonedChild);
@@ -3491,11 +3494,11 @@ Rect Layer::computeBufferCrop(const State& s) {
     }
 }
 
-sp<Layer> Layer::createClone() {
+sp<Layer> Layer::createClone(uint32_t mirrorRootId) {
     LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0, LayerMetadata());
     args.textureName = mTextureName;
     sp<Layer> layer = mFlinger->getFactory().createBufferStateLayer(args);
-    layer->setInitialValuesForClone(sp<Layer>::fromExisting(this));
+    layer->setInitialValuesForClone(sp<Layer>::fromExisting(this), mirrorRootId);
     return layer;
 }
 
