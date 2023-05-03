@@ -32,7 +32,7 @@ public:
     MOCK_CONST_METHOD0(getType, const char*());
     MOCK_METHOD0(getFrameSelectionPriority, int32_t());
     MOCK_CONST_METHOD0(isVisible, bool());
-    MOCK_METHOD0(createClone, sp<Layer>());
+    MOCK_METHOD1(createClone, sp<Layer>(uint32_t));
     MOCK_CONST_METHOD0(getFrameRateForLayerTree, FrameRate());
     MOCK_CONST_METHOD0(getDefaultFrameRateCompatibility,
                        scheduler::LayerInfo::FrameRateCompatibility());

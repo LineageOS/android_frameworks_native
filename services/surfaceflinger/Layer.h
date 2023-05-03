@@ -248,7 +248,7 @@ public:
     // true if this layer is visible, false otherwise
     virtual bool isVisible() const;
 
-    virtual sp<Layer> createClone();
+    virtual sp<Layer> createClone(uint32_t mirrorRoot);
 
     // Set a 2x2 transformation matrix on the layer. This transform
     // will be applied after parent transforms, but before any final
@@ -651,7 +651,7 @@ public:
 
     gui::WindowInfo::Type getWindowType() const { return mWindowType; }
 
-    void updateMirrorInfo();
+    bool updateMirrorInfo(const std::deque<Layer*>& cloneRootsPendingUpdates);
 
     /*
      * doTransaction - process the transaction. This is a good place to figure
@@ -922,7 +922,7 @@ protected:
     friend class TransactionFrameTracerTest;
     friend class TransactionSurfaceFrameTest;
 
-    virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom);
+    virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom, uint32_t mirrorRootId);
     void preparePerFrameCompositionState();
     void preparePerFrameBufferCompositionState();
     void preparePerFrameEffectsCompositionState();
