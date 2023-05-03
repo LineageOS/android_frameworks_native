@@ -25,7 +25,7 @@ namespace android::gui {
 // DisplayEventReceiver::Event union.
 struct VsyncEventData {
     // Max capacity of frame timelines is arbitrarily set to be reasonable.
-    static constexpr int64_t kFrameTimelinesLength = 7;
+    static constexpr int64_t kFrameTimelinesCapacity = 7;
 
     // The current frame interval in ns when this frame was scheduled.
     int64_t frameInterval;
@@ -33,7 +33,7 @@ struct VsyncEventData {
     // Index into the frameTimelines that represents the platform's preferred frame timeline.
     uint32_t preferredFrameTimelineIndex;
 
-    // Size of frame timelines provided by the platform; max is kFrameTimelinesLength.
+    // Size of frame timelines provided by the platform; max is kFrameTimelinesCapacity.
     uint32_t frameTimelinesLength;
 
     struct alignas(8) FrameTimeline {
@@ -48,7 +48,7 @@ struct VsyncEventData {
 
         // The anticipated Vsync presentation time in nanos.
         int64_t expectedPresentationTime;
-    } frameTimelines[kFrameTimelinesLength]; // Sorted possible frame timelines.
+    } frameTimelines[kFrameTimelinesCapacity]; // Sorted possible frame timelines.
 
     // Gets the preferred frame timeline's vsync ID.
     int64_t preferredVsyncId() const;
