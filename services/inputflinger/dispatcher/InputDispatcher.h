@@ -82,8 +82,8 @@ class InputDispatcher : public android::InputDispatcherInterface {
 public:
     static constexpr bool kDefaultInTouchMode = true;
 
-    explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy);
-    explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy,
+    explicit InputDispatcher(InputDispatcherPolicyInterface& policy);
+    explicit InputDispatcher(InputDispatcherPolicyInterface& policy,
                              std::chrono::nanoseconds staleEventTimeout);
     ~InputDispatcher() override;
 
@@ -167,7 +167,7 @@ private:
 
     std::unique_ptr<InputThread> mThread;
 
-    sp<InputDispatcherPolicyInterface> mPolicy;
+    InputDispatcherPolicyInterface& mPolicy;
     android::InputDispatcherConfiguration mConfig GUARDED_BY(mLock);
 
     std::mutex mLock;
