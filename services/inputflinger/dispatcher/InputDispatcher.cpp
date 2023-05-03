@@ -498,14 +498,14 @@ bool isConnectionResponsive(const Connection& connection) {
 // Returns true if the event type passed as argument represents a user activity.
 bool isUserActivityEvent(const EventEntry& eventEntry) {
     switch (eventEntry.type) {
+        case EventEntry::Type::CONFIGURATION_CHANGED:
+        case EventEntry::Type::DEVICE_RESET:
+        case EventEntry::Type::DRAG:
         case EventEntry::Type::FOCUS:
         case EventEntry::Type::POINTER_CAPTURE_CHANGED:
-        case EventEntry::Type::DRAG:
-        case EventEntry::Type::TOUCH_MODE_CHANGED:
         case EventEntry::Type::SENSOR:
-        case EventEntry::Type::CONFIGURATION_CHANGED:
+        case EventEntry::Type::TOUCH_MODE_CHANGED:
             return false;
-        case EventEntry::Type::DEVICE_RESET:
         case EventEntry::Type::KEY:
         case EventEntry::Type::MOTION:
             return true;
@@ -1684,6 +1684,8 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<Key
                 doInterceptKeyBeforeDispatchingCommand(focusedWindowToken, *entry);
             };
             postCommandLocked(std::move(command));
+            // Poke user activity for keys not passed to user
+            pokeUserActivityLocked(*entry);
             return false; // wait for the command to run
         } else {
             entry->interceptKeyResult = KeyEntry::InterceptKeyResult::CONTINUE;
@@ -1700,6 +1702,8 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<Key
                            *dropReason == DropReason::POLICY ? InputEventInjectionResult::SUCCEEDED
                                                              : InputEventInjectionResult::FAILED);
         mReporter->reportDroppedKey(entry->id);
+        // Poke user activity for undispatched keys
+        pokeUserActivityLocked(*entry);
         return true;
     }
 
@@ -3010,13 +3014,11 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
     }
     int32_t displayId = getTargetDisplayId(eventEntry);
     sp<WindowInfoHandle> focusedWindowHandle = getFocusedWindowHandleLocked(displayId);
+    const WindowInfo* windowDisablingUserActivityInfo = nullptr;
     if (focusedWindowHandle != nullptr) {
         const WindowInfo* info = focusedWindowHandle->getInfo();
         if (info->inputConfig.test(WindowInfo::InputConfig::DISABLE_USER_ACTIVITY)) {
-            if (DEBUG_DISPATCH_CYCLE) {
-                ALOGD("Not poking user activity: disabled by window '%s'.", info->name.c_str());
-            }
-            return;
+            windowDisablingUserActivityInfo = info;
         }
     }
 
@@ -3027,7 +3029,13 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
             if (motionEntry.action == AMOTION_EVENT_ACTION_CANCEL) {
                 return;
             }
-
+            if (windowDisablingUserActivityInfo != nullptr) {
+                if (DEBUG_DISPATCH_CYCLE) {
+                    ALOGD("Not poking user activity: disabled by window '%s'.",
+                          windowDisablingUserActivityInfo->name.c_str());
+                }
+                return;
+            }
             if (MotionEvent::isTouchEvent(motionEntry.source, motionEntry.action)) {
                 eventType = USER_ACTIVITY_EVENT_TOUCH;
             }
@@ -3038,6 +3046,22 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
             if (keyEntry.flags & AKEY_EVENT_FLAG_CANCELED) {
                 return;
             }
+            // If the key code is unknown, we don't consider it user activity
+            if (keyEntry.keyCode == AKEYCODE_UNKNOWN) {
+                return;
+            }
+            // Don't inhibit events that were intercepted or are not passed to
+            // the apps, like system shortcuts
+            if (windowDisablingUserActivityInfo != nullptr &&
+                keyEntry.interceptKeyResult != KeyEntry::InterceptKeyResult::SKIP &&
+                keyEntry.policyFlags & POLICY_FLAG_PASS_TO_USER) {
+                if (DEBUG_DISPATCH_CYCLE) {
+                    ALOGD("Not poking user activity: disabled by window '%s'.",
+                          windowDisablingUserActivityInfo->name.c_str());
+                }
+                return;
+            }
+
             eventType = USER_ACTIVITY_EVENT_BUTTON;
             break;
         }
