@@ -2330,16 +2330,11 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                 continue;
             }
 
-            if (isHoverAction) {
+            if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
+                maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
                 const int32_t pointerId = entry.pointerProperties[0].id;
-                if (maskedAction == AMOTION_EVENT_ACTION_HOVER_EXIT) {
-                    // Pointer left. Remove it
-                    tempTouchState.removeHoveringPointer(entry.deviceId, pointerId);
-                } else {
-                    // The "windowHandle" is the target of this hovering pointer.
-                    tempTouchState.addHoveringPointerToWindow(windowHandle, entry.deviceId,
-                                                              pointerId);
-                }
+                // The "windowHandle" is the target of this hovering pointer.
+                tempTouchState.addHoveringPointerToWindow(windowHandle, entry.deviceId, pointerId);
             }
 
             // Set target flags.
