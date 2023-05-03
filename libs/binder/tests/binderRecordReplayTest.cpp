@@ -48,51 +48,72 @@ private:
     int mInt = 0;
 };
 
-TEST(BinderClearBuf, RecordReplayRepeatInt) {
-    // get the remote service
-    sp<IBinder> binder = defaultServiceManager()->getService(kServerName);
-    ASSERT_NE(nullptr, binder);
-    sp<IBinderRecordReplayTest> iface = interface_cast<IBinderRecordReplayTest>(binder);
-    sp<BpBinder> bpBinder = binder->remoteBinder();
-    ASSERT_NE(nullptr, bpBinder);
+class BinderClearBuf : public ::testing::Test {
+public:
+    void SetUp() override {
+        // get the remote service
+        mBinder = defaultServiceManager()->getService(kServerName);
+        ASSERT_NE(nullptr, mBinder);
+        mInterface = interface_cast<IBinderRecordReplayTest>(mBinder);
+        mBpBinder = mBinder->remoteBinder();
+        ASSERT_NE(nullptr, mBpBinder);
+    }
 
-    base::unique_fd fd(
-            open("/data/local/tmp/binderRecordReplayTest.rec", O_RDWR | O_CREAT | O_CLOEXEC, 0666));
-    ASSERT_TRUE(fd.ok());
+    template <typename T>
+    void DoTest(Status (IBinderRecordReplayTest::*set)(T), T recordedValue,
+                Status (IBinderRecordReplayTest::*get)(T*), T changedValue) {
+        base::unique_fd fd(open("/data/local/tmp/binderRecordReplayTest.rec",
+                                O_RDWR | O_CREAT | O_CLOEXEC, 0666));
+        ASSERT_TRUE(fd.ok());
 
-    // record a transaction
-    bpBinder->startRecordingBinder(fd);
-    EXPECT_TRUE(iface->setInt(3).isOk());
-    bpBinder->stopRecordingBinder();
+        // record a transaction
+        mBpBinder->startRecordingBinder(fd);
+        auto status = (*mInterface.*set)(recordedValue);
+        EXPECT_TRUE(status.isOk());
+        mBpBinder->stopRecordingBinder();
 
-    // test transaction does the thing we expect it to do
-    int output;
-    EXPECT_TRUE(iface->getInt(&output).isOk());
-    EXPECT_EQ(output, 3);
+        // test transaction does the thing we expect it to do
+        T output;
+        status = (*mInterface.*get)(&output);
+        EXPECT_TRUE(status.isOk());
+        EXPECT_EQ(output, recordedValue);
 
-    // write over the existing state
-    EXPECT_TRUE(iface->setInt(5).isOk());
-    EXPECT_TRUE(iface->getInt(&output).isOk());
-    EXPECT_EQ(output, 5);
+        // write over the existing state
+        status = (*mInterface.*set)(changedValue);
+        EXPECT_TRUE(status.isOk());
 
-    // replay transaction
-    ASSERT_EQ(0, lseek(fd.get(), 0, SEEK_SET));
-    std::optional<RecordedTransaction> transaction = RecordedTransaction::fromFile(fd);
-    ASSERT_NE(transaction, std::nullopt);
+        status = (*mInterface.*get)(&output);
+        EXPECT_TRUE(status.isOk());
 
-    // TODO: move logic to replay RecordedTransaction into RecordedTransaction
-    Parcel data;
-    data.setData(transaction->getDataParcel().data(), transaction->getDataParcel().dataSize());
-    status_t status = binder->remoteBinder()->transact(transaction->getCode(), data, nullptr,
-                                                       transaction->getFlags());
+        EXPECT_EQ(output, changedValue);
 
-    // make sure recording does the thing we expect it to do
-    EXPECT_EQ(OK, status);
-    EXPECT_TRUE(iface->getInt(&output).isOk());
-    EXPECT_EQ(output, 3);
+        // replay transaction
+        ASSERT_EQ(0, lseek(fd.get(), 0, SEEK_SET));
+        std::optional<RecordedTransaction> transaction = RecordedTransaction::fromFile(fd);
+        ASSERT_NE(transaction, std::nullopt);
 
-    // TODO: we should also make sure we can convert the recording to a fuzzer
-    // corpus entry, and we will be able to replay it in the same way
+        // TODO: move logic to replay RecordedTransaction into RecordedTransaction
+        Parcel data;
+        data.setData(transaction->getDataParcel().data(), transaction->getDataParcel().dataSize());
+        auto result = mBinder->remoteBinder()->transact(transaction->getCode(), data, nullptr,
+                                                        transaction->getFlags());
+
+        // make sure recording does the thing we expect it to do
+        EXPECT_EQ(OK, result);
+
+        status = (*mInterface.*get)(&output);
+        EXPECT_TRUE(status.isOk());
+        EXPECT_EQ(output, recordedValue);
+    }
+
+private:
+    sp<IBinder> mBinder;
+    sp<BpBinder> mBpBinder;
+    sp<IBinderRecordReplayTest> mInterface;
+};
+
+TEST_F(BinderClearBuf, RecordReplayRepeatInt) {
+    DoTest(&IBinderRecordReplayTest::setInt, 3, &IBinderRecordReplayTest::getInt, 5);
 }
 
 int main(int argc, char** argv) {
