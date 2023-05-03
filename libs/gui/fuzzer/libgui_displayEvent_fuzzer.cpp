@@ -51,7 +51,7 @@ DisplayEventReceiver::Event buildDisplayEvent(FuzzedDataProvider* fdp, uint32_t 
             event.vsync.count = fdp->ConsumeIntegral<uint32_t>();
             event.vsync.vsyncData.frameInterval = fdp->ConsumeIntegral<uint64_t>();
             event.vsync.vsyncData.preferredFrameTimelineIndex = fdp->ConsumeIntegral<uint32_t>();
-            for (size_t idx = 0; idx < gui::VsyncEventData::kFrameTimelinesLength; ++idx) {
+            for (size_t idx = 0; idx < gui::VsyncEventData::kFrameTimelinesCapacity; ++idx) {
                 event.vsync.vsyncData.frameTimelines[idx].vsyncId = fdp->ConsumeIntegral<int64_t>();
                 event.vsync.vsyncData.frameTimelines[idx].deadlineTimestamp =
                         fdp->ConsumeIntegral<uint64_t>();
