@@ -36,7 +36,7 @@ TEST_F(DisplayEventReceiverTest, getLatestVsyncEventData) {
     EXPECT_GT(static_cast<int64_t>(vsyncEventData.frameTimelinesLength), 0)
             << "Frame timelines length should be greater than 0";
     EXPECT_LE(static_cast<int64_t>(vsyncEventData.frameTimelinesLength),
-              VsyncEventData::kFrameTimelinesLength)
+              VsyncEventData::kFrameTimelinesCapacity)
             << "Frame timelines length should not exceed max capacity";
     EXPECT_GT(vsyncEventData.frameTimelines[0].deadlineTimestamp, now)
             << "Deadline timestamp should be greater than frame time";
