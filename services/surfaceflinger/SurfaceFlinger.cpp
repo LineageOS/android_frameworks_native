@@ -4421,10 +4421,8 @@ bool SurfaceFlinger::frameIsEarly(TimePoint expectedPresentTime, VsyncId vsyncId
 
     const auto predictedPresentTime = TimePoint::fromNs(prediction->presentTime);
 
-    // The duration for which SF can delay a frame if it is considered early based on the
-    // VsyncConfig::appWorkDuration.
-    if (constexpr std::chrono::nanoseconds kEarlyLatchMaxThreshold = 100ms;
-        std::chrono::abs(predictedPresentTime - expectedPresentTime) >= kEarlyLatchMaxThreshold) {
+    if (std::chrono::abs(predictedPresentTime - expectedPresentTime) >=
+        scheduler::VsyncConfig::kEarlyLatchMaxThreshold) {
         return false;
     }
 
