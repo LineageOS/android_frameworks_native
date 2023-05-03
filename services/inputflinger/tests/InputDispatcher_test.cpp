@@ -3678,6 +3678,30 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
             AllOf(WithMotionAction(ACTION_CANCEL), WithDisplayId(ADISPLAY_ID_DEFAULT)));
 }
 
+TEST_F(InputDispatcherTest, NotifyDeviceResetCancelsHoveringStream) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
+                                                             "Fake Window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(10).y(10))
+                                      .build());
+
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    // When device reset happens, that hover stream should be terminated with ACTION_HOVER_EXIT
+    mDispatcher->notifyDeviceReset({/*id=*/10, /*eventTime=*/20, DEVICE_ID});
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+
+    // After the device has been reset, a new hovering stream can be sent to the window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(15).y(15))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+}
+
 TEST_F(InputDispatcherTest, InterceptKeyByPolicy) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
