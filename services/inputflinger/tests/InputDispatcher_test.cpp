@@ -3957,6 +3957,7 @@ TEST_F(InputDispatcherDisplayProjectionTest, WindowGetsEventsInCorrectCoordinate
 
     firstWindow->assertNoEvents();
     const MotionEvent* event = secondWindow->consumeMotion();
+    ASSERT_NE(nullptr, event);
     EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, event->getAction());
 
     // Ensure that the events from the "getRaw" API are in logical display coordinates.
