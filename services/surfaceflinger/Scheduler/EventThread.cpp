@@ -600,8 +600,8 @@ void EventThread::generateFrameTimeline(VsyncEventData& outVsyncEventData, nsecs
                                         nsecs_t preferredDeadlineTimestamp) const {
     uint32_t currentIndex = 0;
     // Add 1 to ensure the preferredFrameTimelineIndex entry (when multiplier == 0) is included.
-    for (int64_t multiplier = -VsyncEventData::kFrameTimelinesLength + 1;
-         currentIndex < VsyncEventData::kFrameTimelinesLength; multiplier++) {
+    for (int64_t multiplier = -VsyncEventData::kFrameTimelinesCapacity + 1;
+         currentIndex < VsyncEventData::kFrameTimelinesCapacity; multiplier++) {
         nsecs_t deadlineTimestamp = preferredDeadlineTimestamp + multiplier * frameInterval;
         // Valid possible frame timelines must have future values, so find a later frame timeline.
         if (deadlineTimestamp <= timestamp) {
