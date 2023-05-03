@@ -43,24 +43,25 @@ struct TouchState {
     void reset();
     void clearWindowsWithoutPointers();
 
-    void removeTouchedPointer(int32_t pointerId);
-    void removeTouchedPointerFromWindow(int32_t pointerId,
-                                        const sp<android::gui::WindowInfoHandle>& windowHandle);
+    void removeTouchingPointer(int32_t deviceId, int32_t pointerId);
+    void removeTouchingPointerFromWindow(int32_t deviceId, int32_t pointerId,
+                                         const sp<android::gui::WindowInfoHandle>& windowHandle);
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
-                           ftl::Flags<InputTarget::Flags> targetFlags,
-                           std::bitset<MAX_POINTER_ID + 1> pointerIds,
+                           ftl::Flags<InputTarget::Flags> targetFlags, int32_t deviceId,
+                           std::bitset<MAX_POINTER_ID + 1> touchingPointerIds,
                            std::optional<nsecs_t> firstDownTimeInTarget = std::nullopt);
     void addHoveringPointerToWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                     int32_t deviceId, int32_t hoveringPointerId);
     void removeHoveringPointer(int32_t deviceId, int32_t hoveringPointerId);
     void clearHoveringPointers();
 
-    void removeAllPointersForDevice(int32_t removedDeviceId);
+    void removeAllPointersForDevice(int32_t deviceId);
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
 
     // Cancel pointers for current set of windows except the window with particular binder token.
-    void cancelPointersForWindowsExcept(std::bitset<MAX_POINTER_ID + 1> pointerIds,
+    void cancelPointersForWindowsExcept(int32_t deviceId,
+                                        std::bitset<MAX_POINTER_ID + 1> pointerIds,
                                         const sp<IBinder>& token);
     // Cancel pointers for current set of non-pilfering windows i.e. windows with isPilferingWindow
     // set to false.

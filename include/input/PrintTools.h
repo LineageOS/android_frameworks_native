@@ -27,6 +27,9 @@ namespace android {
 
 template <size_t N>
 std::string bitsetToString(const std::bitset<N>& bitset) {
+    if (bitset.none()) {
+        return "<none>";
+    }
     return bitset.to_string();
 }
 
