@@ -299,7 +299,7 @@ void EventThreadTest::expectVsyncEventDataFrameTimelinesValidLength(
     EXPECT_LE(vsyncEventData.frameTimelinesLength, nonPreferredTimelinesAmount + 1)
             << "Amount of non-preferred frame timelines too many;"
             << " expected presentation time will be over threshold";
-    EXPECT_LT(nonPreferredTimelinesAmount, VsyncEventData::kFrameTimelinesLength)
+    EXPECT_LT(nonPreferredTimelinesAmount, VsyncEventData::kFrameTimelinesCapacity)
             << "Amount of non-preferred frame timelines should be less than max capacity";
     EXPECT_GT(static_cast<int64_t>(vsyncEventData.frameTimelinesLength), 0)
             << "Frame timelines length should be greater than 0";
@@ -428,11 +428,11 @@ TEST_F(EventThreadTest, requestNextVsyncEventFrameTimelinesCorrect) {
 }
 
 TEST_F(EventThreadTest, requestNextVsyncEventFrameTimelinesValidLength) {
-    // The VsyncEventData should not have kFrameTimelinesLength amount of valid frame timelines, due
-    // to longer vsync period and kEarlyLatchMaxThreshold.
-    // Use length-2 to avoid decimal truncation (e.g. 60Hz has 16.6... ms vsync period).
+    // The VsyncEventData should not have kFrameTimelinesCapacity amount of valid frame timelines,
+    // due to longer vsync period and kEarlyLatchMaxThreshold. Use length-2 to avoid decimal
+    // truncation (e.g. 60Hz has 16.6... ms vsync period).
     std::chrono::nanoseconds vsyncPeriod(scheduler::VsyncConfig::kEarlyLatchMaxThreshold /
-                                         (VsyncEventData::kFrameTimelinesLength - 2));
+                                         (VsyncEventData::kFrameTimelinesCapacity - 2));
     setupEventThread(vsyncPeriod);
 
     // Signal that we want the next vsync event to be posted to the connection

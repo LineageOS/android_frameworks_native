@@ -47,7 +47,7 @@ TEST(ParcelableVsyncEventData, Parcelling) {
     ASSERT_EQ(data.vsync.frameInterval, data2.vsync.frameInterval);
     ASSERT_EQ(data.vsync.preferredFrameTimelineIndex, data2.vsync.preferredFrameTimelineIndex);
     ASSERT_EQ(data.vsync.frameTimelinesLength, data2.vsync.frameTimelinesLength);
-    for (int i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+    for (int i = 0; i < VsyncEventData::kFrameTimelinesCapacity; i++) {
         ASSERT_EQ(data.vsync.frameTimelines[i].vsyncId, data2.vsync.frameTimelines[i].vsyncId);
         ASSERT_EQ(data.vsync.frameTimelines[i].deadlineTimestamp,
                   data2.vsync.frameTimelines[i].deadlineTimestamp);

@@ -45,16 +45,16 @@ TEST(DisplayEventStructLayoutTest, TestEventAlignment) {
     // Also test the offsets of the last frame timeline. A loop is not used because the non-const
     // index cannot be used in static_assert.
     const int lastFrameTimelineOffset = /* Start of array */ 24 +
-            (VsyncEventData::kFrameTimelinesLength - 1) * /* Size of FrameTimeline */ 24;
+            (VsyncEventData::kFrameTimelinesCapacity - 1) * /* Size of FrameTimeline */ 24;
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync,
-                 vsyncData.frameTimelines[VsyncEventData::kFrameTimelinesLength - 1].vsyncId,
+                 vsyncData.frameTimelines[VsyncEventData::kFrameTimelinesCapacity - 1].vsyncId,
                  lastFrameTimelineOffset);
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync,
-                 vsyncData.frameTimelines[VsyncEventData::kFrameTimelinesLength - 1]
+                 vsyncData.frameTimelines[VsyncEventData::kFrameTimelinesCapacity - 1]
                          .deadlineTimestamp,
                  lastFrameTimelineOffset + 8);
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync,
-                 vsyncData.frameTimelines[VsyncEventData::kFrameTimelinesLength - 1]
+                 vsyncData.frameTimelines[VsyncEventData::kFrameTimelinesCapacity - 1]
                          .expectedPresentationTime,
                  lastFrameTimelineOffset + 16);
 
