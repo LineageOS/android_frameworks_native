@@ -23,8 +23,8 @@
 
 namespace android::gui {
 
-static_assert(VsyncEventData::kFrameTimelinesLength == 7,
-              "Must update value in DisplayEventReceiver.java#FRAME_TIMELINES_LENGTH (and here)");
+static_assert(VsyncEventData::kFrameTimelinesCapacity == 7,
+              "Must update value in DisplayEventReceiver.java#FRAME_TIMELINES_CAPACITY (and here)");
 
 int64_t VsyncEventData::preferredVsyncId() const {
     return frameTimelines[preferredFrameTimelineIndex].vsyncId;

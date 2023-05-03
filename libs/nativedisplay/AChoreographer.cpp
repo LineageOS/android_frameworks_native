@@ -213,7 +213,7 @@ AVsyncId AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
     LOG_ALWAYS_FATAL_IF(!frameCallbackData->choreographer->inCallback(),
                         "Data is only valid in callback");
-    LOG_ALWAYS_FATAL_IF(index >= VsyncEventData::kFrameTimelinesLength, "Index out of bounds");
+    LOG_ALWAYS_FATAL_IF(index >= VsyncEventData::kFrameTimelinesCapacity, "Index out of bounds");
     return frameCallbackData->vsyncEventData.frameTimelines[index].vsyncId;
 }
 int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTimeNanos(
@@ -222,7 +222,7 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTime
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
     LOG_ALWAYS_FATAL_IF(!frameCallbackData->choreographer->inCallback(),
                         "Data is only valid in callback");
-    LOG_ALWAYS_FATAL_IF(index >= VsyncEventData::kFrameTimelinesLength, "Index out of bounds");
+    LOG_ALWAYS_FATAL_IF(index >= VsyncEventData::kFrameTimelinesCapacity, "Index out of bounds");
     return frameCallbackData->vsyncEventData.frameTimelines[index].expectedPresentationTime;
 }
 int64_t AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos(
@@ -231,7 +231,7 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineDeadlineNanos(
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
     LOG_ALWAYS_FATAL_IF(!frameCallbackData->choreographer->inCallback(),
                         "Data is only valid in callback");
-    LOG_ALWAYS_FATAL_IF(index >= VsyncEventData::kFrameTimelinesLength, "Index out of bounds");
+    LOG_ALWAYS_FATAL_IF(index >= VsyncEventData::kFrameTimelinesCapacity, "Index out of bounds");
     return frameCallbackData->vsyncEventData.frameTimelines[index].deadlineTimestamp;
 }
 
