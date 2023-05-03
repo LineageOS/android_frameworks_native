@@ -35,6 +35,7 @@ TEST(DisplayEventStructLayoutTest, TestEventAlignment) {
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, count, 0);
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.frameInterval, 8);
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.preferredFrameTimelineIndex, 16);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.frameTimelinesLength, 20);
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.frameTimelines, 24);
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.frameTimelines[0].vsyncId, 24);
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncData.frameTimelines[0].deadlineTimestamp,
