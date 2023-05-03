@@ -205,11 +205,9 @@ class FakeInputDispatcherPolicy : public InputDispatcherPolicyInterface {
 
     using AnrResult = std::pair<sp<IBinder>, int32_t /*pid*/>;
 
-protected:
-    virtual ~FakeInputDispatcherPolicy() {}
-
 public:
-    FakeInputDispatcherPolicy() {}
+    FakeInputDispatcherPolicy() = default;
+    virtual ~FakeInputDispatcherPolicy() = default;
 
     void assertFilterInputEventWasCalled(const NotifyKeyArgs& args) {
         assertFilterInputEventWasCalledInternal([&args](const InputEvent& event) {
@@ -534,22 +532,20 @@ private:
 
     void notifyVibratorState(int32_t deviceId, bool isOn) override {}
 
-    void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
-        *outConfig = mConfig;
-    }
+    InputDispatcherConfiguration getDispatcherConfiguration() override { return mConfig; }
 
-    bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
+    bool filterInputEvent(const InputEvent& inputEvent, uint32_t policyFlags) override {
         std::scoped_lock lock(mLock);
-        switch (inputEvent->getType()) {
+        switch (inputEvent.getType()) {
             case InputEventType::KEY: {
-                const KeyEvent* keyEvent = static_cast<const KeyEvent*>(inputEvent);
-                mFilteredEvent = std::make_unique<KeyEvent>(*keyEvent);
+                const KeyEvent& keyEvent = static_cast<const KeyEvent&>(inputEvent);
+                mFilteredEvent = std::make_unique<KeyEvent>(keyEvent);
                 break;
             }
 
             case InputEventType::MOTION: {
-                const MotionEvent* motionEvent = static_cast<const MotionEvent*>(inputEvent);
-                mFilteredEvent = std::make_unique<MotionEvent>(*motionEvent);
+                const MotionEvent& motionEvent = static_cast<const MotionEvent&>(inputEvent);
+                mFilteredEvent = std::make_unique<MotionEvent>(motionEvent);
                 break;
             }
             default: {
@@ -560,8 +556,8 @@ private:
         return true;
     }
 
-    void interceptKeyBeforeQueueing(const KeyEvent* inputEvent, uint32_t&) override {
-        if (inputEvent->getAction() == AKEY_EVENT_ACTION_UP) {
+    void interceptKeyBeforeQueueing(const KeyEvent& inputEvent, uint32_t&) override {
+        if (inputEvent.getAction() == AKEY_EVENT_ACTION_UP) {
             // Clear intercept state when we handled the event.
             mInterceptKeyTimeout = 0ms;
         }
@@ -569,15 +565,16 @@ private:
 
     void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
 
-    nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent*, uint32_t) override {
+    nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent&, uint32_t) override {
         nsecs_t delay = std::chrono::nanoseconds(mInterceptKeyTimeout).count();
         // Clear intercept state so we could dispatch the event in next wake.
         mInterceptKeyTimeout = 0ms;
         return delay;
     }
 
-    bool dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent*, uint32_t, KeyEvent*) override {
-        return false;
+    std::optional<KeyEvent> dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent&,
+                                                 uint32_t) override {
+        return {};
     }
 
     void notifySwitch(nsecs_t when, uint32_t switchValues, uint32_t switchMask,
@@ -624,12 +621,12 @@ private:
 
 class InputDispatcherTest : public testing::Test {
 protected:
-    sp<FakeInputDispatcherPolicy> mFakePolicy;
+    std::unique_ptr<FakeInputDispatcherPolicy> mFakePolicy;
     std::unique_ptr<InputDispatcher> mDispatcher;
 
     void SetUp() override {
-        mFakePolicy = sp<FakeInputDispatcherPolicy>::make();
-        mDispatcher = std::make_unique<InputDispatcher>(mFakePolicy, STALE_EVENT_TIMEOUT);
+        mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
+        mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy, STALE_EVENT_TIMEOUT);
         mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
         // Start InputDispatcher thread
         ASSERT_EQ(OK, mDispatcher->start());
@@ -637,7 +634,7 @@ protected:
 
     void TearDown() override {
         ASSERT_EQ(OK, mDispatcher->stop());
-        mFakePolicy.clear();
+        mFakePolicy.reset();
         mDispatcher.reset();
     }
 
@@ -5410,9 +5407,9 @@ protected:
     sp<FakeWindowHandle> mWindow;
 
     virtual void SetUp() override {
-        mFakePolicy = sp<FakeInputDispatcherPolicy>::make();
+        mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
         mFakePolicy->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
-        mDispatcher = std::make_unique<InputDispatcher>(mFakePolicy);
+        mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy);
         mDispatcher->requestRefreshConfiguration();
         mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
         ASSERT_EQ(OK, mDispatcher->start());
