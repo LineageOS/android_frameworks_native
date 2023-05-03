@@ -197,7 +197,7 @@ size_t AChoreographerFrameCallbackData_getFrameTimelinesLength(
             AChoreographerFrameCallbackData_to_ChoreographerFrameCallbackDataImpl(data);
     LOG_ALWAYS_FATAL_IF(!frameCallbackData->choreographer->inCallback(),
                         "Data is only valid in callback");
-    return VsyncEventData::kFrameTimelinesLength;
+    return frameCallbackData->vsyncEventData.frameTimelinesLength;
 }
 size_t AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex(
         const AChoreographerFrameCallbackData* data) {
