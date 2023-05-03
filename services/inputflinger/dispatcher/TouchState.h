@@ -54,6 +54,8 @@ struct TouchState {
                                     int32_t deviceId, int32_t hoveringPointerId);
     void removeHoveringPointer(int32_t deviceId, int32_t hoveringPointerId);
     void clearHoveringPointers();
+
+    void removeAllPointersForDevice(int32_t removedDeviceId);
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
 
