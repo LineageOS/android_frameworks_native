@@ -42,6 +42,7 @@
 #include <utils/Errors.h>
 #include <utils/Trace.h>
 
+#include <scheduler/VsyncConfig.h>
 #include "DisplayHardware/DisplayMode.h"
 #include "FrameTimeline.h"
 #include "VSyncDispatch.h"
@@ -597,25 +598,34 @@ void EventThread::generateFrameTimeline(VsyncEventData& outVsyncEventData, nsecs
                                         nsecs_t timestamp,
                                         nsecs_t preferredExpectedPresentationTime,
                                         nsecs_t preferredDeadlineTimestamp) const {
+    uint32_t currentIndex = 0;
     // Add 1 to ensure the preferredFrameTimelineIndex entry (when multiplier == 0) is included.
-    for (int64_t multiplier = -VsyncEventData::kFrameTimelinesLength + 1, currentIndex = 0;
-         currentIndex < VsyncEventData::kFrameTimelinesLength; multiplier++) {
+    for (int64_t multiplier = -VsyncEventData::kFrameTimelinesCapacity + 1;
+         currentIndex < VsyncEventData::kFrameTimelinesCapacity; multiplier++) {
         nsecs_t deadlineTimestamp = preferredDeadlineTimestamp + multiplier * frameInterval;
-        // Valid possible frame timelines must have future values.
-        if (deadlineTimestamp > timestamp) {
-            if (multiplier == 0) {
-                outVsyncEventData.preferredFrameTimelineIndex = currentIndex;
-            }
-            nsecs_t expectedPresentationTime =
-                    preferredExpectedPresentationTime + multiplier * frameInterval;
-            outVsyncEventData.frameTimelines[currentIndex] =
-                    {.vsyncId =
-                             generateToken(timestamp, deadlineTimestamp, expectedPresentationTime),
-                     .deadlineTimestamp = deadlineTimestamp,
-                     .expectedPresentationTime = expectedPresentationTime};
-            currentIndex++;
+        // Valid possible frame timelines must have future values, so find a later frame timeline.
+        if (deadlineTimestamp <= timestamp) {
+            continue;
         }
+
+        nsecs_t expectedPresentationTime =
+                preferredExpectedPresentationTime + multiplier * frameInterval;
+        if (expectedPresentationTime >= preferredExpectedPresentationTime +
+                    scheduler::VsyncConfig::kEarlyLatchMaxThreshold.count()) {
+            break;
+        }
+
+        if (multiplier == 0) {
+            outVsyncEventData.preferredFrameTimelineIndex = currentIndex;
+        }
+
+        outVsyncEventData.frameTimelines[currentIndex] =
+                {.vsyncId = generateToken(timestamp, deadlineTimestamp, expectedPresentationTime),
+                 .deadlineTimestamp = deadlineTimestamp,
+                 .expectedPresentationTime = expectedPresentationTime};
+        currentIndex++;
     }
+    outVsyncEventData.frameTimelinesLength = currentIndex;
 }
 
 void EventThread::dispatchEvent(const DisplayEventReceiver::Event& event,
