@@ -1461,6 +1461,11 @@ bool InputDispatcher::dispatchDeviceResetLocked(nsecs_t currentTime,
     CancelationOptions options(CancelationOptions::Mode::CANCEL_ALL_EVENTS, "device was reset");
     options.deviceId = entry.deviceId;
     synthesizeCancelationEventsForAllConnectionsLocked(options);
+
+    // Remove all active pointers from this device
+    for (auto& [_, touchState] : mTouchStatesByDisplay) {
+        touchState.removeAllPointersForDevice(entry.deviceId);
+    }
     return true;
 }
 
