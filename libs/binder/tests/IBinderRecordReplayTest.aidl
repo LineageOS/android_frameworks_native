@@ -15,6 +15,24 @@
  */
 
 interface IBinderRecordReplayTest {
+    void setByte(byte input);
+    byte getByte();
+
+    void setChar(char input);
+    char getChar();
+
+    void setBoolean(boolean input);
+    boolean getBoolean();
+
     void setInt(int input);
     int getInt();
+
+    void setFloat(float input);
+    float getFloat();
+
+    void setLong(long input);
+    long getLong();
+
+    void setDouble(double input);
+    double getDouble();
 }
