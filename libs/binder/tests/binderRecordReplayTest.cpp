@@ -33,19 +33,27 @@ using android::binder::debug::RecordedTransaction;
 
 const String16 kServerName = String16("binderRecordReplay");
 
+#define GENERATE_GETTER_SETTER(name, T) \
+    Status set##name(T input) {         \
+        m##name = input;                \
+        return Status::ok();            \
+    }                                   \
+                                        \
+    Status get##name(T* output) {       \
+        *output = m##name;              \
+        return Status::ok();            \
+    }                                   \
+    T m##name
+
 class MyRecordReplay : public BnBinderRecordReplayTest {
 public:
-    Status setInt(int input) {
-        mInt = input;
-        return Status::ok();
-    }
-    Status getInt(int* output) {
-        *output = mInt;
-        return Status::ok();
-    }
-
-private:
-    int mInt = 0;
+    GENERATE_GETTER_SETTER(Boolean, bool);
+    GENERATE_GETTER_SETTER(Byte, int8_t);
+    GENERATE_GETTER_SETTER(Int, int);
+    GENERATE_GETTER_SETTER(Char, char16_t);
+    GENERATE_GETTER_SETTER(Long, int64_t);
+    GENERATE_GETTER_SETTER(Float, float);
+    GENERATE_GETTER_SETTER(Double, double);
 };
 
 class BinderClearBuf : public ::testing::Test {
@@ -60,8 +68,8 @@ public:
     }
 
     template <typename T>
-    void DoTest(Status (IBinderRecordReplayTest::*set)(T), T recordedValue,
-                Status (IBinderRecordReplayTest::*get)(T*), T changedValue) {
+    void recordReplay(Status (IBinderRecordReplayTest::*set)(T), T recordedValue,
+                      Status (IBinderRecordReplayTest::*get)(T*), T changedValue) {
         base::unique_fd fd(open("/data/local/tmp/binderRecordReplayTest.rec",
                                 O_RDWR | O_CREAT | O_CLOEXEC, 0666));
         ASSERT_TRUE(fd.ok());
@@ -112,8 +120,38 @@ private:
     sp<IBinderRecordReplayTest> mInterface;
 };
 
+TEST_F(BinderClearBuf, RecordReplayRepeatByte) {
+    recordReplay(&IBinderRecordReplayTest::setByte, int8_t{122}, &IBinderRecordReplayTest::getByte,
+                 int8_t{90});
+}
+
+TEST_F(BinderClearBuf, RecordReplayRepeatBoolean) {
+    recordReplay(&IBinderRecordReplayTest::setBoolean, true, &IBinderRecordReplayTest::getBoolean,
+                 false);
+}
+
+TEST_F(BinderClearBuf, RecordReplayRepeatChar) {
+    recordReplay(&IBinderRecordReplayTest::setChar, char16_t{'G'},
+                 &IBinderRecordReplayTest::getChar, char16_t{'K'});
+}
+
 TEST_F(BinderClearBuf, RecordReplayRepeatInt) {
-    DoTest(&IBinderRecordReplayTest::setInt, 3, &IBinderRecordReplayTest::getInt, 5);
+    recordReplay(&IBinderRecordReplayTest::setInt, 3, &IBinderRecordReplayTest::getInt, 5);
+}
+
+TEST_F(BinderClearBuf, RecordReplayRepeatFloat) {
+    recordReplay(&IBinderRecordReplayTest::setFloat, 1.1f, &IBinderRecordReplayTest::getFloat,
+                 22.0f);
+}
+
+TEST_F(BinderClearBuf, RecordReplayRepeatLong) {
+    recordReplay(&IBinderRecordReplayTest::setLong, int64_t{1LL << 55},
+                 &IBinderRecordReplayTest::getLong, int64_t{1LL << 12});
+}
+
+TEST_F(BinderClearBuf, RecordReplayRepeatDouble) {
+    recordReplay(&IBinderRecordReplayTest::setDouble, 0.00, &IBinderRecordReplayTest::getDouble,
+                 1.11);
 }
 
 int main(int argc, char** argv) {
