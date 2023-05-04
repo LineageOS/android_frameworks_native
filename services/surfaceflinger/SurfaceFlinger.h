@@ -296,7 +296,8 @@ public:
     // the client can no longer modify this layer directly.
     void onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32_t layerId);
 
-    std::vector<Layer*> mLayerMirrorRoots;
+    // TODO: Remove atomic if move dtor to main thread CL lands
+    std::atomic<uint32_t> mNumClones;
 
     TransactionCallbackInvoker& getTransactionCallbackInvoker() {
         return mTransactionCallbackInvoker;
