@@ -242,6 +242,18 @@ void TouchState::removeHoveringPointer(int32_t hoveringDeviceId, int32_t hoverin
     clearWindowsWithoutPointers();
 }
 
+void TouchState::removeAllPointersForDevice(int32_t removedDeviceId) {
+    for (TouchedWindow& window : windows) {
+        window.removeAllHoveringPointersForDevice(removedDeviceId);
+    }
+    if (deviceId == removedDeviceId) {
+        for (TouchedWindow& window : windows) {
+            window.removeAllTouchingPointers();
+        }
+    }
+    clearWindowsWithoutPointers();
+}
+
 std::string TouchState::dump() const {
     std::string out;
     out += StringPrintf("deviceId=%d, source=%s\n", deviceId,
