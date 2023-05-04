@@ -82,8 +82,8 @@ class InputDispatcher : public android::InputDispatcherInterface {
 public:
     static constexpr bool kDefaultInTouchMode = true;
 
-    explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy);
-    explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy,
+    explicit InputDispatcher(InputDispatcherPolicyInterface& policy);
+    explicit InputDispatcher(InputDispatcherPolicyInterface& policy,
                              std::chrono::nanoseconds staleEventTimeout);
     ~InputDispatcher() override;
 
@@ -167,7 +167,7 @@ private:
 
     std::unique_ptr<InputThread> mThread;
 
-    sp<InputDispatcherPolicyInterface> mPolicy;
+    InputDispatcherPolicyInterface& mPolicy;
     android::InputDispatcherConfiguration mConfig GUARDED_BY(mLock);
 
     std::mutex mLock;
@@ -707,8 +707,8 @@ private:
     void slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFlags,
                             const sp<android::gui::WindowInfoHandle>& oldWindowHandle,
                             const sp<android::gui::WindowInfoHandle>& newWindowHandle,
-                            TouchState& state, int32_t pointerId, std::vector<InputTarget>& targets)
-            REQUIRES(mLock);
+                            TouchState& state, int32_t pointerId,
+                            std::vector<InputTarget>& targets) const REQUIRES(mLock);
     void transferWallpaperTouch(ftl::Flags<InputTarget::Flags> oldTargetFlags,
                                 ftl::Flags<InputTarget::Flags> newTargetFlags,
                                 const sp<android::gui::WindowInfoHandle> fromWindowHandle,

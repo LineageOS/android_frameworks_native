@@ -48,10 +48,8 @@ static nsecs_t now() {
 
 class FakeInputDispatcherPolicy : public InputDispatcherPolicyInterface {
 public:
-    FakeInputDispatcherPolicy() {}
-
-protected:
-    virtual ~FakeInputDispatcherPolicy() {}
+    FakeInputDispatcherPolicy() = default;
+    virtual ~FakeInputDispatcherPolicy() = default;
 
 private:
     void notifyConfigurationChanged(nsecs_t) override {}
@@ -82,24 +80,23 @@ private:
 
     void notifyVibratorState(int32_t deviceId, bool isOn) override {}
 
-    void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
-        *outConfig = mConfig;
+    InputDispatcherConfiguration getDispatcherConfiguration() override { return mConfig; }
+
+    bool filterInputEvent(const InputEvent& inputEvent, uint32_t policyFlags) override {
+        return true; // dispatch event normally
     }
 
-    bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
-        return true;
-    }
-
-    void interceptKeyBeforeQueueing(const KeyEvent*, uint32_t&) override {}
+    void interceptKeyBeforeQueueing(const KeyEvent&, uint32_t&) override {}
 
     void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
 
-    nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent*, uint32_t) override {
+    nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent&, uint32_t) override {
         return 0;
     }
 
-    bool dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent*, uint32_t, KeyEvent*) override {
-        return false;
+    std::optional<KeyEvent> dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent&,
+                                                 uint32_t) override {
+        return {};
     }
 
     void notifySwitch(nsecs_t, uint32_t, uint32_t, uint32_t) override {}
@@ -258,7 +255,7 @@ static NotifyMotionArgs generateMotionArgs() {
 
 static void benchmarkNotifyMotion(benchmark::State& state) {
     // Create dispatcher
-    sp<FakeInputDispatcherPolicy> fakePolicy = sp<FakeInputDispatcherPolicy>::make();
+    FakeInputDispatcherPolicy fakePolicy;
     InputDispatcher dispatcher(fakePolicy);
     dispatcher.setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher.start();
@@ -293,7 +290,7 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
 
 static void benchmarkInjectMotion(benchmark::State& state) {
     // Create dispatcher
-    sp<FakeInputDispatcherPolicy> fakePolicy = sp<FakeInputDispatcherPolicy>::make();
+    FakeInputDispatcherPolicy fakePolicy;
     InputDispatcher dispatcher(fakePolicy);
     dispatcher.setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher.start();
@@ -327,7 +324,7 @@ static void benchmarkInjectMotion(benchmark::State& state) {
 
 static void benchmarkOnWindowInfosChanged(benchmark::State& state) {
     // Create dispatcher
-    sp<FakeInputDispatcherPolicy> fakePolicy = sp<FakeInputDispatcherPolicy>::make();
+    FakeInputDispatcherPolicy fakePolicy;
     InputDispatcher dispatcher(fakePolicy);
     dispatcher.setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher.start();
