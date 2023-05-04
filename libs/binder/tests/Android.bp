@@ -78,6 +78,7 @@ cc_test {
         "binderRecordReplayTestIface-cpp",
     ],
     test_suites: ["general-tests"],
+    require_root: true,
 }
 
 aidl_interface {
