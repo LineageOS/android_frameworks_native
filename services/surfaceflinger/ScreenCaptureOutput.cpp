@@ -94,6 +94,16 @@ ScreenCaptureOutput::generateClientCompositionRequests(
         }
     }
 
+    if (outputDataspace == ui::Dataspace::BT2020_HLG) {
+        for (auto& layer : clientCompositionLayers) {
+            auto transfer = layer.sourceDataspace & ui::Dataspace::TRANSFER_MASK;
+            if (transfer != static_cast<int32_t>(ui::Dataspace::TRANSFER_HLG) &&
+                transfer != static_cast<int32_t>(ui::Dataspace::TRANSFER_ST2084)) {
+                layer.whitePointNits *= (1000.0f / 203.0f);
+            }
+        }
+    }
+
     Rect sourceCrop = mRenderArea.getSourceCrop();
     compositionengine::LayerFE::LayerSettings fillLayer;
     fillLayer.source.buffer.buffer = nullptr;
