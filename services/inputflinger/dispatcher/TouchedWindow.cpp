@@ -58,6 +58,10 @@ void TouchedWindow::removeTouchingPointer(int32_t pointerId) {
     }
 }
 
+void TouchedWindow::removeAllTouchingPointers() {
+    pointerIds.reset();
+}
+
 void TouchedWindow::removeHoveringPointer(int32_t deviceId, int32_t pointerId) {
     const auto it = mHoveringPointerIdsByDevice.find(deviceId);
     if (it == mHoveringPointerIdsByDevice.end()) {
@@ -68,6 +72,10 @@ void TouchedWindow::removeHoveringPointer(int32_t deviceId, int32_t pointerId) {
     if (it->second.none()) {
         mHoveringPointerIdsByDevice.erase(deviceId);
     }
+}
+
+void TouchedWindow::removeAllHoveringPointersForDevice(int32_t deviceId) {
+    mHoveringPointerIdsByDevice.erase(deviceId);
 }
 
 std::string TouchedWindow::dump() const {

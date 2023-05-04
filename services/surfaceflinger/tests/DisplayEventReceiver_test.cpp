@@ -33,9 +33,14 @@ TEST_F(DisplayEventReceiverTest, getLatestVsyncEventData) {
 
     const VsyncEventData& vsyncEventData = parcelableVsyncEventData.vsync;
     EXPECT_NE(std::numeric_limits<size_t>::max(), vsyncEventData.preferredFrameTimelineIndex);
+    EXPECT_GT(static_cast<int64_t>(vsyncEventData.frameTimelinesLength), 0)
+            << "Frame timelines length should be greater than 0";
+    EXPECT_LE(static_cast<int64_t>(vsyncEventData.frameTimelinesLength),
+              VsyncEventData::kFrameTimelinesCapacity)
+            << "Frame timelines length should not exceed max capacity";
     EXPECT_GT(vsyncEventData.frameTimelines[0].deadlineTimestamp, now)
             << "Deadline timestamp should be greater than frame time";
-    for (size_t i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+    for (size_t i = 0; i < vsyncEventData.frameTimelinesLength; i++) {
         EXPECT_NE(gui::FrameTimelineInfo::INVALID_VSYNC_ID,
                   vsyncEventData.frameTimelines[i].vsyncId);
         EXPECT_GT(vsyncEventData.frameTimelines[i].expectedPresentationTime,
