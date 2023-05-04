@@ -44,6 +44,9 @@ struct TouchedWindow {
     void addHoveringPointer(int32_t deviceId, int32_t pointerId);
     void removeHoveringPointer(int32_t deviceId, int32_t pointerId);
     void removeTouchingPointer(int32_t pointerId);
+
+    void removeAllTouchingPointers();
+    void removeAllHoveringPointersForDevice(int32_t deviceId);
     void clearHoveringPointers();
     std::string dump() const;
 
