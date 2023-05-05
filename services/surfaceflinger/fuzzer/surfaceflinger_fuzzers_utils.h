@@ -590,7 +590,7 @@ public:
         mFlinger->binderDied(display);
         mFlinger->onFirstRef();
 
-        mFlinger->updateInputFlinger();
+        mFlinger->updateInputFlinger(VsyncId{0});
         mFlinger->updateCursorAsync();
 
         mutableScheduler().setVsyncConfig({.sfOffset = mFdp.ConsumeIntegral<nsecs_t>(),
