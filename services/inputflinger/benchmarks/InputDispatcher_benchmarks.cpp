@@ -340,8 +340,10 @@ static void benchmarkOnWindowInfosChanged(benchmark::State& state) {
     std::vector<gui::DisplayInfo> displayInfos{info};
 
     for (auto _ : state) {
-        dispatcher.onWindowInfosChanged(windowInfos, displayInfos);
-        dispatcher.onWindowInfosChanged(/*windowInfos=*/{}, /*displayInfos=*/{});
+        dispatcher.onWindowInfosChanged(
+                {windowInfos, displayInfos, /*vsyncId=*/0, /*timestamp=*/0});
+        dispatcher.onWindowInfosChanged(
+                {/*windowInfos=*/{}, /*displayInfos=*/{}, /*vsyncId=*/{}, /*timestamp=*/0});
     }
     dispatcher.stop();
 }

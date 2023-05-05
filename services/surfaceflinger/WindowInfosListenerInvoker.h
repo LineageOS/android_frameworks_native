@@ -26,6 +26,8 @@
 #include <gui/SpHash.h>
 #include <utils/Mutex.h>
 
+#include "scheduler/VsyncId.h"
+
 namespace android {
 
 using WindowInfosReportedListenerSet =
@@ -40,9 +42,24 @@ public:
 
     void windowInfosChanged(std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>,
                             WindowInfosReportedListenerSet windowInfosReportedListeners,
-                            bool forceImmediateCall);
+                            bool forceImmediateCall, VsyncId vsyncId, nsecs_t timestamp);
 
     binder::Status onWindowInfosReported() override;
+
+    VsyncId getUnsentMessageVsyncId() {
+        std::scoped_lock lock(mMessagesMutex);
+        return mUnsentVsyncId;
+    }
+
+    nsecs_t getUnsentMessageTimestamp() {
+        std::scoped_lock lock(mMessagesMutex);
+        return mUnsentTimestamp;
+    }
+
+    uint32_t getPendingMessageCount() {
+        std::scoped_lock lock(mMessagesMutex);
+        return mActiveMessageCount;
+    }
 
 protected:
     void binderDied(const wp<IBinder>& who) override;
@@ -58,6 +75,8 @@ private:
     uint32_t mActiveMessageCount GUARDED_BY(mMessagesMutex) = 0;
     std::function<void(WindowInfosReportedListenerSet)> mWindowInfosChangedDelayed
             GUARDED_BY(mMessagesMutex);
+    VsyncId mUnsentVsyncId GUARDED_BY(mMessagesMutex) = {-1};
+    nsecs_t mUnsentTimestamp GUARDED_BY(mMessagesMutex) = -1;
     WindowInfosReportedListenerSet mReportedListenersDelayed;
 };
 
