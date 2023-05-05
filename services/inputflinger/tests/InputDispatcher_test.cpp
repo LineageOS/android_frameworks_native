@@ -9777,7 +9777,7 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoAnyWindowWhenNotTarget
     window->assertNoEvents();
 }
 
-TEST_F(InputDispatcherTargetedInjectionTest, CanGenerateActionOutsideToOtherUids) {
+TEST_F(InputDispatcherTargetedInjectionTest, CannotGenerateActionOutsideToOtherUids) {
     auto owner = User(mDispatcher, 10, 11);
     auto window = owner.createWindow();
 
@@ -9787,11 +9787,11 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanGenerateActionOutsideToOtherUids
     randosWindow->setWatchOutsideTouch(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {randosWindow, window}}});
 
-    // We allow generation of ACTION_OUTSIDE events into windows owned by different uids.
+    // Do not allow generation of ACTION_OUTSIDE events into windows owned by different uids.
     EXPECT_EQ(InputEventInjectionResult::SUCCEEDED,
               owner.injectTargetedMotion(AMOTION_EVENT_ACTION_DOWN));
     window->consumeMotionDown();
-    randosWindow->consumeMotionOutside();
+    randosWindow->assertNoEvents();
 }
 
 } // namespace android::inputdispatcher
