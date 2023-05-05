@@ -277,7 +277,6 @@ void TouchState::removeAllPointersForDevice(int32_t removedDeviceId) {
 
 std::string TouchState::dump() const {
     std::string out;
-    out += StringPrintf("source=%s\n", inputEventSourceToString(source).c_str());
     if (!windows.empty()) {
         out += "  Windows:\n";
         for (size_t i = 0; i < windows.size(); i++) {
