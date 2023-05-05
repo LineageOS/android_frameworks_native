@@ -16,9 +16,11 @@
 
 #include "../Macros.h"
 
+#include <chrono>
 #include <limits>
 #include <optional>
 
+#include <android-base/stringprintf.h>
 #include <android/input.h>
 #include <ftl/enum.h>
 #include <input/PrintTools.h>
@@ -174,8 +176,18 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
       : InputMapper(deviceContext, readerConfig),
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
         mPointerController(getContext()->getPointerController(getDeviceId())),
-        mStateConverter(deviceContext),
-        mGestureConverter(*getContext(), deviceContext, getDeviceId()) {
+        mStateConverter(deviceContext, mMotionAccumulator),
+        mGestureConverter(*getContext(), deviceContext, getDeviceId()),
+        mCapturedEventConverter(*getContext(), deviceContext, mMotionAccumulator, getDeviceId()) {
+    RawAbsoluteAxisInfo slotAxisInfo;
+    deviceContext.getAbsoluteAxisInfo(ABS_MT_SLOT, &slotAxisInfo);
+    if (!slotAxisInfo.valid || slotAxisInfo.maxValue <= 0) {
+        ALOGW("Touchpad \"%s\" doesn't have a valid ABS_MT_SLOT axis, and probably won't work "
+              "properly.",
+              deviceContext.getName().c_str());
+    }
+    mMotionAccumulator.configure(deviceContext, slotAxisInfo.maxValue + 1, true);
+
     mGestureInterpreter->Initialize(GESTURES_DEVCLASS_TOUCHPAD);
     mGestureInterpreter->SetHardwareProperties(createHardwareProperties(deviceContext));
     // Even though we don't explicitly delete copy/move semantics, it's safe to
@@ -209,15 +221,28 @@ uint32_t TouchpadInputMapper::getSources() const {
 
 void TouchpadInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
-    mGestureConverter.populateMotionRanges(info);
+    if (mPointerCaptured) {
+        mCapturedEventConverter.populateMotionRanges(info);
+    } else {
+        mGestureConverter.populateMotionRanges(info);
+    }
 }
 
 void TouchpadInputMapper::dump(std::string& dump) {
     dump += INDENT2 "Touchpad Input Mapper:\n";
+    if (mProcessing) {
+        dump += INDENT3 "Currently processing a hardware state\n";
+    }
+    if (mResettingInterpreter) {
+        dump += INDENT3 "Currently resetting gesture interpreter\n";
+    }
+    dump += StringPrintf(INDENT3 "Pointer captured: %s\n", toString(mPointerCaptured));
     dump += INDENT3 "Gesture converter:\n";
     dump += addLinePrefix(mGestureConverter.dump(), INDENT4);
     dump += INDENT3 "Gesture properties:\n";
     dump += addLinePrefix(mPropertyProvider.dump(), INDENT4);
+    dump += INDENT3 "Captured event converter:\n";
+    dump += addLinePrefix(mCapturedEventConverter.dump(), INDENT4);
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
@@ -252,17 +277,50 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
         mPropertyProvider.getProperty("Button Right Click Zone Enable")
                 .setBoolValues({config.touchpadRightClickZoneEnabled});
     }
-    return {};
+    std::list<NotifyArgs> out;
+    if ((!changes.any() && config.pointerCaptureRequest.enable) ||
+        changes.test(InputReaderConfiguration::Change::POINTER_CAPTURE)) {
+        mPointerCaptured = config.pointerCaptureRequest.enable;
+        // The motion ranges are going to change, so bump the generation to clear the cached ones.
+        bumpGeneration();
+        if (mPointerCaptured) {
+            // The touchpad is being captured, so we need to tidy up any fake fingers etc. that are
+            // still being reported for a gesture in progress.
+            out += reset(when);
+            mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
+        } else {
+            // We're transitioning from captured to uncaptured.
+            mCapturedEventConverter.reset();
+        }
+        if (changes.any()) {
+            out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
+        }
+    }
+    return out;
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::reset(nsecs_t when) {
     mStateConverter.reset();
+    resetGestureInterpreter(when);
     std::list<NotifyArgs> out = mGestureConverter.reset(when);
     out += InputMapper::reset(when);
     return out;
 }
 
+void TouchpadInputMapper::resetGestureInterpreter(nsecs_t when) {
+    // The GestureInterpreter has no official reset method, but sending a HardwareState with no
+    // fingers down or buttons pressed should get it into a clean state.
+    HardwareState state;
+    state.timestamp = std::chrono::duration<stime_t>(std::chrono::nanoseconds(when)).count();
+    mResettingInterpreter = true;
+    mGestureInterpreter->PushHardwareState(&state);
+    mResettingInterpreter = false;
+}
+
 std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
+    if (mPointerCaptured) {
+        return mCapturedEventConverter.process(*rawEvent);
+    }
     std::optional<SelfContainedHardwareState> state = mStateConverter.processRawEvent(rawEvent);
     if (state) {
         return sendHardwareState(rawEvent->when, rawEvent->readTime, *state);
@@ -283,6 +341,11 @@ std::list<NotifyArgs> TouchpadInputMapper::sendHardwareState(nsecs_t when, nsecs
 
 void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
     ALOGD_IF(DEBUG_TOUCHPAD_GESTURES, "Gesture ready: %s", gesture->String().c_str());
+    if (mResettingInterpreter) {
+        // We already handle tidying up fake fingers etc. in GestureConverter::reset, so we should
+        // ignore any gestures produced from the interpreter while we're resetting it.
+        return;
+    }
     if (!mProcessing) {
         ALOGE("Received gesture outside of the normal processing flow; ignoring it.");
         return;

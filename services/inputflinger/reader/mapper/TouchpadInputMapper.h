@@ -21,12 +21,15 @@
 #include <vector>
 
 #include <PointerControllerInterface.h>
+#include <utils/Timers.h>
 
+#include "CapturedTouchpadEventConverter.h"
 #include "EventHub.h"
 #include "InputDevice.h"
 #include "InputMapper.h"
 #include "InputReaderBase.h"
 #include "NotifyArgs.h"
+#include "accumulator/MultiTouchMotionAccumulator.h"
 #include "gestures/GestureConverter.h"
 #include "gestures/HardwareStateConverter.h"
 #include "gestures/PropertyProvider.h"
@@ -54,6 +57,7 @@ public:
     void consumeGesture(const Gesture* gesture);
 
 private:
+    void resetGestureInterpreter(nsecs_t when);
     [[nodiscard]] std::list<NotifyArgs> sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                           SelfContainedHardwareState schs);
     [[nodiscard]] std::list<NotifyArgs> processGestures(nsecs_t when, nsecs_t readTime);
@@ -64,10 +68,19 @@ private:
 
     PropertyProvider mPropertyProvider;
 
+    // The MultiTouchMotionAccumulator is shared between the HardwareStateConverter and
+    // CapturedTouchpadEventConverter, so that if the touchpad is captured or released while touches
+    // are down, the relevant converter can still benefit from the current axis values stored in the
+    // accumulator.
+    MultiTouchMotionAccumulator mMotionAccumulator;
+
     HardwareStateConverter mStateConverter;
     GestureConverter mGestureConverter;
+    CapturedTouchpadEventConverter mCapturedEventConverter;
 
+    bool mPointerCaptured = false;
     bool mProcessing = false;
+    bool mResettingInterpreter = false;
     std::vector<Gesture> mGesturesToProcess;
 };
 
