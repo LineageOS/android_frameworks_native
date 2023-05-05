@@ -100,28 +100,17 @@ public:
     bool shouldUseAngle(std::string appName);
     // Check if this app process should use ANGLE.
     bool shouldUseAngle();
-    // If ANGLE is the system GLES driver
-    bool angleIsSystemDriver();
-    // If should use legacy driver instead of a system ANGLE driver
-    bool shouldForceLegacyDriver();
     // Set a search path for loading ANGLE libraries. The path is a list of
     // directories separated by ':'. A directory can be contained in a zip file
     // (libraries must be stored uncompressed and page aligned); such elements
     // in the search path must have a '!' after the zip filename, e.g.
     //     /system/app/ANGLEPrebuilt/ANGLEPrebuilt.apk!/lib/arm64-v8a
-    void setAngleInfo(const std::string path, const std::string appName,
-                      const bool angleIsSystemDriver, std::string devOptIn,
+    void setAngleInfo(const std::string path, const std::string appName, std::string devOptIn,
                       const std::vector<std::string> eglFeatures);
-    // Set the state so that the legacy driver will be used, and in case ANGLE
-    // is the system driver, provide the name of the legacy driver.
-    void setLegacyDriverInfo(const std::string appName, const bool angleIsSystemDriver,
-                             const std::string legacyDriverName);
     // Get the ANGLE driver namespace.
     android_namespace_t* getAngleNamespace();
     // Get the app name for ANGLE debug message.
     std::string& getAngleAppName();
-    // Get the legacy driver's suffix name.
-    std::string getLegacySuffix();
 
     const std::vector<std::string>& getAngleEglFeatures();
 
@@ -178,10 +167,6 @@ private:
     std::string mAngleDeveloperOptIn;
     // ANGLE EGL features;
     std::vector<std::string> mAngleEglFeatures;
-    // ANGLE is System Driver flag.
-    UseAngle mAngleIsSystemDriver = UNKNOWN;
-    // Legacy driver name to use when ANGLE is the system driver.
-    std::string mLegacyDriverSuffix;
     // Use ANGLE flag.
     UseAngle mUseAngle = UNKNOWN;
     // Vulkan debug layers libs.
