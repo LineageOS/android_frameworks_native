@@ -139,9 +139,10 @@ static void* load_wrapper(const char* path) {
 
 static const char* DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
 
-static const char* HAL_SUBNAME_KEY_PROPERTIES[2] = {
-    DRIVER_SUFFIX_PROPERTY,
-    "ro.board.platform",
+static const char* HAL_SUBNAME_KEY_PROPERTIES[3] = {
+        "persist.graphics.egl",
+        DRIVER_SUFFIX_PROPERTY,
+        "ro.board.platform",
 };
 
 static bool should_unload_system_driver(egl_connection_t* cnx) {
@@ -208,8 +209,7 @@ void* Loader::open(egl_connection_t* cnx)
     ATRACE_CALL();
     const nsecs_t openTime = systemTime();
 
-    if (!android::GraphicsEnv::getInstance().angleIsSystemDriver() &&
-        should_unload_system_driver(cnx)) {
+    if (should_unload_system_driver(cnx)) {
         unload_system_driver(cnx);
     }
 
@@ -218,12 +218,8 @@ void* Loader::open(egl_connection_t* cnx)
         return cnx->dso;
     }
 
-    // Firstly, try to load ANGLE driver, unless we know that we shouldn't.
-    bool shouldForceLegacyDriver = android::GraphicsEnv::getInstance().shouldForceLegacyDriver();
-    driver_t* hnd = nullptr;
-    if (!shouldForceLegacyDriver) {
-        hnd = attempt_to_load_angle(cnx);
-    }
+    // Firstly, try to load ANGLE driver.
+    driver_t* hnd = attempt_to_load_angle(cnx);
 
     if (!hnd) {
         // Secondly, try to load from driver apk.
@@ -285,8 +281,10 @@ void* Loader::open(egl_connection_t* cnx)
     }
 
     LOG_ALWAYS_FATAL_IF(!hnd,
-                        "couldn't find an OpenGL ES implementation, make sure you set %s or %s",
-                        HAL_SUBNAME_KEY_PROPERTIES[0], HAL_SUBNAME_KEY_PROPERTIES[1]);
+                        "couldn't find an OpenGL ES implementation, make sure one of %s, %s and %s "
+                        "is set",
+                        HAL_SUBNAME_KEY_PROPERTIES[0], HAL_SUBNAME_KEY_PROPERTIES[1],
+                        HAL_SUBNAME_KEY_PROPERTIES[2]);
 
     if (!cnx->libEgl) {
         cnx->libEgl = load_wrapper(EGL_WRAPPER_DIR "/libEGL.so");

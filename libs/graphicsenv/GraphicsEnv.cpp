@@ -433,61 +433,24 @@ bool GraphicsEnv::shouldUseAngle() {
     return (mUseAngle == YES) ? true : false;
 }
 
-bool GraphicsEnv::angleIsSystemDriver() {
-    // Make sure we are init'ed
-    if (mAngleAppName.empty()) {
-        ALOGV("App name is empty. setAngleInfo() has not been called to enable ANGLE.");
-        return false;
-    }
-
-    return (mAngleIsSystemDriver == YES) ? true : false;
-}
-
-bool GraphicsEnv::shouldForceLegacyDriver() {
-    // Make sure we are init'ed
-    if (mAngleAppName.empty()) {
-        ALOGV("App name is empty. setAngleInfo() has not been called to enable ANGLE.");
-        return false;
-    }
-
-    return (mAngleIsSystemDriver == YES && mUseAngle == NO) ? true : false;
-}
-
-std::string GraphicsEnv::getLegacySuffix() {
-    return mLegacyDriverSuffix;
-}
-
 void GraphicsEnv::updateUseAngle() {
-    mUseAngle = NO;
-
     const char* ANGLE_PREFER_ANGLE = "angle";
-    const char* ANGLE_PREFER_LEGACY = "legacy";
-    // The following is a deprecated version of "legacy"
     const char* ANGLE_PREFER_NATIVE = "native";
 
     mUseAngle = NO;
     if (mAngleDeveloperOptIn == ANGLE_PREFER_ANGLE) {
-        ALOGI("Using ANGLE, the %s GLES driver for package '%s'",
-              mAngleIsSystemDriver == YES ? "system" : "optional", mAngleAppName.c_str());
+        ALOGV("User set \"Developer Options\" to force the use of ANGLE");
         mUseAngle = YES;
-    } else if (mAngleDeveloperOptIn == ANGLE_PREFER_LEGACY ||
-               mAngleDeveloperOptIn == ANGLE_PREFER_NATIVE) {
-        ALOGI("Using the (%s) Legacy GLES driver for package '%s'",
-              mAngleIsSystemDriver == YES ? "optional" : "system", mAngleAppName.c_str());
+    } else if (mAngleDeveloperOptIn == ANGLE_PREFER_NATIVE) {
+        ALOGV("User set \"Developer Options\" to force the use of Native");
     } else {
         ALOGV("User set invalid \"Developer Options\": '%s'", mAngleDeveloperOptIn.c_str());
     }
 }
 
 void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName,
-                               const bool angleIsSystemDriver, const std::string developerOptIn,
+                               const std::string developerOptIn,
                                const std::vector<std::string> eglFeatures) {
-    // Set whether ANGLE is the system driver:
-    mAngleIsSystemDriver = angleIsSystemDriver ? YES : NO;
-
-    // Note: Given the current logic and lack of the old rules file processing,
-    // there seems to be little chance that mUseAngle != UNKNOWN.  Leave this
-    // for now, even though it seems outdated.
     if (mUseAngle != UNKNOWN) {
         // We've already figured out an answer for this app, so just return.
         ALOGV("Already evaluated the rules file for '%s': use ANGLE = %s", appName.c_str(),
@@ -503,25 +466,6 @@ void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName
     mAngleAppName = appName;
     ALOGV("setting ANGLE application opt-in to '%s'", developerOptIn.c_str());
     mAngleDeveloperOptIn = developerOptIn;
-
-    // Update the current status of whether we should use ANGLE or not
-    updateUseAngle();
-}
-
-void GraphicsEnv::setLegacyDriverInfo(const std::string appName, const bool angleIsSystemDriver,
-                                      const std::string legacyDriverName) {
-    ALOGV("setting legacy app name to '%s'", appName.c_str());
-    mAngleAppName = appName;
-
-    // Force the use of the legacy driver instead of ANGLE
-    const char* ANGLE_PREFER_LEGACY = "legacy";
-    mAngleDeveloperOptIn = ANGLE_PREFER_LEGACY;
-    ALOGV("setting ANGLE application opt-in to 'legacy'");
-
-    // Set whether ANGLE is the system driver:
-    mAngleIsSystemDriver = angleIsSystemDriver ? YES : NO;
-
-    mLegacyDriverSuffix = legacyDriverName;
 
     // Update the current status of whether we should use ANGLE or not
     updateUseAngle();
