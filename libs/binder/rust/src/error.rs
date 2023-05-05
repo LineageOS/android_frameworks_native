@@ -20,6 +20,7 @@ use crate::sys;
 use std::error;
 use std::ffi::{CStr, CString};
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
+use std::ptr;
 use std::result;
 
 pub use sys::binder_status_t as status_t;
@@ -92,7 +93,7 @@ fn parse_exception_code(code: i32) -> ExceptionCode {
 /// track of and chain binder errors along with service specific errors.
 ///
 /// Used in AIDL transactions to represent failed transactions.
-pub struct Status(*mut sys::AStatus);
+pub struct Status(ptr::NonNull<sys::AStatus>);
 
 // Safety: The `AStatus` that the `Status` points to must have an entirely thread-safe API for the
 // duration of the `Status` object's lifetime. We ensure this by not allowing mutation of a `Status`
@@ -119,7 +120,7 @@ impl Status {
             // Rust takes ownership of the returned pointer.
             sys::AStatus_newOk()
         };
-        Self(ptr)
+        Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
     }
 
     /// Create a status object from a service specific error
@@ -147,7 +148,7 @@ impl Status {
                 sys::AStatus_fromServiceSpecificError(err)
             }
         };
-        Self(ptr)
+        Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
     }
 
     /// Creates a status object from a service specific error.
@@ -161,7 +162,7 @@ impl Status {
             let ptr = unsafe {
                 sys::AStatus_fromExceptionCodeWithMessage(exception as i32, message.as_ptr())
             };
-            Self(ptr)
+            Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
         } else {
             exception.into()
         }
@@ -181,7 +182,7 @@ impl Status {
     ///
     /// This constructor is safe iff `ptr` is a valid pointer to an `AStatus`.
     pub(crate) unsafe fn from_ptr(ptr: *mut sys::AStatus) -> Self {
-        Self(ptr)
+        Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
     }
 
     /// Returns `true` if this status represents a successful transaction.
@@ -326,7 +327,7 @@ impl From<status_t> for Status {
             // UNKNOWN_ERROR.
             sys::AStatus_fromStatus(status)
         };
-        Self(ptr)
+        Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
     }
 }
 
@@ -338,7 +339,7 @@ impl From<ExceptionCode> for Status {
             // Unknown values will be coerced into EX_TRANSACTION_FAILED.
             sys::AStatus_fromExceptionCode(code as i32)
         };
-        Self(ptr)
+        Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
     }
 }
 
@@ -367,7 +368,7 @@ impl Drop for Status {
             // pointee, so we need to delete it here. We know that the pointer
             // will be valid here since `Status` always contains a valid pointer
             // while it is alive.
-            sys::AStatus_delete(self.0);
+            sys::AStatus_delete(self.0.as_mut());
         }
     }
 }
@@ -381,11 +382,15 @@ impl Drop for Status {
 /// `Status` object is still alive.
 unsafe impl AsNative<sys::AStatus> for Status {
     fn as_native(&self) -> *const sys::AStatus {
-        self.0
+        self.0.as_ptr()
     }
 
     fn as_native_mut(&mut self) -> *mut sys::AStatus {
-        self.0
+        unsafe {
+            // Safety: The pointer will be valid here since `Status` always
+            // contains a valid and initialized pointer while it is alive.
+            self.0.as_mut()
+        }
     }
 }
 
