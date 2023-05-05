@@ -66,7 +66,11 @@ public:
         v.setCapacity(n);
         while (n) {
             n--;
-            reply.read(s);
+            if(reply.read(s) != OK) {
+                ALOGE("Failed to read reply from getSensorList");
+                v.clear();
+                break;
+            }
             v.add(s);
         }
         return v;
@@ -84,7 +88,11 @@ public:
         v.setCapacity(n);
         while (n) {
             n--;
-            reply.read(s);
+            if(reply.read(s) != OK) {
+                ALOGE("Failed to read reply from getDynamicSensorList");
+                v.clear();
+                break;
+            }
             v.add(s);
         }
         return v;
