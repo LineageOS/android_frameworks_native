@@ -687,6 +687,8 @@ TEST_P(BinderRpc, SessionWithIncomingThreadpoolDoesntLeak) {
     }
 
     EXPECT_EQ(nullptr, session.promote());
+
+    sleep(1); // give time for remote session to shutdown
 }
 
 TEST_P(BinderRpc, SingleDeathRecipient) {
