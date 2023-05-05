@@ -103,10 +103,14 @@ static void generateLuminanceNormalizationForOOTF(ui::Dataspace inputDataspace,
                     // tonemapping downstream.
                     // BT. 2100-2 operates on normalized luminances, so renormalize to the input to
                     // correctly adjust gamma.
+                    // Note that following BT. 2408 for HLG OETF actually maps 0.75 == ~264.96 nits,
+                    // rather than 203 nits, because 203 nits == OOTF(invOETF(0.75)), so even though
+                    // we originally scaled by 203 nits we need to re-normalize to 264.96 nits when
+                    // converting to the correct brightness range.
                     shader.append(R"(
                             float3 NormalizeLuminance(float3 xyz) {
                                 float ootfGain = pow(xyz.y / 1000.0, -0.2 / 1.2);
-                                return xyz * ootfGain / 203.0;
+                                return xyz * ootfGain / 264.96;
                             }
                         )");
                     break;

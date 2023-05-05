@@ -36,6 +36,7 @@ TEST(ParcelableVsyncEventData, Parcelling) {
     FrameTimeline timeline1 = FrameTimeline{4, 5, 6};
     data.vsync.frameTimelines[0] = timeline0;
     data.vsync.frameTimelines[1] = timeline1;
+    data.vsync.frameTimelinesLength = 2;
 
     Parcel p;
     data.writeToParcel(&p);
@@ -45,7 +46,8 @@ TEST(ParcelableVsyncEventData, Parcelling) {
     data2.readFromParcel(&p);
     ASSERT_EQ(data.vsync.frameInterval, data2.vsync.frameInterval);
     ASSERT_EQ(data.vsync.preferredFrameTimelineIndex, data2.vsync.preferredFrameTimelineIndex);
-    for (int i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+    ASSERT_EQ(data.vsync.frameTimelinesLength, data2.vsync.frameTimelinesLength);
+    for (int i = 0; i < VsyncEventData::kFrameTimelinesCapacity; i++) {
         ASSERT_EQ(data.vsync.frameTimelines[i].vsyncId, data2.vsync.frameTimelines[i].vsyncId);
         ASSERT_EQ(data.vsync.frameTimelines[i].deadlineTimestamp,
                   data2.vsync.frameTimelines[i].deadlineTimestamp);
