@@ -42,6 +42,7 @@ filegroup {
         "Macros.cpp",
         "TouchVideoDevice.cpp",
         "controller/PeripheralController.cpp",
+        "mapper/CapturedTouchpadEventConverter.cpp",
         "mapper/CursorInputMapper.cpp",
         "mapper/ExternalStylusInputMapper.cpp",
         "mapper/InputMapper.cpp",
