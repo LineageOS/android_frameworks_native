@@ -1122,6 +1122,10 @@ macro_rules! declare_binder_enum {
         }
 
         impl $crate::binder_impl::Deserialize for $enum {
+            type UninitType = Self;
+            fn uninit() -> Self::UninitType { Self::UninitType::default() }
+            fn from_init(value: Self) -> Self::UninitType { value }
+
             fn deserialize(parcel: &$crate::binder_impl::BorrowedParcel<'_>) -> std::result::Result<Self, $crate::StatusCode> {
                 parcel.read().map(Self)
             }

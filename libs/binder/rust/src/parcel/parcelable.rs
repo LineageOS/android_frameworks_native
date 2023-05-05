@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::binder::{AsNative, FromIBinder, Stability, Strong};
+use crate::binder::{AsNative, FromIBinder, Interface, Stability, Strong};
 use crate::error::{status_result, status_t, Result, Status, StatusCode};
 use crate::parcel::BorrowedParcel;
 use crate::proxy::SpIBinder;
@@ -22,7 +22,7 @@ use crate::sys;
 
 use std::convert::{TryFrom, TryInto};
 use std::ffi::c_void;
-use std::mem::{self, ManuallyDrop, MaybeUninit};
+use std::mem::{self, ManuallyDrop};
 use std::os::raw::c_char;
 use std::ptr;
 use std::slice;
@@ -60,6 +60,26 @@ pub trait Serialize {
 /// A struct whose instances can be restored from a [`Parcel`].
 // Might be able to hook this up as a serde backend in the future?
 pub trait Deserialize: Sized {
+    /// Type for the uninitialized value of this type. Will be either `Self`
+    /// if the type implements `Default`, `Option<Self>` otherwise.
+    type UninitType;
+
+    /// Assert at compile-time that `Self` and `Self::UninitType` have the same
+    /// size and alignment. This will either fail to compile or evaluate to `true`.
+    /// The only two macros that work here are `panic!` and `assert!`, so we cannot
+    /// use `assert_eq!`.
+    const ASSERT_UNINIT_SIZE_AND_ALIGNMENT: bool = {
+        assert!(std::mem::size_of::<Self>() == std::mem::size_of::<Self::UninitType>());
+        assert!(std::mem::align_of::<Self>() == std::mem::align_of::<Self::UninitType>());
+        true
+    };
+
+    /// Return an uninitialized or default-initialized value for this type.
+    fn uninit() -> Self::UninitType;
+
+    /// Convert an initialized value of type `Self` into `Self::UninitType`.
+    fn from_init(value: Self) -> Self::UninitType;
+
     /// Deserialize an instance from the given [`Parcel`].
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self>;
 
@@ -121,7 +141,7 @@ unsafe extern "C" fn serialize_element<T: Serialize>(
 pub trait DeserializeArray: Deserialize {
     /// Deserialize an array of type from the given parcel.
     fn deserialize_array(parcel: &BorrowedParcel<'_>) -> Result<Option<Vec<Self>>> {
-        let mut vec: Option<Vec<MaybeUninit<Self>>> = None;
+        let mut vec: Option<Vec<Self::UninitType>> = None;
         let res = unsafe {
             // Safety: Safe FFI, vec is the correct opaque type expected by
             // allocate_vec and deserialize_element.
@@ -136,8 +156,8 @@ pub trait DeserializeArray: Deserialize {
         let vec: Option<Vec<Self>> = unsafe {
             // Safety: We are assuming that the NDK correctly initialized every
             // element of the vector by now, so we know that all the
-            // MaybeUninits are now properly initialized. We can transmute from
-            // Vec<MaybeUninit<T>> to Vec<T> because MaybeUninit<T> has the same
+            // UninitTypes are now properly initialized. We can transmute from
+            // Vec<T::UninitType> to Vec<T> because T::UninitType has the same
             // alignment and size as T, so the pointer to the vector allocation
             // will be compatible.
             mem::transmute(vec)
@@ -149,14 +169,14 @@ pub trait DeserializeArray: Deserialize {
 /// Callback to deserialize a parcelable element.
 ///
 /// The opaque array data pointer must be a mutable pointer to an
-/// `Option<Vec<MaybeUninit<T>>>` with at least enough elements for `index` to be valid
+/// `Option<Vec<T::UninitType>>` with at least enough elements for `index` to be valid
 /// (zero-based).
 unsafe extern "C" fn deserialize_element<T: Deserialize>(
     parcel: *const sys::AParcel,
     array: *mut c_void,
     index: usize,
 ) -> status_t {
-    let vec = &mut *(array as *mut Option<Vec<MaybeUninit<T>>>);
+    let vec = &mut *(array as *mut Option<Vec<T::UninitType>>);
     let vec = match vec {
         Some(v) => v,
         None => return StatusCode::BAD_INDEX as status_t,
@@ -170,7 +190,7 @@ unsafe extern "C" fn deserialize_element<T: Deserialize>(
         Ok(e) => e,
         Err(code) => return code as status_t,
     };
-    ptr::write(vec[index].as_mut_ptr(), element);
+    vec[index] = T::from_init(element);
     StatusCode::OK as status_t
 }
 
@@ -233,15 +253,15 @@ pub trait DeserializeOption: Deserialize {
 /// # Safety
 ///
 /// The opaque data pointer passed to the array read function must be a mutable
-/// pointer to an `Option<Vec<MaybeUninit<T>>>`. `buffer` will be assigned a mutable pointer
+/// pointer to an `Option<Vec<T::UninitType>>`. `buffer` will be assigned a mutable pointer
 /// to the allocated vector data if this function returns true.
-unsafe extern "C" fn allocate_vec_with_buffer<T>(
+unsafe extern "C" fn allocate_vec_with_buffer<T: Deserialize>(
     data: *mut c_void,
     len: i32,
     buffer: *mut *mut T,
 ) -> bool {
     let res = allocate_vec::<T>(data, len);
-    let vec = &mut *(data as *mut Option<Vec<MaybeUninit<T>>>);
+    let vec = &mut *(data as *mut Option<Vec<T::UninitType>>);
     if let Some(new_vec) = vec {
         *buffer = new_vec.as_mut_ptr() as *mut T;
     }
@@ -253,20 +273,18 @@ unsafe extern "C" fn allocate_vec_with_buffer<T>(
 /// # Safety
 ///
 /// The opaque data pointer passed to the array read function must be a mutable
-/// pointer to an `Option<Vec<MaybeUninit<T>>>`.
-unsafe extern "C" fn allocate_vec<T>(data: *mut c_void, len: i32) -> bool {
-    let vec = &mut *(data as *mut Option<Vec<MaybeUninit<T>>>);
+/// pointer to an `Option<Vec<T::UninitType>>`.
+unsafe extern "C" fn allocate_vec<T: Deserialize>(data: *mut c_void, len: i32) -> bool {
+    let vec = &mut *(data as *mut Option<Vec<T::UninitType>>);
     if len < 0 {
         *vec = None;
         return true;
     }
-    let mut new_vec: Vec<MaybeUninit<T>> = Vec::with_capacity(len as usize);
 
-    // Safety: We are filling the vector with uninitialized data here, but this
-    // is safe because the vector contains MaybeUninit elements which can be
-    // uninitialized. We're putting off the actual unsafe bit, transmuting the
-    // vector to a Vec<T> until the contents are initialized.
-    new_vec.set_len(len as usize);
+    // Assert at compile time that `T` and `T::UninitType` have the same size and alignment.
+    let _ = T::ASSERT_UNINIT_SIZE_AND_ALIGNMENT;
+    let mut new_vec: Vec<T::UninitType> = Vec::with_capacity(len as usize);
+    new_vec.resize_with(len as usize, T::uninit);
 
     ptr::write(vec, Some(new_vec));
     true
@@ -283,8 +301,11 @@ macro_rules! parcelable_primitives {
 }
 
 /// Safety: All elements in the vector must be properly initialized.
-unsafe fn vec_assume_init<T>(vec: Vec<MaybeUninit<T>>) -> Vec<T> {
-    // We can convert from Vec<MaybeUninit<T>> to Vec<T> because MaybeUninit<T>
+unsafe fn vec_assume_init<T: Deserialize>(vec: Vec<T::UninitType>) -> Vec<T> {
+    // Assert at compile time that `T` and `T::UninitType` have the same size and alignment.
+    let _ = T::ASSERT_UNINIT_SIZE_AND_ALIGNMENT;
+
+    // We can convert from Vec<T::UninitType> to Vec<T> because T::UninitType
     // has the same alignment and size as T, so the pointer to the vector
     // allocation will be compatible.
     let mut vec = ManuallyDrop::new(vec);
@@ -307,6 +328,9 @@ macro_rules! impl_parcelable {
 
     {Deserialize, $ty:ty, $read_fn:path} => {
         impl Deserialize for $ty {
+            type UninitType = Self;
+            fn uninit() -> Self::UninitType { Self::UninitType::default() }
+            fn from_init(value: Self) -> Self::UninitType { value }
             fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
                 let mut val = Self::default();
                 unsafe {
@@ -348,11 +372,11 @@ macro_rules! impl_parcelable {
     {DeserializeArray, $ty:ty, $read_array_fn:path} => {
         impl DeserializeArray for $ty {
             fn deserialize_array(parcel: &BorrowedParcel<'_>) -> Result<Option<Vec<Self>>> {
-                let mut vec: Option<Vec<MaybeUninit<Self>>> = None;
+                let mut vec: Option<Vec<Self::UninitType>> = None;
                 let status = unsafe {
                     // Safety: `Parcel` always contains a valid pointer to an
                     // `AParcel`. `allocate_vec<T>` expects the opaque pointer to
-                    // be of type `*mut Option<Vec<MaybeUninit<T>>>`, so `&mut vec` is
+                    // be of type `*mut Option<Vec<T::UninitType>>`, so `&mut vec` is
                     // correct for it.
                     $read_array_fn(
                         parcel.as_native(),
@@ -364,7 +388,7 @@ macro_rules! impl_parcelable {
                 let vec: Option<Vec<Self>> = unsafe {
                     // Safety: We are assuming that the NDK correctly
                     // initialized every element of the vector by now, so we
-                    // know that all the MaybeUninits are now properly
+                    // know that all the UninitTypes are now properly
                     // initialized.
                     vec.map(|vec| vec_assume_init(vec))
                 };
@@ -440,6 +464,14 @@ impl Serialize for u8 {
 }
 
 impl Deserialize for u8 {
+    type UninitType = Self;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        value
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         i8::deserialize(parcel).map(|v| v as u8)
     }
@@ -471,6 +503,14 @@ impl Serialize for i16 {
 }
 
 impl Deserialize for i16 {
+    type UninitType = Self;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        value
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         u16::deserialize(parcel).map(|v| v as i16)
     }
@@ -547,6 +587,14 @@ impl SerializeOption for String {
 }
 
 impl Deserialize for Option<String> {
+    type UninitType = Self;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        value
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         let mut vec: Option<Vec<u8>> = None;
         let status = unsafe {
@@ -575,6 +623,14 @@ impl Deserialize for Option<String> {
 impl DeserializeArray for Option<String> {}
 
 impl Deserialize for String {
+    type UninitType = Self;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        value
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         Deserialize::deserialize(parcel).transpose().unwrap_or(Err(StatusCode::UNEXPECTED_NULL))
     }
@@ -611,6 +667,14 @@ impl<T: SerializeArray> SerializeOption for Vec<T> {
 }
 
 impl<T: DeserializeArray> Deserialize for Vec<T> {
+    type UninitType = Self;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        value
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         DeserializeArray::deserialize_array(parcel)
             .transpose()
@@ -640,6 +704,14 @@ impl<T: SerializeArray, const N: usize> SerializeOption for [T; N] {
 impl<T: SerializeArray, const N: usize> SerializeArray for [T; N] {}
 
 impl<T: DeserializeArray, const N: usize> Deserialize for [T; N] {
+    type UninitType = [T::UninitType; N];
+    fn uninit() -> Self::UninitType {
+        [(); N].map(|_| T::uninit())
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        value.map(T::from_init)
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         let vec = DeserializeArray::deserialize_array(parcel)
             .transpose()
@@ -664,6 +736,14 @@ impl Serialize for Stability {
 }
 
 impl Deserialize for Stability {
+    type UninitType = Self;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        value
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         i32::deserialize(parcel).and_then(Stability::try_from)
     }
@@ -682,6 +762,14 @@ impl Serialize for Status {
 }
 
 impl Deserialize for Status {
+    type UninitType = Option<Self>;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        Some(value)
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         let mut status_ptr = ptr::null_mut();
         let ret_status = unsafe {
@@ -717,9 +805,26 @@ impl<T: SerializeOption + FromIBinder + ?Sized> SerializeOption for Strong<T> {
 impl<T: Serialize + FromIBinder + ?Sized> SerializeArray for Strong<T> {}
 
 impl<T: FromIBinder + ?Sized> Deserialize for Strong<T> {
+    type UninitType = Option<Strong<T>>;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        Some(value)
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         let ibinder: SpIBinder = parcel.read()?;
         FromIBinder::try_from(ibinder)
+    }
+}
+
+struct AssertIBinder;
+impl Interface for AssertIBinder {}
+impl FromIBinder for AssertIBinder {
+    // This is only needed so we can assert on the size of Strong<AssertIBinder>
+    fn try_from(_: SpIBinder) -> Result<Strong<Self>> {
+        unimplemented!()
     }
 }
 
@@ -752,6 +857,14 @@ impl<T: SerializeOption> Serialize for Option<T> {
 }
 
 impl<T: DeserializeOption> Deserialize for Option<T> {
+    type UninitType = Self;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        value
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         DeserializeOption::deserialize_option(parcel)
     }
@@ -821,6 +934,9 @@ macro_rules! impl_deserialize_for_parcelable {
     };
     ($parcelable:ident < $( $param:ident ),* > ) => {
         impl < $($param: Default),* > $crate::binder_impl::Deserialize for $parcelable < $($param),* > {
+            type UninitType = Self;
+            fn uninit() -> Self::UninitType { Self::UninitType::default() }
+            fn from_init(value: Self) -> Self::UninitType { value }
             fn deserialize(
                 parcel: &$crate::binder_impl::BorrowedParcel<'_>,
             ) -> std::result::Result<Self, $crate::StatusCode> {
@@ -876,6 +992,14 @@ impl<T: Serialize> Serialize for Box<T> {
 }
 
 impl<T: Deserialize> Deserialize for Box<T> {
+    type UninitType = Option<Self>;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        Some(value)
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         Deserialize::deserialize(parcel).map(Box::new)
     }
@@ -900,6 +1024,7 @@ mod tests {
 
     #[test]
     fn test_custom_parcelable() {
+        #[derive(Default)]
         struct Custom(u32, bool, String, Vec<String>);
 
         impl Serialize for Custom {
@@ -912,6 +1037,14 @@ mod tests {
         }
 
         impl Deserialize for Custom {
+            type UninitType = Self;
+            fn uninit() -> Self::UninitType {
+                Self::UninitType::default()
+            }
+            fn from_init(value: Self) -> Self::UninitType {
+                value
+            }
+
             fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
                 Ok(Custom(
                     parcel.read()?,
