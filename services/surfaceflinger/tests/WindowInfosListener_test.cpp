@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 #include <gui/SurfaceComposerClient.h>
+#include <gui/WindowInfosUpdate.h>
 #include <private/android_filesystem_config.h>
 #include <cstdint>
 #include <future>
@@ -41,9 +42,8 @@ protected:
         WindowInfosListener(WindowInfosPredicate predicate, std::promise<void>& promise)
               : mPredicate(std::move(predicate)), mPromise(promise) {}
 
-        void onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos,
-                                  const std::vector<DisplayInfo>&) override {
-            if (mPredicate(windowInfos)) {
+        void onWindowInfosChanged(const gui::WindowInfosUpdate& update) override {
+            if (mPredicate(update.windowInfos)) {
                 mPromise.set_value();
             }
         }

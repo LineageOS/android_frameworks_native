@@ -16,6 +16,7 @@
 
 #include <ftl/small_vector.h>
 #include <gui/ISurfaceComposer.h>
+#include <gui/WindowInfosUpdate.h>
 
 #include "WindowInfosListenerInvoker.h"
 
@@ -86,11 +87,12 @@ void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
 
 void WindowInfosListenerInvoker::windowInfosChanged(
         std::vector<WindowInfo> windowInfos, std::vector<DisplayInfo> displayInfos,
-        WindowInfosReportedListenerSet reportedListeners, bool forceImmediateCall) {
+        WindowInfosReportedListenerSet reportedListeners, bool forceImmediateCall, VsyncId vsyncId,
+        nsecs_t timestamp) {
     reportedListeners.insert(sp<WindowInfosListenerInvoker>::fromExisting(this));
     auto callListeners = [this, windowInfos = std::move(windowInfos),
-                          displayInfos = std::move(displayInfos)](
-                                 WindowInfosReportedListenerSet reportedListeners) mutable {
+                          displayInfos = std::move(displayInfos), vsyncId,
+                          timestamp](WindowInfosReportedListenerSet reportedListeners) mutable {
         WindowInfosListenerVector windowInfosListeners;
         {
             std::scoped_lock lock(mListenersMutex);
@@ -103,6 +105,9 @@ void WindowInfosListenerInvoker::windowInfosChanged(
                 sp<WindowInfosReportedListenerInvoker>::make(windowInfosListeners,
                                                              std::move(reportedListeners));
 
+        gui::WindowInfosUpdate update(std::move(windowInfos), std::move(displayInfos),
+                                      vsyncId.value, timestamp);
+
         for (const auto& listener : windowInfosListeners) {
             sp<IBinder> asBinder = IInterface::asBinder(listener);
 
@@ -111,8 +116,7 @@ void WindowInfosListenerInvoker::windowInfosChanged(
             // calling onWindowInfosReported.
             asBinder->linkToDeath(reportedInvoker);
 
-            auto status =
-                    listener->onWindowInfosChanged(windowInfos, displayInfos, reportedInvoker);
+            auto status = listener->onWindowInfosChanged(update, reportedInvoker);
             if (!status.isOk()) {
                 reportedInvoker->onWindowInfosReported();
             }
@@ -129,11 +133,15 @@ void WindowInfosListenerInvoker::windowInfosChanged(
         // to reduce the amount of binder memory used.
         if (mActiveMessageCount > 0 && !forceImmediateCall) {
             mWindowInfosChangedDelayed = std::move(callListeners);
+            mUnsentVsyncId = vsyncId;
+            mUnsentTimestamp = timestamp;
             mReportedListenersDelayed.merge(reportedListeners);
             return;
         }
 
         mWindowInfosChangedDelayed = nullptr;
+        mUnsentVsyncId = {-1};
+        mUnsentTimestamp = -1;
         reportedListeners.merge(mReportedListenersDelayed);
         mActiveMessageCount++;
     }
@@ -154,6 +162,8 @@ binder::Status WindowInfosListenerInvoker::onWindowInfosReported() {
         mActiveMessageCount++;
         callListeners = std::move(mWindowInfosChangedDelayed);
         mWindowInfosChangedDelayed = nullptr;
+        mUnsentVsyncId = {-1};
+        mUnsentTimestamp = -1;
         reportedListeners = std::move(mReportedListenersDelayed);
         mReportedListenersDelayed.clear();
     }
