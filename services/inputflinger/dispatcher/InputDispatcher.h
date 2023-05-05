@@ -36,7 +36,7 @@
 
 #include <attestation/HmacKeyManager.h>
 #include <gui/InputApplication.h>
-#include <gui/WindowInfo.h>
+#include <gui/WindowInfosUpdate.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
 #include <limits.h>
@@ -144,8 +144,7 @@ public:
     void displayRemoved(int32_t displayId) override;
 
     // Public because it's also used by tests to simulate the WindowInfosListener callback
-    void onWindowInfosChanged(const std::vector<android::gui::WindowInfo>& windowInfos,
-                              const std::vector<android::gui::DisplayInfo>& displayInfos);
+    void onWindowInfosChanged(const gui::WindowInfosUpdate&);
 
     void cancelCurrentTouch() override;
 
@@ -204,6 +203,11 @@ private:
     DropReason mLastDropReason GUARDED_BY(mLock);
 
     const IdGenerator mIdGenerator;
+
+    int64_t mWindowInfosVsyncId GUARDED_BY(mLock);
+    int64_t mWindowInfosTimestamp GUARDED_BY(mLock);
+    int64_t mMaxWindowInfosDelay GUARDED_BY(mLock) = -1;
+    int64_t mMaxWindowInfosDelayVsyncId GUARDED_BY(mLock) = -1;
 
     // With each iteration, InputDispatcher nominally processes one queued event,
     // a timeout, or a response from an input consumer.
@@ -356,9 +360,7 @@ private:
     class DispatcherWindowListener : public gui::WindowInfosListener {
     public:
         explicit DispatcherWindowListener(InputDispatcher& dispatcher) : mDispatcher(dispatcher){};
-        void onWindowInfosChanged(
-                const std::vector<android::gui::WindowInfo>& windowInfos,
-                const std::vector<android::gui::DisplayInfo>& displayInfos) override;
+        void onWindowInfosChanged(const gui::WindowInfosUpdate&) override;
 
     private:
         InputDispatcher& mDispatcher;
