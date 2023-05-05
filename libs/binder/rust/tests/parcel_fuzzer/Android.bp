@@ -21,6 +21,7 @@ rust_fuzz {
             "waghpawan@google.com",
             "smoreland@google.com",
         ],
+        triage_assignee: "waghpawan@google.com",
         // hotlist "AIDL fuzzers bugs" on buganizer
         hotlists: ["4637097"],
     },
