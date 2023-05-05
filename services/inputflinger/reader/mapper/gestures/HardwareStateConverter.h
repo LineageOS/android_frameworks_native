@@ -41,7 +41,8 @@ struct SelfContainedHardwareState {
 // Converts RawEvents into the HardwareState structs used by the gestures library.
 class HardwareStateConverter {
 public:
-    HardwareStateConverter(const InputDeviceContext& deviceContext);
+    HardwareStateConverter(const InputDeviceContext& deviceContext,
+                           MultiTouchMotionAccumulator& motionAccumulator);
 
     std::optional<SelfContainedHardwareState> processRawEvent(const RawEvent* event);
     void reset();
@@ -51,7 +52,7 @@ private:
 
     const InputDeviceContext& mDeviceContext;
     CursorButtonAccumulator mCursorButtonAccumulator;
-    MultiTouchMotionAccumulator mMotionAccumulator;
+    MultiTouchMotionAccumulator& mMotionAccumulator;
     TouchButtonAccumulator mTouchButtonAccumulator;
     int32_t mMscTimestamp = 0;
 };
