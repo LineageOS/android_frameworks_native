@@ -4024,21 +4024,8 @@ void SurfaceFlinger::doCommitTransactions() {
     }
 
     commitOffscreenLayers();
-    if (mLayerMirrorRoots.size() > 0) {
-        std::deque<Layer*> pendingUpdates;
-        pendingUpdates.insert(pendingUpdates.end(), mLayerMirrorRoots.begin(),
-                              mLayerMirrorRoots.end());
-        std::vector<Layer*> needsUpdating;
-        for (Layer* cloneRoot : mLayerMirrorRoots) {
-            pendingUpdates.pop_front();
-            if (cloneRoot->updateMirrorInfo(pendingUpdates)) {
-            } else {
-                needsUpdating.push_back(cloneRoot);
-            }
-        }
-        for (Layer* cloneRoot : needsUpdating) {
-            cloneRoot->updateMirrorInfo({});
-        }
+    if (mNumClones > 0) {
+        mDrawingState.traverse([&](Layer* layer) { layer->updateMirrorInfo(); });
     }
 }
 
@@ -4145,7 +4132,7 @@ bool SurfaceFlinger::latchBuffers() {
         mBootStage = BootStage::BOOTANIMATION;
     }
 
-    if (mLayerMirrorRoots.size() > 0) {
+    if (mNumClones > 0) {
         mDrawingState.traverse([&](Layer* layer) { layer->updateCloneBufferInfo(); });
     }
 
