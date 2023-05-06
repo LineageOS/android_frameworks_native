@@ -22,6 +22,7 @@
 #include <binder/IBinder.h>
 #include <gui/SpHash.h>
 #include <gui/WindowInfosListener.h>
+#include <gui/WindowInfosUpdate.h>
 #include <unordered_set>
 
 namespace android {
@@ -29,8 +30,7 @@ namespace android {
 class WindowInfosListenerReporter : public gui::BnWindowInfosListener {
 public:
     static sp<WindowInfosListenerReporter> getInstance();
-    binder::Status onWindowInfosChanged(const std::vector<gui::WindowInfo>&,
-                                        const std::vector<gui::DisplayInfo>&,
+    binder::Status onWindowInfosChanged(const gui::WindowInfosUpdate& update,
                                         const sp<gui::IWindowInfosReportedListener>&) override;
     status_t addWindowInfosListener(
             const sp<gui::WindowInfosListener>& windowInfosListener,

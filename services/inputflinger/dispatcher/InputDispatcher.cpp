@@ -2239,7 +2239,9 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     const bool wasDown = oldState != nullptr && oldState->isDown();
     const bool isDown = (maskedAction == AMOTION_EVENT_ACTION_DOWN) ||
             (maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN && !wasDown);
-    const bool newGesture = isDown || maskedAction == AMOTION_EVENT_ACTION_SCROLL || isHoverAction;
+    const bool newGesture = isDown || maskedAction == AMOTION_EVENT_ACTION_SCROLL ||
+            maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
+            maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE;
     const bool isFromMouse = isFromSource(entry.source, AINPUT_SOURCE_MOUSE);
 
     // If pointers are already down, let's finish the current gesture and ignore the new events
@@ -2427,12 +2429,26 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         /* Case 2: Pointer move, up, cancel or non-splittable pointer down. */
 
         // If the pointer is not currently down, then ignore the event.
-        if (!tempTouchState.isDown()) {
+        if (!tempTouchState.isDown() && maskedAction != AMOTION_EVENT_ACTION_HOVER_EXIT) {
             LOG(INFO) << "Dropping event because the pointer is not down or we previously "
                          "dropped the pointer down event in display "
                       << displayId << ": " << entry.getDescription();
             outInjectionResult = InputEventInjectionResult::FAILED;
             return {};
+        }
+
+        // If the pointer is not currently hovering, then ignore the event.
+        if (maskedAction == AMOTION_EVENT_ACTION_HOVER_EXIT) {
+            const int32_t pointerId = entry.pointerProperties[0].id;
+            if (oldState == nullptr ||
+                oldState->getWindowsWithHoveringPointer(entry.deviceId, pointerId).empty()) {
+                LOG(INFO) << "Dropping event because the hovering pointer is not in any windows in "
+                             "display "
+                          << displayId << ": " << entry.getDescription();
+                outInjectionResult = InputEventInjectionResult::FAILED;
+                return {};
+            }
+            tempTouchState.removeHoveringPointer(entry.deviceId, pointerId);
         }
 
         addDragEventLocked(entry);
@@ -2530,21 +2546,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                                   targets);
         }
     }
-    // Ensure that we have at least one foreground window or at least one window that cannot be a
-    // foreground target. If we only have windows that are not receiving foreground touches (e.g. we
-    // only have windows getting ACTION_OUTSIDE), then drop the event, because there is no window
-    // that is actually receiving the entire gesture.
-    if (std::none_of(tempTouchState.windows.begin(), tempTouchState.windows.end(),
-                     [](const TouchedWindow& touchedWindow) {
-                         return !canReceiveForegroundTouches(
-                                        *touchedWindow.windowHandle->getInfo()) ||
-                                 touchedWindow.targetFlags.test(InputTarget::Flags::FOREGROUND);
-                     })) {
-        ALOGI("Dropping event because there is no touched window on display %d to receive it: %s",
-              displayId, entry.getDescription().c_str());
-        outInjectionResult = InputEventInjectionResult::FAILED;
-        return {};
-    }
 
     // Ensure that all touched windows are valid for injection.
     if (entry.injectionState != nullptr) {
@@ -2586,7 +2587,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         }
     }
 
-    // Success!  Output targets from the touch state.
+    // Output targets from the touch state.
     for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
         if (touchedWindow.pointerIds.none() && !touchedWindow.hasHoveringPointers(entry.deviceId)) {
             // Windows with hovering pointers are getting persisted inside TouchState.
@@ -2596,6 +2597,23 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         addWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
                               touchedWindow.pointerIds, touchedWindow.firstDownTimeInTarget,
                               targets);
+    }
+
+    if (targets.empty()) {
+        LOG(INFO) << "Dropping event because no targets were found: " << entry.getDescription();
+        outInjectionResult = InputEventInjectionResult::FAILED;
+        return {};
+    }
+
+    // If we only have windows getting ACTION_OUTSIDE, then drop the event, because there is no
+    // window that is actually receiving the entire gesture.
+    if (std::all_of(targets.begin(), targets.end(), [](const InputTarget& target) {
+            return target.flags.test(InputTarget::Flags::DISPATCH_AS_OUTSIDE);
+        })) {
+        LOG(INFO) << "Dropping event because all windows would just receive ACTION_OUTSIDE: "
+                  << entry.getDescription();
+        outInjectionResult = InputEventInjectionResult::FAILED;
+        return {};
     }
 
     outInjectionResult = InputEventInjectionResult::SUCCEEDED;
@@ -5483,7 +5501,7 @@ void InputDispatcher::logDispatchStateLocked() const {
     std::string line;
 
     while (std::getline(stream, line, '\n')) {
-        ALOGD("%s", line.c_str());
+        ALOGI("%s", line.c_str());
     }
 }
 
@@ -5593,6 +5611,14 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
     } else {
         dump += INDENT "Displays: <none>\n";
     }
+    dump += INDENT "Window Infos:\n";
+    dump += StringPrintf(INDENT2 "vsync id: %" PRId64 "\n", mWindowInfosVsyncId);
+    dump += StringPrintf(INDENT2 "timestamp (ns): %" PRId64 "\n", mWindowInfosTimestamp);
+    dump += "\n";
+    dump += StringPrintf(INDENT2 "max update delay (ns): %" PRId64 "\n", mMaxWindowInfosDelay);
+    dump += StringPrintf(INDENT2 "max update delay vsync id: %" PRId64 "\n",
+                         mMaxWindowInfosDelayVsyncId);
+    dump += "\n";
 
     if (!mGlobalMonitorsByDisplay.empty()) {
         for (const auto& [displayId, monitors] : mGlobalMonitorsByDisplay) {
@@ -6608,12 +6634,11 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
     mLooper->wake();
 }
 
-void InputDispatcher::onWindowInfosChanged(const std::vector<WindowInfo>& windowInfos,
-                                           const std::vector<DisplayInfo>& displayInfos) {
+void InputDispatcher::onWindowInfosChanged(const gui::WindowInfosUpdate& update) {
     // The listener sends the windows as a flattened array. Separate the windows by display for
     // more convenient parsing.
     std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>> handlesPerDisplay;
-    for (const auto& info : windowInfos) {
+    for (const auto& info : update.windowInfos) {
         handlesPerDisplay.emplace(info.displayId, std::vector<sp<WindowInfoHandle>>());
         handlesPerDisplay[info.displayId].push_back(sp<WindowInfoHandle>::make(info));
     }
@@ -6628,12 +6653,21 @@ void InputDispatcher::onWindowInfosChanged(const std::vector<WindowInfo>& window
         }
 
         mDisplayInfos.clear();
-        for (const auto& displayInfo : displayInfos) {
+        for (const auto& displayInfo : update.displayInfos) {
             mDisplayInfos.emplace(displayInfo.displayId, displayInfo);
         }
 
         for (const auto& [displayId, handles] : handlesPerDisplay) {
             setInputWindowsLocked(handles, displayId);
+        }
+
+        mWindowInfosVsyncId = update.vsyncId;
+        mWindowInfosTimestamp = update.timestamp;
+
+        int64_t delay = systemTime() - update.timestamp;
+        if (delay > mMaxWindowInfosDelay) {
+            mMaxWindowInfosDelay = delay;
+            mMaxWindowInfosDelayVsyncId = update.vsyncId;
         }
     }
     // Wake up poll loop since it may need to make new input dispatching choices.
@@ -6657,9 +6691,8 @@ bool InputDispatcher::shouldDropInput(
 }
 
 void InputDispatcher::DispatcherWindowListener::onWindowInfosChanged(
-        const std::vector<gui::WindowInfo>& windowInfos,
-        const std::vector<DisplayInfo>& displayInfos) {
-    mDispatcher.onWindowInfosChanged(windowInfos, displayInfos);
+        const gui::WindowInfosUpdate& update) {
+    mDispatcher.onWindowInfosChanged(update);
 }
 
 void InputDispatcher::cancelCurrentTouch() {
