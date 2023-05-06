@@ -25,6 +25,7 @@
 #include "FakeEventHub.h"
 #include "FakeInputReaderPolicy.h"
 #include "InstrumentedInputReader.h"
+#include "MultiTouchMotionAccumulator.h"
 #include "TestConstants.h"
 #include "TestInputListener.h"
 
@@ -38,8 +39,10 @@ public:
             mReader(mFakeEventHub, mFakePolicy, mFakeListener),
             mDevice(newDevice()),
             mDeviceContext(*mDevice, EVENTHUB_ID) {
-        mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_SLOT, 0, 7, 0, 0, 0);
-        mConverter = std::make_unique<HardwareStateConverter>(mDeviceContext);
+        const size_t slotCount = 8;
+        mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_SLOT, 0, slotCount - 1, 0, 0, 0);
+        mAccumulator.configure(mDeviceContext, slotCount, /*usingSlotsProtocol=*/true);
+        mConverter = std::make_unique<HardwareStateConverter>(mDeviceContext, mAccumulator);
     }
 
 protected:
@@ -90,6 +93,7 @@ protected:
     InstrumentedInputReader mReader;
     std::shared_ptr<InputDevice> mDevice;
     InputDeviceContext mDeviceContext;
+    MultiTouchMotionAccumulator mAccumulator;
     std::unique_ptr<HardwareStateConverter> mConverter;
 };
 

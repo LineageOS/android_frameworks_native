@@ -62,6 +62,7 @@ static constexpr int32_t ACTION_DOWN = AMOTION_EVENT_ACTION_DOWN;
 static constexpr int32_t ACTION_MOVE = AMOTION_EVENT_ACTION_MOVE;
 static constexpr int32_t ACTION_UP = AMOTION_EVENT_ACTION_UP;
 static constexpr int32_t ACTION_HOVER_ENTER = AMOTION_EVENT_ACTION_HOVER_ENTER;
+static constexpr int32_t ACTION_HOVER_MOVE = AMOTION_EVENT_ACTION_HOVER_MOVE;
 static constexpr int32_t ACTION_HOVER_EXIT = AMOTION_EVENT_ACTION_HOVER_EXIT;
 static constexpr int32_t ACTION_OUTSIDE = AMOTION_EVENT_ACTION_OUTSIDE;
 static constexpr int32_t ACTION_CANCEL = AMOTION_EVENT_ACTION_CANCEL;
@@ -2455,6 +2456,116 @@ TEST_F(InputDispatcherTest, HoverFromLeftToRightAndTap) {
 }
 
 /**
+ * Start hovering in a window. While this hover is still active, make another window appear on top.
+ * The top, obstructing window has no input channel, so it's not supposed to receive input.
+ * While the top window is present, the hovering is stopped.
+ * Later, hovering gets resumed again.
+ * Ensure that new hover gesture is handled correctly.
+ * This test reproduces a crash where the HOVER_EXIT event wasn't getting dispatched correctly
+ * to the window that's currently being hovered over.
+ */
+TEST_F(InputDispatcherTest, HoverWhileWindowAppears) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 200, 200));
+
+    // Only a single window is present at first
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // Start hovering in the window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(100).y(100))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    // Now, an obscuring window appears!
+    sp<FakeWindowHandle> obscuringWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Obscuring window",
+                                       ADISPLAY_ID_DEFAULT,
+                                       /*token=*/std::make_optional<sp<IBinder>>(nullptr));
+    obscuringWindow->setFrame(Rect(0, 0, 200, 200));
+    obscuringWindow->setTouchOcclusionMode(TouchOcclusionMode::BLOCK_UNTRUSTED);
+    obscuringWindow->setOwnerInfo(SECONDARY_WINDOW_PID, SECONDARY_WINDOW_UID);
+    obscuringWindow->setNoInputChannel(true);
+    obscuringWindow->setFocusable(false);
+    obscuringWindow->setAlpha(1.0);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {obscuringWindow, window}}});
+
+    // While this new obscuring window is present, the hovering is stopped
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(100).y(100))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+
+    // Now the obscuring window goes away.
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // And a new hover gesture starts.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(100).y(100))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+}
+
+/**
+ * Same test as 'HoverWhileWindowAppears' above, but here, we also send some HOVER_MOVE events to
+ * the obscuring window.
+ */
+TEST_F(InputDispatcherTest, HoverMoveWhileWindowAppears) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 200, 200));
+
+    // Only a single window is present at first
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // Start hovering in the window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(100).y(100))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    // Now, an obscuring window appears!
+    sp<FakeWindowHandle> obscuringWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Obscuring window",
+                                       ADISPLAY_ID_DEFAULT,
+                                       /*token=*/std::make_optional<sp<IBinder>>(nullptr));
+    obscuringWindow->setFrame(Rect(0, 0, 200, 200));
+    obscuringWindow->setTouchOcclusionMode(TouchOcclusionMode::BLOCK_UNTRUSTED);
+    obscuringWindow->setOwnerInfo(SECONDARY_WINDOW_PID, SECONDARY_WINDOW_UID);
+    obscuringWindow->setNoInputChannel(true);
+    obscuringWindow->setFocusable(false);
+    obscuringWindow->setAlpha(1.0);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {obscuringWindow, window}}});
+
+    // While this new obscuring window is present, the hovering continues. The event can't go to the
+    // bottom window due to obstructed touches, so it should generate HOVER_EXIT for that window.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(100).y(100))
+                                      .build());
+    obscuringWindow->assertNoEvents();
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+
+    // Now the obscuring window goes away.
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // Hovering continues in the same position. The hovering pointer re-enters the bottom window,
+    // so it should generate a HOVER_ENTER
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(100).y(100))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    // Now the MOVE should be getting dispatched normally
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(110).y(110))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_MOVE));
+}
+
+/**
  * Two windows: a window on the left and a window on the right.
  * Mouse is clicked on the left window and remains down. Touch is touched on the right and remains
  * down. Then, on the left window, also place second touch pointer down.
@@ -3446,7 +3557,9 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
                                         .build()));
     window->consumeMotionUp(ADISPLAY_ID_DEFAULT);
 
-    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+    // We already canceled the hovering implicitly by injecting the "DOWN" event without lifting the
+    // hover first. Therefore, injection of HOVER_EXIT is inconsistent, and should fail.
+    ASSERT_EQ(InputEventInjectionResult::FAILED,
               injectMotionEvent(mDispatcher,
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_EXIT,
                                                    AINPUT_SOURCE_MOUSE)
@@ -3832,7 +3945,7 @@ TEST_F(InputDispatcherTest, OnWindowInfosChanged_RemoveAllWindowsOnDisplay) {
                                                              "Fake Window", ADISPLAY_ID_DEFAULT);
     window->setFocusable(true);
 
-    mDispatcher->onWindowInfosChanged({*window->getInfo()}, {});
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
     setFocusedWindow(window);
 
     window->consumeFocusEvent(true);
@@ -3846,7 +3959,7 @@ TEST_F(InputDispatcherTest, OnWindowInfosChanged_RemoveAllWindowsOnDisplay) {
     window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
 
     // All windows are removed from the display. Ensure that we can no longer dispatch to it.
-    mDispatcher->onWindowInfosChanged({}, {});
+    mDispatcher->onWindowInfosChanged({{}, {}, 0, 0});
 
     window->consumeFocusEvent(false);
 
@@ -3862,7 +3975,7 @@ TEST_F(InputDispatcherTest, NonSplitTouchableWindowReceivesMultiTouch) {
     // Ensure window is non-split and have some transform.
     window->setPreventSplitting(true);
     window->setWindowOffset(20, 40);
-    mDispatcher->onWindowInfosChanged({*window->getInfo()}, {});
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
@@ -3909,12 +4022,12 @@ public:
         info.displayId = displayId;
         info.transform = transform;
         mDisplayInfos.push_back(std::move(info));
-        mDispatcher->onWindowInfosChanged(mWindowInfos, mDisplayInfos);
+        mDispatcher->onWindowInfosChanged({mWindowInfos, mDisplayInfos, 0, 0});
     }
 
     void addWindow(const sp<WindowInfoHandle>& windowHandle) {
         mWindowInfos.push_back(*windowHandle->getInfo());
-        mDispatcher->onWindowInfosChanged(mWindowInfos, mDisplayInfos);
+        mDispatcher->onWindowInfosChanged({mWindowInfos, mDisplayInfos, 0, 0});
     }
 
     void removeAllWindowsAndDisplays() {
@@ -5102,7 +5215,7 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
     displayInfo.displayId = ADISPLAY_ID_DEFAULT;
     displayInfo.transform = transform;
 
-    mDispatcher->onWindowInfosChanged({*window->getInfo()}, {displayInfo});
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {displayInfo}, 0, 0});
 
     const NotifyMotionArgs motionArgs =
             generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
@@ -5872,7 +5985,7 @@ TEST_F(InputFilterTest, MotionEvent_UsesLogicalDisplayCoordinates_notifyMotion) 
     displayInfos[1].displayId = SECOND_DISPLAY_ID;
     displayInfos[1].transform = secondDisplayTransform;
 
-    mDispatcher->onWindowInfosChanged({}, displayInfos);
+    mDispatcher->onWindowInfosChanged({{}, displayInfos, 0, 0});
 
     // Enable InputFilter
     mDispatcher->setInputFilterEnabled(true);
