@@ -270,6 +270,14 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
         accelCurveProp.setRealValues(
                 createAccelerationCurveForSensitivity(config.touchpadPointerSpeed,
                                                       accelCurveProp.getCount()));
+        mPropertyProvider.getProperty("Use Custom Touchpad Scroll Accel Curve")
+                .setBoolValues({true});
+        GesturesProp scrollCurveProp = mPropertyProvider.getProperty("Scroll Accel Curve");
+        scrollCurveProp.setRealValues(
+                createAccelerationCurveForSensitivity(config.touchpadPointerSpeed,
+                                                      scrollCurveProp.getCount()));
+        mPropertyProvider.getProperty("Scroll X Out Scale").setRealValues({1.0});
+        mPropertyProvider.getProperty("Scroll Y Out Scale").setRealValues({1.0});
         mPropertyProvider.getProperty("Invert Scrolling")
                 .setBoolValues({config.touchpadNaturalScrollingEnabled});
         mPropertyProvider.getProperty("Tap Enable")
