@@ -254,8 +254,7 @@ Layer::~Layer() {
         mFlinger->mTunnelModeEnabledReporter->decrementTunnelModeCount();
     }
     if (mHadClonedChild) {
-        auto& roots = mFlinger->mLayerMirrorRoots;
-        roots.erase(std::remove(roots.begin(), roots.end(), this), roots.end());
+        mFlinger->mNumClones--;
     }
     if (hasTrustedPresentationListener()) {
         mFlinger->mNumTrustedPresentationListeners--;
@@ -2595,7 +2594,7 @@ void Layer::updateCloneBufferInfo() {
     mDrawingState.inputInfo = tmpInputInfo;
 }
 
-bool Layer::updateMirrorInfo(const std::deque<Layer*>& cloneRootsPendingUpdates) {
+void Layer::updateMirrorInfo() {
     if (mClonedChild == nullptr || !mClonedChild->isClonedFromAlive()) {
         // If mClonedChild is null, there is nothing to mirror. If isClonedFromAlive returns false,
         // it means that there is a clone, but the layer it was cloned from has been destroyed. In
@@ -2603,7 +2602,7 @@ bool Layer::updateMirrorInfo(const std::deque<Layer*>& cloneRootsPendingUpdates)
         // destroyed. The root, this layer, will still be around since the client can continue
         // to hold a reference, but no cloned layers will be displayed.
         mClonedChild = nullptr;
-        return true;
+        return;
     }
 
     std::map<sp<Layer>, sp<Layer>> clonedLayersMap;
@@ -2618,13 +2617,6 @@ bool Layer::updateMirrorInfo(const std::deque<Layer*>& cloneRootsPendingUpdates)
     mClonedChild->updateClonedDrawingState(clonedLayersMap);
     mClonedChild->updateClonedChildren(sp<Layer>::fromExisting(this), clonedLayersMap);
     mClonedChild->updateClonedRelatives(clonedLayersMap);
-
-    for (Layer* root : cloneRootsPendingUpdates) {
-        if (clonedLayersMap.find(sp<Layer>::fromExisting(root)) != clonedLayersMap.end()) {
-            return false;
-        }
-    }
-    return true;
 }
 
 void Layer::updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {
@@ -2772,7 +2764,7 @@ bool Layer::isInternalDisplayOverlay() const {
 void Layer::setClonedChild(const sp<Layer>& clonedChild) {
     mClonedChild = clonedChild;
     mHadClonedChild = true;
-    mFlinger->mLayerMirrorRoots.push_back(this);
+    mFlinger->mNumClones++;
 }
 
 bool Layer::setDropInputMode(gui::DropInputMode mode) {
