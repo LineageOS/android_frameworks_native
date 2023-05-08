@@ -246,6 +246,11 @@ void InputDeviceMetricsCollector::notifyPointerCaptureChanged(
     mNextListener.notify(args);
 }
 
+void InputDeviceMetricsCollector::notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+                                                          const std::set<int32_t>& uids) {
+    // TODO: Implement.
+}
+
 void InputDeviceMetricsCollector::dump(std::string& dump) {
     dump += "InputDeviceMetricsCollector:\n";
 

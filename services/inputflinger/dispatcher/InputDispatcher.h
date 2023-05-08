@@ -447,8 +447,8 @@ private:
     // when switching touch mode state).
     std::unordered_set<sp<IBinder>, StrongPointerHash<IBinder>> mInteractionConnectionTokens
             GUARDED_BY(mLock);
-    void updateInteractionTokensLocked(const EventEntry& entry,
-                                       const std::vector<InputTarget>& targets) REQUIRES(mLock);
+    void processInteractionsLocked(const EventEntry& entry, const std::vector<InputTarget>& targets)
+            REQUIRES(mLock);
 
     // Dispatch inbound events.
     bool dispatchConfigurationChangedLocked(nsecs_t currentTime,

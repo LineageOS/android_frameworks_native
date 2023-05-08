@@ -33,10 +33,16 @@ namespace android {
 /**
  * Logs metrics about registered input devices and their usages.
  *
- * Not thread safe. Must be called from a single thread.
+ * All methods in the InputListenerInterface must be called from a single thread.
  */
 class InputDeviceMetricsCollectorInterface : public InputListenerInterface {
 public:
+    /**
+     * Notify the metrics collector that there was an input device interaction with apps.
+     * Called from the InputDispatcher thread.
+     */
+    virtual void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+                                         const std::set<int32_t>& uids) = 0;
     /**
      * Dump the state of the interaction blocker.
      * This method may be called on any thread (usually by the input manager on a binder thread).
@@ -121,6 +127,8 @@ public:
     void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
+    void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+                                 const std::set<int32_t>& uids) override;
     void dump(std::string& dump) override;
 
 private:
