@@ -326,10 +326,10 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
         // device's present timestamps are reliable (which may not be the case on emulators).
         if (cnx->useAngle) {
             if (android::base::GetBoolProperty("service.sf.present_timestamp", false)) {
-                mExtensionString.append("EGL_ANDROID_get_frame_timestamps");
+                mExtensionString.append("EGL_ANDROID_get_frame_timestamps ");
             }
         } else {
-            mExtensionString.append("EGL_ANDROID_get_frame_timestamps");
+            mExtensionString.append("EGL_ANDROID_get_frame_timestamps ");
         }
 
         hasColorSpaceSupport = findExtension(disp.queryString.extensions, "EGL_KHR_gl_colorspace");
