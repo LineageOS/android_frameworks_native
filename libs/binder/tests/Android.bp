@@ -792,3 +792,15 @@ cc_defaults {
         hotlists: ["4637097"],
     },
 }
+
+cc_defaults {
+    name: "fuzzer_disable_leaks",
+    fuzz_config: {
+        asan_options: [
+            "detect_leaks=0",
+        ],
+        hwasan_options: [
+            "detect_leaks=0",
+        ],
+    },
+}
