@@ -35,7 +35,16 @@ public:
                                      const int32_t event,
                                      const int32_t cutpoint,
                                      const String16& callingPackage) = 0;
+    virtual status_t registerUidObserverForUids(const sp<IUidObserver>& observer,
+                                                const int32_t event, const int32_t cutpoint,
+                                                const String16& callingPackage,
+                                                const int32_t uids[], size_t nUids,
+                                                /*out*/ sp<IBinder>& observerToken) = 0;
     virtual status_t unregisterUidObserver(const sp<IUidObserver>& observer) = 0;
+    virtual status_t addUidToObserver(const sp<IBinder>& observerToken,
+                                      const String16& callingPackage, int32_t uid) = 0;
+    virtual status_t removeUidFromObserver(const sp<IBinder>& observerToken,
+                                           const String16& callingPackage, int32_t uid) = 0;
     virtual bool isUidActive(const uid_t uid, const String16& callingPackage) = 0;
     virtual int32_t getUidProcessState(const uid_t uid, const String16& callingPackage) = 0;
     virtual status_t checkPermission(const String16& permission,
@@ -51,6 +60,9 @@ public:
         OPEN_CONTENT_URI_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION,
         REGISTER_UID_OBSERVER_TRANSACTION,
         UNREGISTER_UID_OBSERVER_TRANSACTION,
+        REGISTER_UID_OBSERVER_FOR_UIDS_TRANSACTION,
+        ADD_UID_TO_OBSERVER_TRANSACTION,
+        REMOVE_UID_FROM_OBSERVER_TRANSACTION,
         IS_UID_ACTIVE_TRANSACTION,
         GET_UID_PROCESS_STATE_TRANSACTION,
         CHECK_PERMISSION_TRANSACTION,
