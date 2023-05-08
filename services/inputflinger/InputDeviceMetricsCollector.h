@@ -18,6 +18,7 @@
 
 #include "InputListener.h"
 #include "NotifyArgs.h"
+#include "SyncQueue.h"
 
 #include <ftl/mixins.h>
 #include <input/InputDevice.h>
@@ -98,9 +99,14 @@ public:
     using SourceUsageBreakdown =
             std::vector<std::pair<InputDeviceUsageSource, std::chrono::nanoseconds /*duration*/>>;
 
+    // Describes the breakdown of an input device usage session by the UIDs that it interacted with.
+    using UidUsageBreakdown =
+            std::vector<std::pair<int32_t /*uid*/, std::chrono::nanoseconds /*duration*/>>;
+
     struct DeviceUsageReport {
         std::chrono::nanoseconds usageDuration;
         SourceUsageBreakdown sourceBreakdown;
+        UidUsageBreakdown uidBreakdown;
     };
 
     virtual void logInputDeviceUsageReported(const InputDeviceIdentifier&,
@@ -146,13 +152,25 @@ private:
         return std::to_string(ftl::to_underlying(id));
     }
 
+    // Type-safe wrapper for a UID.
+    struct Uid : ftl::Constructible<Uid, std::int32_t>, ftl::Equatable<Uid>, ftl::Orderable<Uid> {
+        using Constructible::Constructible;
+    };
+    static inline std::string toString(const Uid& src) {
+        return std::to_string(ftl::to_underlying(src));
+    }
+
     std::map<DeviceId, InputDeviceInfo> mLoggedDeviceInfos;
+
+    using Interaction = std::tuple<DeviceId, std::chrono::nanoseconds, std::set<Uid>>;
+    SyncQueue<Interaction> mInteractionsQueue;
 
     class ActiveSession {
     public:
         explicit ActiveSession(std::chrono::nanoseconds usageSessionTimeout,
                                std::chrono::nanoseconds startTime);
         void recordUsage(std::chrono::nanoseconds eventTime, InputDeviceUsageSource source);
+        void recordInteraction(const Interaction&);
         bool checkIfCompletedAt(std::chrono::nanoseconds timestamp);
         InputDeviceMetricsLogger::DeviceUsageReport finishSession();
 
@@ -167,6 +185,9 @@ private:
 
         std::map<InputDeviceUsageSource, UsageSession> mActiveSessionsBySource{};
         InputDeviceMetricsLogger::SourceUsageBreakdown mSourceUsageBreakdown{};
+
+        std::map<Uid, UsageSession> mActiveSessionsByUid{};
+        InputDeviceMetricsLogger::UidUsageBreakdown mUidUsageBreakdown{};
     };
 
     // The input devices that currently have active usage sessions.
@@ -177,6 +198,7 @@ private:
     using SourceProvider = std::function<std::set<InputDeviceUsageSource>(const InputDeviceInfo&)>;
     void onInputDeviceUsage(DeviceId deviceId, std::chrono::nanoseconds eventTime,
                             const SourceProvider& getSources);
+    void onInputDeviceInteraction(const Interaction&);
     void reportCompletedSessions();
 };
 
