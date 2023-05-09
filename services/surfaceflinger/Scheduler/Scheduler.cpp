@@ -31,6 +31,7 @@
 #include <gui/TraceUtils.h>
 #include <gui/WindowInfo.h>
 #include <system/window.h>
+#include <ui/DisplayMap.h>
 #include <utils/Timers.h>
 
 #include <FrameTimeline/FrameTimeline.h>
@@ -44,7 +45,6 @@
 #include <numeric>
 
 #include "../Layer.h"
-#include "Display/DisplayMap.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
 #include "FrontEnd/LayerHandle.h"
@@ -159,14 +159,21 @@ void Scheduler::run() {
 
 void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
                               TimePoint expectedVsyncTime) {
-    const TimePoint frameTime = SchedulerClock::now();
+    mPacesetterFrameTargeter.beginFrame({.frameBeginTime = SchedulerClock::now(),
+                                         .vsyncId = vsyncId,
+                                         .expectedVsyncTime = expectedVsyncTime,
+                                         .sfWorkDuration =
+                                                 mVsyncModulator->getVsyncConfig().sfWorkDuration},
+                                        *getVsyncSchedule());
 
-    if (!compositor.commit(frameTime, vsyncId, expectedVsyncTime)) {
+    if (!compositor.commit(mPacesetterFrameTargeter.target())) {
         return;
     }
 
-    compositor.composite(frameTime, vsyncId);
+    const auto compositeResult = compositor.composite(mPacesetterFrameTargeter);
     compositor.sample();
+
+    mPacesetterFrameTargeter.endFrame(compositeResult);
 }
 
 std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
@@ -176,23 +183,23 @@ std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
             .getFrameRateOverrideForUid(uid, supportsFrameRateOverrideByContent);
 }
 
-bool Scheduler::isVsyncValid(TimePoint expectedVsyncTimestamp, uid_t uid) const {
+bool Scheduler::isVsyncValid(TimePoint expectedVsyncTime, uid_t uid) const {
     const auto frameRate = getFrameRateOverride(uid);
     if (!frameRate.has_value()) {
         return true;
     }
 
     ATRACE_FORMAT("%s uid: %d frameRate: %s", __func__, uid, to_string(*frameRate).c_str());
-    return getVsyncSchedule()->getTracker().isVSyncInPhase(expectedVsyncTimestamp.ns(), *frameRate);
+    return getVsyncSchedule()->getTracker().isVSyncInPhase(expectedVsyncTime.ns(), *frameRate);
 }
 
-bool Scheduler::isVsyncInPhase(TimePoint timePoint, const Fps frameRate) const {
-    return getVsyncSchedule()->getTracker().isVSyncInPhase(timePoint.ns(), frameRate);
+bool Scheduler::isVsyncInPhase(TimePoint expectedVsyncTime, Fps frameRate) const {
+    return getVsyncSchedule()->getTracker().isVSyncInPhase(expectedVsyncTime.ns(), frameRate);
 }
 
 impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() const {
-    return [this](nsecs_t expectedVsyncTimestamp, uid_t uid) {
-        return !isVsyncValid(TimePoint::fromNs(expectedVsyncTimestamp), uid);
+    return [this](nsecs_t expectedVsyncTime, uid_t uid) {
+        return !isVsyncValid(TimePoint::fromNs(expectedVsyncTime), uid);
     };
 }
 
@@ -681,6 +688,8 @@ void Scheduler::dump(utils::Dumper& dumper) const {
 
     mFrameRateOverrideMappings.dump(dumper);
     dumper.eol();
+
+    mPacesetterFrameTargeter.dump(dumper);
 }
 
 void Scheduler::dumpVsync(std::string& out) const {
@@ -846,7 +855,7 @@ auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
     ATRACE_CALL();
 
     using RankedRefreshRates = RefreshRateSelector::RankedFrameRates;
-    display::PhysicalDisplayVector<RankedRefreshRates> perDisplayRanking;
+    ui::PhysicalDisplayVector<RankedRefreshRates> perDisplayRanking;
     const auto globalSignals = makeGlobalSignals();
     Fps pacesetterFps;
 

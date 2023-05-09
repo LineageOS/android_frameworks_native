@@ -18,17 +18,17 @@
 
 #include <cstdint>
 
+#include <ftl/mixins.h>
+
 namespace android {
 
-// TODO(b/185536303): Import StrongTyping.h into FTL so it can be used here.
-
 // Sequential frame identifier, also known as FrameTimeline token.
-struct VsyncId {
-    int64_t value = -1;
+//
+// TODO(b/241285191): Pull to <gui/FrameTimelineInfo.h> and use VsyncId over int64_t everywhere.
+struct VsyncId : ftl::DefaultConstructible<VsyncId, int64_t, -1>,
+                 ftl::Incrementable<VsyncId>,
+                 ftl::Equatable<VsyncId> {
+    using DefaultConstructible::DefaultConstructible;
 };
-
-inline bool operator==(VsyncId lhs, VsyncId rhs) {
-    return lhs.value == rhs.value;
-}
 
 } // namespace android

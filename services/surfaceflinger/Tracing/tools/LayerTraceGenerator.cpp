@@ -53,7 +53,7 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
     frontend::LayerLifecycleManager lifecycleManager;
     frontend::LayerHierarchyBuilder hierarchyBuilder{{}};
     frontend::LayerSnapshotBuilder snapshotBuilder;
-    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
+    ui::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
 
     renderengine::ShadowSettings globalShadowSettings{.ambientColor = {1, 1, 1, 1}};
     char value[PROPERTY_VALUE_MAX];

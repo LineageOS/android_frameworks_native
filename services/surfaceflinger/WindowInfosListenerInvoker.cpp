@@ -106,7 +106,7 @@ void WindowInfosListenerInvoker::windowInfosChanged(
                                                              std::move(reportedListeners));
 
         gui::WindowInfosUpdate update(std::move(windowInfos), std::move(displayInfos),
-                                      vsyncId.value, timestamp);
+                                      ftl::to_underlying(vsyncId), timestamp);
 
         for (const auto& listener : windowInfosListeners) {
             sp<IBinder> asBinder = IInterface::asBinder(listener);
@@ -140,7 +140,7 @@ void WindowInfosListenerInvoker::windowInfosChanged(
         }
 
         mWindowInfosChangedDelayed = nullptr;
-        mUnsentVsyncId = {-1};
+        mUnsentVsyncId = VsyncId();
         mUnsentTimestamp = -1;
         reportedListeners.merge(mReportedListenersDelayed);
         mActiveMessageCount++;
@@ -162,7 +162,7 @@ binder::Status WindowInfosListenerInvoker::onWindowInfosReported() {
         mActiveMessageCount++;
         callListeners = std::move(mWindowInfosChangedDelayed);
         mWindowInfosChangedDelayed = nullptr;
-        mUnsentVsyncId = {-1};
+        mUnsentVsyncId = VsyncId();
         mUnsentTimestamp = -1;
         reportedListeners = std::move(mReportedListenersDelayed);
         mReportedListenersDelayed.clear();
