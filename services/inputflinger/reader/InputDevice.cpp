@@ -446,7 +446,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
 
     // Switch-like devices.
     if (classes.test(InputDeviceClass::SWITCH)) {
-        mappers.push_back(std::make_unique<SwitchInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<SwitchInputMapper>(contextPtr, readerConfig));
     }
 
     // Scroll wheel-like devices.
