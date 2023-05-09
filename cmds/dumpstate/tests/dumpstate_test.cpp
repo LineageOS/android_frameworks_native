@@ -1001,7 +1001,7 @@ TEST_F(DumpstateTest, PreDumpUiData) {
     // These traces are always enabled, i.e. they are always pre-dumped
     const std::vector<std::filesystem::path> uiTraces = {
         std::filesystem::path{"/data/misc/wmtrace/transactions_trace.winscope"},
-        std::filesystem::path{"/data/misc/wmtrace/transition_trace.winscope"},
+        std::filesystem::path{"/data/misc/wmtrace/wm_transition_trace.winscope"},
         std::filesystem::path{"/data/misc/wmtrace/shell_transition_trace.winscope"},
     };
 
