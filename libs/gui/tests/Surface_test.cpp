@@ -699,7 +699,7 @@ public:
                                  Vector<ComposerState>& /*state*/,
                                  const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
                                  const sp<IBinder>& /*applyToken*/,
-                                 const InputWindowCommands& /*inputWindowCommands*/,
+                                 InputWindowCommands /*inputWindowCommands*/,
                                  int64_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
                                  const std::vector<client_cache_t>& /*cachedBuffer*/,
                                  bool /*hasListenerCallbacks*/,

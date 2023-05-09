@@ -110,6 +110,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <gui/LayerStatePermissions.h>
 #include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
 #include "Client.h"
@@ -4392,7 +4393,7 @@ bool SurfaceFlinger::applyTransactionsLocked(std::vector<TransactionState>& tran
                                       transaction.inputWindowCommands,
                                       transaction.desiredPresentTime, transaction.isAutoTimestamp,
                                       std::move(transaction.uncacheBufferIds), transaction.postTime,
-                                      transaction.permissions, transaction.hasListenerCallbacks,
+                                      transaction.hasListenerCallbacks,
                                       transaction.listenerCallbacks, transaction.originPid,
                                       transaction.originUid, transaction.id);
     }
@@ -4471,24 +4472,27 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
 status_t SurfaceFlinger::setTransactionState(
         const FrameTimelineInfo& frameTimelineInfo, Vector<ComposerState>& states,
         const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
-        const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
-        bool isAutoTimestamp, const std::vector<client_cache_t>& uncacheBuffers,
-        bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
-        uint64_t transactionId) {
+        InputWindowCommands inputWindowCommands, int64_t desiredPresentTime, bool isAutoTimestamp,
+        const std::vector<client_cache_t>& uncacheBuffers, bool hasListenerCallbacks,
+        const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) {
     ATRACE_CALL();
 
-    uint32_t permissions =
-        callingThreadHasUnscopedSurfaceFlingerAccess() ?
-        layer_state_t::Permission::ACCESS_SURFACE_FLINGER : 0;
-    // Avoid checking for rotation permissions if the caller already has ACCESS_SURFACE_FLINGER
-    // permissions.
-    if ((permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) ||
-        callingThreadHasPermission(sRotateSurfaceFlinger)) {
-        permissions |= layer_state_t::Permission::ROTATE_SURFACE_FLINGER;
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int originPid = ipc->getCallingPid();
+    const int originUid = ipc->getCallingUid();
+    uint32_t permissions = LayerStatePermissions::getTransactionPermissions(originPid, originUid);
+    for (auto composerState : states) {
+        composerState.state.sanitize(permissions);
     }
 
-    if (callingThreadHasPermission(sInternalSystemWindow)) {
-        permissions |= layer_state_t::Permission::INTERNAL_SYSTEM_WINDOW;
+    for (DisplayState display : displays) {
+        display.sanitize(permissions);
+    }
+
+    if (!inputWindowCommands.empty() &&
+        (permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) == 0) {
+        ALOGE("Only privileged callers are allowed to send input commands.");
+        inputWindowCommands.clear();
     }
 
     if (flags & (eEarlyWakeupStart | eEarlyWakeupEnd)) {
@@ -4503,10 +4507,6 @@ status_t SurfaceFlinger::setTransactionState(
     }
 
     const int64_t postTime = systemTime();
-
-    IPCThreadState* ipc = IPCThreadState::self();
-    const int originPid = ipc->getCallingPid();
-    const int originUid = ipc->getCallingUid();
 
     std::vector<uint64_t> uncacheBufferIds;
     uncacheBufferIds.reserve(uncacheBuffers.size());
@@ -4554,12 +4554,11 @@ status_t SurfaceFlinger::setTransactionState(
                            displays,
                            flags,
                            applyToken,
-                           inputWindowCommands,
+                           std::move(inputWindowCommands),
                            desiredPresentTime,
                            isAutoTimestamp,
                            std::move(uncacheBufferIds),
                            postTime,
-                           permissions,
                            hasListenerCallbacks,
                            listenerCallbacks,
                            originPid,
@@ -4588,14 +4587,12 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                                            const InputWindowCommands& inputWindowCommands,
                                            const int64_t desiredPresentTime, bool isAutoTimestamp,
                                            const std::vector<uint64_t>& uncacheBufferIds,
-                                           const int64_t postTime, uint32_t permissions,
-                                           bool hasListenerCallbacks,
+                                           const int64_t postTime, bool hasListenerCallbacks,
                                            const std::vector<ListenerCallbacks>& listenerCallbacks,
                                            int originPid, int originUid, uint64_t transactionId) {
     uint32_t transactionFlags = 0;
     if (!mLayerLifecycleManagerEnabled) {
         for (DisplayState& display : displays) {
-            display.sanitize(permissions);
             transactionFlags |= setDisplayStateLocked(display);
         }
     }
@@ -4612,12 +4609,12 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
         if (mLegacyFrontEndEnabled) {
             clientStateFlags |=
                     setClientStateLocked(frameTimelineInfo, resolvedState, desiredPresentTime,
-                                         isAutoTimestamp, postTime, permissions, transactionId);
+                                         isAutoTimestamp, postTime, transactionId);
 
         } else /*mLayerLifecycleManagerEnabled*/ {
             clientStateFlags |= updateLayerCallbacksAndStats(frameTimelineInfo, resolvedState,
                                                              desiredPresentTime, isAutoTimestamp,
-                                                             postTime, permissions, transactionId);
+                                                             postTime, transactionId);
         }
         if ((flags & eAnimation) && resolvedState.state.surface) {
             if (const auto layer = LayerHandle::getLayer(resolvedState.state.surface)) {
@@ -4634,12 +4631,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     }
 
     transactionFlags |= clientStateFlags;
-
-    if (permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) {
-        transactionFlags |= addInputWindowCommands(inputWindowCommands);
-    } else if (!inputWindowCommands.empty()) {
-        ALOGE("Only privileged callers are allowed to send input commands.");
-    }
+    transactionFlags |= addInputWindowCommands(inputWindowCommands);
 
     for (uint64_t uncacheBufferId : uncacheBufferIds) {
         mBufferIdsToUncache.push_back(uncacheBufferId);
@@ -4676,7 +4668,6 @@ bool SurfaceFlinger::applyAndCommitDisplayTransactionStates(
     uint32_t transactionFlags = 0;
     for (auto& transaction : transactions) {
         for (DisplayState& display : transaction.displays) {
-            display.sanitize(transaction.permissions);
             transactionFlags |= setDisplayStateLocked(display);
         }
     }
@@ -4775,10 +4766,8 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermis
 uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTimelineInfo,
                                               ResolvedComposerState& composerState,
                                               int64_t desiredPresentTime, bool isAutoTimestamp,
-                                              int64_t postTime, uint32_t permissions,
-                                              uint64_t transactionId) {
+                                              int64_t postTime, uint64_t transactionId) {
     layer_state_t& s = composerState.state;
-    s.sanitize(permissions);
 
     std::vector<ListenerCallbacks> filteredListeners;
     for (auto& listener : s.listeners) {
@@ -5127,10 +5116,8 @@ uint32_t SurfaceFlinger::updateLayerCallbacksAndStats(const FrameTimelineInfo& f
                                                       ResolvedComposerState& composerState,
                                                       int64_t desiredPresentTime,
                                                       bool isAutoTimestamp, int64_t postTime,
-                                                      uint32_t permissions,
                                                       uint64_t transactionId) {
     layer_state_t& s = composerState.state;
-    s.sanitize(permissions);
 
     std::vector<ListenerCallbacks> filteredListeners;
     for (auto& listener : s.listeners) {
@@ -5412,7 +5399,6 @@ void SurfaceFlinger::initializeDisplays() {
     const nsecs_t now = systemTime();
     state.desiredPresentTime = now;
     state.postTime = now;
-    state.permissions = layer_state_t::ACCESS_SURFACE_FLINGER;
     state.originPid = mPid;
     state.originUid = static_cast<int>(getuid());
     const uint64_t transactionId = (static_cast<uint64_t>(mPid) << 32) | mUniqueTransactionId++;
