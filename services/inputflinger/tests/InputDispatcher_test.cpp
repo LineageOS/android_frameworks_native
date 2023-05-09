@@ -5535,6 +5535,46 @@ TEST_F(InputDispatcherTest, SlipperyWindow_SetsFlagPartiallyObscured) {
                                            AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED);
 }
 
+/**
+ * Two windows, one on the left and another on the right. The left window is slippery. The right
+ * window isn't eligible to receive touch because it specifies InputConfig::DROP_INPUT. When the
+ * touch moves from the left window into the right window, the gesture should continue to go to the
+ * left window. Touch shouldn't slip because the right window can't receive touches. This test
+ * reproduces a crash.
+ */
+TEST_F(InputDispatcherTest, TouchSlippingIntoWindowThatDropsTouches) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> leftSlipperyWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
+    leftSlipperyWindow->setSlippery(true);
+    leftSlipperyWindow->setFrame(Rect(0, 0, 100, 100));
+
+    sp<FakeWindowHandle> rightDropTouchesWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
+    rightDropTouchesWindow->setFrame(Rect(100, 0, 200, 100));
+    rightDropTouchesWindow->setDropInput(true);
+
+    mDispatcher->setInputWindows(
+            {{ADISPLAY_ID_DEFAULT, {leftSlipperyWindow, rightDropTouchesWindow}}});
+
+    // Start touch in the left window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .build());
+    leftSlipperyWindow->consumeMotionDown();
+
+    // And move it into the right window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(50))
+                                      .build());
+
+    // Since the right window isn't eligible to receive input, touch does not slip.
+    // The left window continues to receive the gesture.
+    leftSlipperyWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+    rightDropTouchesWindow->assertNoEvents();
+}
+
 class InputDispatcherKeyRepeatTest : public InputDispatcherTest {
 protected:
     static constexpr nsecs_t KEY_REPEAT_TIMEOUT = 40 * 1000000; // 40 ms
