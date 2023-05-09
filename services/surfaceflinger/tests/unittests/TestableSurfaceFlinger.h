@@ -600,6 +600,10 @@ public:
     auto& mutablePrimaryHwcDisplayId() { return getHwComposer().mPrimaryHwcDisplayId; }
     auto& mutableActiveDisplayId() { return mFlinger->mActiveDisplayId; }
 
+    auto& mutableActiveDisplayRotationFlags() {
+        return SurfaceFlinger::sActiveDisplayRotationFlags;
+    }
+
     auto fromHandle(const sp<IBinder>& handle) { return LayerHandle::getLayer(handle); }
 
     ~TestableSurfaceFlinger() {
