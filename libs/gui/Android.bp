@@ -226,6 +226,7 @@ cc_library_shared {
         "ITransactionCompletedListener.cpp",
         "LayerDebugInfo.cpp",
         "LayerMetadata.cpp",
+        "LayerStatePermissions.cpp",
         "LayerState.cpp",
         "OccupancyTracker.cpp",
         "StreamSplitter.cpp",

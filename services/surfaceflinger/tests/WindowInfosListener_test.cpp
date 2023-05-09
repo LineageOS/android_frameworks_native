@@ -20,11 +20,13 @@
 #include <private/android_filesystem_config.h>
 #include <cstdint>
 #include <future>
+#include "utils/WindowInfosListenerUtils.h"
 
 namespace android {
 using Transaction = SurfaceComposerClient::Transaction;
 using gui::DisplayInfo;
 using gui::WindowInfo;
+constexpr auto findMatchingWindowInfo = WindowInfosListenerUtils::findMatchingWindowInfo;
 
 using WindowInfosPredicate = std::function<bool(const std::vector<WindowInfo>&)>;
 
@@ -37,44 +39,13 @@ protected:
 
     void TearDown() override { seteuid(AID_ROOT); }
 
-    struct WindowInfosListener : public gui::WindowInfosListener {
-    public:
-        WindowInfosListener(WindowInfosPredicate predicate, std::promise<void>& promise)
-              : mPredicate(std::move(predicate)), mPromise(promise) {}
-
-        void onWindowInfosChanged(const gui::WindowInfosUpdate& update) override {
-            if (mPredicate(update.windowInfos)) {
-                mPromise.set_value();
-            }
-        }
-
-    private:
-        WindowInfosPredicate mPredicate;
-        std::promise<void>& mPromise;
-    };
-
     sp<SurfaceComposerClient> mClient;
+    WindowInfosListenerUtils mWindowInfosListenerUtils;
 
-    bool waitForWindowInfosPredicate(WindowInfosPredicate predicate) {
-        std::promise<void> promise;
-        auto listener = sp<WindowInfosListener>::make(std::move(predicate), promise);
-        mClient->addWindowInfosListener(listener);
-        auto future = promise.get_future();
-        bool satisfied = future.wait_for(std::chrono::seconds{1}) == std::future_status::ready;
-        mClient->removeWindowInfosListener(listener);
-        return satisfied;
+    bool waitForWindowInfosPredicate(const WindowInfosPredicate& predicate) {
+        return mWindowInfosListenerUtils.waitForWindowInfosPredicate(std::move(predicate));
     }
 };
-
-const WindowInfo* findMatchingWindowInfo(const WindowInfo& targetWindowInfo,
-                                         const std::vector<WindowInfo>& windowInfos) {
-    for (const WindowInfo& windowInfo : windowInfos) {
-        if (windowInfo.token == targetWindowInfo.token) {
-            return &windowInfo;
-        }
-    }
-    return nullptr;
-}
 
 TEST_F(WindowInfosListenerTest, WindowInfoAddedAndRemoved) {
     std::string name = "Test Layer";
