@@ -31,6 +31,7 @@
 #include <utils/String8.h>
 #include <functional>
 #include "utils/ScreenshotUtils.h"
+#include "utils/WindowInfosListenerUtils.h"
 
 namespace android {
 
@@ -376,6 +377,58 @@ TEST_F(CredentialsTest, GetActiveColorModeBasicCorrectness) {
     SurfaceComposerClient::getDynamicDisplayInfoFromId(*id, &info);
     ColorMode colorMode = info.activeColorMode;
     ASSERT_NE(static_cast<ColorMode>(BAD_VALUE), colorMode);
+}
+
+TEST_F(CredentialsTest, TransactionPermissionTest) {
+    WindowInfosListenerUtils windowInfosListenerUtils;
+    std::string name = "Test Layer";
+    sp<IBinder> token = sp<BBinder>::make();
+    WindowInfo windowInfo;
+    windowInfo.name = name;
+    windowInfo.token = token;
+    sp<SurfaceControl> surfaceControl =
+            mComposerClient->createSurface(String8(name.c_str()), 100, 100, PIXEL_FORMAT_RGBA_8888,
+                                           ISurfaceComposerClient::eFXSurfaceBufferState);
+    const Rect crop(0, 0, 100, 100);
+    {
+        UIDFaker f(AID_SYSTEM);
+        Transaction()
+                .setLayerStack(surfaceControl, ui::DEFAULT_LAYER_STACK)
+                .show(surfaceControl)
+                .setLayer(surfaceControl, INT32_MAX - 1)
+                .setCrop(surfaceControl, crop)
+                .setInputWindowInfo(surfaceControl, windowInfo)
+                .apply();
+    }
+
+    // Called from non privileged process
+    Transaction().setTrustedOverlay(surfaceControl, true);
+    {
+        UIDFaker f(AID_SYSTEM);
+        auto windowIsPresentAndNotTrusted = [&](const std::vector<WindowInfo>& windowInfos) {
+            auto foundWindowInfo =
+                    WindowInfosListenerUtils::findMatchingWindowInfo(windowInfo, windowInfos);
+            if (!foundWindowInfo) {
+                return false;
+            }
+            return !foundWindowInfo->inputConfig.test(WindowInfo::InputConfig::TRUSTED_OVERLAY);
+        };
+        windowInfosListenerUtils.waitForWindowInfosPredicate(windowIsPresentAndNotTrusted);
+    }
+
+    {
+        UIDFaker f(AID_SYSTEM);
+        Transaction().setTrustedOverlay(surfaceControl, true);
+        auto windowIsPresentAndTrusted = [&](const std::vector<WindowInfo>& windowInfos) {
+            auto foundWindowInfo =
+                    WindowInfosListenerUtils::findMatchingWindowInfo(windowInfo, windowInfos);
+            if (!foundWindowInfo) {
+                return false;
+            }
+            return foundWindowInfo->inputConfig.test(WindowInfo::InputConfig::TRUSTED_OVERLAY);
+        };
+        windowInfosListenerUtils.waitForWindowInfosPredicate(windowIsPresentAndTrusted);
+    }
 }
 
 } // namespace android

@@ -54,7 +54,7 @@ struct TransactionState {
                      const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
                      const sp<IBinder>& applyToken, const InputWindowCommands& inputWindowCommands,
                      int64_t desiredPresentTime, bool isAutoTimestamp,
-                     std::vector<uint64_t> uncacheBufferIds, int64_t postTime, uint32_t permissions,
+                     std::vector<uint64_t> uncacheBufferIds, int64_t postTime,
                      bool hasListenerCallbacks, std::vector<ListenerCallbacks> listenerCallbacks,
                      int originPid, int originUid, uint64_t transactionId)
           : frameTimelineInfo(frameTimelineInfo),
@@ -67,7 +67,6 @@ struct TransactionState {
             isAutoTimestamp(isAutoTimestamp),
             uncacheBufferIds(std::move(uncacheBufferIds)),
             postTime(postTime),
-            permissions(permissions),
             hasListenerCallbacks(hasListenerCallbacks),
             listenerCallbacks(listenerCallbacks),
             originPid(originPid),
@@ -126,7 +125,6 @@ struct TransactionState {
     bool isAutoTimestamp;
     std::vector<uint64_t> uncacheBufferIds;
     int64_t postTime;
-    uint32_t permissions;
     bool hasListenerCallbacks;
     std::vector<ListenerCallbacks> listenerCallbacks;
     int originPid;
