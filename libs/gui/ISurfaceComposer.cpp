@@ -62,7 +62,7 @@ public:
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                  Vector<ComposerState>& state, const Vector<DisplayState>& displays,
                                  uint32_t flags, const sp<IBinder>& applyToken,
-                                 const InputWindowCommands& commands, int64_t desiredPresentTime,
+                                 InputWindowCommands commands, int64_t desiredPresentTime,
                                  bool isAutoTimestamp,
                                  const std::vector<client_cache_t>& uncacheBuffers,
                                  bool hasListenerCallbacks,
@@ -188,9 +188,9 @@ status_t BnSurfaceComposer::onTransact(
             SAFE_PARCEL(data.readUint64, &transactionId);
 
             return setTransactionState(frameTimelineInfo, state, displays, stateFlags, applyToken,
-                                       inputWindowCommands, desiredPresentTime, isAutoTimestamp,
-                                       uncacheBuffers, hasListenerCallbacks, listenerCallbacks,
-                                       transactionId);
+                                       std::move(inputWindowCommands), desiredPresentTime,
+                                       isAutoTimestamp, uncacheBuffers, hasListenerCallbacks,
+                                       listenerCallbacks, transactionId);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);
