@@ -54,6 +54,7 @@
 #include <ui/DynamicDisplayInfo.h>
 
 #include <android-base/thread_annotations.h>
+#include <gui/LayerStatePermissions.h>
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
 
@@ -716,11 +717,16 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
     mListenerCallbacks = other.mListenerCallbacks;
 }
 
-void SurfaceComposerClient::Transaction::sanitize() {
+void SurfaceComposerClient::Transaction::sanitize(int pid, int uid) {
+    uint32_t permissions = LayerStatePermissions::getTransactionPermissions(pid, uid);
     for (auto & [handle, composerState] : mComposerStates) {
-        composerState.state.sanitize(0 /* permissionMask */);
+        composerState.state.sanitize(permissions);
     }
-    mInputWindowCommands.clear();
+    if (!mInputWindowCommands.empty() &&
+        (permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) == 0) {
+        ALOGE("Only privileged callers are allowed to send input commands.");
+        mInputWindowCommands.clear();
+    }
 }
 
 std::unique_ptr<SurfaceComposerClient::Transaction>
