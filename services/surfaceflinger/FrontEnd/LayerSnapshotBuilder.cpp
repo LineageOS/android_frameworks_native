@@ -19,28 +19,26 @@
 #undef LOG_TAG
 #define LOG_TAG "LayerSnapshotBuilder"
 
-#include "LayerSnapshotBuilder.h"
-#include <gui/TraceUtils.h>
-#include <ui/FloatRect.h>
-
 #include <numeric>
 #include <optional>
 
+#include <ftl/small_map.h>
 #include <gui/TraceUtils.h>
+#include <ui/FloatRect.h>
+
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/Hal.h"
 #include "LayerLog.h"
 #include "LayerSnapshotBuilder.h"
 #include "TimeStats/TimeStats.h"
-#include "ftl/small_map.h"
 
 namespace android::surfaceflinger::frontend {
 
 using namespace ftl::flag_operators;
 
 namespace {
-FloatRect getMaxDisplayBounds(
-        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displays) {
+
+FloatRect getMaxDisplayBounds(const DisplayInfos& displays) {
     const ui::Size maxSize = [&displays] {
         if (displays.empty()) return ui::Size{5000, 5000};
 
@@ -667,8 +665,7 @@ void LayerSnapshotBuilder::resetRelativeState(LayerSnapshot& snapshot) {
     snapshot.relativeLayerMetadata.mMap.clear();
 }
 
-uint32_t getPrimaryDisplayRotationFlags(
-        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displays) {
+uint32_t getPrimaryDisplayRotationFlags(const DisplayInfos& displays) {
     for (auto& [_, display] : displays) {
         if (display.isPrimary) {
             return display.rotationFlags;

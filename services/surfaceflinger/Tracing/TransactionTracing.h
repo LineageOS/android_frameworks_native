@@ -25,7 +25,6 @@
 #include <mutex>
 #include <thread>
 
-#include "Display/DisplayMap.h"
 #include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/Update.h"
@@ -59,10 +58,8 @@ public:
     ~TransactionTracing();
 
     void addQueuedTransaction(const TransactionState&);
-    void addCommittedTransactions(
-            int64_t vsyncId, nsecs_t commitTime, frontend::Update& update,
-            const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos,
-            bool displayInfoChanged);
+    void addCommittedTransactions(int64_t vsyncId, nsecs_t commitTime, frontend::Update& update,
+                                  const frontend::DisplayInfos&, bool displayInfoChanged);
     status_t writeToFile(std::string filename = FILE_NAME);
     void setBufferSize(size_t bufferSizeInBytes);
     void onLayerRemoved(int layerId);
@@ -88,8 +85,7 @@ private:
     nsecs_t mStartingTimestamp GUARDED_BY(mTraceLock);
     std::unordered_map<int, proto::LayerCreationArgs> mCreatedLayers GUARDED_BY(mTraceLock);
     std::map<uint32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
-    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mStartingDisplayInfos
-            GUARDED_BY(mTraceLock);
+    frontend::DisplayInfos mStartingDisplayInfos GUARDED_BY(mTraceLock);
 
     std::set<uint32_t /* layerId */> mRemovedLayerHandlesAtStart GUARDED_BY(mTraceLock);
     TransactionProtoParser mProtoParser;
@@ -106,7 +102,7 @@ private:
         std::vector<LayerCreationArgs> createdLayers;
         std::vector<uint32_t> destroyedLayerHandles;
         bool displayInfoChanged;
-        display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
+        frontend::DisplayInfos displayInfos;
         int64_t vsyncId;
         int64_t timestamp;
     };

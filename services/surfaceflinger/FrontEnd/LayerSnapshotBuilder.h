@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include "Display/DisplayMap.h"
 #include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerLifecycleManager.h"
 #include "LayerHierarchy.h"
@@ -45,7 +44,7 @@ public:
         const LayerLifecycleManager& layerLifecycleManager;
         ForceUpdateFlags forceUpdate = ForceUpdateFlags::NONE;
         bool includeMetadata = false;
-        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displays;
+        const DisplayInfos& displays;
         // Set to true if there were display changes since last update.
         bool displayChanges = false;
         const renderengine::ShadowSettings& globalShadowSettings;
