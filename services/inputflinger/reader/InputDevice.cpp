@@ -520,7 +520,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
 
     // External stylus-like devices.
     if (classes.test(InputDeviceClass::EXTERNAL_STYLUS)) {
-        mappers.push_back(std::make_unique<ExternalStylusInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<ExternalStylusInputMapper>(contextPtr, readerConfig));
     }
     return mappers;
 }
