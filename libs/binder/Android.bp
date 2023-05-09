@@ -550,6 +550,7 @@ cc_library {
         ":__subpackages__",
         "//packages/modules/Virtualization/javalib/jni",
         "//packages/modules/Virtualization/vm_payload",
+        "//packages/modules/Virtualization/demo_native",
         "//device/google/cuttlefish/shared/minidroid:__subpackages__",
         "//system/software_defined_vehicle:__subpackages__",
     ],
