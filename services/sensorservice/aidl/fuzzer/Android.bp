@@ -11,6 +11,7 @@ cc_fuzz {
     name: "libsensorserviceaidl_fuzzer",
     defaults: [
         "service_fuzzer_defaults",
+        "fuzzer_disable_leaks",
     ],
     host_supported: true,
     static_libs: [
