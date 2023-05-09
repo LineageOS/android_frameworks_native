@@ -22,8 +22,10 @@ namespace android {
 
 class JoystickInputMapper : public InputMapper {
 public:
-    explicit JoystickInputMapper(InputDeviceContext& deviceContext,
-                                 const InputReaderConfiguration& readerConfig);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     virtual ~JoystickInputMapper();
 
     virtual uint32_t getSources() const override;
@@ -86,6 +88,9 @@ private:
             this->highNewValue = 0;
         }
     };
+
+    explicit JoystickInputMapper(InputDeviceContext& deviceContext,
+                                 const InputReaderConfiguration& readerConfig);
 
     static Axis createAxis(const AxisInfo& AxisInfo, const RawAbsoluteAxisInfo& rawAxisInfo,
                            bool explicitlyMapped);
