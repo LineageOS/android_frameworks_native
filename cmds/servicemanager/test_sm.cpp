@@ -62,7 +62,7 @@ public:
 class MockServiceManager : public ServiceManager {
  public:
     MockServiceManager(std::unique_ptr<Access>&& access) : ServiceManager(std::move(access)) {}
-    MOCK_METHOD1(tryStartService, void(const std::string& name));
+    MOCK_METHOD2(tryStartService, void(const Access::CallingContext&, const std::string& name));
 };
 
 static sp<ServiceManager> getPermissiveServiceManager() {
