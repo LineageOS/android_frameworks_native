@@ -26,8 +26,10 @@ namespace android {
 
 class ExternalStylusInputMapper : public InputMapper {
 public:
-    explicit ExternalStylusInputMapper(InputDeviceContext& deviceContext,
-                                       const InputReaderConfiguration& readerConfig);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     virtual ~ExternalStylusInputMapper() = default;
 
     uint32_t getSources() const override;
@@ -46,6 +48,8 @@ private:
 
     StylusState mStylusState;
 
+    explicit ExternalStylusInputMapper(InputDeviceContext& deviceContext,
+                                       const InputReaderConfiguration& readerConfig);
     [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when);
 };
 
