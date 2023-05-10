@@ -91,7 +91,7 @@ int main(int, char**) {
     // Set uclamp.min setting on all threads, maybe an overkill but we want
     // to cover important threads like RenderEngine.
     if (SurfaceFlinger::setSchedAttr(true) != NO_ERROR) {
-        ALOGW("Couldn't set uclamp.min: %s\n", strerror(errno));
+        ALOGW("Failed to set uclamp.min during boot: %s", strerror(errno));
     }
 
     // The binder threadpool we start will inherit sched policy and priority
@@ -155,7 +155,7 @@ int main(int, char**) {
     startDisplayService(); // dependency on SF getting registered above
 
     if (SurfaceFlinger::setSchedFifo(true) != NO_ERROR) {
-        ALOGW("Couldn't set to SCHED_FIFO: %s", strerror(errno));
+        ALOGW("Failed to set SCHED_FIFO during boot: %s", strerror(errno));
     }
 
     // run surface flinger in this thread
