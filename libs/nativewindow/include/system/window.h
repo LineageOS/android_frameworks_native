@@ -1066,13 +1066,12 @@ static inline int native_window_set_frame_rate(struct ANativeWindow* window, flo
                            (int)compatibility, (int)changeFrameRateStrategy);
 }
 
-static inline int native_window_set_frame_timeline_info(struct ANativeWindow* window,
-                                                        uint64_t frameNumber,
-                                                        int64_t frameTimelineVsyncId,
-                                                        int32_t inputEventId,
-                                                        int64_t startTimeNanos) {
+static inline int native_window_set_frame_timeline_info(
+        struct ANativeWindow* window, uint64_t frameNumber, int64_t frameTimelineVsyncId,
+        int32_t inputEventId, int64_t startTimeNanos, int32_t useForRefreshRateSelection) {
     return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO, frameNumber,
-                           frameTimelineVsyncId, inputEventId, startTimeNanos);
+                           frameTimelineVsyncId, inputEventId, startTimeNanos,
+                           useForRefreshRateSelection);
 }
 
 // ------------------------------------------------------------------------------------------------
