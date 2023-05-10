@@ -534,7 +534,7 @@ bool JobQueue::dequeueJob(size_t& rowStart, size_t& rowEnd) {
       if (mQueuedAllJobs) {
         return false;
       } else {
-        mCv.wait(lock);
+        mCv.wait_for(lock, std::chrono::milliseconds(100));
       }
     } else {
       auto it = mJobs.begin();
@@ -557,6 +557,8 @@ void JobQueue::enqueueJob(size_t rowStart, size_t rowEnd) {
 void JobQueue::markQueueForEnd() {
   std::unique_lock<std::mutex> lock{mMutex};
   mQueuedAllJobs = true;
+  lock.unlock();
+  mCv.notify_all();
 }
 
 void JobQueue::reset() {
