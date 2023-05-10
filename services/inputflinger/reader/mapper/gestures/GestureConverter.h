@@ -52,14 +52,16 @@ public:
                                                       const Gesture& gesture);
 
 private:
-    [[nodiscard]] NotifyArgs handleMove(nsecs_t when, nsecs_t readTime, const Gesture& gesture);
+    [[nodiscard]] NotifyMotionArgs handleMove(nsecs_t when, nsecs_t readTime,
+                                              const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> handleButtonsChange(nsecs_t when, nsecs_t readTime,
                                                             const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> releaseAllButtons(nsecs_t when, nsecs_t readTime);
     [[nodiscard]] std::list<NotifyArgs> handleScroll(nsecs_t when, nsecs_t readTime,
                                                      const Gesture& gesture);
-    [[nodiscard]] NotifyArgs handleFling(nsecs_t when, nsecs_t readTime, const Gesture& gesture);
-    [[nodiscard]] NotifyArgs endScroll(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> handleFling(nsecs_t when, nsecs_t readTime,
+                                                    const Gesture& gesture);
+    [[nodiscard]] NotifyMotionArgs endScroll(nsecs_t when, nsecs_t readTime);
 
     [[nodiscard]] std::list<NotifyArgs> handleMultiFingerSwipe(nsecs_t when, nsecs_t readTime,
                                                                uint32_t fingerCount, float dx,

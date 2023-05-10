@@ -132,7 +132,7 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
         case kGestureTypeScroll:
             return handleScroll(when, readTime, gesture);
         case kGestureTypeFling:
-            return {handleFling(when, readTime, gesture)};
+            return handleFling(when, readTime, gesture);
         case kGestureTypeSwipe:
             return handleMultiFingerSwipe(when, readTime, 3, gesture.details.swipe.dx,
                                           gesture.details.swipe.dy);
@@ -149,7 +149,8 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
     }
 }
 
-NotifyArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime, const Gesture& gesture) {
+NotifyMotionArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime,
+                                              const Gesture& gesture) {
     float deltaX = gesture.details.move.dx;
     float deltaY = gesture.details.move.dy;
     rotateDelta(mOrientation, &deltaX, &deltaY);
@@ -312,7 +313,8 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
     return out;
 }
 
-NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const Gesture& gesture) {
+std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTime,
+                                                    const Gesture& gesture) {
     // We don't actually want to use the gestures library's fling velocity values (to ensure
     // consistency between touchscreen and touchpad flings), so we're just using the "start fling"
     // gestures as a marker for the end of a two-finger scroll gesture.
@@ -321,10 +323,10 @@ NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const G
         return {};
     }
 
-    return endScroll(when, readTime);
+    return {endScroll(when, readTime)};
 }
 
-NotifyArgs GestureConverter::endScroll(nsecs_t when, nsecs_t readTime) {
+NotifyMotionArgs GestureConverter::endScroll(nsecs_t when, nsecs_t readTime) {
     const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, 0);
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, 0);
@@ -507,14 +509,29 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
                                                   const PointerProperties* pointerProperties,
                                                   const PointerCoords* pointerCoords,
                                                   float xCursorPosition, float yCursorPosition) {
-    return NotifyMotionArgs(mReaderContext.getNextId(), when, readTime, mDeviceId, SOURCE,
-                            mPointerController->getDisplayId(), /* policyFlags= */ POLICY_FLAG_WAKE,
-                            action, /* actionButton= */ actionButton, /* flags= */ 0,
-                            mReaderContext.getGlobalMetaState(), buttonState,
-                            mCurrentClassification, AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount,
-                            pointerProperties, pointerCoords, /* xPrecision= */ 1.0f,
-                            /* yPrecision= */ 1.0f, xCursorPosition, yCursorPosition,
-                            /* downTime= */ mDownTime, /* videoFrames= */ {});
+    return {mReaderContext.getNextId(),
+            when,
+            readTime,
+            mDeviceId,
+            SOURCE,
+            mPointerController->getDisplayId(),
+            /* policyFlags= */ POLICY_FLAG_WAKE,
+            action,
+            /* actionButton= */ actionButton,
+            /* flags= */ 0,
+            mReaderContext.getGlobalMetaState(),
+            buttonState,
+            mCurrentClassification,
+            AMOTION_EVENT_EDGE_FLAG_NONE,
+            pointerCount,
+            pointerProperties,
+            pointerCoords,
+            /* xPrecision= */ 1.0f,
+            /* yPrecision= */ 1.0f,
+            xCursorPosition,
+            yCursorPosition,
+            /* downTime= */ mDownTime,
+            /* videoFrames= */ {}};
 }
 
 } // namespace android
