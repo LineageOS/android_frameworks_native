@@ -744,7 +744,7 @@ public:
          *
          * TODO (b/213644870): Remove all permissioned things from Transaction
          */
-        void sanitize();
+        void sanitize(int pid, int uid);
 
         static sp<IBinder> getDefaultApplyToken();
         static void setDefaultApplyToken(sp<IBinder> applyToken);
