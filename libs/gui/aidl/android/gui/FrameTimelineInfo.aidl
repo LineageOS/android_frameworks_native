@@ -33,4 +33,8 @@ parcelable FrameTimelineInfo {
 
     // The current time in nanoseconds the application started to render the frame.
     long startTimeNanos = 0;
+
+    // Whether this vsyncId should be used to heuristically select the display refresh rate
+    // TODO(b/281695725): Clean this up once TextureView use setFrameRate API
+    boolean useForRefreshRateSelection = false;
 }

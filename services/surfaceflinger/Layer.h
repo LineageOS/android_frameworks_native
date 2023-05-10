@@ -234,6 +234,7 @@ public:
         float desiredHdrSdrRatio = 1.f;
         gui::CachingHint cachingHint = gui::CachingHint::Enabled;
         int64_t latchedVsyncId = 0;
+        bool useVsyncIdForRefreshRateSelection = false;
     };
 
     explicit Layer(const LayerCreationArgs& args);
