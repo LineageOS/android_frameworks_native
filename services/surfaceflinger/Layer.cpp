@@ -3077,6 +3077,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     mDrawingState.desiredPresentTime = desiredPresentTime;
     mDrawingState.isAutoTimestamp = isAutoTimestamp;
     mDrawingState.latchedVsyncId = info.vsyncId;
+    mDrawingState.useVsyncIdForRefreshRateSelection = info.useForRefreshRateSelection;
     mDrawingState.modified = true;
     if (!buffer) {
         resetDrawingStateBufferInfo();
@@ -3139,15 +3140,31 @@ void Layer::setDesiredPresentTime(nsecs_t desiredPresentTime, bool isAutoTimesta
 }
 
 void Layer::recordLayerHistoryBufferUpdate(const scheduler::LayerProps& layerProps) {
+    ATRACE_CALL();
     const nsecs_t presentTime = [&] {
-        if (!mDrawingState.isAutoTimestamp) return mDrawingState.desiredPresentTime;
+        if (!mDrawingState.isAutoTimestamp) {
+            ATRACE_FORMAT_INSTANT("desiredPresentTime");
+            return mDrawingState.desiredPresentTime;
+        }
 
-        const auto prediction = mFlinger->mFrameTimeline->getTokenManager()->getPredictionsForToken(
-                mDrawingState.latchedVsyncId);
-        if (prediction.has_value()) return prediction->presentTime;
+        if (mDrawingState.useVsyncIdForRefreshRateSelection) {
+            const auto prediction =
+                    mFlinger->mFrameTimeline->getTokenManager()->getPredictionsForToken(
+                            mDrawingState.latchedVsyncId);
+            if (prediction.has_value()) {
+                ATRACE_FORMAT_INSTANT("predictedPresentTime");
+                return prediction->presentTime;
+            }
+        }
 
         return static_cast<nsecs_t>(0);
     }();
+
+    if (ATRACE_ENABLED() && presentTime > 0) {
+        const auto presentIn = TimePoint::fromNs(presentTime) - TimePoint::now();
+        ATRACE_FORMAT_INSTANT("presentIn %s", to_string(presentIn).c_str());
+    }
+
     mFlinger->mScheduler->recordLayerHistory(sequence, layerProps, presentTime,
                                              scheduler::LayerHistory::LayerUpdateType::Buffer);
 }

@@ -2245,11 +2245,13 @@ void SurfaceComposerClient::Transaction::mergeFrameTimelineInfo(FrameTimelineInf
             t.vsyncId = other.vsyncId;
             t.inputEventId = other.inputEventId;
             t.startTimeNanos = other.startTimeNanos;
+            t.useForRefreshRateSelection = other.useForRefreshRateSelection;
         }
     } else if (t.vsyncId == FrameTimelineInfo::INVALID_VSYNC_ID) {
         t.vsyncId = other.vsyncId;
         t.inputEventId = other.inputEventId;
         t.startTimeNanos = other.startTimeNanos;
+        t.useForRefreshRateSelection = other.useForRefreshRateSelection;
     }
 }
 
@@ -2258,6 +2260,7 @@ void SurfaceComposerClient::Transaction::clearFrameTimelineInfo(FrameTimelineInf
     t.vsyncId = FrameTimelineInfo::INVALID_VSYNC_ID;
     t.inputEventId = os::IInputConstants::INVALID_INPUT_EVENT_ID;
     t.startTimeNanos = 0;
+    t.useForRefreshRateSelection = false;
 }
 
 SurfaceComposerClient::Transaction&
