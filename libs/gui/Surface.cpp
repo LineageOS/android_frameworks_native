@@ -1871,12 +1871,14 @@ int Surface::dispatchSetFrameTimelineInfo(va_list args) {
     auto frameTimelineVsyncId = static_cast<int64_t>(va_arg(args, int64_t));
     auto inputEventId = static_cast<int32_t>(va_arg(args, int32_t));
     auto startTimeNanos = static_cast<int64_t>(va_arg(args, int64_t));
+    auto useForRefreshRateSelection = static_cast<bool>(va_arg(args, int32_t));
 
     ALOGV("Surface::%s", __func__);
     FrameTimelineInfo ftlInfo;
     ftlInfo.vsyncId = frameTimelineVsyncId;
     ftlInfo.inputEventId = inputEventId;
     ftlInfo.startTimeNanos = startTimeNanos;
+    ftlInfo.useForRefreshRateSelection = useForRefreshRateSelection;
     return setFrameTimelineInfo(frameNumber, ftlInfo);
 }
 
