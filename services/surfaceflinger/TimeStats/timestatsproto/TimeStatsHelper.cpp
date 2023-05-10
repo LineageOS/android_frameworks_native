@@ -115,7 +115,7 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     StringAppendF(&result, "badDesiredPresentFrames = %d\n", badDesiredPresentFrames);
     result.append("Jank payload for this layer:\n");
     result.append(jankPayload.toString());
-    result.append("SetFrateRate vote for this layer:\n");
+    result.append("SetFrameRate vote for this layer:\n");
     result.append(setFrameRateVote.toString());
     const auto iter = deltas.find("present2present");
     if (iter != deltas.end()) {
