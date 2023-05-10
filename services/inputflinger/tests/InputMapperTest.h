@@ -73,6 +73,17 @@ protected:
         return mapper;
     }
 
+    template <class T, typename... Args>
+    T& constructAndAddMapper(Args... args) {
+        // ensure a device entry exists for this eventHubId
+        mDevice->addEmptyEventHubDevice(EVENTHUB_ID);
+        // configure the empty device
+        configureDevice(/*changes=*/{});
+
+        return mDevice->constructAndAddMapper<T>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                                 args...);
+    }
+
     void setDisplayInfoAndReconfigure(int32_t displayId, int32_t width, int32_t height,
                                       ui::Rotation orientation, const std::string& uniqueId,
                                       std::optional<uint8_t> physicalPort,
