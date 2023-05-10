@@ -5474,14 +5474,19 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
             onActiveDisplayChangedLocked(activeDisplay.get(), *display);
         }
 
-        // Keep uclamp in a separate syscall and set it before changing to RT due to b/190237315.
-        // We can merge the syscall later.
-        if (SurfaceFlinger::setSchedAttr(true) != NO_ERROR) {
-            ALOGW("Couldn't set uclamp.min on display on: %s\n", strerror(errno));
+        if (displayId == mActiveDisplayId) {
+            // TODO(b/281692563): Merge the syscalls. For now, keep uclamp in a separate syscall and
+            // set it before SCHED_FIFO due to b/190237315.
+            if (setSchedAttr(true) != NO_ERROR) {
+                ALOGW("Failed to set uclamp.min after powering on active display: %s",
+                      strerror(errno));
+            }
+            if (setSchedFifo(true) != NO_ERROR) {
+                ALOGW("Failed to set SCHED_FIFO after powering on active display: %s",
+                      strerror(errno));
+            }
         }
-        if (SurfaceFlinger::setSchedFifo(true) != NO_ERROR) {
-            ALOGW("Couldn't set SCHED_FIFO on display on: %s\n", strerror(errno));
-        }
+
         getHwComposer().setPowerMode(displayId, mode);
         if (displayId == mActiveDisplayId && mode != hal::PowerMode::DOZE_SUSPEND) {
             setHWCVsyncEnabled(displayId,
@@ -5495,15 +5500,21 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         scheduleComposite(FrameHint::kActive);
     } else if (mode == hal::PowerMode::OFF) {
         // Turn off the display
-        if (SurfaceFlinger::setSchedFifo(false) != NO_ERROR) {
-            ALOGW("Couldn't set SCHED_OTHER on display off: %s\n", strerror(errno));
-        }
-        if (SurfaceFlinger::setSchedAttr(false) != NO_ERROR) {
-            ALOGW("Couldn't set uclamp.min on display off: %s\n", strerror(errno));
-        }
-        if (displayId == mActiveDisplayId && *currentModeOpt != hal::PowerMode::DOZE_SUSPEND) {
-            mScheduler->disableHardwareVsync(displayId, true);
-            mScheduler->enableSyntheticVsync();
+
+        if (displayId == mActiveDisplayId) {
+            if (setSchedFifo(false) != NO_ERROR) {
+                ALOGW("Failed to set SCHED_OTHER after powering off active display: %s",
+                      strerror(errno));
+            }
+            if (setSchedAttr(false) != NO_ERROR) {
+                ALOGW("Failed set uclamp.min after powering off active display: %s",
+                      strerror(errno));
+            }
+
+            if (*currentModeOpt != hal::PowerMode::DOZE_SUSPEND) {
+                mScheduler->disableHardwareVsync(displayId, true);
+                mScheduler->enableSyntheticVsync();
+            }
         }
 
         // Make sure HWVsync is disabled before turning off the display
