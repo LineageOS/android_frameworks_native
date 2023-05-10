@@ -25,6 +25,20 @@
 #include "VibrationElement.h"
 
 namespace android {
+/**
+ * This is the factory method that must be used to create any InputMapper
+ */
+template <class T, class... Args>
+std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                     const InputReaderConfiguration& readerConfig, Args... args) {
+    // Using `new` to access non-public constructors.
+    std::unique_ptr<T> mapper(new T(deviceContext, readerConfig, args...));
+    // We need to reset and configure the mapper to ensure it is ready to process event
+    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+    std::list<NotifyArgs> unused = mapper->reset(now);
+    unused += mapper->reconfigure(now, readerConfig, /*changes=*/{});
+    return mapper;
+}
 
 /* An input mapper transforms raw input events into cooked event data.
  * A single input device can have multiple associated input mappers in order to interpret
@@ -39,8 +53,15 @@ namespace android {
  */
 class InputMapper {
 public:
-    explicit InputMapper(InputDeviceContext& deviceContext,
-                         const InputReaderConfiguration& readerConfig);
+    /**
+     * Subclasses must either provide a public constructor
+     * or must be-friend the factory method.
+     */
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
+
     virtual ~InputMapper();
 
     inline int32_t getDeviceId() { return mDeviceContext.getId(); }
@@ -101,6 +122,9 @@ public:
 
 protected:
     InputDeviceContext& mDeviceContext;
+
+    explicit InputMapper(InputDeviceContext& deviceContext,
+                         const InputReaderConfiguration& readerConfig);
 
     status_t getAbsoluteAxisInfo(int32_t axis, RawAbsoluteAxisInfo* axisInfo);
     void bumpGeneration();
