@@ -125,8 +125,7 @@ TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext,
                                    const InputReaderConfiguration& readerConfig)
       : InputMapper(deviceContext, readerConfig),
         mTouchButtonAccumulator(deviceContext),
-        mConfig(readerConfig),
-        mParameters(computeParameters(deviceContext)) {}
+        mConfig(readerConfig) {}
 
 TouchInputMapper::~TouchInputMapper() {}
 

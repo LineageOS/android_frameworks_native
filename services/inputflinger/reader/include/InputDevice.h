@@ -149,6 +149,16 @@ public:
         return *mapper;
     }
 
+    template <class T, typename... Args>
+    T& constructAndAddMapper(int32_t eventHubId, Args... args) {
+        // create mapper
+        auto& devicePair = mDevices[eventHubId];
+        auto& deviceContext = devicePair.first;
+        auto& mappers = devicePair.second;
+        mappers.push_back(createInputMapper<T>(*deviceContext, args...));
+        return static_cast<T&>(*mappers.back());
+    }
+
     // construct and add a controller to the input device
     template <class T>
     T& addController(int32_t eventHubId) {
