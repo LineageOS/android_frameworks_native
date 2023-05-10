@@ -214,6 +214,7 @@ cc_library_shared {
 
     shared_libs: [
         "libbinder",
+        "libGLESv2",
     ],
 
     export_shared_lib_headers: [
@@ -326,7 +327,6 @@ cc_defaults {
         "libbase",
         "libcutils",
         "libEGL",
-        "libGLESv2",
         "libhidlbase",
         "liblog",
         "libnativewindow",
