@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,12 @@
 
 #pragma once
 
-#include <cstdint>
+#include <scheduler/interface/CompositionCoverage.h>
 
-#include <ftl/flags.h>
+namespace android {
 
-namespace android::scheduler {
-
-enum class Feature : std::uint8_t {
-    kPresentFences = 1 << 0,
-    kKernelIdleTimer = 1 << 1,
-    kContentDetection = 1 << 2,
-    kTracePredictedVsync = 1 << 3,
-    kBackpressureGpuComposition = 1 << 4,
+struct CompositeResult {
+    CompositionCoverageFlags compositionCoverage;
 };
 
-using FeatureFlags = ftl::Flags<Feature>;
-
-} // namespace android::scheduler
+} // namespace android

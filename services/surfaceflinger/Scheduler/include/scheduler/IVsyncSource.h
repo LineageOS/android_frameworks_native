@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,16 @@
 
 #pragma once
 
-#include <cstdint>
-
-#include <ftl/flags.h>
+#include <scheduler/Time.h>
 
 namespace android::scheduler {
 
-enum class Feature : std::uint8_t {
-    kPresentFences = 1 << 0,
-    kKernelIdleTimer = 1 << 1,
-    kContentDetection = 1 << 2,
-    kTracePredictedVsync = 1 << 3,
-    kBackpressureGpuComposition = 1 << 4,
-};
+struct IVsyncSource {
+    virtual Period period() const = 0;
+    virtual TimePoint vsyncDeadlineAfter(TimePoint) const = 0;
 
-using FeatureFlags = ftl::Flags<Feature>;
+protected:
+    ~IVsyncSource() = default;
+};
 
 } // namespace android::scheduler

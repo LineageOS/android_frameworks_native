@@ -122,7 +122,7 @@ TEST(TransactionProtoParserTest, parseDisplayInfo) {
     google::protobuf::RepeatedPtrField<proto::DisplayInfo> displayProtos;
     auto displayInfoProto = displayProtos.Add();
     *displayInfoProto = TransactionProtoParser::toProto(d1, layerStack);
-    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
+    frontend::DisplayInfos displayInfos;
     TransactionProtoParser::fromProto(displayProtos, displayInfos);
 
     ASSERT_TRUE(displayInfos.contains(ui::LayerStack::fromValue(layerStack)));

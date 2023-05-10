@@ -20,9 +20,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <scheduler/interface/ICompositor.h>
+
 #include "FrameTimeline.h"
 #include "Scheduler/MessageQueue.h"
-#include "SurfaceFlinger.h"
 #include "mock/MockVSyncDispatch.h"
 
 namespace android {
@@ -34,8 +35,8 @@ using CallbackToken = scheduler::VSyncDispatch::CallbackToken;
 
 struct NoOpCompositor final : ICompositor {
     void configure() override {}
-    bool commit(TimePoint, VsyncId, TimePoint) override { return false; }
-    void composite(TimePoint, VsyncId) override {}
+    bool commit(const scheduler::FrameTarget&) override { return false; }
+    CompositeResult composite(scheduler::FrameTargeter&) override { return {}; }
     void sample() override {}
 } gNoOpCompositor;
 
@@ -137,7 +138,7 @@ TEST_F(MessageQueueTest, commitTwiceWithCallback) {
                 generateTokenForPredictions(frametimeline::TimelineItem(kStartTime.ns(),
                                                                         kEndTime.ns(),
                                                                         kPresentTime.ns())))
-            .WillOnce(Return(vsyncId.value));
+            .WillOnce(Return(ftl::to_underlying(vsyncId)));
     EXPECT_CALL(*mEventQueue.mHandler, dispatchFrame(vsyncId, kPresentTime)).Times(1);
     EXPECT_NO_FATAL_FAILURE(
             mEventQueue.vsyncCallback(kPresentTime.ns(), kStartTime.ns(), kEndTime.ns()));

@@ -92,10 +92,10 @@ void TransactionTracing::addQueuedTransaction(const TransactionState& transactio
     mTransactionQueue.push(state);
 }
 
-void TransactionTracing::addCommittedTransactions(
-        int64_t vsyncId, nsecs_t commitTime, frontend::Update& newUpdate,
-        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos,
-        bool displayInfoChanged) {
+void TransactionTracing::addCommittedTransactions(int64_t vsyncId, nsecs_t commitTime,
+                                                  frontend::Update& newUpdate,
+                                                  const frontend::DisplayInfos& displayInfos,
+                                                  bool displayInfoChanged) {
     CommittedUpdates update;
     update.vsyncId = vsyncId;
     update.timestamp = commitTime;
