@@ -23,8 +23,11 @@ namespace android {
 
 class MultiTouchInputMapper : public TouchInputMapper {
 public:
-    explicit MultiTouchInputMapper(InputDeviceContext& deviceContext,
-                                   const InputReaderConfiguration& readerConfig);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
+
     ~MultiTouchInputMapper() override;
 
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
@@ -36,6 +39,8 @@ protected:
     bool hasStylus() const override;
 
 private:
+    explicit MultiTouchInputMapper(InputDeviceContext& deviceContext,
+                                   const InputReaderConfiguration& readerConfig);
     // simulate_stylus_with_touch is a debug mode that converts all finger pointers reported by this
     // mapper's touchscreen into stylus pointers, and adds SOURCE_STYLUS to the input device.
     // It is used to simulate stylus events for debugging and testing on a device that does not

@@ -203,7 +203,7 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
 
     using Change = InputReaderConfiguration::Change;
 
-    if (!isIgnored()) {
+    if (!changes.any() || !isIgnored()) {
         // Full configuration should happen the first time configure is called
         // and when the device type is changed. Changing a device type can
         // affect various other parameters so should result in a
@@ -503,9 +503,9 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
         classes.test(InputDeviceClass::TOUCH_MT) && !isSonyDualShock4Touchpad) {
         mappers.push_back(std::make_unique<TouchpadInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
-        mappers.push_back(std::make_unique<MultiTouchInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<MultiTouchInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH)) {
-        mappers.push_back(std::make_unique<SingleTouchInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<SingleTouchInputMapper>(contextPtr, readerConfig));
     }
 
     // Joystick-like devices.
@@ -520,7 +520,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
 
     // External stylus-like devices.
     if (classes.test(InputDeviceClass::EXTERNAL_STYLUS)) {
-        mappers.push_back(std::make_unique<ExternalStylusInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<ExternalStylusInputMapper>(contextPtr, readerConfig));
     }
     return mappers;
 }
