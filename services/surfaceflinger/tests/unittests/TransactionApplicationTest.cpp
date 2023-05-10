@@ -386,7 +386,7 @@ public:
                                               transaction.applyToken,
                                               transaction.inputWindowCommands,
                                               transaction.desiredPresentTime,
-                                              transaction.isAutoTimestamp, {}, systemTime(), 0,
+                                              transaction.isAutoTimestamp, {}, systemTime(),
                                               mHasListenerCallbacks, mCallbacks, getpid(),
                                               static_cast<int>(getuid()), transaction.id);
             mFlinger.setTransactionStateInternal(transactionState);
