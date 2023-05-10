@@ -301,7 +301,7 @@ sp<IBinder> ServiceManager::tryGetService(const std::string& name, bool startIfN
     }
 
     if (!out && startIfNotFound) {
-        tryStartService(name);
+        tryStartService(ctx, name);
     }
 
     if (out) {
@@ -661,10 +661,11 @@ void ServiceManager::binderDied(const wp<IBinder>& who) {
     }
 }
 
-void ServiceManager::tryStartService(const std::string& name) {
-    ALOGI("Since '%s' could not be found, trying to start it as a lazy AIDL service. (if it's not "
-          "configured to be a lazy service, it may be stuck starting or still starting).",
-          name.c_str());
+void ServiceManager::tryStartService(const Access::CallingContext& ctx, const std::string& name) {
+    ALOGI("Since '%s' could not be found (requested by debug pid %d), trying to start it as a lazy "
+          "AIDL service. (if it's not configured to be a lazy service, it may be stuck starting or "
+          "still starting).",
+          name.c_str(), ctx.debugPid);
 
     std::thread([=] {
         if (!base::SetProperty("ctl.interface_start", "aidl/" + name)) {
