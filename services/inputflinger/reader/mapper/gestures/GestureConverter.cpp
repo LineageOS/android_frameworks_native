@@ -315,15 +315,34 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
 
 std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTime,
                                                     const Gesture& gesture) {
-    // We don't actually want to use the gestures library's fling velocity values (to ensure
-    // consistency between touchscreen and touchpad flings), so we're just using the "start fling"
-    // gestures as a marker for the end of a two-finger scroll gesture.
-    if (gesture.details.fling.fling_state != GESTURES_FLING_START ||
-        mCurrentClassification != MotionClassification::TWO_FINGER_SWIPE) {
-        return {};
+    switch (gesture.details.fling.fling_state) {
+        case GESTURES_FLING_START:
+            if (mCurrentClassification == MotionClassification::TWO_FINGER_SWIPE) {
+                // We don't actually want to use the gestures library's fling velocity values (to
+                // ensure consistency between touchscreen and touchpad flings), so we're just using
+                // the "start fling" gestures as a marker for the end of a two-finger scroll
+                // gesture.
+                return {endScroll(when, readTime)};
+            }
+            break;
+        case GESTURES_FLING_TAP_DOWN:
+            if (mCurrentClassification == MotionClassification::NONE) {
+                // Use the tap down state of a fling gesture as an indicator that a contact
+                // has been initiated with the touchpad. We treat this as a move event with zero
+                // magnitude, which will also result in the pointer icon being updated.
+                // TODO(b/282023644): Add a signal in libgestures for when a stable contact has been
+                //  initiated with a touchpad.
+                return {handleMove(when, readTime,
+                                   Gesture(kGestureMove, gesture.start_time, gesture.end_time,
+                                           /*dx=*/0.f,
+                                           /*dy=*/0.f))};
+            }
+            break;
+        default:
+            break;
     }
 
-    return {endScroll(when, readTime)};
+    return {};
 }
 
 NotifyMotionArgs GestureConverter::endScroll(nsecs_t when, nsecs_t readTime) {
