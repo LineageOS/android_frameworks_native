@@ -588,6 +588,7 @@ public:
     auto& mutablePhysicalDisplays() { return mFlinger->mPhysicalDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
     auto& mutableGeometryDirty() { return mFlinger->mGeometryDirty; }
+    auto& mutableVisibleRegionsDirty() { return mFlinger->mVisibleRegionsDirty; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
     auto& mutableTexturePool() { return mFlinger->mTexturePool; }
@@ -599,6 +600,7 @@ public:
     auto& mutableHwcPhysicalDisplayIdMap() { return getHwComposer().mPhysicalDisplayIdMap; }
     auto& mutablePrimaryHwcDisplayId() { return getHwComposer().mPrimaryHwcDisplayId; }
     auto& mutableActiveDisplayId() { return mFlinger->mActiveDisplayId; }
+    auto& mutablePreviouslyComposedLayers() { return mFlinger->mPreviouslyComposedLayers; }
 
     auto fromHandle(const sp<IBinder>& handle) { return LayerHandle::getLayer(handle); }
 
