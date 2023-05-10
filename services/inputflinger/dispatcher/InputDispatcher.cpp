@@ -2476,7 +2476,8 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                 newTouchedWindowHandle = nullptr;
             }
 
-            if (!haveSameToken(oldTouchedWindowHandle, newTouchedWindowHandle)) {
+            if (newTouchedWindowHandle != nullptr &&
+                !haveSameToken(oldTouchedWindowHandle, newTouchedWindowHandle)) {
                 ALOGD("Touch is slipping out of window %s into window %s in display %" PRId32,
                       oldTouchedWindowHandle->getName().c_str(),
                       newTouchedWindowHandle->getName().c_str(), displayId);
