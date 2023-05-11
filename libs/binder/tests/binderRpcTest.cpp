@@ -1353,7 +1353,7 @@ TEST_P(BinderRpcServerOnly, SetExternalServerTest) {
     base::unique_fd sink(TEMP_FAILURE_RETRY(open("/dev/null", O_RDWR)));
     int sinkFd = sink.get();
     auto server = RpcServer::make(newTlsFactory(std::get<0>(GetParam())));
-    server->setProtocolVersion(std::get<1>(GetParam()));
+    ASSERT_TRUE(server->setProtocolVersion(std::get<1>(GetParam())));
     ASSERT_FALSE(server->hasServer());
     ASSERT_EQ(OK, server->setupExternalServer(std::move(sink)));
     ASSERT_TRUE(server->hasServer());
@@ -1369,7 +1369,7 @@ TEST_P(BinderRpcServerOnly, Shutdown) {
 
     auto addr = allocateSocketAddress();
     auto server = RpcServer::make(newTlsFactory(std::get<0>(GetParam())));
-    server->setProtocolVersion(std::get<1>(GetParam()));
+    ASSERT_TRUE(server->setProtocolVersion(std::get<1>(GetParam())));
     ASSERT_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
     auto joinEnds = std::make_shared<OneOffSignal>();
 
@@ -1418,7 +1418,9 @@ public:
                 std::unique_ptr<RpcAuth> auth = std::make_unique<RpcAuthSelfSigned>()) {
             auto [socketType, rpcSecurity, certificateFormat, serverVersion] = param;
             auto rpcServer = RpcServer::make(newTlsFactory(rpcSecurity));
-            rpcServer->setProtocolVersion(serverVersion);
+            if (!rpcServer->setProtocolVersion(serverVersion)) {
+                return AssertionFailure() << "Invalid protocol version: " << serverVersion;
+            }
             switch (socketType) {
                 case SocketType::PRECONNECTED: {
                     return AssertionFailure() << "Not supported by this test";

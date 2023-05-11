@@ -123,8 +123,13 @@ size_t RpcServer::getMaxThreads() {
     return mMaxThreads;
 }
 
-void RpcServer::setProtocolVersion(uint32_t version) {
+bool RpcServer::setProtocolVersion(uint32_t version) {
+    if (!RpcState::validateProtocolVersion(version)) {
+        return false;
+    }
+
     mProtocolVersion = version;
+    return true;
 }
 
 void RpcServer::setSupportedFileDescriptorTransportModes(
