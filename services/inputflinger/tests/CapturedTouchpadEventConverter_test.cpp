@@ -781,4 +781,175 @@ TEST_F(CapturedTouchpadEventConverterTest, PointerIdsReusedAfterLift) {
                       WithPointerId(/*index=*/1, /*id=*/0)));
 }
 
+// Motion events without any pointers are invalid, so when a button press is reported in the same
+// frame as a touch down, the button press must be reported second. Similarly with a button release
+// and a touch lift.
+TEST_F(CapturedTouchpadEventConverterTest,
+       ButtonPressedAndReleasedInSameFrameAsTouch_ReportedWithPointers) {
+    CapturedTouchpadEventConverter conv = createConverter();
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 1);
+
+    processAxis(conv, EV_KEY, BTN_LEFT, 1);
+
+    std::list<NotifyArgs> args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS), WithPointerCount(1u),
+                      WithCoords(50, 100), WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY)));
+
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, -1);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 0);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 0);
+
+    processAxis(conv, EV_KEY, BTN_LEFT, 0);
+    args = processSync(conv);
+    ASSERT_EQ(3u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_MOVE));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE), WithPointerCount(1u),
+                      WithCoords(50, 100), WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                      WithButtonState(0)));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_UP));
+}
+
+// Some touchpads sometimes report a button press before they report the finger touching the pad. In
+// that case we need to wait until the touch comes to report the button press.
+TEST_F(CapturedTouchpadEventConverterTest, ButtonPressedBeforeTouch_ReportedOnceTouchOccurs) {
+    CapturedTouchpadEventConverter conv = createConverter();
+
+    processAxis(conv, EV_KEY, BTN_LEFT, 1);
+    ASSERT_EQ(0u, processSync(conv).size());
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 1);
+
+    std::list<NotifyArgs> args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS), WithPointerCount(1u),
+                      WithCoords(50, 100), WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY)));
+}
+
+// When all fingers are lifted from a touchpad, we should release any buttons that are down, since
+// we won't be able to report them being lifted later if no pointers are present.
+TEST_F(CapturedTouchpadEventConverterTest, ButtonReleasedAfterTouchLifts_ReportedWithLift) {
+    CapturedTouchpadEventConverter conv = createConverter();
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 1);
+
+    processAxis(conv, EV_KEY, BTN_LEFT, 1);
+
+    std::list<NotifyArgs> args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS));
+
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, -1);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 0);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 0);
+    args = processSync(conv);
+    ASSERT_EQ(3u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_MOVE));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE), WithPointerCount(1u),
+                      WithCoords(50, 100), WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                      WithButtonState(0)));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_UP));
+
+    processAxis(conv, EV_KEY, BTN_LEFT, 0);
+    ASSERT_EQ(0u, processSync(conv).size());
+}
+
+TEST_F(CapturedTouchpadEventConverterTest, MultipleButtonsPressedDuringTouch_ReportedCorrectly) {
+    CapturedTouchpadEventConverter conv = createConverter();
+
+    processAxis(conv, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(conv, EV_ABS, ABS_MT_TRACKING_ID, 1);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(conv, EV_ABS, ABS_MT_POSITION_Y, 100);
+    processAxis(conv, EV_KEY, BTN_TOUCH, 1);
+    processAxis(conv, EV_KEY, BTN_TOOL_FINGER, 1);
+
+    EXPECT_THAT(processSyncAndExpectSingleMotionArg(conv),
+                WithMotionAction(AMOTION_EVENT_ACTION_DOWN));
+
+    processAxis(conv, EV_KEY, BTN_LEFT, 1);
+    std::list<NotifyArgs> args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_MOVE));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY)));
+
+    processAxis(conv, EV_KEY, BTN_RIGHT, 1);
+    args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_MOVE));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                      WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY),
+                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
+                                      AMOTION_EVENT_BUTTON_SECONDARY)));
+
+    processAxis(conv, EV_KEY, BTN_LEFT, 0);
+    args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_MOVE));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                      WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY)));
+
+    processAxis(conv, EV_KEY, BTN_RIGHT, 0);
+    args = processSync(conv);
+    ASSERT_EQ(2u, args.size());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_MOVE));
+    args.pop_front();
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                      WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY), WithButtonState(0)));
+}
+
 } // namespace android
