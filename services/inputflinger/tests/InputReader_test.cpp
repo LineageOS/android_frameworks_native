@@ -2784,7 +2784,7 @@ void SensorInputMapperTest::setGyroProperties() {
 }
 
 TEST_F(SensorInputMapperTest, GetSources) {
-    SensorInputMapper& mapper = addMapperAndConfigure<SensorInputMapper>();
+    SensorInputMapper& mapper = constructAndAddMapper<SensorInputMapper>();
 
     ASSERT_EQ(static_cast<uint32_t>(AINPUT_SOURCE_SENSOR), mapper.getSources());
 }
@@ -2792,7 +2792,7 @@ TEST_F(SensorInputMapperTest, GetSources) {
 TEST_F(SensorInputMapperTest, ProcessAccelerometerSensor) {
     setAccelProperties();
     prepareAccelAxes();
-    SensorInputMapper& mapper = addMapperAndConfigure<SensorInputMapper>();
+    SensorInputMapper& mapper = constructAndAddMapper<SensorInputMapper>();
 
     ASSERT_TRUE(mapper.enableSensor(InputDeviceSensorType::ACCELEROMETER,
                                     std::chrono::microseconds(10000),
@@ -2822,7 +2822,7 @@ TEST_F(SensorInputMapperTest, ProcessAccelerometerSensor) {
 TEST_F(SensorInputMapperTest, ProcessGyroscopeSensor) {
     setGyroProperties();
     prepareGyroAxes();
-    SensorInputMapper& mapper = addMapperAndConfigure<SensorInputMapper>();
+    SensorInputMapper& mapper = constructAndAddMapper<SensorInputMapper>();
 
     ASSERT_TRUE(mapper.enableSensor(InputDeviceSensorType::GYROSCOPE,
                                     std::chrono::microseconds(10000),
