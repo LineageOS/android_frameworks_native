@@ -2140,26 +2140,6 @@ void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData
     }
 }
 
-void SurfaceFlinger::setVsyncEnabled(PhysicalDisplayId id, bool enabled) {
-    const char* const whence = __func__;
-    ATRACE_FORMAT("%s (%d) for %" PRIu64, whence, enabled, id.value);
-
-    // On main thread to avoid race conditions with display power state.
-    static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
-        {
-            ftl::FakeGuard guard(kMainThreadContext);
-            if (auto schedule = mScheduler->getVsyncSchedule(id)) {
-                schedule->setPendingHardwareVsyncState(enabled);
-            }
-        }
-
-        ATRACE_FORMAT("%s (%d) for %" PRIu64 " (main thread)", whence, enabled, id.value);
-        if (const auto display = getDisplayDeviceLocked(id); display && display->isPoweredOn()) {
-            setHWCVsyncEnabled(id, enabled);
-        }
-    }));
-}
-
 void SurfaceFlinger::configure() FTL_FAKE_GUARD(kMainThreadContext) {
     Mutex::Autolock lock(mStateLock);
     if (configureLocked()) {
@@ -3785,6 +3765,10 @@ void SurfaceFlinger::updateCursorAsync() {
     moveSnapshotsFromCompositionArgs(refreshArgs, layers);
 }
 
+void SurfaceFlinger::requestHardwareVsync(PhysicalDisplayId displayId, bool enable) {
+    getHwComposer().setVsyncEnabled(displayId, enable ? hal::Vsync::ENABLE : hal::Vsync::DISABLE);
+}
+
 void SurfaceFlinger::requestDisplayModes(std::vector<display::DisplayModeRequest> modeRequests) {
     if (mBootStage != BootStage::FINISHED) {
         ALOGV("Currently in the boot stage, skipping display mode changes");
@@ -3871,8 +3855,6 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
                                              static_cast<ISchedulerCallback&>(*this), features,
                                              std::move(modulatorPtr));
     mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
-
-    setVsyncEnabled(display->getPhysicalId(), false);
     mScheduler->startTimers();
 
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
@@ -5436,11 +5418,14 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
 
         getHwComposer().setPowerMode(displayId, mode);
         if (displayId == mActiveDisplayId && mode != hal::PowerMode::DOZE_SUSPEND) {
-            setHWCVsyncEnabled(displayId,
-                               mScheduler->getVsyncSchedule(displayId)
-                                       ->getPendingHardwareVsyncState());
+            const bool enable =
+                    mScheduler->getVsyncSchedule(displayId)->getPendingHardwareVsyncState();
+            requestHardwareVsync(displayId, enable);
+
             mScheduler->enableSyntheticVsync(false);
-            mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, refreshRate);
+
+            constexpr bool kAllowToEnable = true;
+            mScheduler->resyncToHardwareVsync(displayId, kAllowToEnable, refreshRate);
         }
 
         mVisibleRegionsDirty = true;
@@ -5464,10 +5449,10 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
             }
         }
 
-        // Make sure HWVsync is disabled before turning off the display
-        setHWCVsyncEnabled(displayId, false);
-
+        // Disable VSYNC before turning off the display.
+        requestHardwareVsync(displayId, false);
         getHwComposer().setPowerMode(displayId, mode);
+
         mVisibleRegionsDirty = true;
         // from this point on, SF will stop drawing on this display
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
@@ -5495,8 +5480,9 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (displayId == mActiveDisplayId) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats->setPowerMode(mode);
-        mScheduler->setDisplayPowerMode(displayId, mode);
     }
+
+    mScheduler->setDisplayPowerMode(displayId, mode);
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(displayId).c_str());
 }
