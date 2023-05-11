@@ -22,6 +22,9 @@
       "name": "binderHostDeviceTest"
     },
     {
+      "name": "binderParcelBenchmark"
+    },
+    {
       "name": "binderTextOutputTest"
     },
     {
