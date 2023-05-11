@@ -109,8 +109,6 @@ public:
     ui::Rotation getPhysicalOrientation() const { return mPhysicalOrientation; }
     ui::Rotation getOrientation() const { return mOrientation; }
 
-    static ui::Transform::RotationFlags getPrimaryDisplayRotationFlags();
-
     std::optional<float> getStagedBrightness() const REQUIRES(kMainThreadContext);
     ui::Transform::RotationFlags getTransformHint() const;
     const ui::Transform& getTransform() const;
@@ -273,8 +271,6 @@ private:
 
     const ui::Rotation mPhysicalOrientation;
     ui::Rotation mOrientation = ui::ROTATION_0;
-
-    static ui::Transform::RotationFlags sPrimaryDisplayRotationFlags;
 
     // Allow nullopt as initial power mode.
     using TracedPowerMode = TracedOrdinal<hardware::graphics::composer::hal::PowerMode>;
