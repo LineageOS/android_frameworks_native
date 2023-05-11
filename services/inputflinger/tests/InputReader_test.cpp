@@ -2645,13 +2645,13 @@ protected:
 };
 
 TEST_F(VibratorInputMapperTest, GetSources) {
-    VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
+    VibratorInputMapper& mapper = constructAndAddMapper<VibratorInputMapper>();
 
     ASSERT_EQ(AINPUT_SOURCE_UNKNOWN, mapper.getSources());
 }
 
 TEST_F(VibratorInputMapperTest, GetVibratorIds) {
-    VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
+    VibratorInputMapper& mapper = constructAndAddMapper<VibratorInputMapper>();
 
     ASSERT_EQ(mapper.getVibratorIds().size(), 2U);
 }
@@ -2659,7 +2659,7 @@ TEST_F(VibratorInputMapperTest, GetVibratorIds) {
 TEST_F(VibratorInputMapperTest, Vibrate) {
     constexpr uint8_t DEFAULT_AMPLITUDE = 192;
     constexpr int32_t VIBRATION_TOKEN = 100;
-    VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
+    VibratorInputMapper& mapper = constructAndAddMapper<VibratorInputMapper>();
 
     VibrationElement pattern(2);
     VibrationSequence sequence(2);
