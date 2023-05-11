@@ -55,7 +55,7 @@ public:
     // For main functions - dangerous for libraries to use
     void startThreadPool();
 
-    bool becomeContextManager();
+    [[nodiscard]] bool becomeContextManager();
 
     sp<IBinder> getStrongProxyForHandle(int32_t handle);
     void expungeHandle(int32_t handle, IBinder* binder);
