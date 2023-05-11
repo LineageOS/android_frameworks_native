@@ -456,7 +456,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
 
     // Vibrator-like devices.
     if (classes.test(InputDeviceClass::VIBRATOR)) {
-        mappers.push_back(std::make_unique<VibratorInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<VibratorInputMapper>(contextPtr, readerConfig));
     }
 
     // Battery-like devices or light-containing devices.
