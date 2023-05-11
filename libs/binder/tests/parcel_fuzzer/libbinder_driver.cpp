@@ -37,47 +37,73 @@ void fuzzService(const sp<IBinder>& binder, FuzzedDataProvider&& provider) {
     }
 
     while (provider.remaining_bytes() > 0) {
-        // Most of the AIDL services will have small set of transaction codes.
-        uint32_t code = provider.ConsumeBool() ? provider.ConsumeIntegral<uint32_t>()
-                                               : provider.ConsumeIntegralInRange<uint32_t>(0, 100);
-        uint32_t flags = provider.ConsumeIntegral<uint32_t>();
-        Parcel data;
-        // for increased fuzz coverage
-        data.setEnforceNoDataAvail(provider.ConsumeBool());
+        provider.PickValueInArray<std::function<void()>>({
+                [&]() {
+                    // Most of the AIDL services will have small set of transaction codes.
+                    uint32_t code = provider.ConsumeBool()
+                            ? provider.ConsumeIntegral<uint32_t>()
+                            : provider.ConsumeIntegralInRange<uint32_t>(0, 100);
+                    uint32_t flags = provider.ConsumeIntegral<uint32_t>();
+                    Parcel data;
+                    // for increased fuzz coverage
+                    data.setEnforceNoDataAvail(provider.ConsumeBool());
 
-        sp<IBinder> target = options.extraBinders.at(
-                provider.ConsumeIntegralInRange<size_t>(0, options.extraBinders.size() - 1));
-        options.writeHeader = [&target](Parcel* p, FuzzedDataProvider& provider) {
-            // most code will be behind checks that the head of the Parcel
-            // is exactly this, so make it easier for fuzzers to reach this
-            if (provider.ConsumeBool()) {
-                p->writeInterfaceToken(target->getInterfaceDescriptor());
-            }
-        };
+                    sp<IBinder> target = options.extraBinders.at(
+                            provider.ConsumeIntegralInRange<size_t>(0,
+                                                                    options.extraBinders.size() -
+                                                                            1));
+                    options.writeHeader = [&target](Parcel* p, FuzzedDataProvider& provider) {
+                        // most code will be behind checks that the head of the Parcel
+                        // is exactly this, so make it easier for fuzzers to reach this
+                        if (provider.ConsumeBool()) {
+                            p->writeInterfaceToken(target->getInterfaceDescriptor());
+                        }
+                    };
 
-        std::vector<uint8_t> subData = provider.ConsumeBytes<uint8_t>(
-                provider.ConsumeIntegralInRange<size_t>(0, provider.remaining_bytes()));
-        fillRandomParcel(&data, FuzzedDataProvider(subData.data(), subData.size()), &options);
+                    std::vector<uint8_t> subData = provider.ConsumeBytes<uint8_t>(
+                            provider.ConsumeIntegralInRange<size_t>(0, provider.remaining_bytes()));
+                    fillRandomParcel(&data, FuzzedDataProvider(subData.data(), subData.size()),
+                                     &options);
 
-        Parcel reply;
-        // for increased fuzz coverage
-        reply.setEnforceNoDataAvail(provider.ConsumeBool());
-        (void)target->transact(code, data, &reply, flags);
+                    Parcel reply;
+                    // for increased fuzz coverage
+                    reply.setEnforceNoDataAvail(provider.ConsumeBool());
+                    (void)target->transact(code, data, &reply, flags);
 
-        // feed back in binders and fds that are returned from the service, so that
-        // we can fuzz those binders, and use the fds and binders to feed back into
-        // the binders
-        auto retBinders = reply.debugReadAllStrongBinders();
-        options.extraBinders.insert(options.extraBinders.end(), retBinders.begin(),
-                                    retBinders.end());
-        auto retFds = reply.debugReadAllFileDescriptors();
-        for (size_t i = 0; i < retFds.size(); i++) {
-            options.extraFds.push_back(base::unique_fd(dup(retFds[i])));
-        }
+                    // feed back in binders and fds that are returned from the service, so that
+                    // we can fuzz those binders, and use the fds and binders to feed back into
+                    // the binders
+                    auto retBinders = reply.debugReadAllStrongBinders();
+                    options.extraBinders.insert(options.extraBinders.end(), retBinders.begin(),
+                                                retBinders.end());
+                    auto retFds = reply.debugReadAllFileDescriptors();
+                    for (size_t i = 0; i < retFds.size(); i++) {
+                        options.extraFds.push_back(base::unique_fd(dup(retFds[i])));
+                    }
+                },
+                [&]() {
+                    if (options.extraFds.size() == 0) {
+                        return;
+                    }
+                    uint32_t toDelete =
+                            provider.ConsumeIntegralInRange<uint32_t>(0,
+                                                                      options.extraFds.size() - 1);
+                    options.extraFds.erase(options.extraFds.begin() + toDelete);
+                },
+                [&]() {
+                    if (options.extraBinders.size() <= 1) {
+                        return;
+                    }
+                    uint32_t toDelete =
+                            provider.ConsumeIntegralInRange<uint32_t>(0,
+                                                                      options.extraBinders.size() -
+                                                                              1);
+                    options.extraBinders.erase(options.extraBinders.begin() + toDelete);
+                },
+        })();
     }
 
     // invariants
-
     auto ps = ProcessState::selfOrNull();
     if (ps) {
         CHECK_EQ(0, ps->getThreadPoolMaxTotalThreadCount())
