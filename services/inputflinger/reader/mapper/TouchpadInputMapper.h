@@ -40,8 +40,10 @@ namespace android {
 
 class TouchpadInputMapper : public InputMapper {
 public:
-    explicit TouchpadInputMapper(InputDeviceContext& deviceContext,
-                                 const InputReaderConfiguration& readerConfig);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     ~TouchpadInputMapper();
 
     uint32_t getSources() const override;
@@ -58,6 +60,8 @@ public:
 
 private:
     void resetGestureInterpreter(nsecs_t when);
+    explicit TouchpadInputMapper(InputDeviceContext& deviceContext,
+                                 const InputReaderConfiguration& readerConfig);
     [[nodiscard]] std::list<NotifyArgs> sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                           SelfContainedHardwareState schs);
     [[nodiscard]] std::list<NotifyArgs> processGestures(nsecs_t when, nsecs_t readTime);

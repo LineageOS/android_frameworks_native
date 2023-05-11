@@ -501,7 +501,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
             (identifier.product == 0x05c4 || identifier.product == 0x09cc);
     if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
         classes.test(InputDeviceClass::TOUCH_MT) && !isSonyDualShock4Touchpad) {
-        mappers.push_back(std::make_unique<TouchpadInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<TouchpadInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(createInputMapper<MultiTouchInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH)) {
