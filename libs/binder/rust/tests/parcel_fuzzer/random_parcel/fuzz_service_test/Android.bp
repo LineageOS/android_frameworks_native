@@ -19,6 +19,11 @@ rust_fuzz {
     srcs: [
         "service_fuzzer.rs",
     ],
+    shared_libs: [
+        "libbinder",
+        "libbinder_ndk",
+        "libutils",
+    ],
     rustlibs: [
         "libbinder_rs",
         "libbinder_random_parcel_rs",
