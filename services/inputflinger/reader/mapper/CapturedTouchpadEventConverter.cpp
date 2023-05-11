@@ -199,6 +199,29 @@ std::list<NotifyArgs> CapturedTouchpadEventConverter::sync(nsecs_t when, nsecs_t
         }
     }
 
+    // Send BUTTON_RELEASE events. (This has to happen before any UP events to avoid sending
+    // BUTTON_RELEASE events without any pointers.)
+    uint32_t newButtonState;
+    if (coords.size() - upSlots.size() + downSlots.size() == 0) {
+        // If there won't be any pointers down after this evdev sync, we won't be able to send
+        // button updates on their own, as motion events without pointers are invalid. To avoid
+        // erroneously reporting buttons being held for long periods, send BUTTON_RELEASE events for
+        // all pressed buttons when the last pointer is lifted.
+        //
+        // This also prevents us from sending BUTTON_PRESS events too early in the case of touchpads
+        // which report a button press one evdev sync before reporting a touch going down.
+        newButtonState = 0;
+    } else {
+        newButtonState = mCursorButtonAccumulator.getButtonState();
+    }
+    for (uint32_t button = 1; button <= AMOTION_EVENT_BUTTON_FORWARD; button <<= 1) {
+        if (!(newButtonState & button) && mButtonState & button) {
+            mButtonState &= ~button;
+            out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
+                                         coords, properties, /*actionButton=*/button));
+        }
+    }
+
     // For any touches that were lifted, send UP or POINTER_UP events.
     for (size_t slotNumber : upSlots) {
         const size_t indexToRemove = coordsIndexForSlotNumber.at(slotNumber);
@@ -240,16 +263,11 @@ std::list<NotifyArgs> CapturedTouchpadEventConverter::sync(nsecs_t when, nsecs_t
         out.push_back(makeMotionArgs(when, readTime, action, coords, properties));
     }
 
-    const uint32_t newButtonState = mCursorButtonAccumulator.getButtonState();
     for (uint32_t button = 1; button <= AMOTION_EVENT_BUTTON_FORWARD; button <<= 1) {
         if (newButtonState & button && !(mButtonState & button)) {
             mButtonState |= button;
             out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_PRESS, coords,
                                          properties, /*actionButton=*/button));
-        } else if (!(newButtonState & button) && mButtonState & button) {
-            mButtonState &= ~button;
-            out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
-                                         coords, properties, /*actionButton=*/button));
         }
     }
     return out;
