@@ -25,8 +25,8 @@
 #include <system/window.h>
 #include <utils/Log.h>
 
-#include "DisplayDevice.h"
 #include "LayerFE.h"
+#include "SurfaceFlinger.h"
 
 namespace android {
 
@@ -260,7 +260,7 @@ void LayerFE::prepareBufferStateClientComposition(
          * the code below applies the primary display's inverse transform to
          * the texture transform
          */
-        uint32_t transform = DisplayDevice::getPrimaryDisplayRotationFlags();
+        uint32_t transform = SurfaceFlinger::getActiveDisplayRotationFlags();
         mat4 tr = inverseOrientation(transform);
 
         /**

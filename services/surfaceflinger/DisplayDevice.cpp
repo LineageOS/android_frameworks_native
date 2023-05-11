@@ -50,8 +50,6 @@ namespace android {
 
 namespace hal = hardware::graphics::composer::hal;
 
-ui::Transform::RotationFlags DisplayDevice::sPrimaryDisplayRotationFlags = ui::Transform::ROT_0;
-
 DisplayDeviceCreationArgs::DisplayDeviceCreationArgs(
         const sp<SurfaceFlinger>& flinger, HWComposer& hwComposer, const wp<IBinder>& displayToken,
         std::shared_ptr<compositionengine::Display> compositionDisplay)
@@ -282,10 +280,6 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
                                   Rect orientedDisplaySpaceRect) {
     mOrientation = orientation;
 
-    if (isPrimary()) {
-        sPrimaryDisplayRotationFlags = ui::Transform::toRotationFlags(orientation);
-    }
-
     // We need to take care of display rotation for globalTransform for case if the panel is not
     // installed aligned with device orientation.
     const auto transformOrientation = orientation + mPhysicalOrientation;
@@ -324,10 +318,6 @@ void DisplayDevice::persistBrightness(bool needsComposite) {
 
 std::optional<float> DisplayDevice::getStagedBrightness() const {
     return mStagedBrightness;
-}
-
-ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
-    return sPrimaryDisplayRotationFlags;
 }
 
 void DisplayDevice::dump(utils::Dumper& dumper) const {
