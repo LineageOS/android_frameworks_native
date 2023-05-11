@@ -497,14 +497,28 @@ TEST(NdkBinder, ActiveServicesCallbackTest) {
 
 struct DeathRecipientCookie {
     std::function<void(void)>*onDeath, *onUnlink;
+
+    // may contain additional data
+    // - if it contains AIBinder, then you must call AIBinder_unlinkToDeath manually,
+    //   because it would form a strong reference cycle
+    // - if it points to a data member of another structure, this should have a weak
+    //   promotable reference or a strong reference, in case that object is deleted
+    //   while the death recipient is firing
 };
 void LambdaOnDeath(void* cookie) {
     auto funcs = static_cast<DeathRecipientCookie*>(cookie);
+
+    // may reference other cookie members
+
     (*funcs->onDeath)();
 };
 void LambdaOnUnlink(void* cookie) {
     auto funcs = static_cast<DeathRecipientCookie*>(cookie);
     (*funcs->onUnlink)();
+
+    // may reference other cookie members
+
+    delete funcs;
 };
 TEST(NdkBinder, DeathRecipient) {
     using namespace std::chrono_literals;
@@ -536,12 +550,12 @@ TEST(NdkBinder, DeathRecipient) {
         unlinkCv.notify_one();
     };
 
-    DeathRecipientCookie cookie = {&onDeath, &onUnlink};
+    DeathRecipientCookie* cookie = new DeathRecipientCookie{&onDeath, &onUnlink};
 
     AIBinder_DeathRecipient* recipient = AIBinder_DeathRecipient_new(LambdaOnDeath);
     AIBinder_DeathRecipient_setOnUnlinked(recipient, LambdaOnUnlink);
 
-    EXPECT_EQ(STATUS_OK, AIBinder_linkToDeath(binder, recipient, static_cast<void*>(&cookie)));
+    EXPECT_EQ(STATUS_OK, AIBinder_linkToDeath(binder, recipient, static_cast<void*>(cookie)));
 
     // the binder driver should return this if the service dies during the transaction
     EXPECT_EQ(STATUS_DEAD_OBJECT, foo->die());
