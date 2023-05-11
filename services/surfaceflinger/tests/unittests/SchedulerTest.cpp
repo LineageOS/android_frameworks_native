@@ -155,6 +155,33 @@ TEST_F(SchedulerTest, validConnectionHandle) {
     EXPECT_EQ(kEventConnections, mScheduler->getEventThreadConnectionCount(mConnectionHandle));
 }
 
+TEST_F(SchedulerTest, registerDisplay) FTL_FAKE_GUARD(kMainThreadContext) {
+    // Hardware VSYNC should not change if the display is already registered.
+    EXPECT_CALL(mSchedulerCallback, requestHardwareVsync(kDisplayId1, false)).Times(0);
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
+
+    // TODO(b/241285191): Restore once VsyncSchedule::getPendingHardwareVsyncState is called by
+    // Scheduler::setDisplayPowerMode rather than SF::setPowerModeInternal.
+#if 0
+    // Hardware VSYNC should be disabled for newly registered displays.
+    EXPECT_CALL(mSchedulerCallback, requestHardwareVsync(kDisplayId2, false)).Times(1);
+    EXPECT_CALL(mSchedulerCallback, requestHardwareVsync(kDisplayId3, false)).Times(1);
+#endif
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    mScheduler->registerDisplay(kDisplayId3,
+                                std::make_shared<RefreshRateSelector>(kDisplay3Modes,
+                                                                      kDisplay3Mode60->getId()));
+
+    EXPECT_FALSE(mScheduler->getVsyncSchedule(kDisplayId1)->getPendingHardwareVsyncState());
+    EXPECT_FALSE(mScheduler->getVsyncSchedule(kDisplayId2)->getPendingHardwareVsyncState());
+    EXPECT_FALSE(mScheduler->getVsyncSchedule(kDisplayId3)->getPendingHardwareVsyncState());
+}
+
 TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSupported) {
     // The layer is registered at creation time and deregistered at destruction time.
     sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
