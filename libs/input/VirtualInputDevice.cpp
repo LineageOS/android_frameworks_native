@@ -49,11 +49,10 @@ bool VirtualInputDevice::writeInputEvent(uint16_t type, uint16_t code, int32_t v
     std::chrono::seconds seconds = std::chrono::duration_cast<std::chrono::seconds>(eventTime);
     std::chrono::microseconds microseconds =
             std::chrono::duration_cast<std::chrono::microseconds>(eventTime - seconds);
-    struct input_event ev = {.type = type,
-                             .code = code,
-                             .value = value,
-                             .input_event_sec = static_cast<time_t>(seconds.count()),
-                             .input_event_usec = static_cast<suseconds_t>(microseconds.count())};
+    struct input_event ev = {.type = type, .code = code, .value = value};
+    ev.input_event_sec = static_cast<decltype(ev.input_event_sec)>(seconds.count());
+    ev.input_event_usec = static_cast<decltype(ev.input_event_usec)>(microseconds.count());
+
     return TEMP_FAILURE_RETRY(write(mFd, &ev, sizeof(struct input_event))) == sizeof(ev);
 }
 
