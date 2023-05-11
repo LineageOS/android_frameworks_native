@@ -71,9 +71,7 @@ void CursorMotionAccumulator::finishSync() {
 CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
                                      const InputReaderConfiguration& readerConfig)
       : InputMapper(deviceContext, readerConfig),
-        mLastEventTime(std::numeric_limits<nsecs_t>::min()) {
-    configureWithZeroChanges(readerConfig);
-}
+        mLastEventTime(std::numeric_limits<nsecs_t>::min()) {}
 
 CursorInputMapper::~CursorInputMapper() {
     if (mPointerController != nullptr) {
@@ -142,46 +140,51 @@ std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
                                                      ConfigurationChanges changes) {
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, readerConfig, changes);
 
-    if (!changes.any()) {
-        configureWithZeroChanges(readerConfig);
-        return out;
+    if (!changes.any()) { // first time only
+        configureBasicParams();
     }
 
-    const bool configurePointerCapture = mParameters.mode != Parameters::Mode::NAVIGATION &&
-            changes.test(InputReaderConfiguration::Change::POINTER_CAPTURE);
+    const bool configurePointerCapture = !changes.any() ||
+            (mParameters.mode != Parameters::Mode::NAVIGATION &&
+             changes.test(InputReaderConfiguration::Change::POINTER_CAPTURE));
     if (configurePointerCapture) {
         configureOnPointerCapture(readerConfig);
         out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
     }
 
-    if (changes.test(InputReaderConfiguration::Change::POINTER_SPEED) || configurePointerCapture) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::POINTER_SPEED) ||
+        configurePointerCapture) {
         configureOnChangePointerSpeed(readerConfig);
     }
 
-    if (changes.test(InputReaderConfiguration::Change::DISPLAY_INFO) || configurePointerCapture) {
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO) ||
+        configurePointerCapture) {
         configureOnChangeDisplayInfo(readerConfig);
     }
     return out;
 }
 
-void CursorInputMapper::configureParameters() {
-    mParameters.mode = Parameters::Mode::POINTER;
-    const PropertyMap& config = getDeviceContext().getConfiguration();
+CursorInputMapper::Parameters CursorInputMapper::computeParameters(
+        const InputDeviceContext& deviceContext) {
+    Parameters parameters;
+    parameters.mode = Parameters::Mode::POINTER;
+    const PropertyMap& config = deviceContext.getConfiguration();
     std::optional<std::string> cursorModeString = config.getString("cursor.mode");
     if (cursorModeString.has_value()) {
         if (*cursorModeString == "navigation") {
-            mParameters.mode = Parameters::Mode::NAVIGATION;
+            parameters.mode = Parameters::Mode::NAVIGATION;
         } else if (*cursorModeString != "pointer" && *cursorModeString != "default") {
             ALOGW("Invalid value for cursor.mode: '%s'", cursorModeString->c_str());
         }
     }
 
-    mParameters.orientationAware = config.getBool("cursor.orientationAware").value_or(false);
+    parameters.orientationAware = config.getBool("cursor.orientationAware").value_or(false);
 
-    mParameters.hasAssociatedDisplay = false;
-    if (mParameters.mode == Parameters::Mode::POINTER || mParameters.orientationAware) {
-        mParameters.hasAssociatedDisplay = true;
+    parameters.hasAssociatedDisplay = false;
+    if (parameters.mode == Parameters::Mode::POINTER || parameters.orientationAware) {
+        parameters.hasAssociatedDisplay = true;
     }
+    return parameters;
 }
 
 void CursorInputMapper::dumpParameters(std::string& dump) {
@@ -424,22 +427,11 @@ std::optional<int32_t> CursorInputMapper::getAssociatedDisplayId() {
     return mDisplayId;
 }
 
-void CursorInputMapper::configureWithZeroChanges(const InputReaderConfiguration& readerConfig) {
-    // Configuration with zero changes
-    configureBasicParams();
-    if (mParameters.mode != Parameters::Mode::NAVIGATION &&
-        readerConfig.pointerCaptureRequest.enable) {
-        configureOnPointerCapture(readerConfig);
-    }
-    configureOnChangePointerSpeed(readerConfig);
-    configureOnChangeDisplayInfo(readerConfig);
-}
-
 void CursorInputMapper::configureBasicParams() {
     mCursorScrollAccumulator.configure(getDeviceContext());
 
     // Configure basic parameters.
-    configureParameters();
+    mParameters = computeParameters(getDeviceContext());
 
     // Configure device mode.
     switch (mParameters.mode) {
