@@ -16,8 +16,10 @@
 
 //! API for RPC Binder services.
 
+#[cfg(not(target_os = "trusty"))]
 mod server;
 mod session;
 
+#[cfg(not(target_os = "trusty"))]
 pub use server::{RpcServer, RpcServerRef};
 pub use session::{FileDescriptorTransportMode, RpcSession, RpcSessionRef};
