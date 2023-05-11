@@ -17,8 +17,9 @@
 #pragma once
 
 #include "ComposerHal.h"
+
 #include <ftl/shared_mutex.h>
-#include <ftl/small_map.h>
+#include <ui/DisplayMap.h>
 
 #include <functional>
 #include <optional>
@@ -272,9 +273,9 @@ private:
     // Invalid displayId used as a key to mReaders when mSingleReader is true.
     static constexpr int64_t kSingleReaderKey = 0;
 
-    // TODO (b/256881188): Use display::PhysicalDisplayMap instead of hard-coded `3`
-    ftl::SmallMap<Display, ComposerClientWriter, 3> mWriters GUARDED_BY(mMutex);
-    ftl::SmallMap<Display, ComposerClientReader, 3> mReaders GUARDED_BY(mMutex);
+    ui::PhysicalDisplayMap<Display, ComposerClientWriter> mWriters GUARDED_BY(mMutex);
+    ui::PhysicalDisplayMap<Display, ComposerClientReader> mReaders GUARDED_BY(mMutex);
+
     // Protect access to mWriters and mReaders with a shared_mutex. Adding and
     // removing a display require exclusive access, since the iterator or the
     // writer/reader may be invalidated. Other calls need shared access while

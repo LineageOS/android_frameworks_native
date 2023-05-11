@@ -43,6 +43,7 @@
 #include <renderengine/LayerSettings.h>
 #include <serviceutils/PriorityDumper.h>
 #include <system/graphics.h>
+#include <ui/DisplayMap.h>
 #include <ui/FenceTime.h>
 #include <ui/PixelFormat.h>
 #include <ui/Size.h>
@@ -62,7 +63,6 @@
 #include <scheduler/interface/ICompositor.h>
 #include <ui/FenceResult.h>
 
-#include "Display/DisplayMap.h"
 #include "Display/PhysicalDisplay.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
@@ -511,7 +511,7 @@ private:
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                  Vector<ComposerState>& state, const Vector<DisplayState>& displays,
                                  uint32_t flags, const sp<IBinder>& applyToken,
-                                 const InputWindowCommands& inputWindowCommands,
+                                 InputWindowCommands inputWindowCommands,
                                  int64_t desiredPresentTime, bool isAutoTimestamp,
                                  const std::vector<client_cache_t>& uncacheBuffers,
                                  bool hasListenerCallbacks,
@@ -627,8 +627,8 @@ private:
 
     // ICompositor overrides:
     void configure() override;
-    bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) override;
-    void composite(TimePoint frameTime, VsyncId) override;
+    bool commit(const scheduler::FrameTarget&) override;
+    CompositeResult composite(scheduler::FrameTargeter&) override;
     void sample() override;
 
     // ISchedulerCallback overrides:
@@ -705,10 +705,9 @@ private:
     void updateLayerGeometry();
     void updateLayerMetadataSnapshot();
     std::vector<std::pair<Layer*, LayerFE*>> moveSnapshotsToCompositionArgs(
-            compositionengine::CompositionRefreshArgs& refreshArgs, bool cursorOnly,
-            int64_t vsyncId);
+            compositionengine::CompositionRefreshArgs& refreshArgs, bool cursorOnly);
     void moveSnapshotsFromCompositionArgs(compositionengine::CompositionRefreshArgs& refreshArgs,
-                                          std::vector<std::pair<Layer*, LayerFE*>>& layers);
+                                          const std::vector<std::pair<Layer*, LayerFE*>>& layers);
     bool updateLayerSnapshotsLegacy(VsyncId vsyncId, frontend::Update& update,
                                     bool transactionsFlushed, bool& out)
             REQUIRES(kMainThreadContext);
@@ -732,14 +731,16 @@ private:
     /*
      * Transactions
      */
-    bool applyTransactionState(
-            const FrameTimelineInfo& info, std::vector<ResolvedComposerState>& state,
-            Vector<DisplayState>& displays, uint32_t flags,
-            const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
-            bool isAutoTimestamp, const std::vector<uint64_t>& uncacheBufferIds,
-            const int64_t postTime, uint32_t permissions, bool hasListenerCallbacks,
-            const std::vector<ListenerCallbacks>& listenerCallbacks, int originPid, int originUid,
-            uint64_t transactionId) REQUIRES(mStateLock);
+    bool applyTransactionState(const FrameTimelineInfo& info,
+                               std::vector<ResolvedComposerState>& state,
+                               Vector<DisplayState>& displays, uint32_t flags,
+                               const InputWindowCommands& inputWindowCommands,
+                               const int64_t desiredPresentTime, bool isAutoTimestamp,
+                               const std::vector<uint64_t>& uncacheBufferIds,
+                               const int64_t postTime, bool hasListenerCallbacks,
+                               const std::vector<ListenerCallbacks>& listenerCallbacks,
+                               int originPid, int originUid, uint64_t transactionId)
+            REQUIRES(mStateLock);
     // Flush pending transactions that were presented after desiredPresentTime.
     // For test only
     bool flushTransactionQueues(VsyncId) REQUIRES(kMainThreadContext);
@@ -760,12 +761,11 @@ private:
 
     uint32_t setClientStateLocked(const FrameTimelineInfo&, ResolvedComposerState&,
                                   int64_t desiredPresentTime, bool isAutoTimestamp,
-                                  int64_t postTime, uint32_t permissions, uint64_t transactionId)
-            REQUIRES(mStateLock);
+                                  int64_t postTime, uint64_t transactionId) REQUIRES(mStateLock);
     uint32_t updateLayerCallbacksAndStats(const FrameTimelineInfo&, ResolvedComposerState&,
                                           int64_t desiredPresentTime, bool isAutoTimestamp,
-                                          int64_t postTime, uint32_t permissions,
-                                          uint64_t transactionId) REQUIRES(mStateLock);
+                                          int64_t postTime, uint64_t transactionId)
+            REQUIRES(mStateLock);
     uint32_t getTransactionFlags() const;
 
     // Sets the masked bits, and schedules a commit if needed.
@@ -950,7 +950,8 @@ private:
     /*
      * Compositing
      */
-    void postComposition(nsecs_t callTime) REQUIRES(kMainThreadContext);
+    void postComposition(scheduler::FrameTargeter&, nsecs_t presentStartTime)
+            REQUIRES(kMainThreadContext);
 
     /*
      * Display management
@@ -995,20 +996,6 @@ private:
         hal::Vsync halState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
         getHwComposer().setVsyncEnabled(id, halState);
     }
-
-    using FenceTimePtr = std::shared_ptr<FenceTime>;
-
-    bool wouldPresentEarly(TimePoint frameTime, Period) const REQUIRES(kMainThreadContext);
-
-    const FenceTimePtr& getPreviousPresentFence(TimePoint frameTime, Period) const
-            REQUIRES(kMainThreadContext);
-
-    // Blocks the thread waiting for up to graceTimeMs in case the fence is about to signal.
-    static bool isFencePending(const FenceTimePtr&, int graceTimeMs);
-
-    // Calculates the expected present time for this frame. For negative offsets, performs a
-    // correction using the predicted vsync for the next frame instead.
-    TimePoint calculateExpectedPresentTime(TimePoint frameTime) const;
 
     /*
      * Display identification
@@ -1080,7 +1067,7 @@ private:
     void dumpOffscreenLayersProto(LayersProto& layersProto,
                                   uint32_t traceFlags = LayerTracing::TRACE_ALL) const;
     google::protobuf::RepeatedPtrField<DisplayProto> dumpDisplayProto() const;
-    void addToLayerTracing(bool visibleRegionDirty, int64_t time, int64_t vsyncId)
+    void addToLayerTracing(bool visibleRegionDirty, TimePoint, VsyncId)
             REQUIRES(kMainThreadContext);
 
     // Dumps state from HW Composer
@@ -1213,7 +1200,7 @@ private:
     // never removed, so take precedence over external and virtual displays.
     //
     // May be read from any thread, but must only be written from the main thread.
-    display::DisplayMap<wp<IBinder>, const sp<DisplayDevice>> mDisplays GUARDED_BY(mStateLock);
+    ui::DisplayMap<wp<IBinder>, const sp<DisplayDevice>> mDisplays GUARDED_BY(mStateLock);
 
     display::PhysicalDisplays mPhysicalDisplays GUARDED_BY(mStateLock);
 
@@ -1253,9 +1240,6 @@ private:
 
     // If blurs should be enabled on this device.
     bool mSupportsBlur = false;
-    std::atomic<uint32_t> mFrameMissedCount = 0;
-    std::atomic<uint32_t> mHwcFrameMissedCount = 0;
-    std::atomic<uint32_t> mGpuFrameMissedCount = 0;
 
     TransactionCallbackInvoker mTransactionCallbackInvoker;
 
@@ -1322,15 +1306,6 @@ private:
 
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
     scheduler::PresentLatencyTracker mPresentLatencyTracker GUARDED_BY(kMainThreadContext);
-
-    struct FenceWithFenceTime {
-        sp<Fence> fence = Fence::NO_FENCE;
-        FenceTimePtr fenceTime = FenceTime::NO_FENCE;
-    };
-    std::array<FenceWithFenceTime, 2> mPreviousPresentFences;
-
-    TimePoint mScheduledPresentTime GUARDED_BY(kMainThreadContext);
-    TimePoint mExpectedPresentTime GUARDED_BY(kMainThreadContext);
 
     // below flags are set by main thread only
     bool mSetActiveModePending = false;
@@ -1430,7 +1405,7 @@ private:
     std::unordered_map<uint32_t, sp<Layer>> mLegacyLayers;
 
     TransactionHandler mTransactionHandler;
-    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
+    ui::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
     bool mFrontEndDisplayInfosChanged = false;
 
     // WindowInfo ids visible during the last commit.

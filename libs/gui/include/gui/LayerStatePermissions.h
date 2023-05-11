@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,16 @@
  * limitations under the License.
  */
 
-#pragma once
+#include <stdint.h>
+#include <string>
+#include <unordered_map>
 
-#include <cstdint>
+namespace android {
+class LayerStatePermissions {
+public:
+    static uint32_t getTransactionPermissions(int pid, int uid);
 
-#include <ftl/flags.h>
-
-namespace android::scheduler {
-
-enum class Feature : std::uint8_t {
-    kPresentFences = 1 << 0,
-    kKernelIdleTimer = 1 << 1,
-    kContentDetection = 1 << 2,
-    kTracePredictedVsync = 1 << 3,
-    kBackpressureGpuComposition = 1 << 4,
+private:
+    static std::unordered_map<std::string, int> mPermissionMap;
 };
-
-using FeatureFlags = ftl::Flags<Feature>;
-
-} // namespace android::scheduler
+} // namespace android

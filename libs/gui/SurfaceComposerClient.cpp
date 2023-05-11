@@ -54,6 +54,7 @@
 #include <ui/DynamicDisplayInfo.h>
 
 #include <android-base/thread_annotations.h>
+#include <gui/LayerStatePermissions.h>
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
 
@@ -716,11 +717,16 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
     mListenerCallbacks = other.mListenerCallbacks;
 }
 
-void SurfaceComposerClient::Transaction::sanitize() {
+void SurfaceComposerClient::Transaction::sanitize(int pid, int uid) {
+    uint32_t permissions = LayerStatePermissions::getTransactionPermissions(pid, uid);
     for (auto & [handle, composerState] : mComposerStates) {
-        composerState.state.sanitize(0 /* permissionMask */);
+        composerState.state.sanitize(permissions);
     }
-    mInputWindowCommands.clear();
+    if (!mInputWindowCommands.empty() &&
+        (permissions & layer_state_t::Permission::ACCESS_SURFACE_FLINGER) == 0) {
+        ALOGE("Only privileged callers are allowed to send input commands.");
+        mInputWindowCommands.clear();
+    }
 }
 
 std::unique_ptr<SurfaceComposerClient::Transaction>
@@ -2239,11 +2245,13 @@ void SurfaceComposerClient::Transaction::mergeFrameTimelineInfo(FrameTimelineInf
             t.vsyncId = other.vsyncId;
             t.inputEventId = other.inputEventId;
             t.startTimeNanos = other.startTimeNanos;
+            t.useForRefreshRateSelection = other.useForRefreshRateSelection;
         }
     } else if (t.vsyncId == FrameTimelineInfo::INVALID_VSYNC_ID) {
         t.vsyncId = other.vsyncId;
         t.inputEventId = other.inputEventId;
         t.startTimeNanos = other.startTimeNanos;
+        t.useForRefreshRateSelection = other.useForRefreshRateSelection;
     }
 }
 
@@ -2252,6 +2260,7 @@ void SurfaceComposerClient::Transaction::clearFrameTimelineInfo(FrameTimelineInf
     t.vsyncId = FrameTimelineInfo::INVALID_VSYNC_ID;
     t.inputEventId = os::IInputConstants::INVALID_INPUT_EVENT_ID;
     t.startTimeNanos = 0;
+    t.useForRefreshRateSelection = false;
 }
 
 SurfaceComposerClient::Transaction&

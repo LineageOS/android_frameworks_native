@@ -446,7 +446,7 @@ void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
 }
 
 google::protobuf::RepeatedPtrField<DisplayProto> LayerProtoHelper::writeDisplayInfoToProto(
-        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos) {
+        const frontend::DisplayInfos& displayInfos) {
     google::protobuf::RepeatedPtrField<DisplayProto> displays;
     displays.Reserve(displayInfos.size());
     for (const auto& [layerStack, displayInfo] : displayInfos) {

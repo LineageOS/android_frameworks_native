@@ -166,8 +166,8 @@ public:
 private:
     // ICompositor overrides:
     void configure() override {}
-    bool commit(TimePoint, VsyncId, TimePoint) override { return false; }
-    void composite(TimePoint, VsyncId) override {}
+    bool commit(const scheduler::FrameTarget&) override { return false; }
+    CompositeResult composite(scheduler::FrameTargeter&) override { return {}; }
     void sample() override {}
 };
 
