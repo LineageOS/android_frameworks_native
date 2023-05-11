@@ -515,7 +515,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
 
     // Motion sensor enabled devices.
     if (classes.test(InputDeviceClass::SENSOR)) {
-        mappers.push_back(std::make_unique<SensorInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<SensorInputMapper>(contextPtr, readerConfig));
     }
 
     // External stylus-like devices.
