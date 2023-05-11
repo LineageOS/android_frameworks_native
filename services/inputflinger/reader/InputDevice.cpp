@@ -488,7 +488,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
 
     // Cursor-like devices.
     if (classes.test(InputDeviceClass::CURSOR)) {
-        mappers.push_back(std::make_unique<CursorInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(createInputMapper<CursorInputMapper>(contextPtr, readerConfig));
     }
 
     // Touchscreens and touchpad devices.
