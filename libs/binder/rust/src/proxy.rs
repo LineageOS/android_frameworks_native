@@ -439,6 +439,14 @@ impl SerializeOption for SpIBinder {
 impl SerializeArray for SpIBinder {}
 
 impl Deserialize for SpIBinder {
+    type UninitType = Option<Self>;
+    fn uninit() -> Self::UninitType {
+        Self::UninitType::default()
+    }
+    fn from_init(value: Self) -> Self::UninitType {
+        Some(value)
+    }
+
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<SpIBinder> {
         parcel.read_binder().transpose().unwrap_or(Err(StatusCode::UNEXPECTED_NULL))
     }
