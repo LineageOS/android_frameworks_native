@@ -129,12 +129,33 @@ static sp<IBinder> getBinderForOptions(benchmark::State& state) {
     }
 }
 
+static void SetLabel(benchmark::State& state) {
+    Transport transport = static_cast<Transport>(state.range(0));
+    switch (transport) {
+#ifdef __BIONIC__
+        case KERNEL:
+            state.SetLabel("kernel");
+            break;
+#endif
+        case RPC:
+            state.SetLabel("rpc");
+            break;
+        case RPC_TLS:
+            state.SetLabel("rpc_tls");
+            break;
+        default:
+            LOG(FATAL) << "Unknown transport value: " << transport;
+    }
+}
+
 void BM_pingTransaction(benchmark::State& state) {
     sp<IBinder> binder = getBinderForOptions(state);
 
     while (state.KeepRunning()) {
         CHECK_EQ(OK, binder->pingBinder());
     }
+
+    SetLabel(state);
 }
 BENCHMARK(BM_pingTransaction)->ArgsProduct({kTransportList});
 
@@ -164,6 +185,8 @@ void BM_repeatTwoPageString(benchmark::State& state) {
         Status ret = iface->repeatString(str, &out);
         CHECK(ret.isOk()) << ret;
     }
+
+    SetLabel(state);
 }
 BENCHMARK(BM_repeatTwoPageString)->ArgsProduct({kTransportList});
 
@@ -182,6 +205,8 @@ void BM_throughputForTransportAndBytes(benchmark::State& state) {
         Status ret = iface->repeatBytes(bytes, &out);
         CHECK(ret.isOk()) << ret;
     }
+
+    SetLabel(state);
 }
 BENCHMARK(BM_throughputForTransportAndBytes)
         ->ArgsProduct({kTransportList,
@@ -201,6 +226,8 @@ void BM_repeatBinder(benchmark::State& state) {
         Status ret = iface->repeatBinder(binder, &out);
         CHECK(ret.isOk()) << ret;
     }
+
+    SetLabel(state);
 }
 BENCHMARK(BM_repeatBinder)->ArgsProduct({kTransportList});
 
@@ -227,11 +254,6 @@ void setupClient(const sp<RpcSession>& session, const char* addr) {
 int main(int argc, char** argv) {
     ::benchmark::Initialize(&argc, argv);
     if (::benchmark::ReportUnrecognizedArguments(argc, argv)) return 1;
-
-    std::cerr << "Tests suffixes:" << std::endl;
-    std::cerr << "\t.../" << Transport::KERNEL << " is KERNEL" << std::endl;
-    std::cerr << "\t.../" << Transport::RPC << " is RPC" << std::endl;
-    std::cerr << "\t.../" << Transport::RPC_TLS << " is RPC with TLS" << std::endl;
 
 #ifdef __BIONIC__
     if (0 == fork()) {
