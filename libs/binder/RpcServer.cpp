@@ -81,6 +81,7 @@ status_t RpcServer::setupInetServer(const char* address, unsigned int port,
     auto aiStart = InetSocketAddress::getAddrInfo(address, port);
     if (aiStart == nullptr) return UNKNOWN_ERROR;
     for (auto ai = aiStart.get(); ai != nullptr; ai = ai->ai_next) {
+        if (ai->ai_addr == nullptr) continue;
         InetSocketAddress socketAddress(ai->ai_addr, ai->ai_addrlen, address, port);
         if (status_t status = setupSocketServer(socketAddress); status != OK) {
             continue;
