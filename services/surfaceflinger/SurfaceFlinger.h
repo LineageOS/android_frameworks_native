@@ -632,10 +632,7 @@ private:
     void sample() override;
 
     // ISchedulerCallback overrides:
-
-    // Toggles hardware VSYNC by calling into HWC.
-    // TODO(b/241286146): Rename for self-explanatory API.
-    void setVsyncEnabled(PhysicalDisplayId, bool) override;
+    void requestHardwareVsync(PhysicalDisplayId, bool) override;
     void requestDisplayModes(std::vector<display::DisplayModeRequest>) override;
     void kernelTimerChanged(bool expired) override;
     void triggerOnFrameRateOverridesChanged() override;
@@ -991,11 +988,6 @@ private:
      * VSYNC
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
-
-    void setHWCVsyncEnabled(PhysicalDisplayId id, bool enabled) {
-        hal::Vsync halState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
-        getHwComposer().setVsyncEnabled(id, halState);
-    }
 
     /*
      * Display identification
