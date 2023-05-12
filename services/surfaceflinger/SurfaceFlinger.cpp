@@ -8094,7 +8094,7 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
                 });
     }
     if (mLegacyFrontEndEnabled && !mLayerLifecycleManagerEnabled) {
-        mDrawingState.traverseInZOrder([&refreshArgs, cursorOnly, &layers](Layer* layer) {
+        auto moveSnapshots = [&layers, &refreshArgs, cursorOnly](Layer* layer) {
             if (const auto& layerFE = layer->getCompositionEngineLayerFE()) {
                 if (cursorOnly &&
                     layer->getLayerSnapshot()->compositionType !=
@@ -8105,7 +8105,22 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
                 refreshArgs.layers.push_back(layerFE);
                 layers.emplace_back(layer, layerFE.get());
             }
-        });
+        };
+
+        if (cursorOnly || !mVisibleRegionsDirty) {
+            // for hot path avoid traversals by walking though the previous composition list
+            for (sp<Layer> layer : mPreviouslyComposedLayers) {
+                moveSnapshots(layer.get());
+            }
+        } else {
+            mPreviouslyComposedLayers.clear();
+            mDrawingState.traverseInZOrder(
+                    [&moveSnapshots](Layer* layer) { moveSnapshots(layer); });
+            mPreviouslyComposedLayers.reserve(layers.size());
+            for (auto [layer, _] : layers) {
+                mPreviouslyComposedLayers.push_back(sp<Layer>::fromExisting(layer));
+            }
+        }
     }
 
     return layers;
