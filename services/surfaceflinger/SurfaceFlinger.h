@@ -332,6 +332,14 @@ public:
     const DisplayDevice* getDisplayFromLayerStack(ui::LayerStack)
             REQUIRES(mStateLock, kMainThreadContext);
 
+    // TODO (b/259407931): Remove.
+    // TODO (b/281857977): This should be annotated with REQUIRES(kMainThreadContext), but this
+    // would require thread safety annotations throughout the frontend (in particular Layer and
+    // LayerFE).
+    static ui::Transform::RotationFlags getActiveDisplayRotationFlags() {
+        return sActiveDisplayRotationFlags;
+    }
+
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
@@ -1389,6 +1397,10 @@ private:
     bool commitMirrorDisplays(VsyncId);
 
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
+
+    // Must only be accessed on the main thread.
+    // TODO (b/259407931): Remove.
+    static ui::Transform::RotationFlags sActiveDisplayRotationFlags;
 
     bool isRefreshRateOverlayEnabled() const REQUIRES(mStateLock) {
         return hasDisplay(
