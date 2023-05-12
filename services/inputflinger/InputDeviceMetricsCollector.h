@@ -17,11 +17,14 @@
 #pragma once
 
 #include "InputListener.h"
+#include "NotifyArgs.h"
 
 #include <ftl/mixins.h>
 #include <input/InputDevice.h>
+#include <statslog.h>
 #include <chrono>
 #include <map>
+#include <set>
 #include <vector>
 
 namespace android {
@@ -39,6 +42,38 @@ public:
      */
     virtual void dump(std::string& dump) = 0;
 };
+
+/**
+ * Enum representation of the InputDeviceUsageSource.
+ */
+enum class InputDeviceUsageSource : int32_t {
+    UNKNOWN = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__UNKNOWN,
+    BUTTONS = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__BUTTONS,
+    KEYBOARD = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__KEYBOARD,
+    DPAD = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__DPAD,
+    GAMEPAD = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__GAMEPAD,
+    JOYSTICK = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__JOYSTICK,
+    MOUSE = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__MOUSE,
+    MOUSE_CAPTURED = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__MOUSE_CAPTURED,
+    TOUCHPAD = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__TOUCHPAD,
+    TOUCHPAD_CAPTURED = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__TOUCHPAD_CAPTURED,
+    ROTARY_ENCODER = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__ROTARY_ENCODER,
+    STYLUS_DIRECT = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__STYLUS_DIRECT,
+    STYLUS_INDIRECT = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__STYLUS_INDIRECT,
+    STYLUS_FUSED = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__STYLUS_FUSED,
+    TOUCH_NAVIGATION = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__TOUCH_NAVIGATION,
+    TOUCHSCREEN = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__TOUCHSCREEN,
+    TRACKBALL = util::INPUT_DEVICE_USAGE_REPORTED__USAGE_SOURCES__TRACKBALL,
+
+    ftl_first = UNKNOWN,
+    ftl_last = TRACKBALL,
+};
+
+/** Returns the InputDeviceUsageSource that corresponds to the key event. */
+InputDeviceUsageSource getUsageSourceForKeyArgs(const InputDeviceInfo&, const NotifyKeyArgs&);
+
+/** Returns the InputDeviceUsageSources that correspond to the motion event. */
+std::set<InputDeviceUsageSource> getUsageSourcesForMotionArgs(const NotifyMotionArgs&);
 
 /** The logging interface for the metrics collector, injected for testing. */
 class InputDeviceMetricsLogger {

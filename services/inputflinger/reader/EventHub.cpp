@@ -58,6 +58,8 @@
 
 #include "EventHub.h"
 
+#include "KeyCodeClassifications.h"
+
 #define INDENT "  "
 #define INDENT2 "    "
 #define INDENT3 "      "
@@ -188,14 +190,6 @@ static std::string sha1(const std::string& in) {
     }
     return out;
 }
-
-/* The set of all Android key codes that correspond to buttons (bit-switches) on a stylus. */
-static constexpr std::array<int32_t, 4> STYLUS_BUTTON_KEYCODES = {
-        AKEYCODE_STYLUS_BUTTON_PRIMARY,
-        AKEYCODE_STYLUS_BUTTON_SECONDARY,
-        AKEYCODE_STYLUS_BUTTON_TERTIARY,
-        AKEYCODE_STYLUS_BUTTON_TAIL,
-};
 
 /**
  * Return true if name matches "v4l-touch*"
@@ -2060,15 +2054,6 @@ void EventHub::scanDevicesLocked() {
 
 // ----------------------------------------------------------------------------
 
-static const int32_t GAMEPAD_KEYCODES[] = {
-        AKEYCODE_BUTTON_A,      AKEYCODE_BUTTON_B,      AKEYCODE_BUTTON_C,    //
-        AKEYCODE_BUTTON_X,      AKEYCODE_BUTTON_Y,      AKEYCODE_BUTTON_Z,    //
-        AKEYCODE_BUTTON_L1,     AKEYCODE_BUTTON_R1,                           //
-        AKEYCODE_BUTTON_L2,     AKEYCODE_BUTTON_R2,                           //
-        AKEYCODE_BUTTON_THUMBL, AKEYCODE_BUTTON_THUMBR,                       //
-        AKEYCODE_BUTTON_START,  AKEYCODE_BUTTON_SELECT, AKEYCODE_BUTTON_MODE, //
-};
-
 status_t EventHub::registerFdForEpoll(int fd) {
     // TODO(b/121395353) - consider adding EPOLLRDHUP
     struct epoll_event eventItem = {};
@@ -2391,31 +2376,23 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
             device->classes |= InputDeviceClass::ALPHAKEY;
         }
 
-        // See if this device has a DPAD.
-        if (device->hasKeycodeLocked(AKEYCODE_DPAD_UP) &&
-            device->hasKeycodeLocked(AKEYCODE_DPAD_DOWN) &&
-            device->hasKeycodeLocked(AKEYCODE_DPAD_LEFT) &&
-            device->hasKeycodeLocked(AKEYCODE_DPAD_RIGHT) &&
-            device->hasKeycodeLocked(AKEYCODE_DPAD_CENTER)) {
+        // See if this device has a D-pad.
+        if (std::all_of(DPAD_REQUIRED_KEYCODES.begin(), DPAD_REQUIRED_KEYCODES.end(),
+                        [&](int32_t keycode) { return device->hasKeycodeLocked(keycode); })) {
             device->classes |= InputDeviceClass::DPAD;
         }
 
         // See if this device has a gamepad.
-        for (size_t i = 0; i < sizeof(GAMEPAD_KEYCODES) / sizeof(GAMEPAD_KEYCODES[0]); i++) {
-            if (device->hasKeycodeLocked(GAMEPAD_KEYCODES[i])) {
-                device->classes |= InputDeviceClass::GAMEPAD;
-                break;
-            }
+        if (std::any_of(GAMEPAD_KEYCODES.begin(), GAMEPAD_KEYCODES.end(),
+                        [&](int32_t keycode) { return device->hasKeycodeLocked(keycode); })) {
+            device->classes |= InputDeviceClass::GAMEPAD;
         }
 
         // See if this device has any stylus buttons that we would want to fuse with touch data.
-        if (!device->classes.any(InputDeviceClass::TOUCH | InputDeviceClass::TOUCH_MT)) {
-            for (int32_t keycode : STYLUS_BUTTON_KEYCODES) {
-                if (device->hasKeycodeLocked(keycode)) {
-                    device->classes |= InputDeviceClass::EXTERNAL_STYLUS;
-                    break;
-                }
-            }
+        if (!device->classes.any(InputDeviceClass::TOUCH | InputDeviceClass::TOUCH_MT) &&
+            std::any_of(STYLUS_BUTTON_KEYCODES.begin(), STYLUS_BUTTON_KEYCODES.end(),
+                        [&](int32_t keycode) { return device->hasKeycodeLocked(keycode); })) {
+            device->classes |= InputDeviceClass::EXTERNAL_STYLUS;
         }
     }
 

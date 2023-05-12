@@ -285,4 +285,78 @@ private:
     std::vector<PointerBuilder> mPointers;
 };
 
+class KeyArgsBuilder {
+public:
+    KeyArgsBuilder(int32_t action, int32_t source) {
+        mAction = action;
+        mSource = source;
+        mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+        mDownTime = mEventTime;
+    }
+
+    KeyArgsBuilder& deviceId(int32_t deviceId) {
+        mDeviceId = deviceId;
+        return *this;
+    }
+
+    KeyArgsBuilder& downTime(nsecs_t downTime) {
+        mDownTime = downTime;
+        return *this;
+    }
+
+    KeyArgsBuilder& eventTime(nsecs_t eventTime) {
+        mEventTime = eventTime;
+        return *this;
+    }
+
+    KeyArgsBuilder& displayId(int32_t displayId) {
+        mDisplayId = displayId;
+        return *this;
+    }
+
+    KeyArgsBuilder& policyFlags(int32_t policyFlags) {
+        mPolicyFlags = policyFlags;
+        return *this;
+    }
+
+    KeyArgsBuilder& addFlag(uint32_t flags) {
+        mFlags |= flags;
+        return *this;
+    }
+
+    KeyArgsBuilder& keyCode(int32_t keyCode) {
+        mKeyCode = keyCode;
+        return *this;
+    }
+
+    NotifyKeyArgs build() const {
+        return {InputEvent::nextId(),
+                mEventTime,
+                /*readTime=*/mEventTime,
+                mDeviceId,
+                mSource,
+                mDisplayId,
+                mPolicyFlags,
+                mAction,
+                mFlags,
+                mKeyCode,
+                mScanCode,
+                mMetaState,
+                mDownTime};
+    }
+
+private:
+    int32_t mAction;
+    int32_t mDeviceId = DEFAULT_DEVICE_ID;
+    uint32_t mSource;
+    nsecs_t mDownTime;
+    nsecs_t mEventTime;
+    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
+    uint32_t mPolicyFlags = DEFAULT_POLICY_FLAGS;
+    int32_t mFlags{0};
+    int32_t mKeyCode{AKEYCODE_UNKNOWN};
+    int32_t mScanCode{0};
+    int32_t mMetaState{AMETA_NONE};
+};
+
 } // namespace android
