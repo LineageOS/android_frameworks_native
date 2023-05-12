@@ -44,10 +44,18 @@ cc_test {
         "-Wno-unused-parameter",
     ],
     sanitize: {
+        hwaddress: true,
         undefined: true,
         all_undefined: true,
         diag: {
             undefined: true,
+        },
+    },
+    target: {
+        host: {
+            sanitize: {
+                address: true,
+            },
         },
     },
     shared_libs: [
