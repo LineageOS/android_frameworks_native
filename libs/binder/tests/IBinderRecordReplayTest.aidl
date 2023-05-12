@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import parcelables.SingleDataParcelable;
 
 interface IBinderRecordReplayTest {
     void setByte(byte input);
@@ -35,4 +36,37 @@ interface IBinderRecordReplayTest {
 
     void setDouble(double input);
     double getDouble();
+
+    void setString(String input);
+    String getString();
+
+    void setSingleDataParcelable(in SingleDataParcelable p);
+    SingleDataParcelable getSingleDataParcelable();
+
+    void setByteArray(in byte[] input);
+    byte[] getByteArray();
+
+    void setCharArray(in char[] input);
+    char[] getCharArray();
+
+    void setBooleanArray(in boolean[] input);
+    boolean[] getBooleanArray();
+
+    void setIntArray(in int[] input);
+    int[] getIntArray();
+
+    void setFloatArray(in float[] input);
+    float[] getFloatArray();
+
+    void setLongArray(in long[] input);
+    long[] getLongArray();
+
+    void setDoubleArray(in double[] input);
+    double[] getDoubleArray();
+
+    void setStringArray(in String[] input);
+    String[] getStringArray();
+
+    void setSingleDataParcelableArray(in SingleDataParcelable[] input);
+    SingleDataParcelable[] getSingleDataParcelableArray();
 }
