@@ -25,6 +25,7 @@
 #include <SkSize.h>
 #include <SkString.h>
 #include <SkSurface.h>
+#include <include/gpu/ganesh/SkSurfaceGanesh.h>
 #include "include/gpu/GpuTypes.h" // from Skia
 #include <log/log.h>
 #include <utils/Trace.h>
@@ -45,8 +46,8 @@ sk_sp<SkImage> GaussianBlurFilter::generate(GrRecordingContext* context, const u
     // Create blur surface with the bit depth and colorspace of the original surface
     SkImageInfo scaledInfo = input->imageInfo().makeWH(std::ceil(blurRect.width() * kInputScale),
                                                        std::ceil(blurRect.height() * kInputScale));
-    sk_sp<SkSurface> surface = SkSurface::MakeRenderTarget(context,
-                                                           skgpu::Budgeted::kNo, scaledInfo);
+    sk_sp<SkSurface> surface = SkSurfaces::RenderTarget(context,
+                                                        skgpu::Budgeted::kNo, scaledInfo);
 
     SkPaint paint;
     paint.setBlendMode(SkBlendMode::kSrc);
