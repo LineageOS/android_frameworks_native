@@ -132,7 +132,7 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
         case kGestureTypeScroll:
             return handleScroll(when, readTime, gesture);
         case kGestureTypeFling:
-            return {handleFling(when, readTime, gesture)};
+            return handleFling(when, readTime, gesture);
         case kGestureTypeSwipe:
             return handleMultiFingerSwipe(when, readTime, 3, gesture.details.swipe.dx,
                                           gesture.details.swipe.dy);
@@ -149,7 +149,8 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
     }
 }
 
-NotifyArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime, const Gesture& gesture) {
+NotifyMotionArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime,
+                                              const Gesture& gesture) {
     float deltaX = gesture.details.move.dx;
     float deltaY = gesture.details.move.dy;
     rotateDelta(mOrientation, &deltaX, &deltaY);
@@ -312,19 +313,39 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
     return out;
 }
 
-NotifyArgs GestureConverter::handleFling(nsecs_t when, nsecs_t readTime, const Gesture& gesture) {
-    // We don't actually want to use the gestures library's fling velocity values (to ensure
-    // consistency between touchscreen and touchpad flings), so we're just using the "start fling"
-    // gestures as a marker for the end of a two-finger scroll gesture.
-    if (gesture.details.fling.fling_state != GESTURES_FLING_START ||
-        mCurrentClassification != MotionClassification::TWO_FINGER_SWIPE) {
-        return {};
+std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTime,
+                                                    const Gesture& gesture) {
+    switch (gesture.details.fling.fling_state) {
+        case GESTURES_FLING_START:
+            if (mCurrentClassification == MotionClassification::TWO_FINGER_SWIPE) {
+                // We don't actually want to use the gestures library's fling velocity values (to
+                // ensure consistency between touchscreen and touchpad flings), so we're just using
+                // the "start fling" gestures as a marker for the end of a two-finger scroll
+                // gesture.
+                return {endScroll(when, readTime)};
+            }
+            break;
+        case GESTURES_FLING_TAP_DOWN:
+            if (mCurrentClassification == MotionClassification::NONE) {
+                // Use the tap down state of a fling gesture as an indicator that a contact
+                // has been initiated with the touchpad. We treat this as a move event with zero
+                // magnitude, which will also result in the pointer icon being updated.
+                // TODO(b/282023644): Add a signal in libgestures for when a stable contact has been
+                //  initiated with a touchpad.
+                return {handleMove(when, readTime,
+                                   Gesture(kGestureMove, gesture.start_time, gesture.end_time,
+                                           /*dx=*/0.f,
+                                           /*dy=*/0.f))};
+            }
+            break;
+        default:
+            break;
     }
 
-    return endScroll(when, readTime);
+    return {};
 }
 
-NotifyArgs GestureConverter::endScroll(nsecs_t when, nsecs_t readTime) {
+NotifyMotionArgs GestureConverter::endScroll(nsecs_t when, nsecs_t readTime) {
     const auto [xCursorPosition, yCursorPosition] = mPointerController->getPosition();
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE, 0);
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, 0);
@@ -507,14 +528,29 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
                                                   const PointerProperties* pointerProperties,
                                                   const PointerCoords* pointerCoords,
                                                   float xCursorPosition, float yCursorPosition) {
-    return NotifyMotionArgs(mReaderContext.getNextId(), when, readTime, mDeviceId, SOURCE,
-                            mPointerController->getDisplayId(), /* policyFlags= */ POLICY_FLAG_WAKE,
-                            action, /* actionButton= */ actionButton, /* flags= */ 0,
-                            mReaderContext.getGlobalMetaState(), buttonState,
-                            mCurrentClassification, AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount,
-                            pointerProperties, pointerCoords, /* xPrecision= */ 1.0f,
-                            /* yPrecision= */ 1.0f, xCursorPosition, yCursorPosition,
-                            /* downTime= */ mDownTime, /* videoFrames= */ {});
+    return {mReaderContext.getNextId(),
+            when,
+            readTime,
+            mDeviceId,
+            SOURCE,
+            mPointerController->getDisplayId(),
+            /* policyFlags= */ POLICY_FLAG_WAKE,
+            action,
+            /* actionButton= */ actionButton,
+            /* flags= */ 0,
+            mReaderContext.getGlobalMetaState(),
+            buttonState,
+            mCurrentClassification,
+            AMOTION_EVENT_EDGE_FLAG_NONE,
+            pointerCount,
+            pointerProperties,
+            pointerCoords,
+            /* xPrecision= */ 1.0f,
+            /* yPrecision= */ 1.0f,
+            xCursorPosition,
+            yCursorPosition,
+            /* downTime= */ mDownTime,
+            /* videoFrames= */ {}};
 }
 
 } // namespace android
