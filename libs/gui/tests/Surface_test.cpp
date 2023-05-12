@@ -695,16 +695,14 @@ public:
         mSupportsPresent = supportsPresent;
     }
 
-    status_t setTransactionState(const FrameTimelineInfo& /*frameTimelineInfo*/,
-                                 Vector<ComposerState>& /*state*/,
-                                 const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
-                                 const sp<IBinder>& /*applyToken*/,
-                                 InputWindowCommands /*inputWindowCommands*/,
-                                 int64_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
-                                 const std::vector<client_cache_t>& /*cachedBuffer*/,
-                                 bool /*hasListenerCallbacks*/,
-                                 const std::vector<ListenerCallbacks>& /*listenerCallbacks*/,
-                                 uint64_t /*transactionId*/) override {
+    status_t setTransactionState(
+            const FrameTimelineInfo& /*frameTimelineInfo*/, Vector<ComposerState>& /*state*/,
+            const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
+            const sp<IBinder>& /*applyToken*/, InputWindowCommands /*inputWindowCommands*/,
+            int64_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
+            const std::vector<client_cache_t>& /*cachedBuffer*/, bool /*hasListenerCallbacks*/,
+            const std::vector<ListenerCallbacks>& /*listenerCallbacks*/, uint64_t /*transactionId*/,
+            const std::vector<uint64_t>& /*mergedTransactionIds*/) override {
         return NO_ERROR;
     }
 

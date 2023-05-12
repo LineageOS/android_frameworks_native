@@ -69,6 +69,13 @@ proto::TransactionState TransactionProtoParser::toProto(const TransactionState& 
     for (auto& displayState : t.displays) {
         proto.mutable_display_changes()->Add(std::move(toProto(displayState)));
     }
+
+    proto.mutable_merged_transaction_ids()->Reserve(
+            static_cast<int32_t>(t.mergedTransactionIds.size()));
+    for (auto& mergedTransactionId : t.mergedTransactionIds) {
+        proto.mutable_merged_transaction_ids()->Add(mergedTransactionId);
+    }
+
     return proto;
 }
 
