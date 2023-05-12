@@ -185,11 +185,12 @@ void SurfaceFlingerFuzzer::setTransactionState() {
     bool hasListenerCallbacks = mFdp.ConsumeBool();
     std::vector<ListenerCallbacks> listenerCallbacks{};
     uint64_t transactionId = mFdp.ConsumeIntegral<uint64_t>();
+    std::vector<uint64_t> mergedTransactionIds{};
 
     mTestableFlinger.setTransactionState(FrameTimelineInfo{}, states, displays, flags, applyToken,
                                          InputWindowCommands{}, desiredPresentTime, isAutoTimestamp,
-                                         {}, hasListenerCallbacks, listenerCallbacks,
-                                         transactionId);
+                                         {}, hasListenerCallbacks, listenerCallbacks, transactionId,
+                                         mergedTransactionIds);
 }
 
 void SurfaceFlingerFuzzer::setDisplayStateLocked() {

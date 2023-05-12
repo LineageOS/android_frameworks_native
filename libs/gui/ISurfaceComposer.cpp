@@ -59,15 +59,13 @@ public:
 
     virtual ~BpSurfaceComposer();
 
-    status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
-                                 Vector<ComposerState>& state, const Vector<DisplayState>& displays,
-                                 uint32_t flags, const sp<IBinder>& applyToken,
-                                 InputWindowCommands commands, int64_t desiredPresentTime,
-                                 bool isAutoTimestamp,
-                                 const std::vector<client_cache_t>& uncacheBuffers,
-                                 bool hasListenerCallbacks,
-                                 const std::vector<ListenerCallbacks>& listenerCallbacks,
-                                 uint64_t transactionId) override {
+    status_t setTransactionState(
+            const FrameTimelineInfo& frameTimelineInfo, Vector<ComposerState>& state,
+            const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
+            InputWindowCommands commands, int64_t desiredPresentTime, bool isAutoTimestamp,
+            const std::vector<client_cache_t>& uncacheBuffers, bool hasListenerCallbacks,
+            const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId,
+            const std::vector<uint64_t>& mergedTransactionIds) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
@@ -102,6 +100,11 @@ public:
         }
 
         SAFE_PARCEL(data.writeUint64, transactionId);
+
+        SAFE_PARCEL(data.writeUint32, static_cast<uint32_t>(mergedTransactionIds.size()));
+        for (auto mergedTransactionId : mergedTransactionIds) {
+            SAFE_PARCEL(data.writeUint64, mergedTransactionId);
+        }
 
         if (flags & ISurfaceComposer::eOneWay) {
             return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE,
@@ -187,10 +190,16 @@ status_t BnSurfaceComposer::onTransact(
             uint64_t transactionId = -1;
             SAFE_PARCEL(data.readUint64, &transactionId);
 
+            SAFE_PARCEL_READ_SIZE(data.readUint32, &count, data.dataSize());
+            std::vector<uint64_t> mergedTransactions(count);
+            for (size_t i = 0; i < count; i++) {
+                SAFE_PARCEL(data.readUint64, &mergedTransactions[i]);
+            }
+
             return setTransactionState(frameTimelineInfo, state, displays, stateFlags, applyToken,
                                        std::move(inputWindowCommands), desiredPresentTime,
                                        isAutoTimestamp, uncacheBuffers, hasListenerCallbacks,
-                                       listenerCallbacks, transactionId);
+                                       listenerCallbacks, transactionId, mergedTransactions);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

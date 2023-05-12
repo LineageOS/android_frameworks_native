@@ -56,7 +56,8 @@ struct TransactionState {
                      int64_t desiredPresentTime, bool isAutoTimestamp,
                      std::vector<uint64_t> uncacheBufferIds, int64_t postTime,
                      bool hasListenerCallbacks, std::vector<ListenerCallbacks> listenerCallbacks,
-                     int originPid, int originUid, uint64_t transactionId)
+                     int originPid, int originUid, uint64_t transactionId,
+                     std::vector<uint64_t> mergedTransactionIds)
           : frameTimelineInfo(frameTimelineInfo),
             states(std::move(composerStates)),
             displays(displayStates),
@@ -71,7 +72,8 @@ struct TransactionState {
             listenerCallbacks(listenerCallbacks),
             originPid(originPid),
             originUid(originUid),
-            id(transactionId) {}
+            id(transactionId),
+            mergedTransactionIds(std::move(mergedTransactionIds)) {}
 
     // Invokes `void(const layer_state_t&)` visitor for matching layers.
     template <typename Visitor>
@@ -131,6 +133,7 @@ struct TransactionState {
     int originUid;
     uint64_t id;
     bool sentFenceTimeoutWarning = false;
+    std::vector<uint64_t> mergedTransactionIds;
 };
 
 } // namespace android
