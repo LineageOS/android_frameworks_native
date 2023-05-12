@@ -86,6 +86,8 @@ static constexpr int32_t POINTER_0_UP =
         AMOTION_EVENT_ACTION_POINTER_UP | (0 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 static constexpr int32_t POINTER_1_UP =
         AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+static constexpr int32_t POINTER_2_UP =
+        AMOTION_EVENT_ACTION_POINTER_UP | (2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
 // The default pid and uid for windows created on the primary display by the test.
 static constexpr int32_t WINDOW_PID = 999;
@@ -1660,6 +1662,11 @@ public:
         return *this;
     }
 
+    MotionArgsBuilder& classification(MotionClassification classification) {
+        mClassification = classification;
+        return *this;
+    }
+
     NotifyMotionArgs build() {
         std::vector<PointerProperties> pointerProperties;
         std::vector<PointerCoords> pointerCoords;
@@ -1678,7 +1685,7 @@ public:
 
         NotifyMotionArgs args(InputEvent::nextId(), mEventTime, /*readTime=*/mEventTime, mDeviceId,
                               mSource, mDisplayId, mPolicyFlags, mAction, mActionButton, mFlags,
-                              AMETA_NONE, mButtonState, MotionClassification::NONE, /*edgeFlags=*/0,
+                              AMETA_NONE, mButtonState, mClassification, /*edgeFlags=*/0,
                               mPointers.size(), pointerProperties.data(), pointerCoords.data(),
                               /*xPrecision=*/0, /*yPrecision=*/0, mRawXCursorPosition,
                               mRawYCursorPosition, mDownTime, /*videoFrames=*/{});
@@ -1697,6 +1704,7 @@ private:
     int32_t mActionButton{0};
     int32_t mButtonState{0};
     int32_t mFlags{0};
+    MotionClassification mClassification{MotionClassification::NONE};
     float mRawXCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
     float mRawYCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
 
@@ -4001,6 +4009,126 @@ TEST_F(InputDispatcherTest, NonSplitTouchableWindowReceivesMultiTouch) {
     EXPECT_EQ(90, event->getY(0));  // 50 + 40
     EXPECT_EQ(-10, event->getX(1)); // -30 + 20
     EXPECT_EQ(-10, event->getY(1)); // -50 + 40
+}
+
+TEST_F(InputDispatcherTest, TouchpadThreeFingerSwipeOnlySentToTrustedOverlays) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 400, 400));
+    sp<FakeWindowHandle> trustedOverlay =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Trusted Overlay",
+                                       ADISPLAY_ID_DEFAULT);
+    trustedOverlay->setSpy(true);
+    trustedOverlay->setTrustedOverlay(true);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {trustedOverlay, window}}});
+
+    // Start a three-finger touchpad swipe
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(100))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(100))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(100))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_2_DOWN, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(100))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(100))
+                                      .pointer(PointerBuilder(2, ToolType::FINGER).x(300).y(100))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+
+    trustedOverlay->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+    trustedOverlay->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
+    trustedOverlay->consumeMotionEvent(WithMotionAction(POINTER_2_DOWN));
+
+    // Move the swipe a bit
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(105))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(105))
+                                      .pointer(PointerBuilder(2, ToolType::FINGER).x(300).y(105))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+
+    trustedOverlay->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+
+    // End the swipe
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_2_UP, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(105))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(105))
+                                      .pointer(PointerBuilder(2, ToolType::FINGER).x(300).y(105))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_UP, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(105))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(105))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(105))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+
+    trustedOverlay->consumeMotionEvent(WithMotionAction(POINTER_2_UP));
+    trustedOverlay->consumeMotionEvent(WithMotionAction(POINTER_1_UP));
+    trustedOverlay->consumeMotionEvent(WithMotionAction(ACTION_UP));
+
+    window->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, TouchpadThreeFingerSwipeNotSentToSingleWindow) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 400, 400));
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // Start a three-finger touchpad swipe
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(100))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(100))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(100))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_2_DOWN, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(100))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(100))
+                                      .pointer(PointerBuilder(2, ToolType::FINGER).x(300).y(100))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+
+    // Move the swipe a bit
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(105))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(105))
+                                      .pointer(PointerBuilder(2, ToolType::FINGER).x(300).y(105))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+
+    // End the swipe
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_2_UP, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(105))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(105))
+                                      .pointer(PointerBuilder(2, ToolType::FINGER).x(300).y(105))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_UP, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(105))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(250).y(105))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_MOUSE)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(105))
+                                      .classification(MotionClassification::MULTI_FINGER_SWIPE)
+                                      .build());
+
+    window->assertNoEvents();
 }
 
 /**
