@@ -690,6 +690,7 @@ cc_benchmark {
         "liblog",
         "libutils",
     ],
+    test_suites: ["general-tests"],
 }
 
 cc_test_host {
