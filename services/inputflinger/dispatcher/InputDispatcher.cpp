@@ -681,6 +681,25 @@ std::vector<T>& operator+=(std::vector<T>& left, const std::vector<T>& right) {
     return left;
 }
 
+// Filter windows in a TouchState and targets in a vector to remove untrusted windows/targets from
+// both.
+void filterUntrustedTargets(TouchState& touchState, std::vector<InputTarget>& targets) {
+    std::erase_if(touchState.windows, [&](const TouchedWindow& window) {
+        if (!window.windowHandle->getInfo()->inputConfig.test(
+                    WindowInfo::InputConfig::TRUSTED_OVERLAY)) {
+            // In addition to TouchState, erase this window from the input targets! We don't have a
+            // good way to do this today except by adding a nested loop.
+            // TODO(b/282025641): simplify this code once InputTargets are being identified
+            // separately from TouchedWindows.
+            std::erase_if(targets, [&](const InputTarget& target) {
+                return target.inputChannel->getConnectionToken() == window.windowHandle->getToken();
+            });
+            return true;
+        }
+        return false;
+    });
+}
+
 } // namespace
 
 // --- InputDispatcher ---
@@ -2588,6 +2607,14 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         }
     }
 
+    // If this is a touchpad navigation gesture, it needs to only be sent to trusted targets, as we
+    // only want the system UI to handle these gestures.
+    const bool isTouchpadNavGesture = isFromSource(entry.source, AINPUT_SOURCE_MOUSE) &&
+            entry.classification == MotionClassification::MULTI_FINGER_SWIPE;
+    if (isTouchpadNavGesture) {
+        filterUntrustedTargets(/* byref */ tempTouchState, /* byref */ targets);
+    }
+
     // Output targets from the touch state.
     for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
         if (touchedWindow.pointerIds.none() && !touchedWindow.hasHoveringPointers(entry.deviceId)) {
@@ -2595,6 +2622,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             // Do not send this event to those windows.
             continue;
         }
+
         addWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
                               touchedWindow.pointerIds, touchedWindow.firstDownTimeInTarget,
                               targets);
