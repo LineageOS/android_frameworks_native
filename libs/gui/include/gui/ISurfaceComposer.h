@@ -116,7 +116,7 @@ public:
             InputWindowCommands inputWindowCommands, int64_t desiredPresentTime,
             bool isAutoTimestamp, const std::vector<client_cache_t>& uncacheBuffer,
             bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
-            uint64_t transactionId) = 0;
+            uint64_t transactionId, const std::vector<uint64_t>& mergedTransactionIds) = 0;
 };
 
 // ----------------------------------------------------------------------------
