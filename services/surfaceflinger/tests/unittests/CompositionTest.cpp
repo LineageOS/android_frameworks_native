@@ -680,6 +680,9 @@ struct SidebandLayerProperties : public BaseLayerProperties<SidebandLayerPropert
                 NativeHandle::create(reinterpret_cast<native_handle_t*>(DEFAULT_SIDEBAND_STREAM),
                                      false);
         test->mFlinger.setLayerSidebandStream(layer, stream);
+        auto& layerDrawingState = test->mFlinger.mutableLayerDrawingState(layer);
+        layerDrawingState.crop =
+                Rect(0, 0, SidebandLayerProperties::HEIGHT, SidebandLayerProperties::WIDTH);
     }
 
     static void setupHwcSetSourceCropBufferCallExpectations(CompositionTest* test) {
@@ -814,6 +817,7 @@ struct BaseLayerVariant {
         Mock::VerifyAndClear(test->mComposer);
 
         test->mFlinger.mutableDrawingState().layersSortedByZ.add(layer);
+        test->mFlinger.mutableVisibleRegionsDirty() = true;
     }
 
     static void cleanupInjectedLayers(CompositionTest* test) {
@@ -822,6 +826,7 @@ struct BaseLayerVariant {
 
         test->mDisplay->getCompositionDisplay()->clearOutputLayers();
         test->mFlinger.mutableDrawingState().layersSortedByZ.clear();
+        test->mFlinger.mutablePreviouslyComposedLayers().clear();
 
         // Layer should be unregistered with scheduler.
         test->mFlinger.commit();
