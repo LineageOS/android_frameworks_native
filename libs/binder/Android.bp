@@ -281,14 +281,6 @@ cc_defaults {
     cflags: [
         "-DBINDER_WITH_KERNEL_IPC",
     ],
-    arch: {
-        // TODO(b/254713216): undefined symbol in BufferedTextOutput::getBuffer
-        riscv64: {
-            lto: {
-                thin: false,
-            },
-        },
-    },
 }
 
 cc_library {
