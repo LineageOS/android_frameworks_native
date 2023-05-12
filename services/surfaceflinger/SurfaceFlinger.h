@@ -1182,6 +1182,11 @@ private:
     std::unordered_set<sp<Layer>, SpHash<Layer>> mLayersWithBuffersRemoved;
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
+    // Sorted list of layers that were composed during previous frame. This is used to
+    // avoid an expensive traversal of the layer hierarchy when there are no
+    // visible region changes. Because this is a list of strong pointers, this will
+    // extend the life of the layer but this list is only updated in the main thread.
+    std::vector<sp<Layer>> mPreviouslyComposedLayers;
 
     BootStage mBootStage = BootStage::BOOTLOADER;
 
