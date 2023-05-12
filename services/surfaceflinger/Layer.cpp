@@ -254,7 +254,8 @@ Layer::~Layer() {
         mFlinger->mTunnelModeEnabledReporter->decrementTunnelModeCount();
     }
     if (mHadClonedChild) {
-        mFlinger->mNumClones--;
+        auto& roots = mFlinger->mLayerMirrorRoots;
+        roots.erase(std::remove(roots.begin(), roots.end(), this), roots.end());
     }
     if (hasTrustedPresentationListener()) {
         mFlinger->mNumTrustedPresentationListeners--;
@@ -1649,8 +1650,8 @@ void Layer::getFrameStats(FrameStats* outStats) const {
 
 void Layer::dumpOffscreenDebugInfo(std::string& result) const {
     std::string hasBuffer = hasBufferOrSidebandStream() ? " (contains buffer)" : "";
-    StringAppendF(&result, "Layer %s%s pid:%d uid:%d\n", getName().c_str(), hasBuffer.c_str(),
-                  mOwnerPid, mOwnerUid);
+    StringAppendF(&result, "Layer %s%s pid:%d uid:%d%s\n", getName().c_str(), hasBuffer.c_str(),
+                  mOwnerPid, mOwnerUid, isHandleAlive() ? " handleAlive" : "");
 }
 
 void Layer::onDisconnect() {
@@ -2594,7 +2595,7 @@ void Layer::updateCloneBufferInfo() {
     mDrawingState.inputInfo = tmpInputInfo;
 }
 
-void Layer::updateMirrorInfo() {
+bool Layer::updateMirrorInfo(const std::deque<Layer*>& cloneRootsPendingUpdates) {
     if (mClonedChild == nullptr || !mClonedChild->isClonedFromAlive()) {
         // If mClonedChild is null, there is nothing to mirror. If isClonedFromAlive returns false,
         // it means that there is a clone, but the layer it was cloned from has been destroyed. In
@@ -2602,7 +2603,7 @@ void Layer::updateMirrorInfo() {
         // destroyed. The root, this layer, will still be around since the client can continue
         // to hold a reference, but no cloned layers will be displayed.
         mClonedChild = nullptr;
-        return;
+        return true;
     }
 
     std::map<sp<Layer>, sp<Layer>> clonedLayersMap;
@@ -2617,6 +2618,13 @@ void Layer::updateMirrorInfo() {
     mClonedChild->updateClonedDrawingState(clonedLayersMap);
     mClonedChild->updateClonedChildren(sp<Layer>::fromExisting(this), clonedLayersMap);
     mClonedChild->updateClonedRelatives(clonedLayersMap);
+
+    for (Layer* root : cloneRootsPendingUpdates) {
+        if (clonedLayersMap.find(sp<Layer>::fromExisting(root)) != clonedLayersMap.end()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void Layer::updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {
@@ -2764,7 +2772,7 @@ bool Layer::isInternalDisplayOverlay() const {
 void Layer::setClonedChild(const sp<Layer>& clonedChild) {
     mClonedChild = clonedChild;
     mHadClonedChild = true;
-    mFlinger->mNumClones++;
+    mFlinger->mLayerMirrorRoots.push_back(this);
 }
 
 bool Layer::setDropInputMode(gui::DropInputMode mode) {
@@ -2977,7 +2985,7 @@ bool Layer::updateGeometry() {
     if (mDrawingState.bufferTransform & ui::Transform::ROT_90) {
         std::swap(bufferWidth, bufferHeight);
     }
-    uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
+    uint32_t invTransform = SurfaceFlinger::getActiveDisplayRotationFlags();
     if (mDrawingState.transformToDisplayInverse) {
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufferWidth, bufferHeight);
@@ -3304,7 +3312,7 @@ Rect Layer::getBufferSize(const State& /*s*/) const {
     }
 
     if (getTransformToDisplayInverse()) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
+        uint32_t invTransform = SurfaceFlinger::getActiveDisplayRotationFlags();
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufWidth, bufHeight);
         }

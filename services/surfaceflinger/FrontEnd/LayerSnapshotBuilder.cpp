@@ -665,6 +665,7 @@ void LayerSnapshotBuilder::resetRelativeState(LayerSnapshot& snapshot) {
     snapshot.relativeLayerMetadata.mMap.clear();
 }
 
+// TODO (b/259407931): Remove.
 uint32_t getPrimaryDisplayRotationFlags(const DisplayInfos& displays) {
     for (auto& [_, display] : displays) {
         if (display.isPrimary) {

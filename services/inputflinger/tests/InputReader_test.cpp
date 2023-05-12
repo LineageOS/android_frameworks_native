@@ -2603,13 +2603,13 @@ protected:
 };
 
 TEST_F(SwitchInputMapperTest, GetSources) {
-    SwitchInputMapper& mapper = addMapperAndConfigure<SwitchInputMapper>();
+    SwitchInputMapper& mapper = constructAndAddMapper<SwitchInputMapper>();
 
     ASSERT_EQ(uint32_t(AINPUT_SOURCE_SWITCH), mapper.getSources());
 }
 
 TEST_F(SwitchInputMapperTest, GetSwitchState) {
-    SwitchInputMapper& mapper = addMapperAndConfigure<SwitchInputMapper>();
+    SwitchInputMapper& mapper = constructAndAddMapper<SwitchInputMapper>();
 
     mFakeEventHub->setSwitchState(EVENTHUB_ID, SW_LID, 1);
     ASSERT_EQ(1, mapper.getSwitchState(AINPUT_SOURCE_ANY, SW_LID));
@@ -2619,7 +2619,7 @@ TEST_F(SwitchInputMapperTest, GetSwitchState) {
 }
 
 TEST_F(SwitchInputMapperTest, Process) {
-    SwitchInputMapper& mapper = addMapperAndConfigure<SwitchInputMapper>();
+    SwitchInputMapper& mapper = constructAndAddMapper<SwitchInputMapper>();
     std::list<NotifyArgs> out;
     out = process(mapper, ARBITRARY_TIME, READ_TIME, EV_SW, SW_LID, 1);
     ASSERT_TRUE(out.empty());
@@ -2645,13 +2645,13 @@ protected:
 };
 
 TEST_F(VibratorInputMapperTest, GetSources) {
-    VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
+    VibratorInputMapper& mapper = constructAndAddMapper<VibratorInputMapper>();
 
     ASSERT_EQ(AINPUT_SOURCE_UNKNOWN, mapper.getSources());
 }
 
 TEST_F(VibratorInputMapperTest, GetVibratorIds) {
-    VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
+    VibratorInputMapper& mapper = constructAndAddMapper<VibratorInputMapper>();
 
     ASSERT_EQ(mapper.getVibratorIds().size(), 2U);
 }
@@ -2659,7 +2659,7 @@ TEST_F(VibratorInputMapperTest, GetVibratorIds) {
 TEST_F(VibratorInputMapperTest, Vibrate) {
     constexpr uint8_t DEFAULT_AMPLITUDE = 192;
     constexpr int32_t VIBRATION_TOKEN = 100;
-    VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
+    VibratorInputMapper& mapper = constructAndAddMapper<VibratorInputMapper>();
 
     VibrationElement pattern(2);
     VibrationSequence sequence(2);
@@ -2784,7 +2784,7 @@ void SensorInputMapperTest::setGyroProperties() {
 }
 
 TEST_F(SensorInputMapperTest, GetSources) {
-    SensorInputMapper& mapper = addMapperAndConfigure<SensorInputMapper>();
+    SensorInputMapper& mapper = constructAndAddMapper<SensorInputMapper>();
 
     ASSERT_EQ(static_cast<uint32_t>(AINPUT_SOURCE_SENSOR), mapper.getSources());
 }
@@ -2792,7 +2792,7 @@ TEST_F(SensorInputMapperTest, GetSources) {
 TEST_F(SensorInputMapperTest, ProcessAccelerometerSensor) {
     setAccelProperties();
     prepareAccelAxes();
-    SensorInputMapper& mapper = addMapperAndConfigure<SensorInputMapper>();
+    SensorInputMapper& mapper = constructAndAddMapper<SensorInputMapper>();
 
     ASSERT_TRUE(mapper.enableSensor(InputDeviceSensorType::ACCELEROMETER,
                                     std::chrono::microseconds(10000),
@@ -2822,7 +2822,7 @@ TEST_F(SensorInputMapperTest, ProcessAccelerometerSensor) {
 TEST_F(SensorInputMapperTest, ProcessGyroscopeSensor) {
     setGyroProperties();
     prepareGyroAxes();
-    SensorInputMapper& mapper = addMapperAndConfigure<SensorInputMapper>();
+    SensorInputMapper& mapper = constructAndAddMapper<SensorInputMapper>();
 
     ASSERT_TRUE(mapper.enableSensor(InputDeviceSensorType::GYROSCOPE,
                                     std::chrono::microseconds(10000),
@@ -3862,21 +3862,21 @@ void CursorInputMapperTest::testMotionRotation(CursorInputMapper& mapper, int32_
 
 TEST_F(CursorInputMapperTest, WhenModeIsPointer_GetSources_ReturnsMouse) {
     addConfigurationProperty("cursor.mode", "pointer");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
 }
 
 TEST_F(CursorInputMapperTest, WhenModeIsNavigation_GetSources_ReturnsTrackball) {
     addConfigurationProperty("cursor.mode", "navigation");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     ASSERT_EQ(AINPUT_SOURCE_TRACKBALL, mapper.getSources());
 }
 
 TEST_F(CursorInputMapperTest, WhenModeIsPointer_PopulateDeviceInfo_ReturnsRangeFromPointerController) {
     addConfigurationProperty("cursor.mode", "pointer");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     InputDeviceInfo info;
     mapper.populateDeviceInfo(info);
@@ -3906,7 +3906,7 @@ TEST_F(CursorInputMapperTest, WhenModeIsPointer_PopulateDeviceInfo_ReturnsRangeF
 
 TEST_F(CursorInputMapperTest, WhenModeIsNavigation_PopulateDeviceInfo_ReturnsScaledRange) {
     addConfigurationProperty("cursor.mode", "navigation");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     InputDeviceInfo info;
     mapper.populateDeviceInfo(info);
@@ -3924,7 +3924,7 @@ TEST_F(CursorInputMapperTest, WhenModeIsNavigation_PopulateDeviceInfo_ReturnsSca
 
 TEST_F(CursorInputMapperTest, Process_ShouldSetAllFieldsAndIncludeGlobalMetaState) {
     addConfigurationProperty("cursor.mode", "navigation");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
@@ -4012,7 +4012,7 @@ TEST_F(CursorInputMapperTest, Process_ShouldSetAllFieldsAndIncludeGlobalMetaStat
 
 TEST_F(CursorInputMapperTest, Process_ShouldHandleIndependentXYUpdates) {
     addConfigurationProperty("cursor.mode", "navigation");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     NotifyMotionArgs args;
 
@@ -4036,7 +4036,7 @@ TEST_F(CursorInputMapperTest, Process_ShouldHandleIndependentXYUpdates) {
 
 TEST_F(CursorInputMapperTest, Process_ShouldHandleIndependentButtonUpdates) {
     addConfigurationProperty("cursor.mode", "navigation");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     NotifyMotionArgs args;
 
@@ -4065,7 +4065,7 @@ TEST_F(CursorInputMapperTest, Process_ShouldHandleIndependentButtonUpdates) {
 
 TEST_F(CursorInputMapperTest, Process_ShouldHandleCombinedXYAndButtonUpdates) {
     addConfigurationProperty("cursor.mode", "navigation");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     NotifyMotionArgs args;
 
@@ -4114,7 +4114,7 @@ TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldNotRotateMotion
     // InputReader works in the un-rotated coordinate space, so orientation-aware devices do not
     // need to be rotated.
     addConfigurationProperty("cursor.orientationAware", "1");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     prepareDisplay(ui::ROTATION_90);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  0,  1));
@@ -4132,7 +4132,7 @@ TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldRotateMotion
     addConfigurationProperty("cursor.mode", "navigation");
     // Since InputReader works in the un-rotated coordinate space, only devices that are not
     // orientation-aware are affected by display rotation.
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     clearViewports();
     prepareDisplay(ui::ROTATION_0);
@@ -4181,7 +4181,7 @@ TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldRotateMotion
 
 TEST_F(CursorInputMapperTest, Process_ShouldHandleAllButtons) {
     addConfigurationProperty("cursor.mode", "pointer");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
     mFakePointerController->setPosition(100, 200);
@@ -4435,7 +4435,7 @@ TEST_F(CursorInputMapperTest, Process_ShouldHandleAllButtons) {
 
 TEST_F(CursorInputMapperTest, Process_WhenModeIsPointer_ShouldMoveThePointerAround) {
     addConfigurationProperty("cursor.mode", "pointer");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
     mFakePointerController->setPosition(100, 200);
@@ -4456,7 +4456,7 @@ TEST_F(CursorInputMapperTest, Process_WhenModeIsPointer_ShouldMoveThePointerArou
 TEST_F(CursorInputMapperTest, Process_PointerCapture) {
     addConfigurationProperty("cursor.mode", "pointer");
     mFakePolicy->setPointerCapture(true);
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     NotifyDeviceResetArgs resetArgs;
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
@@ -4548,7 +4548,7 @@ TEST_F(CursorInputMapperTest, PointerCaptureDisablesVelocityProcessing) {
     const VelocityControlParameters testParams(/*scale=*/5.f, /*low threshold=*/0.f,
                                                /*high threshold=*/100.f, /*acceleration=*/10.f);
     mFakePolicy->setVelocityControlParams(testParams);
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     NotifyDeviceResetArgs resetArgs;
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
@@ -4589,7 +4589,7 @@ TEST_F(CursorInputMapperTest, PointerCaptureDisablesVelocityProcessing) {
 
 TEST_F(CursorInputMapperTest, PointerCaptureDisablesOrientationChanges) {
     addConfigurationProperty("cursor.mode", "pointer");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     NotifyDeviceResetArgs resetArgs;
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
@@ -4630,7 +4630,7 @@ TEST_F(CursorInputMapperTest, PointerCaptureDisablesOrientationChanges) {
 }
 
 TEST_F(CursorInputMapperTest, ConfigureDisplayId_NoAssociatedViewport) {
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     // Set up the default display.
     prepareDisplay(ui::ROTATION_90);
@@ -4656,7 +4656,7 @@ TEST_F(CursorInputMapperTest, ConfigureDisplayId_NoAssociatedViewport) {
 }
 
 TEST_F(CursorInputMapperTest, ConfigureDisplayId_WithAssociatedViewport) {
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     // Set up the default display.
     prepareDisplay(ui::ROTATION_90);
@@ -4682,7 +4682,7 @@ TEST_F(CursorInputMapperTest, ConfigureDisplayId_WithAssociatedViewport) {
 }
 
 TEST_F(CursorInputMapperTest, ConfigureDisplayId_IgnoresEventsForMismatchedPointerDisplay) {
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     // Set up the default display as the display on which the pointer should be shown.
     prepareDisplay(ui::ROTATION_90);
@@ -4715,7 +4715,7 @@ protected:
 
 TEST_F(BluetoothCursorInputMapperTest, TimestampSmoothening) {
     addConfigurationProperty("cursor.mode", "pointer");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     nsecs_t kernelEventTime = ARBITRARY_TIME;
     nsecs_t expectedEventTime = ARBITRARY_TIME;
@@ -4742,7 +4742,7 @@ TEST_F(BluetoothCursorInputMapperTest, TimestampSmoothening) {
 
 TEST_F(BluetoothCursorInputMapperTest, TimestampSmootheningIsCapped) {
     addConfigurationProperty("cursor.mode", "pointer");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     nsecs_t expectedEventTime = ARBITRARY_TIME;
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 1);
@@ -4779,7 +4779,7 @@ TEST_F(BluetoothCursorInputMapperTest, TimestampSmootheningIsCapped) {
 
 TEST_F(BluetoothCursorInputMapperTest, TimestampSmootheningNotUsed) {
     addConfigurationProperty("cursor.mode", "pointer");
-    CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     nsecs_t kernelEventTime = ARBITRARY_TIME;
     nsecs_t expectedEventTime = ARBITRARY_TIME;
@@ -10904,7 +10904,7 @@ const int32_t JoystickInputMapperTest::RAW_Y_MAX = 32767;
 
 TEST_F(JoystickInputMapperTest, Configure_AssignsDisplayUniqueId) {
     prepareAxes();
-    JoystickInputMapper& mapper = addMapperAndConfigure<JoystickInputMapper>();
+    JoystickInputMapper& mapper = constructAndAddMapper<JoystickInputMapper>();
 
     mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, VIRTUAL_DISPLAY_UNIQUE_ID);
 

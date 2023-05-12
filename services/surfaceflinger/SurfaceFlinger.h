@@ -296,8 +296,7 @@ public:
     // the client can no longer modify this layer directly.
     void onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32_t layerId);
 
-    // TODO: Remove atomic if move dtor to main thread CL lands
-    std::atomic<uint32_t> mNumClones;
+    std::vector<Layer*> mLayerMirrorRoots;
 
     TransactionCallbackInvoker& getTransactionCallbackInvoker() {
         return mTransactionCallbackInvoker;
@@ -331,6 +330,14 @@ public:
     void forceFutureUpdate(int delayInMs);
     const DisplayDevice* getDisplayFromLayerStack(ui::LayerStack)
             REQUIRES(mStateLock, kMainThreadContext);
+
+    // TODO (b/259407931): Remove.
+    // TODO (b/281857977): This should be annotated with REQUIRES(kMainThreadContext), but this
+    // would require thread safety annotations throughout the frontend (in particular Layer and
+    // LayerFE).
+    static ui::Transform::RotationFlags getActiveDisplayRotationFlags() {
+        return sActiveDisplayRotationFlags;
+    }
 
 protected:
     // We're reference counted, never destroy SurfaceFlinger directly
@@ -632,10 +639,7 @@ private:
     void sample() override;
 
     // ISchedulerCallback overrides:
-
-    // Toggles hardware VSYNC by calling into HWC.
-    // TODO(b/241286146): Rename for self-explanatory API.
-    void setVsyncEnabled(PhysicalDisplayId, bool) override;
+    void requestHardwareVsync(PhysicalDisplayId, bool) override;
     void requestDisplayModes(std::vector<display::DisplayModeRequest>) override;
     void kernelTimerChanged(bool expired) override;
     void triggerOnFrameRateOverridesChanged() override;
@@ -991,11 +995,6 @@ private:
      * VSYNC
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
-
-    void setHWCVsyncEnabled(PhysicalDisplayId id, bool enabled) {
-        hal::Vsync halState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
-        getHwComposer().setVsyncEnabled(id, halState);
-    }
 
     /*
      * Display identification
@@ -1363,6 +1362,10 @@ private:
     bool commitMirrorDisplays(VsyncId);
 
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
+
+    // Must only be accessed on the main thread.
+    // TODO (b/259407931): Remove.
+    static ui::Transform::RotationFlags sActiveDisplayRotationFlags;
 
     bool isRefreshRateOverlayEnabled() const REQUIRES(mStateLock) {
         return hasDisplay(

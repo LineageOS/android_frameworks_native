@@ -356,6 +356,8 @@ bool callingThreadHasPermission(const String16& permission) {
             PermissionCache::checkPermission(permission, pid, uid);
 }
 
+ui::Transform::RotationFlags SurfaceFlinger::sActiveDisplayRotationFlags = ui::Transform::ROT_0;
+
 SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
         mPid(getpid()),
@@ -2138,26 +2140,6 @@ void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData
     }
 }
 
-void SurfaceFlinger::setVsyncEnabled(PhysicalDisplayId id, bool enabled) {
-    const char* const whence = __func__;
-    ATRACE_FORMAT("%s (%d) for %" PRIu64, whence, enabled, id.value);
-
-    // On main thread to avoid race conditions with display power state.
-    static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
-        {
-            ftl::FakeGuard guard(kMainThreadContext);
-            if (auto schedule = mScheduler->getVsyncSchedule(id)) {
-                schedule->setPendingHardwareVsyncState(enabled);
-            }
-        }
-
-        ATRACE_FORMAT("%s (%d) for %" PRIu64 " (main thread)", whence, enabled, id.value);
-        if (const auto display = getDisplayDeviceLocked(id); display && display->isPoweredOn()) {
-            setHWCVsyncEnabled(id, enabled);
-        }
-    }));
-}
-
 void SurfaceFlinger::configure() FTL_FAKE_GUARD(kMainThreadContext) {
     Mutex::Autolock lock(mStateLock);
     if (configureLocked()) {
@@ -2531,7 +2513,7 @@ CompositeResult SurfaceFlinger::composite(scheduler::FrameTargeter& pacesetterFr
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
     refreshArgs.updatingGeometryThisFrame = mGeometryDirty.exchange(false) || mVisibleRegionsDirty;
-    refreshArgs.internalDisplayRotationFlags = DisplayDevice::getPrimaryDisplayRotationFlags();
+    refreshArgs.internalDisplayRotationFlags = getActiveDisplayRotationFlags();
 
     if (CC_UNLIKELY(mDrawingState.colorMatrixChanged)) {
         refreshArgs.colorTransformMatrix = mDrawingState.colorMatrix;
@@ -3475,6 +3457,8 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
                                    currentState.orientedDisplaySpaceRect);
             if (display->getId() == mActiveDisplayId) {
                 mActiveDisplayTransformHint = display->getTransformHint();
+                sActiveDisplayRotationFlags =
+                        ui::Transform::toRotationFlags(display->getOrientation());
             }
         }
         if (currentState.width != drawingState.width ||
@@ -3783,6 +3767,10 @@ void SurfaceFlinger::updateCursorAsync() {
     moveSnapshotsFromCompositionArgs(refreshArgs, layers);
 }
 
+void SurfaceFlinger::requestHardwareVsync(PhysicalDisplayId displayId, bool enable) {
+    getHwComposer().setVsyncEnabled(displayId, enable ? hal::Vsync::ENABLE : hal::Vsync::DISABLE);
+}
+
 void SurfaceFlinger::requestDisplayModes(std::vector<display::DisplayModeRequest> modeRequests) {
     if (mBootStage != BootStage::FINISHED) {
         ALOGV("Currently in the boot stage, skipping display mode changes");
@@ -3869,8 +3857,6 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
                                              static_cast<ISchedulerCallback&>(*this), features,
                                              std::move(modulatorPtr));
     mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
-
-    setVsyncEnabled(display->getPhysicalId(), false);
     mScheduler->startTimers();
 
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
@@ -3942,8 +3928,24 @@ void SurfaceFlinger::doCommitTransactions() {
     }
 
     commitOffscreenLayers();
-    if (mNumClones > 0) {
-        mDrawingState.traverse([&](Layer* layer) { layer->updateMirrorInfo(); });
+    if (mLayerMirrorRoots.size() > 0) {
+        std::deque<Layer*> pendingUpdates;
+        pendingUpdates.insert(pendingUpdates.end(), mLayerMirrorRoots.begin(),
+                              mLayerMirrorRoots.end());
+        std::vector<Layer*> needsUpdating;
+        for (Layer* cloneRoot : mLayerMirrorRoots) {
+            pendingUpdates.pop_front();
+            if (cloneRoot->isRemovedFromCurrentState()) {
+                continue;
+            }
+            if (cloneRoot->updateMirrorInfo(pendingUpdates)) {
+            } else {
+                needsUpdating.push_back(cloneRoot);
+            }
+        }
+        for (Layer* cloneRoot : needsUpdating) {
+            cloneRoot->updateMirrorInfo({});
+        }
     }
 }
 
@@ -4050,7 +4052,7 @@ bool SurfaceFlinger::latchBuffers() {
         mBootStage = BootStage::BOOTANIMATION;
     }
 
-    if (mNumClones > 0) {
+    if (mLayerMirrorRoots.size() > 0) {
         mDrawingState.traverse([&](Layer* layer) { layer->updateCloneBufferInfo(); });
     }
 
@@ -4075,8 +4077,8 @@ status_t SurfaceFlinger::addClientLayer(LayerCreationArgs& args, const sp<IBinde
                     leakingParentLayerFound = true;
                     sp<Layer> parent = sp<Layer>::fromExisting(layer);
                     while (parent) {
-                        ALOGE("Parent Layer: %s handleIsAlive: %s", parent->getName().c_str(),
-                              std::to_string(parent->isHandleAlive()).c_str());
+                        ALOGE("Parent Layer: %s%s", parent->getName().c_str(),
+                              (parent->isHandleAlive() ? "handleAlive" : ""));
                         parent = parent->getParent();
                     }
                     // Sample up to 100 layers
@@ -4091,21 +4093,28 @@ status_t SurfaceFlinger::addClientLayer(LayerCreationArgs& args, const sp<IBinde
                 }
             });
 
-            ALOGE("Dumping random sampling of on-screen layers: ");
+            int numLayers = 0;
+            mDrawingState.traverse([&](Layer* layer) { numLayers++; });
+
+            ALOGE("Dumping random sampling of on-screen layers total(%u):", numLayers);
             mDrawingState.traverse([&](Layer* layer) {
                 // Aim to dump about 200 layers to avoid totally trashing
                 // logcat. On the other hand, if there really are 4096 layers
                 // something has gone totally wrong its probably the most
                 // useful information in logcat.
                 if (rand() % 20 == 13) {
-                    ALOGE("Layer: %s", layer->getName().c_str());
+                    ALOGE("Layer: %s%s", layer->getName().c_str(),
+                          (layer->isHandleAlive() ? "handleAlive" : ""));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
                 }
             });
             ALOGE("Dumping random sampling of off-screen layers total(%zu): ",
                   mOffscreenLayers.size());
             for (Layer* offscreenLayer : mOffscreenLayers) {
                 if (rand() % 20 == 13) {
-                    ALOGE("Offscreen-layer: %s", offscreenLayer->getName().c_str());
+                    ALOGE("Offscreen-layer: %s%s", offscreenLayer->getName().c_str(),
+                          (offscreenLayer->isHandleAlive() ? "handleAlive" : ""));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
                 }
             }
         }));
@@ -5411,11 +5420,14 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
 
         getHwComposer().setPowerMode(displayId, mode);
         if (displayId == mActiveDisplayId && mode != hal::PowerMode::DOZE_SUSPEND) {
-            setHWCVsyncEnabled(displayId,
-                               mScheduler->getVsyncSchedule(displayId)
-                                       ->getPendingHardwareVsyncState());
+            const bool enable =
+                    mScheduler->getVsyncSchedule(displayId)->getPendingHardwareVsyncState();
+            requestHardwareVsync(displayId, enable);
+
             mScheduler->enableSyntheticVsync(false);
-            mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, refreshRate);
+
+            constexpr bool kAllowToEnable = true;
+            mScheduler->resyncToHardwareVsync(displayId, kAllowToEnable, refreshRate);
         }
 
         mVisibleRegionsDirty = true;
@@ -5439,10 +5451,10 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
             }
         }
 
-        // Make sure HWVsync is disabled before turning off the display
-        setHWCVsyncEnabled(displayId, false);
-
+        // Disable VSYNC before turning off the display.
+        requestHardwareVsync(displayId, false);
         getHwComposer().setPowerMode(displayId, mode);
+
         mVisibleRegionsDirty = true;
         // from this point on, SF will stop drawing on this display
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
@@ -5470,8 +5482,9 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     if (displayId == mActiveDisplayId) {
         mTimeStats->setPowerMode(mode);
         mRefreshRateStats->setPowerMode(mode);
-        mScheduler->setDisplayPowerMode(displayId, mode);
     }
+
+    mScheduler->setDisplayPowerMode(displayId, mode);
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(displayId).c_str());
 }
@@ -7875,6 +7888,7 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
 
     onActiveDisplaySizeChanged(activeDisplay);
     mActiveDisplayTransformHint = activeDisplay.getTransformHint();
+    sActiveDisplayRotationFlags = ui::Transform::toRotationFlags(activeDisplay.getOrientation());
 
     // The policy of the new active/pacesetter display may have changed while it was inactive. In
     // that case, its preferred mode has not been propagated to HWC (via setDesiredActiveMode). In
