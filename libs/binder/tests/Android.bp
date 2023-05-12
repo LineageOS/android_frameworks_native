@@ -76,6 +76,7 @@ cc_test {
     ],
     static_libs: [
         "binderRecordReplayTestIface-cpp",
+        "binderReadParcelIface-cpp",
     ],
     test_suites: ["general-tests"],
     require_root: true,
@@ -87,6 +88,13 @@ aidl_interface {
     srcs: [
         "IBinderRecordReplayTest.aidl",
     ],
+    imports: ["binderReadParcelIface"],
+    backend: {
+        java: {
+            enabled: true,
+            platform_apis: true,
+        },
+    },
 }
 
 cc_test {
