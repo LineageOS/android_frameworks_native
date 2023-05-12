@@ -888,4 +888,21 @@ TEST_F(GestureConverterTest, ResetDuringPinch) {
                       WithToolType(ToolType::FINGER)));
 }
 
+TEST_F(GestureConverterTest, FlingTapDown) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+
+    Gesture tapDownGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
+                           /*vx=*/0.f, /*vy=*/0.f, GESTURES_FLING_TAP_DOWN);
+    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, tapDownGesture);
+
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0.f, 0.f),
+                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f)));
+
+    ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X, POINTER_Y));
+    ASSERT_TRUE(mFakePointerController->isPointerShown());
+}
+
 } // namespace android
