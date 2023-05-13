@@ -67,8 +67,14 @@ protected:
         ASSERT_EQ(actualProto.transactions().size(),
                   static_cast<int32_t>(expectedTransactions.size()));
         for (uint32_t i = 0; i < expectedTransactions.size(); i++) {
-            EXPECT_EQ(actualProto.transactions(static_cast<int32_t>(i)).pid(),
-                      expectedTransactions[i].originPid);
+            const auto expectedTransaction = expectedTransactions[i];
+            const auto protoTransaction = actualProto.transactions(static_cast<int32_t>(i));
+            EXPECT_EQ(protoTransaction.transaction_id(), expectedTransaction.id);
+            EXPECT_EQ(protoTransaction.pid(), expectedTransaction.originPid);
+            for (uint32_t i = 0; i < expectedTransaction.mergedTransactionIds.size(); i++) {
+                EXPECT_EQ(protoTransaction.merged_transaction_ids(static_cast<int32_t>(i)),
+                          expectedTransaction.mergedTransactionIds[i]);
+            }
         }
     }
 
@@ -92,6 +98,7 @@ TEST_F(TransactionTracingTest, addTransactions) {
         TransactionState transaction;
         transaction.id = i;
         transaction.originPid = static_cast<int32_t>(i);
+        transaction.mergedTransactionIds = std::vector<uint64_t>{i + 100, i + 102};
         transactions.emplace_back(transaction);
         mTracing.addQueuedTransaction(transaction);
     }

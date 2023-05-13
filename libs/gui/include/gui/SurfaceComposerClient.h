@@ -419,6 +419,11 @@ public:
                 mListenerCallbacks;
         std::vector<client_cache_t> mUncacheBuffers;
 
+        // We keep track of the last MAX_MERGE_HISTORY_LENGTH merged transaction ids.
+        // Ordered most recently merged to least recently merged.
+        static const size_t MAX_MERGE_HISTORY_LENGTH = 10u;
+        std::vector<uint64_t> mMergedTransactionIds;
+
         uint64_t mId;
 
         uint32_t mTransactionNestCount = 0;
@@ -481,6 +486,8 @@ public:
         // Returns the current id of the transaction.
         // The id is updated every time the transaction is applied.
         uint64_t getId();
+
+        std::vector<uint64_t> getMergedTransactionIds();
 
         status_t apply(bool synchronous = false, bool oneWay = false);
         // Merge another transaction in to this one, clearing other
