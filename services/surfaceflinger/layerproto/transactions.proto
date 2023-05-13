@@ -100,6 +100,7 @@ message TransactionState {
     uint64 transaction_id = 6;
     repeated LayerState layer_changes = 7;
     repeated DisplayState display_changes = 8;
+    repeated uint64 merged_transaction_ids = 9;
 }
 
 // Keep insync with layer_state_t
