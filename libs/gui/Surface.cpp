@@ -30,6 +30,7 @@
 #include <android/gui/DisplayStatInfo.h>
 #include <android/native_window.h>
 
+#include <gui/FenceMonitor.h>
 #include <gui/TraceUtils.h>
 #include <utils/Log.h>
 #include <utils/NativeHandle.h>
@@ -545,82 +546,6 @@ int Surface::setSwapInterval(int interval) {
     return NO_ERROR;
 }
 
-class FenceMonitor {
-public:
-    explicit FenceMonitor(const char* name) : mName(name), mFencesQueued(0), mFencesSignaled(0) {
-        std::thread thread(&FenceMonitor::loop, this);
-        pthread_setname_np(thread.native_handle(), mName);
-        thread.detach();
-    }
-
-    void queueFence(const sp<Fence>& fence) {
-        char message[64];
-
-        std::lock_guard<std::mutex> lock(mMutex);
-        if (fence->getSignalTime() != Fence::SIGNAL_TIME_PENDING) {
-            snprintf(message, sizeof(message), "%s fence %u has signaled", mName, mFencesQueued);
-            ATRACE_NAME(message);
-            // Need an increment on both to make the trace number correct.
-            mFencesQueued++;
-            mFencesSignaled++;
-            return;
-        }
-        snprintf(message, sizeof(message), "Trace %s fence %u", mName, mFencesQueued);
-        ATRACE_NAME(message);
-
-        mQueue.push_back(fence);
-        mCondition.notify_one();
-        mFencesQueued++;
-        ATRACE_INT(mName, int32_t(mQueue.size()));
-    }
-
-private:
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-noreturn"
-    void loop() {
-        while (true) {
-            threadLoop();
-        }
-    }
-#pragma clang diagnostic pop
-
-    void threadLoop() {
-        sp<Fence> fence;
-        uint32_t fenceNum;
-        {
-            std::unique_lock<std::mutex> lock(mMutex);
-            while (mQueue.empty()) {
-                mCondition.wait(lock);
-            }
-            fence = mQueue[0];
-            fenceNum = mFencesSignaled;
-        }
-        {
-            char message[64];
-            snprintf(message, sizeof(message), "waiting for %s %u", mName, fenceNum);
-            ATRACE_NAME(message);
-
-            status_t result = fence->waitForever(message);
-            if (result != OK) {
-                ALOGE("Error waiting for fence: %d", result);
-            }
-        }
-        {
-            std::lock_guard<std::mutex> lock(mMutex);
-            mQueue.pop_front();
-            mFencesSignaled++;
-            ATRACE_INT(mName, int32_t(mQueue.size()));
-        }
-    }
-
-    const char* mName;
-    uint32_t mFencesQueued;
-    uint32_t mFencesSignaled;
-    std::deque<sp<Fence>> mQueue;
-    std::condition_variable mCondition;
-    std::mutex mMutex;
-};
-
 void Surface::getDequeueBufferInputLocked(
         IGraphicBufferProducer::DequeueBufferInput* dequeueInput) {
     LOG_ALWAYS_FATAL_IF(dequeueInput == nullptr, "input is null");
@@ -694,7 +619,7 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     ALOGE_IF(fence == nullptr, "Surface::dequeueBuffer: received null Fence! buf=%d", buf);
 
     if (CC_UNLIKELY(atrace_is_tag_enabled(ATRACE_TAG_GRAPHICS))) {
-        static FenceMonitor hwcReleaseThread("HWC release");
+        static gui::FenceMonitor hwcReleaseThread("HWC release");
         hwcReleaseThread.queueFence(fence);
     }
 
@@ -893,7 +818,7 @@ int Surface::dequeueBuffers(std::vector<BatchBuffer>* buffers) {
         sp<GraphicBuffer>& gbuf(mSlots[slot].buffer);
 
         if (CC_UNLIKELY(atrace_is_tag_enabled(ATRACE_TAG_GRAPHICS))) {
-            static FenceMonitor hwcReleaseThread("HWC release");
+            static gui::FenceMonitor hwcReleaseThread("HWC release");
             hwcReleaseThread.queueFence(output.fence);
         }
 
@@ -1163,7 +1088,7 @@ void Surface::onBufferQueuedLocked(int slot, sp<Fence> fence,
     mQueueBufferCondition.broadcast();
 
     if (CC_UNLIKELY(atrace_is_tag_enabled(ATRACE_TAG_GRAPHICS))) {
-        static FenceMonitor gpuCompletionThread("GPU completion");
+        static gui::FenceMonitor gpuCompletionThread("GPU completion");
         gpuCompletionThread.queueFence(fence);
     }
 }

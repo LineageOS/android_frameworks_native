@@ -296,8 +296,7 @@ public:
     // the client can no longer modify this layer directly.
     void onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32_t layerId);
 
-    // TODO: Remove atomic if move dtor to main thread CL lands
-    std::atomic<uint32_t> mNumClones;
+    std::vector<Layer*> mLayerMirrorRoots;
 
     TransactionCallbackInvoker& getTransactionCallbackInvoker() {
         return mTransactionCallbackInvoker;
@@ -516,15 +515,13 @@ private:
     }
 
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const;
-    status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
-                                 Vector<ComposerState>& state, const Vector<DisplayState>& displays,
-                                 uint32_t flags, const sp<IBinder>& applyToken,
-                                 InputWindowCommands inputWindowCommands,
-                                 int64_t desiredPresentTime, bool isAutoTimestamp,
-                                 const std::vector<client_cache_t>& uncacheBuffers,
-                                 bool hasListenerCallbacks,
-                                 const std::vector<ListenerCallbacks>& listenerCallbacks,
-                                 uint64_t transactionId) override;
+    status_t setTransactionState(
+            const FrameTimelineInfo& frameTimelineInfo, Vector<ComposerState>& state,
+            const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
+            InputWindowCommands inputWindowCommands, int64_t desiredPresentTime,
+            bool isAutoTimestamp, const std::vector<client_cache_t>& uncacheBuffers,
+            bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
+            uint64_t transactionId, const std::vector<uint64_t>& mergedTransactionIds) override;
     void bootFinished();
     virtual status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const;
     sp<IDisplayEventConnection> createDisplayEventConnection(
@@ -1207,6 +1204,11 @@ private:
     std::unordered_set<sp<Layer>, SpHash<Layer>> mLayersWithBuffersRemoved;
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
+    // Sorted list of layers that were composed during previous frame. This is used to
+    // avoid an expensive traversal of the layer hierarchy when there are no
+    // visible region changes. Because this is a list of strong pointers, this will
+    // extend the life of the layer but this list is only updated in the main thread.
+    std::vector<sp<Layer>> mPreviouslyComposedLayers;
 
     BootStage mBootStage = BootStage::BOOTLOADER;
 
