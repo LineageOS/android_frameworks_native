@@ -37,4 +37,8 @@ cc_library_static {
         "include",
     ],
     min_sdk_version: "30",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.neuralnetworks",
+    ],
 }
