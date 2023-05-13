@@ -612,6 +612,15 @@ void EventThread::generateFrameTimeline(VsyncEventData& outVsyncEventData, nsecs
                 preferredExpectedPresentationTime + multiplier * frameInterval;
         if (expectedPresentationTime >= preferredExpectedPresentationTime +
                     scheduler::VsyncConfig::kEarlyLatchMaxThreshold.count()) {
+            if (currentIndex == 0) {
+                ALOGW("%s: Expected present time is too far in the future but no timelines are "
+                      "valid. preferred EPT=%" PRId64 ", Calculated EPT=%" PRId64
+                      ", multiplier=%" PRId64 ", frameInterval=%" PRId64 ", threshold=%" PRId64,
+                      __func__, preferredExpectedPresentationTime, expectedPresentationTime,
+                      multiplier, frameInterval,
+                      static_cast<int64_t>(
+                              scheduler::VsyncConfig::kEarlyLatchMaxThreshold.count()));
+            }
             break;
         }
 
@@ -625,6 +634,20 @@ void EventThread::generateFrameTimeline(VsyncEventData& outVsyncEventData, nsecs
                  .expectedPresentationTime = expectedPresentationTime};
         currentIndex++;
     }
+
+    if (currentIndex == 0) {
+        ALOGW("%s: No timelines are valid. preferred EPT=%" PRId64 ", frameInterval=%" PRId64
+              ", threshold=%" PRId64,
+              __func__, preferredExpectedPresentationTime, frameInterval,
+              static_cast<int64_t>(scheduler::VsyncConfig::kEarlyLatchMaxThreshold.count()));
+        outVsyncEventData.frameTimelines[currentIndex] =
+                {.vsyncId = generateToken(timestamp, preferredDeadlineTimestamp,
+                                          preferredExpectedPresentationTime),
+                 .deadlineTimestamp = preferredDeadlineTimestamp,
+                 .expectedPresentationTime = preferredExpectedPresentationTime};
+        currentIndex++;
+    }
+
     outVsyncEventData.frameTimelinesLength = currentIndex;
 }
 
