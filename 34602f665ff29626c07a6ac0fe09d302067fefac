@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "8ddf14be_75fdb189",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 31578
+      },
+      "writtenOn": "2023-05-14T06:12:20Z",
+      "side": 1,
+      "message": "This patch is taken from codelinaro:\nhttps://git.codelinaro.org/clo/la/platform/frameworks/native/-/commit/989e2376b6e536d2543f3c6ab629fed4ec797c21\n\nFixes stock camera crash on pdx215 (Xperia 1 III), as some users report this problem.\nrelated logs:\n```\n05-14 13:24:26.461 29689 29797 E BufferQueueProducer: [ImageReader-4032x3024f21m60-29689-0](id:73f900000000,api:4,p:1467,c:29689) setMaxDequeuedBufferCount: bufferCount 68 too large (max 64)\n05-14 13:24:26.461  1467  5521 E Surface : IGraphicBufferProducer::setBufferCount(68) returned Invalid argument\n05-14 13:24:26.461  1467  5521 E Camera3-OutputStream: configureConsumerQueueLocked: Unable to set buffer count for stream 0\n05-14 13:24:26.461  1467  5521 E Camera3-Stream: finishConfiguration: Unable to configure stream 0 queue: Invalid argument (-22)\n05-14 13:24:26.461 29818 29818 I CAM_INFO: CAM-CSIPHY: cam_csiphy_core_cfg: 1640 CAM_START_PHYDEV: CSIPHY_IDX: 0, Device_slot: 0, cp_mode: 0, Datarate: 1849370000, Settletime: 3400000000\n05-14 13:24:26.461  1467  5521 E Camera3-Device: Camera 0: configureStreamsLocked: Can\u0027t finish configuring output stream 0: Invalid argument (-22)\n05-14 13:24:26.461  1467  5521 E CameraDeviceClient: endConfigure: Camera 0: Unsupported set of inputs/outputs provided\n```",
+      "revId": "34602f665ff29626c07a6ac0fe09d302067fefac",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
