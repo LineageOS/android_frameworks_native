@@ -23,11 +23,10 @@
 namespace android::scheduler {
 
 enum class Feature : std::uint8_t {
-    kPresentFences = 1 << 0,
-    kKernelIdleTimer = 1 << 1,
-    kContentDetection = 1 << 2,
-    kTracePredictedVsync = 1 << 3,
-    kBackpressureGpuComposition = 1 << 4,
+    kPresentFences = 0b1,
+    kKernelIdleTimer = 0b10,
+    kContentDetection = 0b100,
+    kTracePredictedVsync = 0b1000,
 };
 
 using FeatureFlags = ftl::Flags<Feature>;
