@@ -90,7 +90,9 @@ int main(void) {
 
         auto server = std::move(*serverOrErr);
         serverInfo.server = server;
-        serverInfo.server->setProtocolVersion(serverVersion);
+        if (!serverInfo.server->setProtocolVersion(serverVersion)) {
+            return EXIT_FAILURE;
+        }
         serverInfo.server->setPerSessionRootObject([=](const void* /*addrPtr*/, size_t /*len*/) {
             auto service = sp<MyBinderRpcTestTrusty>::make();
             // Assign a unique connection identifier to service->port so

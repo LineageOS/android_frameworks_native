@@ -63,6 +63,8 @@ public:
     RpcState();
     ~RpcState();
 
+    [[nodiscard]] static bool validateProtocolVersion(uint32_t version);
+
     [[nodiscard]] status_t readNewSessionResponse(const sp<RpcSession::RpcConnection>& connection,
                                                   const sp<RpcSession>& session, uint32_t* version);
     [[nodiscard]] status_t sendConnectionInit(const sp<RpcSession::RpcConnection>& connection,

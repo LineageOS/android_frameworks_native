@@ -59,7 +59,9 @@ public:
             size_t msgMaxSize,
             std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory = nullptr);
 
-    void setProtocolVersion(uint32_t version) { mRpcServer->setProtocolVersion(version); }
+    [[nodiscard]] bool setProtocolVersion(uint32_t version) {
+        return mRpcServer->setProtocolVersion(version);
+    }
     void setSupportedFileDescriptorTransportModes(
             const std::vector<RpcSession::FileDescriptorTransportMode>& modes) {
         mRpcServer->setSupportedFileDescriptorTransportModes(modes);

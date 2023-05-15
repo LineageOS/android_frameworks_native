@@ -137,7 +137,7 @@ public:
      * used. However, this can be used in order to prevent newer protocol
      * versions from ever being used. This is expected to be useful for testing.
      */
-    void setProtocolVersion(uint32_t version);
+    [[nodiscard]] bool setProtocolVersion(uint32_t version);
 
     /**
      * Set the supported transports for sending and receiving file descriptors.
