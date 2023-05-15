@@ -33,6 +33,138 @@ filegroup {
     ],
 }
 
+aidl_interface {
+    name: "inputconstants",
+    host_supported: true,
+    vendor_available: true,
+    unstable: true,
+    srcs: [
+        ":inputconstants_aidl",
+    ],
+
+    backend: {
+        rust: {
+            enabled: true,
+        },
+    },
+}
+
+rust_bindgen {
+    name: "libinput_bindgen",
+    host_supported: true,
+    crate_name: "input_bindgen",
+    visibility: ["//frameworks/native/services/inputflinger"],
+    wrapper_src: "InputWrapper.hpp",
+
+    include_dirs: [
+        "frameworks/native/include",
+    ],
+
+    source_stem: "bindings",
+
+    bindgen_flags: [
+        "--verbose",
+        "--allowlist-var=AMOTION_EVENT_FLAG_CANCELED",
+        "--allowlist-var=AMOTION_EVENT_ACTION_CANCEL",
+        "--allowlist-var=AMOTION_EVENT_ACTION_UP",
+        "--allowlist-var=AMOTION_EVENT_ACTION_POINTER_DOWN",
+        "--allowlist-var=AMOTION_EVENT_ACTION_DOWN",
+        "--allowlist-var=AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT",
+        "--allowlist-var=MAX_POINTER_ID",
+    ],
+
+    static_libs: [
+        "inputconstants-cpp",
+        "libui-types",
+    ],
+    shared_libs: ["libc++"],
+    header_libs: [
+        "native_headers",
+        "jni_headers",
+        "flatbuffer_headers",
+    ],
+}
+
+// Contains methods to help access C++ code from rust
+cc_library_static {
+    name: "libinput_from_rust_to_cpp",
+    cpp_std: "c++20",
+    host_supported: true,
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    srcs: [
+        "FromRustToCpp.cpp",
+    ],
+
+    generated_headers: [
+        "cxx-bridge-header",
+    ],
+    generated_sources: ["libinput_cxx_bridge_code"],
+
+    shared_libs: [
+        "libbase",
+    ],
+}
+
+genrule {
+    name: "libinput_cxx_bridge_code",
+    tools: ["cxxbridge"],
+    cmd: "$(location cxxbridge) $(in) >> $(out)",
+    srcs: ["input_verifier.rs"],
+    out: ["inputverifier_generated.cpp"],
+}
+
+genrule {
+    name: "libinput_cxx_bridge_header",
+    tools: ["cxxbridge"],
+    cmd: "$(location cxxbridge) $(in) --header >> $(out)",
+    srcs: ["input_verifier.rs"],
+    out: ["input_verifier.rs.h"],
+}
+
+rust_defaults {
+    name: "libinput_rust_defaults",
+    srcs: ["input_verifier.rs"],
+    host_supported: true,
+    rustlibs: [
+        "libbitflags",
+        "libcxx",
+        "libinput_bindgen",
+        "liblogger",
+        "liblog_rust",
+        "inputconstants-rust",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+}
+
+rust_ffi_static {
+    name: "libinput_rust",
+    crate_name: "input",
+    defaults: ["libinput_rust_defaults"],
+}
+
+rust_test {
+    name: "libinput_rust_test",
+    defaults: ["libinput_rust_defaults"],
+    whole_static_libs: [
+        "libinput_from_rust_to_cpp",
+    ],
+    test_options: {
+        unit_test: true,
+    },
+    test_suites: ["device_tests"],
+    sanitize: {
+        hwaddress: true,
+    },
+}
+
 cc_library {
     name: "libinput",
     cpp_std: "c++20",
@@ -44,6 +176,7 @@ cc_library {
         "-Wno-unused-parameter",
     ],
     srcs: [
+        "FromRustToCpp.cpp",
         "Input.cpp",
         "InputDevice.cpp",
         "InputEventLabels.cpp",
@@ -70,8 +203,12 @@ cc_library {
     export_header_lib_headers: ["jni_headers"],
 
     generated_headers: [
+        "cxx-bridge-header",
+        "libinput_cxx_bridge_header",
         "toolbox_input_labels",
     ],
+
+    generated_sources: ["libinput_cxx_bridge_code"],
 
     shared_libs: [
         "libbase",
@@ -92,12 +229,22 @@ cc_library {
     },
 
     static_libs: [
+        "inputconstants-cpp",
         "libui-types",
         "libtflite_static",
     ],
 
+    whole_static_libs: [
+        "libinput_rust",
+    ],
+
     export_static_lib_headers: [
         "libui-types",
+    ],
+
+    export_generated_headers: [
+        "cxx-bridge-header",
+        "libinput_cxx_bridge_header",
     ],
 
     target: {
@@ -105,7 +252,6 @@ cc_library {
             srcs: [
                 "InputTransport.cpp",
                 "android/os/IInputFlinger.aidl",
-                ":inputconstants_aidl",
             ],
 
             export_shared_lib_headers: ["libbinder"],
@@ -140,9 +286,6 @@ cc_library {
         host_linux: {
             srcs: [
                 "InputTransport.cpp",
-                "android/os/IInputConstants.aidl",
-                "android/os/IInputFlinger.aidl",
-                "android/os/InputConfig.aidl",
             ],
             static_libs: [
                 "libhostgraphics",
