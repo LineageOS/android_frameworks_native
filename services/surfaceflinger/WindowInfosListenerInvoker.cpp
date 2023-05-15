@@ -16,8 +16,11 @@
 
 #include <ftl/small_vector.h>
 #include <gui/ISurfaceComposer.h>
+#include <gui/TraceUtils.h>
 #include <gui/WindowInfosUpdate.h>
+#include <scheduler/Time.h>
 
+#include "BackgroundExecutor.h"
 #include "WindowInfosListenerInvoker.h"
 
 namespace android {
@@ -26,7 +29,7 @@ using gui::DisplayInfo;
 using gui::IWindowInfosListener;
 using gui::WindowInfo;
 
-using WindowInfosListenerVector = ftl::SmallVector<const sp<IWindowInfosListener>, 3>;
+using WindowInfosListenerVector = ftl::SmallVector<const sp<gui::IWindowInfosListener>, 3>;
 
 struct WindowInfosReportedListenerInvoker : gui::BnWindowInfosReportedListener,
                                             IBinder::DeathRecipient {
@@ -86,45 +89,19 @@ void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
 }
 
 void WindowInfosListenerInvoker::windowInfosChanged(
-        std::vector<WindowInfo> windowInfos, std::vector<DisplayInfo> displayInfos,
-        WindowInfosReportedListenerSet reportedListeners, bool forceImmediateCall, VsyncId vsyncId,
-        nsecs_t timestamp) {
-    reportedListeners.insert(sp<WindowInfosListenerInvoker>::fromExisting(this));
-    auto callListeners = [this, windowInfos = std::move(windowInfos),
-                          displayInfos = std::move(displayInfos), vsyncId,
-                          timestamp](WindowInfosReportedListenerSet reportedListeners) mutable {
-        WindowInfosListenerVector windowInfosListeners;
-        {
-            std::scoped_lock lock(mListenersMutex);
-            for (const auto& [_, listener] : mWindowInfosListeners) {
-                windowInfosListeners.push_back(listener);
-            }
-        }
-
-        auto reportedInvoker =
-                sp<WindowInfosReportedListenerInvoker>::make(windowInfosListeners,
-                                                             std::move(reportedListeners));
-
-        gui::WindowInfosUpdate update(std::move(windowInfos), std::move(displayInfos),
-                                      vsyncId.value, timestamp);
-
-        for (const auto& listener : windowInfosListeners) {
-            sp<IBinder> asBinder = IInterface::asBinder(listener);
-
-            // linkToDeath is used here to ensure that the windowInfosReportedListeners
-            // are called even if one of the windowInfosListeners dies before
-            // calling onWindowInfosReported.
-            asBinder->linkToDeath(reportedInvoker);
-
-            auto status = listener->onWindowInfosChanged(update, reportedInvoker);
-            if (!status.isOk()) {
-                reportedInvoker->onWindowInfosReported();
-            }
-        }
-    };
-
+        gui::WindowInfosUpdate update, WindowInfosReportedListenerSet reportedListeners,
+        bool forceImmediateCall) {
+    WindowInfosListenerVector listeners;
     {
-        std::scoped_lock lock(mMessagesMutex);
+        std::scoped_lock lock{mMessagesMutex};
+
+        if (!mDelayInfo) {
+            mDelayInfo = DelayInfo{
+                    .vsyncId = update.vsyncId,
+                    .frameTime = update.timestamp,
+            };
+        }
+
         // If there are unacked messages and this isn't a forced call, then return immediately.
         // If a forced window infos change doesn't happen first, the update will be sent after
         // the WindowInfosReportedListeners are called. If a forced window infos change happens or
@@ -132,44 +109,87 @@ void WindowInfosListenerInvoker::windowInfosChanged(
         // will be dropped and the listeners will only be called with the latest info. This is done
         // to reduce the amount of binder memory used.
         if (mActiveMessageCount > 0 && !forceImmediateCall) {
-            mWindowInfosChangedDelayed = std::move(callListeners);
-            mUnsentVsyncId = vsyncId;
-            mUnsentTimestamp = timestamp;
-            mReportedListenersDelayed.merge(reportedListeners);
+            mDelayedUpdate = std::move(update);
+            mReportedListeners.merge(reportedListeners);
             return;
         }
 
-        mWindowInfosChangedDelayed = nullptr;
-        mUnsentVsyncId = {-1};
-        mUnsentTimestamp = -1;
-        reportedListeners.merge(mReportedListenersDelayed);
+        if (mDelayedUpdate) {
+            mDelayedUpdate.reset();
+        }
+
+        {
+            std::scoped_lock lock{mListenersMutex};
+            for (const auto& [_, listener] : mWindowInfosListeners) {
+                listeners.push_back(listener);
+            }
+        }
+        if (CC_UNLIKELY(listeners.empty())) {
+            mReportedListeners.merge(reportedListeners);
+            mDelayInfo.reset();
+            return;
+        }
+
+        reportedListeners.insert(sp<WindowInfosListenerInvoker>::fromExisting(this));
+        reportedListeners.merge(mReportedListeners);
+        mReportedListeners.clear();
+
         mActiveMessageCount++;
+        updateMaxSendDelay();
+        mDelayInfo.reset();
     }
-    callListeners(std::move(reportedListeners));
+
+    auto reportedInvoker =
+            sp<WindowInfosReportedListenerInvoker>::make(listeners, std::move(reportedListeners));
+
+    for (const auto& listener : listeners) {
+        sp<IBinder> asBinder = IInterface::asBinder(listener);
+
+        // linkToDeath is used here to ensure that the windowInfosReportedListeners
+        // are called even if one of the windowInfosListeners dies before
+        // calling onWindowInfosReported.
+        asBinder->linkToDeath(reportedInvoker);
+
+        auto status = listener->onWindowInfosChanged(update, reportedInvoker);
+        if (!status.isOk()) {
+            reportedInvoker->onWindowInfosReported();
+        }
+    }
 }
 
 binder::Status WindowInfosListenerInvoker::onWindowInfosReported() {
-    std::function<void(WindowInfosReportedListenerSet)> callListeners;
-    WindowInfosReportedListenerSet reportedListeners;
-
-    {
-        std::scoped_lock lock{mMessagesMutex};
-        mActiveMessageCount--;
-        if (!mWindowInfosChangedDelayed || mActiveMessageCount > 0) {
-            return binder::Status::ok();
+    BackgroundExecutor::getInstance().sendCallbacks({[this]() {
+        gui::WindowInfosUpdate update;
+        {
+            std::scoped_lock lock{mMessagesMutex};
+            mActiveMessageCount--;
+            if (!mDelayedUpdate || mActiveMessageCount > 0) {
+                return;
+            }
+            update = std::move(*mDelayedUpdate);
+            mDelayedUpdate.reset();
         }
-
-        mActiveMessageCount++;
-        callListeners = std::move(mWindowInfosChangedDelayed);
-        mWindowInfosChangedDelayed = nullptr;
-        mUnsentVsyncId = {-1};
-        mUnsentTimestamp = -1;
-        reportedListeners = std::move(mReportedListenersDelayed);
-        mReportedListenersDelayed.clear();
-    }
-
-    callListeners(std::move(reportedListeners));
+        windowInfosChanged(std::move(update), {}, false);
+    }});
     return binder::Status::ok();
+}
+
+WindowInfosListenerInvoker::DebugInfo WindowInfosListenerInvoker::getDebugInfo() {
+    std::scoped_lock lock{mMessagesMutex};
+    updateMaxSendDelay();
+    mDebugInfo.pendingMessageCount = mActiveMessageCount;
+    return mDebugInfo;
+}
+
+void WindowInfosListenerInvoker::updateMaxSendDelay() {
+    if (!mDelayInfo) {
+        return;
+    }
+    nsecs_t delay = TimePoint::now().ns() - mDelayInfo->frameTime;
+    if (delay > mDebugInfo.maxSendDelayDuration) {
+        mDebugInfo.maxSendDelayDuration = delay;
+        mDebugInfo.maxSendDelayVsyncId = VsyncId{mDelayInfo->vsyncId};
+    }
 }
 
 } // namespace android
