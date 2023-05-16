@@ -24,6 +24,15 @@
 
 namespace android {
 
+void fuzzService(const std::vector<ndk::SpAIBinder>& binders, FuzzedDataProvider&& provider) {
+    std::vector<sp<IBinder>> cppBinders;
+    for (const auto& binder : binders) {
+        cppBinders.push_back(binder.get()->getBinder());
+    }
+
+    fuzzService(cppBinders, std::move(provider));
+}
+
 void fuzzService(AIBinder* binder, FuzzedDataProvider&& provider) {
     fuzzService(binder->getBinder(), std::move(provider));
 }
