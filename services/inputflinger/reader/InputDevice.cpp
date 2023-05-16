@@ -503,9 +503,9 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
         classes.test(InputDeviceClass::TOUCH_MT) && !isSonyDualShock4Touchpad) {
         mappers.push_back(createInputMapper<TouchpadInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
-        mappers.push_back(createInputMapper<MultiTouchInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(std::make_unique<MultiTouchInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH)) {
-        mappers.push_back(createInputMapper<SingleTouchInputMapper>(contextPtr, readerConfig));
+        mappers.push_back(std::make_unique<SingleTouchInputMapper>(contextPtr, readerConfig));
     }
 
     // Joystick-like devices.
