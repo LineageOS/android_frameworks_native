@@ -1120,7 +1120,7 @@ INSTANTIATE_TEST_CASE_P(Trusty, BinderRpc,
                                            ::testing::Values(true), ::testing::Values(true)),
                         BinderRpc::PrintParamInfo);
 #else // BINDER_RPC_TO_TRUSTY_TEST
-static bool testSupportVsockLoopback() {
+bool testSupportVsockLoopback() {
     // We don't need to enable TLS to know if vsock is supported.
     unsigned int vsockPort = allocateVsockPort();
 
@@ -1220,7 +1220,15 @@ static std::vector<SocketType> testSocketTypes(bool hasPreconnected = true) {
 
     if (hasPreconnected) ret.push_back(SocketType::PRECONNECTED);
 
+#ifdef __BIONIC__
+    // Devices may not have vsock support. AVF tests will verify whether they do, but
+    // we can't require it due to old kernels for the time being.
     static bool hasVsockLoopback = testSupportVsockLoopback();
+#else
+    // On host machines, we always assume we have vsock loopback. If we don't, the
+    // subsequent failures will be more clear than showing one now.
+    static bool hasVsockLoopback = true;
+#endif
 
     if (hasVsockLoopback) {
         ret.push_back(SocketType::VSOCK);
