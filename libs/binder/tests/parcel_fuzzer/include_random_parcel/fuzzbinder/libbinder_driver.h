@@ -19,7 +19,17 @@
 #include <binder/IBinder.h>
 #include <fuzzer/FuzzedDataProvider.h>
 
+#include <vector>
+
 namespace android {
+
+/**
+ * See fuzzService, but fuzzes multiple services at the same time.
+ *
+ * Consumes providers.
+ */
+void fuzzService(const std::vector<sp<IBinder>>& binders, FuzzedDataProvider&& provider);
+
 /**
  * Based on the random data in provider, construct an arbitrary number of
  * Parcel objects and send them to the service in serial.
@@ -34,4 +44,5 @@ namespace android {
  *   }
  */
 void fuzzService(const sp<IBinder>& binder, FuzzedDataProvider&& provider);
+
 } // namespace android
