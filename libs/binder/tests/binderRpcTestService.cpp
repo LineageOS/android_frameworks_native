@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
     auto certVerifier = std::make_shared<RpcCertificateVerifierSimple>();
     sp<RpcServer> server = RpcServer::make(newTlsFactory(rpcSecurity, certVerifier));
 
-    server->setProtocolVersion(serverConfig.serverVersion);
+    CHECK(server->setProtocolVersion(serverConfig.serverVersion));
     server->setMaxThreads(serverConfig.numThreads);
     server->setSupportedFileDescriptorTransportModes(serverSupportedFileDescriptorTransportModes);
 

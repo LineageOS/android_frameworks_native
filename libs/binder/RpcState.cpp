@@ -398,6 +398,18 @@ status_t RpcState::rpcRec(
     return OK;
 }
 
+bool RpcState::validateProtocolVersion(uint32_t version) {
+    if (version >= RPC_WIRE_PROTOCOL_VERSION_NEXT &&
+        version != RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL) {
+        ALOGE("Cannot use RPC binder protocol version %u which is unknown (current protocol "
+              "version "
+              "is %u).",
+              version, RPC_WIRE_PROTOCOL_VERSION);
+        return false;
+    }
+    return true;
+}
+
 status_t RpcState::readNewSessionResponse(const sp<RpcSession::RpcConnection>& connection,
                                           const sp<RpcSession>& session, uint32_t* version) {
     RpcNewSessionResponse response;
