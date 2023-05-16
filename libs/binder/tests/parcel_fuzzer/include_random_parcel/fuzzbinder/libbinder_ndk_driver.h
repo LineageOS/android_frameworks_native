@@ -16,10 +16,21 @@
 
 #pragma once
 
+#include <android/binder_auto_utils.h>
 #include <android/binder_parcel.h>
 #include <fuzzer/FuzzedDataProvider.h>
 
+#include <vector>
+
 namespace android {
+
+/**
+ * See fuzzService, but fuzzes multiple services at the same time.
+ *
+ * Consumes providers.
+ */
+void fuzzService(const std::vector<ndk::SpAIBinder>& binders, FuzzedDataProvider&& provider);
+
 /**
  * Based on the random data in provider, construct an arbitrary number of
  * Parcel objects and send them to the service in serial.

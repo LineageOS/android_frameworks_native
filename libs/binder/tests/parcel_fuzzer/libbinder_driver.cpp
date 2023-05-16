@@ -24,10 +24,12 @@
 namespace android {
 
 void fuzzService(const sp<IBinder>& binder, FuzzedDataProvider&& provider) {
-    sp<IBinder> target;
+    fuzzService(std::vector<sp<IBinder>>{binder}, std::move(provider));
+}
 
+void fuzzService(const std::vector<sp<IBinder>>& binders, FuzzedDataProvider&& provider) {
     RandomParcelOptions options{
-            .extraBinders = {binder},
+            .extraBinders = binders,
             .extraFds = {},
     };
 
