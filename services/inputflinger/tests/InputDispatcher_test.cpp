@@ -6592,6 +6592,29 @@ TEST_F(InputDispatcherMultiWindowSameTokenTests, TouchDoesNotSlipEvenIfSlippery)
     consumeMotionEvent(mWindow1, ACTION_MOVE, {{150, 150}});
 }
 
+/**
+ * When hover starts in one window and continues into the other, there should be a HOVER_EXIT and
+ * a HOVER_ENTER generated, even if the windows have the same token. This is because the new window
+ * that the pointer is hovering over may have a different transform.
+ */
+TEST_F(InputDispatcherMultiWindowSameTokenTests, HoverIntoClone) {
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow1, mWindow2}}});
+
+    // Start hover in window 1
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_HOVER_ENTER, AINPUT_SOURCE_TOUCHSCREEN,
+                                                 ADISPLAY_ID_DEFAULT, {{50, 50}}));
+    consumeMotionEvent(mWindow1, ACTION_HOVER_ENTER,
+                       {getPointInWindow(mWindow1->getInfo(), PointF{50, 50})});
+
+    // Move hover to window 2.
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_HOVER_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                                 ADISPLAY_ID_DEFAULT, {{150, 150}}));
+
+    consumeMotionEvent(mWindow1, ACTION_HOVER_EXIT, {{50, 50}});
+    consumeMotionEvent(mWindow1, ACTION_HOVER_ENTER,
+                       {getPointInWindow(mWindow2->getInfo(), PointF{150, 150})});
+}
+
 class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
     virtual void SetUp() override {
         InputDispatcherTest::SetUp();
