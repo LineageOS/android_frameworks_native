@@ -104,11 +104,7 @@ size_t RpcSession::getMaxOutgoingThreads() {
 }
 
 bool RpcSession::setProtocolVersionInternal(uint32_t version, bool checkStarted) {
-    if (version >= RPC_WIRE_PROTOCOL_VERSION_NEXT &&
-        version != RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL) {
-        ALOGE("Cannot start RPC session with version %u which is unknown (current protocol version "
-              "is %u).",
-              version, RPC_WIRE_PROTOCOL_VERSION);
+    if (!RpcState::validateProtocolVersion(version)) {
         return false;
     }
 
