@@ -1564,8 +1564,7 @@ public:
 
         // Set mouse cursor position for the most common cases to avoid boilerplate.
         if (mSource == AINPUT_SOURCE_MOUSE &&
-            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition) &&
-            mPointers.size() == 1) {
+            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition)) {
             mRawXCursorPosition = pointerCoords[0].getX();
             mRawYCursorPosition = pointerCoords[0].getY();
         }
@@ -1677,8 +1676,7 @@ public:
 
         // Set mouse cursor position for the most common cases to avoid boilerplate.
         if (mSource == AINPUT_SOURCE_MOUSE &&
-            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition) &&
-            mPointers.size() == 1) {
+            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition)) {
             mRawXCursorPosition = pointerCoords[0].getX();
             mRawYCursorPosition = pointerCoords[0].getY();
         }
