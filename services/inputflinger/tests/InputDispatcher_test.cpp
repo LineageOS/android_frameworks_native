@@ -15,6 +15,7 @@
  */
 
 #include "../dispatcher/InputDispatcher.h"
+#include "EventBuilders.h"
 
 #include <android-base/properties.h>
 #include <android-base/silent_death_test.h>
@@ -51,7 +52,7 @@ using testing::AllOf;
 static constexpr nsecs_t ARBITRARY_TIME = 1234;
 
 // An arbitrary device id.
-static constexpr int32_t DEVICE_ID = 1;
+static constexpr int32_t DEVICE_ID = DEFAULT_DEVICE_ID;
 static constexpr int32_t SECOND_DEVICE_ID = 2;
 
 // An arbitrary display id.
@@ -96,9 +97,6 @@ static constexpr int32_t WINDOW_UID = 1001;
 // The default pid and uid for the windows created on the secondary display by the test.
 static constexpr int32_t SECONDARY_WINDOW_PID = 1010;
 static constexpr int32_t SECONDARY_WINDOW_UID = 1012;
-
-// The default policy flags to use for event injection by tests.
-static constexpr uint32_t DEFAULT_POLICY_FLAGS = POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER;
 
 // An arbitrary pid of the gesture monitor window
 static constexpr int32_t MONITOR_PID = 2001;
@@ -1467,247 +1465,6 @@ static InputEventInjectionResult injectKeyUp(const std::unique_ptr<InputDispatch
                                              int32_t displayId = ADISPLAY_ID_NONE) {
     return injectKey(dispatcher, AKEY_EVENT_ACTION_UP, /*repeatCount=*/0, displayId);
 }
-
-class PointerBuilder {
-public:
-    PointerBuilder(int32_t id, ToolType toolType) {
-        mProperties.clear();
-        mProperties.id = id;
-        mProperties.toolType = toolType;
-        mCoords.clear();
-    }
-
-    PointerBuilder& x(float x) { return axis(AMOTION_EVENT_AXIS_X, x); }
-
-    PointerBuilder& y(float y) { return axis(AMOTION_EVENT_AXIS_Y, y); }
-
-    PointerBuilder& axis(int32_t axis, float value) {
-        mCoords.setAxisValue(axis, value);
-        return *this;
-    }
-
-    PointerProperties buildProperties() const { return mProperties; }
-
-    PointerCoords buildCoords() const { return mCoords; }
-
-private:
-    PointerProperties mProperties;
-    PointerCoords mCoords;
-};
-
-class MotionEventBuilder {
-public:
-    MotionEventBuilder(int32_t action, int32_t source) {
-        mAction = action;
-        mSource = source;
-        mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
-        mDownTime = mEventTime;
-    }
-
-    MotionEventBuilder& deviceId(int32_t deviceId) {
-        mDeviceId = deviceId;
-        return *this;
-    }
-
-    MotionEventBuilder& downTime(nsecs_t downTime) {
-        mDownTime = downTime;
-        return *this;
-    }
-
-    MotionEventBuilder& eventTime(nsecs_t eventTime) {
-        mEventTime = eventTime;
-        return *this;
-    }
-
-    MotionEventBuilder& displayId(int32_t displayId) {
-        mDisplayId = displayId;
-        return *this;
-    }
-
-    MotionEventBuilder& actionButton(int32_t actionButton) {
-        mActionButton = actionButton;
-        return *this;
-    }
-
-    MotionEventBuilder& buttonState(int32_t buttonState) {
-        mButtonState = buttonState;
-        return *this;
-    }
-
-    MotionEventBuilder& rawXCursorPosition(float rawXCursorPosition) {
-        mRawXCursorPosition = rawXCursorPosition;
-        return *this;
-    }
-
-    MotionEventBuilder& rawYCursorPosition(float rawYCursorPosition) {
-        mRawYCursorPosition = rawYCursorPosition;
-        return *this;
-    }
-
-    MotionEventBuilder& pointer(PointerBuilder pointer) {
-        mPointers.push_back(pointer);
-        return *this;
-    }
-
-    MotionEventBuilder& addFlag(uint32_t flags) {
-        mFlags |= flags;
-        return *this;
-    }
-
-    MotionEvent build() {
-        std::vector<PointerProperties> pointerProperties;
-        std::vector<PointerCoords> pointerCoords;
-        for (const PointerBuilder& pointer : mPointers) {
-            pointerProperties.push_back(pointer.buildProperties());
-            pointerCoords.push_back(pointer.buildCoords());
-        }
-
-        // Set mouse cursor position for the most common cases to avoid boilerplate.
-        if (mSource == AINPUT_SOURCE_MOUSE &&
-            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition)) {
-            mRawXCursorPosition = pointerCoords[0].getX();
-            mRawYCursorPosition = pointerCoords[0].getY();
-        }
-
-        MotionEvent event;
-        ui::Transform identityTransform;
-        event.initialize(InputEvent::nextId(), mDeviceId, mSource, mDisplayId, INVALID_HMAC,
-                         mAction, mActionButton, mFlags, /* edgeFlags */ 0, AMETA_NONE,
-                         mButtonState, MotionClassification::NONE, identityTransform,
-                         /* xPrecision */ 0, /* yPrecision */ 0, mRawXCursorPosition,
-                         mRawYCursorPosition, identityTransform, mDownTime, mEventTime,
-                         mPointers.size(), pointerProperties.data(), pointerCoords.data());
-
-        return event;
-    }
-
-private:
-    int32_t mAction;
-    int32_t mDeviceId = DEVICE_ID;
-    int32_t mSource;
-    nsecs_t mDownTime;
-    nsecs_t mEventTime;
-    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
-    int32_t mActionButton{0};
-    int32_t mButtonState{0};
-    int32_t mFlags{0};
-    float mRawXCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
-    float mRawYCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
-
-    std::vector<PointerBuilder> mPointers;
-};
-
-class MotionArgsBuilder {
-public:
-    MotionArgsBuilder(int32_t action, int32_t source) {
-        mAction = action;
-        mSource = source;
-        mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
-        mDownTime = mEventTime;
-    }
-
-    MotionArgsBuilder& deviceId(int32_t deviceId) {
-        mDeviceId = deviceId;
-        return *this;
-    }
-
-    MotionArgsBuilder& downTime(nsecs_t downTime) {
-        mDownTime = downTime;
-        return *this;
-    }
-
-    MotionArgsBuilder& eventTime(nsecs_t eventTime) {
-        mEventTime = eventTime;
-        return *this;
-    }
-
-    MotionArgsBuilder& displayId(int32_t displayId) {
-        mDisplayId = displayId;
-        return *this;
-    }
-
-    MotionArgsBuilder& policyFlags(int32_t policyFlags) {
-        mPolicyFlags = policyFlags;
-        return *this;
-    }
-
-    MotionArgsBuilder& actionButton(int32_t actionButton) {
-        mActionButton = actionButton;
-        return *this;
-    }
-
-    MotionArgsBuilder& buttonState(int32_t buttonState) {
-        mButtonState = buttonState;
-        return *this;
-    }
-
-    MotionArgsBuilder& rawXCursorPosition(float rawXCursorPosition) {
-        mRawXCursorPosition = rawXCursorPosition;
-        return *this;
-    }
-
-    MotionArgsBuilder& rawYCursorPosition(float rawYCursorPosition) {
-        mRawYCursorPosition = rawYCursorPosition;
-        return *this;
-    }
-
-    MotionArgsBuilder& pointer(PointerBuilder pointer) {
-        mPointers.push_back(pointer);
-        return *this;
-    }
-
-    MotionArgsBuilder& addFlag(uint32_t flags) {
-        mFlags |= flags;
-        return *this;
-    }
-
-    MotionArgsBuilder& classification(MotionClassification classification) {
-        mClassification = classification;
-        return *this;
-    }
-
-    NotifyMotionArgs build() {
-        std::vector<PointerProperties> pointerProperties;
-        std::vector<PointerCoords> pointerCoords;
-        for (const PointerBuilder& pointer : mPointers) {
-            pointerProperties.push_back(pointer.buildProperties());
-            pointerCoords.push_back(pointer.buildCoords());
-        }
-
-        // Set mouse cursor position for the most common cases to avoid boilerplate.
-        if (mSource == AINPUT_SOURCE_MOUSE &&
-            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition)) {
-            mRawXCursorPosition = pointerCoords[0].getX();
-            mRawYCursorPosition = pointerCoords[0].getY();
-        }
-
-        NotifyMotionArgs args(InputEvent::nextId(), mEventTime, /*readTime=*/mEventTime, mDeviceId,
-                              mSource, mDisplayId, mPolicyFlags, mAction, mActionButton, mFlags,
-                              AMETA_NONE, mButtonState, mClassification, /*edgeFlags=*/0,
-                              mPointers.size(), pointerProperties.data(), pointerCoords.data(),
-                              /*xPrecision=*/0, /*yPrecision=*/0, mRawXCursorPosition,
-                              mRawYCursorPosition, mDownTime, /*videoFrames=*/{});
-
-        return args;
-    }
-
-private:
-    int32_t mAction;
-    int32_t mDeviceId = DEVICE_ID;
-    int32_t mSource;
-    nsecs_t mDownTime;
-    nsecs_t mEventTime;
-    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
-    int32_t mPolicyFlags = DEFAULT_POLICY_FLAGS;
-    int32_t mActionButton{0};
-    int32_t mButtonState{0};
-    int32_t mFlags{0};
-    MotionClassification mClassification{MotionClassification::NONE};
-    float mRawXCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
-    float mRawYCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
-
-    std::vector<PointerBuilder> mPointers;
-};
 
 static InputEventInjectionResult injectMotionEvent(
         const std::unique_ptr<InputDispatcher>& dispatcher, const MotionEvent& event,
