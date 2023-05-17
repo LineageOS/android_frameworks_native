@@ -23,6 +23,16 @@
 #include <ui/FenceTime.h>
 
 namespace android::scheduler {
+namespace {
+
+using FencePair = std::pair<sp<Fence>, std::shared_ptr<FenceTime>>;
+
+FencePair makePendingFence(FenceToFenceTimeMap& fenceMap) {
+    const auto fence = sp<Fence>::make();
+    return {fence, fenceMap.createFenceTimeForTest(fence)};
+}
+
+} // namespace
 
 TEST(PresentLatencyTrackerTest, skipsInvalidFences) {
     PresentLatencyTracker tracker;
@@ -33,7 +43,7 @@ TEST(PresentLatencyTrackerTest, skipsInvalidFences) {
     EXPECT_EQ(tracker.trackPendingFrame(kCompositeTime, FenceTime::NO_FENCE), Duration::zero());
 
     FenceToFenceTimeMap fenceMap;
-    const auto [fence, fenceTime] = fenceMap.makePendingFenceForTest();
+    const auto [fence, fenceTime] = makePendingFence(fenceMap);
     EXPECT_EQ(tracker.trackPendingFrame(kCompositeTime, fenceTime), Duration::zero());
 
     fenceTime->signalForTest(9999);
@@ -46,9 +56,8 @@ TEST(PresentLatencyTrackerTest, tracksPendingFrames) {
     PresentLatencyTracker tracker;
 
     FenceToFenceTimeMap fenceMap;
-    std::array<FenceToFenceTimeMap::FencePair, PresentLatencyTracker::kMaxPendingFrames> fences;
-    std::generate(fences.begin(), fences.end(),
-                  [&fenceMap] { return fenceMap.makePendingFenceForTest(); });
+    std::array<FencePair, PresentLatencyTracker::kMaxPendingFrames> fences;
+    std::generate(fences.begin(), fences.end(), [&fenceMap] { return makePendingFence(fenceMap); });
 
     // The present latency is 0 if all fences are pending.
     const TimePoint kCompositeTime = TimePoint::fromNs(1234);
@@ -62,7 +71,7 @@ TEST(PresentLatencyTrackerTest, tracksPendingFrames) {
         fences[i].second->signalForTest(kCompositeTime.ns() + static_cast<nsecs_t>(i));
     }
 
-    const auto fence = fenceMap.makePendingFenceForTest();
+    const auto fence = makePendingFence(fenceMap);
 
     // ...then the present latency is measured using the latest frame.
     constexpr Duration kPresentLatency = Duration::fromNs(static_cast<nsecs_t>(kPresentCount) - 1);
