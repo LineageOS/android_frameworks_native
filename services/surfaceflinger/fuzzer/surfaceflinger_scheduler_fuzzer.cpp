@@ -19,7 +19,6 @@
 #include <fuzzer/FuzzedDataProvider.h>
 #include <processgroup/sched_policy.h>
 
-#include <scheduler/IVsyncSource.h>
 #include <scheduler/PresentLatencyTracker.h>
 
 #include "Scheduler/OneShotTimer.h"
@@ -43,7 +42,6 @@ constexpr nsecs_t kVsyncPeriods[] = {(30_Hz).getPeriodNsecs(), (60_Hz).getPeriod
                                      (120_Hz).getPeriodNsecs()};
 
 constexpr auto kLayerVoteTypes = ftl::enum_range<scheduler::RefreshRateSelector::LayerVoteType>();
-constexpr auto kCompositionCoverage = ftl::enum_range<CompositionCoverage>();
 
 constexpr PowerMode kPowerModes[] = {PowerMode::ON, PowerMode::DOZE, PowerMode::OFF,
                                      PowerMode::DOZE_SUSPEND, PowerMode::ON_SUSPEND};
@@ -58,10 +56,6 @@ void dump(T* component, FuzzedDataProvider* fdp) {
     component->dump(res);
 }
 
-inline sp<Fence> makeFakeFence() {
-    return sp<Fence>::make(memfd_create("fd", MFD_ALLOW_SEALING));
-}
-
 class SchedulerFuzzer {
 public:
     SchedulerFuzzer(const uint8_t* data, size_t size) : mFdp(data, size){};
@@ -71,7 +65,6 @@ private:
     void fuzzRefreshRateSelection();
     void fuzzRefreshRateSelector();
     void fuzzPresentLatencyTracker();
-    void fuzzFrameTargeter();
     void fuzzVSyncModulator();
     void fuzzVSyncPredictor();
     void fuzzVSyncReactor();
@@ -263,13 +256,13 @@ void SchedulerFuzzer::fuzzVSyncReactor() {
     reactor.addHwVsyncTimestamp(0, std::nullopt, &periodFlushed);
     reactor.addHwVsyncTimestamp(mFdp.ConsumeIntegral<nsecs_t>() /*newPeriod*/, std::nullopt,
                                 &periodFlushed);
-
-    const auto fence = std::make_shared<FenceTime>(makeFakeFence());
+    sp<Fence> fence = sp<Fence>::make(memfd_create("fd", MFD_ALLOW_SEALING));
+    std::shared_ptr<FenceTime> ft = std::make_shared<FenceTime>(fence);
     vSyncTracker->addVsyncTimestamp(mFdp.ConsumeIntegral<nsecs_t>());
     FenceTime::Snapshot snap(mFdp.ConsumeIntegral<nsecs_t>());
-    fence->applyTrustedSnapshot(snap);
+    ft->applyTrustedSnapshot(snap);
     reactor.setIgnorePresentFences(mFdp.ConsumeBool());
-    reactor.addPresentFence(fence);
+    reactor.addPresentFence(ft);
     dump<scheduler::VSyncReactor>(&reactor, &mFdp);
 }
 
@@ -399,45 +392,14 @@ void SchedulerFuzzer::fuzzRefreshRateSelector() {
 
 void SchedulerFuzzer::fuzzPresentLatencyTracker() {
     scheduler::PresentLatencyTracker tracker;
-
-    int i = 5;
-    while (i-- > 0) {
-        tracker.trackPendingFrame(getFuzzedTimePoint(mFdp),
-                                  std::make_shared<FenceTime>(makeFakeFence()));
-    }
-}
-
-void SchedulerFuzzer::fuzzFrameTargeter() {
-    scheduler::FrameTargeter frameTargeter(mFdp.ConsumeBool());
-
-    const struct VsyncSource final : scheduler::IVsyncSource {
-        explicit VsyncSource(FuzzedDataProvider& fuzzer) : fuzzer(fuzzer) {}
-        FuzzedDataProvider& fuzzer;
-
-        Period period() const { return getFuzzedDuration(fuzzer); }
-        TimePoint vsyncDeadlineAfter(TimePoint) const { return getFuzzedTimePoint(fuzzer); }
-    } vsyncSource{mFdp};
-
-    int i = 10;
-    while (i-- > 0) {
-        frameTargeter.beginFrame({.frameBeginTime = getFuzzedTimePoint(mFdp),
-                                  .vsyncId = getFuzzedVsyncId(mFdp),
-                                  .expectedVsyncTime = getFuzzedTimePoint(mFdp),
-                                  .sfWorkDuration = getFuzzedDuration(mFdp)},
-                                 vsyncSource);
-
-        frameTargeter.setPresentFence(makeFakeFence());
-
-        frameTargeter.endFrame(
-                {.compositionCoverage = mFdp.PickValueInArray(kCompositionCoverage.values)});
-    }
+    tracker.trackPendingFrame(TimePoint::fromNs(mFdp.ConsumeIntegral<nsecs_t>()),
+                              FenceTime::NO_FENCE);
 }
 
 void SchedulerFuzzer::process() {
     fuzzRefreshRateSelection();
     fuzzRefreshRateSelector();
     fuzzPresentLatencyTracker();
-    fuzzFrameTargeter();
     fuzzVSyncModulator();
     fuzzVSyncPredictor();
     fuzzVSyncReactor();

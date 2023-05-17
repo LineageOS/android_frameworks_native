@@ -20,10 +20,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <scheduler/interface/ICompositor.h>
-
 #include "FrameTimeline.h"
 #include "Scheduler/MessageQueue.h"
+#include "SurfaceFlinger.h"
 #include "mock/MockVSyncDispatch.h"
 
 namespace android {
@@ -35,8 +34,8 @@ using CallbackToken = scheduler::VSyncDispatch::CallbackToken;
 
 struct NoOpCompositor final : ICompositor {
     void configure() override {}
-    bool commit(const scheduler::FrameTarget&) override { return false; }
-    CompositeResult composite(scheduler::FrameTargeter&) override { return {}; }
+    bool commit(TimePoint, VsyncId, TimePoint) override { return false; }
+    void composite(TimePoint, VsyncId) override {}
     void sample() override {}
 } gNoOpCompositor;
 
