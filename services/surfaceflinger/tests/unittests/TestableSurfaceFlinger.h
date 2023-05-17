@@ -484,6 +484,10 @@ public:
         return mFlinger->setDisplayBrightness(display, brightness);
     }
 
+    static const auto& getPendingMode(const sp<DisplayDevice>& display) {
+        return display->mPendingModeOpt;
+    }
+
     // Allow reading display state without locking, as if called on the SF main thread.
     auto setPowerModeInternal(const sp<DisplayDevice>& display,
                               hal::PowerMode mode) NO_THREAD_SAFETY_ANALYSIS {
