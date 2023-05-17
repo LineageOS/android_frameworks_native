@@ -605,6 +605,8 @@ public:
         return SurfaceFlinger::sActiveDisplayRotationFlags;
     }
 
+    auto& mutableMinAcquiredBuffers() { return SurfaceFlinger::minAcquiredBuffers; }
+
     auto fromHandle(const sp<IBinder>& handle) { return LayerHandle::getLayer(handle); }
 
     ~TestableSurfaceFlinger() {

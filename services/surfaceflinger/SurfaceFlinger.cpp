@@ -324,6 +324,7 @@ int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
 bool SurfaceFlinger::hasSyncFramework;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
+int64_t SurfaceFlinger::minAcquiredBuffers = 1;
 uint32_t SurfaceFlinger::maxGraphicsWidth;
 uint32_t SurfaceFlinger::maxGraphicsHeight;
 bool SurfaceFlinger::useContextPriority;
@@ -385,6 +386,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     useHwcForRgbToYuv = force_hwc_copy_for_virtual_displays(false);
 
     maxFrameBufferAcquiredBuffers = max_frame_buffer_acquired_buffers(2);
+    minAcquiredBuffers =
+            SurfaceFlingerProperties::min_acquired_buffers().value_or(minAcquiredBuffers);
 
     maxGraphicsWidth = std::max(max_graphics_width(0), 0);
     maxGraphicsHeight = std::max(max_graphics_height(0), 0);
@@ -7853,7 +7856,7 @@ int SurfaceFlinger::calculateMaxAcquiredBufferCount(Fps refreshRate,
     if (presentLatency.count() % refreshRate.getPeriodNsecs()) {
         pipelineDepth++;
     }
-    return std::max(1ll, pipelineDepth - 1);
+    return std::max(minAcquiredBuffers, static_cast<int64_t>(pipelineDepth - 1));
 }
 
 status_t SurfaceFlinger::getMaxAcquiredBufferCount(int* buffers) const {
