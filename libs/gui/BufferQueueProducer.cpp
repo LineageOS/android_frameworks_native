@@ -630,7 +630,8 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
     BQ_LOGV("dequeueBuffer: returning slot=%d/%" PRIu64 " buf=%p flags=%#x",
             *outSlot,
             mSlots[*outSlot].mFrameNumber,
-            mSlots[*outSlot].mGraphicBuffer->handle, returnFlags);
+            mSlots[*outSlot].mGraphicBuffer != nullptr ?
+            mSlots[*outSlot].mGraphicBuffer->handle : nullptr, returnFlags);
 
     if (outBufferAge) {
         *outBufferAge = mCore->mBufferAge;
