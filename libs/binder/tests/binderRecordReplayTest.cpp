@@ -234,7 +234,7 @@ TEST_F(BinderRecordReplayTest, ReplayFloatArray) {
 TEST_F(BinderRecordReplayTest, ReplayLongArray) {
     std::vector<int64_t> savedArray = {int64_t{1LL << 11}, int64_t{1LL << 55}, int64_t{1LL << 45}};
     std::vector<int64_t> changedArray = {int64_t{1LL << 1}, int64_t{1LL << 21}, int64_t{1LL << 33},
-                                         int64_t{1LL << 63}};
+                                         int64_t{1LL << 62}};
     recordReplay(&IBinderRecordReplayTest::setLongArray, savedArray,
                  &IBinderRecordReplayTest::getLongArray, changedArray);
 }
@@ -251,7 +251,8 @@ TEST_F(BinderRecordReplayTest, ReplayStringArray) {
     std::vector<String16> savedArray = {String16("This is saved value"), String16(),
                                         String16("\0\0", 2), String16("\xF3\x01\xAC\xAD\x21\xAF")};
 
-    std::vector<String16> changedArray = {String16("This is changed value"), String16("\1\2", 30)};
+    std::vector<String16> changedArray = {String16("This is changed value"),
+                                          String16("\xF0\x90\x90\xB7\xE2\x82\xAC")};
     recordReplay(&IBinderRecordReplayTest::setStringArray, savedArray,
                  &IBinderRecordReplayTest::getStringArray, changedArray);
 }
