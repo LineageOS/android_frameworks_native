@@ -20,17 +20,14 @@
 #include <memory>
 #include <string>
 
+#include <ThreadContext.h>
 #include <android-base/thread_annotations.h>
 #include <ThreadContext.h>
 #include <ftl/enum.h>
 #include <ftl/optional.h>
-#include <ui/DisplayId.h>
-
 #include <scheduler/Features.h>
-#include <scheduler/IVsyncSource.h>
 #include <scheduler/Time.h>
-
-#include "ThreadContext.h"
+#include <ui/DisplayId.h>
 
 namespace android {
 class EventThreadTest;
@@ -52,16 +49,15 @@ using VsyncDispatch = VSyncDispatch;
 using VsyncTracker = VSyncTracker;
 
 // Schedule that synchronizes to hardware VSYNC of a physical display.
-class VsyncSchedule final : public IVsyncSource {
+class VsyncSchedule {
 public:
     using RequestHardwareVsync = std::function<void(PhysicalDisplayId, bool enabled)>;
 
     VsyncSchedule(PhysicalDisplayId, FeatureFlags, RequestHardwareVsync);
     ~VsyncSchedule();
 
-    // IVsyncSource overrides:
-    Period period() const override;
-    TimePoint vsyncDeadlineAfter(TimePoint) const override;
+    Period period() const;
+    TimePoint vsyncDeadlineAfter(TimePoint) const;
 
     // Inform the schedule that the period is changing and the schedule needs to recalibrate
     // itself. The schedule will end the period transition internally. This will

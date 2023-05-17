@@ -171,21 +171,14 @@ void Scheduler::run() {
 
 void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
                               TimePoint expectedVsyncTime) {
-    mPacesetterFrameTargeter.beginFrame({.frameBeginTime = SchedulerClock::now(),
-                                         .vsyncId = vsyncId,
-                                         .expectedVsyncTime = expectedVsyncTime,
-                                         .sfWorkDuration =
-                                                 mVsyncModulator->getVsyncConfig().sfWorkDuration},
-                                        *getVsyncSchedule());
+    const TimePoint frameTime = SchedulerClock::now();
 
-    if (!compositor.commit(mPacesetterFrameTargeter.target())) {
+    if (!compositor.commit(frameTime, vsyncId, expectedVsyncTime)) {
         return;
     }
 
-    const auto compositeResult = compositor.composite(mPacesetterFrameTargeter);
+    compositor.composite(frameTime, vsyncId);
     compositor.sample();
-
-    mPacesetterFrameTargeter.endFrame(compositeResult);
 }
 
 std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
@@ -195,23 +188,23 @@ std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
             .getFrameRateOverrideForUid(uid, supportsFrameRateOverrideByContent);
 }
 
-bool Scheduler::isVsyncValid(TimePoint expectedVsyncTime, uid_t uid) const {
+bool Scheduler::isVsyncValid(TimePoint expectedVsyncTimestamp, uid_t uid) const {
     const auto frameRate = getFrameRateOverride(uid);
     if (!frameRate.has_value()) {
         return true;
     }
 
     ATRACE_FORMAT("%s uid: %d frameRate: %s", __func__, uid, to_string(*frameRate).c_str());
-    return getVsyncSchedule()->getTracker().isVSyncInPhase(expectedVsyncTime.ns(), *frameRate);
+    return getVsyncSchedule()->getTracker().isVSyncInPhase(expectedVsyncTimestamp.ns(), *frameRate);
 }
 
-bool Scheduler::isVsyncInPhase(TimePoint expectedVsyncTime, Fps frameRate) const {
-    return getVsyncSchedule()->getTracker().isVSyncInPhase(expectedVsyncTime.ns(), frameRate);
+bool Scheduler::isVsyncInPhase(TimePoint timePoint, const Fps frameRate) const {
+    return getVsyncSchedule()->getTracker().isVSyncInPhase(timePoint.ns(), frameRate);
 }
 
 impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() const {
-    return [this](nsecs_t expectedVsyncTime, uid_t uid) {
-        return !isVsyncValid(TimePoint::fromNs(expectedVsyncTime), uid);
+    return [this](nsecs_t expectedVsyncTimestamp, uid_t uid) {
+        return !isVsyncValid(TimePoint::fromNs(expectedVsyncTimestamp), uid);
     };
 }
 
@@ -723,8 +716,6 @@ void Scheduler::dump(utils::Dumper& dumper) const {
 
     mFrameRateOverrideMappings.dump(dumper);
     dumper.eol();
-
-    mPacesetterFrameTargeter.dump(dumper);
 }
 
 void Scheduler::dumpVsync(std::string& out) const {
