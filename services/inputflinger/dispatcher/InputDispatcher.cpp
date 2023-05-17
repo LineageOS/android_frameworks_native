@@ -2811,6 +2811,30 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
     }
 }
 
+std::optional<InputTarget> InputDispatcher::createInputTargetLocked(
+        const sp<android::gui::WindowInfoHandle>& windowHandle,
+        ftl::Flags<InputTarget::Flags> targetFlags,
+        std::optional<nsecs_t> firstDownTimeInTarget) const {
+    std::shared_ptr<InputChannel> inputChannel = getInputChannelLocked(windowHandle->getToken());
+    if (inputChannel == nullptr) {
+        ALOGW("Not creating InputTarget for %s, no input channel", windowHandle->getName().c_str());
+        return {};
+    }
+    InputTarget inputTarget;
+    inputTarget.inputChannel = inputChannel;
+    inputTarget.flags = targetFlags;
+    inputTarget.globalScaleFactor = windowHandle->getInfo()->globalScaleFactor;
+    inputTarget.firstDownTimeInTarget = firstDownTimeInTarget;
+    const auto& displayInfoIt = mDisplayInfos.find(windowHandle->getInfo()->displayId);
+    if (displayInfoIt != mDisplayInfos.end()) {
+        inputTarget.displayTransform = displayInfoIt->second.transform;
+    } else {
+        // DisplayInfo not found for this window on display windowInfo->displayId.
+        // TODO(b/198444055): Make this an error message after 'setInputWindows' API is removed.
+    }
+    return inputTarget;
+}
+
 void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHandle,
                                             ftl::Flags<InputTarget::Flags> targetFlags,
                                             std::bitset<MAX_POINTER_ID + 1> pointerIds,
@@ -2826,25 +2850,12 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
     const WindowInfo* windowInfo = windowHandle->getInfo();
 
     if (it == inputTargets.end()) {
-        InputTarget inputTarget;
-        std::shared_ptr<InputChannel> inputChannel =
-                getInputChannelLocked(windowHandle->getToken());
-        if (inputChannel == nullptr) {
-            ALOGW("Window %s already unregistered input channel", windowHandle->getName().c_str());
+        std::optional<InputTarget> target =
+                createInputTargetLocked(windowHandle, targetFlags, firstDownTimeInTarget);
+        if (!target) {
             return;
         }
-        inputTarget.inputChannel = inputChannel;
-        inputTarget.flags = targetFlags;
-        inputTarget.globalScaleFactor = windowInfo->globalScaleFactor;
-        inputTarget.firstDownTimeInTarget = firstDownTimeInTarget;
-        const auto& displayInfoIt = mDisplayInfos.find(windowInfo->displayId);
-        if (displayInfoIt != mDisplayInfos.end()) {
-            inputTarget.displayTransform = displayInfoIt->second.transform;
-        } else {
-            // DisplayInfo not found for this window on display windowInfo->displayId.
-            // TODO(b/198444055): Make this an error message after 'setInputWindows' API is removed.
-        }
-        inputTargets.push_back(inputTarget);
+        inputTargets.push_back(*target);
         it = inputTargets.end() - 1;
     }
 
