@@ -30,7 +30,6 @@
 #include <stdint.h>
 #include <ui/Transform.h>
 #include <utils/BitSet.h>
-#include <utils/RefBase.h>
 #include <utils/Timers.h>
 #include <array>
 #include <limits>
