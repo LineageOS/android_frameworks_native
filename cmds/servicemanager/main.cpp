@@ -132,8 +132,7 @@ int main(int argc, char** argv) {
 
     IPCThreadState::self()->setTheContextObject(manager);
     if (!ps->becomeContextManager()) {
-        LOG(ERROR) << "Could not become context manager";
-        // TODO(b/280514080): fatal
+        LOG(FATAL) << "Could not become context manager";
     }
 
     sp<Looper> looper = Looper::prepare(false /*allowNonCallbacks*/);
