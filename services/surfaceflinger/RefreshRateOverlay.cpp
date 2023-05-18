@@ -148,7 +148,8 @@ auto RefreshRateOverlay::SevenSegmentDrawer::draw(int displayFps, int renderFps,
         LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "RefreshRateOverlay: Buffer failed to allocate: %d",
                             bufferStatus);
 
-        sk_sp<SkSurface> surface = SkSurface::MakeRasterN32Premul(bufferWidth, bufferHeight);
+        sk_sp<SkSurface> surface = SkSurfaces::Raster(
+                SkImageInfo::MakeN32Premul(bufferWidth, bufferHeight));
         SkCanvas* canvas = surface->getCanvas();
         canvas->setMatrix(canvasTransform);
 

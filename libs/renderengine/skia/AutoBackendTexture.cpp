@@ -22,6 +22,7 @@
 
 #include <SkImage.h>
 #include <include/gpu/ganesh/SkImageGanesh.h>
+#include <include/gpu/ganesh/SkSurfaceGanesh.h>
 
 #include "ColorSpaces.h"
 #include "log/log_main.h"
@@ -137,10 +138,10 @@ sk_sp<SkSurface> AutoBackendTexture::getOrCreateSurface(ui::Dataspace dataspace,
     LOG_ALWAYS_FATAL_IF(!mIsOutputBuffer, "You can't generate a SkSurface for a read-only texture");
     if (!mSurface.get() || mDataspace != dataspace) {
         sk_sp<SkSurface> surface =
-                SkSurface::MakeFromBackendTexture(context, mBackendTexture,
-                                                  kTopLeft_GrSurfaceOrigin, 0, mColorType,
-                                                  toSkColorSpace(dataspace), nullptr,
-                                                  releaseSurfaceProc, this);
+                SkSurfaces::WrapBackendTexture(context, mBackendTexture,
+                                               kTopLeft_GrSurfaceOrigin, 0, mColorType,
+                                               toSkColorSpace(dataspace), nullptr,
+                                               releaseSurfaceProc, this);
         if (surface.get()) {
             // The following ref will be counteracted by releaseProc, when SkSurface is discarded.
             ref();
