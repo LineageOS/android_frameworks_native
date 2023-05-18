@@ -1564,8 +1564,7 @@ public:
 
         // Set mouse cursor position for the most common cases to avoid boilerplate.
         if (mSource == AINPUT_SOURCE_MOUSE &&
-            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition) &&
-            mPointers.size() == 1) {
+            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition)) {
             mRawXCursorPosition = pointerCoords[0].getX();
             mRawYCursorPosition = pointerCoords[0].getY();
         }
@@ -1677,8 +1676,7 @@ public:
 
         // Set mouse cursor position for the most common cases to avoid boilerplate.
         if (mSource == AINPUT_SOURCE_MOUSE &&
-            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition) &&
-            mPointers.size() == 1) {
+            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition)) {
             mRawXCursorPosition = pointerCoords[0].getX();
             mRawYCursorPosition = pointerCoords[0].getY();
         }
@@ -1729,19 +1727,21 @@ static InputEventInjectionResult injectMotionEvent(
         InputEventInjectionSync injectionMode = InputEventInjectionSync::WAIT_FOR_RESULT,
         nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC),
         std::optional<int32_t> targetUid = {}, uint32_t policyFlags = DEFAULT_POLICY_FLAGS) {
-    MotionEvent event = MotionEventBuilder(action, source)
-                                .displayId(displayId)
-                                .eventTime(eventTime)
-                                .rawXCursorPosition(cursorPosition.x)
-                                .rawYCursorPosition(cursorPosition.y)
-                                .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER)
-                                                 .x(position.x)
-                                                 .y(position.y))
-                                .build();
+    MotionEventBuilder motionBuilder =
+            MotionEventBuilder(action, source)
+                    .displayId(displayId)
+                    .eventTime(eventTime)
+                    .rawXCursorPosition(cursorPosition.x)
+                    .rawYCursorPosition(cursorPosition.y)
+                    .pointer(
+                            PointerBuilder(/*id=*/0, ToolType::FINGER).x(position.x).y(position.y));
+    if (MotionEvent::getActionMasked(action) == ACTION_DOWN) {
+        motionBuilder.downTime(eventTime);
+    }
 
     // Inject event until dispatch out.
-    return injectMotionEvent(dispatcher, event, injectionTimeout, injectionMode, targetUid,
-                             policyFlags);
+    return injectMotionEvent(dispatcher, motionBuilder.build(), injectionTimeout, injectionMode,
+                             targetUid, policyFlags);
 }
 
 static InputEventInjectionResult injectMotionDown(
@@ -4918,6 +4918,25 @@ TEST_F(InputDispatcherTest, FocusedWindow_SystemKeyIgnoresDisableUserActivity) {
 
     // System key is not passed down
     window->assertNoEvents();
+
+    // Should have poked user activity
+    mFakePolicy->assertUserActivityPoked();
+}
+
+TEST_F(InputDispatcherTest, InjectedTouchesPokeUserActivity) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
+                                                             "Fake Window", ADISPLAY_ID_DEFAULT);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                ADISPLAY_ID_DEFAULT, {100, 100}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDisplayId(ADISPLAY_ID_DEFAULT)));
 
     // Should have poked user activity
     mFakePolicy->assertUserActivityPoked();

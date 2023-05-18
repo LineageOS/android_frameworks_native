@@ -286,8 +286,8 @@ public:
 private:
     // ICompositor overrides:
     void configure() override {}
-    bool commit(const scheduler::FrameTarget&) override { return false; }
-    CompositeResult composite(scheduler::FrameTargeter&) override { return {}; }
+    bool commit(TimePoint, VsyncId, TimePoint) override { return false; }
+    void composite(TimePoint, VsyncId) override {}
     void sample() override {}
 
     // MessageQueue overrides:
@@ -604,9 +604,7 @@ public:
 
             mFlinger->commitTransactions();
             mFlinger->flushTransactionQueues(getFuzzedVsyncId(mFdp));
-
-            scheduler::FrameTargeter frameTargeter(mFdp.ConsumeBool());
-            mFlinger->postComposition(frameTargeter, mFdp.ConsumeIntegral<nsecs_t>());
+            mFlinger->postComposition(systemTime());
         }
 
         mFlinger->setTransactionFlags(mFdp.ConsumeIntegral<uint32_t>());
@@ -623,6 +621,8 @@ public:
                                              mFdp.ConsumeIntegral<uint32_t>());
 
         mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mFdp.ConsumeIntegral<uid_t>());
+
+        mFlinger->calculateExpectedPresentTime({});
 
         mFlinger->enableHalVirtualDisplays(mFdp.ConsumeBool());
 
