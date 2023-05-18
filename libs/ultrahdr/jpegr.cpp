@@ -1041,21 +1041,18 @@ status_t JpegR::toneMap(jr_uncompressed_ptr src, jr_uncompressed_ptr dest) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  size_t src_luma_stride = src->luma_stride;
-  size_t src_chroma_stride = src->chroma_stride;
   uint16_t* src_luma_data = reinterpret_cast<uint16_t*>(src->data);
-  uint16_t* src_chroma_data = reinterpret_cast<uint16_t*>(src->chroma_data);
+  size_t src_luma_stride = src->luma_stride == 0 ? src->width : src->luma_stride;
 
-  if (src_chroma_data == nullptr) {
-    src_chroma_data = &reinterpret_cast<uint16_t*>(src->data)[src_luma_stride * src->height];
+  uint16_t* src_chroma_data;
+  size_t src_chroma_stride;
+  if (src->chroma_data == nullptr) {
+     src_chroma_stride = src_luma_stride;
+     src_chroma_data = &reinterpret_cast<uint16_t*>(src->data)[src_luma_stride * src->height];
+  } else {
+     src_chroma_stride = src->chroma_stride;
+     src_chroma_data = reinterpret_cast<uint16_t*>(src->chroma_data);
   }
-  if (src_luma_stride == 0) {
-    src_luma_stride = src->width;
-  }
-  if (src_chroma_stride == 0) {
-    src_chroma_stride = src_luma_stride;
-  }
-
   dest->width = src->width;
   dest->height = src->height;
 
