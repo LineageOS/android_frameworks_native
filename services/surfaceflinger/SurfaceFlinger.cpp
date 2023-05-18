@@ -6992,7 +6992,8 @@ ui::Dataspace pickBestDataspace(ui::Dataspace requestedDataspace, const DisplayD
 
     const auto dataspaceForColorMode = ui::pickDataspaceFor(state.colorMode);
 
-    if (capturingHdrLayers && !hintForSeamlessTransition) {
+    // TODO: Enable once HDR screenshots are ready.
+    if constexpr (/* DISABLES CODE */ (false)) {
         // For now since we only support 8-bit screenshots, just use HLG and
         // assume that 1.0 >= display max luminance. This isn't quite as future
         // proof as PQ is, but is good enough.
