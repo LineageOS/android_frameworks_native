@@ -85,6 +85,12 @@ cc_library {
         "-Wl,--exclude-libs=libtflite_static.a",
     ],
 
+    sanitize: {
+        undefined: true,
+        all_undefined: true,
+        misc_undefined: ["integer"],
+    },
+
     static_libs: [
         "libui-types",
         "libtflite_static",
@@ -116,10 +122,6 @@ cc_library {
             export_static_lib_headers: [
                 "libgui_window_info_static",
             ],
-
-            sanitize: {
-                misc_undefined: ["integer"],
-            },
 
             required: [
                 "motion_predictor_model_prebuilt",
