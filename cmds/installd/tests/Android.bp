@@ -77,10 +77,8 @@ cc_test {
     },
 }
 
-cc_test {
-    name: "installd_service_test",
-    test_suites: ["device-tests"],
-    srcs: ["installd_service_test.cpp"],
+cc_defaults {
+    name: "installd_service_test_defaults",
     cflags: [
         "-Wall",
         "-Werror",
@@ -106,8 +104,6 @@ cc_test {
         "liblogwrap",
         "libc++fs",
     ],
-    test_config: "installd_service_test.xml",
-
     product_variables: {
         arc: {
             exclude_srcs: [
@@ -122,6 +118,14 @@ cc_test {
             ],
         },
     },
+}
+
+cc_test {
+    name: "installd_service_test",
+    test_suites: ["device-tests"],
+    srcs: ["installd_service_test.cpp"],
+    defaults: ["installd_service_test_defaults"],
+    test_config: "installd_service_test.xml",
 }
 
 cc_test {
@@ -208,4 +212,20 @@ cc_test {
         "libinstalld",
         "liblog",
     ],
+}
+
+cc_fuzz {
+    name: "installd_service_fuzzer",
+    defaults: [
+        "service_fuzzer_defaults",
+        "fuzzer_disable_leaks",
+        "installd_service_test_defaults",
+    ],
+    srcs: ["fuzzers/InstalldServiceFuzzer.cpp"],
+    fuzz_config: {
+        cc: [
+            "android-package-manager-team@google.com",
+        ],
+        triage_assignee: "waghpawan@google.com",
+    },
 }
