@@ -2892,7 +2892,7 @@ void KeyboardInputMapperTest::testDPadKeyRotation(KeyboardInputMapper& mapper,
 
 TEST_F(KeyboardInputMapperTest, GetSources) {
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, mapper.getSources());
@@ -2908,7 +2908,7 @@ TEST_F(KeyboardInputMapperTest, Process_SimpleKeyPress) {
     mFakeEventHub->addKey(EVENTHUB_ID, 0, KEY_SCROLLLOCK, AKEYCODE_SCROLL_LOCK, POLICY_FLAG_WAKE);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     // Initial metastate is AMETA_NONE.
     ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
@@ -3009,7 +3009,7 @@ TEST_F(KeyboardInputMapperTest, Process_KeyRemapping) {
     mFakeEventHub->addKeyRemapping(EVENTHUB_ID, AKEYCODE_A, AKEYCODE_B);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     // Key down by scan code.
@@ -3031,7 +3031,7 @@ TEST_F(KeyboardInputMapperTest, Process_SendsReadTime) {
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, POLICY_FLAG_WAKE);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     NotifyKeyArgs args;
 
@@ -3054,7 +3054,7 @@ TEST_F(KeyboardInputMapperTest, Process_ShouldUpdateMetaState) {
     mFakeEventHub->addKey(EVENTHUB_ID, 0, KEY_SCROLLLOCK, AKEYCODE_SCROLL_LOCK, 0);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     // Initial metastate is AMETA_NONE.
@@ -3095,7 +3095,7 @@ TEST_F(KeyboardInputMapperTest, Process_WhenNotOrientationAware_ShouldNotRotateD
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_LEFT, 0, AKEYCODE_DPAD_LEFT, 0);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     prepareDisplay(ui::ROTATION_90);
@@ -3117,7 +3117,7 @@ TEST_F(KeyboardInputMapperTest, Process_WhenOrientationAware_ShouldRotateDPad) {
 
     addConfigurationProperty("keyboard.orientationAware", "1");
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     prepareDisplay(ui::ROTATION_0);
@@ -3189,7 +3189,7 @@ TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_NotOrientationAware
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     NotifyKeyArgs args;
 
@@ -3215,7 +3215,7 @@ TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_OrientationAware) {
 
     addConfigurationProperty("keyboard.orientationAware", "1");
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     NotifyKeyArgs args;
 
@@ -3243,7 +3243,7 @@ TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_OrientationAware) {
 
 TEST_F(KeyboardInputMapperTest, GetKeyCodeState) {
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     mFakeEventHub->setKeyCodeState(EVENTHUB_ID, AKEYCODE_A, 1);
@@ -3255,7 +3255,7 @@ TEST_F(KeyboardInputMapperTest, GetKeyCodeState) {
 
 TEST_F(KeyboardInputMapperTest, GetKeyCodeForKeyLocation) {
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     mFakeEventHub->addKeyCodeMapping(EVENTHUB_ID, AKEYCODE_Y, AKEYCODE_Z);
@@ -3268,7 +3268,7 @@ TEST_F(KeyboardInputMapperTest, GetKeyCodeForKeyLocation) {
 
 TEST_F(KeyboardInputMapperTest, GetScanCodeState) {
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     mFakeEventHub->setScanCodeState(EVENTHUB_ID, KEY_A, 1);
@@ -3280,7 +3280,7 @@ TEST_F(KeyboardInputMapperTest, GetScanCodeState) {
 
 TEST_F(KeyboardInputMapperTest, MarkSupportedKeyCodes) {
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_A, 0, AKEYCODE_A, 0);
@@ -3300,7 +3300,7 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleMetaStateAndLeds) 
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     // Initial metastate is AMETA_NONE.
     ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
@@ -3366,7 +3366,7 @@ TEST_F(KeyboardInputMapperTest, NoMetaStateWhenMetaKeysNotPresent) {
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_Y, 0, AKEYCODE_BUTTON_Y, 0);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
 
     // Meta state should be AMETA_NONE after reset
@@ -3416,14 +3416,16 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_LEFT, 0, AKEYCODE_DPAD_LEFT, 0);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
+    device2->addEmptyEventHubDevice(SECOND_EVENTHUB_ID);
     KeyboardInputMapper& mapper2 =
-            device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID,
-                                                    mFakePolicy->getReaderConfiguration(),
-                                                    AINPUT_SOURCE_KEYBOARD,
-                                                    AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+            device2->constructAndAddMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID,
+                                                                mFakePolicy
+                                                                        ->getReaderConfiguration(),
+                                                                AINPUT_SOURCE_KEYBOARD,
+                                                                AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                                /*changes=*/{});
@@ -3485,7 +3487,7 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleAfterReattach) {
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     // Initial metastate is AMETA_NONE.
     ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
@@ -3531,11 +3533,13 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleAfterReattach) {
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_NUMLOCK, 0, AKEYCODE_NUM_LOCK, 0);
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
 
+    device2->addEmptyEventHubDevice(SECOND_EVENTHUB_ID);
     KeyboardInputMapper& mapper2 =
-            device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID,
-                                                    mFakePolicy->getReaderConfiguration(),
-                                                    AINPUT_SOURCE_KEYBOARD,
-                                                    AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+            device2->constructAndAddMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID,
+                                                                mFakePolicy
+                                                                        ->getReaderConfiguration(),
+                                                                AINPUT_SOURCE_KEYBOARD,
+                                                                AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                                /*changes=*/{});
@@ -3554,10 +3558,10 @@ TEST_F(KeyboardInputMapperTest, Process_toggleCapsLockState) {
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
 
     // Suppose we have two mappers. (DPAD + KEYBOARD)
-    addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_DPAD,
+    constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_DPAD,
                                                AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     // Initial metastate is AMETA_NONE.
     ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
@@ -3576,7 +3580,7 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleInMultiDevices) {
     mFakeEventHub->addKey(EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
 
     KeyboardInputMapper& mapper1 =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     // keyboard 2.
@@ -3594,11 +3598,13 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleInMultiDevices) {
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_NUMLOCK, 0, AKEYCODE_NUM_LOCK, 0);
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
 
+    device2->addEmptyEventHubDevice(SECOND_EVENTHUB_ID);
     KeyboardInputMapper& mapper2 =
-            device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID,
-                                                    mFakePolicy->getReaderConfiguration(),
-                                                    AINPUT_SOURCE_KEYBOARD,
-                                                    AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+            device2->constructAndAddMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID,
+                                                                mFakePolicy
+                                                                        ->getReaderConfiguration(),
+                                                                AINPUT_SOURCE_KEYBOARD,
+                                                                AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                                /*changes=*/{});
@@ -3654,7 +3660,7 @@ TEST_F(KeyboardInputMapperTest, Process_DisabledDevice) {
     mFakeEventHub->addKey(EVENTHUB_ID, 0, USAGE_A, AKEYCODE_A, POLICY_FLAG_WAKE);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     // Key down by scan code.
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
@@ -3680,9 +3686,8 @@ TEST_F(KeyboardInputMapperTest, Process_DisabledDevice) {
 }
 
 TEST_F(KeyboardInputMapperTest, Configure_AssignKeyboardLayoutInfo) {
-    mDevice->addMapper<KeyboardInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
-                                            AINPUT_SOURCE_KEYBOARD,
-                                            AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+                                               AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     std::list<NotifyArgs> unused =
             mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                                /*changes=*/{});
@@ -3713,7 +3718,7 @@ TEST_F(KeyboardInputMapperTest, LayoutInfoCorrectlyMapped) {
                                     RawLayoutInfo{.languageTag = "en", .layoutType = "extended"});
 
     // Configuration
-    addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+    constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     InputReaderConfiguration config;
     std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, config, /*changes=*/{});
@@ -3739,7 +3744,7 @@ TEST_F(KeyboardInputMapperTest_ExternalDevice, WakeBehavior) {
                           POLICY_FLAG_WAKE);
 
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
@@ -3777,7 +3782,7 @@ TEST_F(KeyboardInputMapperTest_ExternalDevice, DoNotWakeByDefaultBehavior) {
 
     addConfigurationProperty("keyboard.doNotWakeByDefault", "1");
     KeyboardInputMapper& mapper =
-            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
