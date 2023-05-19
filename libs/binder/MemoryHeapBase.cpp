@@ -78,7 +78,7 @@ MemoryHeapBase::MemoryHeapBase(size_t size, uint32_t flags, char const * name)
         if (SEAL_FLAGS && (fcntl(fd, F_ADD_SEALS, SEAL_FLAGS) == -1)) {
             ALOGE("MemoryHeapBase: MemFD %s sealing with flags %x failed with error  %s", name,
                   SEAL_FLAGS, strerror(errno));
-            munmap(mBase, mSize);
+            if (mNeedUnmap) munmap(mBase, mSize);
             mBase = nullptr;
             mSize = 0;
             close(fd);
