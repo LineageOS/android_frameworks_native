@@ -469,12 +469,34 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
                             ultrahdr_output_format output_format,
                             jr_uncompressed_ptr gain_map,
                             ultrahdr_metadata_ptr metadata) {
-  if (compressed_jpegr_image == nullptr || dest == nullptr) {
+  if (compressed_jpegr_image == nullptr || compressed_jpegr_image->data == nullptr) {
+    ALOGE("received nullptr for compressed jpegr image");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (dest == nullptr || dest->data == nullptr) {
+    ALOGE("received nullptr for dest image");
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   if (max_display_boost < 1.0f) {
-      return ERROR_JPEGR_INVALID_INPUT_TYPE;
+    ALOGE("received bad value for max_display_boost %f", max_display_boost);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (exif != nullptr && exif->data == nullptr) {
+    ALOGE("received nullptr address for exif data");
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (output_format <= ULTRAHDR_OUTPUT_UNSPECIFIED || output_format > ULTRAHDR_OUTPUT_MAX) {
+    ALOGE("received bad value for output format %d", output_format);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (gain_map != nullptr && gain_map->data == nullptr) {
+    ALOGE("received nullptr address for gain map data");
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   if (output_format == ULTRAHDR_OUTPUT_SDR) {
