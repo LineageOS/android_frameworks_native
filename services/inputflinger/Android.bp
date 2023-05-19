@@ -60,6 +60,7 @@ filegroup {
     name: "libinputflinger_sources",
     srcs: [
         "InputCommonConverter.cpp",
+        "InputDeviceMetricsCollector.cpp",
         "InputProcessor.cpp",
         "PreferStylusOverTouchBlocker.cpp",
         "UnwantedInteractionBlocker.cpp",
@@ -129,6 +130,7 @@ cc_library_shared {
         "libinputflinger_base",
         "libinputreader",
         "libinputreporter",
+        "libPlatformProperties",
     ],
     static_libs: [
         "libinputdispatcher",
