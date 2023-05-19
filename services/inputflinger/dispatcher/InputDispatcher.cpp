@@ -2561,9 +2561,17 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         std::vector<TouchedWindow> hoveringWindows =
                 getHoveringWindowsLocked(oldState, tempTouchState, entry);
         for (const TouchedWindow& touchedWindow : hoveringWindows) {
-            addWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
-                                  touchedWindow.pointerIds, touchedWindow.firstDownTimeInTarget,
-                                  targets);
+            std::optional<InputTarget> target =
+                    createInputTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
+                                            touchedWindow.firstDownTimeInTarget);
+            if (!target) {
+                continue;
+            }
+            // Hardcode to single hovering pointer for now.
+            std::bitset<MAX_POINTER_ID + 1> pointerIds;
+            pointerIds.set(entry.pointerProperties[0].id);
+            target->addPointers(pointerIds, touchedWindow.windowHandle->getInfo()->transform);
+            targets.push_back(*target);
         }
     }
 
