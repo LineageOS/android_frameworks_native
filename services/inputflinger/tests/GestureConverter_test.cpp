@@ -332,7 +332,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
                       WithToolType(ToolType::FINGER)));
 }
 
-TEST_F(GestureConverterTest, Scroll_ClearsClassificationAndOffsetsAfterGesture) {
+TEST_F(GestureConverterTest, Scroll_ClearsClassificationAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
 
@@ -349,29 +349,70 @@ TEST_F(GestureConverterTest, Scroll_ClearsClassificationAndOffsetsAfterGesture) 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionClassification(MotionClassification::NONE),
-                      WithGestureScrollDistance(0, 0, EPSILON)));
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionClassification(MotionClassification::NONE));
 }
 
-TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsClassificationAndOffsetsAfterGesture) {
+TEST_F(GestureConverterTest, Scroll_ClearsScrollDistanceAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
 
-    Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dx= */ 0,
-                         /* dy= */ 0);
+    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
+    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+
+    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+
+    Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
+                         GESTURES_FLING_START);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+
+    // Move gestures don't use the fake finger array, so to test that gesture axes are cleared we
+    // need to use another gesture type, like pinch.
+    Gesture pinchGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
+                         GESTURES_ZOOM_START);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, pinchGesture);
+    ASSERT_FALSE(args.empty());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()), WithGestureScrollDistance(0, 0, EPSILON));
+}
+
+TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsClassificationAfterGesture) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+
+    Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/0,
+                         /*dy=*/0);
     std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
 
-    Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dx= */ -5,
-                        /* dy= */ 10);
+    Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/-5,
+                        /*dy=*/10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionClassification(MotionClassification::NONE),
-                      WithGestureOffset(0, 0, EPSILON)));
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionClassification(MotionClassification::NONE));
+}
+
+TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsOffsetsAfterGesture) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+
+    Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/5,
+                         /*dy=*/5);
+    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+
+    Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+
+    // Move gestures don't use the fake finger array, so to test that gesture axes are cleared we
+    // need to use another gesture type, like pinch.
+    Gesture pinchGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
+                         GESTURES_ZOOM_START);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, pinchGesture);
+    ASSERT_FALSE(args.empty());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()), WithGestureOffset(0, 0, EPSILON));
 }
 
 TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
@@ -761,28 +802,52 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
                       WithToolType(ToolType::FINGER)));
 }
 
-TEST_F(GestureConverterTest, Pinch_ClearsClassificationAndScaleFactorAfterGesture) {
+TEST_F(GestureConverterTest, Pinch_ClearsClassificationAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
 
-    Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
+    Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
     std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
-                          /* dz= */ 1.2, GESTURES_ZOOM_UPDATE);
+                          /*dz=*/1.2, GESTURES_ZOOM_UPDATE);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
 
-    Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
+    Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                        GESTURES_ZOOM_END);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionClassification(MotionClassification::NONE),
-                      WithGesturePinchScaleFactor(0, EPSILON)));
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionClassification(MotionClassification::NONE));
+}
+
+TEST_F(GestureConverterTest, Pinch_ClearsScaleFactorAfterGesture) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+
+    Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
+                         GESTURES_ZOOM_START);
+    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+
+    Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
+                          /*dz=*/1.2, GESTURES_ZOOM_UPDATE);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+
+    Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
+                       GESTURES_ZOOM_END);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+
+    // Move gestures don't use the fake finger array, so to test that gesture axes are cleared we
+    // need to use another gesture type, like scroll.
+    Gesture scrollGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/1,
+                          /*dy=*/0);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, scrollGesture);
+    ASSERT_FALSE(args.empty());
+    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()), WithGesturePinchScaleFactor(0, EPSILON));
 }
 
 TEST_F(GestureConverterTest, ResetWithButtonPressed) {
