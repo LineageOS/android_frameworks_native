@@ -89,21 +89,67 @@ int GetCPUCoreCount() {
   return cpuCoreCount;
 }
 
-status_t JpegR::areInputImagesValid(jr_uncompressed_ptr uncompressed_p010_image,
-                                    jr_uncompressed_ptr uncompressed_yuv_420_image) {
-  if (uncompressed_p010_image == nullptr) {
+status_t JpegR::areInputArgumentsValid(jr_uncompressed_ptr uncompressed_p010_image,
+                                       jr_uncompressed_ptr uncompressed_yuv_420_image,
+                                       ultrahdr_transfer_function hdr_tf,
+                                       jr_compressed_ptr dest) {
+  if (uncompressed_p010_image == nullptr || uncompressed_p010_image->data == nullptr) {
+    ALOGE("received nullptr for uncompressed p010 image");
     return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (uncompressed_p010_image->width % 2 != 0
+          || uncompressed_p010_image->height % 2 != 0) {
+    ALOGE("Image dimensions cannot be odd, image dimensions %dx%d",
+          uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (uncompressed_p010_image->width == 0
+          || uncompressed_p010_image->height == 0) {
+    ALOGE("Image dimensions cannot be zero, image dimensions %dx%d",
+          uncompressed_p010_image->width, uncompressed_p010_image->height);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (uncompressed_p010_image->colorGamut <= ULTRAHDR_COLORGAMUT_UNSPECIFIED
+          || uncompressed_p010_image->colorGamut > ULTRAHDR_COLORGAMUT_MAX) {
+    ALOGE("Unrecognized p010 color gamut %d", uncompressed_p010_image->colorGamut);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   if (uncompressed_p010_image->luma_stride != 0
           && uncompressed_p010_image->luma_stride < uncompressed_p010_image->width) {
-    ALOGE("Image stride can not be smaller than width, stride=%d, width=%d",
+    ALOGE("Luma stride can not be smaller than width, stride=%d, width=%d",
                 uncompressed_p010_image->luma_stride, uncompressed_p010_image->width);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (uncompressed_p010_image->chroma_data != nullptr
+          && uncompressed_p010_image->chroma_stride < uncompressed_p010_image->width) {
+    ALOGE("Chroma stride can not be smaller than width, stride=%d, width=%d",
+          uncompressed_p010_image->chroma_stride,
+          uncompressed_p010_image->width);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (dest == nullptr || dest->data == nullptr) {
+    ALOGE("received nullptr for destination");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (hdr_tf <= ULTRAHDR_TF_UNSPECIFIED || hdr_tf > ULTRAHDR_TF_MAX) {
+    ALOGE("Invalid hdr transfer function %d", hdr_tf);
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   if (uncompressed_yuv_420_image == nullptr) {
     return NO_ERROR;
+  }
+
+  if (uncompressed_yuv_420_image->data == nullptr) {
+    ALOGE("received nullptr for uncompressed 420 image");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   if (uncompressed_yuv_420_image->luma_stride != 0) {
@@ -127,6 +173,30 @@ status_t JpegR::areInputImagesValid(jr_uncompressed_ptr uncompressed_p010_image,
     return ERROR_JPEGR_RESOLUTION_MISMATCH;
   }
 
+  if (uncompressed_yuv_420_image->colorGamut <= ULTRAHDR_COLORGAMUT_UNSPECIFIED
+          || uncompressed_yuv_420_image->colorGamut > ULTRAHDR_COLORGAMUT_MAX) {
+    ALOGE("Unrecognized 420 color gamut %d", uncompressed_yuv_420_image->colorGamut);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  return NO_ERROR;
+}
+
+status_t JpegR::areInputArgumentsValid(jr_uncompressed_ptr uncompressed_p010_image,
+                                       jr_uncompressed_ptr uncompressed_yuv_420_image,
+                                       ultrahdr_transfer_function hdr_tf,
+                                       jr_compressed_ptr dest,
+                                       int quality) {
+  if (status_t ret = areInputArgumentsValid(
+          uncompressed_p010_image, uncompressed_yuv_420_image, hdr_tf, dest) != NO_ERROR) {
+    return ret;
+  }
+
+  if (quality < 0 || quality > 100) {
+    ALOGE("quality factor is out side range [0-100], quality factor : %d", quality);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
   return NO_ERROR;
 }
 
@@ -136,17 +206,15 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                             jr_compressed_ptr dest,
                             int quality,
                             jr_exif_ptr exif) {
-  if (uncompressed_p010_image == nullptr || dest == nullptr) {
-    return ERROR_JPEGR_INVALID_NULL_PTR;
-  }
-
-  if (quality < 0 || quality > 100) {
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
-  }
-
-  if (status_t ret = areInputImagesValid(
-          uncompressed_p010_image, /* uncompressed_yuv_420_image */ nullptr) != NO_ERROR) {
+  if (status_t ret = areInputArgumentsValid(
+          uncompressed_p010_image, /* uncompressed_yuv_420_image */ nullptr,
+          hdr_tf, dest, quality) != NO_ERROR) {
     return ret;
+  }
+
+  if (exif != nullptr && exif->data == nullptr) {
+    ALOGE("received nullptr for exif metadata");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
   ultrahdr_metadata_struct metadata;
@@ -201,18 +269,19 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                             jr_compressed_ptr dest,
                             int quality,
                             jr_exif_ptr exif) {
-  if (uncompressed_p010_image == nullptr
-   || uncompressed_yuv_420_image == nullptr
-   || dest == nullptr) {
+  if (uncompressed_yuv_420_image == nullptr) {
+    ALOGE("received nullptr for uncompressed 420 image");
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (quality < 0 || quality > 100) {
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  if (exif != nullptr && exif->data == nullptr) {
+    ALOGE("received nullptr for exif metadata");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (status_t ret = areInputImagesValid(
-          uncompressed_p010_image, uncompressed_yuv_420_image) != NO_ERROR) {
+  if (status_t ret = areInputArgumentsValid(
+          uncompressed_p010_image, uncompressed_yuv_420_image, hdr_tf,
+          dest, quality) != NO_ERROR) {
     return ret;
   }
 
@@ -256,15 +325,18 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                             jr_compressed_ptr compressed_jpeg_image,
                             ultrahdr_transfer_function hdr_tf,
                             jr_compressed_ptr dest) {
-  if (uncompressed_p010_image == nullptr
-   || uncompressed_yuv_420_image == nullptr
-   || compressed_jpeg_image == nullptr
-   || dest == nullptr) {
+  if (uncompressed_yuv_420_image == nullptr) {
+    ALOGE("received nullptr for uncompressed 420 image");
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (status_t ret = areInputImagesValid(
-          uncompressed_p010_image, uncompressed_yuv_420_image) != NO_ERROR) {
+  if (compressed_jpeg_image == nullptr || compressed_jpeg_image->data == nullptr) {
+    ALOGE("received nullptr for compressed jpeg image");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (status_t ret = areInputArgumentsValid(
+          uncompressed_p010_image, uncompressed_yuv_420_image, hdr_tf, dest) != NO_ERROR) {
     return ret;
   }
 
@@ -293,14 +365,14 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
                             jr_compressed_ptr compressed_jpeg_image,
                             ultrahdr_transfer_function hdr_tf,
                             jr_compressed_ptr dest) {
-  if (uncompressed_p010_image == nullptr
-   || compressed_jpeg_image == nullptr
-   || dest == nullptr) {
+  if (compressed_jpeg_image == nullptr || compressed_jpeg_image->data == nullptr) {
+    ALOGE("received nullptr for compressed jpeg image");
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (status_t ret = areInputImagesValid(
-          uncompressed_p010_image, /* uncompressed_yuv_420_image */ nullptr) != NO_ERROR) {
+  if (status_t ret = areInputArgumentsValid(
+          uncompressed_p010_image, /* uncompressed_yuv_420_image */ nullptr,
+          hdr_tf, dest) != NO_ERROR) {
     return ret;
   }
 
@@ -344,13 +416,34 @@ status_t JpegR::encodeJPEGR(jr_compressed_ptr compressed_jpeg_image,
                             jr_compressed_ptr compressed_gainmap,
                             ultrahdr_metadata_ptr metadata,
                             jr_compressed_ptr dest) {
+  if (compressed_jpeg_image == nullptr || compressed_jpeg_image->data == nullptr) {
+    ALOGE("received nullptr for compressed jpeg image");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (compressed_gainmap == nullptr || compressed_gainmap->data == nullptr) {
+    ALOGE("received nullptr for compressed gain map");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (dest == nullptr || dest->data == nullptr) {
+    ALOGE("received nullptr for destination");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
   JPEGR_CHECK(appendGainMap(compressed_jpeg_image, compressed_gainmap, /* exif */ nullptr,
           metadata, dest));
   return NO_ERROR;
 }
 
 status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image, jr_info_ptr jpegr_info) {
-  if (compressed_jpegr_image == nullptr || jpegr_info == nullptr) {
+  if (compressed_jpegr_image == nullptr || compressed_jpegr_image->data == nullptr) {
+    ALOGE("received nullptr for compressed jpegr image");
+    return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (jpegr_info == nullptr) {
+    ALOGE("received nullptr for compressed jpegr info struct");
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
