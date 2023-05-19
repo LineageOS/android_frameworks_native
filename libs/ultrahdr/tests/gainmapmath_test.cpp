@@ -28,6 +28,7 @@ public:
 
   float ComparisonEpsilon() { return 1e-4f; }
   float LuminanceEpsilon() { return 1e-2f; }
+  float YuvConversionEpsilon() { return 1.0f / (255.0f * 2.0f); }
 
   Color Yuv420(uint8_t y, uint8_t u, uint8_t v) {
       return {{{ static_cast<float>(y) / 255.0f,
@@ -63,9 +64,13 @@ public:
   Color YuvBlack() { return {{{ 0.0f, 0.0f, 0.0f }}}; }
   Color YuvWhite() { return {{{ 1.0f, 0.0f, 0.0f }}}; }
 
-  Color SrgbYuvRed() { return {{{ 0.299f, -0.1687f, 0.5f }}}; }
-  Color SrgbYuvGreen() { return {{{ 0.587f, -0.3313f, -0.4187f }}}; }
-  Color SrgbYuvBlue() { return {{{ 0.114f, 0.5f, -0.0813f }}}; }
+  Color SrgbYuvRed() { return {{{ 0.2126f, -0.11457f, 0.5f }}}; }
+  Color SrgbYuvGreen() { return {{{ 0.7152f, -0.38543f, -0.45415f }}}; }
+  Color SrgbYuvBlue() { return {{{ 0.0722f, 0.5f, -0.04585f }}}; }
+
+  Color P3YuvRed() { return {{{ 0.299f, -0.16874f, 0.5f }}}; }
+  Color P3YuvGreen() { return {{{ 0.587f, -0.33126f, -0.41869f }}}; }
+  Color P3YuvBlue() { return {{{ 0.114f, 0.5f, -0.08131f }}}; }
 
   Color Bt2100YuvRed() { return {{{ 0.2627f, -0.13963f, 0.5f }}}; }
   Color Bt2100YuvGreen() { return {{{ 0.6780f, -0.36037f, -0.45979f }}}; }
@@ -73,6 +78,13 @@ public:
 
   float SrgbYuvToLuminance(Color yuv_gamma, ColorCalculationFn luminanceFn) {
     Color rgb_gamma = srgbYuvToRgb(yuv_gamma);
+    Color rgb = srgbInvOetf(rgb_gamma);
+    float luminance_scaled = luminanceFn(rgb);
+    return luminance_scaled * kSdrWhiteNits;
+  }
+
+  float P3YuvToLuminance(Color yuv_gamma, ColorCalculationFn luminanceFn) {
+    Color rgb_gamma = p3YuvToRgb(yuv_gamma);
     Color rgb = srgbInvOetf(rgb_gamma);
     float luminance_scaled = luminanceFn(rgb);
     return luminance_scaled * kSdrWhiteNits;
@@ -402,6 +414,56 @@ TEST_F(GainMapMathTest, P3Luminance) {
   EXPECT_FLOAT_EQ(p3Luminance(RgbBlue()), 0.06891f);
 }
 
+TEST_F(GainMapMathTest, P3YuvToRgb) {
+  Color rgb_black = p3YuvToRgb(YuvBlack());
+  EXPECT_RGB_NEAR(rgb_black, RgbBlack());
+
+  Color rgb_white = p3YuvToRgb(YuvWhite());
+  EXPECT_RGB_NEAR(rgb_white, RgbWhite());
+
+  Color rgb_r = p3YuvToRgb(P3YuvRed());
+  EXPECT_RGB_NEAR(rgb_r, RgbRed());
+
+  Color rgb_g = p3YuvToRgb(P3YuvGreen());
+  EXPECT_RGB_NEAR(rgb_g, RgbGreen());
+
+  Color rgb_b = p3YuvToRgb(P3YuvBlue());
+  EXPECT_RGB_NEAR(rgb_b, RgbBlue());
+}
+
+TEST_F(GainMapMathTest, P3RgbToYuv) {
+  Color yuv_black = p3RgbToYuv(RgbBlack());
+  EXPECT_YUV_NEAR(yuv_black, YuvBlack());
+
+  Color yuv_white = p3RgbToYuv(RgbWhite());
+  EXPECT_YUV_NEAR(yuv_white, YuvWhite());
+
+  Color yuv_r = p3RgbToYuv(RgbRed());
+  EXPECT_YUV_NEAR(yuv_r, P3YuvRed());
+
+  Color yuv_g = p3RgbToYuv(RgbGreen());
+  EXPECT_YUV_NEAR(yuv_g, P3YuvGreen());
+
+  Color yuv_b = p3RgbToYuv(RgbBlue());
+  EXPECT_YUV_NEAR(yuv_b, P3YuvBlue());
+}
+
+TEST_F(GainMapMathTest, P3RgbYuvRoundtrip) {
+  Color rgb_black = p3YuvToRgb(p3RgbToYuv(RgbBlack()));
+  EXPECT_RGB_NEAR(rgb_black, RgbBlack());
+
+  Color rgb_white = p3YuvToRgb(p3RgbToYuv(RgbWhite()));
+  EXPECT_RGB_NEAR(rgb_white, RgbWhite());
+
+  Color rgb_r = p3YuvToRgb(p3RgbToYuv(RgbRed()));
+  EXPECT_RGB_NEAR(rgb_r, RgbRed());
+
+  Color rgb_g = p3YuvToRgb(p3RgbToYuv(RgbGreen()));
+  EXPECT_RGB_NEAR(rgb_g, RgbGreen());
+
+  Color rgb_b = p3YuvToRgb(p3RgbToYuv(RgbBlue()));
+  EXPECT_RGB_NEAR(rgb_b, RgbBlue());
+}
 TEST_F(GainMapMathTest, Bt2100Luminance) {
   EXPECT_FLOAT_EQ(bt2100Luminance(RgbBlack()), 0.0f);
   EXPECT_FLOAT_EQ(bt2100Luminance(RgbWhite()), 1.0f);
@@ -459,6 +521,163 @@ TEST_F(GainMapMathTest, Bt2100RgbYuvRoundtrip) {
 
   Color rgb_b = bt2100YuvToRgb(bt2100RgbToYuv(RgbBlue()));
   EXPECT_RGB_NEAR(rgb_b, RgbBlue());
+}
+
+TEST_F(GainMapMathTest, Bt709ToBt601YuvConversion) {
+  Color yuv_black = srgbRgbToYuv(RgbBlack());
+  EXPECT_YUV_NEAR(yuv709To601(yuv_black), YuvBlack());
+
+  Color yuv_white = srgbRgbToYuv(RgbWhite());
+  EXPECT_YUV_NEAR(yuv709To601(yuv_white), YuvWhite());
+
+  Color yuv_r = srgbRgbToYuv(RgbRed());
+  EXPECT_YUV_NEAR(yuv709To601(yuv_r), P3YuvRed());
+
+  Color yuv_g = srgbRgbToYuv(RgbGreen());
+  EXPECT_YUV_NEAR(yuv709To601(yuv_g), P3YuvGreen());
+
+  Color yuv_b = srgbRgbToYuv(RgbBlue());
+  EXPECT_YUV_NEAR(yuv709To601(yuv_b), P3YuvBlue());
+}
+
+TEST_F(GainMapMathTest, Bt709ToBt2100YuvConversion) {
+  Color yuv_black = srgbRgbToYuv(RgbBlack());
+  EXPECT_YUV_NEAR(yuv709To2100(yuv_black), YuvBlack());
+
+  Color yuv_white = srgbRgbToYuv(RgbWhite());
+  EXPECT_YUV_NEAR(yuv709To2100(yuv_white), YuvWhite());
+
+  Color yuv_r = srgbRgbToYuv(RgbRed());
+  EXPECT_YUV_NEAR(yuv709To2100(yuv_r), Bt2100YuvRed());
+
+  Color yuv_g = srgbRgbToYuv(RgbGreen());
+  EXPECT_YUV_NEAR(yuv709To2100(yuv_g), Bt2100YuvGreen());
+
+  Color yuv_b = srgbRgbToYuv(RgbBlue());
+  EXPECT_YUV_NEAR(yuv709To2100(yuv_b), Bt2100YuvBlue());
+}
+
+TEST_F(GainMapMathTest, Bt601ToBt709YuvConversion) {
+  Color yuv_black = p3RgbToYuv(RgbBlack());
+  EXPECT_YUV_NEAR(yuv601To709(yuv_black), YuvBlack());
+
+  Color yuv_white = p3RgbToYuv(RgbWhite());
+  EXPECT_YUV_NEAR(yuv601To709(yuv_white), YuvWhite());
+
+  Color yuv_r = p3RgbToYuv(RgbRed());
+  EXPECT_YUV_NEAR(yuv601To709(yuv_r), SrgbYuvRed());
+
+  Color yuv_g = p3RgbToYuv(RgbGreen());
+  EXPECT_YUV_NEAR(yuv601To709(yuv_g), SrgbYuvGreen());
+
+  Color yuv_b = p3RgbToYuv(RgbBlue());
+  EXPECT_YUV_NEAR(yuv601To709(yuv_b), SrgbYuvBlue());
+}
+
+TEST_F(GainMapMathTest, Bt601ToBt2100YuvConversion) {
+  Color yuv_black = p3RgbToYuv(RgbBlack());
+  EXPECT_YUV_NEAR(yuv601To2100(yuv_black), YuvBlack());
+
+  Color yuv_white = p3RgbToYuv(RgbWhite());
+  EXPECT_YUV_NEAR(yuv601To2100(yuv_white), YuvWhite());
+
+  Color yuv_r = p3RgbToYuv(RgbRed());
+  EXPECT_YUV_NEAR(yuv601To2100(yuv_r), Bt2100YuvRed());
+
+  Color yuv_g = p3RgbToYuv(RgbGreen());
+  EXPECT_YUV_NEAR(yuv601To2100(yuv_g), Bt2100YuvGreen());
+
+  Color yuv_b = p3RgbToYuv(RgbBlue());
+  EXPECT_YUV_NEAR(yuv601To2100(yuv_b), Bt2100YuvBlue());
+}
+
+TEST_F(GainMapMathTest, Bt2100ToBt709YuvConversion) {
+  Color yuv_black = bt2100RgbToYuv(RgbBlack());
+  EXPECT_YUV_NEAR(yuv2100To709(yuv_black), YuvBlack());
+
+  Color yuv_white = bt2100RgbToYuv(RgbWhite());
+  EXPECT_YUV_NEAR(yuv2100To709(yuv_white), YuvWhite());
+
+  Color yuv_r = bt2100RgbToYuv(RgbRed());
+  EXPECT_YUV_NEAR(yuv2100To709(yuv_r), SrgbYuvRed());
+
+  Color yuv_g = bt2100RgbToYuv(RgbGreen());
+  EXPECT_YUV_NEAR(yuv2100To709(yuv_g), SrgbYuvGreen());
+
+  Color yuv_b = bt2100RgbToYuv(RgbBlue());
+  EXPECT_YUV_NEAR(yuv2100To709(yuv_b), SrgbYuvBlue());
+}
+
+TEST_F(GainMapMathTest, Bt2100ToBt601YuvConversion) {
+  Color yuv_black = bt2100RgbToYuv(RgbBlack());
+  EXPECT_YUV_NEAR(yuv2100To601(yuv_black), YuvBlack());
+
+  Color yuv_white = bt2100RgbToYuv(RgbWhite());
+  EXPECT_YUV_NEAR(yuv2100To601(yuv_white), YuvWhite());
+
+  Color yuv_r = bt2100RgbToYuv(RgbRed());
+  EXPECT_YUV_NEAR(yuv2100To601(yuv_r), P3YuvRed());
+
+  Color yuv_g = bt2100RgbToYuv(RgbGreen());
+  EXPECT_YUV_NEAR(yuv2100To601(yuv_g), P3YuvGreen());
+
+  Color yuv_b = bt2100RgbToYuv(RgbBlue());
+  EXPECT_YUV_NEAR(yuv2100To601(yuv_b), P3YuvBlue());
+}
+
+TEST_F(GainMapMathTest, TransformYuv420) {
+  ColorTransformFn transforms[] = { yuv709To601, yuv709To2100, yuv601To709, yuv601To2100,
+                                    yuv2100To709, yuv2100To601 };
+  for (const ColorTransformFn& transform : transforms) {
+    jpegr_uncompressed_struct input = Yuv420Image();
+
+    size_t out_buf_size = input.width * input.height * 3 / 2;
+    std::unique_ptr<uint8_t[]> out_buf = std::make_unique<uint8_t[]>(out_buf_size);
+    memcpy(out_buf.get(), input.data, out_buf_size);
+    jpegr_uncompressed_struct output = Yuv420Image();
+    output.data = out_buf.get();
+
+    transformYuv420(&output, 1, 1, transform);
+
+    for (size_t y = 0; y < 4; ++y) {
+      for (size_t x = 0; x < 4; ++x) {
+        // Skip the last chroma sample, which we modified above
+        if (x >= 2 && y >= 2) {
+          continue;
+        }
+
+        // All other pixels should remain unchanged
+        EXPECT_YUV_EQ(getYuv420Pixel(&input, x, y), getYuv420Pixel(&output, x, y));
+      }
+    }
+
+    // modified pixels should be updated as intended by the transformYuv420 algorithm
+    Color in1 = getYuv420Pixel(&input,   2, 2);
+    Color in2 = getYuv420Pixel(&input,   3, 2);
+    Color in3 = getYuv420Pixel(&input,   2, 3);
+    Color in4 = getYuv420Pixel(&input,   3, 3);
+    Color out1 = getYuv420Pixel(&output, 2, 2);
+    Color out2 = getYuv420Pixel(&output, 3, 2);
+    Color out3 = getYuv420Pixel(&output, 2, 3);
+    Color out4 = getYuv420Pixel(&output, 3, 3);
+
+    EXPECT_NEAR(transform(in1).y, out1.y, YuvConversionEpsilon());
+    EXPECT_NEAR(transform(in2).y, out2.y, YuvConversionEpsilon());
+    EXPECT_NEAR(transform(in3).y, out3.y, YuvConversionEpsilon());
+    EXPECT_NEAR(transform(in4).y, out4.y, YuvConversionEpsilon());
+
+    Color expect_uv = (transform(in1) + transform(in2) + transform(in3) + transform(in4)) / 4.0f;
+
+    EXPECT_NEAR(expect_uv.u, out1.u, YuvConversionEpsilon());
+    EXPECT_NEAR(expect_uv.u, out2.u, YuvConversionEpsilon());
+    EXPECT_NEAR(expect_uv.u, out3.u, YuvConversionEpsilon());
+    EXPECT_NEAR(expect_uv.u, out4.u, YuvConversionEpsilon());
+
+    EXPECT_NEAR(expect_uv.v, out1.v, YuvConversionEpsilon());
+    EXPECT_NEAR(expect_uv.v, out2.v, YuvConversionEpsilon());
+    EXPECT_NEAR(expect_uv.v, out3.v, YuvConversionEpsilon());
+    EXPECT_NEAR(expect_uv.v, out4.v, YuvConversionEpsilon());
+  }
 }
 
 TEST_F(GainMapMathTest, HlgOetf) {
@@ -693,7 +912,7 @@ TEST_F(GainMapMathTest, ColorConversionLookup) {
 
 TEST_F(GainMapMathTest, EncodeGain) {
   ultrahdr_metadata_struct metadata = { .maxContentBoost = 4.0f,
-                                     .minContentBoost = 1.0f / 4.0f };
+                                        .minContentBoost = 1.0f / 4.0f };
 
   EXPECT_EQ(encodeGain(0.0f, 0.0f, &metadata), 127);
   EXPECT_EQ(encodeGain(0.0f, 1.0f, &metadata), 127);
@@ -751,7 +970,7 @@ TEST_F(GainMapMathTest, EncodeGain) {
 
 TEST_F(GainMapMathTest, ApplyGain) {
   ultrahdr_metadata_struct metadata = { .maxContentBoost = 4.0f,
-                                     .minContentBoost = 1.0f / 4.0f };
+                                        .minContentBoost = 1.0f / 4.0f };
   float displayBoost = metadata.maxContentBoost;
 
   EXPECT_RGB_NEAR(applyGain(RgbBlack(), 0.0f, &metadata), RgbBlack());

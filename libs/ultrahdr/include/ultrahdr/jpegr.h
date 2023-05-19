@@ -125,7 +125,7 @@ public:
      *
      * Generate gain map from the HDR and SDR inputs, compress SDR YUV to 8-bit JPEG and append
      * the gain map to the end of the compressed JPEG. HDR and SDR inputs must be the same
-     * resolution.
+     * resolution. SDR input is assumed to use the sRGB transfer function.
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param hdr_tf transfer function of the HDR image
@@ -152,7 +152,9 @@ public:
      * This method requires HAL Hardware JPEG encoder.
      *
      * Generate gain map from the HDR and SDR inputs, append the gain map to the end of the
-     * compressed JPEG. HDR and SDR inputs must be the same resolution and color space.
+     * compressed JPEG. Adds an ICC profile if one isn't present in the input JPEG image. HDR and
+     * SDR inputs must be the same resolution and color space. SDR image is assumed to use the sRGB
+     * transfer function.
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      *                                   Note: the SDR image must be the decoded version of the JPEG
@@ -178,8 +180,9 @@ public:
      * This method requires HAL Hardware JPEG encoder.
      *
      * Decode the compressed 8-bit JPEG image to YUV SDR, generate gain map from the HDR input
-     * and the decoded SDR result, append the gain map to the end of the compressed JPEG. HDR
-     * and SDR inputs must be the same resolution.
+     * and the decoded SDR result, append the gain map to the end of the compressed JPEG. Adds an
+     * ICC profile if one isn't present in the input JPEG image. HDR and SDR inputs must be the same
+     * resolution. JPEG image is assumed to use the sRGB transfer function.
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param hdr_tf transfer function of the HDR image
@@ -198,7 +201,8 @@ public:
      * Encode API-4
      * Assemble JPEGR image from SDR JPEG and gainmap JPEG.
      *
-     * Assemble the primary JPEG image, the gain map and the metadata to JPEG/R format.
+     * Assemble the primary JPEG image, the gain map and the metadata to JPEG/R format. Adds an ICC
+     * profile if one isn't present in the input JPEG image.
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param compressed_gainmap compressed 8-bit JPEG single channel image
      * @param metadata metadata to be written in XMP of the primary jpeg
@@ -216,6 +220,9 @@ public:
     /*
      * Decode API
      * Decompress JPEGR image.
+     *
+     * This method assumes that the JPEGR image contains an ICC profile with primaries that match
+     * those of a color gamut that this library is aware of; Bt.709, Display-P3, or Bt.2100.
      *
      * @param compressed_jpegr_image compressed JPEGR image.
      * @param dest destination of the uncompressed JPEGR image.
@@ -270,26 +277,30 @@ protected:
     /*
      * This method is called in the encoding pipeline. It will take the uncompressed 8-bit and
      * 10-bit yuv images as input, and calculate the uncompressed gain map. The input images
-     * must be the same resolution.
+     * must be the same resolution. The SDR input is assumed to use the sRGB transfer function.
      *
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param hdr_tf transfer function of the HDR image
      * @param dest gain map; caller responsible for memory of data
      * @param metadata max_content_boost is filled in
+     * @param sdr_is_601 if true, then use BT.601 decoding of YUV regardless of SDR image gamut
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t generateGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                              jr_uncompressed_ptr uncompressed_p010_image,
                              ultrahdr_transfer_function hdr_tf,
                              ultrahdr_metadata_ptr metadata,
-                             jr_uncompressed_ptr dest);
+                             jr_uncompressed_ptr dest,
+                             bool sdr_is_601 = false);
 
     /*
      * This method is called in the decoding pipeline. It will take the uncompressed (decoded)
      * 8-bit yuv image, the uncompressed (decoded) gain map, and extracted JPEG/R metadata as
      * input, and calculate the 10-bit recovered image. The recovered output image is the same
      * color gamut as the SDR image, with HLG transfer function, and is in RGBA1010102 data format.
+     * The SDR image is assumed to use the sRGB transfer function. The SDR image is also assumed to
+     * be a decoded JPEG for the purpose of YUV interpration.
      *
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
      * @param uncompressed_gain_map uncompressed gain map
@@ -353,6 +364,8 @@ private:
      * @param compressed_jpeg_image compressed 8-bit JPEG image
      * @param compress_gain_map compressed recover map
      * @param (nullable) exif EXIF package
+     * @param (nullable) icc ICC package
+     * @param icc_size length in bytes of ICC package
      * @param metadata JPEG/R metadata to encode in XMP of the jpeg
      * @param dest compressed JPEGR image
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
@@ -360,6 +373,7 @@ private:
     status_t appendGainMap(jr_compressed_ptr compressed_jpeg_image,
                            jr_compressed_ptr compressed_gain_map,
                            jr_exif_ptr exif,
+                           void* icc, size_t icc_size,
                            ultrahdr_metadata_ptr metadata,
                            jr_compressed_ptr dest);
 
@@ -372,6 +386,22 @@ private:
      */
     status_t toneMap(jr_uncompressed_ptr src,
                      jr_uncompressed_ptr dest);
+
+    /*
+     * This method will convert a YUV420 image from one YUV encoding to another in-place (eg.
+     * Bt.709 to Bt.601 YUV encoding).
+     *
+     * src_encoding and dest_encoding indicate the encoding via the YUV conversion defined for that
+     * gamut. P3 indicates Rec.601, since this is how DataSpace encodes Display-P3 YUV data.
+     *
+     * @param image the YUV420 image to convert
+     * @param src_encoding input YUV encoding
+     * @param dest_encoding output YUV encoding
+     * @return NO_ERROR if calculation succeeds, error code if error occurs.
+     */
+    status_t convertYuv(jr_uncompressed_ptr image,
+                        ultrahdr_color_gamut src_encoding,
+                        ultrahdr_color_gamut dest_encoding);
 
     /*
      * This method will check the validity of the input arguments.
