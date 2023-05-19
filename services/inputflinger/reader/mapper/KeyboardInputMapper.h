@@ -23,9 +23,10 @@ namespace android {
 
 class KeyboardInputMapper : public InputMapper {
 public:
-    KeyboardInputMapper(InputDeviceContext& deviceContext,
-                        const InputReaderConfiguration& readerConfig, uint32_t source,
-                        int32_t keyboardType);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     ~KeyboardInputMapper() override = default;
 
     uint32_t getSources() const override;
@@ -82,6 +83,9 @@ private:
         bool doNotWakeByDefault{};
     } mParameters{};
 
+    KeyboardInputMapper(InputDeviceContext& deviceContext,
+                        const InputReaderConfiguration& readerConfig, uint32_t source,
+                        int32_t keyboardType);
     void configureParameters();
     void dumpParameters(std::string& dump) const;
 
