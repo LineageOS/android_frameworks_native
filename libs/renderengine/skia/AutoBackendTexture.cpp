@@ -24,6 +24,7 @@
 #include <include/gpu/ganesh/SkImageGanesh.h>
 #include <include/gpu/ganesh/SkSurfaceGanesh.h>
 
+#include <android/hardware_buffer.h>
 #include "ColorSpaces.h"
 #include "log/log_main.h"
 #include "utils/Trace.h"
