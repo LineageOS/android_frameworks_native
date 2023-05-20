@@ -7046,9 +7046,9 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     }
 
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize,
-                                         ui::Dataspace::UNKNOWN, args.useIdentityTransform,
-                                         args.hintForSeamlessTransition, args.captureSecureLayers);
+        return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize, args.dataspace,
+                                         args.useIdentityTransform, args.hintForSeamlessTransition,
+                                         args.captureSecureLayers);
     });
 
     GetLayerSnapshotsFunction getLayerSnapshots;
