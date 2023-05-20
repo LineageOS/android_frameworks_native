@@ -373,14 +373,41 @@ private:
                      jr_uncompressed_ptr dest);
 
     /*
-     * This method will check the validity of the input images.
+     * This method will check the validity of the input arguments.
      *
      * @param uncompressed_p010_image uncompressed HDR image in P010 color format
      * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
-     * @return NO_ERROR if the input images are valid, error code is not valid.
+     * @param hdr_tf transfer function of the HDR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
+     * @return NO_ERROR if the input args are valid, error code is not valid.
      */
-    status_t areInputImagesValid(jr_uncompressed_ptr uncompressed_p010_image,
-                                 jr_uncompressed_ptr uncompressed_yuv_420_image);
+     status_t areInputArgumentsValid(jr_uncompressed_ptr uncompressed_p010_image,
+                                     jr_uncompressed_ptr uncompressed_yuv_420_image,
+                                     ultrahdr_transfer_function hdr_tf,
+                                     jr_compressed_ptr dest);
+
+    /*
+     * This method will check the validity of the input arguments.
+     *
+     * @param uncompressed_p010_image uncompressed HDR image in P010 color format
+     * @param uncompressed_yuv_420_image uncompressed SDR image in YUV_420 color format
+     * @param hdr_tf transfer function of the HDR image
+     * @param dest destination of the compressed JPEGR image. Please note that {@code maxLength}
+     *             represents the maximum available size of the desitination buffer, and it must be
+     *             set before calling this method. If the encoded JPEGR size exceeds
+     *             {@code maxLength}, this method will return {@code ERROR_JPEGR_BUFFER_TOO_SMALL}.
+     * @param quality target quality of the JPEG encoding, must be in range of 0-100 where 100 is
+     *                the highest quality
+     * @return NO_ERROR if the input args are valid, error code is not valid.
+     */
+     status_t areInputArgumentsValid(jr_uncompressed_ptr uncompressed_p010_image,
+                                     jr_uncompressed_ptr uncompressed_yuv_420_image,
+                                     ultrahdr_transfer_function hdr_tf,
+                                     jr_compressed_ptr dest,
+                                     int quality);
 };
 
 } // namespace android::ultrahdr

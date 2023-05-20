@@ -71,6 +71,7 @@ cc_test {
         ":libsurfaceflinger_sources",
         "libsurfaceflinger_unittest_main.cpp",
         "ActiveDisplayRotationFlagsTest.cpp",
+        "BackgroundExecutorTest.cpp",
         "CompositionTest.cpp",
         "DisplayIdGeneratorTest.cpp",
         "DisplayTransactionTest.cpp",

@@ -20,6 +20,7 @@
  * Native input manager.
  */
 
+#include "InputDeviceMetricsCollector.h"
 #include "InputProcessor.h"
 #include "InputReaderBase.h"
 #include "include/UnwantedInteractionBlockerInterface.h"
@@ -82,7 +83,7 @@ public:
     /* Gets the input reader. */
     virtual InputReaderInterface& getReader() = 0;
 
-    /* Gets the input processor */
+    /* Gets the input processor. */
     virtual InputProcessorInterface& getProcessor() = 0;
 
     /* Gets the input dispatcher. */
@@ -123,6 +124,8 @@ private:
     std::unique_ptr<UnwantedInteractionBlockerInterface> mBlocker;
 
     std::unique_ptr<InputProcessorInterface> mProcessor;
+
+    std::unique_ptr<InputDeviceMetricsCollectorInterface> mCollector;
 
     std::unique_ptr<InputDispatcherInterface> mDispatcher;
 };
