@@ -12,6 +12,7 @@ cc_defaults {
     defaults: [
         "android.hardware.graphics.composer3-ndk_shared",
         "librenderengine_deps",
+        "libtimestats_deps",
         "surfaceflinger_defaults",
     ],
     cflags: [
@@ -30,18 +31,18 @@ cc_defaults {
         "libbase",
         "libcutils",
         "libgui",
-        "liblayers_proto",
         "liblog",
         "libnativewindow",
         "libprotobuf-cpp-lite",
         "libSurfaceFlingerProp",
-        "libtimestats",
         "libui",
         "libutils",
     ],
     static_libs: [
+        "liblayers_proto",
         "libmath",
         "librenderengine",
+        "libtimestats",
         "libtonemap",
         "libaidlcommonsupport",
         "libprocessgroup",
