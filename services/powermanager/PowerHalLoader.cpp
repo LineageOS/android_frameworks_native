@@ -16,10 +16,11 @@
 
 #define LOG_TAG "PowerHalLoader"
 
+#include <aidl/android/hardware/power/IPower.h>
+#include <android/binder_manager.h>
 #include <android/hardware/power/1.1/IPower.h>
 #include <android/hardware/power/1.2/IPower.h>
 #include <android/hardware/power/1.3/IPower.h>
-#include <android/hardware/power/IPower.h>
 #include <binder/IServiceManager.h>
 #include <hardware/power.h>
 #include <hardware_legacy/power.h>
@@ -54,7 +55,7 @@ sp<T> loadHal(bool& exists, sp<T>& hal, F& loadFn, const char* halName) {
 // -------------------------------------------------------------------------------------------------
 
 std::mutex PowerHalLoader::gHalMutex;
-sp<IPower> PowerHalLoader::gHalAidl = nullptr;
+std::shared_ptr<aidl::android::hardware::power::IPower> PowerHalLoader::gHalAidl = nullptr;
 sp<V1_0::IPower> PowerHalLoader::gHalHidlV1_0 = nullptr;
 sp<V1_1::IPower> PowerHalLoader::gHalHidlV1_1 = nullptr;
 sp<V1_2::IPower> PowerHalLoader::gHalHidlV1_2 = nullptr;
@@ -69,11 +70,30 @@ void PowerHalLoader::unloadAll() {
     gHalHidlV1_3 = nullptr;
 }
 
-sp<IPower> PowerHalLoader::loadAidl() {
+std::shared_ptr<aidl::android::hardware::power::IPower> PowerHalLoader::loadAidl() {
     std::lock_guard<std::mutex> lock(gHalMutex);
     static bool gHalExists = true;
-    static auto loadFn = []() { return waitForVintfService<IPower>(); };
-    return loadHal<IPower>(gHalExists, gHalAidl, loadFn, "AIDL");
+    if (!gHalExists) {
+        return nullptr;
+    }
+    if (gHalAidl) {
+        return gHalAidl;
+    }
+    auto aidlServiceName =
+            std::string(aidl::android::hardware::power::IPower::descriptor) + "/default";
+    if (!AServiceManager_isDeclared(aidlServiceName.c_str())) {
+        gHalExists = false;
+        return nullptr;
+    }
+    gHalAidl = aidl::android::hardware::power::IPower::fromBinder(
+            ndk::SpAIBinder(AServiceManager_waitForService(aidlServiceName.c_str())));
+    if (gHalAidl) {
+        ALOGI("Successfully connected to Power HAL AIDL service.");
+    } else {
+        ALOGI("Power HAL AIDL service not available.");
+        gHalExists = false;
+    }
+    return gHalAidl;
 }
 
 sp<V1_0::IPower> PowerHalLoader::loadHidlV1_0() {

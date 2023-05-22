@@ -159,7 +159,7 @@ cc_defaults {
         "android.hardware.power@1.1",
         "android.hardware.power@1.2",
         "android.hardware.power@1.3",
-        "android.hardware.power-V4-cpp",
+        "android.hardware.power-V4-ndk",
         "libaidlcommonsupport",
         "libcompositionengine_mocks",
         "libcompositionengine",

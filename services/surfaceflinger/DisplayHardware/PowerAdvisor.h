@@ -25,7 +25,7 @@
 #include <ui/FenceTime.h>
 #include <utils/Mutex.h>
 
-#include <android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/IPower.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <powermanager/PowerHalController.h>
 #include <scheduler/Time.h>
@@ -245,13 +245,14 @@ private:
     bool mHintSessionRunning = false;
 
     std::mutex mHintSessionMutex;
-    sp<hardware::power::IPowerHintSession> mHintSession GUARDED_BY(mHintSessionMutex) = nullptr;
+    std::shared_ptr<aidl::android::hardware::power::IPowerHintSession> mHintSession
+            GUARDED_BY(mHintSessionMutex) = nullptr;
 
     // Initialize to true so we try to call, to check if it's supported
     bool mHasExpensiveRendering = true;
     bool mHasDisplayUpdateImminent = true;
     // Queue of actual durations saved to report
-    std::vector<hardware::power::WorkDuration> mHintSessionQueue;
+    std::vector<aidl::android::hardware::power::WorkDuration> mHintSessionQueue;
     // The latest values we have received for target and actual
     Duration mTargetDuration = kDefaultTargetDuration;
     std::optional<Duration> mActualDuration;

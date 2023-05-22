@@ -47,7 +47,7 @@ cc_defaults {
         "android.hardware.graphics.composer@2.2",
         "android.hardware.graphics.composer@2.3",
         "android.hardware.graphics.composer@2.4",
-        "android.hardware.power-V4-cpp",
+        "android.hardware.power-V4-ndk",
         "libbase",
         "libbinder",
         "libbinder_ndk",

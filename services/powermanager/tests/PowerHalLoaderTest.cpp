@@ -16,9 +16,8 @@
 
 #define LOG_TAG "PowerHalLoaderTest"
 
-#include <android-base/logging.h>
+#include <aidl/android/hardware/power/IPower.h>
 #include <android/hardware/power/1.1/IPower.h>
-#include <android/hardware/power/IPower.h>
 #include <gtest/gtest.h>
 #include <powermanager/PowerHalLoader.h>
 
@@ -28,7 +27,7 @@ using IPowerV1_0 = android::hardware::power::V1_0::IPower;
 using IPowerV1_1 = android::hardware::power::V1_1::IPower;
 using IPowerV1_2 = android::hardware::power::V1_2::IPower;
 using IPowerV1_3 = android::hardware::power::V1_3::IPower;
-using IPowerAidl = android::hardware::power::IPower;
+using IPowerAidl = aidl::android::hardware::power::IPower;
 
 using namespace android;
 using namespace android::power;
@@ -37,30 +36,30 @@ using namespace testing;
 // -------------------------------------------------------------------------------------------------
 
 template <typename T>
-sp<T> loadHal();
+T loadHal();
 
 template <>
-sp<IPowerAidl> loadHal<IPowerAidl>() {
+std::shared_ptr<IPowerAidl> loadHal<std::shared_ptr<IPowerAidl>>() {
     return PowerHalLoader::loadAidl();
 }
 
 template <>
-sp<IPowerV1_0> loadHal<IPowerV1_0>() {
+sp<IPowerV1_0> loadHal<sp<IPowerV1_0>>() {
     return PowerHalLoader::loadHidlV1_0();
 }
 
 template <>
-sp<IPowerV1_1> loadHal<IPowerV1_1>() {
+sp<IPowerV1_1> loadHal<sp<IPowerV1_1>>() {
     return PowerHalLoader::loadHidlV1_1();
 }
 
 template <>
-sp<IPowerV1_2> loadHal<IPowerV1_2>() {
+sp<IPowerV1_2> loadHal<sp<IPowerV1_2>>() {
     return PowerHalLoader::loadHidlV1_2();
 }
 
 template <>
-sp<IPowerV1_3> loadHal<IPowerV1_3>() {
+sp<IPowerV1_3> loadHal<sp<IPowerV1_3>>() {
     return PowerHalLoader::loadHidlV1_3();
 }
 
@@ -69,46 +68,47 @@ sp<IPowerV1_3> loadHal<IPowerV1_3>() {
 template <typename T>
 class PowerHalLoaderTest : public Test {
 public:
-    sp<T> load() { return ::loadHal<T>(); }
+    T load() { return ::loadHal<T>(); }
     void unload() { PowerHalLoader::unloadAll(); }
 };
 
 // -------------------------------------------------------------------------------------------------
-
-typedef ::testing::Types<IPowerAidl, IPowerV1_0, IPowerV1_1, IPowerV1_2, IPowerV1_3> PowerHalTypes;
+typedef ::testing::Types<std::shared_ptr<IPowerAidl>, sp<IPowerV1_0>, sp<IPowerV1_1>,
+                         sp<IPowerV1_2>, sp<IPowerV1_3>>
+        PowerHalTypes;
 TYPED_TEST_SUITE(PowerHalLoaderTest, PowerHalTypes);
 
 TYPED_TEST(PowerHalLoaderTest, TestLoadsOnlyOnce) {
-    sp<TypeParam> firstHal = this->load();
+    TypeParam firstHal = this->load();
     if (firstHal == nullptr) {
         ALOGE("Power HAL not available. Skipping test.");
         return;
     }
-    sp<TypeParam> secondHal = this->load();
+    TypeParam secondHal = this->load();
     ASSERT_EQ(firstHal, secondHal);
 }
 
 TYPED_TEST(PowerHalLoaderTest, TestUnload) {
-    sp<TypeParam> firstHal = this->load();
+    TypeParam firstHal = this->load();
     if (firstHal == nullptr) {
         ALOGE("Power HAL not available. Skipping test.");
         return;
     }
     this->unload();
-    sp<TypeParam> secondHal = this->load();
+    TypeParam secondHal = this->load();
     ASSERT_NE(secondHal, nullptr);
     ASSERT_NE(firstHal, secondHal);
 }
 
 TYPED_TEST(PowerHalLoaderTest, TestLoadMultiThreadLoadsOnlyOnce) {
-    std::vector<std::future<sp<TypeParam>>> futures;
+    std::vector<std::future<TypeParam>> futures;
     for (int i = 0; i < 10; i++) {
         futures.push_back(
                 std::async(std::launch::async, &PowerHalLoaderTest<TypeParam>::load, this));
     }
 
     futures[0].wait();
-    sp<TypeParam> firstHal = futures[0].get();
+    TypeParam firstHal = futures[0].get();
     if (firstHal == nullptr) {
         ALOGE("Power HAL not available. Skipping test.");
         return;
@@ -116,7 +116,7 @@ TYPED_TEST(PowerHalLoaderTest, TestLoadMultiThreadLoadsOnlyOnce) {
 
     for (int i = 1; i < 10; i++) {
         futures[i].wait();
-        sp<TypeParam> currentHal = futures[i].get();
+        TypeParam currentHal = futures[i].get();
         ASSERT_EQ(firstHal, currentHal);
     }
 }

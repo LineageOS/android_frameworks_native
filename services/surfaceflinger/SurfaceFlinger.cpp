@@ -24,6 +24,7 @@
 
 #include "SurfaceFlinger.h"
 
+#include <aidl/android/hardware/power/Boost.h>
 #include <android-base/parseint.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
@@ -34,7 +35,6 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
-#include <android/hardware/power/Boost.h>
 #include <android/native_window.h>
 #include <android/os/IInputFlinger.h>
 #include <binder/IPCThreadState.h>
@@ -1999,7 +1999,7 @@ status_t SurfaceFlinger::removeHdrLayerInfoListener(
 }
 
 status_t SurfaceFlinger::notifyPowerBoost(int32_t boostId) {
-    using hardware::power::Boost;
+    using aidl::android::hardware::power::Boost;
     Boost powerBoost = static_cast<Boost>(boostId);
 
     if (powerBoost == Boost::INTERACTION) {
