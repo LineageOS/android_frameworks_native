@@ -178,6 +178,597 @@ TEST_F(JpegRTest, build) {
   jpegRCodec.decodeJPEGR(nullptr, nullptr);
 }
 
+/* Test Encode API-0 invalid arguments */
+TEST_F(JpegRTest, encodeAPI0ForInvalidArgs) {
+  int ret;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = 16 * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+
+  JpegR jpegRCodec;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  mRawP010ImageWithStride.data = malloc(16);
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+
+  // test quality factor
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      -1, nullptr)) << "fail, API allows bad jpeg quality factor";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      101, nullptr)) << "fail, API allows bad jpeg quality factor";
+
+  // test hdr transfer function
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_UNSPECIFIED, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad hdr transfer function";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride,
+      static_cast<ultrahdr_transfer_function>(ultrahdr_transfer_function::ULTRAHDR_TF_MAX + 1),
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad hdr transfer function";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride,
+      static_cast<ultrahdr_transfer_function>(-10),
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad hdr transfer function";
+
+  // test dest
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, nullptr,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows nullptr dest";
+
+  // test p010 input
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      nullptr, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows nullptr p010 image";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_UNSPECIFIED;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad p010 color gamut";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = static_cast<ultrahdr_color_gamut>(
+      ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_MAX + 1);
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad p010 color gamut";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH - 1;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad image width";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT - 1;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad image height";
+
+  mRawP010ImageWithStride.width = 0;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad image width";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = 0;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad image height";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_WIDTH - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad luma stride";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.chroma_data = mRawP010ImageWithStride.data;
+  mRawP010ImageWithStride.chroma_stride = TEST_IMAGE_WIDTH - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad chroma stride";
+
+  free(jpegR.data);
+}
+
+/* Test Encode API-1 invalid arguments */
+TEST_F(JpegRTest, encodeAPI1ForInvalidArgs) {
+  int ret;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = 16 * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+
+  JpegR jpegRCodec;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  mRawP010ImageWithStride.data = malloc(16);
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  mRawYuv420Image.data = malloc(16);
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709;
+
+  // test quality factor
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, -1, nullptr)) << "fail, API allows bad jpeg quality factor";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, 101, nullptr)) << "fail, API allows bad jpeg quality factor";
+
+  // test hdr transfer function
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image,
+      ultrahdr_transfer_function::ULTRAHDR_TF_UNSPECIFIED, &jpegR, DEFAULT_JPEG_QUALITY,
+      nullptr)) << "fail, API allows bad hdr transfer function";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image,
+      static_cast<ultrahdr_transfer_function>(ultrahdr_transfer_function::ULTRAHDR_TF_MAX + 1),
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad hdr transfer function";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image,
+      static_cast<ultrahdr_transfer_function>(-10),
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad hdr transfer function";
+
+  // test dest
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      nullptr, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows nullptr dest";
+
+  // test p010 input
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      nullptr, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows nullptr p010 image";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_UNSPECIFIED;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad p010 color gamut";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = static_cast<ultrahdr_color_gamut>(
+      ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_MAX + 1);
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad p010 color gamut";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH - 1;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad image width";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT - 1;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad image height";
+
+  mRawP010ImageWithStride.width = 0;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad image width";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = 0;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad image height";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_WIDTH - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad luma stride";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.chroma_data = mRawP010ImageWithStride.data;
+  mRawP010ImageWithStride.chroma_stride = TEST_IMAGE_WIDTH - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad chroma stride";
+
+  // test 420 input
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.chroma_data = nullptr;
+  mRawP010ImageWithStride.chroma_stride = 0;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, nullptr, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
+      DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows nullptr for 420 image";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad 420 image width";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH - 2;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad 420 image height";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.luma_stride = TEST_IMAGE_STRIDE;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad luma stride for 420";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.luma_stride = 0;
+  mRawYuv420Image.chroma_data = mRawYuv420Image.data;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows chroma pointer for 420";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.luma_stride = 0;
+  mRawYuv420Image.chroma_data = nullptr;
+  mRawYuv420Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_UNSPECIFIED;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad 420 color gamut";
+
+  mRawYuv420Image.colorGamut = static_cast<ultrahdr_color_gamut>(
+      ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_MAX + 1);
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR, DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad 420 color gamut";
+
+  free(jpegR.data);
+}
+
+/* Test Encode API-2 invalid arguments */
+TEST_F(JpegRTest, encodeAPI2ForInvalidArgs) {
+  int ret;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = 16 * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+
+  JpegR jpegRCodec;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  mRawP010ImageWithStride.data = malloc(16);
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  mRawYuv420Image.data = malloc(16);
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709;
+
+  // test hdr transfer function
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_UNSPECIFIED,
+      &jpegR)) << "fail, API allows bad hdr transfer function";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      static_cast<ultrahdr_transfer_function>(ultrahdr_transfer_function::ULTRAHDR_TF_MAX + 1),
+      &jpegR)) << "fail, API allows bad hdr transfer function";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      static_cast<ultrahdr_transfer_function>(-10),
+      &jpegR)) << "fail, API allows bad hdr transfer function";
+
+  // test dest
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG, nullptr)) << "fail, API allows nullptr dest";
+
+  // test p010 input
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      nullptr, &mRawYuv420Image, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows nullptr p010 image";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_UNSPECIFIED;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad p010 color gamut";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = static_cast<ultrahdr_color_gamut>(
+      ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_MAX + 1);
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad p010 color gamut";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH - 1;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR)) << "fail, API allows bad image width";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT - 1;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR)) << "fail, API allows bad image height";
+
+  mRawP010ImageWithStride.width = 0;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR)) << "fail, API allows bad image width";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = 0;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR)) << "fail, API allows bad image height";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_WIDTH - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR)) << "fail, API allows bad luma stride";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.chroma_data = mRawP010ImageWithStride.data;
+  mRawP010ImageWithStride.chroma_stride = TEST_IMAGE_WIDTH - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad chroma stride";
+
+  // test 420 input
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.chroma_data = nullptr;
+  mRawP010ImageWithStride.chroma_stride = 0;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, nullptr, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows nullptr for 420 image";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad 420 image width";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH - 2;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad 420 image height";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.luma_stride = TEST_IMAGE_STRIDE;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad luma stride for 420";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.luma_stride = 0;
+  mRawYuv420Image.chroma_data = mRawYuv420Image.data;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows chroma pointer for 420";
+
+  mRawYuv420Image.width = TEST_IMAGE_WIDTH;
+  mRawYuv420Image.height = TEST_IMAGE_HEIGHT;
+  mRawYuv420Image.luma_stride = 0;
+  mRawYuv420Image.chroma_data = nullptr;
+  mRawYuv420Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_UNSPECIFIED;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad 420 color gamut";
+
+  mRawYuv420Image.colorGamut = static_cast<ultrahdr_color_gamut>(
+      ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_MAX + 1);
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, &jpegR,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad 420 color gamut";
+
+  // bad compressed image
+  mRawYuv420Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &mRawYuv420Image, nullptr,
+      ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad 420 color gamut";
+
+  free(jpegR.data);
+}
+
+/* Test Encode API-3 invalid arguments */
+TEST_F(JpegRTest, encodeAPI3ForInvalidArgs) {
+  int ret;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = 16 * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+
+  JpegR jpegRCodec;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  mRawP010ImageWithStride.data = malloc(16);
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+
+  // test hdr transfer function
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_UNSPECIFIED,
+      &jpegR)) << "fail, API allows bad hdr transfer function";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR,
+      static_cast<ultrahdr_transfer_function>(ultrahdr_transfer_function::ULTRAHDR_TF_MAX + 1),
+      &jpegR)) << "fail, API allows bad hdr transfer function";
+
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, static_cast<ultrahdr_transfer_function>(-10),
+      &jpegR)) << "fail, API allows bad hdr transfer function";
+
+  // test dest
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      nullptr)) << "fail, API allows nullptr dest";
+
+  // test p010 input
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      nullptr, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows nullptr p010 image";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_UNSPECIFIED;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad p010 color gamut";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = static_cast<ultrahdr_color_gamut>(
+      ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_MAX + 1);
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad p010 color gamut";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH - 1;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad image width";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT - 1;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad image height";
+
+  mRawP010ImageWithStride.width = 0;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad image width";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = 0;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad image height";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_WIDTH - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad luma stride";
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_STRIDE;
+  mRawP010ImageWithStride.chroma_data = mRawP010ImageWithStride.data;
+  mRawP010ImageWithStride.chroma_stride = TEST_IMAGE_WIDTH - 2;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad chroma stride";
+
+  // bad compressed image
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, nullptr, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegR)) << "fail, API allows bad 420 color gamut";
+
+  free(jpegR.data);
+}
+
+/* Test Encode API-4 invalid arguments */
+TEST_F(JpegRTest, encodeAPI4ForInvalidArgs) {
+  int ret;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = 16 * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+
+  JpegR jpegRCodec;
+
+  // test dest
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &jpegR, &jpegR, nullptr, nullptr)) << "fail, API allows nullptr dest";
+
+  // test primary image
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      nullptr, &jpegR, nullptr, &jpegR)) << "fail, API allows nullptr primary image";
+
+  // test gain map
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &jpegR, nullptr, nullptr, &jpegR)) << "fail, API allows nullptr gainmap image";
+
+  free(jpegR.data);
+}
+
 TEST_F(JpegRTest, writeXmpThenRead) {
   ultrahdr_metadata_struct metadata_expected;
   metadata_expected.version = "1.0";
