@@ -611,10 +611,14 @@ typedef struct AHeadingEvent {
  * sensors_event_t
  */
 typedef struct ASensorEvent {
-    int32_t version; /* sizeof(struct ASensorEvent) */
-    int32_t sensor;  /** The sensor that generates this event */
-    int32_t type;    /** Sensor type for the event, such as {@link ASENSOR_TYPE_ACCELEROMETER} */
-    int32_t reserved0; /** do not use */
+    /* sizeof(struct ASensorEvent) */
+    int32_t version;
+    /** The sensor that generates this event */
+    int32_t sensor;
+    /** Sensor type for the event, such as {@link ASENSOR_TYPE_ACCELEROMETER} */
+    int32_t type;
+    /** do not use */
+    int32_t reserved0;
     /**
      * The time in nanoseconds at which the event happened, and its behavior
      * is identical to <a href="/reference/android/hardware/SensorEvent#timestamp">
