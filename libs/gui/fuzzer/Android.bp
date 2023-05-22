@@ -46,7 +46,7 @@ cc_defaults {
         "android.hardware.configstore-utils",
         "android.hardware.graphics.bufferqueue@1.0",
         "android.hardware.graphics.bufferqueue@2.0",
-        "android.hardware.power-V4-cpp",
+        "android.hardware.power-V4-ndk",
         "android.hidl.token@1.0",
         "libSurfaceFlingerProp",
         "libgui",
