@@ -769,6 +769,45 @@ TEST_F(JpegRTest, encodeAPI4ForInvalidArgs) {
   free(jpegR.data);
 }
 
+/* Test Decode API invalid arguments */
+TEST_F(JpegRTest, decodeAPIForInvalidArgs) {
+  int ret;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = 16 * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+
+  // we are not really decoding anything so lets keep allocs to a minimum
+  mRawP010Image.data = malloc(16);
+
+  JpegR jpegRCodec;
+
+  // test jpegr image
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        nullptr, &mRawP010Image)) << "fail, API allows nullptr for jpegr img";
+
+  // test dest image
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        &jpegR, nullptr)) << "fail, API allows nullptr for dest";
+
+  // test max display boost
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        &jpegR, &mRawP010Image, 0.5)) << "fail, API allows invalid max display boost";
+
+  // test output format
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        &jpegR, &mRawP010Image, 0.5, nullptr,
+        static_cast<ultrahdr_output_format>(-1))) << "fail, API allows invalid output format";
+
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        &jpegR, &mRawP010Image, 0.5, nullptr,
+        static_cast<ultrahdr_output_format>(ULTRAHDR_OUTPUT_MAX + 1)))
+        << "fail, API allows invalid output format";
+
+  free(jpegR.data);
+}
+
 TEST_F(JpegRTest, writeXmpThenRead) {
   ultrahdr_metadata_struct metadata_expected;
   metadata_expected.version = "1.0";
