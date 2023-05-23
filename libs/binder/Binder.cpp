@@ -58,15 +58,15 @@ static_assert(sizeof(BBinder) == 20);
 
 // global b/c b/230079120 - consistent symbol table
 #ifdef BINDER_RPC_DEV_SERVERS
-bool kEnableRpcDevServers = true;
+constexpr bool kEnableRpcDevServers = true;
 #else
-bool kEnableRpcDevServers = false;
+constexpr bool kEnableRpcDevServers = false;
 #endif
 
 #ifdef BINDER_ENABLE_RECORDING
-bool kEnableRecording = true;
+constexpr bool kEnableRecording = true;
 #else
-bool kEnableRecording = false;
+constexpr bool kEnableRecording = false;
 #endif
 
 // Log any reply transactions for which the data exceeds this size
