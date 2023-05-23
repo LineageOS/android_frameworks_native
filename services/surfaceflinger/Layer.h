@@ -877,6 +877,7 @@ public:
     // TODO(b/238781169) Remove direct calls to RenderEngine::drawLayers that don't go through
     // CompositionEngine to create a single path for composing layers.
     void updateSnapshot(bool updateGeometry);
+    void updateChildrenSnapshots(bool updateGeometry);
     void updateMetadataSnapshot(const LayerMetadata& parentMetadata);
     void updateRelativeMetadataSnapshot(const LayerMetadata& relativeLayerMetadata,
                                         std::unordered_set<Layer*>& visited);
@@ -1133,8 +1134,6 @@ private:
     }
 
     bool hasSomethingToDraw() const { return hasEffect() || hasBufferOrSidebandStream(); }
-
-    void updateChildrenSnapshots(bool updateGeometry);
 
     // Fills the provided vector with the currently available JankData and removes the processed
     // JankData from the pending list.
