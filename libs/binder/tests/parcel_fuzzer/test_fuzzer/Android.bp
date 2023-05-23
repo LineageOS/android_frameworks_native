@@ -52,4 +52,5 @@ sh_test_host {
     required: [
         "test_service_fuzzer_should_crash",
     ],
+    test_suites: ["general-tests"],
 }
