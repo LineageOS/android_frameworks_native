@@ -116,6 +116,8 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
             mLayer->setChildrenDrawingParent(mLayer);
         }
     }
+    mLayer->updateSnapshot(/*updateGeometry=*/true);
+    mLayer->updateChildrenSnapshots(/*updateGeometry=*/true);
 }
 
 } // namespace android
