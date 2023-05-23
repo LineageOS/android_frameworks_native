@@ -65,6 +65,13 @@ static const char* const kJpegrVersion = "1.0";
 
 // Map is quarter res / sixteenth size
 static const size_t kMapDimensionScaleFactor = 4;
+
+// Gain Map width is (image_width / kMapDimensionScaleFactor). If we were to
+// compress 420 GainMap in jpeg, then we need at least 2 samples. For Grayscale
+// 1 sample is sufficient. We are using 2 here anyways
+static const int kMinWidth = 2 * kMapDimensionScaleFactor;
+static const int kMinHeight = 2 * kMapDimensionScaleFactor;
+
 // JPEG block size.
 // JPEG encoding / decoding will require block based DCT transform 16 x 16 for luma,
 // and 8 x 8 for chroma.
@@ -105,10 +112,10 @@ status_t JpegR::areInputArgumentsValid(jr_uncompressed_ptr uncompressed_p010_ima
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  if (uncompressed_p010_image->width == 0
-          || uncompressed_p010_image->height == 0) {
-    ALOGE("Image dimensions cannot be zero, image dimensions %dx%d",
-          uncompressed_p010_image->width, uncompressed_p010_image->height);
+  if (uncompressed_p010_image->width < kMinWidth
+          || uncompressed_p010_image->height < kMinHeight) {
+    ALOGE("Image dimensions cannot be less than %dx%d, image dimensions %dx%d",
+          kMinWidth, kMinHeight, uncompressed_p010_image->width, uncompressed_p010_image->height);
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
