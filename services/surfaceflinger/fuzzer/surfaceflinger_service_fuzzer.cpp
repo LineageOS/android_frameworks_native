@@ -17,13 +17,15 @@
 #include <fuzzbinder/libbinder_driver.h>
 
 #include "SurfaceFlinger.h"
+#include "SurfaceFlingerConfig.h"
 #include "SurfaceFlingerDefaultFactory.h"
 
 using namespace android;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     DefaultFactory factory;
-    sp<SurfaceFlinger> flinger = sp<SurfaceFlinger>::make(factory);
+    surfaceflinger::Config config = surfaceflinger::Config::makeDefault(&factory);
+    sp<SurfaceFlinger> flinger = sp<SurfaceFlinger>::make(config);
     flinger->init();
 
     sp<SurfaceComposerAIDL> composerAIDL = sp<SurfaceComposerAIDL>::make(flinger);

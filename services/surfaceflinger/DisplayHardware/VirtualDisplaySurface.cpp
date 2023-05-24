@@ -50,7 +50,7 @@ VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc, VirtualDisplayId d
                                              const sp<IGraphicBufferProducer>& sink,
                                              const sp<IGraphicBufferProducer>& bqProducer,
                                              const sp<IGraphicBufferConsumer>& bqConsumer,
-                                             const std::string& name)
+                                             const std::string& name, bool useHwcForRgbToYuv)
       : ConsumerBase(bqConsumer),
         mHwc(hwc),
         mDisplayId(displayId),
@@ -69,7 +69,7 @@ VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc, VirtualDisplayId d
         mOutputFence(Fence::NO_FENCE),
         mFbProducerSlot(BufferQueue::INVALID_BUFFER_SLOT),
         mOutputProducerSlot(BufferQueue::INVALID_BUFFER_SLOT),
-        mForceHwcCopy(SurfaceFlinger::useHwcForRgbToYuv) {
+        mForceHwcCopy(useHwcForRgbToYuv) {
     mSource[SOURCE_SINK] = sink;
     mSource[SOURCE_SCRATCH] = bqProducer;
 

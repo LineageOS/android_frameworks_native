@@ -481,7 +481,8 @@ void DisplayHardwareFuzzer::invokeFrameBufferSurface() {
 
     sp<FramebufferSurface> surface =
             sp<FramebufferSurface>::make(mHwc, mPhysicalDisplayId, bqConsumer,
-                                         getFuzzedSize() /*size*/, getFuzzedSize() /*maxSize*/);
+                                         getFuzzedSize() /*size*/, getFuzzedSize() /*maxSize*/,
+                                         mFdp.PickValueInArray(kMaxFrameBufferAcquiredBuffers));
     surface->beginFrame(mFdp.ConsumeBool());
 
     surface->prepareFrame(mFdp.PickValueInArray(kCompositionTypes));
@@ -515,7 +516,8 @@ void DisplayHardwareFuzzer::invokeVirtualDisplaySurface() {
 
     auto surface =
             sp<VirtualDisplaySurface>::make(mHwc, VirtualDisplayId, sink, bqProducer, bqConsumer,
-                                            mFdp.ConsumeRandomLengthString().c_str() /*name*/);
+                                            mFdp.ConsumeRandomLengthString().c_str() /*name*/,
+                                            mFdp.ConsumeBool() /* useHwcForRgbToYuv */);
 
     surface->beginFrame(mFdp.ConsumeBool());
     surface->prepareFrame(mFdp.PickValueInArray(kCompositionTypes));

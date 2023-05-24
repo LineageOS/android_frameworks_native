@@ -46,6 +46,7 @@
 #include "Scheduler/VsyncModulator.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
+#include "SurfaceFlingerConfig.h"
 #include "SurfaceFlingerDefaultFactory.h"
 #include "ThreadContext.h"
 #include "TimeStats/TimeStats.h"
@@ -149,6 +150,8 @@ static constexpr ui::PixelFormat kPixelFormats[] = {ui::PixelFormat::RGBA_8888,
                                                     ui::PixelFormat::STENCIL_8,
                                                     ui::PixelFormat::YCBCR_P010,
                                                     ui::PixelFormat::HSV_888};
+
+static constexpr int kMaxFrameBufferAcquiredBuffers[] = {2, 3, 4};
 
 inline VsyncId getFuzzedVsyncId(FuzzedDataProvider& fdp) {
     return VsyncId{fdp.ConsumeIntegral<int64_t>()};
@@ -403,6 +406,8 @@ public:
 
     SurfaceFlinger *flinger() { return mFlinger.get(); }
     scheduler::TestableScheduler *scheduler() { return mScheduler; }
+
+    auto& mutableConfig() { return mConfig; }
 
     void initializeDisplays() {
         FTL_FAKE_GUARD(kMainThreadContext, mFlinger->initializeDisplays());
@@ -695,10 +700,6 @@ public:
         mFactory.mCreateNativeWindowSurface = f;
     }
 
-    void setInternalDisplayPrimaries(const ui::DisplayPrimaries &primaries) {
-        memcpy(&mFlinger->mInternalDisplayPrimaries, &primaries, sizeof(ui::DisplayPrimaries));
-    }
-
     static auto &mutableLayerDrawingState(const sp<Layer> &layer) { return layer->mDrawingState; }
 
     auto &mutableStateLock() { return mFlinger->mStateLock; }
@@ -764,13 +765,12 @@ public:
 
     auto calculateMaxAcquiredBufferCount(Fps refreshRate,
                                          std::chrono::nanoseconds presentLatency) const {
-        return SurfaceFlinger::calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
+        return mFlinger->calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
     }
 
     /* Read-write access to private data to set up preconditions and assert
      * post-conditions.
      */
-    auto& mutableSupportsWideColor() { return mFlinger->mSupportsWideColor; }
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
     auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
@@ -794,8 +794,8 @@ private:
     void triggerOnFrameRateOverridesChanged() override {}
 
     surfaceflinger::test::Factory mFactory;
-    sp<SurfaceFlinger> mFlinger =
-            sp<SurfaceFlinger>::make(mFactory, SurfaceFlinger::SkipInitialization);
+    surfaceflinger::Config mConfig = surfaceflinger::Config::makeDefault(&mFactory);
+    sp<SurfaceFlinger> mFlinger = sp<SurfaceFlinger>::make(mConfig);
     scheduler::TestableScheduler *mScheduler = nullptr;
     std::shared_ptr<scheduler::RefreshRateSelector> mRefreshRateSelector;
 };

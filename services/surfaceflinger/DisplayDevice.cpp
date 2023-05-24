@@ -78,18 +78,19 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
                     .setDisplayHeight(ANativeWindow_getHeight(args.nativeWindow.get()))
                     .setNativeWindow(std::move(args.nativeWindow))
                     .setDisplaySurface(std::move(args.displaySurface))
-                    .setMaxTextureCacheSize(
-                            static_cast<size_t>(SurfaceFlinger::maxFrameBufferAcquiredBuffers))
+                    .setMaxTextureCacheSize(static_cast<size_t>(
+                            mFlinger->getConfig().maxFrameBufferAcquiredBuffers))
                     .build());
 
-    if (!mFlinger->mDisableClientCompositionCache &&
-        SurfaceFlinger::maxFrameBufferAcquiredBuffers > 0) {
+    if (!mFlinger->getConfig().disableClientCompositionCache &&
+        mFlinger->getConfig().maxFrameBufferAcquiredBuffers > 0) {
         mCompositionDisplay->createClientCompositionCache(
-                static_cast<uint32_t>(SurfaceFlinger::maxFrameBufferAcquiredBuffers));
+                static_cast<uint32_t>(mFlinger->getConfig().maxFrameBufferAcquiredBuffers));
     }
 
-    mCompositionDisplay->setPredictCompositionStrategy(mFlinger->mPredictCompositionStrategy);
-    mCompositionDisplay->setTreat170mAsSrgb(mFlinger->mTreat170mAsSrgb);
+    mCompositionDisplay->setPredictCompositionStrategy(
+            mFlinger->getConfig().predictCompositionStrategy);
+    mCompositionDisplay->setTreat170mAsSrgb(mFlinger->getConfig().treat170mAsSrgb);
     mCompositionDisplay->createDisplayColorProfile(
             compositionengine::DisplayColorProfileCreationArgsBuilder()
                     .setHasWideColorGamut(args.hasWideColorGamut)
@@ -411,23 +412,22 @@ HdrCapabilities DisplayDevice::getHdrCapabilities() const {
                            capabilities.getDesiredMinLuminance());
 }
 
-void DisplayDevice::enableRefreshRateOverlay(bool enable, bool setByHwc, bool showSpinner,
-                                             bool showRenderRate, bool showInMiddle) {
+void DisplayDevice::enableRefreshRateOverlay(bool enable, bool setByHwc) {
     if (!enable) {
         mRefreshRateOverlay.reset();
         return;
     }
 
     ftl::Flags<RefreshRateOverlay::Features> features;
-    if (showSpinner) {
+    if (mFlinger->getConfig().refreshRateOverlay.showSpinner) {
         features |= RefreshRateOverlay::Features::Spinner;
     }
 
-    if (showRenderRate) {
+    if (mFlinger->getConfig().refreshRateOverlay.showRenderRate) {
         features |= RefreshRateOverlay::Features::RenderRate;
     }
 
-    if (showInMiddle) {
+    if (mFlinger->getConfig().refreshRateOverlay.showInMiddle) {
         features |= RefreshRateOverlay::Features::ShowInMiddle;
     }
 
