@@ -139,6 +139,7 @@ cc_test {
         "VSyncReactorTest.cpp",
         "VsyncConfigurationTest.cpp",
         "VsyncScheduleTest.cpp",
+        "WindowInfosListenerInvokerTest.cpp",
     ],
 }
 
