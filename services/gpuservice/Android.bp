@@ -21,7 +21,13 @@ cc_defaults {
 
 cc_defaults {
     name: "libgpuservice_defaults",
-    defaults: ["gpuservice_defaults"],
+    defaults: [
+        "gpuservice_defaults",
+        "libvkjson_deps",
+        "libgfxstats_deps",
+        "libgpumem_deps",
+        "libgpumemtracer_deps",
+    ],
     cflags: [
         "-DLOG_TAG=\"GpuService\"",
     ],
@@ -29,17 +35,17 @@ cc_defaults {
         "libbase",
         "libbinder",
         "libcutils",
-        "libgfxstats",
-        "libgpumem",
         "libgpuwork",
-        "libgpumemtracer",
         "libgraphicsenv",
         "liblog",
         "libutils",
-        "libvkjson",
     ],
     static_libs: [
+        "libgfxstats",
+        "libgpumem",
+        "libgpumemtracer",
         "libserviceutils",
+        "libvkjson",
     ],
     export_static_lib_headers: [
         "libserviceutils",
@@ -68,7 +74,7 @@ filegroup {
     ],
 }
 
-cc_library_shared {
+cc_library_static {
     name: "libgpuservice",
     defaults: ["libgpuservice_production_defaults"],
     export_include_dirs: ["include"],
@@ -96,14 +102,17 @@ filegroup {
 
 cc_binary {
     name: "gpuservice",
-    defaults: ["libgpuservice_binary"],
+    defaults: [
+        "libgpuservice_binary",
+        "libgpuservice_production_defaults",
+    ],
     init_rc: ["gpuservice.rc"],
     required: [
         "bpfloader",
         "gpuMem.o",
     ],
     srcs: [":gpuservice_binary_sources"],
-    shared_libs: [
+    static_libs: [
         "libgpuservice",
     ],
 }
