@@ -5659,14 +5659,6 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
     } else {
         dump += INDENT "Displays: <none>\n";
     }
-    dump += INDENT "Window Infos:\n";
-    dump += StringPrintf(INDENT2 "vsync id: %" PRId64 "\n", mWindowInfosVsyncId);
-    dump += StringPrintf(INDENT2 "timestamp (ns): %" PRId64 "\n", mWindowInfosTimestamp);
-    dump += "\n";
-    dump += StringPrintf(INDENT2 "max update delay (ns): %" PRId64 "\n", mMaxWindowInfosDelay);
-    dump += StringPrintf(INDENT2 "max update delay vsync id: %" PRId64 "\n",
-                         mMaxWindowInfosDelayVsyncId);
-    dump += "\n";
 
     if (!mGlobalMonitorsByDisplay.empty()) {
         for (const auto& [displayId, monitors] : mGlobalMonitorsByDisplay) {
@@ -6707,15 +6699,6 @@ void InputDispatcher::onWindowInfosChanged(const gui::WindowInfosUpdate& update)
 
         for (const auto& [displayId, handles] : handlesPerDisplay) {
             setInputWindowsLocked(handles, displayId);
-        }
-
-        mWindowInfosVsyncId = update.vsyncId;
-        mWindowInfosTimestamp = update.timestamp;
-
-        int64_t delay = systemTime() - update.timestamp;
-        if (delay > mMaxWindowInfosDelay) {
-            mMaxWindowInfosDelay = delay;
-            mMaxWindowInfosDelayVsyncId = update.vsyncId;
         }
     }
     // Wake up poll loop since it may need to make new input dispatching choices.
