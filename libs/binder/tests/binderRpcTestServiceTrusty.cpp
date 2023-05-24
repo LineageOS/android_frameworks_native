@@ -93,14 +93,15 @@ int main(void) {
         if (!serverInfo.server->setProtocolVersion(serverVersion)) {
             return EXIT_FAILURE;
         }
-        serverInfo.server->setPerSessionRootObject([=](const void* /*addrPtr*/, size_t /*len*/) {
-            auto service = sp<MyBinderRpcTestTrusty>::make();
-            // Assign a unique connection identifier to service->port so
-            // getClientPort returns a unique value per connection
-            service->port = ++gConnectionCounter;
-            service->server = server;
-            return service;
-        });
+        serverInfo.server->setPerSessionRootObject(
+                [=](wp<RpcSession> /*session*/, const void* /*addrPtr*/, size_t /*len*/) {
+                    auto service = sp<MyBinderRpcTestTrusty>::make();
+                    // Assign a unique connection identifier to service->port so
+                    // getClientPort returns a unique value per connection
+                    service->port = ++gConnectionCounter;
+                    service->server = server;
+                    return service;
+                });
 
         servers.push_back(std::move(serverInfo));
     }
