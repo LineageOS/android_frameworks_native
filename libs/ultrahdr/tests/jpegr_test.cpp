@@ -89,6 +89,51 @@ static bool loadFile(const char filename[], void*& result, int* fileLength) {
   return true;
 }
 
+static bool loadP010Image(const char *filename, jr_uncompressed_ptr img,
+                          bool isUVContiguous) {
+  int fd = open(filename, O_CLOEXEC);
+  if (fd < 0) {
+    return false;
+  }
+  const int bpp = 2;
+  int lumaStride = img->luma_stride == 0 ? img->width : img->luma_stride;
+  int lumaSize = bpp * lumaStride * img->height;
+  int chromaSize = bpp * (img->height / 2) *
+                   (isUVContiguous ? lumaStride : img->chroma_stride);
+  img->data = malloc(lumaSize + (isUVContiguous ? chromaSize : 0));
+  if (img->data == nullptr) {
+    ALOGE("loadP010Image(): failed to allocate memory for luma data.");
+    return false;
+  }
+  uint8_t *mem = static_cast<uint8_t *>(img->data);
+  for (int i = 0; i < img->height; i++) {
+    if (read(fd, mem, img->width * bpp) != img->width * bpp) {
+      close(fd);
+      return false;
+    }
+    mem += lumaStride * bpp;
+  }
+  int chromaStride = lumaStride;
+  if (!isUVContiguous) {
+    img->chroma_data = malloc(chromaSize);
+    if (img->chroma_data == nullptr) {
+      ALOGE("loadP010Image(): failed to allocate memory for chroma data.");
+      return false;
+    }
+    mem = static_cast<uint8_t *>(img->chroma_data);
+    chromaStride = img->chroma_stride;
+  }
+  for (int i = 0; i < img->height / 2; i++) {
+    if (read(fd, mem, img->width * bpp) != img->width * bpp) {
+      close(fd);
+      return false;
+    }
+    mem += chromaStride * bpp;
+  }
+  close(fd);
+  return true;
+}
+
 class JpegRTest : public testing::Test {
 public:
   JpegRTest();
@@ -98,10 +143,11 @@ protected:
   virtual void SetUp();
   virtual void TearDown();
 
-  struct jpegr_uncompressed_struct mRawP010Image;
-  struct jpegr_uncompressed_struct mRawP010ImageWithStride;
-  struct jpegr_uncompressed_struct mRawYuv420Image;
-  struct jpegr_compressed_struct mJpegImage;
+  struct jpegr_uncompressed_struct mRawP010Image{};
+  struct jpegr_uncompressed_struct mRawP010ImageWithStride{};
+  struct jpegr_uncompressed_struct mRawP010ImageWithChromaData{};
+  struct jpegr_uncompressed_struct mRawYuv420Image{};
+  struct jpegr_compressed_struct mJpegImage{};
 };
 
 JpegRTest::JpegRTest() {}
@@ -110,7 +156,11 @@ JpegRTest::~JpegRTest() {}
 void JpegRTest::SetUp() {}
 void JpegRTest::TearDown() {
   free(mRawP010Image.data);
+  free(mRawP010Image.chroma_data);
   free(mRawP010ImageWithStride.data);
+  free(mRawP010ImageWithStride.chroma_data);
+  free(mRawP010ImageWithChromaData.data);
+  free(mRawP010ImageWithChromaData.chroma_data);
   free(mRawYuv420Image.data);
   free(mJpegImage.data);
 }
@@ -285,6 +335,8 @@ TEST_F(JpegRTest, encodeAPI0ForInvalidArgs) {
   EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
       &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR,
       DEFAULT_JPEG_QUALITY, nullptr)) << "fail, API allows bad chroma stride";
+
+  mRawP010ImageWithStride.chroma_data = nullptr;
 
   free(jpegR.data);
 }
@@ -734,6 +786,7 @@ TEST_F(JpegRTest, encodeAPI3ForInvalidArgs) {
   EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
       &mRawP010ImageWithStride, &jpegR, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
       &jpegR)) << "fail, API allows bad chroma stride";
+  mRawP010ImageWithStride.chroma_data = nullptr;
 
   // bad compressed image
   EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
@@ -769,6 +822,45 @@ TEST_F(JpegRTest, encodeAPI4ForInvalidArgs) {
   free(jpegR.data);
 }
 
+/* Test Decode API invalid arguments */
+TEST_F(JpegRTest, decodeAPIForInvalidArgs) {
+  int ret;
+
+  // we are not really compressing anything so lets keep allocs to a minimum
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = 16 * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+
+  // we are not really decoding anything so lets keep allocs to a minimum
+  mRawP010Image.data = malloc(16);
+
+  JpegR jpegRCodec;
+
+  // test jpegr image
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        nullptr, &mRawP010Image)) << "fail, API allows nullptr for jpegr img";
+
+  // test dest image
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        &jpegR, nullptr)) << "fail, API allows nullptr for dest";
+
+  // test max display boost
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        &jpegR, &mRawP010Image, 0.5)) << "fail, API allows invalid max display boost";
+
+  // test output format
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        &jpegR, &mRawP010Image, 0.5, nullptr,
+        static_cast<ultrahdr_output_format>(-1))) << "fail, API allows invalid output format";
+
+  EXPECT_NE(OK, jpegRCodec.decodeJPEGR(
+        &jpegR, &mRawP010Image, 0.5, nullptr,
+        static_cast<ultrahdr_output_format>(ULTRAHDR_OUTPUT_MAX + 1)))
+        << "fail, API allows invalid output format";
+
+  free(jpegR.data);
+}
+
 TEST_F(JpegRTest, writeXmpThenRead) {
   ultrahdr_metadata_struct metadata_expected;
   metadata_expected.version = "1.0";
@@ -790,6 +882,81 @@ TEST_F(JpegRTest, writeXmpThenRead) {
   EXPECT_TRUE(getMetadataFromXMP(xmpData.data(), xmpData.size(), &metadata_read));
   EXPECT_FLOAT_EQ(metadata_expected.maxContentBoost, metadata_read.maxContentBoost);
   EXPECT_FLOAT_EQ(metadata_expected.minContentBoost, metadata_read.minContentBoost);
+}
+
+/* Test Encode API-0 */
+TEST_F(JpegRTest, encodeFromP010) {
+  int ret;
+
+  mRawP010Image.width = TEST_IMAGE_WIDTH;
+  mRawP010Image.height = TEST_IMAGE_HEIGHT;
+  mRawP010Image.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+  // Load input files.
+  if (!loadP010Image(RAW_P010_IMAGE, &mRawP010Image, true)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+  }
+
+  JpegR jpegRCodec;
+
+  jpegr_compressed_struct jpegR;
+  jpegR.maxLength = TEST_IMAGE_WIDTH * TEST_IMAGE_HEIGHT * sizeof(uint8_t);
+  jpegR.data = malloc(jpegR.maxLength);
+  ret = jpegRCodec.encodeJPEGR(
+      &mRawP010Image, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegR, DEFAULT_JPEG_QUALITY,
+      nullptr);
+  if (ret != OK) {
+    FAIL() << "Error code is " << ret;
+  }
+
+  mRawP010ImageWithStride.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithStride.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithStride.luma_stride = TEST_IMAGE_WIDTH + 128;
+  mRawP010ImageWithStride.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+  // Load input files.
+  if (!loadP010Image(RAW_P010_IMAGE, &mRawP010ImageWithStride, true)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+  }
+
+  jpegr_compressed_struct jpegRWithStride;
+  jpegRWithStride.maxLength = jpegR.length;
+  jpegRWithStride.data = malloc(jpegRWithStride.maxLength);
+  ret = jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithStride, ultrahdr_transfer_function::ULTRAHDR_TF_HLG, &jpegRWithStride,
+      DEFAULT_JPEG_QUALITY, nullptr);
+  if (ret != OK) {
+    FAIL() << "Error code is " << ret;
+  }
+  ASSERT_EQ(jpegR.length, jpegRWithStride.length)
+      << "Same input is yielding different output";
+  ASSERT_EQ(0, memcmp(jpegR.data, jpegRWithStride.data, jpegR.length))
+      << "Same input is yielding different output";
+
+  mRawP010ImageWithChromaData.width = TEST_IMAGE_WIDTH;
+  mRawP010ImageWithChromaData.height = TEST_IMAGE_HEIGHT;
+  mRawP010ImageWithChromaData.luma_stride = TEST_IMAGE_WIDTH + 64;
+  mRawP010ImageWithChromaData.chroma_stride = TEST_IMAGE_WIDTH + 256;
+  mRawP010ImageWithChromaData.colorGamut = ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100;
+  // Load input files.
+  if (!loadP010Image(RAW_P010_IMAGE, &mRawP010ImageWithChromaData, false)) {
+    FAIL() << "Load file " << RAW_P010_IMAGE << " failed";
+  }
+  jpegr_compressed_struct jpegRWithChromaData;
+  jpegRWithChromaData.maxLength = jpegR.length;
+  jpegRWithChromaData.data = malloc(jpegRWithChromaData.maxLength);
+  ret = jpegRCodec.encodeJPEGR(
+      &mRawP010ImageWithChromaData, ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+      &jpegRWithChromaData, DEFAULT_JPEG_QUALITY, nullptr);
+  if (ret != OK) {
+    FAIL() << "Error code is " << ret;
+  }
+  ASSERT_EQ(jpegR.length, jpegRWithChromaData.length)
+      << "Same input is yielding different output";
+  ASSERT_EQ(0, memcmp(jpegR.data, jpegRWithChromaData.data, jpegR.length))
+      << "Same input is yielding different output";
+
+  free(jpegR.data);
+  free(jpegRWithStride.data);
+  free(jpegRWithChromaData.data);
 }
 
 /* Test Encode API-0 and decode */
