@@ -718,7 +718,7 @@ private:
     void updateLayerHistory(const frontend::LayerSnapshot& snapshot);
     frontend::Update flushLifecycleUpdates() REQUIRES(kMainThreadContext);
 
-    void updateInputFlinger(VsyncId);
+    void updateInputFlinger(VsyncId vsyncId, TimePoint frameTime);
     void persistDisplayBrightness(bool needsComposite) REQUIRES(kMainThreadContext);
     void buildWindowInfos(std::vector<gui::WindowInfo>& outWindowInfos,
                           std::vector<gui::DisplayInfo>& outDisplayInfos);
@@ -1249,9 +1249,6 @@ private:
     const std::unique_ptr<frametimeline::FrameTimeline> mFrameTimeline;
 
     VsyncId mLastCommittedVsyncId;
-
-    VsyncId mLastInputFlingerUpdateVsyncId;
-    nsecs_t mLastInputFlingerUpdateTimestamp;
 
     // If blurs should be enabled on this device.
     bool mSupportsBlur = false;

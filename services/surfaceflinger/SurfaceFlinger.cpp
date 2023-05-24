@@ -2529,7 +2529,7 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
     }
 
     updateCursorAsync();
-    updateInputFlinger(vsyncId);
+    updateInputFlinger(vsyncId, frameTime);
 
     if (mLayerTracingEnabled && !mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         // This will block and tracing should only be enabled for debugging.
@@ -3723,7 +3723,7 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
     doCommitTransactions();
 }
 
-void SurfaceFlinger::updateInputFlinger(VsyncId vsyncId) {
+void SurfaceFlinger::updateInputFlinger(VsyncId vsyncId, TimePoint frameTime) {
     if (!mInputFlinger || (!mUpdateInputInfo && mInputWindowCommands.empty())) {
         return;
     }
@@ -3735,8 +3735,6 @@ void SurfaceFlinger::updateInputFlinger(VsyncId vsyncId) {
     if (mUpdateInputInfo) {
         mUpdateInputInfo = false;
         updateWindowInfo = true;
-        mLastInputFlingerUpdateVsyncId = vsyncId;
-        mLastInputFlingerUpdateTimestamp = systemTime();
         buildWindowInfos(windowInfos, displayInfos);
     }
 
@@ -3758,17 +3756,18 @@ void SurfaceFlinger::updateInputFlinger(VsyncId vsyncId) {
                                                       inputWindowCommands =
                                                               std::move(mInputWindowCommands),
                                                       inputFlinger = mInputFlinger, this,
-                                                      visibleWindowsChanged]() {
+                                                      visibleWindowsChanged, vsyncId, frameTime]() {
         ATRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
             mWindowInfosListenerInvoker
-                    ->windowInfosChanged(std::move(windowInfos), std::move(displayInfos),
+                    ->windowInfosChanged(gui::WindowInfosUpdate{std::move(windowInfos),
+                                                                std::move(displayInfos),
+                                                                ftl::to_underlying(vsyncId),
+                                                                frameTime.ns()},
                                          std::move(
                                                  inputWindowCommands.windowInfosReportedListeners),
                                          /* forceImmediateCall= */ visibleWindowsChanged ||
-                                                 !inputWindowCommands.focusRequests.empty(),
-                                         mLastInputFlingerUpdateVsyncId,
-                                         mLastInputFlingerUpdateTimestamp);
+                                                 !inputWindowCommands.focusRequests.empty());
         } else {
             // If there are listeners but no changes to input windows, call the listeners
             // immediately.
@@ -6143,27 +6142,14 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     result.append("\n");
 
     result.append("Window Infos:\n");
-    StringAppendF(&result, "  input flinger update vsync id: %" PRId64 "\n",
-                  ftl::to_underlying(mLastInputFlingerUpdateVsyncId));
-    StringAppendF(&result, "  input flinger update timestamp (ns): %" PRId64 "\n",
-                  mLastInputFlingerUpdateTimestamp);
+    auto windowInfosDebug = mWindowInfosListenerInvoker->getDebugInfo();
+    StringAppendF(&result, "  max send vsync id: %" PRId64 "\n",
+                  ftl::to_underlying(windowInfosDebug.maxSendDelayVsyncId));
+    StringAppendF(&result, "  max send delay (ns): %" PRId64 " ns\n",
+                  windowInfosDebug.maxSendDelayDuration);
+    StringAppendF(&result, "  unsent messages: %" PRIu32 "\n",
+                  windowInfosDebug.pendingMessageCount);
     result.append("\n");
-
-    if (VsyncId unsentVsyncId = mWindowInfosListenerInvoker->getUnsentMessageVsyncId();
-        unsentVsyncId != VsyncId()) {
-        StringAppendF(&result, "  unsent input flinger update vsync id: %" PRId64 "\n",
-                      ftl::to_underlying(unsentVsyncId));
-        StringAppendF(&result, "  unsent input flinger update timestamp (ns): %" PRId64 "\n",
-                      mWindowInfosListenerInvoker->getUnsentMessageTimestamp());
-        result.append("\n");
-    }
-
-    if (uint32_t pendingMessages = mWindowInfosListenerInvoker->getPendingMessageCount();
-        pendingMessages != 0) {
-        StringAppendF(&result, "  pending input flinger calls: %" PRIu32 "\n",
-                      mWindowInfosListenerInvoker->getPendingMessageCount());
-        result.append("\n");
-    }
 }
 
 mat4 SurfaceFlinger::calculateColorMatrix(float saturation) {
