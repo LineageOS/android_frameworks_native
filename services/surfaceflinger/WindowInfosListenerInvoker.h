@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <optional>
 #include <unordered_set>
 
 #include <android/gui/BnWindowInfosReportedListener.h>
@@ -40,26 +41,18 @@ public:
     void addWindowInfosListener(sp<gui::IWindowInfosListener>);
     void removeWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
 
-    void windowInfosChanged(std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>,
+    void windowInfosChanged(gui::WindowInfosUpdate update,
                             WindowInfosReportedListenerSet windowInfosReportedListeners,
-                            bool forceImmediateCall, VsyncId vsyncId, nsecs_t timestamp);
+                            bool forceImmediateCall);
 
     binder::Status onWindowInfosReported() override;
 
-    VsyncId getUnsentMessageVsyncId() {
-        std::scoped_lock lock(mMessagesMutex);
-        return mUnsentVsyncId;
-    }
-
-    nsecs_t getUnsentMessageTimestamp() {
-        std::scoped_lock lock(mMessagesMutex);
-        return mUnsentTimestamp;
-    }
-
-    uint32_t getPendingMessageCount() {
-        std::scoped_lock lock(mMessagesMutex);
-        return mActiveMessageCount;
-    }
+    struct DebugInfo {
+        VsyncId maxSendDelayVsyncId;
+        nsecs_t maxSendDelayDuration;
+        uint32_t pendingMessageCount;
+    };
+    DebugInfo getDebugInfo();
 
 protected:
     void binderDied(const wp<IBinder>& who) override;
@@ -73,11 +66,16 @@ private:
 
     std::mutex mMessagesMutex;
     uint32_t mActiveMessageCount GUARDED_BY(mMessagesMutex) = 0;
-    std::function<void(WindowInfosReportedListenerSet)> mWindowInfosChangedDelayed
-            GUARDED_BY(mMessagesMutex);
-    VsyncId mUnsentVsyncId GUARDED_BY(mMessagesMutex) = {-1};
-    nsecs_t mUnsentTimestamp GUARDED_BY(mMessagesMutex) = -1;
-    WindowInfosReportedListenerSet mReportedListenersDelayed;
+    std::optional<gui::WindowInfosUpdate> mDelayedUpdate GUARDED_BY(mMessagesMutex);
+    WindowInfosReportedListenerSet mReportedListeners;
+
+    DebugInfo mDebugInfo GUARDED_BY(mMessagesMutex);
+    struct DelayInfo {
+        int64_t vsyncId;
+        nsecs_t frameTime;
+    };
+    std::optional<DelayInfo> mDelayInfo GUARDED_BY(mMessagesMutex);
+    void updateMaxSendDelay() REQUIRES(mMessagesMutex);
 };
 
 } // namespace android
