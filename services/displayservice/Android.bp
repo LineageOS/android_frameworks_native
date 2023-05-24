@@ -23,7 +23,7 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_library_shared {
+cc_library_static {
     name: "libdisplayservicehidl",
 
     srcs: [
@@ -37,18 +37,24 @@ cc_library_shared {
         "libgui",
         "libhidlbase",
         "libutils",
+    ],
+
+    static_libs: [
         "android.frameworks.displayservice@1.0",
     ],
 
     export_include_dirs: ["include"],
     export_shared_lib_headers: [
-        "android.frameworks.displayservice@1.0",
         "libgui",
         "libutils",
+    ],
+
+    export_static_lib_headers: [
+        "android.frameworks.displayservice@1.0",
     ],
 
     cflags: [
         "-Werror",
         "-Wall",
-    ]
+    ],
 }
