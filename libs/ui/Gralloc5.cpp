@@ -343,14 +343,17 @@ status_t Gralloc5Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32
             return BAD_VALUE;
         }
     }
-    {
-        auto value = getStandardMetadata<StandardMetadataType::USAGE>(mMapper, bufferHandle);
-        if (static_cast<BufferUsage>(usage) != value) {
-            ALOGW("Usage didn't match, expected %" PRIu64 " got %" PRId64, usage,
-                  static_cast<int64_t>(value.value_or(BufferUsage::CPU_READ_NEVER)));
-            return BAD_VALUE;
-        }
-    }
+    // TODO: This can false-positive fail if the allocator adjusted the USAGE bits internally
+    //       Investigate further & re-enable or remove, but for now ignoring usage should be OK
+    (void)usage;
+    // {
+    //     auto value = getStandardMetadata<StandardMetadataType::USAGE>(mMapper, bufferHandle);
+    //     if (static_cast<BufferUsage>(usage) != value) {
+    //         ALOGW("Usage didn't match, expected %" PRIu64 " got %" PRId64, usage,
+    //               static_cast<int64_t>(value.value_or(BufferUsage::CPU_READ_NEVER)));
+    //         return BAD_VALUE;
+    //     }
+    // }
     {
         auto value = getStandardMetadata<StandardMetadataType::STRIDE>(mMapper, bufferHandle);
         if (stride != value) {
