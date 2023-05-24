@@ -64,6 +64,9 @@
       "name": "libbinderthreadstateutils_test"
     },
     {
+      "name": "fuzz_service_test"
+    },
+    {
       "name": "CtsOsTestCases",
       "options": [
         {
