@@ -164,7 +164,12 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    server->setPerSessionRootObject([&](const void* addrPtr, size_t len) {
+    server->setPerSessionRootObject([&](wp<RpcSession> session, const void* addrPtr, size_t len) {
+        {
+            sp<RpcSession> spSession = session.promote();
+            CHECK_NE(nullptr, spSession.get());
+        }
+
         // UNIX sockets with abstract addresses return
         // sizeof(sa_family_t)==2 in addrlen
         CHECK_GE(len, sizeof(sa_family_t));
