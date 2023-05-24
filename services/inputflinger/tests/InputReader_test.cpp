@@ -2584,7 +2584,10 @@ TEST_F(InputDeviceTest, DumpDoesNotCrash) {
     mFakeEventHub->addDevice(TEST_EVENTHUB_ID, "Test EventHub device", InputDeviceClass::BATTERY);
 
     InputDevice device(mReader->getContext(), /*id=*/1, /*generation=*/2, /*identifier=*/{});
-    device.addEventHubDevice(TEST_EVENTHUB_ID, mFakePolicy->getReaderConfiguration());
+    device.addEmptyEventHubDevice(TEST_EVENTHUB_ID);
+    auto unused = device.configure(systemTime(SYSTEM_TIME_MONOTONIC),
+                                   mFakePolicy->getReaderConfiguration(), /*changes=*/{});
+    device.populateMappers(TEST_EVENTHUB_ID, mFakePolicy->getReaderConfiguration());
     device.removeEventHubDevice(TEST_EVENTHUB_ID);
     std::string dumpStr, eventHubDevStr;
     device.dump(dumpStr, eventHubDevStr);
