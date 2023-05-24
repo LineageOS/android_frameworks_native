@@ -68,7 +68,8 @@ public:
     }
     void setRootObject(const sp<IBinder>& binder) { mRpcServer->setRootObject(binder); }
     void setRootObjectWeak(const wp<IBinder>& binder) { mRpcServer->setRootObjectWeak(binder); }
-    void setPerSessionRootObject(std::function<sp<IBinder>(const void*, size_t)>&& object) {
+    void setPerSessionRootObject(
+            std::function<sp<IBinder>(wp<RpcSession> session, const void*, size_t)>&& object) {
         mRpcServer->setPerSessionRootObject(std::move(object));
     }
     sp<IBinder> getRootObject() { return mRpcServer->getRootObject(); }
