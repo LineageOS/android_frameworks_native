@@ -21,7 +21,6 @@
 
 #include <android-base/properties.h>
 #include <android/dlext.h>
-#include <cutils/properties.h>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <graphicsenv/GraphicsEnv.h>
@@ -262,10 +261,7 @@ void* Loader::open(egl_connection_t* cnx)
         hnd = attempt_to_load_system_driver(cnx, nullptr, true);
     }
 
-    if (!hnd && !failToLoadFromDriverSuffixProperty &&
-        property_get_int32("ro.vendor.api_level", 0) < __ANDROID_API_U__) {
-        // Still can't find the graphics drivers with the exact name. This time try to use wildcard
-        // matching if the device is launched before Android 14.
+    if (!hnd && !failToLoadFromDriverSuffixProperty) {
         hnd = attempt_to_load_system_driver(cnx, nullptr, false);
     }
 
