@@ -334,7 +334,9 @@ std::shared_ptr<InputDevice> InputReader::createDeviceLocked(
         device = std::make_shared<InputDevice>(&mContext, deviceId, bumpGenerationLocked(),
                                                identifier);
     }
-    device->addEventHubDevice(eventHubId, mConfig);
+    device->addEmptyEventHubDevice(eventHubId);
+    auto unused = device->configure(systemTime(SYSTEM_TIME_MONOTONIC), mConfig, /*changes=*/{});
+    device->populateMappers(eventHubId, mConfig);
     return device;
 }
 
