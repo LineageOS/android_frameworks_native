@@ -39,6 +39,16 @@ namespace android {
 class FdTrigger;
 struct RpcTransportFd;
 
+// for 'friend'
+class RpcTransportRaw;
+class RpcTransportTls;
+class RpcTransportTipcAndroid;
+class RpcTransportTipcTrusty;
+class RpcTransportCtxRaw;
+class RpcTransportCtxTls;
+class RpcTransportCtxTipcAndroid;
+class RpcTransportCtxTipcTrusty;
+
 // Represents a socket connection.
 // No thread-safety is guaranteed for these APIs.
 class RpcTransport {
@@ -92,7 +102,21 @@ public:
      */
     [[nodiscard]] virtual bool isWaiting() = 0;
 
-protected:
+private:
+    // limit the classes which can implement RpcTransport. Being able to change this
+    // interface is important to allow development of RPC binder. In the past, we
+    // changed this interface to use iovec for efficiency, and we added FDs to the
+    // interface. If another transport is needed, it should be added directly here.
+    // non-socket FDs likely also need changes in RpcSession in order to get
+    // connected, and similarly to how addrinfo was type-erased from RPC binder
+    // interfaces when RpcTransportTipc* was added, other changes may be needed
+    // to add more transports.
+
+    friend class ::android::RpcTransportRaw;
+    friend class ::android::RpcTransportTls;
+    friend class ::android::RpcTransportTipcAndroid;
+    friend class ::android::RpcTransportTipcTrusty;
+
     RpcTransport() = default;
 };
 
@@ -117,7 +141,13 @@ public:
     [[nodiscard]] virtual std::vector<uint8_t> getCertificate(
             RpcCertificateFormat format) const = 0;
 
-protected:
+private:
+    // see comment on RpcTransport
+    friend class ::android::RpcTransportCtxRaw;
+    friend class ::android::RpcTransportCtxTls;
+    friend class ::android::RpcTransportCtxTipcAndroid;
+    friend class ::android::RpcTransportCtxTipcTrusty;
+
     RpcTransportCtx() = default;
 };
 
@@ -140,7 +170,7 @@ protected:
     RpcTransportCtxFactory() = default;
 };
 
-struct RpcTransportFd {
+struct RpcTransportFd final {
 private:
     mutable bool isPolling{false};
 
