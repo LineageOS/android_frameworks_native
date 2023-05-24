@@ -154,7 +154,7 @@ void RpcServer::setRootObjectWeak(const wp<IBinder>& binder) {
     mRootObjectWeak = binder;
 }
 void RpcServer::setPerSessionRootObject(
-        std::function<sp<IBinder>(const void*, size_t)>&& makeObject) {
+        std::function<sp<IBinder>(wp<RpcSession> session, const void*, size_t)>&& makeObject) {
     RpcMutexLockGuard _l(mLock);
     mRootObject.clear();
     mRootObjectWeak.clear();
@@ -515,7 +515,8 @@ void RpcServer::establishConnection(
             // if null, falls back to server root
             sp<IBinder> sessionSpecificRoot;
             if (server->mRootObjectFactory != nullptr) {
-                sessionSpecificRoot = server->mRootObjectFactory(addr.data(), addrLen);
+                sessionSpecificRoot =
+                        server->mRootObjectFactory(wp<RpcSession>(session), addr.data(), addrLen);
                 if (sessionSpecificRoot == nullptr) {
                     ALOGE("Warning: server returned null from root object factory");
                 }
