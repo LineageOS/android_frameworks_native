@@ -35,6 +35,7 @@
 
 #include <optional>
 
+#include <inttypes.h>
 #include <sys/eventfd.h>
 #include <sys/prctl.h>
 
@@ -686,10 +687,12 @@ TEST_F(SafeInterfaceTest, TestIncrementNativeHandle) {
     // Determine the maximum number of fds this process can have open
     struct rlimit limit {};
     ASSERT_EQ(0, getrlimit(RLIMIT_NOFILE, &limit));
-    uint32_t maxFds = static_cast<uint32_t>(limit.rlim_cur);
+    uint64_t maxFds = limit.rlim_cur;
+
+    ALOG(LOG_INFO, "SafeInterfaceTest", "%s max FDs: %" PRIu64, __PRETTY_FUNCTION__, maxFds);
 
     // Perform this test enough times to rule out fd leaks
-    for (uint32_t iter = 0; iter < (2 * maxFds); ++iter) {
+    for (uint32_t iter = 0; iter < (maxFds + 100); ++iter) {
         native_handle* handle = native_handle_create(1 /*numFds*/, 1 /*numInts*/);
         ASSERT_NE(nullptr, handle);
         handle->data[0] = dup(eventFd.get());
