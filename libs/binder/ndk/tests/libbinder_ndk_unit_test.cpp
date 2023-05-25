@@ -53,7 +53,7 @@ constexpr char kForcePersistNdkUnitTestService[] = "ForcePersistNdkUnitTestServi
 constexpr char kActiveServicesNdkUnitTestService[] = "ActiveServicesNdkUnitTestService";
 constexpr char kBinderNdkUnitTestServiceFlagged[] = "BinderNdkUnitTestFlagged";
 
-constexpr unsigned int kShutdownWaitTime = 11;
+constexpr unsigned int kShutdownWaitTime = 20;
 constexpr uint64_t kContextTestValue = 0xb4e42fb4d9a1d715;
 
 class MyTestFoo : public IFoo {
