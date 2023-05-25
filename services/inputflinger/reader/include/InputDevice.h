@@ -81,7 +81,7 @@ public:
 
     void dump(std::string& dump, const std::string& eventHubDevStr);
     void addEmptyEventHubDevice(int32_t eventHubId);
-    void populateMappers(int32_t eventHubId, const InputReaderConfiguration& readerConfig);
+    void addEventHubDevice(int32_t eventHubId, const InputReaderConfiguration& readerConfig);
     void removeEventHubDevice(int32_t eventHubId);
     [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
                                                   const InputReaderConfiguration& readerConfig,
@@ -203,7 +203,7 @@ private:
     int32_t getState(uint32_t sourceMask, int32_t code, GetStateFunc getStateFunc);
 
     std::vector<std::unique_ptr<InputMapper>> createMappers(
-            InputDeviceContext& context, const InputReaderConfiguration& readerConfig);
+            InputDeviceContext& contextPtr, const InputReaderConfiguration& readerConfig);
 
     PropertyMap mConfiguration;
 
