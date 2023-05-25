@@ -47,12 +47,21 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                     filled > numPops ? filled -= numPops : filled = 0;
                 },
                 [&]() -> void {
+                    // Pops blocks if it is empty, so only pop up to num elements inserted.
+                    size_t numPops = fdp.ConsumeIntegralInRange<size_t>(0, filled);
+                    for (size_t i = 0; i < numPops; i++) {
+                        queue.popWithTimeout(
+                                std::chrono::nanoseconds{fdp.ConsumeIntegral<int64_t>()});
+                    }
+                    filled > numPops ? filled -= numPops : filled = 0;
+                },
+                [&]() -> void {
                     queue.clear();
                     filled = 0;
                 },
                 [&]() -> void {
                     int32_t eraseElement = fdp.ConsumeIntegral<int32_t>();
-                    queue.erase([&](int32_t element) {
+                    queue.erase_if([&](int32_t element) {
                         if (element == eraseElement) {
                             filled--;
                             return true;
