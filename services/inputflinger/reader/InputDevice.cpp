@@ -151,22 +151,21 @@ void InputDevice::addEmptyEventHubDevice(int32_t eventHubId) {
         return;
     }
     std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
-    mDevices.insert(
-            {eventHubId,
-             std::make_pair<std::unique_ptr<InputDeviceContext>,
-                            std::vector<std::unique_ptr<InputMapper>>>(std::move(contextPtr), {})});
+    std::vector<std::unique_ptr<InputMapper>> mappers;
+
+    mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
 }
 
-void InputDevice::populateMappers(int32_t eventHubId,
-                                  const InputReaderConfiguration& readerConfig) {
-    auto targetDevice = mDevices.find(eventHubId);
-    LOG_ALWAYS_FATAL_IF(targetDevice == mDevices.end(),
-                        "InputDevice::populateMappers(): missing device with eventHubId %d ",
-                        eventHubId);
-    // create and add mappers to device
-    InputDeviceContext& context = *targetDevice->second.first;
-    std::vector<std::unique_ptr<InputMapper>> mappers = createMappers(context, readerConfig);
-    targetDevice->second.second = std::move(mappers);
+void InputDevice::addEventHubDevice(int32_t eventHubId,
+                                    const InputReaderConfiguration& readerConfig) {
+    if (mDevices.find(eventHubId) != mDevices.end()) {
+        return;
+    }
+    std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
+    std::vector<std::unique_ptr<InputMapper>> mappers = createMappers(*contextPtr, readerConfig);
+
+    // insert the context into the devices set
+    mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
     // Must change generation to flag this device as changed
     bumpGeneration();
 }
@@ -441,29 +440,29 @@ int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc ge
 }
 
 std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
-        InputDeviceContext& context, const InputReaderConfiguration& readerConfig) {
-    ftl::Flags<InputDeviceClass> classes = context.getDeviceClasses();
+        InputDeviceContext& contextPtr, const InputReaderConfiguration& readerConfig) {
+    ftl::Flags<InputDeviceClass> classes = contextPtr.getDeviceClasses();
     std::vector<std::unique_ptr<InputMapper>> mappers;
 
     // Switch-like devices.
     if (classes.test(InputDeviceClass::SWITCH)) {
-        mappers.push_back(createInputMapper<SwitchInputMapper>(context, readerConfig));
+        mappers.push_back(createInputMapper<SwitchInputMapper>(contextPtr, readerConfig));
     }
 
     // Scroll wheel-like devices.
     if (classes.test(InputDeviceClass::ROTARY_ENCODER)) {
-        mappers.push_back(createInputMapper<RotaryEncoderInputMapper>(context, readerConfig));
+        mappers.push_back(createInputMapper<RotaryEncoderInputMapper>(contextPtr, readerConfig));
     }
 
     // Vibrator-like devices.
     if (classes.test(InputDeviceClass::VIBRATOR)) {
-        mappers.push_back(createInputMapper<VibratorInputMapper>(context, readerConfig));
+        mappers.push_back(createInputMapper<VibratorInputMapper>(contextPtr, readerConfig));
     }
 
     // Battery-like devices or light-containing devices.
     // PeripheralController will be created with associated EventHub device.
     if (classes.test(InputDeviceClass::BATTERY) || classes.test(InputDeviceClass::LIGHT)) {
-        mController = std::make_unique<PeripheralController>(context);
+        mController = std::make_unique<PeripheralController>(contextPtr);
     }
 
     // Keyboard-like devices.
@@ -483,13 +482,13 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
     }
 
     if (keyboardSource != 0) {
-        mappers.push_back(createInputMapper<KeyboardInputMapper>(context, readerConfig,
+        mappers.push_back(createInputMapper<KeyboardInputMapper>(contextPtr, readerConfig,
                                                                  keyboardSource, keyboardType));
     }
 
     // Cursor-like devices.
     if (classes.test(InputDeviceClass::CURSOR)) {
-        mappers.push_back(createInputMapper<CursorInputMapper>(context, readerConfig));
+        mappers.push_back(createInputMapper<CursorInputMapper>(contextPtr, readerConfig));
     }
 
     // Touchscreens and touchpad devices.
@@ -497,31 +496,31 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
             sysprop::InputProperties::enable_touchpad_gestures_library().value_or(true);
     // TODO(b/272518665): Fix the new touchpad stack for Sony DualShock 4 (5c4, 9cc) touchpads, or
     // at least load this setting from the IDC file.
-    const InputDeviceIdentifier identifier = context.getDeviceIdentifier();
+    const InputDeviceIdentifier identifier = contextPtr.getDeviceIdentifier();
     const bool isSonyDualShock4Touchpad = identifier.vendor == 0x054c &&
             (identifier.product == 0x05c4 || identifier.product == 0x09cc);
     if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
         classes.test(InputDeviceClass::TOUCH_MT) && !isSonyDualShock4Touchpad) {
-        mappers.push_back(createInputMapper<TouchpadInputMapper>(context, readerConfig));
+        mappers.push_back(createInputMapper<TouchpadInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
-        mappers.push_back(createInputMapper<MultiTouchInputMapper>(context, readerConfig));
+        mappers.push_back(std::make_unique<MultiTouchInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH)) {
-        mappers.push_back(createInputMapper<SingleTouchInputMapper>(context, readerConfig));
+        mappers.push_back(std::make_unique<SingleTouchInputMapper>(contextPtr, readerConfig));
     }
 
     // Joystick-like devices.
     if (classes.test(InputDeviceClass::JOYSTICK)) {
-        mappers.push_back(createInputMapper<JoystickInputMapper>(context, readerConfig));
+        mappers.push_back(createInputMapper<JoystickInputMapper>(contextPtr, readerConfig));
     }
 
     // Motion sensor enabled devices.
     if (classes.test(InputDeviceClass::SENSOR)) {
-        mappers.push_back(createInputMapper<SensorInputMapper>(context, readerConfig));
+        mappers.push_back(createInputMapper<SensorInputMapper>(contextPtr, readerConfig));
     }
 
     // External stylus-like devices.
     if (classes.test(InputDeviceClass::EXTERNAL_STYLUS)) {
-        mappers.push_back(createInputMapper<ExternalStylusInputMapper>(context, readerConfig));
+        mappers.push_back(createInputMapper<ExternalStylusInputMapper>(contextPtr, readerConfig));
     }
     return mappers;
 }
