@@ -68,6 +68,9 @@ struct InputDeviceIdentifier {
      * while conforming to the filename limitations.
      */
     std::string getCanonicalName() const;
+
+    bool operator==(const InputDeviceIdentifier&) const = default;
+    bool operator!=(const InputDeviceIdentifier&) const = default;
 };
 
 /* Types of input device sensors. Keep sync with core/java/android/hardware/Sensor.java */
