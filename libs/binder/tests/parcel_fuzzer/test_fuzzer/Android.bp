@@ -60,4 +60,5 @@ sh_test_host {
             enabled: false,
         },
     },
+    test_suites: ["general-tests"],
 }
