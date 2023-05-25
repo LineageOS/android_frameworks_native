@@ -29,8 +29,6 @@
 
 namespace android {
 
-namespace {
-
 // RpcTransport for Trusty.
 class RpcTransportTipcTrusty : public RpcTransport {
 public:
@@ -281,8 +279,6 @@ public:
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }
 };
-
-} // namespace
 
 std::unique_ptr<RpcTransportCtx> RpcTransportCtxFactoryTipcTrusty::newServerCtx() const {
     return std::make_unique<RpcTransportCtxTipcTrusty>();
