@@ -29,8 +29,6 @@
 
 namespace android {
 
-namespace {
-
 // RpcTransport with TLS disabled.
 class RpcTransportRaw : public RpcTransport {
 public:
@@ -95,8 +93,6 @@ public:
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }
 };
-
-} // namespace
 
 std::unique_ptr<RpcTransportCtx> RpcTransportCtxFactoryRaw::newServerCtx() const {
     return std::make_unique<RpcTransportCtxRaw>();
