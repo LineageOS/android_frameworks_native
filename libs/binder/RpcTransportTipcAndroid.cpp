@@ -31,8 +31,6 @@ using android::base::Result;
 
 namespace android {
 
-namespace {
-
 // RpcTransport for writing Trusty IPC clients in Android.
 class RpcTransportTipcAndroid : public RpcTransport {
 public:
@@ -216,8 +214,6 @@ public:
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }
 };
-
-} // namespace
 
 std::unique_ptr<RpcTransportCtx> RpcTransportCtxFactoryTipcAndroid::newServerCtx() const {
     return std::make_unique<RpcTransportCtxTipcAndroid>();

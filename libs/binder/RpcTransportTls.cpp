@@ -275,6 +275,8 @@ private:
     bssl::UniquePtr<SSL> mSsl;
 };
 
+} // namespace
+
 class RpcTransportTls : public RpcTransport {
 public:
     RpcTransportTls(RpcTransportFd socket, Ssl ssl)
@@ -411,7 +413,8 @@ status_t RpcTransportTls::interruptableReadFully(
 }
 
 // For |ssl|, set internal FD to |fd|, and do handshake. Handshake is triggerable by |fdTrigger|.
-bool setFdAndDoHandshake(Ssl* ssl, const android::RpcTransportFd& socket, FdTrigger* fdTrigger) {
+static bool setFdAndDoHandshake(Ssl* ssl, const android::RpcTransportFd& socket,
+                                FdTrigger* fdTrigger) {
     bssl::UniquePtr<BIO> bio = newSocketBio(socket.fd);
     TEST_AND_RETURN(false, bio != nullptr);
     auto [_, errorQueue] = ssl->call(SSL_set_bio, bio.get(), bio.get());
@@ -539,8 +542,6 @@ protected:
         ssl->call(SSL_set_connect_state).errorQueue.clear();
     }
 };
-
-} // namespace
 
 std::unique_ptr<RpcTransportCtx> RpcTransportCtxFactoryTls::newServerCtx() const {
     return android::RpcTransportCtxTls::create<RpcTransportCtxTlsServer>(mCertVerifier,
