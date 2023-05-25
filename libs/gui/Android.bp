@@ -129,13 +129,24 @@ cc_library_static {
     },
 }
 
-filegroup {
+aidl_library {
+    name: "libgui_aidl_hdrs",
+    hdrs: [
+        "android/gui/DisplayInfo.aidl",
+        "android/gui/FocusRequest.aidl",
+        "android/gui/InputApplicationInfo.aidl",
+        "android/gui/IWindowInfosListener.aidl",
+        "android/gui/IWindowInfosReportedListener.aidl",
+        "android/gui/WindowInfo.aidl",
+        "android/gui/WindowInfosUpdate.aidl",
+    ],
+}
+
+aidl_library {
     name: "libgui_aidl",
     srcs: ["aidl/**/*.aidl"],
-    path: "aidl/",
-    aidl: {
-        deps: [":android_gui_aidl"],
-    },
+    strip_import_prefix: "aidl",
+    deps: ["libgui_aidl_hdrs"],
 }
 
 filegroup {
@@ -147,9 +158,6 @@ filegroup {
 cc_library_static {
     name: "libgui_aidl_static",
     vendor_available: true,
-    srcs: [
-        ":libgui_aidl",
-    ],
 
     shared_libs: [
         "libbinder",
@@ -175,9 +183,7 @@ cc_library_static {
 
     aidl: {
         export_aidl_headers: true,
-        include_dirs: [
-            "frameworks/native/libs/gui",
-        ],
+        libs: ["libgui_aidl"],
     },
 }
 
