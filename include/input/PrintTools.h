@@ -88,6 +88,20 @@ std::string dumpMap(const std::map<K, V>& map, std::string (*keyToString)(const 
 }
 
 /**
+ * Convert map keys to string. The keys of the map should be integral type.
+ */
+template <typename K, typename V>
+std::string dumpMapKeys(const std::map<K, V>& map,
+                        std::string (*keyToString)(const K&) = constToString) {
+    std::string out;
+    for (const auto& [k, _] : map) {
+        out += out.empty() ? "{" : ", ";
+        out += keyToString(k);
+    }
+    return out.empty() ? "{}" : (out + "}");
+}
+
+/**
  * Convert a vector to a string. The values of the vector should be of a type supported by
  * constToString.
  */
