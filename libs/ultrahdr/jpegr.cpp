@@ -244,11 +244,13 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
+  JpegEncoderHelper jpeg_encoder_gainmap;
+  JPEGR_CHECK(compressGainMap(&map, &jpeg_encoder_gainmap));
   jpegr_compressed_struct compressed_map;
-  compressed_map.maxLength = map.width * map.height;
-  unique_ptr<uint8_t[]> compressed_map_data = make_unique<uint8_t[]>(compressed_map.maxLength);
-  compressed_map.data = compressed_map_data.get();
-  JPEGR_CHECK(compressGainMap(&map, &compressed_map));
+  compressed_map.maxLength = jpeg_encoder_gainmap.getCompressedImageSize();
+  compressed_map.length = compressed_map.maxLength;
+  compressed_map.data = jpeg_encoder_gainmap.getCompressedImagePtr();
+  compressed_map.colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED;
 
   sp<DataStruct> icc = IccHelper::writeIccProfile(ULTRAHDR_TF_SRGB,
                                                   uncompressed_yuv_420_image.colorGamut);
@@ -301,11 +303,13 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
+  JpegEncoderHelper jpeg_encoder_gainmap;
+  JPEGR_CHECK(compressGainMap(&map, &jpeg_encoder_gainmap));
   jpegr_compressed_struct compressed_map;
-  compressed_map.maxLength = map.width * map.height;
-  unique_ptr<uint8_t[]> compressed_map_data = make_unique<uint8_t[]>(compressed_map.maxLength);
-  compressed_map.data = compressed_map_data.get();
-  JPEGR_CHECK(compressGainMap(&map, &compressed_map));
+  compressed_map.maxLength = jpeg_encoder_gainmap.getCompressedImageSize();
+  compressed_map.length = compressed_map.maxLength;
+  compressed_map.data = jpeg_encoder_gainmap.getCompressedImagePtr();
+  compressed_map.colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED;
 
   sp<DataStruct> icc = IccHelper::writeIccProfile(ULTRAHDR_TF_SRGB,
                                                   uncompressed_yuv_420_image->colorGamut);
@@ -356,11 +360,13 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
+  JpegEncoderHelper jpeg_encoder_gainmap;
+  JPEGR_CHECK(compressGainMap(&map, &jpeg_encoder_gainmap));
   jpegr_compressed_struct compressed_map;
-  compressed_map.maxLength = map.width * map.height;
-  unique_ptr<uint8_t[]> compressed_map_data = make_unique<uint8_t[]>(compressed_map.maxLength);
-  compressed_map.data = compressed_map_data.get();
-  JPEGR_CHECK(compressGainMap(&map, &compressed_map));
+  compressed_map.maxLength = jpeg_encoder_gainmap.getCompressedImageSize();
+  compressed_map.length = compressed_map.maxLength;
+  compressed_map.data = jpeg_encoder_gainmap.getCompressedImagePtr();
+  compressed_map.colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED;
 
   JPEGR_CHECK(appendGainMap(compressed_jpeg_image, &compressed_map, nullptr, &metadata, dest));
 
@@ -407,11 +413,13 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(map.data));
 
+  JpegEncoderHelper jpeg_encoder_gainmap;
+  JPEGR_CHECK(compressGainMap(&map, &jpeg_encoder_gainmap));
   jpegr_compressed_struct compressed_map;
-  compressed_map.maxLength = map.width * map.height;
-  unique_ptr<uint8_t[]> compressed_map_data = make_unique<uint8_t[]>(compressed_map.maxLength);
-  compressed_map.data = compressed_map_data.get();
-  JPEGR_CHECK(compressGainMap(&map, &compressed_map));
+  compressed_map.maxLength = jpeg_encoder_gainmap.getCompressedImageSize();
+  compressed_map.length = compressed_map.maxLength;
+  compressed_map.data = jpeg_encoder_gainmap.getCompressedImagePtr();
+  compressed_map.colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED;
 
   JPEGR_CHECK(appendGainMap(compressed_jpeg_image, &compressed_map, nullptr, &metadata, dest));
 
@@ -604,29 +612,20 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
 }
 
 status_t JpegR::compressGainMap(jr_uncompressed_ptr uncompressed_gain_map,
-                                jr_compressed_ptr dest) {
-  if (uncompressed_gain_map == nullptr || dest == nullptr) {
+                                JpegEncoderHelper* jpeg_encoder) {
+  if (uncompressed_gain_map == nullptr || jpeg_encoder == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  JpegEncoderHelper jpeg_encoder;
-  if (!jpeg_encoder.compressImage(uncompressed_gain_map->data,
-                                  uncompressed_gain_map->width,
-                                  uncompressed_gain_map->height,
-                                  kMapCompressQuality,
-                                  nullptr,
-                                  0,
-                                  true /* isSingleChannel */)) {
+  if (!jpeg_encoder->compressImage(uncompressed_gain_map->data,
+                                   uncompressed_gain_map->width,
+                                   uncompressed_gain_map->height,
+                                   kMapCompressQuality,
+                                   nullptr,
+                                   0,
+                                   true /* isSingleChannel */)) {
     return ERROR_JPEGR_ENCODE_ERROR;
   }
-
-  if (dest->maxLength < jpeg_encoder.getCompressedImageSize()) {
-    return ERROR_JPEGR_BUFFER_TOO_SMALL;
-  }
-
-  memcpy(dest->data, jpeg_encoder.getCompressedImagePtr(), jpeg_encoder.getCompressedImageSize());
-  dest->length = jpeg_encoder.getCompressedImageSize();
-  dest->colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED;
 
   return NO_ERROR;
 }
