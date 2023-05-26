@@ -79,6 +79,9 @@ cc_test {
             ],
         },
         host: {
+            sanitize: {
+                address: true,
+            },
             include_dirs: [
                 "bionic/libc/kernel/android/uapi/",
                 "bionic/libc/kernel/uapi",
@@ -92,6 +95,7 @@ cc_test {
         },
     },
     sanitize: {
+        hwaddress: true,
         undefined: true,
         all_undefined: true,
         diag: {
