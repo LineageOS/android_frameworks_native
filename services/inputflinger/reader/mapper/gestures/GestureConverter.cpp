@@ -385,6 +385,8 @@ NotifyMotionArgs GestureConverter::endScroll(nsecs_t when, nsecs_t readTime) {
         }
 
         mDownTime = when;
+        mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SWIPE_FINGER_COUNT,
+                                          fingerCount);
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
                                      /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
                                      mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
@@ -441,6 +443,7 @@ NotifyMotionArgs GestureConverter::endScroll(nsecs_t when, nsecs_t readTime) {
                                  /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
                                  mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
                                  yCursorPosition));
+    mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SWIPE_FINGER_COUNT, 0);
     mCurrentClassification = MotionClassification::NONE;
     mSwipeFingerCount = 0;
     return out;
