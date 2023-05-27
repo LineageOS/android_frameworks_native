@@ -781,6 +781,8 @@ enum {
      *
      * These values are relative to the state from the last event, not accumulated, so developers
      * should make sure to process this axis value for all batched historical events.
+     *
+     * This axis is only set on the first pointer in a motion event.
      */
     AMOTION_EVENT_AXIS_GESTURE_X_OFFSET = 48,
     /**
@@ -797,6 +799,8 @@ enum {
      *
      * These values are relative to the state from the last event, not accumulated, so developers
      * should make sure to process this axis value for all batched historical events.
+     *
+     * This axis is only set on the first pointer in a motion event.
      */
     AMOTION_EVENT_AXIS_GESTURE_SCROLL_X_DISTANCE = 50,
     /**
@@ -815,8 +819,21 @@ enum {
      *
      * These values are relative to the state from the last event, not accumulated, so developers
      * should make sure to process this axis value for all batched historical events.
+     *
+     * This axis is only set on the first pointer in a motion event.
      */
     AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR = 52,
+
+    /**
+     * Axis constant: the number of fingers being used in a multi-finger swipe gesture.
+     *
+     * - For a touch pad, reports the number of fingers being used in a multi-finger swipe gesture
+     *   (with CLASSIFICATION_MULTI_FINGER_SWIPE).
+     *
+     * Since CLASSIFICATION_MULTI_FINGER_SWIPE is a hidden API, so is this axis. It is only set on
+     * the first pointer in a motion event.
+     */
+    AMOTION_EVENT_AXIS_GESTURE_SWIPE_FINGER_COUNT = 53,
 
     /**
      * Note: This is not an "Axis constant". It does not represent any axis, nor should it be used
@@ -824,7 +841,7 @@ enum {
      * to make some computations (like iterating through all possible axes) cleaner.
      * Please update the value accordingly if you add a new axis.
      */
-    AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE = AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR,
+    AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE = AMOTION_EVENT_AXIS_GESTURE_SWIPE_FINGER_COUNT,
 
     // NOTE: If you add a new axis here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/MotionEvent.java for the full list.

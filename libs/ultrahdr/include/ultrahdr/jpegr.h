@@ -17,6 +17,7 @@
 #ifndef ANDROID_ULTRAHDR_JPEGR_H
 #define ANDROID_ULTRAHDR_JPEGR_H
 
+#include "jpegencoderhelper.h"
 #include "jpegrerrorcode.h"
 #include "ultrahdr.h"
 
@@ -312,11 +313,11 @@ private:
      * This method is called in the encoding pipeline. It will encode the gain map.
      *
      * @param uncompressed_gain_map uncompressed gain map
-     * @param dest encoded recover map
+     * @param resource to compress gain map
      * @return NO_ERROR if encoding succeeds, error code if error occurs.
      */
     status_t compressGainMap(jr_uncompressed_ptr uncompressed_gain_map,
-                             jr_compressed_ptr dest);
+                             JpegEncoderHelper* jpeg_encoder);
 
     /*
      * This methoud is called to separate primary image and gain map image from JPEGR
