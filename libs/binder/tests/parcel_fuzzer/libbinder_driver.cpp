@@ -33,9 +33,13 @@ void fuzzService(const std::vector<sp<IBinder>>& binders, FuzzedDataProvider&& p
             .extraFds = {},
     };
 
+    // Always take so that a perturbation of just the one ConsumeBool byte will always
+    // take the same path, but with a different UID. Without this, the fuzzer needs to
+    // guess both the change in value and the shift at the same time.
+    int64_t maybeSetUid = provider.ConsumeIntegral<int64_t>();
     if (provider.ConsumeBool()) {
         // set calling uid
-        IPCThreadState::self()->restoreCallingIdentity(provider.ConsumeIntegral<int64_t>());
+        IPCThreadState::self()->restoreCallingIdentity(maybeSetUid);
     }
 
     while (provider.remaining_bytes() > 0) {
