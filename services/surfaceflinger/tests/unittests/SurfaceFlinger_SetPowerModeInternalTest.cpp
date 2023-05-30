@@ -91,18 +91,16 @@ struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
 };
 
 struct DispSyncIsSupportedVariant {
-    static void setupResetModelCallExpectations(DisplayTransactionTest* test) {
+    static void setupStartPeriodTransitionCallExpectations(DisplayTransactionTest* test) {
         auto vsyncSchedule = test->mFlinger.scheduler()->getVsyncSchedule();
         EXPECT_CALL(static_cast<mock::VsyncController&>(vsyncSchedule->getController()),
                     startPeriodTransition(DEFAULT_VSYNC_PERIOD, false))
-                .Times(1);
-        EXPECT_CALL(static_cast<mock::VSyncTracker&>(vsyncSchedule->getTracker()), resetModel())
                 .Times(1);
     }
 };
 
 struct DispSyncNotSupportedVariant {
-    static void setupResetModelCallExpectations(DisplayTransactionTest* /* test */) {}
+    static void setupStartPeriodTransitionCallExpectations(DisplayTransactionTest* /* test */) {}
 };
 
 // --------------------------------------------------------------------
@@ -125,7 +123,7 @@ struct TransitionOffToOnVariant : public TransitionVariantCommon<PowerMode::OFF,
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::ON);
         Case::EventThread::setupEnableVsyncCallExpectations(test);
-        Case::DispSync::setupResetModelCallExpectations(test);
+        Case::DispSync::setupStartPeriodTransitionCallExpectations(test);
         Case::setupRepaintEverythingCallExpectations(test);
     }
 
@@ -186,7 +184,7 @@ struct TransitionDozeSuspendToDozeVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupEnableVsyncCallExpectations(test);
-        Case::DispSync::setupResetModelCallExpectations(test);
+        Case::DispSync::setupStartPeriodTransitionCallExpectations(test);
         Case::setupComposerCallExpectations(test, Case::Doze::ACTUAL_POWER_MODE_FOR_DOZE);
     }
 };
@@ -204,7 +202,7 @@ struct TransitionDozeSuspendToOnVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupEnableVsyncCallExpectations(test);
-        Case::DispSync::setupResetModelCallExpectations(test);
+        Case::DispSync::setupStartPeriodTransitionCallExpectations(test);
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::ON);
     }
 };
