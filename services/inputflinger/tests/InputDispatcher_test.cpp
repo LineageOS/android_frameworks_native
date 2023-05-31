@@ -4592,6 +4592,7 @@ TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
     window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
 
     // Should have poked user activity
+    mDispatcher->waitForIdle();
     mFakePolicy->assertUserActivityPoked();
 }
 
@@ -4613,6 +4614,7 @@ TEST_F(InputDispatcherTest, FocusedWindow_DisableUserActivity) {
     window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
 
     // Should have poked user activity
+    mDispatcher->waitForIdle();
     mFakePolicy->assertUserActivityNotPoked();
 }
 
@@ -4696,6 +4698,7 @@ TEST_F(InputDispatcherTest, InjectedTouchesPokeUserActivity) {
             AllOf(WithMotionAction(ACTION_DOWN), WithDisplayId(ADISPLAY_ID_DEFAULT)));
 
     // Should have poked user activity
+    mDispatcher->waitForIdle();
     mFakePolicy->assertUserActivityPoked();
 }
 
