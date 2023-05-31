@@ -40,3 +40,24 @@ cc_fuzz {
         fuzz_on_haiku_device: false,
     },
 }
+
+sh_test_host {
+    name: "fuzz_service_test",
+    src: "run_fuzz_service_test.sh",
+    filename: "run_fuzz_service_test.sh",
+    test_config: "fuzz_service_test_config.xml",
+    data_bins: [
+        "test_service_fuzzer_should_crash",
+    ],
+    required: [
+        "test_service_fuzzer_should_crash",
+    ],
+    target: {
+        linux_bionic: {
+            enabled: false,
+        },
+        darwin: {
+            enabled: false,
+        },
+    },
+}
