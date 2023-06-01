@@ -6700,6 +6700,13 @@ void InputDispatcher::onWindowInfosChanged(const gui::WindowInfosUpdate& update)
         for (const auto& [displayId, handles] : handlesPerDisplay) {
             setInputWindowsLocked(handles, displayId);
         }
+
+        if (update.vsyncId < mWindowInfosVsyncId) {
+            ALOGE("Received out of order window infos update. Last update vsync id: %" PRId64
+                  ", current update vsync id: %" PRId64,
+                  mWindowInfosVsyncId, update.vsyncId);
+        }
+        mWindowInfosVsyncId = update.vsyncId;
     }
     // Wake up poll loop since it may need to make new input dispatching choices.
     mLooper->wake();
