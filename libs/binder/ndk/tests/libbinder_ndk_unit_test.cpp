@@ -107,11 +107,13 @@ class MyBinderNdkUnitTest : public aidl::BnBinderNdkUnitTest {
     }
     static bool activeServicesCallback(bool hasClients, void* context) {
         if (hasClients) {
+            LOG(INFO) << "hasClients, so not unregistering.";
             return false;
         }
 
         // Unregister all services
         if (!AServiceManager_tryUnregister()) {
+            LOG(INFO) << "Could not unregister service the first time.";
             // Prevent shutdown (test will fail)
             return false;
         }
@@ -121,6 +123,7 @@ class MyBinderNdkUnitTest : public aidl::BnBinderNdkUnitTest {
 
         // Unregister again before shutdown
         if (!AServiceManager_tryUnregister()) {
+            LOG(INFO) << "Could not unregister service the second time.";
             // Prevent shutdown (test will fail)
             return false;
         }
@@ -128,6 +131,7 @@ class MyBinderNdkUnitTest : public aidl::BnBinderNdkUnitTest {
         // Check if the context was passed correctly
         MyBinderNdkUnitTest* service = static_cast<MyBinderNdkUnitTest*>(context);
         if (service->contextTestValue != kContextTestValue) {
+            LOG(INFO) << "Incorrect context value.";
             // Prevent shutdown (test will fail)
             return false;
         }
@@ -479,6 +483,8 @@ TEST(NdkBinder, ForcedPersistenceTest) {
 }
 
 TEST(NdkBinder, ActiveServicesCallbackTest) {
+    LOG(INFO) << "ActiveServicesCallbackTest starting";
+
     ndk::SpAIBinder binder(AServiceManager_waitForService(kActiveServicesNdkUnitTestService));
     std::shared_ptr<aidl::IBinderNdkUnitTest> service =
             aidl::IBinderNdkUnitTest::fromBinder(binder);
@@ -489,6 +495,7 @@ TEST(NdkBinder, ActiveServicesCallbackTest) {
     service = nullptr;
     IPCThreadState::self()->flushCommands();
 
+    LOG(INFO) << "ActiveServicesCallbackTest about to sleep";
     sleep(kShutdownWaitTime);
 
     ASSERT_FALSE(isServiceRunning(kActiveServicesNdkUnitTestService))
