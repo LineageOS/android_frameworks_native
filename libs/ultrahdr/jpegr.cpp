@@ -76,9 +76,9 @@ static const int kMinHeight = 2 * kMapDimensionScaleFactor;
 // JPEG encoding / decoding will require block based DCT transform 16 x 16 for luma,
 // and 8 x 8 for chroma.
 // Width must be 16 dividable for luma, and 8 dividable for chroma.
-// If this criteria is not ficilitated, we will pad zeros based on the required block size.
+// If this criteria is not facilitated, we will pad zeros based to each line on the
+// required block size.
 static const size_t kJpegBlock = JpegEncoderHelper::kCompressBatchSize;
-static const size_t kJpegBlockSquare = kJpegBlock * kJpegBlock;
 // JPEG compress quality (0 ~ 100) for gain map
 static const int kMapCompressQuality = 85;
 
@@ -228,13 +228,8 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   metadata.version = kJpegrVersion;
 
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
-  size_t gain_map_length = uncompressed_p010_image->width * uncompressed_p010_image->height * 3 / 2;
-  // Pad a pseudo chroma block (kJpegBlock / 2) x (kJpegBlock / 2)
-  // if width is not kJpegBlock aligned.
-  if (uncompressed_p010_image->width % kJpegBlock != 0) {
-    gain_map_length += kJpegBlockSquare / 4;
-  }
-  unique_ptr<uint8_t[]> uncompressed_yuv_420_image_data = make_unique<uint8_t[]>(gain_map_length);
+  unique_ptr<uint8_t[]> uncompressed_yuv_420_image_data = make_unique<uint8_t[]>(
+      uncompressed_p010_image->width * uncompressed_p010_image->height * 3 / 2);
   uncompressed_yuv_420_image.data = uncompressed_yuv_420_image_data.get();
   JPEGR_CHECK(toneMap(uncompressed_p010_image, &uncompressed_yuv_420_image));
 
