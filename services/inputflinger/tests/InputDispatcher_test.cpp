@@ -846,6 +846,8 @@ TEST_F(InputDispatcherTest, NotifySwitch_CallsPolicy) {
     mFakePolicy->assertNotifySwitchWasCalled(args);
 }
 
+namespace {
+
 // --- InputDispatcherTest SetInputWindowTest ---
 static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 500ms;
 // Default input dispatching timeout if there is no focused application or paused window
@@ -1591,6 +1593,8 @@ static NotifyPointerCaptureChangedArgs generatePointerCaptureChangedArgs(
         const PointerCaptureRequest& request) {
     return NotifyPointerCaptureChangedArgs(/*id=*/0, systemTime(SYSTEM_TIME_MONOTONIC), request);
 }
+
+} // namespace
 
 /**
  * When a window unexpectedly disposes of its input channel, policy should be notified about the
@@ -4592,6 +4596,7 @@ TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
     window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
 
     // Should have poked user activity
+    mDispatcher->waitForIdle();
     mFakePolicy->assertUserActivityPoked();
 }
 
@@ -4613,6 +4618,7 @@ TEST_F(InputDispatcherTest, FocusedWindow_DisableUserActivity) {
     window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
 
     // Should have poked user activity
+    mDispatcher->waitForIdle();
     mFakePolicy->assertUserActivityNotPoked();
 }
 
@@ -4696,6 +4702,7 @@ TEST_F(InputDispatcherTest, InjectedTouchesPokeUserActivity) {
             AllOf(WithMotionAction(ACTION_DOWN), WithDisplayId(ADISPLAY_ID_DEFAULT)));
 
     // Should have poked user activity
+    mDispatcher->waitForIdle();
     mFakePolicy->assertUserActivityPoked();
 }
 

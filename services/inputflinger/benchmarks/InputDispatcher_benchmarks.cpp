@@ -30,6 +30,8 @@ using android::os::InputEventInjectionSync;
 
 namespace android::inputdispatcher {
 
+namespace {
+
 // An arbitrary device id.
 constexpr int32_t DEVICE_ID = 1;
 
@@ -347,6 +349,8 @@ static void benchmarkOnWindowInfosChanged(benchmark::State& state) {
     }
     dispatcher.stop();
 }
+
+} // namespace
 
 BENCHMARK(benchmarkNotifyMotion);
 BENCHMARK(benchmarkInjectMotion);
