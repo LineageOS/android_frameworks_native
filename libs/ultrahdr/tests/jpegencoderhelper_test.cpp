@@ -108,18 +108,9 @@ TEST_F(JpegEncoderHelperTest, encodeAlignedImage) {
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-// The width of the "unaligned" image is not 16-aligned, and will fail if encoded directly.
-// Should pass with the padding zero method.
 TEST_F(JpegEncoderHelperTest, encodeUnalignedImage) {
     JpegEncoderHelper encoder;
-    const size_t paddingZeroLength = JpegEncoderHelper::kCompressBatchSize
-            * JpegEncoderHelper::kCompressBatchSize / 4;
-    std::unique_ptr<uint8_t[]> imageWithPaddingZeros(
-            new uint8_t[UNALIGNED_IMAGE_WIDTH * UNALIGNED_IMAGE_HEIGHT * 3 / 2
-            + paddingZeroLength]);
-    memcpy(imageWithPaddingZeros.get(), mUnalignedImage.buffer.get(),
-            UNALIGNED_IMAGE_WIDTH * UNALIGNED_IMAGE_HEIGHT * 3 / 2);
-    EXPECT_TRUE(encoder.compressImage(imageWithPaddingZeros.get(), mUnalignedImage.width,
+    EXPECT_TRUE(encoder.compressImage(mUnalignedImage.buffer.get(), mUnalignedImage.width,
                                       mUnalignedImage.height, JPEG_QUALITY, NULL, 0));
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
