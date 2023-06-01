@@ -972,7 +972,18 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
             (rawXResolution > 0 && rawYResolution > 0) ? (rawXResolution + rawYResolution) / 2 : 0;
 
     const DisplayViewport& newViewport = newViewportOpt.value_or(kUninitializedViewport);
-    const bool viewportChanged = mViewport != newViewport;
+    bool viewportChanged;
+    if (mParameters.enableForInactiveViewport) {
+        // When touch is enabled for an inactive viewport, ignore the
+        // viewport active status when checking whether the viewport has
+        // changed.
+        DisplayViewport tempViewport = mViewport;
+        tempViewport.isActive = newViewport.isActive;
+        viewportChanged = tempViewport != newViewport;
+    } else {
+        viewportChanged = mViewport != newViewport;
+    }
+
     bool skipViewportUpdate = false;
     if (viewportChanged) {
         const bool viewportOrientationChanged = mViewport.orientation != newViewport.orientation;
