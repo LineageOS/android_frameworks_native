@@ -145,7 +145,8 @@ status_t JpegR::areInputArgumentsValid(jr_uncompressed_ptr uncompressed_p010_ima
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (hdr_tf <= ULTRAHDR_TF_UNSPECIFIED || hdr_tf > ULTRAHDR_TF_MAX) {
+  if (hdr_tf <= ULTRAHDR_TF_UNSPECIFIED || hdr_tf > ULTRAHDR_TF_MAX
+          || hdr_tf == ULTRAHDR_TF_SRGB) {
     ALOGE("Invalid hdr transfer function %d", hdr_tf);
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
@@ -504,11 +505,6 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  if (gain_map != nullptr && gain_map->data == nullptr) {
-    ALOGE("received nullptr address for gain map data");
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
-  }
-
   if (output_format == ULTRAHDR_OUTPUT_SDR) {
     JpegDecoderHelper jpeg_decoder;
     if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length,
@@ -550,6 +546,11 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   if (!gain_map_decoder.decompressImage(compressed_map.data, compressed_map.length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
+  if ((gain_map_decoder.getDecompressedImageWidth() *
+       gain_map_decoder.getDecompressedImageHeight()) >
+      gain_map_decoder.getDecompressedImageSize()) {
+    return ERROR_JPEGR_CALCULATION_ERROR;
+  }
 
   if (gain_map != nullptr) {
     gain_map->width = gain_map_decoder.getDecompressedImageWidth();
@@ -579,6 +580,11 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
+  if ((jpeg_decoder.getDecompressedImageWidth() *
+       jpeg_decoder.getDecompressedImageHeight() * 3 / 2) >
+      jpeg_decoder.getDecompressedImageSize()) {
+    return ERROR_JPEGR_CALCULATION_ERROR;
+  }
 
   if (exif != nullptr) {
     if (exif->data == nullptr) {
@@ -600,7 +606,6 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   uncompressed_yuv_420_image.data = jpeg_decoder.getDecompressedImagePtr();
   uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
-
   JPEGR_CHECK(applyGainMap(&uncompressed_yuv_420_image, &map, &uhdr_metadata, output_format,
                            max_display_boost, dest));
   return NO_ERROR;
@@ -841,6 +846,20 @@ status_t JpegR::applyGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
    || metadata == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  // TODO: remove once map scaling factor is computed based on actual map dims
+  size_t image_width = uncompressed_yuv_420_image->width;
+  size_t image_height = uncompressed_yuv_420_image->height;
+  size_t map_width = image_width / kMapDimensionScaleFactor;
+  size_t map_height = image_height / kMapDimensionScaleFactor;
+  map_width = static_cast<size_t>(
+          floor((map_width + kJpegBlock - 1) / kJpegBlock)) * kJpegBlock;
+  map_height = ((map_height + 1) >> 1) << 1;
+  if (map_width != uncompressed_gain_map->width
+   || map_height != uncompressed_gain_map->height) {
+    ALOGE("gain map dimensions and primary image dimensions are not to scale");
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   dest->width = uncompressed_yuv_420_image->width;
