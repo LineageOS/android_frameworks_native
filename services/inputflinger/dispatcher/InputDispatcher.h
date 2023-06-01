@@ -204,6 +204,8 @@ private:
 
     const IdGenerator mIdGenerator;
 
+    int64_t mWindowInfosVsyncId GUARDED_BY(mLock);
+
     // With each iteration, InputDispatcher nominally processes one queued event,
     // a timeout, or a response from an input consumer.
     // This method should only be called on the input dispatcher's own thread.
