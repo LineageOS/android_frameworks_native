@@ -138,3 +138,18 @@ cc_fuzz {
         "surfaceflinger_frametracer_fuzzer.cpp",
     ],
 }
+
+cc_fuzz {
+    name: "surfaceflinger_service_fuzzer",
+    defaults: [
+        "surfaceflinger_fuzz_defaults",
+        "service_fuzzer_defaults",
+        "fuzzer_disable_leaks",
+    ],
+    srcs: [
+        "surfaceflinger_service_fuzzer.cpp",
+    ],
+    fuzz_config: {
+        triage_assignee: "waghpawan@google.com",
+    },
+}
