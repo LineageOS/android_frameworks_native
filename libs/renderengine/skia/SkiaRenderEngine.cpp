@@ -20,6 +20,7 @@
 
 #include "SkiaRenderEngine.h"
 
+#include <include/gpu/ganesh/SkSurfaceGanesh.h>
 #include <GrBackendSemaphore.h>
 #include <GrContextOptions.h>
 #include <SkBlendMode.h>
@@ -1105,7 +1106,7 @@ void SkiaRenderEngine::drawLayersInternal(
         }
         if (kFlushAfterEveryLayer) {
             ATRACE_NAME("flush surface");
-            activeSurface->flush();
+            skgpu::ganesh::Flush(activeSurface);
         }
     }
     for (const auto& borderRenderInfo : display.borderInfoList) {
@@ -1133,7 +1134,7 @@ void SkiaRenderEngine::drawLayersInternal(
     {
         ATRACE_NAME("flush surface");
         LOG_ALWAYS_FATAL_IF(activeSurface != dstSurface);
-        activeSurface->flush();
+        skgpu::ganesh::Flush(activeSurface);
     }
 
     auto drawFence = sp<Fence>::make(flushAndSubmit(grContext));
