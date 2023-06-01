@@ -45,7 +45,7 @@ const int kCgMax = ULTRAHDR_COLORGAMUT_MAX;
 
 // Transfer functions for image data, sync with ultrahdr.h
 const int kTfMin = ULTRAHDR_TF_UNSPECIFIED + 1;
-const int kTfMax = ULTRAHDR_TF_MAX;
+const int kTfMax = ULTRAHDR_TF_PQ;
 
 // Transfer functions for image data, sync with ultrahdr.h
 const int kOfMin = ULTRAHDR_OUTPUT_UNSPECIFIED + 1;
@@ -265,16 +265,29 @@ void JpegHDRFuzzer::process() {
             }
         }
         if (status == android::OK) {
-            jpegr_uncompressed_struct decodedJpegR;
-            auto decodedRaw = std::make_unique<uint8_t[]>(width * height * 8);
-            decodedJpegR.data = decodedRaw.get();
-            jpegHdr.decodeJPEGR(&jpegImgR, &decodedJpegR,
-                                mFdp.ConsumeFloatingPointInRange<float>(1.0, FLT_MAX), nullptr, of,
-                                nullptr, nullptr);
             std::vector<uint8_t> iccData(0);
             std::vector<uint8_t> exifData(0);
             jpegr_info_struct info{0, 0, &iccData, &exifData};
-            jpegHdr.getJPEGRInfo(&jpegImgR, &info);
+            status = jpegHdr.getJPEGRInfo(&jpegImgR, &info);
+            if (status == android::OK) {
+                size_t outSize = info.width * info.height * ((of == ULTRAHDR_OUTPUT_SDR) ? 4 : 8);
+                jpegr_uncompressed_struct decodedJpegR;
+                auto decodedRaw = std::make_unique<uint8_t[]>(outSize);
+                decodedJpegR.data = decodedRaw.get();
+                ultrahdr_metadata_struct metadata;
+                jpegr_uncompressed_struct decodedGainMap{};
+                status = jpegHdr.decodeJPEGR(&jpegImgR, &decodedJpegR,
+                                             mFdp.ConsumeFloatingPointInRange<float>(1.0, FLT_MAX),
+                                             nullptr, of, &decodedGainMap, &metadata);
+                if (status != android::OK) {
+                    ALOGE("encountered error during decoding %d", status);
+                }
+                if (decodedGainMap.data) free(decodedGainMap.data);
+            } else {
+                ALOGE("encountered error during get jpeg info %d", status);
+            }
+        } else {
+            ALOGE("encountered error during encoding %d", status);
         }
     }
 }
