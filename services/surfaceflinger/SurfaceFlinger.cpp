@@ -2485,7 +2485,10 @@ bool SurfaceFlinger::commit(TimePoint frameTime, VsyncId vsyncId, TimePoint expe
 
         mPowerAdvisor->setFrameDelay(frameDelay);
         mPowerAdvisor->setTotalFrameTargetWorkDuration(idealSfWorkDuration);
-        mPowerAdvisor->updateTargetWorkDuration(vsyncPeriod);
+
+        const auto& display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked()).get();
+        const Period idealVsyncPeriod = display->getActiveMode().fps.getPeriod();
+        mPowerAdvisor->updateTargetWorkDuration(idealVsyncPeriod);
     }
 
     if (mRefreshRateOverlaySpinner) {

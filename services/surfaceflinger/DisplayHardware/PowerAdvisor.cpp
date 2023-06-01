@@ -223,7 +223,7 @@ void PowerAdvisor::updateTargetWorkDuration(Duration targetDuration) {
 }
 
 void PowerAdvisor::reportActualWorkDuration() {
-    if (!mBootFinished || !usePowerHintSession()) {
+    if (!mBootFinished || !sUseReportActualDuration || !usePowerHintSession()) {
         ALOGV("Actual work duration power hint cannot be sent, skipping");
         return;
     }
@@ -563,6 +563,9 @@ const bool PowerAdvisor::sTraceHintSessionData =
 const Duration PowerAdvisor::sTargetSafetyMargin = std::chrono::microseconds(
         base::GetIntProperty<int64_t>("debug.sf.hint_margin_us",
                                       ticks<std::micro>(PowerAdvisor::kDefaultTargetSafetyMargin)));
+
+const bool PowerAdvisor::sUseReportActualDuration =
+        base::GetBoolProperty(std::string("debug.adpf.use_report_actual_duration"), true);
 
 power::PowerHalController& PowerAdvisor::getPowerHal() {
     static std::once_flag halFlag;
