@@ -269,6 +269,9 @@ private:
     static const Duration sTargetSafetyMargin;
     static constexpr const Duration kDefaultTargetSafetyMargin{1ms};
 
+    // Whether we should send reportActualWorkDuration calls
+    static const bool sUseReportActualDuration;
+
     // How long we expect hwc to run after the present call until it waits for the fence
     static constexpr const Duration kFenceWaitStartDelayValidated{150us};
     static constexpr const Duration kFenceWaitStartDelaySkippedValidate{250us};
