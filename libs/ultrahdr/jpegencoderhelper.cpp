@@ -107,12 +107,11 @@ bool JpegEncoderHelper::encode(const void* image, int width, int height, int jpe
         jpeg_write_marker(&cinfo, JPEG_APP0 + 2, static_cast<const JOCTET*>(iccBuffer), iccSize);
     }
 
-    if (!compress(&cinfo, static_cast<const uint8_t*>(image), isSingleChannel)) {
-        return false;
-    }
+    bool status = compress(&cinfo, static_cast<const uint8_t*>(image), isSingleChannel);
     jpeg_finish_compress(&cinfo);
     jpeg_destroy_compress(&cinfo);
-    return true;
+
+    return status;
 }
 
 void JpegEncoderHelper::setJpegDestination(jpeg_compress_struct* cinfo) {
@@ -174,7 +173,7 @@ bool JpegEncoderHelper::compressYuv(jpeg_compress_struct* cinfo, const uint8_t* 
     uint8_t* y_plane = const_cast<uint8_t*>(yuv);
     uint8_t* u_plane = const_cast<uint8_t*>(yuv + y_plane_size);
     uint8_t* v_plane = const_cast<uint8_t*>(yuv + y_plane_size + uv_plane_size);
-    std::unique_ptr<uint8_t[]> empty(new uint8_t[cinfo->image_width]);
+    std::unique_ptr<uint8_t[]> empty = std::make_unique<uint8_t[]>(cinfo->image_width);
     memset(empty.get(), 0, cinfo->image_width);
 
     const int aligned_width = ALIGNM(cinfo->image_width, kCompressBatchSize);
@@ -250,7 +249,7 @@ bool JpegEncoderHelper::compressSingleChannel(jpeg_compress_struct* cinfo, const
     JSAMPARRAY planes[1] {y};
 
     uint8_t* y_plane = const_cast<uint8_t*>(image);
-    std::unique_ptr<uint8_t[]> empty(new uint8_t[cinfo->image_width]);
+    std::unique_ptr<uint8_t[]> empty = std::make_unique<uint8_t[]>(cinfo->image_width);
     memset(empty.get(), 0, cinfo->image_width);
 
     const int aligned_width = ALIGNM(cinfo->image_width, kCompressBatchSize);
