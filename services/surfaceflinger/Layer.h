@@ -841,6 +841,14 @@ public:
     mutable bool contentDirty{false};
     Region surfaceDamageRegion;
 
+    // True when the surfaceDamageRegion is recognized as a small area update.
+    bool mSmallDirty{false};
+    // Used to check if mUsedVsyncIdForRefreshRateSelection should be expired when it stop updating.
+    nsecs_t mMaxTimeForUseVsyncId = 0;
+    // True when DrawState.useVsyncIdForRefreshRateSelection previously set to true during updating
+    // buffer.
+    bool mUsedVsyncIdForRefreshRateSelection{false};
+
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
     // the same.
@@ -903,6 +911,7 @@ public:
                 .transform = getTransform(),
                 .setFrameRateVote = getFrameRateForLayerTree(),
                 .frameRateSelectionPriority = getFrameRateSelectionPriority(),
+                .isSmallDirty = mSmallDirty,
         };
     };
     bool hasBuffer() const { return mBufferInfo.mBuffer != nullptr; }
@@ -916,6 +925,9 @@ public:
     std::vector<ui::LayerStack> mPreviouslyPresentedLayerStacks;
     // Exposed so SurfaceFlinger can assert that it's held
     const sp<SurfaceFlinger> mFlinger;
+
+    // Check if the damage region is a small dirty.
+    void setIsSmallDirty();
 
 protected:
     // For unit tests

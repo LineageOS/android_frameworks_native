@@ -58,6 +58,7 @@ class LayerInfo {
     static constexpr Fps kMinFpsForFrequentLayer = 10_Hz;
     static constexpr auto kMaxPeriodForFrequentLayerNs =
             std::chrono::nanoseconds(kMinFpsForFrequentLayer.getPeriodNsecs()) + 1ms;
+    static constexpr size_t kNumSmallDirtyThreshold = 2;
 
     friend class LayerHistoryTest;
     friend class LayerInfoTest;
@@ -235,6 +236,7 @@ private:
         nsecs_t presentTime; // desiredPresentTime, if provided
         nsecs_t queueTime;  // buffer queue time
         bool pendingModeChange;
+        bool isSmallDirty;
     };
 
     // Holds information about the calculated and reported refresh rate
@@ -299,6 +301,8 @@ private:
         bool clearHistory;
         // Represents whether we were able to determine isFrequent conclusively
         bool isConclusive;
+        // Represents whether the latest frames are small dirty.
+        bool isSmallDirty = false;
     };
     Frequent isFrequent(nsecs_t now) const;
     bool isAnimating(nsecs_t now) const;
@@ -317,6 +321,11 @@ private:
     // this period apart from each other, the interval between them won't be
     // taken into account when calculating average frame rate.
     static constexpr nsecs_t kMaxPeriodBetweenFrames = kMinFpsForFrequentLayer.getPeriodNsecs();
+    // Used for sanitizing the heuristic data. If frames are small dirty updating and are less
+    // than this period apart from each other, the interval between them won't be
+    // taken into account when calculating average frame rate.
+    static constexpr nsecs_t kMinPeriodBetweenSmallDirtyFrames = (60_Hz).getPeriodNsecs();
+
     LayerHistory::LayerVoteType mDefaultVote;
 
     LayerVote mLayerVote;
@@ -331,7 +340,7 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> mFrameTimeValidSince =
             std::chrono::steady_clock::now();
     static constexpr size_t HISTORY_SIZE = RefreshRateHistory::HISTORY_SIZE;
-    static constexpr std::chrono::nanoseconds HISTORY_DURATION = 1s;
+    static constexpr std::chrono::nanoseconds HISTORY_DURATION = LayerHistory::kMaxPeriodForHistory;
 
     std::unique_ptr<LayerProps> mLayerProps;
 
@@ -349,6 +358,7 @@ struct LayerProps {
     ui::Transform transform;
     LayerInfo::FrameRate setFrameRateVote;
     int32_t frameRateSelectionPriority = -1;
+    bool isSmallDirty = false;
 };
 
 } // namespace scheduler
