@@ -24,6 +24,7 @@
 #include <SkSize.h>
 #include <SkString.h>
 #include <SkSurface.h>
+#include <SkTileMode.h>
 #include <log/log.h>
 #include <utils/Trace.h>
 

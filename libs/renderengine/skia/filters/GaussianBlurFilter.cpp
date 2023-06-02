@@ -17,6 +17,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "GaussianBlurFilter.h"
+#include <SkBlendMode.h>
 #include <SkCanvas.h>
 #include <SkPaint.h>
 #include <SkRRect.h>
@@ -25,6 +26,7 @@
 #include <SkSize.h>
 #include <SkString.h>
 #include <SkSurface.h>
+#include <SkTileMode.h>
 #include <include/gpu/ganesh/SkSurfaceGanesh.h>
 #include "include/gpu/GpuTypes.h" // from Skia
 #include <log/log.h>
