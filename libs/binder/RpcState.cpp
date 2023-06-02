@@ -34,6 +34,10 @@
 
 #include <inttypes.h>
 
+#ifdef __ANDROID__
+#include <cutils/properties.h>
+#endif
+
 namespace android {
 
 using base::StringPrintf;
@@ -399,14 +403,27 @@ status_t RpcState::rpcRec(
 }
 
 bool RpcState::validateProtocolVersion(uint32_t version) {
-    if (version >= RPC_WIRE_PROTOCOL_VERSION_NEXT &&
-        version != RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL) {
+    if (version == RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL) {
+#if defined(__ANDROID__)
+        char codename[PROPERTY_VALUE_MAX];
+        property_get("ro.build.version.codename", codename, "");
+        if (!strcmp(codename, "REL")) {
+            ALOGE("Cannot use experimental RPC binder protocol on a release branch.");
+            return false;
+        }
+#else
+        // don't restrict on other platforms, though experimental should
+        // only really be used for testing, we don't have a good way to see
+        // what is shipping outside of Android
+#endif
+    } else if (version >= RPC_WIRE_PROTOCOL_VERSION_NEXT) {
         ALOGE("Cannot use RPC binder protocol version %u which is unknown (current protocol "
               "version "
               "is %u).",
               version, RPC_WIRE_PROTOCOL_VERSION);
         return false;
     }
+
     return true;
 }
 
