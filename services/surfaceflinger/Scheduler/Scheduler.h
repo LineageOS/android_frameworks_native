@@ -305,6 +305,16 @@ public:
         return mLayerHistory.getLayerFramerate(now, id);
     }
 
+    // Returns true if the small dirty detection is enabled.
+    bool supportSmallDirtyDetection() const {
+        return mFeatures.test(Feature::kSmallDirtyContentDetection);
+    }
+
+    // Returns true if the dirty area is less than threshold.
+    bool isSmallDirtyArea(uint32_t dirtyArea) const {
+        return mLayerHistory.isSmallDirtyArea(dirtyArea);
+    }
+
 private:
     friend class TestableScheduler;
 

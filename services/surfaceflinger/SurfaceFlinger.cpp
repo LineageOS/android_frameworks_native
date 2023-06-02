@@ -3924,6 +3924,9 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
 
     if (sysprop::use_content_detection_for_refresh_rate(false)) {
         features |= Feature::kContentDetection;
+        if (base::GetBoolProperty("debug.sf.enable_small_dirty_detection"s, false)) {
+            features |= Feature::kSmallDirtyContentDetection;
+        }
     }
     if (base::GetBoolProperty("debug.sf.show_predicted_vsync"s, false)) {
         features |= Feature::kTracePredictedVsync;
@@ -7959,6 +7962,15 @@ void SurfaceFlinger::sample() {
 void SurfaceFlinger::onActiveDisplaySizeChanged(const DisplayDevice& activeDisplay) {
     mScheduler->onActiveDisplayAreaChanged(activeDisplay.getWidth() * activeDisplay.getHeight());
     getRenderEngine().onActiveDisplaySizeChanged(activeDisplay.getSize());
+
+    // Notify layers to update small dirty flag.
+    if (mScheduler->supportSmallDirtyDetection()) {
+        mCurrentState.traverse([&](Layer* layer) {
+            if (layer->getLayerStack() == activeDisplay.getLayerStack()) {
+                layer->setIsSmallDirty();
+            }
+        });
+    }
 }
 
 sp<DisplayDevice> SurfaceFlinger::getActivatableDisplay() const {
