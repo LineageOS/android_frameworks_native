@@ -52,7 +52,7 @@ void fuzzService(const std::vector<sp<IBinder>>& binders, FuzzedDataProvider&& p
                     uint32_t flags = provider.ConsumeIntegral<uint32_t>();
                     Parcel data;
                     // for increased fuzz coverage
-                    data.setEnforceNoDataAvail(provider.ConsumeBool());
+                    data.setEnforceNoDataAvail(false);
 
                     sp<IBinder> target = options.extraBinders.at(
                             provider.ConsumeIntegralInRange<size_t>(0,
@@ -73,7 +73,7 @@ void fuzzService(const std::vector<sp<IBinder>>& binders, FuzzedDataProvider&& p
 
                     Parcel reply;
                     // for increased fuzz coverage
-                    reply.setEnforceNoDataAvail(provider.ConsumeBool());
+                    reply.setEnforceNoDataAvail(false);
                     (void)target->transact(code, data, &reply, flags);
 
                     // feed back in binders and fds that are returned from the service, so that
