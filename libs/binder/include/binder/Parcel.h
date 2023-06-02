@@ -149,6 +149,10 @@ public:
     // This Api is used by fuzzers to skip dataAvail checks.
     void setEnforceNoDataAvail(bool enforceNoDataAvail);
 
+    // When fuzzing, we want to remove certain ABI checks that cause significant
+    // lost coverage, and we also want to avoid logs that cost too much to write.
+    void setServiceFuzzing();
+
     void                freeData();
 
     size_t              objectsCount() const;
@@ -1330,6 +1334,7 @@ private:
 
     // Set this to false to skip dataAvail checks.
     bool mEnforceNoDataAvail;
+    bool mServiceFuzzing;
 
     release_func        mOwner;
 
