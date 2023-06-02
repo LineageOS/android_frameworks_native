@@ -969,12 +969,18 @@ bool Parcel::enforceInterface(const char16_t* interface,
             (!len || !memcmp(parcel_interface, interface, len * sizeof (char16_t)))) {
         return true;
     } else {
-        if (!mServiceFuzzing) {
+        if (mServiceFuzzing) {
+            // ignore. Theoretically, this could cause a few false positives, because
+            // people could assume things about getInterfaceDescriptor if they pass
+            // this point, but it would be extremely fragile. It's more important that
+            // we fuzz with the above things read from the Parcel.
+            return true;
+        } else {
             ALOGW("**** enforceInterface() expected '%s' but read '%s'",
                   String8(interface, len).string(),
                   String8(parcel_interface, parcel_interface_len).string());
+            return false;
         }
-        return false;
     }
 }
 
