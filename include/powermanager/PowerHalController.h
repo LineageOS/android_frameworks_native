@@ -53,7 +53,7 @@ public:
           : mHalConnector(std::move(connector)) {}
     virtual ~PowerHalController() = default;
 
-    void init();
+    virtual void init();
 
     virtual HalResult<void> setBoost(aidl::android::hardware::power::Boost boost,
                                      int32_t durationMs) override;
