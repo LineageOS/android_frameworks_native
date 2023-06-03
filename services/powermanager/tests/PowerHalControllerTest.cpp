@@ -16,9 +16,9 @@
 
 #define LOG_TAG "PowerHalControllerTest"
 
-#include <android/hardware/power/Boost.h>
-#include <android/hardware/power/IPower.h>
-#include <android/hardware/power/Mode.h>
+#include <aidl/android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/Mode.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <powermanager/PowerHalController.h>
@@ -26,8 +26,8 @@
 
 #include <thread>
 
-using android::hardware::power::Boost;
-using android::hardware::power::Mode;
+using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::Mode;
 using android::hardware::power::V1_0::Feature;
 using android::hardware::power::V1_0::IPower;
 using android::hardware::power::V1_0::PowerHint;

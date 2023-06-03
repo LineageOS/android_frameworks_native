@@ -16,9 +16,9 @@
 
 #define LOG_TAG "PowerHalWrapperAidlTest"
 
-#include <android/hardware/power/Boost.h>
-#include <android/hardware/power/IPowerHintSession.h>
-#include <android/hardware/power/Mode.h>
+#include <aidl/android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/IPowerHintSession.h>
+#include <aidl/android/hardware/power/Mode.h>
 #include <binder/IServiceManager.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -28,11 +28,11 @@
 #include <unistd.h>
 #include <thread>
 
+using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::IPower;
+using aidl::android::hardware::power::IPowerHintSession;
+using aidl::android::hardware::power::Mode;
 using android::binder::Status;
-using android::hardware::power::Boost;
-using android::hardware::power::IPower;
-using android::hardware::power::IPowerHintSession;
-using android::hardware::power::Mode;
 
 using namespace android;
 using namespace android::power;
@@ -43,18 +43,21 @@ using namespace testing;
 
 class MockIPower : public IPower {
 public:
-    MOCK_METHOD(Status, isBoostSupported, (Boost boost, bool* ret), (override));
-    MOCK_METHOD(Status, setBoost, (Boost boost, int32_t durationMs), (override));
-    MOCK_METHOD(Status, isModeSupported, (Mode mode, bool* ret), (override));
-    MOCK_METHOD(Status, setMode, (Mode mode, bool enabled), (override));
-    MOCK_METHOD(Status, createHintSession,
+    MockIPower() = default;
+
+    MOCK_METHOD(ndk::ScopedAStatus, isBoostSupported, (Boost boost, bool* ret), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, setBoost, (Boost boost, int32_t durationMs), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, isModeSupported, (Mode mode, bool* ret), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, setMode, (Mode mode, bool enabled), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, createHintSession,
                 (int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
-                 int64_t durationNanos, sp<IPowerHintSession>* session),
+                 int64_t durationNanos, std::shared_ptr<IPowerHintSession>* session),
                 (override));
-    MOCK_METHOD(Status, getHintSessionPreferredRate, (int64_t * rate), (override));
-    MOCK_METHOD(int32_t, getInterfaceVersion, (), (override));
-    MOCK_METHOD(std::string, getInterfaceHash, (), (override));
-    MOCK_METHOD(IBinder*, onAsBinder, (), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getHintSessionPreferredRate, (int64_t * rate), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getInterfaceVersion, (int32_t * version), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getInterfaceHash, (std::string * hash), (override));
+    MOCK_METHOD(ndk::SpAIBinder, asBinder, (), (override));
+    MOCK_METHOD(bool, isRemote, (), (override));
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -65,13 +68,13 @@ public:
 
 protected:
     std::unique_ptr<HalWrapper> mWrapper = nullptr;
-    sp<StrictMock<MockIPower>> mMockHal = nullptr;
+    std::shared_ptr<StrictMock<MockIPower>> mMockHal = nullptr;
 };
 
 // -------------------------------------------------------------------------------------------------
 
 void PowerHalWrapperAidlTest::SetUp() {
-    mMockHal = new StrictMock<MockIPower>();
+    mMockHal = ndk::SharedRefBase::make<StrictMock<MockIPower>>();
     mWrapper = std::make_unique<AidlHalWrapper>(mMockHal);
     ASSERT_NE(nullptr, mWrapper);
 }
@@ -83,9 +86,11 @@ TEST_F(PowerHalWrapperAidlTest, TestSetBoostSuccessful) {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), isBoostSupported(Eq(Boost::DISPLAY_UPDATE_IMMINENT), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(DoAll(SetArgPointee<1>(true), Return(Status())));
+                .WillOnce(DoAll(SetArgPointee<1>(true),
+                                Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
         EXPECT_CALL(*mMockHal.get(), setBoost(Eq(Boost::DISPLAY_UPDATE_IMMINENT), Eq(100)))
-                .Times(Exactly(1));
+                .Times(Exactly(1))
+                .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
     }
 
     auto result = mWrapper->setBoost(Boost::DISPLAY_UPDATE_IMMINENT, 100);
@@ -97,13 +102,14 @@ TEST_F(PowerHalWrapperAidlTest, TestSetBoostFailed) {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), isBoostSupported(Eq(Boost::INTERACTION), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(DoAll(SetArgPointee<1>(true), Return(Status())));
+                .WillOnce(DoAll(SetArgPointee<1>(true),
+                                Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
         EXPECT_CALL(*mMockHal.get(), setBoost(Eq(Boost::INTERACTION), Eq(100)))
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(Status::fromExceptionCode(-1)));
+                .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::fromExceptionCode(-1))));
         EXPECT_CALL(*mMockHal.get(), isBoostSupported(Eq(Boost::DISPLAY_UPDATE_IMMINENT), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(Status::fromExceptionCode(-1)));
+                .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::fromExceptionCode(-1))));
     }
 
     auto result = mWrapper->setBoost(Boost::INTERACTION, 100);
@@ -115,7 +121,8 @@ TEST_F(PowerHalWrapperAidlTest, TestSetBoostFailed) {
 TEST_F(PowerHalWrapperAidlTest, TestSetBoostUnsupported) {
     EXPECT_CALL(*mMockHal.get(), isBoostSupported(Eq(Boost::INTERACTION), _))
             .Times(Exactly(1))
-            .WillRepeatedly(DoAll(SetArgPointee<1>(false), Return(Status())));
+            .WillOnce(DoAll(SetArgPointee<1>(false),
+                            Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
 
     auto result = mWrapper->setBoost(Boost::INTERACTION, 1000);
     ASSERT_TRUE(result.isUnsupported());
@@ -128,8 +135,13 @@ TEST_F(PowerHalWrapperAidlTest, TestSetBoostMultiThreadCheckSupportedOnlyOnce) {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), isBoostSupported(Eq(Boost::INTERACTION), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(DoAll(SetArgPointee<1>(true), Return(Status())));
-        EXPECT_CALL(*mMockHal.get(), setBoost(Eq(Boost::INTERACTION), Eq(100))).Times(Exactly(10));
+                .WillOnce(DoAll(SetArgPointee<1>(true),
+                                Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
+        auto& exp = EXPECT_CALL(*mMockHal.get(), setBoost(Eq(Boost::INTERACTION), Eq(100)))
+                            .Times(Exactly(10));
+        for (int i = 0; i < 10; i++) {
+            exp.WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
+        }
     }
 
     std::vector<std::thread> threads;
@@ -147,9 +159,11 @@ TEST_F(PowerHalWrapperAidlTest, TestSetModeSuccessful) {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), isModeSupported(Eq(Mode::DISPLAY_INACTIVE), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(DoAll(SetArgPointee<1>(true), Return(Status())));
+                .WillOnce(DoAll(SetArgPointee<1>(true),
+                                Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
         EXPECT_CALL(*mMockHal.get(), setMode(Eq(Mode::DISPLAY_INACTIVE), Eq(false)))
-                .Times(Exactly(1));
+                .Times(Exactly(1))
+                .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
     }
 
     auto result = mWrapper->setMode(Mode::DISPLAY_INACTIVE, false);
@@ -161,13 +175,14 @@ TEST_F(PowerHalWrapperAidlTest, TestSetModeFailed) {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), isModeSupported(Eq(Mode::LAUNCH), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(DoAll(SetArgPointee<1>(true), Return(Status())));
+                .WillOnce(DoAll(SetArgPointee<1>(true),
+                                Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
         EXPECT_CALL(*mMockHal.get(), setMode(Eq(Mode::LAUNCH), Eq(true)))
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(Status::fromExceptionCode(-1)));
+                .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::fromExceptionCode(-1))));
         EXPECT_CALL(*mMockHal.get(), isModeSupported(Eq(Mode::DISPLAY_INACTIVE), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(Status::fromExceptionCode(-1)));
+                .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::fromExceptionCode(-1))));
     }
 
     auto result = mWrapper->setMode(Mode::LAUNCH, true);
@@ -179,14 +194,16 @@ TEST_F(PowerHalWrapperAidlTest, TestSetModeFailed) {
 TEST_F(PowerHalWrapperAidlTest, TestSetModeUnsupported) {
     EXPECT_CALL(*mMockHal.get(), isModeSupported(Eq(Mode::LAUNCH), _))
             .Times(Exactly(1))
-            .WillRepeatedly(DoAll(SetArgPointee<1>(false), Return(Status())));
+            .WillOnce(DoAll(SetArgPointee<1>(false),
+                            Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
 
     auto result = mWrapper->setMode(Mode::LAUNCH, true);
     ASSERT_TRUE(result.isUnsupported());
 
     EXPECT_CALL(*mMockHal.get(), isModeSupported(Eq(Mode::CAMERA_STREAMING_HIGH), _))
             .Times(Exactly(1))
-            .WillRepeatedly(DoAll(SetArgPointee<1>(false), Return(Status())));
+            .WillOnce(DoAll(SetArgPointee<1>(false),
+                            Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
     result = mWrapper->setMode(Mode::CAMERA_STREAMING_HIGH, true);
     ASSERT_TRUE(result.isUnsupported());
 }
@@ -196,8 +213,13 @@ TEST_F(PowerHalWrapperAidlTest, TestSetModeMultiThreadCheckSupportedOnlyOnce) {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), isModeSupported(Eq(Mode::LAUNCH), _))
                 .Times(Exactly(1))
-                .WillRepeatedly(DoAll(SetArgPointee<1>(true), Return(Status())));
-        EXPECT_CALL(*mMockHal.get(), setMode(Eq(Mode::LAUNCH), Eq(false))).Times(Exactly(10));
+                .WillOnce(DoAll(SetArgPointee<1>(true),
+                                Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
+        auto& exp = EXPECT_CALL(*mMockHal.get(), setMode(Eq(Mode::LAUNCH), Eq(false)))
+                            .Times(Exactly(10));
+        for (int i = 0; i < 10; i++) {
+            exp.WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
+        }
     }
 
     std::vector<std::thread> threads;
@@ -217,7 +239,8 @@ TEST_F(PowerHalWrapperAidlTest, TestCreateHintSessionSuccessful) {
     int64_t durationNanos = 16666666L;
     EXPECT_CALL(*mMockHal.get(),
                 createHintSession(Eq(tgid), Eq(uid), Eq(threadIds), Eq(durationNanos), _))
-            .Times(Exactly(1));
+            .Times(Exactly(1))
+            .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
     auto result = mWrapper->createHintSession(tgid, uid, threadIds, durationNanos);
     ASSERT_TRUE(result.isOk());
 }
@@ -230,13 +253,16 @@ TEST_F(PowerHalWrapperAidlTest, TestCreateHintSessionFailed) {
     EXPECT_CALL(*mMockHal.get(),
                 createHintSession(Eq(tgid), Eq(uid), Eq(threadIds), Eq(durationNanos), _))
             .Times(Exactly(1))
-            .WillRepeatedly(Return(Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT)));
+            .WillOnce(Return(testing::ByMove(
+                    ndk::ScopedAStatus::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT))));
     auto result = mWrapper->createHintSession(tgid, uid, threadIds, durationNanos);
     ASSERT_TRUE(result.isFailed());
 }
 
 TEST_F(PowerHalWrapperAidlTest, TestGetHintSessionPreferredRate) {
-    EXPECT_CALL(*mMockHal.get(), getHintSessionPreferredRate(_)).Times(Exactly(1));
+    EXPECT_CALL(*mMockHal.get(), getHintSessionPreferredRate(_))
+            .Times(Exactly(1))
+            .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
     auto result = mWrapper->getHintSessionPreferredRate();
     ASSERT_TRUE(result.isOk());
     int64_t rate = result.value();

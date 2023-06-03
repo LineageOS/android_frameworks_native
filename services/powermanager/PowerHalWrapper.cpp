@@ -15,86 +15,49 @@
  */
 
 #define LOG_TAG "HalWrapper"
-#include <android/hardware/power/Boost.h>
-#include <android/hardware/power/IPowerHintSession.h>
-#include <android/hardware/power/Mode.h>
+#include <aidl/android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/IPowerHintSession.h>
+#include <aidl/android/hardware/power/Mode.h>
 #include <powermanager/PowerHalWrapper.h>
 #include <utils/Log.h>
 
 #include <cinttypes>
 
 using namespace android::hardware::power;
-namespace Aidl = android::hardware::power;
+namespace Aidl = aidl::android::hardware::power;
 
 namespace android {
 
 namespace power {
 
 // -------------------------------------------------------------------------------------------------
-
-inline HalResult<void> toHalResult(const binder::Status& result) {
+inline HalResult<void> toHalResult(const ndk::ScopedAStatus& result) {
     if (result.isOk()) {
         return HalResult<void>::ok();
     }
-    ALOGE("Power HAL request failed: %s", result.toString8().c_str());
-    return HalResult<void>::fromStatus(result);
-}
-
-template <typename T>
-template <typename R>
-HalResult<T> HalResult<T>::fromReturn(hardware::Return<R>& ret, T data) {
-    return ret.isOk() ? HalResult<T>::ok(data) : HalResult<T>::failed(ret.description());
-}
-
-template <typename T>
-template <typename R>
-HalResult<T> HalResult<T>::fromReturn(hardware::Return<R>& ret, V1_0::Status status, T data) {
-    return ret.isOk() ? HalResult<T>::fromStatus(status, data)
-                      : HalResult<T>::failed(ret.description());
+    ALOGE("Power HAL request failed: %s", result.getDescription().c_str());
+    return HalResult<void>::failed(result.getDescription());
 }
 
 // -------------------------------------------------------------------------------------------------
 
-HalResult<void> HalResult<void>::fromStatus(status_t status) {
-    if (status == android::OK) {
-        return HalResult<void>::ok();
-    }
-    return HalResult<void>::failed(statusToString(status));
-}
-
-HalResult<void> HalResult<void>::fromStatus(binder::Status status) {
-    if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
-        return HalResult<void>::unsupported();
-    }
-    if (status.isOk()) {
-        return HalResult<void>::ok();
-    }
-    return HalResult<void>::failed(std::string(status.toString8().c_str()));
-}
-
-template <typename R>
-HalResult<void> HalResult<void>::fromReturn(hardware::Return<R>& ret) {
-    return ret.isOk() ? HalResult<void>::ok() : HalResult<void>::failed(ret.description());
-}
-// -------------------------------------------------------------------------------------------------
-
-HalResult<void> EmptyHalWrapper::setBoost(Boost boost, int32_t durationMs) {
+HalResult<void> EmptyHalWrapper::setBoost(Aidl::Boost boost, int32_t durationMs) {
     ALOGV("Skipped setBoost %s with duration %dms because Power HAL not available",
           toString(boost).c_str(), durationMs);
     return HalResult<void>::unsupported();
 }
 
-HalResult<void> EmptyHalWrapper::setMode(Mode mode, bool enabled) {
+HalResult<void> EmptyHalWrapper::setMode(Aidl::Mode mode, bool enabled) {
     ALOGV("Skipped setMode %s to %s because Power HAL not available", toString(mode).c_str(),
           enabled ? "true" : "false");
     return HalResult<void>::unsupported();
 }
 
-HalResult<sp<Aidl::IPowerHintSession>> EmptyHalWrapper::createHintSession(
+HalResult<std::shared_ptr<Aidl::IPowerHintSession>> EmptyHalWrapper::createHintSession(
         int32_t, int32_t, const std::vector<int32_t>& threadIds, int64_t) {
     ALOGV("Skipped createHintSession(task num=%zu) because Power HAL not available",
           threadIds.size());
-    return HalResult<sp<Aidl::IPowerHintSession>>::unsupported();
+    return HalResult<std::shared_ptr<Aidl::IPowerHintSession>>::unsupported();
 }
 
 HalResult<int64_t> EmptyHalWrapper::getHintSessionPreferredRate() {
@@ -104,8 +67,8 @@ HalResult<int64_t> EmptyHalWrapper::getHintSessionPreferredRate() {
 
 // -------------------------------------------------------------------------------------------------
 
-HalResult<void> HidlHalWrapperV1_0::setBoost(Boost boost, int32_t durationMs) {
-    if (boost == Boost::INTERACTION) {
+HalResult<void> HidlHalWrapperV1_0::setBoost(Aidl::Boost boost, int32_t durationMs) {
+    if (boost == Aidl::Boost::INTERACTION) {
         return sendPowerHint(V1_3::PowerHint::INTERACTION, durationMs);
     } else {
         ALOGV("Skipped setBoost %s because Power HAL AIDL not available", toString(boost).c_str());
@@ -113,20 +76,20 @@ HalResult<void> HidlHalWrapperV1_0::setBoost(Boost boost, int32_t durationMs) {
     }
 }
 
-HalResult<void> HidlHalWrapperV1_0::setMode(Mode mode, bool enabled) {
+HalResult<void> HidlHalWrapperV1_0::setMode(Aidl::Mode mode, bool enabled) {
     uint32_t data = enabled ? 1 : 0;
     switch (mode) {
-        case Mode::LAUNCH:
+        case Aidl::Mode::LAUNCH:
             return sendPowerHint(V1_3::PowerHint::LAUNCH, data);
-        case Mode::LOW_POWER:
+        case Aidl::Mode::LOW_POWER:
             return sendPowerHint(V1_3::PowerHint::LOW_POWER, data);
-        case Mode::SUSTAINED_PERFORMANCE:
+        case Aidl::Mode::SUSTAINED_PERFORMANCE:
             return sendPowerHint(V1_3::PowerHint::SUSTAINED_PERFORMANCE, data);
-        case Mode::VR:
+        case Aidl::Mode::VR:
             return sendPowerHint(V1_3::PowerHint::VR_MODE, data);
-        case Mode::INTERACTIVE:
+        case Aidl::Mode::INTERACTIVE:
             return setInteractive(enabled);
-        case Mode::DOUBLE_TAP_TO_WAKE:
+        case Aidl::Mode::DOUBLE_TAP_TO_WAKE:
             return setFeature(V1_0::Feature::POWER_FEATURE_DOUBLE_TAP_TO_WAKE, enabled);
         default:
             ALOGV("Skipped setMode %s because Power HAL AIDL not available",
@@ -150,11 +113,11 @@ HalResult<void> HidlHalWrapperV1_0::setFeature(V1_0::Feature feature, bool enabl
     return HalResult<void>::fromReturn(ret);
 }
 
-HalResult<sp<hardware::power::IPowerHintSession>> HidlHalWrapperV1_0::createHintSession(
+HalResult<std::shared_ptr<Aidl::IPowerHintSession>> HidlHalWrapperV1_0::createHintSession(
         int32_t, int32_t, const std::vector<int32_t>& threadIds, int64_t) {
     ALOGV("Skipped createHintSession(task num=%zu) because Power HAL not available",
           threadIds.size());
-    return HalResult<sp<Aidl::IPowerHintSession>>::unsupported();
+    return HalResult<std::shared_ptr<Aidl::IPowerHintSession>>::unsupported();
 }
 
 HalResult<int64_t> HidlHalWrapperV1_0::getHintSessionPreferredRate() {
@@ -178,26 +141,26 @@ HalResult<void> HidlHalWrapperV1_2::sendPowerHint(V1_3::PowerHint hintId, uint32
     return HalResult<void>::fromReturn(ret);
 }
 
-HalResult<void> HidlHalWrapperV1_2::setBoost(Boost boost, int32_t durationMs) {
+HalResult<void> HidlHalWrapperV1_2::setBoost(Aidl::Boost boost, int32_t durationMs) {
     switch (boost) {
-        case Boost::CAMERA_SHOT:
+        case Aidl::Boost::CAMERA_SHOT:
             return sendPowerHint(V1_3::PowerHint::CAMERA_SHOT, durationMs);
-        case Boost::CAMERA_LAUNCH:
+        case Aidl::Boost::CAMERA_LAUNCH:
             return sendPowerHint(V1_3::PowerHint::CAMERA_LAUNCH, durationMs);
         default:
             return HidlHalWrapperV1_1::setBoost(boost, durationMs);
     }
 }
 
-HalResult<void> HidlHalWrapperV1_2::setMode(Mode mode, bool enabled) {
+HalResult<void> HidlHalWrapperV1_2::setMode(Aidl::Mode mode, bool enabled) {
     uint32_t data = enabled ? 1 : 0;
     switch (mode) {
-        case Mode::CAMERA_STREAMING_SECURE:
-        case Mode::CAMERA_STREAMING_LOW:
-        case Mode::CAMERA_STREAMING_MID:
-        case Mode::CAMERA_STREAMING_HIGH:
+        case Aidl::Mode::CAMERA_STREAMING_SECURE:
+        case Aidl::Mode::CAMERA_STREAMING_LOW:
+        case Aidl::Mode::CAMERA_STREAMING_MID:
+        case Aidl::Mode::CAMERA_STREAMING_HIGH:
             return sendPowerHint(V1_3::PowerHint::CAMERA_STREAMING, data);
-        case Mode::AUDIO_STREAMING_LOW_LATENCY:
+        case Aidl::Mode::AUDIO_STREAMING_LOW_LATENCY:
             return sendPowerHint(V1_3::PowerHint::AUDIO_LOW_LATENCY, data);
         default:
             return HidlHalWrapperV1_1::setMode(mode, enabled);
@@ -206,9 +169,9 @@ HalResult<void> HidlHalWrapperV1_2::setMode(Mode mode, bool enabled) {
 
 // -------------------------------------------------------------------------------------------------
 
-HalResult<void> HidlHalWrapperV1_3::setMode(Mode mode, bool enabled) {
+HalResult<void> HidlHalWrapperV1_3::setMode(Aidl::Mode mode, bool enabled) {
     uint32_t data = enabled ? 1 : 0;
-    if (mode == Mode::EXPENSIVE_RENDERING) {
+    if (mode == Aidl::Mode::EXPENSIVE_RENDERING) {
         return sendPowerHint(V1_3::PowerHint::EXPENSIVE_RENDERING, data);
     }
     return HidlHalWrapperV1_2::setMode(mode, enabled);
@@ -222,7 +185,7 @@ HalResult<void> HidlHalWrapperV1_3::sendPowerHint(V1_3::PowerHint hintId, uint32
 
 // -------------------------------------------------------------------------------------------------
 
-HalResult<void> AidlHalWrapper::setBoost(Boost boost, int32_t durationMs) {
+HalResult<void> AidlHalWrapper::setBoost(Aidl::Boost boost, int32_t durationMs) {
     std::unique_lock<std::mutex> lock(mBoostMutex);
     size_t idx = static_cast<size_t>(boost);
 
@@ -237,7 +200,7 @@ HalResult<void> AidlHalWrapper::setBoost(Boost boost, int32_t durationMs) {
         auto isSupportedRet = mHandle->isBoostSupported(boost, &isSupported);
         if (!isSupportedRet.isOk()) {
             ALOGE("Skipped setBoost %s because check support failed with: %s",
-                  toString(boost).c_str(), isSupportedRet.toString8().c_str());
+                  toString(boost).c_str(), isSupportedRet.getDescription().c_str());
             // return HalResult::FAILED;
             return HalResult<void>::fromStatus(isSupportedRet);
         }
@@ -254,7 +217,7 @@ HalResult<void> AidlHalWrapper::setBoost(Boost boost, int32_t durationMs) {
     return toHalResult(mHandle->setBoost(boost, durationMs));
 }
 
-HalResult<void> AidlHalWrapper::setMode(Mode mode, bool enabled) {
+HalResult<void> AidlHalWrapper::setMode(Aidl::Mode mode, bool enabled) {
     std::unique_lock<std::mutex> lock(mModeMutex);
     size_t idx = static_cast<size_t>(mode);
 
@@ -268,7 +231,7 @@ HalResult<void> AidlHalWrapper::setMode(Mode mode, bool enabled) {
         bool isSupported = false;
         auto isSupportedRet = mHandle->isModeSupported(mode, &isSupported);
         if (!isSupportedRet.isOk()) {
-            return HalResult<void>::failed(isSupportedRet.toString8().c_str());
+            return HalResult<void>::failed(isSupportedRet.getDescription());
         }
 
         mModeSupportedArray[idx] = isSupported ? HalSupport::ON : HalSupport::OFF;
@@ -283,10 +246,10 @@ HalResult<void> AidlHalWrapper::setMode(Mode mode, bool enabled) {
     return toHalResult(mHandle->setMode(mode, enabled));
 }
 
-HalResult<sp<Aidl::IPowerHintSession>> AidlHalWrapper::createHintSession(
+HalResult<std::shared_ptr<Aidl::IPowerHintSession>> AidlHalWrapper::createHintSession(
         int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds, int64_t durationNanos) {
-    sp<IPowerHintSession> appSession;
-    return HalResult<sp<Aidl::IPowerHintSession>>::
+    std::shared_ptr<Aidl::IPowerHintSession> appSession;
+    return HalResult<std::shared_ptr<Aidl::IPowerHintSession>>::
             fromStatus(mHandle->createHintSession(tgid, uid, threadIds, durationNanos, &appSession),
                        appSession);
 }

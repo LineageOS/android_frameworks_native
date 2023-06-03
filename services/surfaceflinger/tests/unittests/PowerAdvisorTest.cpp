@@ -18,10 +18,10 @@
 #define LOG_TAG "PowerAdvisorTest"
 
 #include <DisplayHardware/PowerAdvisor.h>
-#include <compositionengine/Display.h>
-#include <ftl/fake_guard.h>
+#include <binder/Status.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <powermanager/PowerHalWrapper.h>
 #include <ui/DisplayId.h>
 #include <chrono>
 #include "TestableSurfaceFlinger.h"
@@ -50,7 +50,7 @@ protected:
     TestableSurfaceFlinger mFlinger;
     std::unique_ptr<PowerAdvisor> mPowerAdvisor;
     MockPowerHalController* mMockPowerHalController;
-    sp<MockIPowerHintSession> mMockPowerHintSession;
+    std::shared_ptr<MockIPowerHintSession> mMockPowerHintSession;
 };
 
 void PowerAdvisorTest::SetUp() {
@@ -64,13 +64,14 @@ void PowerAdvisorTest::SetUp() {
 
 void PowerAdvisorTest::startPowerHintSession() {
     const std::vector<int32_t> threadIds = {1, 2, 3};
-    mMockPowerHintSession = android::sp<NiceMock<MockIPowerHintSession>>::make();
+    mMockPowerHintSession = ndk::SharedRefBase::make<NiceMock<MockIPowerHintSession>>();
     ON_CALL(*mMockPowerHalController, createHintSession)
-            .WillByDefault(
-                    Return(HalResult<sp<IPowerHintSession>>::fromStatus(binder::Status::ok(),
-                                                                        mMockPowerHintSession)));
+            .WillByDefault(Return(HalResult<std::shared_ptr<IPowerHintSession>>::
+                                          fromStatus(binder::Status::ok(), mMockPowerHintSession)));
     mPowerAdvisor->enablePowerHintSession(true);
     mPowerAdvisor->startPowerHintSession(threadIds);
+    ON_CALL(*mMockPowerHintSession, updateTargetWorkDuration)
+            .WillByDefault(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
 }
 
 void PowerAdvisorTest::setExpectedTiming(Duration totalFrameTargetDuration,
@@ -123,8 +124,8 @@ TEST_F(PowerAdvisorTest, hintSessionUseHwcDisplay) {
     EXPECT_CALL(*mMockPowerHintSession,
                 reportActualWorkDuration(ElementsAre(
                         Field(&WorkDuration::durationNanos, Eq(expectedDuration.ns())))))
-            .Times(1);
-
+            .Times(1)
+            .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
     fakeBasicFrameTiming(startTime, vsyncPeriod);
     setExpectedTiming(vsyncPeriod, startTime + vsyncPeriod);
     mPowerAdvisor->setDisplays(displayIds);
@@ -163,7 +164,8 @@ TEST_F(PowerAdvisorTest, hintSessionSubtractsHwcFenceTime) {
     EXPECT_CALL(*mMockPowerHintSession,
                 reportActualWorkDuration(ElementsAre(
                         Field(&WorkDuration::durationNanos, Eq(expectedDuration.ns())))))
-            .Times(1);
+            .Times(1)
+            .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
     setExpectedTiming(vsyncPeriod, startTime + vsyncPeriod);
@@ -205,7 +207,8 @@ TEST_F(PowerAdvisorTest, hintSessionUsingSecondaryVirtualDisplays) {
     EXPECT_CALL(*mMockPowerHintSession,
                 reportActualWorkDuration(ElementsAre(
                         Field(&WorkDuration::durationNanos, Eq(expectedDuration.ns())))))
-            .Times(1);
+            .Times(1)
+            .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
 
     fakeBasicFrameTiming(startTime, vsyncPeriod);
     setExpectedTiming(vsyncPeriod, startTime + vsyncPeriod);

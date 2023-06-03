@@ -23,12 +23,12 @@
 #include "DisplayTransactionTestHelpers.h"
 #include "FakeDisplayInjector.h"
 
-#include <android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/Boost.h>
 
 namespace android {
 namespace {
 
-using android::hardware::power::Boost;
+using aidl::android::hardware::power::Boost;
 
 TEST_F(DisplayTransactionTest, notifyPowerBoostNotifiesTouchEvent) {
     using namespace std::chrono_literals;

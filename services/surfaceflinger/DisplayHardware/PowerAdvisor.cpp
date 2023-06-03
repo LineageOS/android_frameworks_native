@@ -31,9 +31,9 @@
 #include <utils/Mutex.h>
 #include <utils/Trace.h>
 
-#include <android/hardware/power/IPower.h>
-#include <android/hardware/power/IPowerHintSession.h>
-#include <android/hardware/power/WorkDuration.h>
+#include <aidl/android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/IPowerHintSession.h>
+#include <aidl/android/hardware/power/WorkDuration.h>
 
 #include <binder/IServiceManager.h>
 
@@ -49,11 +49,11 @@ PowerAdvisor::~PowerAdvisor() = default;
 
 namespace impl {
 
-using android::hardware::power::Boost;
-using android::hardware::power::IPowerHintSession;
-using android::hardware::power::Mode;
-using android::hardware::power::SessionHint;
-using android::hardware::power::WorkDuration;
+using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::IPowerHintSession;
+using aidl::android::hardware::power::Mode;
+using aidl::android::hardware::power::SessionHint;
+using aidl::android::hardware::power::WorkDuration;
 
 PowerAdvisor::~PowerAdvisor() = default;
 
@@ -215,7 +215,7 @@ void PowerAdvisor::updateTargetWorkDuration(Duration targetDuration) {
             auto ret = mHintSession->updateTargetWorkDuration(targetDuration.ns());
             if (!ret.isOk()) {
                 ALOGW("Failed to set power hint target work duration with error: %s",
-                      ret.exceptionMessage().c_str());
+                      ret.getDescription().c_str());
                 mHintSessionRunning = false;
             }
         }
@@ -259,7 +259,7 @@ void PowerAdvisor::reportActualWorkDuration() {
         auto ret = mHintSession->reportActualWorkDuration(mHintSessionQueue);
         if (!ret.isOk()) {
             ALOGW("Failed to report actual work durations with error: %s",
-                  ret.exceptionMessage().c_str());
+                  ret.getDescription().c_str());
             mHintSessionRunning = false;
             return;
         }

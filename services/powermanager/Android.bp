@@ -33,6 +33,7 @@ cc_library_shared {
 
     shared_libs: [
         "libbinder",
+        "libbinder_ndk",
         "libhidlbase",
         "liblog",
         "libutils",
@@ -40,7 +41,7 @@ cc_library_shared {
         "android.hardware.power@1.1",
         "android.hardware.power@1.2",
         "android.hardware.power@1.3",
-        "android.hardware.power-V4-cpp",
+        "android.hardware.power-V4-ndk",
     ],
 
     export_shared_lib_headers: [
@@ -48,7 +49,7 @@ cc_library_shared {
         "android.hardware.power@1.1",
         "android.hardware.power@1.2",
         "android.hardware.power@1.3",
-        "android.hardware.power-V4-cpp",
+        "android.hardware.power-V4-ndk",
     ],
 
     cflags: [

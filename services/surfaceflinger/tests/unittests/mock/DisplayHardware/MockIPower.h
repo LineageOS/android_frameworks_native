@@ -18,14 +18,14 @@
 
 #include "binder/Status.h"
 
-#include <android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/IPower.h>
 #include <gmock/gmock.h>
 
+using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::IPower;
+using aidl::android::hardware::power::IPowerHintSession;
+using aidl::android::hardware::power::Mode;
 using android::binder::Status;
-using android::hardware::power::Boost;
-using android::hardware::power::IPower;
-using android::hardware::power::IPowerHintSession;
-using android::hardware::power::Mode;
 
 namespace android::Hwc2::mock {
 
@@ -33,18 +33,19 @@ class MockIPower : public IPower {
 public:
     MockIPower();
 
-    MOCK_METHOD(Status, isBoostSupported, (Boost boost, bool* ret), (override));
-    MOCK_METHOD(Status, setBoost, (Boost boost, int32_t durationMs), (override));
-    MOCK_METHOD(Status, isModeSupported, (Mode mode, bool* ret), (override));
-    MOCK_METHOD(Status, setMode, (Mode mode, bool enabled), (override));
-    MOCK_METHOD(Status, createHintSession,
+    MOCK_METHOD(ndk::ScopedAStatus, isBoostSupported, (Boost boost, bool* ret), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, setBoost, (Boost boost, int32_t durationMs), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, isModeSupported, (Mode mode, bool* ret), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, setMode, (Mode mode, bool enabled), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, createHintSession,
                 (int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
-                 int64_t durationNanos, sp<IPowerHintSession>* session),
+                 int64_t durationNanos, std::shared_ptr<IPowerHintSession>* session),
                 (override));
-    MOCK_METHOD(Status, getHintSessionPreferredRate, (int64_t * rate), (override));
-    MOCK_METHOD(int32_t, getInterfaceVersion, (), (override));
-    MOCK_METHOD(std::string, getInterfaceHash, (), (override));
-    MOCK_METHOD(IBinder*, onAsBinder, (), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getHintSessionPreferredRate, (int64_t * rate), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getInterfaceVersion, (int32_t * version), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getInterfaceHash, (std::string * hash), (override));
+    MOCK_METHOD(ndk::SpAIBinder, asBinder, (), (override));
+    MOCK_METHOD(bool, isRemote, (), (override));
 };
 
 } // namespace android::Hwc2::mock
