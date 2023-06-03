@@ -76,9 +76,9 @@ static const int kMinHeight = 2 * kMapDimensionScaleFactor;
 // JPEG encoding / decoding will require block based DCT transform 16 x 16 for luma,
 // and 8 x 8 for chroma.
 // Width must be 16 dividable for luma, and 8 dividable for chroma.
-// If this criteria is not ficilitated, we will pad zeros based on the required block size.
+// If this criteria is not facilitated, we will pad zeros based to each line on the
+// required block size.
 static const size_t kJpegBlock = JpegEncoderHelper::kCompressBatchSize;
-static const size_t kJpegBlockSquare = kJpegBlock * kJpegBlock;
 // JPEG compress quality (0 ~ 100) for gain map
 static const int kMapCompressQuality = 85;
 
@@ -145,7 +145,8 @@ status_t JpegR::areInputArgumentsValid(jr_uncompressed_ptr uncompressed_p010_ima
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (hdr_tf <= ULTRAHDR_TF_UNSPECIFIED || hdr_tf > ULTRAHDR_TF_MAX) {
+  if (hdr_tf <= ULTRAHDR_TF_UNSPECIFIED || hdr_tf > ULTRAHDR_TF_MAX
+          || hdr_tf == ULTRAHDR_TF_SRGB) {
     ALOGE("Invalid hdr transfer function %d", hdr_tf);
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
@@ -228,13 +229,8 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   metadata.version = kJpegrVersion;
 
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
-  size_t gain_map_length = uncompressed_p010_image->width * uncompressed_p010_image->height * 3 / 2;
-  // Pad a pseudo chroma block (kJpegBlock / 2) x (kJpegBlock / 2)
-  // if width is not kJpegBlock aligned.
-  if (uncompressed_p010_image->width % kJpegBlock != 0) {
-    gain_map_length += kJpegBlockSquare / 4;
-  }
-  unique_ptr<uint8_t[]> uncompressed_yuv_420_image_data = make_unique<uint8_t[]>(gain_map_length);
+  unique_ptr<uint8_t[]> uncompressed_yuv_420_image_data = make_unique<uint8_t[]>(
+      uncompressed_p010_image->width * uncompressed_p010_image->height * 3 / 2);
   uncompressed_yuv_420_image.data = uncompressed_yuv_420_image_data.get();
   JPEGR_CHECK(toneMap(uncompressed_p010_image, &uncompressed_yuv_420_image));
 
@@ -509,11 +505,6 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  if (gain_map != nullptr && gain_map->data == nullptr) {
-    ALOGE("received nullptr address for gain map data");
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
-  }
-
   if (output_format == ULTRAHDR_OUTPUT_SDR) {
     JpegDecoderHelper jpeg_decoder;
     if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length,
@@ -555,6 +546,11 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   if (!gain_map_decoder.decompressImage(compressed_map.data, compressed_map.length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
+  if ((gain_map_decoder.getDecompressedImageWidth() *
+       gain_map_decoder.getDecompressedImageHeight()) >
+      gain_map_decoder.getDecompressedImageSize()) {
+    return ERROR_JPEGR_CALCULATION_ERROR;
+  }
 
   if (gain_map != nullptr) {
     gain_map->width = gain_map_decoder.getDecompressedImageWidth();
@@ -584,6 +580,11 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
+  if ((jpeg_decoder.getDecompressedImageWidth() *
+       jpeg_decoder.getDecompressedImageHeight() * 3 / 2) >
+      jpeg_decoder.getDecompressedImageSize()) {
+    return ERROR_JPEGR_CALCULATION_ERROR;
+  }
 
   if (exif != nullptr) {
     if (exif->data == nullptr) {
@@ -605,7 +606,6 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   uncompressed_yuv_420_image.data = jpeg_decoder.getDecompressedImagePtr();
   uncompressed_yuv_420_image.width = jpeg_decoder.getDecompressedImageWidth();
   uncompressed_yuv_420_image.height = jpeg_decoder.getDecompressedImageHeight();
-
   JPEGR_CHECK(applyGainMap(&uncompressed_yuv_420_image, &map, &uhdr_metadata, output_format,
                            max_display_boost, dest));
   return NO_ERROR;
@@ -846,6 +846,20 @@ status_t JpegR::applyGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
    || metadata == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  // TODO: remove once map scaling factor is computed based on actual map dims
+  size_t image_width = uncompressed_yuv_420_image->width;
+  size_t image_height = uncompressed_yuv_420_image->height;
+  size_t map_width = image_width / kMapDimensionScaleFactor;
+  size_t map_height = image_height / kMapDimensionScaleFactor;
+  map_width = static_cast<size_t>(
+          floor((map_width + kJpegBlock - 1) / kJpegBlock)) * kJpegBlock;
+  map_height = ((map_height + 1) >> 1) << 1;
+  if (map_width != uncompressed_gain_map->width
+   || map_height != uncompressed_gain_map->height) {
+    ALOGE("gain map dimensions and primary image dimensions are not to scale");
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   dest->width = uncompressed_yuv_420_image->width;

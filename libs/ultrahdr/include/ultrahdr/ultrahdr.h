@@ -20,7 +20,7 @@
 namespace android::ultrahdr {
 // Color gamuts for image data
 typedef enum {
-  ULTRAHDR_COLORGAMUT_UNSPECIFIED,
+  ULTRAHDR_COLORGAMUT_UNSPECIFIED = -1,
   ULTRAHDR_COLORGAMUT_BT709,
   ULTRAHDR_COLORGAMUT_P3,
   ULTRAHDR_COLORGAMUT_BT2100,
@@ -52,7 +52,7 @@ typedef enum {
  */
 struct ultrahdr_metadata_struct {
   // Ultra HDR library version
-  const char* version;
+  std::string version;
   // Max Content Boost for the map
   float maxContentBoost;
   // Min Content Boost for the map
