@@ -54,6 +54,8 @@ struct RequestedLayerState : layer_state_t {
         Buffer = 1u << 15,
         SidebandStream = 1u << 16,
         Animation = 1u << 17,
+        BufferSize = 1u << 18,
+        GameMode = 1u << 19,
     };
     static Rect reduce(const Rect& win, const Region& exclude);
     RequestedLayerState(const LayerCreationArgs&);
@@ -91,10 +93,10 @@ struct RequestedLayerState : layer_state_t {
     const uint32_t textureName;
     // The owner of the layer. If created from a non system process, it will be the calling uid.
     // If created from a system process, the value can be passed in.
-    const uid_t ownerUid;
+    const gui::Uid ownerUid;
     // The owner pid of the layer. If created from a non system process, it will be the calling pid.
     // If created from a system process, the value can be passed in.
-    const pid_t ownerPid;
+    const gui::Pid ownerPid;
     bool dataspaceRequested;
     bool hasColorTransform;
     bool premultipliedAlpha{true};
