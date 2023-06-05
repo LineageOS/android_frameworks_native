@@ -4112,11 +4112,11 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
         }
     }
 
-    if (action == AMOTION_EVENT_ACTION_DOWN) {
-        LOG_ALWAYS_FATAL_IF(splitDownTime != originalMotionEntry.eventTime,
-                            "Split motion event has mismatching downTime and eventTime for "
-                            "ACTION_DOWN, motionEntry=%s, splitDownTime=%" PRId64,
-                            originalMotionEntry.getDescription().c_str(), splitDownTime);
+    if (action == AMOTION_EVENT_ACTION_DOWN && splitDownTime != originalMotionEntry.eventTime) {
+        logDispatchStateLocked();
+        LOG_ALWAYS_FATAL("Split motion event has mismatching downTime and eventTime for "
+                         "ACTION_DOWN, motionEntry=%s, splitDownTime=%" PRId64,
+                         originalMotionEntry.getDescription().c_str(), splitDownTime);
     }
 
     int32_t newId = mIdGenerator.nextId();
