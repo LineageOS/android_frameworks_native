@@ -139,7 +139,8 @@ int main(int argc, char* argv[]) {
             CHECK_EQ(OK, server->setupRawSocketServer(std::move(socketFd)));
             break;
         case SocketType::VSOCK:
-            CHECK_EQ(OK, server->setupVsockServer(VMADDR_CID_LOCAL, serverConfig.vsockPort));
+            CHECK_EQ(OK, server->setupVsockServer(VMADDR_CID_LOCAL, serverConfig.vsockPort))
+                    << "Need `sudo modprobe vsock_loopback`?";
             break;
         case SocketType::INET: {
             CHECK_EQ(OK, server->setupInetServer(kLocalInetAddress, 0, &outPort));
