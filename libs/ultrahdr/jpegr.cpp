@@ -726,7 +726,7 @@ status_t JpegR::generateGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
   map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
 
   ColorTransformFn hdrInvOetf = nullptr;
-  float hdr_white_nits = 0.0f;
+  float hdr_white_nits = kSdrWhiteNits;
   switch (hdr_tf) {
     case ULTRAHDR_TF_LINEAR:
       hdrInvOetf = identityConversion;
@@ -1065,6 +1065,12 @@ status_t JpegR::appendGainMap(jr_compressed_ptr compressed_jpeg_image,
    || metadata == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (metadata->minContentBoost < 1.0f || metadata->maxContentBoost < metadata->minContentBoost) {
+    ALOGE("received bad value for content boost min %f, max %f", metadata->minContentBoost,
+           metadata->maxContentBoost);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   const string nameSpace = "http://ns.adobe.com/xap/1.0/";
