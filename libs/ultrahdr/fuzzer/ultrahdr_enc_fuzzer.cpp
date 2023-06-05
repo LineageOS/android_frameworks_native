@@ -256,7 +256,7 @@ void JpegHDRFuzzer::process() {
                         } else if (tf == ULTRAHDR_TF_PQ) {
                             metadata.maxContentBoost = kPqMaxNits / kSdrWhiteNits;
                         } else {
-                            metadata.maxContentBoost = 0;
+                            metadata.maxContentBoost = 1.0f;
                         }
                         metadata.minContentBoost = 1.0f;
                         status = jpegHdr.encodeJPEGR(&jpegImg, &jpegGainMap, &metadata, &jpegImgR);
