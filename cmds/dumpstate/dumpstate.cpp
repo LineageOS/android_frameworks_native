@@ -2602,11 +2602,7 @@ static void ShowUsage() {
 }
 
 static void register_sig_handler() {
-    signal(SIGPIPE, [](int) {
-        MYLOGE("Connection with client lost, canceling.");
-        ds.Cancel();
-        abort();
-    });
+    signal(SIGPIPE, SIG_IGN);
 }
 
 bool Dumpstate::FinishZipFile() {
