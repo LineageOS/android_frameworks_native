@@ -4446,26 +4446,27 @@ bool SurfaceFlinger::frameIsEarly(TimePoint expectedPresentTime, VsyncId vsyncId
 bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t& state,
                                            size_t numStates, bool firstTransaction) const {
     if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Disabled) {
-        ALOGV("%s: false (LatchUnsignaledConfig::Disabled)", __func__);
+        ATRACE_FORMAT_INSTANT("%s: false (LatchUnsignaledConfig::Disabled)", __func__);
         return false;
     }
 
     if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Always) {
-        ALOGV("%s: true (LatchUnsignaledConfig::Always)", __func__);
+        ATRACE_FORMAT_INSTANT("%s: true (LatchUnsignaledConfig::Always)", __func__);
         return true;
     }
 
     // We only want to latch unsignaled when a single layer is updated in this
     // transaction (i.e. not a blast sync transaction).
     if (numStates != 1) {
-        ALOGV("%s: false (numStates=%zu)", __func__, numStates);
+        ATRACE_FORMAT_INSTANT("%s: false (numStates=%zu)", __func__, numStates);
         return false;
     }
 
     if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::AutoSingleLayer) {
         if (!firstTransaction) {
-            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; not first transaction)",
-                  __func__);
+            ATRACE_FORMAT_INSTANT("%s: false (LatchUnsignaledConfig::AutoSingleLayer; not first "
+                                  "transaction)",
+                                  __func__);
             return false;
         }
 
@@ -4473,19 +4474,14 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
         // as it leads to jank due to RenderEngine waiting for unsignaled buffer
         // or window animations being slow.
         if (mScheduler->vsyncModulator().isVsyncConfigEarly()) {
-            ALOGV("%s: false (LatchUnsignaledConfig::AutoSingleLayer; isVsyncConfigEarly)",
-                  __func__);
+            ATRACE_FORMAT_INSTANT("%s: false (LatchUnsignaledConfig::AutoSingleLayer; "
+                                  "isVsyncConfigEarly)",
+                                  __func__);
             return false;
         }
     }
 
-    if (!layer->simpleBufferUpdate(state)) {
-        ALOGV("%s: false (!simpleBufferUpdate)", __func__);
-        return false;
-    }
-
-    ALOGV("%s: true", __func__);
-    return true;
+    return layer->isSimpleBufferUpdate(state);
 }
 
 status_t SurfaceFlinger::setTransactionState(
