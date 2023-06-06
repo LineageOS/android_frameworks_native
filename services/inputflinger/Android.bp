@@ -87,6 +87,7 @@ cc_defaults {
     srcs: [":libinputflinger_sources"],
     shared_libs: [
         "android.hardware.input.processor-V1-ndk",
+        "com.android.server.inputflinger-ndk",
         "libbase",
         "libbinder",
         "libbinder_ndk",
@@ -107,6 +108,14 @@ cc_defaults {
         "libpalmrejection",
         "libui-types",
     ],
+    generated_headers: [
+        "cxx-bridge-header",
+        "inputflinger_rs_bootstrap_bridge_header",
+    ],
+    header_libs: ["inputflinger_rs_bootstrap_cxx_headers"],
+    generated_sources: ["inputflinger_rs_bootstrap_bridge_code"],
+    whole_static_libs: ["libinputflinger_rs"],
+    export_shared_lib_headers: ["com.android.server.inputflinger-ndk"],
     target: {
         android: {
             shared_libs: [

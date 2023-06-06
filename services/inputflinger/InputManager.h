@@ -30,12 +30,15 @@
 #include <input/Input.h>
 #include <input/InputTransport.h>
 
+#include <aidl/com/android/server/inputflinger/IInputFlingerRust.h>
 #include <android/os/BnInputFlinger.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
 using android::os::BnInputFlinger;
+
+using aidl::com::android::server::inputflinger::IInputFlingerRust;
 
 namespace android {
 class InputChannel;
@@ -132,6 +135,8 @@ private:
     std::unique_ptr<InputDeviceMetricsCollectorInterface> mCollector;
 
     std::unique_ptr<InputDispatcherInterface> mDispatcher;
+
+    std::shared_ptr<IInputFlingerRust> mInputFlingerRust;
 };
 
 } // namespace android

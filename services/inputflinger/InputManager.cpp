@@ -23,22 +23,22 @@
 #include "InputReaderFactory.h"
 #include "UnwantedInteractionBlocker.h"
 
+#include <aidl/com/android/server/inputflinger/IInputFlingerRust.h>
+#include <android/binder_interface_utils.h>
 #include <android/sysprop/InputProperties.sysprop.h>
 #include <binder/IPCThreadState.h>
-
+#include <inputflinger_bootstrap.rs.h>
 #include <log/log.h>
-#include <unordered_map>
-
 #include <private/android_filesystem_config.h>
 
 namespace android {
 
-static const bool ENABLE_INPUT_DEVICE_USAGE_METRICS =
+namespace {
+
+const bool ENABLE_INPUT_DEVICE_USAGE_METRICS =
         sysprop::InputProperties::enable_input_device_usage_metrics().value_or(true);
 
-using gui::FocusRequest;
-
-static int32_t exceptionCodeFromStatusT(status_t status) {
+int32_t exceptionCodeFromStatusT(status_t status) {
     switch (status) {
         case OK:
             return binder::Status::EX_NONE;
@@ -57,6 +57,58 @@ static int32_t exceptionCodeFromStatusT(status_t status) {
     }
 }
 
+// Convert a binder interface into a raw pointer to an AIBinder.
+using IInputFlingerRustBootstrapCallback = aidl::com::android::server::inputflinger::
+        IInputFlingerRust::IInputFlingerRustBootstrapCallback;
+IInputFlingerRustBootstrapCallbackAIBinder* binderToPointer(
+        IInputFlingerRustBootstrapCallback& interface) {
+    ndk::SpAIBinder spAIBinder = interface.asBinder();
+    auto* ptr = spAIBinder.get();
+    AIBinder_incStrong(ptr);
+    return ptr;
+}
+
+// Create the Rust component of InputFlinger that uses AIDL interfaces as a the foreign function
+// interface (FFI). The bootstraping process for IInputFlingerRust is as follows:
+//   - Create BnInputFlingerRustBootstrapCallback in C++.
+//   - Use the cxxbridge ffi interface to call the Rust function `create_inputflinger_rust()`, and
+//     pass the callback binder object as a raw pointer.
+//   - The Rust implementation will create the implementation of IInputFlingerRust, and pass it
+//     to C++ through the callback.
+//   - After the Rust function returns, the binder interface provided to the callback will be the
+//     only strong reference to the IInputFlingerRust.
+std::shared_ptr<IInputFlingerRust> createInputFlingerRust() {
+    using namespace aidl::com::android::server::inputflinger;
+
+    class Callback : public IInputFlingerRust::BnInputFlingerRustBootstrapCallback {
+        ndk::ScopedAStatus onProvideInputFlingerRust(
+                const std::shared_ptr<IInputFlingerRust>& inputFlingerRust) override {
+            mService = inputFlingerRust;
+            return ndk::ScopedAStatus::ok();
+        }
+
+    public:
+        std::shared_ptr<IInputFlingerRust> consumeInputFlingerRust() {
+            auto service = mService;
+            mService.reset();
+            return service;
+        }
+
+    private:
+        std::shared_ptr<IInputFlingerRust> mService;
+    };
+
+    auto callback = ndk::SharedRefBase::make<Callback>();
+    create_inputflinger_rust(binderToPointer(*callback));
+    auto service = callback->consumeInputFlingerRust();
+    LOG_ALWAYS_FATAL_IF(!service,
+                        "create_inputflinger_rust did not provide the IInputFlingerRust "
+                        "implementation through the callback.");
+    return service;
+}
+
+} // namespace
+
 /**
  * The event flow is via the "InputListener" interface, as follows:
  *   InputReader
@@ -67,6 +119,8 @@ static int32_t exceptionCodeFromStatusT(status_t status) {
  */
 InputManager::InputManager(const sp<InputReaderPolicyInterface>& readerPolicy,
                            InputDispatcherPolicyInterface& dispatcherPolicy) {
+    mInputFlingerRust = createInputFlingerRust();
+
     mDispatcher = createInputDispatcher(dispatcherPolicy);
 
     if (ENABLE_INPUT_DEVICE_USAGE_METRICS) {
@@ -190,7 +244,7 @@ status_t InputManager::dump(int fd, const Vector<String16>& args) {
     return NO_ERROR;
 }
 
-binder::Status InputManager::setFocusedWindow(const FocusRequest& request) {
+binder::Status InputManager::setFocusedWindow(const gui::FocusRequest& request) {
     mDispatcher->setFocusedWindow(request);
     return binder::Status::ok();
 }
