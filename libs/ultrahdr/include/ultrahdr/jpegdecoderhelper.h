@@ -25,6 +25,10 @@ extern "C" {
 }
 #include <utils/Errors.h>
 #include <vector>
+
+static const int kMaxWidth = 8192;
+static const int kMaxHeight = 8192;
+
 namespace android::ultrahdr {
 /*
  * Encapsulates a converter from JPEG to raw image (YUV420planer or grey-scale) format.
