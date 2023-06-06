@@ -202,7 +202,7 @@ private:
 
     DropReason mLastDropReason GUARDED_BY(mLock);
 
-    const IdGenerator mIdGenerator;
+    const IdGenerator mIdGenerator GUARDED_BY(mLock);
 
     int64_t mWindowInfosVsyncId GUARDED_BY(mLock);
 
@@ -649,7 +649,7 @@ private:
     // splitDownTime refers to the time of first 'down' event on that particular target
     std::unique_ptr<MotionEntry> splitMotionEvent(const MotionEntry& originalMotionEntry,
                                                   std::bitset<MAX_POINTER_ID + 1> pointerIds,
-                                                  nsecs_t splitDownTime);
+                                                  nsecs_t splitDownTime) REQUIRES(mLock);
 
     // Reset and drop everything the dispatcher is doing.
     void resetAndDropEverythingLocked(const char* reason) REQUIRES(mLock);
