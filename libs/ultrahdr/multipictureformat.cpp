@@ -30,7 +30,7 @@ size_t calculateMpfSize() {
 sp<DataStruct> generateMpf(int primary_image_size, int primary_image_offset,
         int secondary_image_size, int secondary_image_offset) {
     size_t mpf_size = calculateMpfSize();
-    sp<DataStruct> dataStruct = new DataStruct(mpf_size);
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(mpf_size);
 
     dataStruct->write(static_cast<const void*>(kMpfSig), sizeof(kMpfSig));
 #if USE_BIG_ENDIAN
