@@ -213,6 +213,12 @@ bool JpegDecoderHelper::decode(const void* image, int length, bool decodeToRGBA)
         }
     }
 
+    if (cinfo.image_width > kMaxWidth || cinfo.image_height > kMaxHeight) {
+        // constraint on max width and max height is only due to alloc constraints
+        // tune these values basing on the target device
+        return false;
+    }
+
     mWidth = cinfo.image_width;
     mHeight = cinfo.image_height;
 
