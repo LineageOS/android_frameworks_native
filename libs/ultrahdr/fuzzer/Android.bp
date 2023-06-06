@@ -24,7 +24,17 @@ package {
 cc_defaults {
     name: "ultrahdr_fuzzer_defaults",
     host_supported: true,
-    static_libs: ["liblog"],
+    shared_libs: [
+        "libimage_io",
+        "libjpeg",
+    ],
+    static_libs: [
+        "libjpegdecoder",
+        "libjpegencoder",
+        "libultrahdr",
+        "libutils",
+        "liblog",
+    ],
     target: {
         darwin: {
             enabled: false,
@@ -37,6 +47,8 @@ cc_defaults {
         description: "The fuzzers target the APIs of jpeg hdr",
         service_privilege: "constrained",
         users: "multi_user",
+        fuzzed_code_usage: "future_version",
+        vector: "local_no_privileges_required",
     },
 }
 
@@ -46,20 +58,12 @@ cc_fuzz {
     srcs: [
         "ultrahdr_enc_fuzzer.cpp",
     ],
-    shared_libs: [
-        "libimage_io",
-        "libjpeg",
-        "liblog",
-    ],
-    static_libs: [
-        "libjpegdecoder",
-        "libjpegencoder",
-        "libultrahdr",
-        "libutils",
-    ],
-    fuzz_config: {
-        fuzzed_code_usage: "future_version",
-        vector: "local_no_privileges_required",
-    },
 }
 
+cc_fuzz {
+    name: "ultrahdr_dec_fuzzer",
+    defaults: ["ultrahdr_fuzzer_defaults"],
+    srcs: [
+        "ultrahdr_dec_fuzzer.cpp",
+    ],
+}

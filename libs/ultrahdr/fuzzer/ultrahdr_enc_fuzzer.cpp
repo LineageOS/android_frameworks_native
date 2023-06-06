@@ -55,12 +55,9 @@ const int kOfMax = ULTRAHDR_OUTPUT_MAX;
 const int kQfMin = 0;
 const int kQfMax = 100;
 
-// seed
-const unsigned kSeed = 0x7ab7;
-
-class JpegHDRFuzzer {
+class UltraHdrEncFuzzer {
 public:
-    JpegHDRFuzzer(const uint8_t* data, size_t size) : mFdp(data, size){};
+    UltraHdrEncFuzzer(const uint8_t* data, size_t size) : mFdp(data, size){};
     void process();
     void fillP010Buffer(uint16_t* data, int width, int height, int stride);
     void fill420Buffer(uint8_t* data, int size);
@@ -69,7 +66,7 @@ private:
     FuzzedDataProvider mFdp;
 };
 
-void JpegHDRFuzzer::fillP010Buffer(uint16_t* data, int width, int height, int stride) {
+void UltraHdrEncFuzzer::fillP010Buffer(uint16_t* data, int width, int height, int stride) {
     uint16_t* tmp = data;
     std::vector<uint16_t> buffer(16);
     for (int i = 0; i < buffer.size(); i++) {
@@ -78,22 +75,24 @@ void JpegHDRFuzzer::fillP010Buffer(uint16_t* data, int width, int height, int st
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i += buffer.size()) {
             memcpy(data + i, buffer.data(), std::min((int)buffer.size(), (width - i)));
-            std::shuffle(buffer.begin(), buffer.end(), std::default_random_engine(kSeed));
+            std::shuffle(buffer.begin(), buffer.end(),
+                         std::default_random_engine(std::random_device{}()));
         }
         tmp += stride;
     }
 }
 
-void JpegHDRFuzzer::fill420Buffer(uint8_t* data, int size) {
+void UltraHdrEncFuzzer::fill420Buffer(uint8_t* data, int size) {
     std::vector<uint8_t> buffer(16);
     mFdp.ConsumeData(buffer.data(), buffer.size());
     for (int i = 0; i < size; i += buffer.size()) {
         memcpy(data + i, buffer.data(), std::min((int)buffer.size(), (size - i)));
-        std::shuffle(buffer.begin(), buffer.end(), std::default_random_engine(kSeed));
+        std::shuffle(buffer.begin(), buffer.end(),
+                     std::default_random_engine(std::random_device{}()));
     }
 }
 
-void JpegHDRFuzzer::process() {
+void UltraHdrEncFuzzer::process() {
     while (mFdp.remaining_bytes()) {
         struct jpegr_uncompressed_struct p010Img {};
         struct jpegr_uncompressed_struct yuv420Img {};
@@ -256,7 +255,7 @@ void JpegHDRFuzzer::process() {
                         } else if (tf == ULTRAHDR_TF_PQ) {
                             metadata.maxContentBoost = kPqMaxNits / kSdrWhiteNits;
                         } else {
-                            metadata.maxContentBoost = 0;
+                            metadata.maxContentBoost = 1.0f;
                         }
                         metadata.minContentBoost = 1.0f;
                         status = jpegHdr.encodeJPEGR(&jpegImg, &jpegGainMap, &metadata, &jpegImgR);
@@ -293,7 +292,7 @@ void JpegHDRFuzzer::process() {
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    JpegHDRFuzzer fuzzHandle(data, size);
+    UltraHdrEncFuzzer fuzzHandle(data, size);
     fuzzHandle.process();
     return 0;
 }
