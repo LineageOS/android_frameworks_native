@@ -249,6 +249,11 @@ TEST_F(SchedulerTest, calculateMaxAcquiredBufferCount) {
     EXPECT_EQ(2, mFlinger.calculateMaxAcquiredBufferCount(60_Hz, 40ms));
 
     EXPECT_EQ(1, mFlinger.calculateMaxAcquiredBufferCount(60_Hz, 10ms));
+
+    const auto savedMinAcquiredBuffers = mFlinger.mutableMinAcquiredBuffers();
+    mFlinger.mutableMinAcquiredBuffers() = 2;
+    EXPECT_EQ(2, mFlinger.calculateMaxAcquiredBufferCount(60_Hz, 10ms));
+    mFlinger.mutableMinAcquiredBuffers() = savedMinAcquiredBuffers;
 }
 
 MATCHER(Is120Hz, "") {

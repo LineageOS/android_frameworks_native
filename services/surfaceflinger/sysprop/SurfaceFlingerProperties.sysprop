@@ -471,3 +471,13 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.ignore_hdr_camera_layers"
 }
+
+# Controls the minimum acquired buffers SurfaceFlinger will suggest via
+# ISurfaceComposer.getMaxAcquiredBufferCount().
+prop {
+    api_name: "min_acquired_buffers"
+    type: Long
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.min_acquired_buffers"
+}
