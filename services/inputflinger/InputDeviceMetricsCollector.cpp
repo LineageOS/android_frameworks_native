@@ -39,6 +39,9 @@ constexpr nanoseconds DEFAULT_USAGE_SESSION_TIMEOUT = std::chrono::seconds(5);
 const bool DEBUG = __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG, ANDROID_LOG_INFO);
 
 int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus) {
+    // When adding cases to this switch, also add them to the copy of this method in
+    // TouchpadInputMapper.cpp.
+    // TODO(b/286394420): deduplicate this method with the one in TouchpadInputMapper.cpp.
     switch (linuxBus) {
         case BUS_USB:
             return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__USB;

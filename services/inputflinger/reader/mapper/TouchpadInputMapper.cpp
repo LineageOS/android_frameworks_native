@@ -16,8 +16,11 @@
 
 #include "../Macros.h"
 
+#include <algorithm>
 #include <chrono>
+#include <iterator>
 #include <limits>
+#include <map>
 #include <optional>
 
 #include <android-base/stringprintf.h>
@@ -26,6 +29,8 @@
 #include <input/PrintTools.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
+#include <stats_pull_atom_callback.h>
+#include <statslog.h>
 #include "TouchCursorInputMapperCommon.h"
 #include "TouchpadInputMapper.h"
 #include "ui/Rotation.h"
@@ -169,6 +174,106 @@ void gestureInterpreterCallback(void* clientData, const Gesture* gesture) {
     mapper->consumeGesture(gesture);
 }
 
+int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus) {
+    // When adding cases to this switch, also add them to the copy of this method in
+    // InputDeviceMetricsCollector.cpp.
+    // TODO(b/286394420): deduplicate this method with the one in InputDeviceMetricsCollector.cpp.
+    switch (linuxBus) {
+        case BUS_USB:
+            return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__USB;
+        case BUS_BLUETOOTH:
+            return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__BLUETOOTH;
+        default:
+            return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__OTHER;
+    }
+}
+
+class MetricsAccumulator {
+public:
+    static MetricsAccumulator& getInstance() {
+        static MetricsAccumulator sAccumulator;
+        return sAccumulator;
+    }
+
+    void recordFinger(const TouchpadInputMapper::MetricsIdentifier& id) { mCounters[id].fingers++; }
+
+    void recordPalm(const TouchpadInputMapper::MetricsIdentifier& id) { mCounters[id].palms++; }
+
+    // Checks whether a Gesture struct is for the end of a gesture that we log metrics for, and
+    // records it if so.
+    void processGesture(const TouchpadInputMapper::MetricsIdentifier& id, const Gesture& gesture) {
+        switch (gesture.type) {
+            case kGestureTypeFling:
+                if (gesture.details.fling.fling_state == GESTURES_FLING_START) {
+                    // Indicates the end of a two-finger scroll gesture.
+                    mCounters[id].twoFingerSwipeGestures++;
+                }
+                break;
+            case kGestureTypeSwipeLift:
+                mCounters[id].threeFingerSwipeGestures++;
+                break;
+            case kGestureTypeFourFingerSwipeLift:
+                mCounters[id].fourFingerSwipeGestures++;
+                break;
+            case kGestureTypePinch:
+                if (gesture.details.pinch.zoom_state == GESTURES_ZOOM_END) {
+                    mCounters[id].pinchGestures++;
+                }
+                break;
+            default:
+                // We're not interested in any other gestures.
+                break;
+        }
+    }
+
+private:
+    MetricsAccumulator() {
+        AStatsManager_setPullAtomCallback(android::util::TOUCHPAD_USAGE, /*metadata=*/nullptr,
+                                          MetricsAccumulator::pullAtomCallback, /*cookie=*/nullptr);
+    }
+
+    ~MetricsAccumulator() { AStatsManager_clearPullAtomCallback(android::util::TOUCHPAD_USAGE); }
+
+    static AStatsManager_PullAtomCallbackReturn pullAtomCallback(int32_t atomTag,
+                                                                 AStatsEventList* outEventList,
+                                                                 void* cookie) {
+        LOG_ALWAYS_FATAL_IF(atomTag != android::util::TOUCHPAD_USAGE);
+        MetricsAccumulator& accumulator = MetricsAccumulator::getInstance();
+        accumulator.produceAtoms(outEventList);
+        accumulator.resetCounters();
+        return AStatsManager_PULL_SUCCESS;
+    }
+
+    void produceAtoms(AStatsEventList* outEventList) const {
+        for (auto& [id, counters] : mCounters) {
+            auto [busId, vendorId, productId, versionId] = id;
+            addAStatsEvent(outEventList, android::util::TOUCHPAD_USAGE, vendorId, productId,
+                           versionId, linuxBusToInputDeviceBusEnum(busId), counters.fingers,
+                           counters.palms, counters.twoFingerSwipeGestures,
+                           counters.threeFingerSwipeGestures, counters.fourFingerSwipeGestures,
+                           counters.pinchGestures);
+        }
+    }
+
+    void resetCounters() { mCounters.clear(); }
+
+    // Stores the counters for a specific touchpad model. Fields have the same meanings as those of
+    // the TouchpadUsage atom; see that definition for detailed documentation.
+    struct Counters {
+        int32_t fingers = 0;
+        int32_t palms = 0;
+
+        int32_t twoFingerSwipeGestures = 0;
+        int32_t threeFingerSwipeGestures = 0;
+        int32_t fourFingerSwipeGestures = 0;
+        int32_t pinchGestures = 0;
+    };
+
+    // Metrics are aggregated by device model and version, so if two devices of the same model and
+    // version are connected at once, they will have the same counters.
+    std::map<TouchpadInputMapper::MetricsIdentifier, Counters> mCounters;
+};
+
 } // namespace
 
 TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
@@ -178,7 +283,8 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
         mPointerController(getContext()->getPointerController(getDeviceId())),
         mStateConverter(deviceContext, mMotionAccumulator),
         mGestureConverter(*getContext(), deviceContext, getDeviceId()),
-        mCapturedEventConverter(*getContext(), deviceContext, mMotionAccumulator, getDeviceId()) {
+        mCapturedEventConverter(*getContext(), deviceContext, mMotionAccumulator, getDeviceId()),
+        mMetricsId(metricsIdFromInputDeviceIdentifier(deviceContext.getDeviceIdentifier())) {
     RawAbsoluteAxisInfo slotAxisInfo;
     deviceContext.getAbsoluteAxisInfo(ABS_MT_SLOT, &slotAxisInfo);
     if (!slotAxisInfo.valid || slotAxisInfo.maxValue <= 0) {
@@ -331,10 +437,37 @@ std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
     }
     std::optional<SelfContainedHardwareState> state = mStateConverter.processRawEvent(rawEvent);
     if (state) {
+        updatePalmDetectionMetrics();
         return sendHardwareState(rawEvent->when, rawEvent->readTime, *state);
     } else {
         return {};
     }
+}
+
+void TouchpadInputMapper::updatePalmDetectionMetrics() {
+    std::set<int32_t> currentTrackingIds;
+    for (size_t i = 0; i < mMotionAccumulator.getSlotCount(); i++) {
+        const MultiTouchMotionAccumulator::Slot& slot = mMotionAccumulator.getSlot(i);
+        if (!slot.isInUse()) {
+            continue;
+        }
+        currentTrackingIds.insert(slot.getTrackingId());
+        if (slot.getToolType() == ToolType::PALM) {
+            mPalmTrackingIds.insert(slot.getTrackingId());
+        }
+    }
+    std::vector<int32_t> liftedTouches;
+    std::set_difference(mLastFrameTrackingIds.begin(), mLastFrameTrackingIds.end(),
+                        currentTrackingIds.begin(), currentTrackingIds.end(),
+                        std::inserter(liftedTouches, liftedTouches.begin()));
+    for (int32_t trackingId : liftedTouches) {
+        if (mPalmTrackingIds.erase(trackingId) > 0) {
+            MetricsAccumulator::getInstance().recordPalm(mMetricsId);
+        } else {
+            MetricsAccumulator::getInstance().recordFinger(mMetricsId);
+        }
+    }
+    mLastFrameTrackingIds = currentTrackingIds;
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::sendHardwareState(nsecs_t when, nsecs_t readTime,
@@ -363,8 +496,10 @@ void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
 
 std::list<NotifyArgs> TouchpadInputMapper::processGestures(nsecs_t when, nsecs_t readTime) {
     std::list<NotifyArgs> out = {};
+    MetricsAccumulator& metricsAccumulator = MetricsAccumulator::getInstance();
     for (Gesture& gesture : mGesturesToProcess) {
         out += mGestureConverter.handleGesture(when, readTime, gesture);
+        metricsAccumulator.processGesture(mMetricsId, gesture);
     }
     mGesturesToProcess.clear();
     return out;

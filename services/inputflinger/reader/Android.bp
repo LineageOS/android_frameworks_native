@@ -98,12 +98,14 @@ cc_defaults {
         android: {
             shared_libs: [
                 "libinput",
+                "libstatspull",
             ],
         },
         host: {
             static_libs: [
                 "libinput",
                 "libbinder",
+                "libstatspull",
             ],
         },
     },
