@@ -947,7 +947,10 @@ bool Parcel::enforceInterface(const char16_t* interface,
         threadState->setCallingWorkSourceUidWithoutPropagation(workSource);
         // vendor header
         int32_t header = readInt32();
-        if (header != kHeader) {
+
+        // fuzzers skip this check, because it is for protecting the underlying ABI, but
+        // we don't want it to reduce our coverage
+        if (header != kHeader && !mServiceFuzzing) {
             ALOGE("Expecting header 0x%x but found 0x%x. Mixing copies of libbinder?", kHeader,
                   header);
             return false;
@@ -966,15 +969,27 @@ bool Parcel::enforceInterface(const char16_t* interface,
             (!len || !memcmp(parcel_interface, interface, len * sizeof (char16_t)))) {
         return true;
     } else {
-        ALOGW("**** enforceInterface() expected '%s' but read '%s'",
-              String8(interface, len).string(),
-              String8(parcel_interface, parcel_interface_len).string());
-        return false;
+        if (mServiceFuzzing) {
+            // ignore. Theoretically, this could cause a few false positives, because
+            // people could assume things about getInterfaceDescriptor if they pass
+            // this point, but it would be extremely fragile. It's more important that
+            // we fuzz with the above things read from the Parcel.
+            return true;
+        } else {
+            ALOGW("**** enforceInterface() expected '%s' but read '%s'",
+                  String8(interface, len).string(),
+                  String8(parcel_interface, parcel_interface_len).string());
+            return false;
+        }
     }
 }
 
 void Parcel::setEnforceNoDataAvail(bool enforceNoDataAvail) {
     mEnforceNoDataAvail = enforceNoDataAvail;
+}
+
+void Parcel::setServiceFuzzing() {
+    mServiceFuzzing = true;
 }
 
 binder::Status Parcel::enforceNoDataAvail() const {
@@ -1722,7 +1737,9 @@ status_t Parcel::validateReadData(size_t upperBound) const
             do {
                 if (mDataPos < kernelFields->mObjects[nextObject] + sizeof(flat_binder_object)) {
                     // Requested info overlaps with an object
-                    ALOGE("Attempt to read from protected data in Parcel %p", this);
+                    if (!mServiceFuzzing) {
+                        ALOGE("Attempt to read from protected data in Parcel %p", this);
+                    }
                     return PERMISSION_DENIED;
                 }
                 nextObject++;
@@ -2092,7 +2109,11 @@ String8 Parcel::readString8() const
     size_t len;
     const char* str = readString8Inplace(&len);
     if (str) return String8(str, len);
-    ALOGE("Reading a NULL string not supported here.");
+
+    if (!mServiceFuzzing) {
+        ALOGE("Reading a NULL string not supported here.");
+    }
+
     return String8();
 }
 
@@ -2132,7 +2153,11 @@ String16 Parcel::readString16() const
     size_t len;
     const char16_t* str = readString16Inplace(&len);
     if (str) return String16(str, len);
-    ALOGE("Reading a NULL string not supported here.");
+
+    if (!mServiceFuzzing) {
+        ALOGE("Reading a NULL string not supported here.");
+    }
+
     return String16();
 }
 
@@ -2172,7 +2197,9 @@ status_t Parcel::readStrongBinder(sp<IBinder>* val) const
 {
     status_t status = readNullableStrongBinder(val);
     if (status == OK && !val->get()) {
-        ALOGW("Expecting binder but got null!");
+        if (!mServiceFuzzing) {
+            ALOGW("Expecting binder but got null!");
+        }
         status = UNEXPECTED_NULL;
     }
     return status;
@@ -2237,9 +2264,11 @@ int Parcel::readFileDescriptor() const {
     if (const auto* rpcFields = maybeRpcFields()) {
         if (!std::binary_search(rpcFields->mObjectPositions.begin(),
                                 rpcFields->mObjectPositions.end(), mDataPos)) {
-            ALOGW("Attempt to read file descriptor from Parcel %p at offset %zu that is not in the "
-                  "object list",
-                  this, mDataPos);
+            if (!mServiceFuzzing) {
+                ALOGW("Attempt to read file descriptor from Parcel %p at offset %zu that is not in "
+                      "the object list",
+                      this, mDataPos);
+            }
             return BAD_TYPE;
         }
 
@@ -2497,8 +2526,11 @@ const flat_binder_object* Parcel::readObject(bool nullMetaData) const
                 return obj;
             }
         }
-        ALOGW("Attempt to read object from Parcel %p at offset %zu that is not in the object list",
-             this, DPOS);
+        if (!mServiceFuzzing) {
+            ALOGW("Attempt to read object from Parcel %p at offset %zu that is not in the object "
+                  "list",
+                  this, DPOS);
+        }
     }
     return nullptr;
 }
@@ -3093,6 +3125,7 @@ void Parcel::initState()
     mDeallocZero = false;
     mOwner = nullptr;
     mEnforceNoDataAvail = true;
+    mServiceFuzzing = false;
 }
 
 void Parcel::scanForFds() const {
