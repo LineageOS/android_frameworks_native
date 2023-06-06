@@ -329,6 +329,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.software.opengles.deqp.level-2023-03-01.prebuilt.xml",
+    src: "android.software.opengles.deqp.level-2023-03-01.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.software.sip.voip.prebuilt.xml",
     src: "android.software.sip.voip.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -349,6 +355,12 @@ prebuilt_etc {
 prebuilt_etc {
     name: "android.software.vulkan.deqp.level-2022-03-01.prebuilt.xml",
     src: "android.software.vulkan.deqp.level-2022-03-01.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.software.vulkan.deqp.level-2023-03-01.prebuilt.xml",
+    src: "android.software.vulkan.deqp.level-2023-03-01.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 
