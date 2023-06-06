@@ -866,7 +866,7 @@ public:
     std::string getPendingBufferCounterName() { return mBlastTransactionName; }
     bool updateGeometry();
 
-    bool simpleBufferUpdate(const layer_state_t&) const;
+    bool isSimpleBufferUpdate(const layer_state_t& s) const;
 
     static bool isOpaqueFormat(PixelFormat format);
 
