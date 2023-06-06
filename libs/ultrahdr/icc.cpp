@@ -180,7 +180,7 @@ sp<DataStruct> IccHelper::write_text_tag(const char* text) {
 
     uint32_t total_length = text_length * 2 + sizeof(header);
     total_length = (((total_length + 2) >> 2) << 2);  // 4 aligned
-    sp<DataStruct> dataStruct = new DataStruct(total_length);
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(total_length);
 
     if (!dataStruct->write(header, sizeof(header))) {
         ALOGE("write_text_tag(): error in writing data");
@@ -204,7 +204,7 @@ sp<DataStruct> IccHelper::write_xyz_tag(float x, float y, float z) {
             static_cast<uint32_t>(Endian_SwapBE32(float_round_to_fixed(y))),
             static_cast<uint32_t>(Endian_SwapBE32(float_round_to_fixed(z))),
     };
-    sp<DataStruct> dataStruct = new DataStruct(sizeof(data));
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(sizeof(data));
     dataStruct->write(&data, sizeof(data));
     return dataStruct;
 }
@@ -212,7 +212,7 @@ sp<DataStruct> IccHelper::write_xyz_tag(float x, float y, float z) {
 sp<DataStruct> IccHelper::write_trc_tag(const int table_entries, const void* table_16) {
     int total_length = 4 + 4 + 4 + table_entries * 2;
     total_length = (((total_length + 2) >> 2) << 2);  // 4 aligned
-    sp<DataStruct> dataStruct = new DataStruct(total_length);
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(total_length);
     dataStruct->write32(Endian_SwapBE32(kTAG_CurveType));     // Type
     dataStruct->write32(0);                                     // Reserved
     dataStruct->write32(Endian_SwapBE32(table_entries));  // Value count
@@ -225,7 +225,7 @@ sp<DataStruct> IccHelper::write_trc_tag(const int table_entries, const void* tab
 
 sp<DataStruct> IccHelper::write_trc_tag_for_linear() {
     int total_length = 16;
-    sp<DataStruct> dataStruct = new DataStruct(total_length);
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(total_length);
     dataStruct->write32(Endian_SwapBE32(kTAG_ParaCurveType));  // Type
     dataStruct->write32(0);                                      // Reserved
     dataStruct->write32(Endian_SwapBE16(kExponential_ParaCurveType));
@@ -263,7 +263,7 @@ float IccHelper::compute_tone_map_gain(const ultrahdr_transfer_function tf, floa
 sp<DataStruct> IccHelper::write_cicp_tag(uint32_t color_primaries,
                                          uint32_t transfer_characteristics) {
     int total_length = 12;  // 4 + 4 + 1 + 1 + 1 + 1
-    sp<DataStruct> dataStruct = new DataStruct(total_length);
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(total_length);
     dataStruct->write32(Endian_SwapBE32(kTAG_cicp));    // Type signature
     dataStruct->write32(0);                             // Reserved
     dataStruct->write8(color_primaries);                // Color primaries
@@ -314,7 +314,7 @@ sp<DataStruct> IccHelper::write_clut(const uint8_t* grid_points, const uint8_t* 
 
     int total_length = 20 + 2 * value_count;
     total_length = (((total_length + 2) >> 2) << 2);  // 4 aligned
-    sp<DataStruct> dataStruct = new DataStruct(total_length);
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(total_length);
 
     for (size_t i = 0; i < 16; ++i) {
         dataStruct->write8(i < kNumChannels ? grid_points[i] : 0);  // Grid size
@@ -372,7 +372,7 @@ sp<DataStruct> IccHelper::write_mAB_or_mBA_tag(uint32_t type,
             total_length += a_curves_data[i]->getLength();
         }
     }
-    sp<DataStruct> dataStruct = new DataStruct(total_length);
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(total_length);
     dataStruct->write32(Endian_SwapBE32(type));             // Type signature
     dataStruct->write32(0);                                 // Reserved
     dataStruct->write8(kNumChannels);                       // Input channels
@@ -421,7 +421,7 @@ sp<DataStruct> IccHelper::writeIccProfile(ultrahdr_transfer_function tf,
             break;
         default:
             // Should not fall here.
-            return new DataStruct(0);
+            return nullptr;
     }
 
     // Compute primaries.
@@ -546,7 +546,7 @@ sp<DataStruct> IccHelper::writeIccProfile(ultrahdr_transfer_function tf,
     header.size = Endian_SwapBE32(profile_size);
     header.tag_count = Endian_SwapBE32(tags.size());
 
-    sp<DataStruct> dataStruct = new DataStruct(profile_size);
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(profile_size);
     if (!dataStruct->write(&header, sizeof(header))) {
         ALOGE("writeIccProfile(): error in header");
         return dataStruct;
