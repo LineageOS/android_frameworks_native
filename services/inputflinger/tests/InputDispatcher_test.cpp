@@ -1145,12 +1145,29 @@ public:
         mInfo.inputConfig = WindowInfo::InputConfig::DEFAULT;
     }
 
-    sp<FakeWindowHandle> clone(
-            const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
-            const std::unique_ptr<InputDispatcher>& dispatcher, int32_t displayId) {
-        sp<FakeWindowHandle> handle =
-                sp<FakeWindowHandle>::make(inputApplicationHandle, dispatcher,
-                                           mInfo.name + "(Mirror)", displayId, mInfo.token);
+    sp<FakeWindowHandle> clone(int32_t displayId) {
+        sp<FakeWindowHandle> handle = sp<FakeWindowHandle>::make(mInfo.name + "(Mirror)");
+        handle->mInfo = mInfo;
+        handle->mInfo.displayId = displayId;
+        handle->mInfo.id = sId++;
+        handle->mInputReceiver = mInputReceiver;
+        return handle;
+    }
+
+    /**
+     * This is different from clone, because clone will make a "mirror" window - a window with the
+     * same token, but a different ID. The original window and the clone window are allowed to be
+     * sent to the dispatcher at the same time - they can coexist inside the dispatcher.
+     * This function will create a different object of WindowInfoHandle, but with the same
+     * properties as the original object - including the ID.
+     * You can use either the old or the new object to consume the events.
+     * IMPORTANT: The duplicated object is supposed to replace the original object, and not appear
+     * at the same time inside dispatcher.
+     */
+    sp<FakeWindowHandle> duplicate() {
+        sp<FakeWindowHandle> handle = sp<FakeWindowHandle>::make(mName);
+        handle->mInfo = mInfo;
+        handle->mInputReceiver = mInputReceiver;
         return handle;
     }
 
@@ -1419,9 +1436,11 @@ public:
     int getChannelFd() { return mInputReceiver->getChannelFd(); }
 
 private:
+    FakeWindowHandle(std::string name) : mName(name){};
     const std::string mName;
-    std::unique_ptr<FakeInputReceiver> mInputReceiver;
+    std::shared_ptr<FakeInputReceiver> mInputReceiver;
     static std::atomic<int32_t> sId; // each window gets a unique id, like in surfaceflinger
+    friend class sp<FakeWindowHandle>;
 };
 
 std::atomic<int32_t> FakeWindowHandle::sId{1};
@@ -3893,6 +3912,72 @@ TEST_F(InputDispatcherTest, TouchpadThreeFingerSwipeNotSentToSingleWindow) {
 }
 
 /**
+ * Send a two-pointer gesture to a single window. The window's orientation changes in response to
+ * the first pointer.
+ * Ensure that the second pointer is not sent to the window.
+ *
+ * The subsequent gesture should be correctly delivered to the window.
+ */
+TEST_F(InputDispatcherTest, MultiplePointersWithRotatingWindow) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 400, 400));
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    const nsecs_t baseTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .downTime(baseTime + 10)
+                                      .eventTime(baseTime + 10)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
+                                      .build());
+
+    window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+
+    // We need a new window object for the same window, because dispatcher will store objects by
+    // reference. That means that the testing code and the dispatcher will refer to the same shared
+    // object. Calling window->setTransform here would affect dispatcher's comparison
+    // of the old window to the new window, since both the old window and the new window would be
+    // updated to the same value.
+    sp<FakeWindowHandle> windowDup = window->duplicate();
+
+    // Change the transform so that the orientation is now different from original.
+    windowDup->setWindowTransform(0, -1, 1, 0);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowDup}}});
+
+    window->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .downTime(baseTime + 10)
+                                      .eventTime(baseTime + 30)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(200).y(200))
+                                      .build());
+
+    // Finish the gesture and start a new one. Ensure the new gesture is sent to the window
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .downTime(baseTime + 10)
+                                      .eventTime(baseTime + 40)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(200).y(200))
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .downTime(baseTime + 10)
+                                      .eventTime(baseTime + 50)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
+                                      .build());
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .downTime(baseTime + 60)
+                                      .eventTime(baseTime + 60)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(40).y(40))
+                                      .build());
+
+    windowDup->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+}
+
+/**
  * Ensure the correct coordinate spaces are used by InputDispatcher.
  *
  * InputDispatcher works in the display space, so its coordinate system is relative to the display
@@ -4473,16 +4558,13 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_CloneSurface) {
             sp<FakeWindowHandle>::make(application, mDispatcher, "D_1_W2", ADISPLAY_ID_DEFAULT);
     secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
 
-    sp<FakeWindowHandle> mirrorWindowInPrimary =
-            firstWindowInPrimary->clone(application, mDispatcher, ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> mirrorWindowInPrimary = firstWindowInPrimary->clone(ADISPLAY_ID_DEFAULT);
     mirrorWindowInPrimary->setFrame(Rect(0, 100, 100, 200));
 
-    sp<FakeWindowHandle> firstWindowInSecondary =
-            firstWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    sp<FakeWindowHandle> firstWindowInSecondary = firstWindowInPrimary->clone(SECOND_DISPLAY_ID);
     firstWindowInSecondary->setFrame(Rect(0, 0, 100, 100));
 
-    sp<FakeWindowHandle> secondWindowInSecondary =
-            secondWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    sp<FakeWindowHandle> secondWindowInSecondary = secondWindowInPrimary->clone(SECOND_DISPLAY_ID);
     secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
 
     // Update window info, let it find window handle of second display first.
@@ -4532,16 +4614,13 @@ TEST_F(InputDispatcherTest, TransferTouch_CloneSurface) {
             sp<FakeWindowHandle>::make(application, mDispatcher, "D_1_W2", ADISPLAY_ID_DEFAULT);
     secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
 
-    sp<FakeWindowHandle> mirrorWindowInPrimary =
-            firstWindowInPrimary->clone(application, mDispatcher, ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> mirrorWindowInPrimary = firstWindowInPrimary->clone(ADISPLAY_ID_DEFAULT);
     mirrorWindowInPrimary->setFrame(Rect(0, 100, 100, 200));
 
-    sp<FakeWindowHandle> firstWindowInSecondary =
-            firstWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    sp<FakeWindowHandle> firstWindowInSecondary = firstWindowInPrimary->clone(SECOND_DISPLAY_ID);
     firstWindowInSecondary->setFrame(Rect(0, 0, 100, 100));
 
-    sp<FakeWindowHandle> secondWindowInSecondary =
-            secondWindowInPrimary->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    sp<FakeWindowHandle> secondWindowInSecondary = secondWindowInPrimary->clone(SECOND_DISPLAY_ID);
     secondWindowInPrimary->setFrame(Rect(100, 0, 200, 100));
 
     // Update window info, let it find window handle of second display first.
@@ -6879,6 +6958,55 @@ TEST_F(InputDispatcherSingleWindowAnr,
     mWindow->consumeMotionDown();
     mWindow->consumeMotionUp();
     mWindow->assertNoEvents();
+}
+
+/**
+ * Send an event to the app and have the app not respond right away.
+ * When ANR is raised, policy will tell the dispatcher to cancel the events for that window.
+ * So InputDispatcher will enqueue ACTION_CANCEL event as well.
+ * At some point, the window becomes responsive again.
+ * Ensure that subsequent events get dropped, and the next gesture is delivered.
+ */
+TEST_F(InputDispatcherSingleWindowAnr, TwoGesturesWithAnr) {
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(10).y(10))
+                                      .build());
+
+    std::optional<uint32_t> sequenceNum = mWindow->receiveEvent(); // ACTION_DOWN
+    ASSERT_TRUE(sequenceNum);
+    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow);
+
+    mWindow->finishEvent(*sequenceNum);
+    mWindow->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken(), mWindow->getPid());
+
+    // Now that the window is responsive, let's continue the gesture.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(11).y(11))
+                                      .build());
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(11).y(11))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(3).y(3))
+                                      .build());
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(11).y(11))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(3).y(3))
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(11).y(11))
+                                      .build());
+    // We already canceled this pointer, so the window shouldn't get any new events.
+    mWindow->assertNoEvents();
+
+    // Start another one.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(15).y(15))
+                                      .build());
+    mWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
 }
 
 class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
