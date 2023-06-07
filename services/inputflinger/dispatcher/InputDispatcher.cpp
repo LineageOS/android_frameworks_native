@@ -3292,11 +3292,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
 
             if (!connection->inputState.trackKey(keyEntry, dispatchEntry->resolvedAction,
                                                  dispatchEntry->resolvedFlags)) {
-                if (DEBUG_DISPATCH_CYCLE) {
-                    ALOGD("channel '%s' ~ enqueueDispatchEntryLocked: skipping inconsistent key "
-                          "event",
-                          connection->getInputChannelName().c_str());
-                }
+                LOG(WARNING) << "channel " << connection->getInputChannelName()
+                             << "~ dropping inconsistent event: " << *dispatchEntry;
                 return; // skip the inconsistent event
             }
             break;
@@ -3349,11 +3346,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
 
             if (!connection->inputState.trackMotion(motionEntry, dispatchEntry->resolvedAction,
                                                     dispatchEntry->resolvedFlags)) {
-                if (DEBUG_DISPATCH_CYCLE) {
-                    ALOGD("channel '%s' ~ enqueueDispatchEntryLocked: skipping inconsistent motion "
-                          "event",
-                          connection->getInputChannelName().c_str());
-                }
+                LOG(WARNING) << "channel " << connection->getInputChannelName()
+                             << "~ dropping inconsistent event: " << *dispatchEntry;
                 return; // skip the inconsistent event
             }
 
