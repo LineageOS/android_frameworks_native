@@ -1349,6 +1349,8 @@ void Layer::setFrameTimelineVsyncForBufferTransaction(const FrameTimelineInfo& i
         mDrawingState.bufferSurfaceFrameTX =
                 createSurfaceFrameForBuffer(info, postTime, mTransactionName);
     }
+
+    setFrameTimelineVsyncForSkippedFrames(info, postTime, mTransactionName);
 }
 
 void Layer::setFrameTimelineVsyncForBufferlessTransaction(const FrameTimelineInfo& info,
@@ -1380,11 +1382,13 @@ void Layer::setFrameTimelineVsyncForBufferlessTransaction(const FrameTimelineInf
             it->second = createSurfaceFrameForTransaction(info, postTime);
         }
     }
+
+    setFrameTimelineVsyncForSkippedFrames(info, postTime, mTransactionName);
 }
 
 void Layer::addSurfaceFrameDroppedForBuffer(
-        std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
-    surfaceFrame->setDropTime(systemTime());
+        std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame, nsecs_t dropTime) {
+    surfaceFrame->setDropTime(dropTime);
     surfaceFrame->setPresentState(PresentState::Dropped);
     mFlinger->mFrameTimeline->addSurfaceFrame(surfaceFrame);
 }
@@ -1432,6 +1436,32 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
     }
     onSurfaceFrameCreated(surfaceFrame);
     return surfaceFrame;
+}
+
+void Layer::setFrameTimelineVsyncForSkippedFrames(const FrameTimelineInfo& info, nsecs_t postTime,
+                                                  std::string debugName) {
+    if (info.skippedFrameVsyncId == FrameTimelineInfo::INVALID_VSYNC_ID) {
+        return;
+    }
+
+    FrameTimelineInfo skippedFrameTimelineInfo = info;
+    skippedFrameTimelineInfo.vsyncId = info.skippedFrameVsyncId;
+
+    auto surfaceFrame =
+            mFlinger->mFrameTimeline->createSurfaceFrameForToken(skippedFrameTimelineInfo,
+                                                                 mOwnerPid, mOwnerUid,
+                                                                 getSequence(), mName, debugName,
+                                                                 /*isBuffer*/ false, getGameMode());
+    surfaceFrame->setActualStartTime(skippedFrameTimelineInfo.skippedFrameStartTimeNanos);
+    // For Transactions, the post time is considered to be both queue and acquire fence time.
+    surfaceFrame->setActualQueueTime(postTime);
+    surfaceFrame->setAcquireFenceTime(postTime);
+    const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
+    if (fps) {
+        surfaceFrame->setRenderRate(*fps);
+    }
+    onSurfaceFrameCreated(surfaceFrame);
+    addSurfaceFrameDroppedForBuffer(surfaceFrame, postTime);
 }
 
 bool Layer::setFrameRateForLayerTreeLegacy(FrameRate frameRate) {
@@ -3067,7 +3097,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
             decrementPendingBufferCount();
             if (mDrawingState.bufferSurfaceFrameTX != nullptr &&
                 mDrawingState.bufferSurfaceFrameTX->getPresentState() != PresentState::Presented) {
-                addSurfaceFrameDroppedForBuffer(mDrawingState.bufferSurfaceFrameTX);
+                addSurfaceFrameDroppedForBuffer(mDrawingState.bufferSurfaceFrameTX, systemTime());
                 mDrawingState.bufferSurfaceFrameTX.reset();
             }
         } else if (EARLY_RELEASE_ENABLED && mLastClientCompositionFence != nullptr) {

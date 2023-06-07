@@ -1792,19 +1792,20 @@ int Surface::dispatchGetLastQueuedBuffer2(va_list args) {
 
 int Surface::dispatchSetFrameTimelineInfo(va_list args) {
     ATRACE_CALL();
-    auto frameNumber = static_cast<uint64_t>(va_arg(args, uint64_t));
-    auto frameTimelineVsyncId = static_cast<int64_t>(va_arg(args, int64_t));
-    auto inputEventId = static_cast<int32_t>(va_arg(args, int32_t));
-    auto startTimeNanos = static_cast<int64_t>(va_arg(args, int64_t));
-    auto useForRefreshRateSelection = static_cast<bool>(va_arg(args, int32_t));
-
     ALOGV("Surface::%s", __func__);
+
+    const auto nativeWindowFtlInfo = static_cast<ANativeWindowFrameTimelineInfo>(
+            va_arg(args, ANativeWindowFrameTimelineInfo));
+
     FrameTimelineInfo ftlInfo;
-    ftlInfo.vsyncId = frameTimelineVsyncId;
-    ftlInfo.inputEventId = inputEventId;
-    ftlInfo.startTimeNanos = startTimeNanos;
-    ftlInfo.useForRefreshRateSelection = useForRefreshRateSelection;
-    return setFrameTimelineInfo(frameNumber, ftlInfo);
+    ftlInfo.vsyncId = nativeWindowFtlInfo.frameTimelineVsyncId;
+    ftlInfo.inputEventId = nativeWindowFtlInfo.inputEventId;
+    ftlInfo.startTimeNanos = nativeWindowFtlInfo.startTimeNanos;
+    ftlInfo.useForRefreshRateSelection = nativeWindowFtlInfo.useForRefreshRateSelection;
+    ftlInfo.skippedFrameVsyncId = nativeWindowFtlInfo.skippedFrameVsyncId;
+    ftlInfo.skippedFrameStartTimeNanos = nativeWindowFtlInfo.skippedFrameStartTimeNanos;
+
+    return setFrameTimelineInfo(nativeWindowFtlInfo.frameNumber, ftlInfo);
 }
 
 bool Surface::transformToDisplayInverse() const {
