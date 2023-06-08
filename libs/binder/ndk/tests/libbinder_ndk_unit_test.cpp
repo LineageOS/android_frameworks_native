@@ -283,8 +283,8 @@ TEST(NdkBinder, CheckServiceThatDoesntExist) {
 
 TEST(NdkBinder, CheckServiceThatDoesExist) {
     AIBinder* binder = AServiceManager_checkService(kExistingNonNdkService);
-    EXPECT_NE(nullptr, binder);
-    EXPECT_EQ(STATUS_OK, AIBinder_ping(binder));
+    ASSERT_NE(nullptr, binder) << "Could not get " << kExistingNonNdkService;
+    EXPECT_EQ(STATUS_OK, AIBinder_ping(binder)) << "Could not ping " << kExistingNonNdkService;
 
     AIBinder_decStrong(binder);
 }
