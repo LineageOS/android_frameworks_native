@@ -525,7 +525,6 @@ cc_library {
         "libbase",
         "libbinder",
         "libbinder_ndk",
-        "libcutils_sockets",
         "liblog",
         "libutils",
     ],
