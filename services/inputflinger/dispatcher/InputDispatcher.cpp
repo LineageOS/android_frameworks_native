@@ -5879,9 +5879,9 @@ void InputDispatcher::onAnrLocked(std::shared_ptr<InputApplicationHandle> applic
             StringPrintf("%s does not have a focused window", application->getName().c_str());
     updateLastAnrStateLocked(*application, reason);
 
-    auto command = [this, application = std::move(application)]() REQUIRES(mLock) {
+    auto command = [this, app = std::move(application)]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyNoFocusedWindowAnr(application);
+        mPolicy->notifyNoFocusedWindowAnr(app);
     };
     postCommandLocked(std::move(command));
 }
@@ -5942,9 +5942,9 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& 
 void InputDispatcher::sendWindowUnresponsiveCommandLocked(const sp<IBinder>& token,
                                                           std::optional<int32_t> pid,
                                                           std::string reason) {
-    auto command = [this, token, pid, reason = std::move(reason)]() REQUIRES(mLock) {
+    auto command = [this, token, pid, r = std::move(reason)]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);
-        mPolicy->notifyWindowUnresponsive(token, pid, reason);
+        mPolicy->notifyWindowUnresponsive(token, pid, r);
     };
     postCommandLocked(std::move(command));
 }
