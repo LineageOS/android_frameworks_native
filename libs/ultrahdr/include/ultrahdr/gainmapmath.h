@@ -218,24 +218,30 @@ struct ShepardsIDW {
 // except for those concerning transfer functions.
 
 /*
- * Calculate the luminance of a linear RGB sRGB pixel, according to IEC 61966-2-1.
+ * Calculate the luminance of a linear RGB sRGB pixel, according to
+ * IEC 61966-2-1/Amd 1:2003.
  *
  * [0.0, 1.0] range in and out.
  */
 float srgbLuminance(Color e);
 
 /*
- * Convert from OETF'd srgb YUV to RGB, according to ECMA TR/98.
+ * Convert from OETF'd srgb RGB to YUV, according to ITU-R BT.709-6.
+ *
+ * BT.709 YUV<->RGB matrix is used to match expectations for DataSpace.
+ */
+Color srgbRgbToYuv(Color e_gamma);
+
+
+/*
+ * Convert from OETF'd srgb YUV to RGB, according to ITU-R BT.709-6.
+ *
+ * BT.709 YUV<->RGB matrix is used to match expectations for DataSpace.
  */
 Color srgbYuvToRgb(Color e_gamma);
 
 /*
- * Convert from OETF'd srgb RGB to YUV, according to ECMA TR/98.
- */
-Color srgbRgbToYuv(Color e_gamma);
-
-/*
- * Convert from srgb to linear, according to IEC 61966-2-1.
+ * Convert from srgb to linear, according to IEC 61966-2-1/Amd 1:2003.
  *
  * [0.0, 1.0] range in and out.
  */
@@ -257,6 +263,20 @@ constexpr size_t kSrgbInvOETFNumEntries = 1 << kSrgbInvOETFPrecision;
  */
 float p3Luminance(Color e);
 
+/*
+ * Convert from OETF'd P3 RGB to YUV, according to ITU-R BT.601-7.
+ *
+ * BT.601 YUV<->RGB matrix is used to match expectations for DataSpace.
+ */
+Color p3RgbToYuv(Color e_gamma);
+
+/*
+ * Convert from OETF'd P3 YUV to RGB, according to ITU-R BT.601-7.
+ *
+ * BT.601 YUV<->RGB matrix is used to match expectations for DataSpace.
+ */
+Color p3YuvToRgb(Color e_gamma);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // BT.2100 transformations - according to ITU-R BT.2100-2
@@ -269,12 +289,16 @@ float p3Luminance(Color e);
 float bt2100Luminance(Color e);
 
 /*
- * Convert from OETF'd BT.2100 RGB to YUV.
+ * Convert from OETF'd BT.2100 RGB to YUV, according to ITU-R BT.2100-2.
+ *
+ * BT.2100 YUV<->RGB matrix is used to match expectations for DataSpace.
  */
 Color bt2100RgbToYuv(Color e_gamma);
 
 /*
- * Convert from OETF'd BT.2100 YUV to RGB.
+ * Convert from OETF'd BT.2100 YUV to RGB, according to ITU-R BT.2100-2.
+ *
+ * BT.2100 YUV<->RGB matrix is used to match expectations for DataSpace.
  */
 Color bt2100YuvToRgb(Color e_gamma);
 
@@ -357,6 +381,31 @@ inline Color identityConversion(Color e) { return e; }
  * Get the conversion to apply to the HDR image for gain map generation
  */
 ColorTransformFn getHdrConversionFn(ultrahdr_color_gamut sdr_gamut, ultrahdr_color_gamut hdr_gamut);
+
+/*
+ * Convert between YUV encodings, according to ITU-R BT.709-6, ITU-R BT.601-7, and ITU-R BT.2100-2.
+ *
+ * Bt.709 and Bt.2100 have well-defined YUV encodings; Display-P3's is less well defined, but is
+ * treated as Bt.601 by DataSpace, hence we do the same.
+ */
+Color yuv709To601(Color e_gamma);
+Color yuv709To2100(Color e_gamma);
+Color yuv601To709(Color e_gamma);
+Color yuv601To2100(Color e_gamma);
+Color yuv2100To709(Color e_gamma);
+Color yuv2100To601(Color e_gamma);
+
+/*
+ * Performs a transformation at the chroma x and y coordinates provided on a YUV420 image.
+ *
+ * Apply the transformation by determining transformed YUV for each of the 4 Y + 1 UV; each Y gets
+ * this result, and UV gets the averaged result.
+ *
+ * x_chroma and y_chroma should be less than or equal to half the image's width and height
+ * respecitively, since input is 4:2:0 subsampled.
+ */
+void transformYuv420(jr_uncompressed_ptr image, size_t x_chroma, size_t y_chroma,
+                     ColorTransformFn fn);
 
 
 ////////////////////////////////////////////////////////////////////////////////
