@@ -140,7 +140,7 @@ public:
 
     /* Notifies the policy that there was an input device interaction with apps. */
     virtual void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
-                                         const std::set<int32_t>& uids) = 0;
+                                         const std::set<gui::Uid>& uids) = 0;
 };
 
 } // namespace android

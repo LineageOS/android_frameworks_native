@@ -37,7 +37,7 @@ constexpr int32_t DEVICE_ID = 1;
 
 // The default pid and uid for windows created by the test.
 constexpr int32_t WINDOW_PID = 999;
-constexpr int32_t WINDOW_UID = 1001;
+constexpr gui::Uid WINDOW_UID{1001};
 
 static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 5s;
 static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 100ms;
@@ -112,7 +112,7 @@ private:
     void notifyDropWindow(const sp<IBinder>&, float x, float y) override {}
 
     void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
-                                 const std::set<int32_t>& uids) override {}
+                                 const std::set<gui::Uid>& uids) override {}
 
     InputDispatcherConfiguration mConfig;
 };
