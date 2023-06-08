@@ -15,6 +15,7 @@
  */
 
 #include <ultrahdr/jpegdecoderhelper.h>
+#include <ultrahdr/icc.h>
 #include <gtest/gtest.h>
 #include <utils/Log.h>
 
@@ -22,10 +23,18 @@
 
 namespace android::ultrahdr {
 
+// No ICC or EXIF
 #define YUV_IMAGE "/sdcard/Documents/minnie-320x240-yuv.jpg"
 #define YUV_IMAGE_SIZE 20193
+// Has ICC and EXIF
+#define YUV_ICC_IMAGE "/sdcard/Documents/minnie-320x240-yuv-icc.jpg"
+#define YUV_ICC_IMAGE_SIZE 34266
+// No ICC or EXIF
 #define GREY_IMAGE "/sdcard/Documents/minnie-320x240-y.jpg"
 #define GREY_IMAGE_SIZE 20193
+
+#define IMAGE_WIDTH 320
+#define IMAGE_HEIGHT 240
 
 class JpegDecoderHelperTest : public testing::Test {
 public:
@@ -39,7 +48,7 @@ protected:
     virtual void SetUp();
     virtual void TearDown();
 
-    Image mYuvImage, mGreyImage;
+    Image mYuvImage, mYuvIccImage, mGreyImage;
 };
 
 JpegDecoderHelperTest::JpegDecoderHelperTest() {}
@@ -79,6 +88,10 @@ void JpegDecoderHelperTest::SetUp() {
         FAIL() << "Load file " << YUV_IMAGE << " failed";
     }
     mYuvImage.size = YUV_IMAGE_SIZE;
+    if (!loadFile(YUV_ICC_IMAGE, &mYuvIccImage)) {
+        FAIL() << "Load file " << YUV_ICC_IMAGE << " failed";
+    }
+    mYuvIccImage.size = YUV_ICC_IMAGE_SIZE;
     if (!loadFile(GREY_IMAGE, &mGreyImage)) {
         FAIL() << "Load file " << GREY_IMAGE << " failed";
     }
@@ -91,12 +104,53 @@ TEST_F(JpegDecoderHelperTest, decodeYuvImage) {
     JpegDecoderHelper decoder;
     EXPECT_TRUE(decoder.decompressImage(mYuvImage.buffer.get(), mYuvImage.size));
     ASSERT_GT(decoder.getDecompressedImageSize(), static_cast<uint32_t>(0));
+    EXPECT_EQ(IccHelper::readIccColorGamut(decoder.getICCPtr(), decoder.getICCSize()),
+              ULTRAHDR_COLORGAMUT_UNSPECIFIED);
+}
+
+TEST_F(JpegDecoderHelperTest, decodeYuvIccImage) {
+    JpegDecoderHelper decoder;
+    EXPECT_TRUE(decoder.decompressImage(mYuvIccImage.buffer.get(), mYuvIccImage.size));
+    ASSERT_GT(decoder.getDecompressedImageSize(), static_cast<uint32_t>(0));
+    EXPECT_EQ(IccHelper::readIccColorGamut(decoder.getICCPtr(), decoder.getICCSize()),
+              ULTRAHDR_COLORGAMUT_BT709);
 }
 
 TEST_F(JpegDecoderHelperTest, decodeGreyImage) {
     JpegDecoderHelper decoder;
     EXPECT_TRUE(decoder.decompressImage(mGreyImage.buffer.get(), mGreyImage.size));
     ASSERT_GT(decoder.getDecompressedImageSize(), static_cast<uint32_t>(0));
+}
+
+TEST_F(JpegDecoderHelperTest, getCompressedImageParameters) {
+    size_t width = 0, height = 0;
+    std::vector<uint8_t> icc, exif;
+
+    JpegDecoderHelper decoder;
+    EXPECT_TRUE(decoder.getCompressedImageParameters(mYuvImage.buffer.get(), mYuvImage.size,
+                                                     &width, &height, &icc, &exif));
+
+    EXPECT_EQ(width, IMAGE_WIDTH);
+    EXPECT_EQ(height, IMAGE_HEIGHT);
+    EXPECT_EQ(icc.size(), 0);
+    EXPECT_EQ(exif.size(), 0);
+}
+
+TEST_F(JpegDecoderHelperTest, getCompressedImageParametersIcc) {
+    size_t width = 0, height = 0;
+    std::vector<uint8_t> icc, exif;
+
+    JpegDecoderHelper decoder;
+    EXPECT_TRUE(decoder.getCompressedImageParameters(mYuvIccImage.buffer.get(), mYuvIccImage.size,
+                                                     &width, &height, &icc, &exif));
+
+    EXPECT_EQ(width, IMAGE_WIDTH);
+    EXPECT_EQ(height, IMAGE_HEIGHT);
+    EXPECT_GT(icc.size(), 0);
+    EXPECT_GT(exif.size(), 0);
+
+    EXPECT_EQ(IccHelper::readIccColorGamut(icc.data(), icc.size()),
+              ULTRAHDR_COLORGAMUT_BT709);
 }
 
 }  // namespace android::ultrahdr
