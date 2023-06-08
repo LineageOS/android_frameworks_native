@@ -877,6 +877,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
     int width, height;
     int transform_hint;
     int max_buffer_count;
+    int min_undequeued_buffers;
     if (surface == VK_NULL_HANDLE) {
         const InstanceData& instance_data = GetData(physicalDevice);
         ProcHook::Extension surfaceless = ProcHook::GOOGLE_surfaceless_query;
@@ -929,17 +930,24 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
             return VK_ERROR_SURFACE_LOST_KHR;
         }
 
+        err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
+                            &min_undequeued_buffers);
+        if (err != android::OK) {
+            ALOGE("NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d)",
+                  strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+
         if (pPresentMode && IsSharedPresentMode(pPresentMode->presentMode)) {
             capabilities->minImageCount = 1;
             capabilities->maxImageCount = 1;
         } else if (pPresentMode && pPresentMode->presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-            // TODO: use undequeued buffer requirement for more precise bound
-            capabilities->minImageCount = std::min(max_buffer_count, 4);
+            capabilities->minImageCount =
+                std::min(max_buffer_count, min_undequeued_buffers + 2);
             capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
         } else {
-            // TODO: if we're able to, provide better bounds on the number of buffers
-            // for other modes as well.
-            capabilities->minImageCount = std::min(max_buffer_count, 3);
+            capabilities->minImageCount =
+                std::min(max_buffer_count, min_undequeued_buffers + 1);
             capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
         }
     }
