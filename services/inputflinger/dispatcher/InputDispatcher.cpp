@@ -1955,7 +1955,7 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
         ALOGD("dispatchEventToCurrentInputTargets");
     }
 
-    updateInteractionTokensLocked(*eventEntry, inputTargets);
+    processInteractionsLocked(*eventEntry, inputTargets);
 
     ALOG_ASSERT(eventEntry->dispatchInProgress); // should already have been set to true
 
@@ -2830,6 +2830,7 @@ std::optional<InputTarget> InputDispatcher::createInputTargetLocked(
     }
     InputTarget inputTarget;
     inputTarget.inputChannel = inputChannel;
+    inputTarget.windowHandle = windowHandle;
     inputTarget.flags = targetFlags;
     inputTarget.globalScaleFactor = windowHandle->getInfo()->globalScaleFactor;
     inputTarget.firstDownTimeInTarget = firstDownTimeInTarget;
@@ -3402,38 +3403,49 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
 }
 
 /**
- * This function is purely for debugging. It helps us understand where the user interaction
- * was taking place. For example, if user is touching launcher, we will see a log that user
- * started interacting with launcher. In that example, the event would go to the wallpaper as well.
- * We will see both launcher and wallpaper in that list.
- * Once the interaction with a particular set of connections starts, no new logs will be printed
- * until the set of interacted connections changes.
+ * This function is for debugging and metrics collection. It has two roles.
  *
- * The following items are skipped, to reduce the logspam:
- * ACTION_OUTSIDE: any windows that are receiving ACTION_OUTSIDE are not logged
- * ACTION_UP: any windows that receive ACTION_UP are not logged (for both keys and motions).
- * This includes situations like the soft BACK button key. When the user releases (lifts up the
- * finger) the back button, then navigation bar will inject KEYCODE_BACK with ACTION_UP.
- * Both of those ACTION_UP events would not be logged
+ * The first role is to log input interaction with windows, which helps determine what the user was
+ * interacting with. For example, if user is touching launcher, we will see an input_interaction log
+ * that user started interacting with launcher window, as well as any other window that received
+ * that gesture, such as the wallpaper or other spy windows. A new input_interaction is only logged
+ * when the set of tokens that received the event changes. It is not logged again as long as the
+ * user is interacting with the same windows.
+ *
+ * The second role is to track input device activity for metrics collection. For each input event,
+ * we report the set of UIDs that the input device interacted with to the policy. Unlike for the
+ * input_interaction logs, the device interaction is reported even when the set of interaction
+ * tokens do not change.
+ *
+ * For these purposes, we do not count ACTION_OUTSIDE, ACTION_UP and ACTION_CANCEL actions as
+ * interaction. This includes up and cancel events for both keys and motions.
  */
-void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
-                                                    const std::vector<InputTarget>& targets) {
+void InputDispatcher::processInteractionsLocked(const EventEntry& entry,
+                                                const std::vector<InputTarget>& targets) {
+    int32_t deviceId;
+    nsecs_t eventTime;
     // Skip ACTION_UP events, and all events other than keys and motions
     if (entry.type == EventEntry::Type::KEY) {
         const KeyEntry& keyEntry = static_cast<const KeyEntry&>(entry);
         if (keyEntry.action == AKEY_EVENT_ACTION_UP) {
             return;
         }
+        deviceId = keyEntry.deviceId;
+        eventTime = keyEntry.eventTime;
     } else if (entry.type == EventEntry::Type::MOTION) {
         const MotionEntry& motionEntry = static_cast<const MotionEntry&>(entry);
         if (motionEntry.action == AMOTION_EVENT_ACTION_UP ||
-            motionEntry.action == AMOTION_EVENT_ACTION_CANCEL) {
+            motionEntry.action == AMOTION_EVENT_ACTION_CANCEL ||
+            MotionEvent::getActionMasked(motionEntry.action) == AMOTION_EVENT_ACTION_POINTER_UP) {
             return;
         }
+        deviceId = motionEntry.deviceId;
+        eventTime = motionEntry.eventTime;
     } else {
         return; // Not a key or a motion
     }
 
+    std::set<int32_t> interactionUids;
     std::unordered_set<sp<IBinder>, StrongPointerHash<IBinder>> newConnectionTokens;
     std::vector<std::shared_ptr<Connection>> newConnections;
     for (const InputTarget& target : targets) {
@@ -3448,7 +3460,18 @@ void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
         }
         newConnectionTokens.insert(std::move(token));
         newConnections.emplace_back(connection);
+        if (target.windowHandle) {
+            interactionUids.emplace(target.windowHandle->getInfo()->ownerUid);
+        }
     }
+
+    auto command = [this, deviceId, eventTime, uids = std::move(interactionUids)]()
+                           REQUIRES(mLock) {
+                               scoped_unlock unlock(mLock);
+                               mPolicy.notifyDeviceInteraction(deviceId, eventTime, uids);
+                           };
+    postCommandLocked(std::move(command));
+
     if (newConnectionTokens == mInteractionConnectionTokens) {
         return; // no change
     }

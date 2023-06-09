@@ -127,6 +127,10 @@ InputProcessorInterface& InputManager::getProcessor() {
     return *mProcessor;
 }
 
+InputDeviceMetricsCollectorInterface& InputManager::getMetricsCollector() {
+    return *mCollector;
+}
+
 InputDispatcherInterface& InputManager::getDispatcher() {
     return *mDispatcher;
 }

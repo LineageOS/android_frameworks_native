@@ -86,6 +86,9 @@ public:
     /* Gets the input processor. */
     virtual InputProcessorInterface& getProcessor() = 0;
 
+    /* Gets the metrics collector. */
+    virtual InputDeviceMetricsCollectorInterface& getMetricsCollector() = 0;
+
     /* Gets the input dispatcher. */
     virtual InputDispatcherInterface& getDispatcher() = 0;
 
@@ -109,6 +112,7 @@ public:
 
     InputReaderInterface& getReader() override;
     InputProcessorInterface& getProcessor() override;
+    InputDeviceMetricsCollectorInterface& getMetricsCollector() override;
     InputDispatcherInterface& getDispatcher() override;
     void monitor() override;
     void dump(std::string& dump) override;
