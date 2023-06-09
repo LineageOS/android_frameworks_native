@@ -23,10 +23,12 @@
 #include "InputDeviceMetricsCollector.h"
 #include "InputProcessor.h"
 #include "InputReaderBase.h"
+#include "PointerChoreographer.h"
 #include "include/UnwantedInteractionBlockerInterface.h"
 
 #include <InputDispatcherInterface.h>
 #include <InputDispatcherPolicyInterface.h>
+#include <PointerChoreographerPolicyInterface.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
 
@@ -86,6 +88,9 @@ public:
     /* Gets the input reader. */
     virtual InputReaderInterface& getReader() = 0;
 
+    /* Gets the PointerChoreographer. */
+    virtual PointerChoreographerInterface& getChoreographer() = 0;
+
     /* Gets the input processor. */
     virtual InputProcessorInterface& getProcessor() = 0;
 
@@ -108,12 +113,14 @@ protected:
 
 public:
     InputManager(const sp<InputReaderPolicyInterface>& readerPolicy,
-                 InputDispatcherPolicyInterface& dispatcherPolicy);
+                 InputDispatcherPolicyInterface& dispatcherPolicy,
+                 PointerChoreographerPolicyInterface& choreographerPolicy);
 
     status_t start() override;
     status_t stop() override;
 
     InputReaderInterface& getReader() override;
+    PointerChoreographerInterface& getChoreographer() override;
     InputProcessorInterface& getProcessor() override;
     InputDeviceMetricsCollectorInterface& getMetricsCollector() override;
     InputDispatcherInterface& getDispatcher() override;
@@ -129,6 +136,8 @@ private:
     std::unique_ptr<InputReaderInterface> mReader;
 
     std::unique_ptr<UnwantedInteractionBlockerInterface> mBlocker;
+
+    std::unique_ptr<PointerChoreographerInterface> mChoreographer;
 
     std::unique_ptr<InputProcessorInterface> mProcessor;
 
