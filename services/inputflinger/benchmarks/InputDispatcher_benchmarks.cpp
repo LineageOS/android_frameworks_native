@@ -111,6 +111,9 @@ private:
 
     void notifyDropWindow(const sp<IBinder>&, float x, float y) override {}
 
+    void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+                                 const std::set<int32_t>& uids) override {}
+
     InputDispatcherConfiguration mConfig;
 };
 

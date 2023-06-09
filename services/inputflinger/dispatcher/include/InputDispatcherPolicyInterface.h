@@ -22,6 +22,7 @@
 #include <gui/InputApplication.h>
 #include <input/Input.h>
 #include <utils/RefBase.h>
+#include <set>
 
 namespace android {
 
@@ -136,6 +137,10 @@ public:
 
     /* Notifies the policy that the drag window has moved over to another window */
     virtual void notifyDropWindow(const sp<IBinder>& token, float x, float y) = 0;
+
+    /* Notifies the policy that there was an input device interaction with apps. */
+    virtual void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+                                         const std::set<int32_t>& uids) = 0;
 };
 
 } // namespace android
