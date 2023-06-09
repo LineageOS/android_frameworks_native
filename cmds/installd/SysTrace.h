@@ -19,4 +19,16 @@
 namespace android::installd {
 void atrace_pm_begin(const char*);
 void atrace_pm_end();
+
+class ScopedTrace {
+public:
+    explicit ScopedTrace(const char* label) { atrace_pm_begin(label); }
+    ~ScopedTrace() { atrace_pm_end(); }
+
+private:
+    ScopedTrace(const ScopedTrace&) = delete;
+    ScopedTrace& operator=(const ScopedTrace&) = delete;
+    ScopedTrace(ScopedTrace&&) = delete;
+    ScopedTrace& operator=(ScopedTrace&&) = delete;
+};
 } /* namespace android::installd */
