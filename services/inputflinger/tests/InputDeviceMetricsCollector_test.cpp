@@ -341,8 +341,9 @@ protected:
     TestInputListener mTestListener;
     InputDeviceMetricsCollector mMetricsCollector{mTestListener, *this, USAGE_TIMEOUT};
 
-    void assertUsageLogged(const InputDeviceIdentifier& identifier, nanoseconds duration,
-                           std::optional<SourceUsageBreakdown> sourceBreakdown = {}) {
+    void assertUsageLogged(InputDeviceIdentifier identifier, nanoseconds duration,
+                           std::optional<SourceUsageBreakdown> sourceBreakdown = {},
+                           std::optional<UidUsageBreakdown> uidBreakdown = {}) {
         ASSERT_GE(mLoggedUsageSessions.size(), 1u);
         const auto& [loggedIdentifier, report] = *mLoggedUsageSessions.begin();
         ASSERT_EQ(identifier, loggedIdentifier);
@@ -350,12 +351,17 @@ protected:
         if (sourceBreakdown) {
             ASSERT_EQ(sourceBreakdown, report.sourceBreakdown);
         }
+        if (uidBreakdown) {
+            ASSERT_EQ(uidBreakdown, report.uidBreakdown);
+        }
         mLoggedUsageSessions.erase(mLoggedUsageSessions.begin());
     }
 
     void assertUsageNotLogged() { ASSERT_TRUE(mLoggedUsageSessions.empty()); }
 
     void setCurrentTime(nanoseconds time) { mCurrentTime = time; }
+
+    nsecs_t currentTime() const { return mCurrentTime.count(); }
 
     NotifyMotionArgs generateMotionArgs(int32_t deviceId,
                                         uint32_t source = AINPUT_SOURCE_TOUCHSCREEN,
@@ -618,6 +624,148 @@ TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource_MultiSourceEvent)
     expectedSourceBreakdown.emplace_back(InputDeviceUsageSource::TOUCHSCREEN, 300ns);
     ASSERT_NO_FATAL_FAILURE(
             assertUsageLogged(getIdentifier(DEVICE_ID), 400ns, expectedSourceBreakdown));
+
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+}
+
+TEST_F(InputDeviceMetricsCollectorTest, UidsNotTrackedWhenThereIsNoActiveSession) {
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+
+    // Notify interaction with UIDs before the device is used.
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1});
+
+    // Use the device.
+    setCurrentTime(TIME + 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    setCurrentTime(TIME + 200ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+
+    // Notify interaction for the wrong device.
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID_2, currentTime(), /*uids=*/{42});
+
+    // Notify interaction after usage session would have expired.
+    // This interaction should not be tracked.
+    setCurrentTime(TIME + 200ns + USAGE_TIMEOUT);
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{2, 3});
+
+    // Use the device again, by starting a new usage session.
+    setCurrentTime(TIME + 300ns + USAGE_TIMEOUT);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+
+    // The first usage session is logged.
+    static const UidUsageBreakdown emptyBreakdown;
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(), 100ns, /*sourceBreakdown=*/{},
+                                              /*uidBreakdown=*/emptyBreakdown));
+
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+}
+
+TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid) {
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    UidUsageBreakdown expectedUidBreakdown;
+
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1});
+
+    setCurrentTime(TIME + 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1, 2});
+    setCurrentTime(TIME + 200ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1, 2, 3});
+
+    expectedUidBreakdown.emplace_back(1, 200ns);
+    expectedUidBreakdown.emplace_back(2, 100ns);
+    expectedUidBreakdown.emplace_back(3, 0ns);
+
+    // Remove the device to force the usage session to be logged.
+    mMetricsCollector.notifyInputDevicesChanged({});
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(), 200ns, /*sourceBreakdown=*/{},
+                                              expectedUidBreakdown));
+
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+}
+
+TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid_TracksMultipleSessionsForUid) {
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    UidUsageBreakdown expectedUidBreakdown;
+
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1, 2});
+    setCurrentTime(TIME + 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1, 2});
+
+    setCurrentTime(TIME + 200ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1});
+
+    setCurrentTime(TIME + 300ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1, 3});
+    setCurrentTime(TIME + 400ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1, 3});
+
+    setCurrentTime(TIME + 200ns + USAGE_TIMEOUT);
+    expectedUidBreakdown.emplace_back(2, 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{4});
+
+    setCurrentTime(TIME + 300ns + USAGE_TIMEOUT);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1, 4});
+
+    setCurrentTime(TIME + 400ns + USAGE_TIMEOUT);
+    expectedUidBreakdown.emplace_back(3, 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{2, 3});
+
+    setCurrentTime(TIME + 500ns + USAGE_TIMEOUT);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{3});
+
+    // Remove the device to force the usage session to be logged.
+    mMetricsCollector.notifyInputDevicesChanged({});
+    expectedUidBreakdown.emplace_back(1, 300ns + USAGE_TIMEOUT);
+    expectedUidBreakdown.emplace_back(2, 0ns);
+    expectedUidBreakdown.emplace_back(3, 100ns);
+    expectedUidBreakdown.emplace_back(4, 100ns);
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(), 500ns + USAGE_TIMEOUT,
+                                              /*sourceBreakdown=*/{}, expectedUidBreakdown));
+
+    ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
+}
+
+TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid_TracksUidsByDevice) {
+    mMetricsCollector.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID), generateTestDeviceInfo(DEVICE_ID_2)}});
+    UidUsageBreakdown expectedUidBreakdown1;
+    UidUsageBreakdown expectedUidBreakdown2;
+
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1, 2});
+
+    setCurrentTime(TIME + 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID_2));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID_2, currentTime(), /*uids=*/{1, 3});
+
+    setCurrentTime(TIME + 200ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), /*uids=*/{1, 2});
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID_2));
+    mMetricsCollector.notifyDeviceInteraction(DEVICE_ID_2, currentTime(), /*uids=*/{1, 3});
+
+    setCurrentTime(TIME + 200ns + USAGE_TIMEOUT);
+    expectedUidBreakdown1.emplace_back(1, 200ns);
+    expectedUidBreakdown1.emplace_back(2, 200ns);
+    expectedUidBreakdown2.emplace_back(1, 100ns);
+    expectedUidBreakdown2.emplace_back(3, 100ns);
+    mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(DEVICE_ID), 200ns,
+                                              /*sourceBreakdown=*/{}, expectedUidBreakdown1));
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(DEVICE_ID_2), 100ns,
+                                              /*sourceBreakdown=*/{}, expectedUidBreakdown2));
 
     ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
 }
