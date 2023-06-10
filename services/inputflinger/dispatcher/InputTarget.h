@@ -17,6 +17,7 @@
 #pragma once
 
 #include <ftl/flags.h>
+#include <gui/WindowInfo.h>
 #include <gui/constants.h>
 #include <input/InputTransport.h>
 #include <ui/Transform.h>
@@ -113,6 +114,10 @@ struct InputTarget {
     // The data is stored by the pointerId. Use the bit position of pointerIds to look up
     // Transform per pointerId.
     ui::Transform pointerTransforms[MAX_POINTERS];
+
+    // The window that this input target is being dispatched to. It is possible for this to be
+    // null for cases like global monitors.
+    sp<gui::WindowInfoHandle> windowHandle;
 
     void addPointers(std::bitset<MAX_POINTER_ID + 1> pointerIds, const ui::Transform& transform);
     void setDefaultPointerTransform(const ui::Transform& transform);

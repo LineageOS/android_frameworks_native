@@ -27,6 +27,7 @@ namespace android {
 
 using android::base::StringPrintf;
 using std::chrono::nanoseconds;
+using std::chrono_literals::operator""ns;
 
 namespace {
 
@@ -72,10 +73,19 @@ class : public InputDeviceMetricsLogger {
                      ftl::enum_string(src).c_str(), durMillis);
         }
 
+        ALOGD_IF(DEBUG, "    Uid breakdown:");
+
+        std::vector<int32_t> uids;
+        std::vector<int32_t> durationsPerUid;
+        for (auto& [uid, dur] : report.uidBreakdown) {
+            uids.push_back(uid);
+            int32_t durMillis = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+            durationsPerUid.push_back(durMillis);
+            ALOGD_IF(DEBUG, "        - uid: %d\t duration: %dms", uid, durMillis);
+        }
         util::stats_write(util::INPUTDEVICE_USAGE_REPORTED, identifier.vendor, identifier.product,
                           identifier.version, linuxBusToInputDeviceBusEnum(identifier.bus),
-                          durationMillis, sources, durationsPerSource, /*uids=*/empty,
-                          /*usage_durations_per_uid=*/empty);
+                          durationMillis, sources, durationsPerSource, uids, durationsPerUid);
     }
 } sStatsdLogger;
 
@@ -246,6 +256,15 @@ void InputDeviceMetricsCollector::notifyPointerCaptureChanged(
     mNextListener.notify(args);
 }
 
+void InputDeviceMetricsCollector::notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+                                                          const std::set<int32_t>& uids) {
+    std::set<Uid> typeSafeUids;
+    for (auto uid : uids) {
+        typeSafeUids.emplace(uid);
+    }
+    mInteractionsQueue.push(DeviceId{deviceId}, timestamp, typeSafeUids);
+}
+
 void InputDeviceMetricsCollector::dump(std::string& dump) {
     dump += "InputDeviceMetricsCollector:\n";
 
@@ -304,17 +323,33 @@ void InputDeviceMetricsCollector::onInputDeviceUsage(DeviceId deviceId, nanoseco
     }
 }
 
-void InputDeviceMetricsCollector::reportCompletedSessions() {
-    const auto currentTime = mLogger.getCurrentTime();
+void InputDeviceMetricsCollector::onInputDeviceInteraction(const Interaction& interaction) {
+    auto activeSessionIt = mActiveUsageSessions.find(std::get<DeviceId>(interaction));
+    if (activeSessionIt == mActiveUsageSessions.end()) {
+        return;
+    }
 
+    activeSessionIt->second.recordInteraction(interaction);
+}
+
+void InputDeviceMetricsCollector::reportCompletedSessions() {
+    // Process all pending interactions.
+    for (auto interaction = mInteractionsQueue.pop(); interaction;
+         interaction = mInteractionsQueue.pop()) {
+        onInputDeviceInteraction(*interaction);
+    }
+
+    const auto currentTime = mLogger.getCurrentTime();
     std::vector<DeviceId> completedUsageSessions;
 
+    // Process usages for all active session to determine if any sessions have expired.
     for (auto& [deviceId, activeSession] : mActiveUsageSessions) {
         if (activeSession.checkIfCompletedAt(currentTime)) {
             completedUsageSessions.emplace_back(deviceId);
         }
     }
 
+    // Close out and log all expired usage sessions.
     for (DeviceId deviceId : completedUsageSessions) {
         const auto infoIt = mLoggedDeviceInfos.find(deviceId);
         LOG_ALWAYS_FATAL_IF(infoIt == mLoggedDeviceInfos.end());
@@ -346,6 +381,23 @@ void InputDeviceMetricsCollector::ActiveSession::recordUsage(nanoseconds eventTi
     mDeviceSession.end = eventTime;
 }
 
+void InputDeviceMetricsCollector::ActiveSession::recordInteraction(const Interaction& interaction) {
+    const auto sessionExpiryTime = mDeviceSession.end + mUsageSessionTimeout;
+    const auto timestamp = std::get<nanoseconds>(interaction);
+    if (timestamp >= sessionExpiryTime) {
+        // This interaction occurred after the device's current active session is set to expire.
+        // Ignore it.
+        return;
+    }
+
+    for (Uid uid : std::get<std::set<Uid>>(interaction)) {
+        auto [activeUidIt, inserted] = mActiveSessionsByUid.try_emplace(uid, timestamp, timestamp);
+        if (!inserted) {
+            activeUidIt->second.end = timestamp;
+        }
+    }
+}
+
 bool InputDeviceMetricsCollector::ActiveSession::checkIfCompletedAt(nanoseconds timestamp) {
     const auto sessionExpiryTime = timestamp - mUsageSessionTimeout;
     std::vector<InputDeviceUsageSource> completedSourceSessionsForDevice;
@@ -360,6 +412,21 @@ bool InputDeviceMetricsCollector::ActiveSession::checkIfCompletedAt(nanoseconds 
         mSourceUsageBreakdown.emplace_back(source, session.end - session.start);
         mActiveSessionsBySource.erase(it);
     }
+
+    std::vector<Uid> completedUidSessionsForDevice;
+    for (auto& [uid, session] : mActiveSessionsByUid) {
+        if (session.end <= sessionExpiryTime) {
+            completedUidSessionsForDevice.emplace_back(uid);
+        }
+    }
+    for (Uid uid : completedUidSessionsForDevice) {
+        auto it = mActiveSessionsByUid.find(uid);
+        const auto& [_, session] = *it;
+        mUidUsageBreakdown.emplace_back(uid, session.end - session.start);
+        mActiveSessionsByUid.erase(it);
+    }
+
+    // This active session has expired if there are no more active source sessions tracked.
     return mActiveSessionsBySource.empty();
 }
 
@@ -372,7 +439,12 @@ InputDeviceMetricsCollector::ActiveSession::finishSession() {
     }
     mActiveSessionsBySource.clear();
 
-    return {deviceUsageDuration, mSourceUsageBreakdown};
+    for (const auto& [uid, uidSession] : mActiveSessionsByUid) {
+        mUidUsageBreakdown.emplace_back(uid, uidSession.end - uidSession.start);
+    }
+    mActiveSessionsByUid.clear();
+
+    return {deviceUsageDuration, mSourceUsageBreakdown, mUidUsageBreakdown};
 }
 
 } // namespace android

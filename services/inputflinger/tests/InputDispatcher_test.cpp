@@ -15,6 +15,7 @@
  */
 
 #include "../dispatcher/InputDispatcher.h"
+#include "../BlockingQueue.h"
 #include "EventBuilders.h"
 
 #include <android-base/properties.h>
@@ -59,6 +60,9 @@ static constexpr int32_t SECOND_DEVICE_ID = 2;
 static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
 static constexpr int32_t SECOND_DISPLAY_ID = 1;
 
+// Ensure common actions are interchangeable between keys and motions for convenience.
+static_assert(AMOTION_EVENT_ACTION_DOWN == AKEY_EVENT_ACTION_DOWN);
+static_assert(AMOTION_EVENT_ACTION_UP == AKEY_EVENT_ACTION_UP);
 static constexpr int32_t ACTION_DOWN = AMOTION_EVENT_ACTION_DOWN;
 static constexpr int32_t ACTION_MOVE = AMOTION_EVENT_ACTION_MOVE;
 static constexpr int32_t ACTION_UP = AMOTION_EVENT_ACTION_UP;
@@ -413,6 +417,14 @@ public:
         ASSERT_FALSE(mPokedUserActivity) << "Expected user activity not to have been poked";
     }
 
+    void assertNotifyDeviceInteractionWasCalled(int32_t deviceId, std::set<int32_t> uids) {
+        ASSERT_EQ(std::make_pair(deviceId, uids), mNotifiedInteractions.popWithTimeout(100ms));
+    }
+
+    void assertNotifyDeviceInteractionWasNotCalled() {
+        ASSERT_FALSE(mNotifiedInteractions.popWithTimeout(10ms));
+    }
+
 private:
     std::mutex mLock;
     std::unique_ptr<InputEvent> mFilteredEvent GUARDED_BY(mLock);
@@ -437,6 +449,8 @@ private:
     bool mPokedUserActivity GUARDED_BY(mLock) = false;
 
     std::chrono::milliseconds mInterceptKeyTimeout = 0ms;
+
+    BlockingQueue<std::pair<int32_t /*deviceId*/, std::set<int32_t /*uid*/>>> mNotifiedInteractions;
 
     // All three ANR-related callbacks behave the same way, so we use this generic function to wait
     // for a specific container to become non-empty. When the container is non-empty, return the
@@ -607,6 +621,11 @@ private:
         std::scoped_lock lock(mLock);
         mNotifyDropWindowWasCalled = true;
         mDropTargetWindowToken = token;
+    }
+
+    void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+                                 const std::set<int32_t>& uids) override {
+        ASSERT_TRUE(mNotifiedInteractions.emplace(deviceId, uids));
     }
 
     void assertFilterInputEventWasCalledInternal(
@@ -5563,6 +5582,105 @@ TEST_F(InputDispatcherTest, TouchSlippingIntoWindowThatDropsTouches) {
     // The left window continues to receive the gesture.
     leftSlipperyWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
     rightDropTouchesWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithMotions) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> leftWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
+    leftWindow->setFrame(Rect(0, 0, 100, 100));
+    leftWindow->setOwnerInfo(1, 101);
+
+    sp<FakeWindowHandle> rightSpy =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right spy", ADISPLAY_ID_DEFAULT);
+    rightSpy->setFrame(Rect(100, 0, 200, 100));
+    rightSpy->setOwnerInfo(2, 102);
+    rightSpy->setSpy(true);
+    rightSpy->setTrustedOverlay(true);
+
+    sp<FakeWindowHandle> rightWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
+    rightWindow->setFrame(Rect(100, 0, 200, 100));
+    rightWindow->setOwnerInfo(3, 103);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {rightSpy, rightWindow, leftWindow}}});
+
+    // Touch in the left window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .build());
+    ASSERT_NO_FATAL_FAILURE(leftWindow->consumeMotionDown());
+    mDispatcher->waitForIdle();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {101}));
+
+    // Touch another finger over the right windows
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(150).y(50))
+                                      .build());
+    ASSERT_NO_FATAL_FAILURE(rightSpy->consumeMotionDown());
+    ASSERT_NO_FATAL_FAILURE(rightWindow->consumeMotionDown());
+    ASSERT_NO_FATAL_FAILURE(leftWindow->consumeMotionMove());
+    mDispatcher->waitForIdle();
+    ASSERT_NO_FATAL_FAILURE(
+            mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {101, 102, 103}));
+
+    // Release finger over left window. The UP actions are not treated as device interaction.
+    // The windows that did not receive the UP pointer will receive MOVE events, but since this
+    // is part of the UP action, we do not treat this as device interaction.
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_0_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(150).y(50))
+                                      .build());
+    ASSERT_NO_FATAL_FAILURE(leftWindow->consumeMotionUp());
+    ASSERT_NO_FATAL_FAILURE(rightSpy->consumeMotionMove());
+    ASSERT_NO_FATAL_FAILURE(rightWindow->consumeMotionMove());
+    mDispatcher->waitForIdle();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyDeviceInteractionWasNotCalled());
+
+    // Move remaining finger
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(150).y(50))
+                                      .build());
+    ASSERT_NO_FATAL_FAILURE(rightSpy->consumeMotionMove());
+    ASSERT_NO_FATAL_FAILURE(rightWindow->consumeMotionMove());
+    mDispatcher->waitForIdle();
+    ASSERT_NO_FATAL_FAILURE(
+            mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {102, 103}));
+
+    // Release all fingers
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(150).y(50))
+                                      .build());
+    ASSERT_NO_FATAL_FAILURE(rightSpy->consumeMotionUp());
+    ASSERT_NO_FATAL_FAILURE(rightWindow->consumeMotionUp());
+    mDispatcher->waitForIdle();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyDeviceInteractionWasNotCalled());
+}
+
+TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithKeys) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 100, 100));
+    window->setOwnerInfo(1, 101);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+    ASSERT_NO_FATAL_FAILURE(window->consumeFocusEvent(true));
+
+    mDispatcher->notifyKey(KeyArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).build());
+    ASSERT_NO_FATAL_FAILURE(window->consumeKeyDown(ADISPLAY_ID_DEFAULT));
+    mDispatcher->waitForIdle();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {101}));
+
+    // The UP actions are not treated as device interaction.
+    mDispatcher->notifyKey(KeyArgsBuilder(ACTION_UP, AINPUT_SOURCE_KEYBOARD).build());
+    ASSERT_NO_FATAL_FAILURE(window->consumeKeyUp(ADISPLAY_ID_DEFAULT));
+    mDispatcher->waitForIdle();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyDeviceInteractionWasNotCalled());
 }
 
 class InputDispatcherKeyRepeatTest : public InputDispatcherTest {
