@@ -83,11 +83,14 @@ public:
      */
     size_t getEXIFSize();
     /*
-     * Returns the position offset of EXIF package
-     * (4 bypes offset to FF sign, the byte after FF E1 XX XX <this byte>),
-     * or -1  if no EXIF exists.
+     * Returns the ICC data from the image.
      */
-    int getEXIFPos() { return mExifPos; }
+    void* getICCPtr();
+    /*
+     * Returns the decompressed ICC buffer size. This method must be called only after
+     * calling decompressImage() or getCompressedImageParameters().
+     */
+    size_t getICCSize();
     /*
      * Decompresses metadata of the image. All vectors are owned by the caller.
      */
@@ -112,12 +115,12 @@ private:
     std::vector<JOCTET> mXMPBuffer;
     // The buffer that holds EXIF Data.
     std::vector<JOCTET> mEXIFBuffer;
+    // The buffer that holds ICC Data.
+    std::vector<JOCTET> mICCBuffer;
 
     // Resolution of the decompressed image.
     size_t mWidth;
     size_t mHeight;
-    // Position of EXIF package, default value is -1 which means no EXIF package appears.
-    size_t mExifPos;
 };
 } /* namespace android::ultrahdr  */
 

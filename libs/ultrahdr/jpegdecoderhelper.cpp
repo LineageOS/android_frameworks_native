@@ -93,7 +93,6 @@ static void jpegrerror_exit(j_common_ptr cinfo) {
 }
 
 JpegDecoderHelper::JpegDecoderHelper() {
-  mExifPos = 0;
 }
 
 JpegDecoderHelper::~JpegDecoderHelper() {
@@ -138,6 +137,14 @@ size_t JpegDecoderHelper::getEXIFSize() {
     return mEXIFBuffer.size();
 }
 
+void* JpegDecoderHelper::getICCPtr() {
+    return mICCBuffer.data();
+}
+
+size_t JpegDecoderHelper::getICCSize() {
+    return mICCBuffer.size();
+}
+
 size_t JpegDecoderHelper::getDecompressedImageWidth() {
     return mWidth;
 }
@@ -168,31 +175,21 @@ bool JpegDecoderHelper::decode(const void* image, int length, bool decodeToRGBA)
     cinfo.src = &mgr;
     jpeg_read_header(&cinfo, TRUE);
 
-    // Save XMP data and EXIF data.
-    // Here we only handle the first XMP / EXIF package.
-    // The parameter pos is used for capturing start offset of EXIF, which is hacky, but working...
+    // Save XMP data, EXIF data, and ICC data.
+    // Here we only handle the first XMP / EXIF / ICC package.
     // We assume that all packages are starting with two bytes marker (eg FF E1 for EXIF package),
     // two bytes of package length which is stored in marker->original_length, and the real data
-    // which is stored in marker->data. The pos is adding up all previous package lengths (
-    // 4 bytes marker and length, marker->original_length) before EXIF appears. Note that here we
-    // we are using marker->original_length instead of marker->data_length because in case the real
-    // package length is larger than the limitation, jpeg-turbo will only copy the data within the
-    // limitation (represented by data_length) and this may vary from original_length / real offset.
-    // A better solution is making jpeg_marker_struct holding the offset, but currently it doesn't.
+    // which is stored in marker->data.
     bool exifAppears = false;
     bool xmpAppears = false;
-    size_t pos = 2;  // position after SOI
+    bool iccAppears = false;
     for (jpeg_marker_struct* marker = cinfo.marker_list;
-         marker && !(exifAppears && xmpAppears);
+         marker && !(exifAppears && xmpAppears && iccAppears);
          marker = marker->next) {
 
-        pos += 4;
-        pos += marker->original_length;
-
-        if (marker->marker != kAPP1Marker) {
+        if (marker->marker != kAPP1Marker && marker->marker != kAPP2Marker) {
             continue;
         }
-
         const unsigned int len = marker->data_length;
         if (!xmpAppears &&
             len > kXmpNameSpace.size() &&
@@ -210,7 +207,12 @@ bool JpegDecoderHelper::decode(const void* image, int length, bool decodeToRGBA)
             mEXIFBuffer.resize(len, 0);
             memcpy(static_cast<void*>(mEXIFBuffer.data()), marker->data, len);
             exifAppears = true;
-            mExifPos = pos - marker->original_length;
+        } else if (!iccAppears &&
+                   len > sizeof(kICCSig) &&
+                   !memcmp(marker->data, kICCSig, sizeof(kICCSig))) {
+            mICCBuffer.resize(len, 0);
+            memcpy(static_cast<void*>(mICCBuffer.data()), marker->data, len);
+            iccAppears = true;
         }
     }
 
@@ -228,6 +230,7 @@ bool JpegDecoderHelper::decode(const void* image, int length, bool decodeToRGBA)
         if (cinfo.jpeg_color_space == JCS_GRAYSCALE) {
             // We don't intend to support decoding grayscale to RGBA
             status = false;
+            ALOGE("%s: decoding grayscale to RGBA is unsupported", __func__);
             goto CleanUp;
         }
         // 4 bytes per pixel
@@ -242,6 +245,7 @@ bool JpegDecoderHelper::decode(const void* image, int length, bool decodeToRGBA)
                 cinfo.comp_info[1].v_samp_factor != 1 ||
                 cinfo.comp_info[2].v_samp_factor != 1) {
                 status = false;
+                ALOGE("%s: decoding to YUV only supports 4:2:0 subsampling", __func__);
                 goto CleanUp;
             }
             mResultBuffer.resize(cinfo.image_width * cinfo.image_height * 3 / 2, 0);
@@ -304,8 +308,12 @@ bool JpegDecoderHelper::getCompressedImageParameters(const void* image, int leng
         return false;
     }
 
-    *pWidth = cinfo.image_width;
-    *pHeight = cinfo.image_height;
+    if (pWidth != nullptr) {
+        *pWidth = cinfo.image_width;
+    }
+    if (pHeight != nullptr) {
+        *pHeight = cinfo.image_height;
+    }
 
     if (iccData != nullptr) {
         for (jpeg_marker_struct* marker = cinfo.marker_list; marker;
@@ -318,9 +326,7 @@ bool JpegDecoderHelper::getCompressedImageParameters(const void* image, int leng
                 continue;
             }
 
-            const unsigned int len = marker->data_length - kICCMarkerHeaderSize;
-            const uint8_t *src = marker->data + kICCMarkerHeaderSize;
-            iccData->insert(iccData->end(), src, src+len);
+            iccData->insert(iccData->end(), marker->data, marker->data + marker->data_length);
         }
     }
 

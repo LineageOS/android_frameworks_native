@@ -119,34 +119,39 @@ static float clampPixelFloat(float value) {
     return (value < 0.0f) ? 0.0f : (value > kMaxPixelFloat) ? kMaxPixelFloat : value;
 }
 
-// See IEC 61966-2-1, Equation F.7.
+// See IEC 61966-2-1/Amd 1:2003, Equation F.7.
 static const float kSrgbR = 0.2126f, kSrgbG = 0.7152f, kSrgbB = 0.0722f;
 
 float srgbLuminance(Color e) {
   return kSrgbR * e.r + kSrgbG * e.g + kSrgbB * e.b;
 }
 
-// See ECMA TR/98, Section 7.
-static const float kSrgbRCr = 1.402f, kSrgbGCb = 0.34414f, kSrgbGCr = 0.71414f, kSrgbBCb = 1.772f;
-
-Color srgbYuvToRgb(Color e_gamma) {
-  return {{{ clampPixelFloat(e_gamma.y + kSrgbRCr * e_gamma.v),
-             clampPixelFloat(e_gamma.y - kSrgbGCb * e_gamma.u - kSrgbGCr * e_gamma.v),
-             clampPixelFloat(e_gamma.y + kSrgbBCb * e_gamma.u) }}};
-}
-
-// See ECMA TR/98, Section 7.
-static const float kSrgbYR = 0.299f, kSrgbYG = 0.587f, kSrgbYB = 0.114f;
-static const float kSrgbUR = -0.1687f, kSrgbUG = -0.3313f, kSrgbUB = 0.5f;
-static const float kSrgbVR = 0.5f, kSrgbVG = -0.4187f, kSrgbVB = -0.0813f;
+// See ITU-R BT.709-6, Section 3.
+// Uses the same coefficients for deriving luma signal as
+// IEC 61966-2-1/Amd 1:2003 states for luminance, so we reuse the luminance
+// function above.
+static const float kSrgbCb = 1.8556f, kSrgbCr = 1.5748f;
 
 Color srgbRgbToYuv(Color e_gamma) {
-  return {{{ kSrgbYR * e_gamma.r + kSrgbYG * e_gamma.g + kSrgbYB * e_gamma.b,
-             kSrgbUR * e_gamma.r + kSrgbUG * e_gamma.g + kSrgbUB * e_gamma.b,
-             kSrgbVR * e_gamma.r + kSrgbVG * e_gamma.g + kSrgbVB * e_gamma.b }}};
+  float y_gamma = srgbLuminance(e_gamma);
+  return {{{ y_gamma,
+             (e_gamma.b - y_gamma) / kSrgbCb,
+             (e_gamma.r - y_gamma) / kSrgbCr }}};
 }
 
-// See IEC 61966-2-1, Equations F.5 and F.6.
+// See ITU-R BT.709-6, Section 3.
+// Same derivation to BT.2100's YUV->RGB, below. Similar to srgbRgbToYuv, we
+// can reuse the luminance coefficients since they are the same.
+static const float kSrgbGCb = kSrgbB * kSrgbCb / kSrgbG;
+static const float kSrgbGCr = kSrgbR * kSrgbCr / kSrgbG;
+
+Color srgbYuvToRgb(Color e_gamma) {
+  return {{{ clampPixelFloat(e_gamma.y + kSrgbCr * e_gamma.v),
+             clampPixelFloat(e_gamma.y - kSrgbGCb * e_gamma.u - kSrgbGCr * e_gamma.v),
+             clampPixelFloat(e_gamma.y + kSrgbCb * e_gamma.u) }}};
+}
+
+// See IEC 61966-2-1/Amd 1:2003, Equations F.5 and F.6.
 float srgbInvOetf(float e_gamma) {
   if (e_gamma <= 0.04045f) {
     return e_gamma / 12.92f;
@@ -178,11 +183,36 @@ Color srgbInvOetfLUT(Color e_gamma) {
 ////////////////////////////////////////////////////////////////////////////////
 // Display-P3 transformations
 
-// See SMPTE EG 432-1, Table 7-2.
+// See SMPTE EG 432-1, Equation 7-8.
 static const float kP3R = 0.20949f, kP3G = 0.72160f, kP3B = 0.06891f;
 
 float p3Luminance(Color e) {
   return kP3R * e.r + kP3G * e.g + kP3B * e.b;
+}
+
+// See ITU-R BT.601-7, Sections 2.5.1 and 2.5.2.
+// Unfortunately, calculation of luma signal differs from calculation of
+// luminance for Display-P3, so we can't reuse p3Luminance here.
+static const float kP3YR = 0.299f, kP3YG = 0.587f, kP3YB = 0.114f;
+static const float kP3Cb = 1.772f, kP3Cr = 1.402f;
+
+Color p3RgbToYuv(Color e_gamma) {
+  float y_gamma = kP3YR * e_gamma.r + kP3YG * e_gamma.g + kP3YB * e_gamma.b;
+  return {{{ y_gamma,
+             (e_gamma.b - y_gamma) / kP3Cb,
+             (e_gamma.r - y_gamma) / kP3Cr }}};
+}
+
+// See ITU-R BT.601-7, Sections 2.5.1 and 2.5.2.
+// Same derivation to BT.2100's YUV->RGB, below. Similar to p3RgbToYuv, we must
+// use luma signal coefficients rather than the luminance coefficients.
+static const float kP3GCb = kP3YB * kP3Cb / kP3YG;
+static const float kP3GCr = kP3YR * kP3Cr / kP3YG;
+
+Color p3YuvToRgb(Color e_gamma) {
+  return {{{ clampPixelFloat(e_gamma.y + kP3Cr * e_gamma.v),
+             clampPixelFloat(e_gamma.y - kP3GCb * e_gamma.u - kP3GCr * e_gamma.v),
+             clampPixelFloat(e_gamma.y + kP3Cb * e_gamma.u) }}};
 }
 
 
@@ -197,6 +227,8 @@ float bt2100Luminance(Color e) {
 }
 
 // See ITU-R BT.2100-2, Table 6, Derivation of colour difference signals.
+// BT.2100 uses the same coefficients for calculating luma signal and luminance,
+// so we reuse the luminance function here.
 static const float kBt2100Cb = 1.8814f, kBt2100Cr = 1.4746f;
 
 Color bt2100RgbToYuv(Color e_gamma) {
@@ -206,6 +238,10 @@ Color bt2100RgbToYuv(Color e_gamma) {
              (e_gamma.r - y_gamma) / kBt2100Cr }}};
 }
 
+// See ITU-R BT.2100-2, Table 6, Derivation of colour difference signals.
+//
+// Similar to bt2100RgbToYuv above, we can reuse the luminance coefficients.
+//
 // Derived by inversing bt2100RgbToYuv. The derivation for R and B are  pretty
 // straight forward; we just invert the formulas for U and V above. But deriving
 // the formula for G is a bit more complicated:
@@ -440,6 +476,85 @@ ColorTransformFn getHdrConversionFn(ultrahdr_color_gamut sdr_gamut,
   }
 }
 
+// All of these conversions are derived from the respective input YUV->RGB conversion followed by
+// the RGB->YUV for the receiving encoding. They are consistent with the RGB<->YUV functions in this
+// file, given that we uses BT.709 encoding for sRGB and BT.601 encoding for Display-P3, to match
+// DataSpace.
+
+Color yuv709To601(Color e_gamma) {
+  return {{{ 1.0f * e_gamma.y +  0.101579f * e_gamma.u +  0.196076f * e_gamma.v,
+             0.0f * e_gamma.y +  0.989854f * e_gamma.u + -0.110653f * e_gamma.v,
+             0.0f * e_gamma.y + -0.072453f * e_gamma.u +  0.983398f * e_gamma.v }}};
+}
+
+Color yuv709To2100(Color e_gamma) {
+  return {{{ 1.0f * e_gamma.y + -0.016969f * e_gamma.u +  0.096312f * e_gamma.v,
+             0.0f * e_gamma.y +  0.995306f * e_gamma.u + -0.051192f * e_gamma.v,
+             0.0f * e_gamma.y +  0.011507f * e_gamma.u +  1.002637f * e_gamma.v }}};
+}
+
+Color yuv601To709(Color e_gamma) {
+  return {{{ 1.0f * e_gamma.y + -0.118188f * e_gamma.u + -0.212685f * e_gamma.v,
+             0.0f * e_gamma.y +  1.018640f * e_gamma.u +  0.114618f * e_gamma.v,
+             0.0f * e_gamma.y +  0.075049f * e_gamma.u +  1.025327f * e_gamma.v }}};
+}
+
+Color yuv601To2100(Color e_gamma) {
+  return {{{ 1.0f * e_gamma.y + -0.128245f * e_gamma.u + -0.115879f * e_gamma.v,
+             0.0f * e_gamma.y +  1.010016f * e_gamma.u +  0.061592f * e_gamma.v,
+             0.0f * e_gamma.y +  0.086969f * e_gamma.u +  1.029350f * e_gamma.v }}};
+}
+
+Color yuv2100To709(Color e_gamma) {
+  return {{{ 1.0f * e_gamma.y +  0.018149f * e_gamma.u + -0.095132f * e_gamma.v,
+             0.0f * e_gamma.y +  1.004123f * e_gamma.u +  0.051267f * e_gamma.v,
+             0.0f * e_gamma.y + -0.011524f * e_gamma.u +  0.996782f * e_gamma.v }}};
+}
+
+Color yuv2100To601(Color e_gamma) {
+  return {{{ 1.0f * e_gamma.y +  0.117887f * e_gamma.u +  0.105521f * e_gamma.v,
+             0.0f * e_gamma.y +  0.995211f * e_gamma.u + -0.059549f * e_gamma.v,
+             0.0f * e_gamma.y + -0.084085f * e_gamma.u +  0.976518f * e_gamma.v }}};
+}
+
+void transformYuv420(jr_uncompressed_ptr image, size_t x_chroma, size_t y_chroma,
+                     ColorTransformFn fn) {
+  Color yuv1 = getYuv420Pixel(image, x_chroma * 2,     y_chroma * 2    );
+  Color yuv2 = getYuv420Pixel(image, x_chroma * 2 + 1, y_chroma * 2    );
+  Color yuv3 = getYuv420Pixel(image, x_chroma * 2,     y_chroma * 2 + 1);
+  Color yuv4 = getYuv420Pixel(image, x_chroma * 2 + 1, y_chroma * 2 + 1);
+
+  yuv1 = fn(yuv1);
+  yuv2 = fn(yuv2);
+  yuv3 = fn(yuv3);
+  yuv4 = fn(yuv4);
+
+  Color new_uv = (yuv1 + yuv2 + yuv3 + yuv4) / 4.0f;
+
+  size_t pixel_y1_idx =  x_chroma * 2      +  y_chroma * 2      * image->width;
+  size_t pixel_y2_idx = (x_chroma * 2 + 1) +  y_chroma * 2      * image->width;
+  size_t pixel_y3_idx =  x_chroma * 2      + (y_chroma * 2 + 1) * image->width;
+  size_t pixel_y4_idx = (x_chroma * 2 + 1) + (y_chroma * 2 + 1) * image->width;
+
+  uint8_t& y1_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y1_idx];
+  uint8_t& y2_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y2_idx];
+  uint8_t& y3_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y3_idx];
+  uint8_t& y4_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y4_idx];
+
+  size_t pixel_count = image->width * image->height;
+  size_t pixel_uv_idx = x_chroma + y_chroma * (image->width / 2);
+
+  uint8_t& u_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count + pixel_uv_idx];
+  uint8_t& v_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count * 5 / 4 + pixel_uv_idx];
+
+  y1_uint = static_cast<uint8_t>(floor(yuv1.y * 255.0f + 0.5f));
+  y2_uint = static_cast<uint8_t>(floor(yuv2.y * 255.0f + 0.5f));
+  y3_uint = static_cast<uint8_t>(floor(yuv3.y * 255.0f + 0.5f));
+  y4_uint = static_cast<uint8_t>(floor(yuv4.y * 255.0f + 0.5f));
+
+  u_uint = static_cast<uint8_t>(floor(new_uv.u * 255.0f + 128.0f + 0.5f));
+  v_uint = static_cast<uint8_t>(floor(new_uv.v * 255.0f + 128.0f + 0.5f));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Gain map calculations

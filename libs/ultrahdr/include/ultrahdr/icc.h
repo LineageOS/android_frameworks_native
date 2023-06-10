@@ -56,11 +56,15 @@ enum {
     Signature_XYZ  = 0x58595A20,
 };
 
-
 typedef uint32_t FourByteTag;
 static inline constexpr FourByteTag SetFourByteTag(char a, char b, char c, char d) {
     return (((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)c << 8) | (uint32_t)d);
 }
+
+static constexpr char kICCIdentifier[] = "ICC_PROFILE";
+// 12 for the actual identifier, +2 for the chunk count and chunk index which
+// will always follow.
+static constexpr size_t kICCIdentifierSize = 14;
 
 // This is equal to the header size according to the ICC specification (128)
 // plus the size of the tag count (4).  We include the tag count since we
@@ -69,6 +73,10 @@ static constexpr size_t kICCHeaderSize = 132;
 
 // Contains a signature (4), offset (4), and size (4).
 static constexpr size_t kICCTagTableEntrySize = 12;
+
+// size should be 20; 4 bytes for type descriptor, 4 bytes reserved, 12
+// bytes for a single XYZ number type (4 bytes per coordinate).
+static constexpr size_t kColorantTagSize = 20;
 
 static constexpr uint32_t kDisplay_Profile    = SetFourByteTag('m', 'n', 't', 'r');
 static constexpr uint32_t kRGB_ColorSpace     = SetFourByteTag('R', 'G', 'B', ' ');
@@ -225,9 +233,22 @@ private:
     static void compute_lut_entry(const Matrix3x3& src_to_XYZD50, float rgb[3]);
     static sp<DataStruct> write_clut(const uint8_t* grid_points, const uint8_t* grid_16);
 
+    // Checks if a set of xyz tags is equivalent to a 3x3 Matrix. Each input
+    // tag buffer assumed to be at least kColorantTagSize in size.
+    static bool tagsEqualToMatrix(const Matrix3x3& matrix,
+                                  const uint8_t* red_tag,
+                                  const uint8_t* green_tag,
+                                  const uint8_t* blue_tag);
+
 public:
+    // Output includes JPEG embedding identifier and chunk information, but not
+    // APPx information.
     static sp<DataStruct> writeIccProfile(const ultrahdr_transfer_function tf,
                                           const ultrahdr_color_gamut gamut);
+    // NOTE: this function is not robust; it can infer gamuts that IccHelper
+    // writes out but should not be considered a reference implementation for
+    // robust parsing of ICC profiles or their gamuts.
+    static ultrahdr_color_gamut readIccColorGamut(void* icc_data, size_t icc_size);
 };
 }  // namespace android::ultrahdr
 

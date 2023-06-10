@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#ifndef USE_BIG_ENDIAN
+#define USE_BIG_ENDIAN true
+#endif
+
 #include <ultrahdr/icc.h>
 #include <ultrahdr/gainmapmath.h>
 #include <vector>
@@ -540,13 +544,21 @@ sp<DataStruct> IccHelper::writeIccProfile(ultrahdr_transfer_function tf,
     size_t tag_table_size = kICCTagTableEntrySize * tags.size();
     size_t profile_size = kICCHeaderSize + tag_table_size + tag_data_size;
 
+    sp<DataStruct> dataStruct = sp<DataStruct>::make(profile_size + kICCIdentifierSize);
+
+    // Write identifier, chunk count, and chunk ID
+    if (!dataStruct->write(kICCIdentifier, sizeof(kICCIdentifier)) ||
+        !dataStruct->write8(1) || !dataStruct->write8(1)) {
+        ALOGE("writeIccProfile(): error in identifier");
+        return dataStruct;
+    }
+
     // Write the header.
     header.data_color_space = Endian_SwapBE32(Signature_RGB);
     header.pcs = Endian_SwapBE32(tf == ULTRAHDR_TF_PQ ? Signature_Lab : Signature_XYZ);
     header.size = Endian_SwapBE32(profile_size);
     header.tag_count = Endian_SwapBE32(tags.size());
 
-    sp<DataStruct> dataStruct = sp<DataStruct>::make(profile_size);
     if (!dataStruct->write(&header, sizeof(header))) {
         ALOGE("writeIccProfile(): error in header");
         return dataStruct;
@@ -580,6 +592,86 @@ sp<DataStruct> IccHelper::writeIccProfile(ultrahdr_transfer_function tf,
     }
 
     return dataStruct;
+}
+
+bool IccHelper::tagsEqualToMatrix(const Matrix3x3& matrix,
+                                  const uint8_t* red_tag,
+                                  const uint8_t* green_tag,
+                                  const uint8_t* blue_tag) {
+    sp<DataStruct> red_tag_test = write_xyz_tag(matrix.vals[0][0], matrix.vals[1][0],
+                                                matrix.vals[2][0]);
+    sp<DataStruct> green_tag_test = write_xyz_tag(matrix.vals[0][1], matrix.vals[1][1],
+                                                  matrix.vals[2][1]);
+    sp<DataStruct> blue_tag_test = write_xyz_tag(matrix.vals[0][2], matrix.vals[1][2],
+                                                 matrix.vals[2][2]);
+    return memcmp(red_tag, red_tag_test->getData(), kColorantTagSize) == 0 &&
+           memcmp(green_tag, green_tag_test->getData(), kColorantTagSize) == 0 &&
+           memcmp(blue_tag, blue_tag_test->getData(), kColorantTagSize) == 0;
+}
+
+ultrahdr_color_gamut IccHelper::readIccColorGamut(void* icc_data, size_t icc_size) {
+    // Each tag table entry consists of 3 fields of 4 bytes each.
+    static const size_t kTagTableEntrySize = 12;
+
+    if (icc_data == nullptr || icc_size < sizeof(ICCHeader) + kICCIdentifierSize) {
+        return ULTRAHDR_COLORGAMUT_UNSPECIFIED;
+    }
+
+    if (memcmp(icc_data, kICCIdentifier, sizeof(kICCIdentifier)) != 0) {
+        return ULTRAHDR_COLORGAMUT_UNSPECIFIED;
+    }
+
+    uint8_t* icc_bytes = reinterpret_cast<uint8_t*>(icc_data) + kICCIdentifierSize;
+
+    ICCHeader* header = reinterpret_cast<ICCHeader*>(icc_bytes);
+
+    // Use 0 to indicate not found, since offsets are always relative to start
+    // of ICC data and therefore a tag offset of zero would never be valid.
+    size_t red_primary_offset = 0, green_primary_offset = 0, blue_primary_offset = 0;
+    size_t red_primary_size = 0, green_primary_size = 0, blue_primary_size = 0;
+    for (size_t tag_idx = 0; tag_idx < Endian_SwapBE32(header->tag_count); ++tag_idx) {
+        uint32_t* tag_entry_start = reinterpret_cast<uint32_t*>(
+            icc_bytes + sizeof(ICCHeader) + tag_idx * kTagTableEntrySize);
+        // first 4 bytes are the tag signature, next 4 bytes are the tag offset,
+        // last 4 bytes are the tag length in bytes.
+        if (red_primary_offset == 0 && *tag_entry_start == Endian_SwapBE32(kTAG_rXYZ)) {
+            red_primary_offset = Endian_SwapBE32(*(tag_entry_start+1));
+            red_primary_size = Endian_SwapBE32(*(tag_entry_start+2));
+        } else if (green_primary_offset == 0 && *tag_entry_start == Endian_SwapBE32(kTAG_gXYZ)) {
+            green_primary_offset = Endian_SwapBE32(*(tag_entry_start+1));
+            green_primary_size = Endian_SwapBE32(*(tag_entry_start+2));
+        } else if (blue_primary_offset == 0 && *tag_entry_start == Endian_SwapBE32(kTAG_bXYZ)) {
+            blue_primary_offset = Endian_SwapBE32(*(tag_entry_start+1));
+            blue_primary_size = Endian_SwapBE32(*(tag_entry_start+2));
+        }
+    }
+
+    if (red_primary_offset == 0 || red_primary_size != kColorantTagSize ||
+        kICCIdentifierSize + red_primary_offset + red_primary_size > icc_size ||
+        green_primary_offset == 0 || green_primary_size != kColorantTagSize ||
+        kICCIdentifierSize + green_primary_offset + green_primary_size > icc_size ||
+        blue_primary_offset == 0 || blue_primary_size != kColorantTagSize ||
+        kICCIdentifierSize + blue_primary_offset + blue_primary_size > icc_size) {
+        return ULTRAHDR_COLORGAMUT_UNSPECIFIED;
+    }
+
+    uint8_t* red_tag = icc_bytes + red_primary_offset;
+    uint8_t* green_tag = icc_bytes + green_primary_offset;
+    uint8_t* blue_tag = icc_bytes + blue_primary_offset;
+
+    // Serialize tags as we do on encode and compare what we find to that to
+    // determine the gamut (since we don't have a need yet for full deserialize).
+    if (tagsEqualToMatrix(kSRGB, red_tag, green_tag, blue_tag)) {
+        return ULTRAHDR_COLORGAMUT_BT709;
+    } else if (tagsEqualToMatrix(kDisplayP3, red_tag, green_tag, blue_tag)) {
+        return ULTRAHDR_COLORGAMUT_P3;
+    } else if (tagsEqualToMatrix(kRec2020, red_tag, green_tag, blue_tag)) {
+        return ULTRAHDR_COLORGAMUT_BT2100;
+    }
+
+    // Didn't find a match to one of the profiles we write; indicate the gamut
+    // is unspecified since we don't understand it.
+    return ULTRAHDR_COLORGAMUT_UNSPECIFIED;
 }
 
 } // namespace android::ultrahdr
