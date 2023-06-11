@@ -242,7 +242,7 @@ bool JpegDecoderHelper::decode(const void* image, int length, bool decodeToRGBA)
         cinfo.raw_data_out = TRUE;
     }
 
-    cinfo.dct_method = JDCT_IFAST;
+    cinfo.dct_method = JDCT_ISLOW;
 
     jpeg_start_decompress(&cinfo);
 
