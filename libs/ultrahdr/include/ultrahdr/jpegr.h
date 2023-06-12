@@ -222,7 +222,11 @@ public:
      * Decompress JPEGR image.
      *
      * This method assumes that the JPEGR image contains an ICC profile with primaries that match
-     * those of a color gamut that this library is aware of; Bt.709, Display-P3, or Bt.2100.
+     * those of a color gamut that this library is aware of; Bt.709, Display-P3, or Bt.2100. It also
+     * assumes the base image uses the sRGB transfer function.
+     *
+     * This method only supports single gain map metadata values for fields that allow multi-channel
+     * metadata values.
      *
      * @param compressed_jpegr_image compressed JPEGR image.
      * @param dest destination of the uncompressed JPEGR image.
@@ -264,6 +268,9 @@ public:
 
     /*
     * Gets Info from JPEGR file without decoding it.
+    *
+    * This method only supports single gain map metadata values for fields that allow multi-channel
+    * metadata values.
     *
     * The output is filled jpegr_info structure
     * @param compressed_jpegr_image compressed JPEGR image
