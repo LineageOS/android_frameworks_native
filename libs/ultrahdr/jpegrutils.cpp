@@ -113,6 +113,15 @@ public:
 
     XMPXmlHandler() : XmlHandler() {
         state = NotStrarted;
+        versionFound = false;
+        minContentBoostFound = false;
+        maxContentBoostFound = false;
+        gammaFound = false;
+        offsetSdrFound = false;
+        offsetHdrFound = false;
+        hdrCapacityMinFound = false;
+        hdrCapacityMaxFound = false;
+        baseRenditionIsHdrFound = false;
     }
 
     enum ParseState {
@@ -147,10 +156,24 @@ public:
         string val;
         if (state == Started) {
             if (context.BuildTokenValue(&val)) {
-                if (!val.compare(maxContentBoostAttrName)) {
+                if (!val.compare(versionAttrName)) {
+                    lastAttributeName = versionAttrName;
+                } else if (!val.compare(maxContentBoostAttrName)) {
                     lastAttributeName = maxContentBoostAttrName;
                 } else if (!val.compare(minContentBoostAttrName)) {
                     lastAttributeName = minContentBoostAttrName;
+                } else if (!val.compare(gammaAttrName)) {
+                    lastAttributeName = gammaAttrName;
+                } else if (!val.compare(offsetSdrAttrName)) {
+                    lastAttributeName = offsetSdrAttrName;
+                } else if (!val.compare(offsetHdrAttrName)) {
+                    lastAttributeName = offsetHdrAttrName;
+                } else if (!val.compare(hdrCapacityMinAttrName)) {
+                    lastAttributeName = hdrCapacityMinAttrName;
+                } else if (!val.compare(hdrCapacityMaxAttrName)) {
+                    lastAttributeName = hdrCapacityMaxAttrName;
+                } else if (!val.compare(baseRenditionIsHdrAttrName)) {
+                    lastAttributeName = baseRenditionIsHdrAttrName;
                 } else {
                     lastAttributeName = "";
                 }
@@ -163,18 +186,52 @@ public:
         string val;
         if (state == Started) {
             if (context.BuildTokenValue(&val, true)) {
-                if (!lastAttributeName.compare(maxContentBoostAttrName)) {
+                if (!lastAttributeName.compare(versionAttrName)) {
+                    versionStr = val;
+                    versionFound = true;
+                } else if (!lastAttributeName.compare(maxContentBoostAttrName)) {
                     maxContentBoostStr = val;
+                    maxContentBoostFound = true;
                 } else if (!lastAttributeName.compare(minContentBoostAttrName)) {
                     minContentBoostStr = val;
+                    minContentBoostFound = true;
+                } else if (!lastAttributeName.compare(gammaAttrName)) {
+                    gammaStr = val;
+                    gammaFound = true;
+                } else if (!lastAttributeName.compare(offsetSdrAttrName)) {
+                    offsetSdrStr = val;
+                    offsetSdrFound = true;
+                } else if (!lastAttributeName.compare(offsetHdrAttrName)) {
+                    offsetHdrStr = val;
+                    offsetHdrFound = true;
+                } else if (!lastAttributeName.compare(hdrCapacityMinAttrName)) {
+                    hdrCapacityMinStr = val;
+                    hdrCapacityMinFound = true;
+                } else if (!lastAttributeName.compare(hdrCapacityMaxAttrName)) {
+                    hdrCapacityMaxStr = val;
+                    hdrCapacityMaxFound = true;
+                } else if (!lastAttributeName.compare(baseRenditionIsHdrAttrName)) {
+                    baseRenditionIsHdrStr = val;
+                    baseRenditionIsHdrFound = true;
                 }
             }
         }
         return context.GetResult();
     }
 
-    bool getMaxContentBoost(float* max_content_boost) {
+    bool getVersion(string* version, bool* present) {
         if (state == Done) {
+            *version = versionStr;
+            *present = versionFound;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool getMaxContentBoost(float* max_content_boost, bool* present) {
+        if (state == Done) {
+            *present = maxContentBoostFound;
             stringstream ss(maxContentBoostStr);
             float val;
             if (ss >> val) {
@@ -188,8 +245,9 @@ public:
         }
     }
 
-    bool getMinContentBoost(float* min_content_boost) {
+    bool getMinContentBoost(float* min_content_boost, bool* present) {
         if (state == Done) {
+            *present = minContentBoostFound;
             stringstream ss(minContentBoostStr);
             float val;
             if (ss >> val) {
@@ -203,12 +261,141 @@ public:
         }
     }
 
+    bool getGamma(float* gamma, bool* present) {
+        if (state == Done) {
+            *present = gammaFound;
+            stringstream ss(gammaStr);
+            float val;
+            if (ss >> val) {
+                *gamma = val;
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+
+    bool getOffsetSdr(float* offset_sdr, bool* present) {
+        if (state == Done) {
+            *present = offsetSdrFound;
+            stringstream ss(offsetSdrStr);
+            float val;
+            if (ss >> val) {
+                *offset_sdr = val;
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+
+    bool getOffsetHdr(float* offset_hdr, bool* present) {
+        if (state == Done) {
+            *present = offsetHdrFound;
+            stringstream ss(offsetHdrStr);
+            float val;
+            if (ss >> val) {
+                *offset_hdr = val;
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+
+    bool getHdrCapacityMin(float* hdr_capacity_min, bool* present) {
+        if (state == Done) {
+            *present = hdrCapacityMinFound;
+            stringstream ss(hdrCapacityMinStr);
+            float val;
+            if (ss >> val) {
+                *hdr_capacity_min = exp2(val);
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+
+    bool getHdrCapacityMax(float* hdr_capacity_max, bool* present) {
+        if (state == Done) {
+            *present = hdrCapacityMaxFound;
+            stringstream ss(hdrCapacityMaxStr);
+            float val;
+            if (ss >> val) {
+                *hdr_capacity_max = exp2(val);
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+
+    bool getBaseRenditionIsHdr(bool* base_rendition_is_hdr, bool* present) {
+        if (state == Done) {
+            *present = baseRenditionIsHdrFound;
+            if (!baseRenditionIsHdrStr.compare("False")) {
+                *base_rendition_is_hdr = false;
+                return true;
+            } else if (!baseRenditionIsHdrStr.compare("True")) {
+                *base_rendition_is_hdr = true;
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+
+
 private:
     static const string containerName;
+
+    static const string versionAttrName;
+    string              versionStr;
+    bool                versionFound;
     static const string maxContentBoostAttrName;
     string              maxContentBoostStr;
+    bool                maxContentBoostFound;
     static const string minContentBoostAttrName;
     string              minContentBoostStr;
+    bool                minContentBoostFound;
+    static const string gammaAttrName;
+    string              gammaStr;
+    bool                gammaFound;
+    static const string offsetSdrAttrName;
+    string              offsetSdrStr;
+    bool                offsetSdrFound;
+    static const string offsetHdrAttrName;
+    string              offsetHdrStr;
+    bool                offsetHdrFound;
+    static const string hdrCapacityMinAttrName;
+    string              hdrCapacityMinStr;
+    bool                hdrCapacityMinFound;
+    static const string hdrCapacityMaxAttrName;
+    string              hdrCapacityMaxStr;
+    bool                hdrCapacityMaxFound;
+    static const string baseRenditionIsHdrAttrName;
+    string              baseRenditionIsHdrStr;
+    bool                baseRenditionIsHdrFound;
+
     string              lastAttributeName;
     ParseState          state;
 };
@@ -253,8 +440,15 @@ const string kMapHDRCapacityMax     = Name(kGainMapPrefix, "HDRCapacityMax");
 const string kMapBaseRenditionIsHDR = Name(kGainMapPrefix, "BaseRenditionIsHDR");
 
 // GainMap XMP constants - names for XMP handlers
+const string XMPXmlHandler::versionAttrName = kMapVersion;
 const string XMPXmlHandler::minContentBoostAttrName = kMapGainMapMin;
 const string XMPXmlHandler::maxContentBoostAttrName = kMapGainMapMax;
+const string XMPXmlHandler::gammaAttrName = kMapGamma;
+const string XMPXmlHandler::offsetSdrAttrName = kMapOffsetSdr;
+const string XMPXmlHandler::offsetHdrAttrName = kMapOffsetHdr;
+const string XMPXmlHandler::hdrCapacityMinAttrName = kMapHDRCapacityMin;
+const string XMPXmlHandler::hdrCapacityMaxAttrName = kMapHDRCapacityMax;
+const string XMPXmlHandler::baseRenditionIsHdrAttrName = kMapBaseRenditionIsHDR;
 
 bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, ultrahdr_metadata_struct* metadata) {
     string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
@@ -291,11 +485,48 @@ bool getMetadataFromXMP(uint8_t* xmp_data, size_t xmp_size, ultrahdr_metadata_st
         return false;
     }
 
-    if (!handler.getMaxContentBoost(&metadata->maxContentBoost)) {
+    // Apply default values to any not-present fields, except for Version,
+    // maxContentBoost, and hdrCapacityMax, which are required. Return false if
+    // we encounter a present field that couldn't be parsed, since this
+    // indicates it is invalid (eg. string where there should be a float).
+    bool present = false;
+    if (!handler.getVersion(&metadata->version, &present) || !present) {
         return false;
     }
+    if (!handler.getMaxContentBoost(&metadata->maxContentBoost, &present) || !present) {
+        return false;
+    }
+    if (!handler.getHdrCapacityMax(&metadata->hdrCapacityMax, &present) || !present) {
+        return false;
+    }
+    if (!handler.getMinContentBoost(&metadata->minContentBoost, &present)) {
+        if (present) return false;
+        metadata->minContentBoost = 1.0f;
+    }
+    if (!handler.getGamma(&metadata->gamma, &present)) {
+        if (present) return false;
+        metadata->gamma = 1.0f;
+    }
+    if (!handler.getOffsetSdr(&metadata->offsetSdr, &present)) {
+        if (present) return false;
+        metadata->offsetSdr = 1.0f / 64.0f;
+    }
+    if (!handler.getOffsetHdr(&metadata->offsetHdr, &present)) {
+        if (present) return false;
+        metadata->offsetHdr = 1.0f / 64.0f;
+    }
+    if (!handler.getHdrCapacityMin(&metadata->hdrCapacityMin, &present)) {
+        if (present) return false;
+        metadata->hdrCapacityMin = 1.0f;
+    }
 
-    if (!handler.getMinContentBoost(&metadata->minContentBoost)) {
+    bool base_rendition_is_hdr;
+    if (!handler.getBaseRenditionIsHdr(&base_rendition_is_hdr, &present)) {
+        if (present) return false;
+        base_rendition_is_hdr = false;
+    }
+    if (base_rendition_is_hdr) {
+        ALOGE("Base rendition of HDR is not supported!");
         return false;
     }
 
@@ -355,12 +586,11 @@ string generateXmpForSecondaryImage(ultrahdr_metadata_struct& metadata) {
   writer.WriteAttributeNameAndValue(kMapVersion, metadata.version);
   writer.WriteAttributeNameAndValue(kMapGainMapMin, log2(metadata.minContentBoost));
   writer.WriteAttributeNameAndValue(kMapGainMapMax, log2(metadata.maxContentBoost));
-  writer.WriteAttributeNameAndValue(kMapGamma, "1");
-  writer.WriteAttributeNameAndValue(kMapOffsetSdr, "0");
-  writer.WriteAttributeNameAndValue(kMapOffsetHdr, "0");
-  writer.WriteAttributeNameAndValue(
-      kMapHDRCapacityMin, std::max(log2(metadata.minContentBoost), 0.0f));
-  writer.WriteAttributeNameAndValue(kMapHDRCapacityMax, log2(metadata.maxContentBoost));
+  writer.WriteAttributeNameAndValue(kMapGamma, metadata.gamma);
+  writer.WriteAttributeNameAndValue(kMapOffsetSdr, metadata.offsetSdr);
+  writer.WriteAttributeNameAndValue(kMapOffsetHdr, metadata.offsetHdr);
+  writer.WriteAttributeNameAndValue(kMapHDRCapacityMin, log2(metadata.hdrCapacityMin));
+  writer.WriteAttributeNameAndValue(kMapHDRCapacityMax, log2(metadata.hdrCapacityMax));
   writer.WriteAttributeNameAndValue(kMapBaseRenditionIsHDR, "False");
   writer.FinishWriting();
 
