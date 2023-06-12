@@ -644,13 +644,18 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
   ultrahdr_metadata_struct uhdr_metadata;
   if (!getMetadataFromXMP(static_cast<uint8_t*>(gain_map_decoder.getXMPPtr()),
                           gain_map_decoder.getXMPSize(), &uhdr_metadata)) {
-    return ERROR_JPEGR_DECODE_ERROR;
+    return ERROR_JPEGR_INVALID_METADATA;
   }
 
   if (metadata != nullptr) {
       metadata->version = uhdr_metadata.version;
       metadata->minContentBoost = uhdr_metadata.minContentBoost;
       metadata->maxContentBoost = uhdr_metadata.maxContentBoost;
+      metadata->gamma = uhdr_metadata.gamma;
+      metadata->offsetSdr = uhdr_metadata.offsetSdr;
+      metadata->offsetHdr = uhdr_metadata.offsetHdr;
+      metadata->hdrCapacityMin = uhdr_metadata.hdrCapacityMin;
+      metadata->hdrCapacityMax = uhdr_metadata.hdrCapacityMax;
   }
 
   if (output_format == ULTRAHDR_OUTPUT_SDR) {
@@ -840,6 +845,12 @@ status_t JpegR::generateGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
 
   metadata->maxContentBoost = hdr_white_nits / kSdrWhiteNits;
   metadata->minContentBoost = 1.0f;
+  metadata->gamma = 1.0f;
+  metadata->offsetSdr = 0.0f;
+  metadata->offsetHdr = 0.0f;
+  metadata->hdrCapacityMin = 1.0f;
+  metadata->hdrCapacityMax = metadata->maxContentBoost;
+
   float log2MinBoost = log2(metadata->minContentBoost);
   float log2MaxBoost = log2(metadata->maxContentBoost);
 
@@ -956,6 +967,26 @@ status_t JpegR::applyGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
    || metadata == nullptr
    || dest == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
+  }
+
+  if (metadata->version.compare("1.0")) {
+      ALOGE("Unsupported metadata version: %s", metadata->version.c_str());
+      return ERROR_JPEGR_UNSUPPORTED_METADATA;
+  }
+  if (metadata->gamma != 1.0f) {
+      ALOGE("Unsupported metadata gamma: %f", metadata->gamma);
+      return ERROR_JPEGR_UNSUPPORTED_METADATA;
+  }
+  if (metadata->offsetSdr != 0.0f || metadata->offsetHdr != 0.0f) {
+      ALOGE("Unsupported metadata offset sdr, hdr: %f, %f", metadata->offsetSdr,
+            metadata->offsetHdr);
+      return ERROR_JPEGR_UNSUPPORTED_METADATA;
+  }
+  if (metadata->hdrCapacityMin != metadata->minContentBoost
+   || metadata->hdrCapacityMax != metadata->maxContentBoost) {
+      ALOGE("Unsupported metadata hdr capacity min, max: %f, %f", metadata->hdrCapacityMin,
+            metadata->hdrCapacityMax);
+      return ERROR_JPEGR_UNSUPPORTED_METADATA;
   }
 
   // TODO: remove once map scaling factor is computed based on actual map dims
@@ -1180,9 +1211,30 @@ status_t JpegR::appendGainMap(jr_compressed_ptr compressed_jpeg_image,
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (metadata->minContentBoost < 1.0f || metadata->maxContentBoost < metadata->minContentBoost) {
+  if (metadata->version.compare("1.0")) {
+    ALOGE("received bad value for version: %s", metadata->version.c_str());
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+  if (metadata->maxContentBoost < metadata->minContentBoost) {
     ALOGE("received bad value for content boost min %f, max %f", metadata->minContentBoost,
            metadata->maxContentBoost);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (metadata->hdrCapacityMax < metadata->hdrCapacityMin || metadata->hdrCapacityMin < 1.0f) {
+    ALOGE("received bad value for hdr capacity min %f, max %f", metadata->hdrCapacityMin,
+           metadata->hdrCapacityMax);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (metadata->offsetSdr < 0.0f || metadata->offsetHdr < 0.0f) {
+    ALOGE("received bad value for offset sdr %f, hdr %f", metadata->offsetSdr,
+           metadata->offsetHdr);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
+  }
+
+  if (metadata->gamma <= 0.0f) {
+    ALOGE("received bad value for gamma %f", metadata->gamma);
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 

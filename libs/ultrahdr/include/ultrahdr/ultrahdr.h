@@ -49,14 +49,28 @@ typedef enum {
 
 /*
  * Holds information for gain map related metadata.
+ *
+ * Not: all values stored in linear. This differs from the metadata encoding in XMP, where
+ * maxContentBoost (aka gainMapMax), minContentBoost (aka gainMapMin), hdrCapacityMin, and
+ * hdrCapacityMax are stored in log2 space.
  */
 struct ultrahdr_metadata_struct {
-  // Ultra HDR library version
+  // Ultra HDR format version
   std::string version;
   // Max Content Boost for the map
   float maxContentBoost;
   // Min Content Boost for the map
   float minContentBoost;
+  // Gamma of the map data
+  float gamma;
+  // Offset for SDR data in map calculations
+  float offsetSdr;
+  // Offset for HDR data in map calculations
+  float offsetHdr;
+  // HDR capacity to apply the map at all
+  float hdrCapacityMin;
+  // HDR capacity to apply the map completely
+  float hdrCapacityMax;
 };
 typedef struct ultrahdr_metadata_struct* ultrahdr_metadata_ptr;
 
