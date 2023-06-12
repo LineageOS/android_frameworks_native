@@ -414,6 +414,10 @@ void transformYuv420(jr_uncompressed_ptr image, size_t x_chroma, size_t y_chroma
 /*
  * Calculate the 8-bit unsigned integer gain value for the given SDR and HDR
  * luminances in linear space, and the hdr ratio to encode against.
+ *
+ * Note: since this library always uses gamma of 1.0, offsetSdr of 0.0, and
+ * offsetHdr of 0.0, this function doesn't handle different metadata values for
+ * these fields.
  */
 uint8_t encodeGain(float y_sdr, float y_hdr, ultrahdr_metadata_ptr metadata);
 uint8_t encodeGain(float y_sdr, float y_hdr, ultrahdr_metadata_ptr metadata,
@@ -422,6 +426,10 @@ uint8_t encodeGain(float y_sdr, float y_hdr, ultrahdr_metadata_ptr metadata,
 /*
  * Calculates the linear luminance in nits after applying the given gain
  * value, with the given hdr ratio, to the given sdr input in the range [0, 1].
+ *
+ * Note: similar to encodeGain(), this function only supports gamma 1.0,
+ * offsetSdr 0.0, offsetHdr 0.0, hdrCapacityMin 1.0, and hdrCapacityMax equal to
+ * gainMapMax, as this library encodes.
  */
 Color applyGain(Color e, float gain, ultrahdr_metadata_ptr metadata);
 Color applyGain(Color e, float gain, ultrahdr_metadata_ptr metadata, float displayBoost);
