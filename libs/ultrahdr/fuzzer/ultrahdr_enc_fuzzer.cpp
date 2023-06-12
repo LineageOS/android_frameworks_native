@@ -249,7 +249,7 @@ void UltraHdrEncFuzzer::process() {
                         jpegGainMap.data = gainMapEncoder.getCompressedImagePtr();
                         jpegGainMap.colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED;
                         ultrahdr_metadata_struct metadata;
-                        metadata.version = "1.3.1";
+                        metadata.version = "1.0";
                         if (tf == ULTRAHDR_TF_HLG) {
                             metadata.maxContentBoost = kHlgMaxNits / kSdrWhiteNits;
                         } else if (tf == ULTRAHDR_TF_PQ) {
@@ -258,6 +258,11 @@ void UltraHdrEncFuzzer::process() {
                             metadata.maxContentBoost = 1.0f;
                         }
                         metadata.minContentBoost = 1.0f;
+                        metadata.gamma = 1.0f;
+                        metadata.offsetSdr = 0.0f;
+                        metadata.offsetHdr = 0.0f;
+                        metadata.hdrCapacityMin = 1.0f;
+                        metadata.hdrCapacityMax = metadata.maxContentBoost;
                         status = jpegHdr.encodeJPEGR(&jpegImg, &jpegGainMap, &metadata, &jpegImgR);
                     }
                 }
