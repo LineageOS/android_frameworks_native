@@ -819,6 +819,52 @@ TEST_F(JpegRTest, encodeAPI4ForInvalidArgs) {
   EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
       &jpegR, nullptr, nullptr, &jpegR)) << "fail, API allows nullptr gainmap image";
 
+  // test metadata
+  ultrahdr_metadata_struct good_metadata;
+  good_metadata.version = "1.0";
+  good_metadata.minContentBoost = 1.0f;
+  good_metadata.maxContentBoost = 2.0f;
+  good_metadata.gamma = 1.0f;
+  good_metadata.offsetSdr = 0.0f;
+  good_metadata.offsetHdr = 0.0f;
+  good_metadata.hdrCapacityMin = 1.0f;
+  good_metadata.hdrCapacityMax = 2.0f;
+
+  ultrahdr_metadata_struct metadata = good_metadata;
+  metadata.version = "1.1";
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &jpegR, nullptr, &metadata, &jpegR)) << "fail, API allows bad metadata version";
+
+  metadata = good_metadata;
+  metadata.minContentBoost = 3.0f;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &jpegR, nullptr, &metadata, &jpegR)) << "fail, API allows bad metadata content boost";
+
+  metadata = good_metadata;
+  metadata.gamma = -0.1f;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &jpegR, nullptr, &metadata, &jpegR)) << "fail, API allows bad metadata gamma";
+
+  metadata = good_metadata;
+  metadata.offsetSdr = -0.1f;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &jpegR, nullptr, &metadata, &jpegR)) << "fail, API allows bad metadata offset sdr";
+
+  metadata = good_metadata;
+  metadata.offsetHdr = -0.1f;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &jpegR, nullptr, &metadata, &jpegR)) << "fail, API allows bad metadata offset hdr";
+
+  metadata = good_metadata;
+  metadata.hdrCapacityMax = 0.5f;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &jpegR, nullptr, &metadata, &jpegR)) << "fail, API allows bad metadata hdr capacity max";
+
+  metadata = good_metadata;
+  metadata.hdrCapacityMin = 0.5f;
+  EXPECT_NE(OK, jpegRCodec.encodeJPEGR(
+      &jpegR, nullptr, &metadata, &jpegR)) << "fail, API allows bad metadata hdr capacity min";
+
   free(jpegR.data);
 }
 
@@ -864,8 +910,13 @@ TEST_F(JpegRTest, decodeAPIForInvalidArgs) {
 TEST_F(JpegRTest, writeXmpThenRead) {
   ultrahdr_metadata_struct metadata_expected;
   metadata_expected.version = "1.0";
-  metadata_expected.maxContentBoost = 1.25;
-  metadata_expected.minContentBoost = 0.75;
+  metadata_expected.maxContentBoost = 1.25f;
+  metadata_expected.minContentBoost = 0.75f;
+  metadata_expected.gamma = 1.0f;
+  metadata_expected.offsetSdr = 0.0f;
+  metadata_expected.offsetHdr = 0.0f;
+  metadata_expected.hdrCapacityMin = 1.0f;
+  metadata_expected.hdrCapacityMax = metadata_expected.maxContentBoost;
   const std::string nameSpace = "http://ns.adobe.com/xap/1.0/\0";
   const int nameSpaceLength = nameSpace.size() + 1;  // need to count the null terminator
 
@@ -882,6 +933,11 @@ TEST_F(JpegRTest, writeXmpThenRead) {
   EXPECT_TRUE(getMetadataFromXMP(xmpData.data(), xmpData.size(), &metadata_read));
   EXPECT_FLOAT_EQ(metadata_expected.maxContentBoost, metadata_read.maxContentBoost);
   EXPECT_FLOAT_EQ(metadata_expected.minContentBoost, metadata_read.minContentBoost);
+  EXPECT_FLOAT_EQ(metadata_expected.gamma, metadata_read.gamma);
+  EXPECT_FLOAT_EQ(metadata_expected.offsetSdr, metadata_read.offsetSdr);
+  EXPECT_FLOAT_EQ(metadata_expected.offsetHdr, metadata_read.offsetHdr);
+  EXPECT_FLOAT_EQ(metadata_expected.hdrCapacityMin, metadata_read.hdrCapacityMin);
+  EXPECT_FLOAT_EQ(metadata_expected.hdrCapacityMax, metadata_read.hdrCapacityMax);
 }
 
 /* Test Encode API-0 */
@@ -1297,9 +1353,7 @@ TEST_F(JpegRTest, ProfileGainMapFuncs) {
 
   JpegRBenchmark benchmark;
 
-  ultrahdr_metadata_struct metadata = { .version = "1.0",
-                              .maxContentBoost = 8.0f,
-                              .minContentBoost = 1.0f / 8.0f };
+  ultrahdr_metadata_struct metadata = { .version = "1.0" };
 
   jpegr_uncompressed_struct map = { .data = NULL,
                                     .width = 0,
