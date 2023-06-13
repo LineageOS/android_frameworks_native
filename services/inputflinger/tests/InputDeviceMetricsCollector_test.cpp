@@ -18,11 +18,12 @@
 
 #include <gtest/gtest.h>
 #include <gui/constants.h>
+#include <input/EventBuilders.h>
 #include <linux/input.h>
+
 #include <array>
 #include <tuple>
 
-#include "EventBuilders.h"
 #include "TestInputListener.h"
 
 namespace android {
