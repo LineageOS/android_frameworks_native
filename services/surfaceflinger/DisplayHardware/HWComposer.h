@@ -99,8 +99,8 @@ public:
         int32_t width = -1;
         int32_t height = -1;
         nsecs_t vsyncPeriod = -1;
-        int32_t dpiX = -1;
-        int32_t dpiY = -1;
+        float dpiX = -1.f;
+        float dpiY = -1.f;
         int32_t configGroup = -1;
 
         friend std::ostream& operator<<(std::ostream& os, const HWCDisplayMode& mode) {
@@ -500,6 +500,9 @@ private:
     std::optional<DisplayIdentificationInfo> onHotplugConnect(hal::HWDisplayId);
     std::optional<DisplayIdentificationInfo> onHotplugDisconnect(hal::HWDisplayId);
     bool shouldIgnoreHotplugConnect(hal::HWDisplayId, bool hasDisplayIdentificationData) const;
+
+    std::vector<HWCDisplayMode> getModesFromDisplayConfigurations(uint64_t hwcDisplayId) const;
+    std::vector<HWCDisplayMode> getModesFromLegacyDisplayConfigs(uint64_t hwcDisplayId) const;
 
     int32_t getAttribute(hal::HWDisplayId hwcDisplayId, hal::HWConfigId configId,
                          hal::Attribute attribute) const;

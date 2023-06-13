@@ -265,6 +265,46 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId d
     RETURN_IF_INVALID_DISPLAY(displayId, {});
 
     const auto hwcDisplayId = mDisplayData.at(displayId).hwcDisplay->getId();
+
+    if (mComposer->getDisplayConfigurationsSupported()) {
+        return getModesFromDisplayConfigurations(hwcDisplayId);
+    }
+
+    return getModesFromLegacyDisplayConfigs(hwcDisplayId);
+}
+
+std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromDisplayConfigurations(
+        uint64_t hwcDisplayId) const {
+    std::vector<hal::DisplayConfiguration> configs;
+    auto error =
+            static_cast<hal::Error>(mComposer->getDisplayConfigurations(hwcDisplayId, &configs));
+    RETURN_IF_HWC_ERROR_FOR("getDisplayConfigurations", error, *toPhysicalDisplayId(hwcDisplayId),
+                            {});
+
+    std::vector<HWCDisplayMode> modes;
+    modes.reserve(configs.size());
+    for (auto config : configs) {
+        auto hwcMode = HWCDisplayMode{
+                .hwcId = static_cast<hal::HWConfigId>(config.configId),
+                .width = config.width,
+                .height = config.height,
+                .vsyncPeriod = config.vsyncPeriod,
+                .configGroup = config.configGroup,
+        };
+
+        if (config.dpi) {
+            hwcMode.dpiX = config.dpi->x;
+            hwcMode.dpiY = config.dpi->y;
+        }
+
+        modes.push_back(hwcMode);
+    }
+
+    return modes;
+}
+
+std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromLegacyDisplayConfigs(
+        uint64_t hwcDisplayId) const {
     std::vector<hal::HWConfigId> configIds;
     auto error = static_cast<hal::Error>(mComposer->getDisplayConfigs(hwcDisplayId, &configIds));
     RETURN_IF_HWC_ERROR_FOR("getDisplayConfigs", error, *toPhysicalDisplayId(hwcDisplayId), {});
@@ -272,17 +312,25 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId d
     std::vector<HWCDisplayMode> modes;
     modes.reserve(configIds.size());
     for (auto configId : configIds) {
-        modes.push_back(HWCDisplayMode{
+        auto hwcMode = HWCDisplayMode{
                 .hwcId = configId,
                 .width = getAttribute(hwcDisplayId, configId, hal::Attribute::WIDTH),
                 .height = getAttribute(hwcDisplayId, configId, hal::Attribute::HEIGHT),
                 .vsyncPeriod = getAttribute(hwcDisplayId, configId, hal::Attribute::VSYNC_PERIOD),
-                .dpiX = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_X),
-                .dpiY = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_Y),
                 .configGroup = getAttribute(hwcDisplayId, configId, hal::Attribute::CONFIG_GROUP),
-        });
-    }
+        };
 
+        const int32_t dpiX = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_X);
+        const int32_t dpiY = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_Y);
+        if (dpiX != -1) {
+            hwcMode.dpiX = static_cast<float>(dpiX) / 1000.f;
+        }
+        if (dpiY != -1) {
+            hwcMode.dpiY = static_cast<float>(dpiY) / 1000.f;
+        }
+
+        modes.push_back(hwcMode);
+    }
     return modes;
 }
 

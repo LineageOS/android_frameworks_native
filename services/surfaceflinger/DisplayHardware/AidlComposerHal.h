@@ -66,6 +66,7 @@ public:
     ~AidlComposer() override;
 
     bool isSupported(OptionalFeature) const;
+    bool getDisplayConfigurationsSupported() const;
 
     std::vector<aidl::android::hardware::graphics::composer3::Capability> getCapabilities()
             override;
@@ -95,6 +96,7 @@ public:
     Error getDisplayAttribute(Display display, Config config, IComposerClient::Attribute attribute,
                               int32_t* outValue) override;
     Error getDisplayConfigs(Display display, std::vector<Config>* outConfigs);
+    Error getDisplayConfigurations(Display, std::vector<DisplayConfiguration>*);
     Error getDisplayName(Display display, std::string* outName) override;
 
     Error getDisplayRequests(Display display, uint32_t* outDisplayRequestMask,
@@ -285,8 +287,8 @@ private:
     // threading annotations.
     ftl::SharedMutex mMutex;
 
-    // Whether or not explicitly clearing buffer slots is supported.
-    bool mSupportsBufferSlotsToClear;
+    int32_t mComposerInterfaceVersion = 1;
+
     // Buffer slots for layers are cleared by setting the slot buffer to this buffer.
     sp<GraphicBuffer> mClearSlotBuffer;
 

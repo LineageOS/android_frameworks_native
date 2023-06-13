@@ -80,20 +80,20 @@ public:
             return *this;
         }
 
-        Builder& setDpiX(int32_t dpiX) {
-            if (dpiX == -1) {
+        Builder& setDpiX(float dpiX) {
+            if (dpiX == -1.f) {
                 mDisplayMode->mDpi.x = getDefaultDensity();
             } else {
-                mDisplayMode->mDpi.x = dpiX / 1000.f;
+                mDisplayMode->mDpi.x = dpiX;
             }
             return *this;
         }
 
-        Builder& setDpiY(int32_t dpiY) {
-            if (dpiY == -1) {
+        Builder& setDpiY(float dpiY) {
+            if (dpiY == -1.f) {
                 mDisplayMode->mDpi.y = getDefaultDensity();
             } else {
-                mDisplayMode->mDpi.y = dpiY / 1000.f;
+                mDisplayMode->mDpi.y = dpiY;
             }
             return *this;
         }
