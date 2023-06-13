@@ -4,6 +4,7 @@
 // Provides a shared memory transport for input events.
 //
 #define LOG_TAG "InputTransport"
+#define ATRACE_TAG ATRACE_TAG_INPUT
 
 #include <errno.h>
 #include <fcntl.h>
@@ -449,6 +450,13 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
 
     ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ sent message of type %s", mName.c_str(),
              ftl::enum_string(msg->header.type).c_str());
+
+    if (ATRACE_ENABLED()) {
+        std::string message =
+                StringPrintf("sendMessage(inputChannel=%s, seq=0x%" PRIx32 ", type=0x%" PRIx32 ")",
+                             mName.c_str(), msg->header.seq, msg->header.type);
+        ATRACE_NAME(message.c_str());
+    }
     return OK;
 }
 
@@ -484,6 +492,13 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
 
     ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ received message of type %s", mName.c_str(),
              ftl::enum_string(msg->header.type).c_str());
+
+    if (ATRACE_ENABLED()) {
+        std::string message = StringPrintf("receiveMessage(inputChannel=%s, seq=0x%" PRIx32
+                                           ", type=0x%" PRIx32 ")",
+                                           mName.c_str(), msg->header.seq, msg->header.type);
+        ATRACE_NAME(message.c_str());
+    }
     return OK;
 }
 
