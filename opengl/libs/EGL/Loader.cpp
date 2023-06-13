@@ -137,12 +137,14 @@ static void* load_wrapper(const char* path) {
 #endif
 #endif
 
-static const char* DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
+static const char* PERSIST_DRIVER_SUFFIX_PROPERTY = "persist.graphics.egl";
+static const char* RO_DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
+static const char* RO_BOARD_PLATFORM_PROPERTY = "ro.board.platform";
 
 static const char* HAL_SUBNAME_KEY_PROPERTIES[3] = {
-        "persist.graphics.egl",
-        DRIVER_SUFFIX_PROPERTY,
-        "ro.board.platform",
+        PERSIST_DRIVER_SUFFIX_PROPERTY,
+        RO_DRIVER_SUFFIX_PROPERTY,
+        RO_BOARD_PLATFORM_PROPERTY,
 };
 
 static bool should_unload_system_driver(egl_connection_t* cnx) {
@@ -245,17 +247,20 @@ void* Loader::open(egl_connection_t* cnx)
                 continue;
             }
             hnd = attempt_to_load_system_driver(cnx, prop.c_str(), true);
-            if (hnd) {
-                break;
-            } else if (strcmp(key, DRIVER_SUFFIX_PROPERTY) == 0) {
+            if (!hnd) {
+                ALOGD("Failed to load drivers from property %s with value %s", key, prop.c_str());
                 failToLoadFromDriverSuffixProperty = true;
             }
+
+            // Abort regardless of whether subsequent properties are set, the value must be set
+            // correctly with the first property that has a value.
+            break;
         }
     }
 
     if (!hnd) {
-        // Can't find graphics driver by appending system properties, now search for the exact name
-        // without any suffix of the GLES userspace driver in both locations.
+        // Can't find graphics driver by appending the value from system properties, now search for
+        // the exact name without any suffix of the GLES userspace driver in both locations.
         // i.e.:
         //      libGLES.so, or:
         //      libEGL.so, libGLESv1_CM.so, libGLESv2.so
