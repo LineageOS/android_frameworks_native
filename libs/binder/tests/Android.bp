@@ -187,6 +187,11 @@ cc_library_static {
 
 cc_test {
     name: "binderRpcTest",
+    // b/269799024
+    test_options: {
+        unit_test: false,
+    },
+
     host_supported: true,
     target: {
         darwin: {
