@@ -47,7 +47,7 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
     inputInfo.name = state.name;
     inputInfo.id = static_cast<int32_t>(uniqueSequence);
     inputInfo.ownerUid = gui::Uid{state.ownerUid};
-    inputInfo.ownerPid = state.ownerPid;
+    inputInfo.ownerPid = gui::Pid{state.ownerPid};
     uid = state.ownerUid;
     pid = state.ownerPid;
     changes = RequestedLayerState::Changes::Created;

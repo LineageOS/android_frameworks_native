@@ -92,6 +92,7 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
 
     // Ensure that the size of custom types are what we expect for writing into the parcel.
     static_assert(sizeof(inputConfig) == 4u);
+    static_assert(sizeof(ownerPid.val()) == 4u);
     static_assert(sizeof(ownerUid.val()) == 4u);
 
     // clang-format off
@@ -116,7 +117,7 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeFloat(transform.dsdy()) ?:
         parcel->writeFloat(transform.ty()) ?:
         parcel->writeInt32(static_cast<int32_t>(touchOcclusionMode)) ?:
-        parcel->writeInt32(ownerPid) ?:
+        parcel->writeInt32(ownerPid.val()) ?:
         parcel->writeInt32(ownerUid.val()) ?:
         parcel->writeUtf8AsUtf16(packageName) ?:
         parcel->writeInt32(inputConfig.get()) ?:
@@ -148,7 +149,7 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     }
 
     float dsdx, dtdx, tx, dtdy, dsdy, ty;
-    int32_t lpFlags, lpType, touchOcclusionModeInt, inputConfigInt, ownerUidInt;
+    int32_t lpFlags, lpType, touchOcclusionModeInt, inputConfigInt, ownerPidInt, ownerUidInt;
     sp<IBinder> touchableRegionCropHandleSp;
 
     // clang-format off
@@ -168,7 +169,7 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readFloat(&dsdy) ?:
         parcel->readFloat(&ty) ?:
         parcel->readInt32(&touchOcclusionModeInt) ?:
-        parcel->readInt32(&ownerPid) ?:
+        parcel->readInt32(&ownerPidInt) ?:
         parcel->readInt32(&ownerUidInt) ?:
         parcel->readUtf8FromUtf16(&packageName) ?:
         parcel->readInt32(&inputConfigInt) ?:
@@ -191,6 +192,7 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     transform.set({dsdx, dtdx, tx, dtdy, dsdy, ty, 0, 0, 1});
     touchOcclusionMode = static_cast<TouchOcclusionMode>(touchOcclusionModeInt);
     inputConfig = ftl::Flags<InputConfig>(inputConfigInt);
+    ownerPid = Pid{ownerPidInt};
     ownerUid = Uid{static_cast<uid_t>(ownerUidInt)};
     touchableRegionCropHandle = touchableRegionCropHandleSp;
 

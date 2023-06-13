@@ -2453,7 +2453,7 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
         mDrawingState.inputInfo.ownerUid = gui::Uid{mOwnerUid};
-        mDrawingState.inputInfo.ownerPid = mOwnerPid;
+        mDrawingState.inputInfo.ownerPid = gui::Pid{mOwnerPid};
         mDrawingState.inputInfo.inputConfig |= WindowInfo::InputConfig::NO_INPUT_CHANNEL;
         mDrawingState.inputInfo.displayId = getLayerStack().id;
     }
