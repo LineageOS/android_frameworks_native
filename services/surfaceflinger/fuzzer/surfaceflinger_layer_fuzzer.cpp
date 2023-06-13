@@ -106,7 +106,7 @@ void LayerFuzzer::invokeEffectLayer() {
     effectLayer->addSurfaceFramePresentedForBuffer(surfaceFrame,
                                                    mFdp.ConsumeIntegral<int64_t>() /*acquireTime*/,
                                                    mFdp.ConsumeIntegral<int64_t>() /*currentTime*/);
-    effectLayer->addSurfaceFrameDroppedForBuffer(surfaceFrame1);
+    effectLayer->addSurfaceFrameDroppedForBuffer(surfaceFrame1, mFdp.ConsumeIntegral<nsecs_t>());
 
     parent.clear();
     client.clear();
