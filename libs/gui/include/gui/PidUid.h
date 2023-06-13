@@ -22,6 +22,21 @@
 
 namespace android::gui {
 
+// Type-safe wrapper for a PID.
+struct Pid : ftl::Constructible<Pid, pid_t>, ftl::Equatable<Pid>, ftl::Orderable<Pid> {
+    using Constructible::Constructible;
+
+    const static Pid INVALID;
+
+    constexpr auto val() const { return ftl::to_underlying(*this); }
+
+    constexpr bool isValid() const { return val() >= 0; }
+
+    std::string toString() const { return std::to_string(val()); }
+};
+
+const inline Pid Pid::INVALID{-1};
+
 // Type-safe wrapper for a UID.
 // We treat the unsigned equivalent of -1 as a singular invalid value.
 struct Uid : ftl::Constructible<Uid, uid_t>, ftl::Equatable<Uid>, ftl::Orderable<Uid> {
