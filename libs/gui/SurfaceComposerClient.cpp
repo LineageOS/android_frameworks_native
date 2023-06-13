@@ -1027,7 +1027,7 @@ void SurfaceComposerClient::Transaction::clear() {
     mEarlyWakeupEnd = false;
     mDesiredPresentTime = 0;
     mIsAutoTimestamp = true;
-    clearFrameTimelineInfo(mFrameTimelineInfo);
+    mFrameTimelineInfo = {};
     mApplyToken = nullptr;
     mMergedTransactionIds.clear();
 }
@@ -2279,25 +2279,11 @@ void SurfaceComposerClient::Transaction::mergeFrameTimelineInfo(FrameTimelineInf
     if (t.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID &&
         other.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
         if (other.vsyncId > t.vsyncId) {
-            t.vsyncId = other.vsyncId;
-            t.inputEventId = other.inputEventId;
-            t.startTimeNanos = other.startTimeNanos;
-            t.useForRefreshRateSelection = other.useForRefreshRateSelection;
+            t = other;
         }
     } else if (t.vsyncId == FrameTimelineInfo::INVALID_VSYNC_ID) {
-        t.vsyncId = other.vsyncId;
-        t.inputEventId = other.inputEventId;
-        t.startTimeNanos = other.startTimeNanos;
-        t.useForRefreshRateSelection = other.useForRefreshRateSelection;
+        t = other;
     }
-}
-
-// copied from FrameTimelineInfo::clear()
-void SurfaceComposerClient::Transaction::clearFrameTimelineInfo(FrameTimelineInfo& t) {
-    t.vsyncId = FrameTimelineInfo::INVALID_VSYNC_ID;
-    t.inputEventId = os::IInputConstants::INVALID_INPUT_EVENT_ID;
-    t.startTimeNanos = 0;
-    t.useForRefreshRateSelection = false;
 }
 
 SurfaceComposerClient::Transaction&

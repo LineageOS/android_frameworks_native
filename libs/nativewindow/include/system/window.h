@@ -1066,12 +1066,33 @@ static inline int native_window_set_frame_rate(struct ANativeWindow* window, flo
                            (int)compatibility, (int)changeFrameRateStrategy);
 }
 
+struct ANativeWindowFrameTimelineInfo {
+    // Frame Id received from ANativeWindow_getNextFrameId.
+    uint64_t frameNumber;
+
+    // VsyncId received from the Choreographer callback that started this frame.
+    int64_t frameTimelineVsyncId;
+
+    // Input Event ID received from the input event that started this frame.
+    int32_t inputEventId;
+
+    // The time which this frame rendering started (i.e. when Choreographer callback actually run)
+    int64_t startTimeNanos;
+
+    // Whether or not to use the vsyncId to determine the refresh rate. Used for TextureView only.
+    int32_t useForRefreshRateSelection;
+
+    // The VsyncId of a frame that was not drawn and squashed into this frame.
+    // Used for UI thread updates that were not picked up by RenderThread on time.
+    int64_t skippedFrameVsyncId;
+
+    // The start time of a frame that was not drawn and squashed into this frame.
+    int64_t skippedFrameStartTimeNanos;
+};
+
 static inline int native_window_set_frame_timeline_info(
-        struct ANativeWindow* window, uint64_t frameNumber, int64_t frameTimelineVsyncId,
-        int32_t inputEventId, int64_t startTimeNanos, int32_t useForRefreshRateSelection) {
-    return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO, frameNumber,
-                           frameTimelineVsyncId, inputEventId, startTimeNanos,
-                           useForRefreshRateSelection);
+        struct ANativeWindow* window, struct ANativeWindowFrameTimelineInfo frameTimelineInfo) {
+    return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO, frameTimelineInfo);
 }
 
 // ------------------------------------------------------------------------------------------------
