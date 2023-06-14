@@ -82,11 +82,6 @@ protected:
     IGraphicBufferProducerTest() {}
 
     virtual void SetUp() {
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("Begin test: %s.%s", testInfo->test_case_name(),
-                testInfo->name());
-
         mMC = new MockConsumer;
 
         switch (GetParam()) {
@@ -109,13 +104,6 @@ protected:
 
         // Must connect consumer before producer connects will succeed.
         ASSERT_OK(mConsumer->consumerConnect(mMC, /*controlledByApp*/ false));
-    }
-
-    virtual void TearDown() {
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("End test:   %s.%s", testInfo->test_case_name(),
-                testInfo->name());
     }
 
     status_t TryConnectProducer() {

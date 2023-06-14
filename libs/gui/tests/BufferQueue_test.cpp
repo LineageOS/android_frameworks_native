@@ -46,20 +46,6 @@ class BufferQueueTest : public ::testing::Test {
 
 public:
 protected:
-    BufferQueueTest() {
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("Begin test: %s.%s", testInfo->test_case_name(),
-                testInfo->name());
-    }
-
-    ~BufferQueueTest() {
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("End test:   %s.%s", testInfo->test_case_name(),
-                testInfo->name());
-    }
-
     void GetMinUndequeuedBufferCount(int* bufferCount) {
         ASSERT_TRUE(bufferCount != nullptr);
         ASSERT_EQ(OK, mProducer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
