@@ -691,7 +691,11 @@ TEST_P(BinderRpc, SessionWithIncomingThreadpoolDoesntLeak) {
 
     EXPECT_EQ(nullptr, session.promote());
 
-    sleep(1); // give time for remote session to shutdown
+    // now that it has died, wait for the remote session to shutdown
+    std::vector<int32_t> remoteCounts;
+    do {
+        EXPECT_OK(proc.rootIface->countBinders(&remoteCounts));
+    } while (remoteCounts.size() > 1);
 }
 
 TEST_P(BinderRpc, SingleDeathRecipient) {
