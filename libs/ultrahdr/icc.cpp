@@ -19,7 +19,6 @@
 #endif
 
 #include <ultrahdr/icc.h>
-#include <ultrahdr/gainmapmath.h>
 #include <vector>
 #include <utils/Log.h>
 
@@ -218,8 +217,8 @@ sp<DataStruct> IccHelper::write_trc_tag(const int table_entries, const void* tab
     total_length = (((total_length + 2) >> 2) << 2);  // 4 aligned
     sp<DataStruct> dataStruct = sp<DataStruct>::make(total_length);
     dataStruct->write32(Endian_SwapBE32(kTAG_CurveType));     // Type
-    dataStruct->write32(0);                                     // Reserved
-    dataStruct->write32(Endian_SwapBE32(table_entries));  // Value count
+    dataStruct->write32(0);                                   // Reserved
+    dataStruct->write32(Endian_SwapBE32(table_entries));      // Value count
     for (size_t i = 0; i < table_entries; ++i) {
         uint16_t value = reinterpret_cast<const uint16_t*>(table_16)[i];
         dataStruct->write16(value);
@@ -227,14 +226,30 @@ sp<DataStruct> IccHelper::write_trc_tag(const int table_entries, const void* tab
     return dataStruct;
 }
 
-sp<DataStruct> IccHelper::write_trc_tag_for_linear() {
-    int total_length = 16;
-    sp<DataStruct> dataStruct = sp<DataStruct>::make(total_length);
-    dataStruct->write32(Endian_SwapBE32(kTAG_ParaCurveType));  // Type
-    dataStruct->write32(0);                                      // Reserved
-    dataStruct->write32(Endian_SwapBE16(kExponential_ParaCurveType));
-    dataStruct->write32(Endian_SwapBE32(float_round_to_fixed(1.0)));
+sp<DataStruct> IccHelper::write_trc_tag(const TransferFunction& fn) {
+    if (fn.a == 1.f && fn.b == 0.f && fn.c == 0.f
+            && fn.d == 0.f && fn.e == 0.f && fn.f == 0.f) {
+        int total_length = 16;
+        sp<DataStruct> dataStruct = new DataStruct(total_length);
+        dataStruct->write32(Endian_SwapBE32(kTAG_ParaCurveType));  // Type
+        dataStruct->write32(0);                                    // Reserved
+        dataStruct->write32(Endian_SwapBE16(kExponential_ParaCurveType));
+        dataStruct->write32(Endian_SwapBE32(float_round_to_fixed(fn.g)));
+        return dataStruct;
+    }
 
+    int total_length = 40;
+    sp<DataStruct> dataStruct = new DataStruct(total_length);
+    dataStruct->write32(Endian_SwapBE32(kTAG_ParaCurveType));  // Type
+    dataStruct->write32(0);                                    // Reserved
+    dataStruct->write32(Endian_SwapBE16(kGABCDEF_ParaCurveType));
+    dataStruct->write32(Endian_SwapBE32(float_round_to_fixed(fn.g)));
+    dataStruct->write32(Endian_SwapBE32(float_round_to_fixed(fn.a)));
+    dataStruct->write32(Endian_SwapBE32(float_round_to_fixed(fn.b)));
+    dataStruct->write32(Endian_SwapBE32(float_round_to_fixed(fn.c)));
+    dataStruct->write32(Endian_SwapBE32(float_round_to_fixed(fn.d)));
+    dataStruct->write32(Endian_SwapBE32(float_round_to_fixed(fn.e)));
+    dataStruct->write32(Endian_SwapBE32(float_round_to_fixed(fn.f)));
     return dataStruct;
 }
 
@@ -349,7 +364,7 @@ sp<DataStruct> IccHelper::write_mAB_or_mBA_tag(uint32_t type,
 
     // The "B" curve is required.
     for (size_t i = 0; i < kNumChannels; ++i) {
-        b_curves_data[i] = write_trc_tag_for_linear();
+        b_curves_data[i] = write_trc_tag(kLinear_TransFun);
     }
 
     // The "A" curve and CLUT are optional.
@@ -362,7 +377,7 @@ sp<DataStruct> IccHelper::write_mAB_or_mBA_tag(uint32_t type,
 
         a_curves_offset = clut_offset + clut->getLength();
         for (size_t i = 0; i < kNumChannels; ++i) {
-            a_curves_data[i] = write_trc_tag_for_linear();
+            a_curves_data[i] = write_trc_tag(kLinear_TransFun);
         }
     }
 
@@ -460,9 +475,9 @@ sp<DataStruct> IccHelper::writeIccProfile(ultrahdr_transfer_function tf,
             tags.emplace_back(kTAG_bTRC,
                     write_trc_tag(kTrcTableSize, reinterpret_cast<uint8_t*>(trc_table.data())));
         } else {
-            tags.emplace_back(kTAG_rTRC, write_trc_tag_for_linear());
-            tags.emplace_back(kTAG_gTRC, write_trc_tag_for_linear());
-            tags.emplace_back(kTAG_bTRC, write_trc_tag_for_linear());
+            tags.emplace_back(kTAG_rTRC, write_trc_tag(kSRGB_TransFun));
+            tags.emplace_back(kTAG_gTRC, write_trc_tag(kSRGB_TransFun));
+            tags.emplace_back(kTAG_bTRC, write_trc_tag(kSRGB_TransFun));
         }
     }
 

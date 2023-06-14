@@ -51,6 +51,23 @@ struct Color {
 typedef Color (*ColorTransformFn)(Color);
 typedef float (*ColorCalculationFn)(Color);
 
+// A transfer function mapping encoded values to linear values,
+// represented by this 7-parameter piecewise function:
+//
+//   linear = sign(encoded) *  (c*|encoded| + f)       , 0 <= |encoded| < d
+//          = sign(encoded) * ((a*|encoded| + b)^g + e), d <= |encoded|
+//
+// (A simple gamma transfer function sets g to gamma and a to 1.)
+typedef struct TransferFunction {
+    float g, a,b,c,d,e,f;
+} TransferFunction;
+
+static constexpr TransferFunction kSRGB_TransFun =
+    { 2.4f, (float)(1/1.055), (float)(0.055/1.055), (float)(1/12.92), 0.04045f, 0.0f, 0.0f };
+
+static constexpr TransferFunction kLinear_TransFun =
+    { 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
 inline Color operator+=(Color& lhs, const Color& rhs) {
   lhs.r += rhs.r;
   lhs.g += rhs.g;
