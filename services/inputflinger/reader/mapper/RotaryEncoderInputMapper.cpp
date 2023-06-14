@@ -30,6 +30,14 @@ RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDeviceContext& deviceCon
                                                    const InputReaderConfiguration& readerConfig)
       : InputMapper(deviceContext, readerConfig), mOrientation(ui::ROTATION_0) {
     mSource = AINPUT_SOURCE_ROTARY_ENCODER;
+
+    const PropertyMap& config = getDeviceContext().getConfiguration();
+    float slopThreshold = config.getInt("rotary_encoder.slop_threshold").value_or(0);
+    int32_t slopDurationMs = config.getInt("rotary_encoder.slop_duration_ms").value_or(0);
+    if (slopThreshold > 0 && slopDurationMs > 0) {
+        mSlopController = std::make_unique<SlopController>(slopThreshold,
+                                                           (nsecs_t)(slopDurationMs * 1000000));
+    }
 }
 
 RotaryEncoderInputMapper::~RotaryEncoderInputMapper() {}
@@ -103,6 +111,10 @@ std::list<NotifyArgs> RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readT
     std::list<NotifyArgs> out;
 
     float scroll = mRotaryEncoderScrollAccumulator.getRelativeVWheel();
+    if (mSlopController) {
+        scroll = mSlopController->consumeEvent(when, scroll);
+    }
+
     bool scrolled = scroll != 0;
 
     // Send motion event.
