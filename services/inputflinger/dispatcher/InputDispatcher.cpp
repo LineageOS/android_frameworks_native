@@ -26,6 +26,7 @@
 #include <android/os/IInputConstants.h>
 #include <binder/Binder.h>
 #include <ftl/enum.h>
+#include <log/log_event_list.h>
 #if defined(__ANDROID__)
 #include <gui/SurfaceComposerClient.h>
 #endif
@@ -4348,6 +4349,18 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
         return;
     }
 
+    if (DEBUG_VERIFY_EVENTS) {
+        auto [it, _] =
+                mVerifiersByDisplay.try_emplace(args.displayId,
+                                                StringPrintf("display %" PRId32, args.displayId));
+        Result<void> result =
+                it->second.processMovement(args.deviceId, args.action, args.pointerCount,
+                                           args.pointerProperties, args.pointerCoords, args.flags);
+        if (!result.ok()) {
+            LOG(FATAL) << "Bad stream: " << result.error() << " caused by " << args.dump();
+        }
+    }
+
     uint32_t policyFlags = args.policyFlags;
     policyFlags |= POLICY_FLAG_TRUSTED;
 
@@ -6692,6 +6705,7 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
         std::erase(mIneligibleDisplaysForPointerCapture, displayId);
         // Remove the associated touch mode state.
         mTouchModePerDisplay.erase(displayId);
+        mVerifiersByDisplay.erase(displayId);
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.

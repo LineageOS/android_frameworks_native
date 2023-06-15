@@ -30,11 +30,10 @@ const bool IS_DEBUGGABLE_BUILD =
 bool debugInboundEventDetails() {
     if (!IS_DEBUGGABLE_BUILD) {
         static const bool DEBUG_INBOUND_EVENT_DETAILS =
-                __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "InboundEvent",
-                                          ANDROID_LOG_INFO);
+                android::base::ShouldLog(android::base::LogSeverity::DEBUG, LOG_TAG "InboundEvent");
         return DEBUG_INBOUND_EVENT_DETAILS;
     }
-    return __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "InboundEvent", ANDROID_LOG_INFO);
+    return android::base::ShouldLog(android::base::LogSeverity::DEBUG, LOG_TAG "InboundEvent");
 }
 
 } // namespace android::inputdispatcher
