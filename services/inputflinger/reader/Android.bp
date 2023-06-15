@@ -80,6 +80,7 @@ cc_defaults {
         "libcrypto",
         "libcutils",
         "libjsoncpp",
+        "libinput",
         "liblog",
         "libPlatformProperties",
         "libstatslog",
@@ -98,13 +99,11 @@ cc_defaults {
     target: {
         android: {
             shared_libs: [
-                "libinput",
                 "libstatspull",
             ],
         },
         host: {
             static_libs: [
-                "libinput",
                 "libbinder",
                 "libstatspull",
             ],
