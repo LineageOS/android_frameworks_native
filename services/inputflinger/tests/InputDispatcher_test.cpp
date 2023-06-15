@@ -3644,6 +3644,9 @@ TEST_F(InputDispatcherTest, InterceptKeyByPolicy) {
                 std::chrono::nanoseconds(interceptKeyTimeout).count());
 }
 
+/**
+ * Keys with ACTION_UP are delivered immediately, even if a long 'intercept key timeout' is set.
+ */
 TEST_F(InputDispatcherTest, InterceptKeyIfKeyUp) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
@@ -3655,12 +3658,14 @@ TEST_F(InputDispatcherTest, InterceptKeyIfKeyUp) {
 
     window->consumeFocusEvent(true);
 
-    mFakePolicy->setInterceptKeyTimeout(150ms);
     mDispatcher->notifyKey(generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT));
-    mDispatcher->notifyKey(generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT));
-
-    // Window should receive key event immediately when same key up.
     window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+
+    // Set a value that's significantly larger than the default consumption timeout. If the
+    // implementation is correct, the actual value doesn't matter; it won't slow down the test.
+    mFakePolicy->setInterceptKeyTimeout(600ms);
+    mDispatcher->notifyKey(generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT));
+    // Window should receive key event immediately when same key up.
     window->consumeKeyUp(ADISPLAY_ID_DEFAULT);
 }
 
