@@ -23,6 +23,9 @@ pub struct ProcessState;
 
 impl ProcessState {
     /// Start the Binder IPC thread pool
+    ///
+    /// Starts 1 thread, plus allows the kernel to lazily start up to 'num_threads'
+    /// additional threads as specified by set_thread_pool_max_thread_count.
     pub fn start_thread_pool() {
         unsafe {
             // Safety: Safe FFI
@@ -33,8 +36,7 @@ impl ProcessState {
     /// Set the maximum number of threads that can be started in the threadpool.
     ///
     /// By default, after startThreadPool is called, this is 15. If it is called
-    /// additional times, it will only prevent the kernel from starting new
-    /// threads and will not delete already existing threads.
+    /// additional times, the thread pool size can only be increased.
     pub fn set_thread_pool_max_thread_count(num_threads: u32) {
         unsafe {
             // Safety: Safe FFI
@@ -43,6 +45,9 @@ impl ProcessState {
     }
 
     /// Block on the Binder IPC thread pool
+    ///
+    /// This adds additional threads in addition to what is created by
+    /// set_thread_pool_max_thread_count and start_thread_pool.
     pub fn join_thread_pool() {
         unsafe {
             // Safety: Safe FFI

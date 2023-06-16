@@ -52,7 +52,26 @@ public:
 
     sp<IBinder> getContextObject(const sp<IBinder>& caller);
 
-    // For main functions - dangerous for libraries to use
+    // This should be called before startThreadPool at the beginning
+    // of a program, and libraries should never call it because programs
+    // should configure their own threadpools. The threadpool size can
+    // never be decreased.
+    //
+    // The 'maxThreads' value refers to the total number of threads
+    // that will be started by the kernel. This is in addition to any
+    // threads started by 'startThreadPool' or 'joinRpcThreadpool'.
+    status_t setThreadPoolMaxThreadCount(size_t maxThreads);
+
+    // Libraries should not call this, as processes should configure
+    // threadpools themselves. Should be called in the main function
+    // directly before any code executes or joins the threadpool.
+    //
+    // Starts one thread, PLUS those requested in setThreadPoolMaxThreadCount,
+    // PLUS those manually requested in joinThreadPool.
+    //
+    // For instance, if setThreadPoolMaxCount(3) is called and
+    // startThreadpPool (+1 thread) and joinThreadPool (+1 thread)
+    // are all called, then up to 5 threads can be started.
     void startThreadPool();
 
     [[nodiscard]] bool becomeContextManager();
@@ -63,8 +82,6 @@ public:
     // TODO: deprecate.
     void spawnPooledThread(bool isMain);
 
-    // For main functions - dangerous for libraries to use
-    status_t setThreadPoolMaxThreadCount(size_t maxThreads);
     status_t enableOnewaySpamDetection(bool enable);
 
     // Set the name of the current thread to look like a threadpool
