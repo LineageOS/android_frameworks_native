@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,10 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include <Tracing/TransactionTracing.h>
+#include "rust/cxx.h"
 
 namespace android {
-class LayerTraceGenerator {
-public:
-    bool generate(const proto::TransactionTraceFile&, const char* outputLayersTracePath,
-                  bool onlyLastEntry);
-};
+
+bool shouldLog(rust::Str tag);
+
 } // namespace android

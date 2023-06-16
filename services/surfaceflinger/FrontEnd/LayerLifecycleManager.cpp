@@ -28,6 +28,14 @@ namespace android::surfaceflinger::frontend {
 
 using namespace ftl::flag_operators;
 
+namespace {
+// Returns true if the layer is root of a display and can be mirrored by mirroringLayer
+bool canMirrorRootLayer(RequestedLayerState& mirroringLayer, RequestedLayerState& rootLayer) {
+    return rootLayer.isRoot() && rootLayer.layerStack == mirroringLayer.layerStackToMirror &&
+            rootLayer.id != mirroringLayer.id;
+}
+} // namespace
+
 void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayerState>> newLayers) {
     if (newLayers.empty()) {
         return;
@@ -46,11 +54,15 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
         layer.parentId = linkLayer(layer.parentId, layer.id);
         layer.relativeParentId = linkLayer(layer.relativeParentId, layer.id);
         if (layer.layerStackToMirror != ui::INVALID_LAYER_STACK) {
+            // Set mirror layer's default layer stack to -1 so it doesn't end up rendered on a
+            // display accidentally.
+            layer.layerStack = ui::INVALID_LAYER_STACK;
+
             // if this layer is mirroring a display, then walk though all the existing root layers
             // for the layer stack and add them as children to be mirrored.
             mDisplayMirroringLayers.emplace_back(layer.id);
             for (auto& rootLayer : mLayers) {
-                if (rootLayer->isRoot() && rootLayer->layerStack == layer.layerStackToMirror) {
+                if (canMirrorRootLayer(layer, *rootLayer)) {
                     layer.mirrorIds.emplace_back(rootLayer->id);
                     linkLayer(rootLayer->id, layer.id);
                 }
@@ -383,10 +395,9 @@ void LayerLifecycleManager::fixRelativeZLoop(uint32_t relativeRootId) {
 // and updates its list of layers that its mirroring. This function should be called when a new
 // root layer is added, removed or moved to another display.
 void LayerLifecycleManager::updateDisplayMirrorLayers(RequestedLayerState& rootLayer) {
-    for (uint32_t mirrorLayerId : mDisplayMirroringLayers) {
-        RequestedLayerState* mirrorLayer = getLayerFromId(mirrorLayerId);
-        bool canBeMirrored =
-                rootLayer.isRoot() && rootLayer.layerStack == mirrorLayer->layerStackToMirror;
+    for (uint32_t mirroringLayerId : mDisplayMirroringLayers) {
+        RequestedLayerState* mirrorLayer = getLayerFromId(mirroringLayerId);
+        bool canBeMirrored = canMirrorRootLayer(*mirrorLayer, rootLayer);
         bool currentlyMirrored =
                 std::find(mirrorLayer->mirrorIds.begin(), mirrorLayer->mirrorIds.end(),
                           rootLayer.id) != mirrorLayer->mirrorIds.end();

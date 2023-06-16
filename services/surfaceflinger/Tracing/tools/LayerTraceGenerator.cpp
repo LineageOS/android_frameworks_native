@@ -41,7 +41,7 @@ namespace android {
 using namespace ftl::flag_operators;
 
 bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
-                                   const char* outputLayersTracePath) {
+                                   const char* outputLayersTracePath, bool onlyLastEntry) {
     if (traceFile.entry_size() == 0) {
         ALOGD("Trace file is empty");
         return false;
@@ -158,9 +158,11 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
                                                                   layerTracing.getFlags())
                                           .generate(hierarchyBuilder.getHierarchy());
         auto displayProtos = LayerProtoHelper::writeDisplayInfoToProto(displayInfos);
-        layerTracing.notify(visibleRegionsDirty, entry.elapsed_realtime_nanos(), entry.vsync_id(),
-                            &layersProto, {}, &displayProtos);
-        layerTracing.appendToStream(out);
+        if (!onlyLastEntry || (i == traceFile.entry_size() - 1)) {
+            layerTracing.notify(visibleRegionsDirty, entry.elapsed_realtime_nanos(),
+                                entry.vsync_id(), &layersProto, {}, &displayProtos);
+            layerTracing.appendToStream(out);
+        }
     }
     layerTracing.disable("", /*writeToFile=*/false);
     out.close();
