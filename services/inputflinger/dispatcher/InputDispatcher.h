@@ -89,7 +89,7 @@ public:
 
     void dump(std::string& dump) override;
     void monitor() override;
-    bool waitForIdle() override;
+    bool waitForIdle() const override;
     status_t start() override;
     status_t stop() override;
 
@@ -169,10 +169,10 @@ private:
     InputDispatcherPolicyInterface& mPolicy;
     android::InputDispatcherConfiguration mConfig GUARDED_BY(mLock);
 
-    std::mutex mLock;
+    mutable std::mutex mLock;
 
     std::condition_variable mDispatcherIsAlive;
-    std::condition_variable mDispatcherEnteredIdle;
+    mutable std::condition_variable mDispatcherEnteredIdle;
 
     sp<Looper> mLooper;
 

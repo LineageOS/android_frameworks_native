@@ -50,7 +50,7 @@ public:
      * Return true if the dispatcher is idle.
      * Return false if the timeout waiting for the dispatcher to become idle has expired.
      */
-    virtual bool waitForIdle() = 0;
+    virtual bool waitForIdle() const = 0;
 
     /* Make the dispatcher start processing events.
      *
