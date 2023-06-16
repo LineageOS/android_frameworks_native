@@ -42,6 +42,8 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <condition_variable>
+#include <mutex>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
@@ -208,6 +210,7 @@ private:
     class SensorEventAckReceiver;
     class SensorRecord;
     class SensorRegistrationInfo;
+    class RuntimeSensorHandler;
 
     // Promoting a SensorEventConnection or SensorDirectConnection from wp to sp must be done with
     // mLock held, but destroying that sp must be done unlocked to avoid a race condition that
@@ -262,6 +265,14 @@ private:
         friend class ConnectionSafeAutolock;
         SortedVector< wp<SensorEventConnection> > mActiveConnections;
         SortedVector< wp<SensorDirectConnection> > mDirectConnections;
+    };
+
+    class RuntimeSensorHandler : public Thread {
+        sp<SensorService> const mService;
+    public:
+        virtual bool threadLoop();
+        explicit RuntimeSensorHandler(const sp<SensorService>& service) : mService(service) {
+        }
     };
 
     // If accessing a sensor we need to make sure the UID has access to it. If
@@ -367,6 +378,8 @@ private:
 
     // Thread interface
     virtual bool threadLoop();
+
+    void processRuntimeSensorEvents();
 
     // ISensorServer interface
     virtual Vector<Sensor> getSensorList(const String16& opPackageName);
@@ -512,6 +525,10 @@ private:
     uint32_t mSocketBufferSize;
     sp<Looper> mLooper;
     sp<SensorEventAckReceiver> mAckReceiver;
+    sp<RuntimeSensorHandler> mRuntimeSensorHandler;
+    // Mutex and CV used to notify the mRuntimeSensorHandler thread that there are new events.
+    std::mutex mRutimeSensorThreadMutex;
+    std::condition_variable mRuntimeSensorsCv;
 
     // protected by mLock
     mutable Mutex mLock;
@@ -519,7 +536,7 @@ private:
     std::unordered_set<int> mActiveVirtualSensors;
     SensorConnectionHolder mConnectionHolder;
     bool mWakeLockAcquired;
-    sensors_event_t *mSensorEventBuffer, *mSensorEventScratch;
+    sensors_event_t *mSensorEventBuffer, *mSensorEventScratch, *mRuntimeSensorEventBuffer;
     // WARNING: these SensorEventConnection instances must not be promoted to sp, except via
     // modification to add support for them in ConnectionSafeAutolock
     wp<const SensorEventConnection> * mMapFlushEventsToConnections;
