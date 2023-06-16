@@ -151,7 +151,6 @@ TEST(Malicious, Bug36991414Max) {
     sp<MaliciousBQP> malicious = getMaliciousBQP();
     sp<Surface> surface = new Surface(malicious);
 
-    ASSERT_EQ(NO_ERROR, surface->connect(NATIVE_WINDOW_API_CPU, nullptr, false));
     ANativeWindow_Buffer buffer;
     ASSERT_EQ(NO_ERROR, surface->lock(&buffer, nullptr));
     ASSERT_EQ(NO_ERROR, surface->unlockAndPost());
@@ -165,7 +164,6 @@ TEST(Malicious, Bug36991414Min) {
     sp<MaliciousBQP> malicious = getMaliciousBQP();
     sp<Surface> surface = new Surface(malicious);
 
-    ASSERT_EQ(NO_ERROR, surface->connect(NATIVE_WINDOW_API_CPU, nullptr, false));
     ANativeWindow_Buffer buffer;
     ASSERT_EQ(NO_ERROR, surface->lock(&buffer, nullptr));
     ASSERT_EQ(NO_ERROR, surface->unlockAndPost());
@@ -179,7 +177,6 @@ TEST(Malicious, Bug36991414NegativeOne) {
     sp<MaliciousBQP> malicious = getMaliciousBQP();
     sp<Surface> surface = new Surface(malicious);
 
-    ASSERT_EQ(NO_ERROR, surface->connect(NATIVE_WINDOW_API_CPU, nullptr, false));
     ANativeWindow_Buffer buffer;
     ASSERT_EQ(NO_ERROR, surface->lock(&buffer, nullptr));
     ASSERT_EQ(NO_ERROR, surface->unlockAndPost());
@@ -193,7 +190,6 @@ TEST(Malicious, Bug36991414NumSlots) {
     sp<MaliciousBQP> malicious = getMaliciousBQP();
     sp<Surface> surface = new Surface(malicious);
 
-    ASSERT_EQ(NO_ERROR, surface->connect(NATIVE_WINDOW_API_CPU, nullptr, false));
     ANativeWindow_Buffer buffer;
     ASSERT_EQ(NO_ERROR, surface->lock(&buffer, nullptr));
     ASSERT_EQ(NO_ERROR, surface->unlockAndPost());
