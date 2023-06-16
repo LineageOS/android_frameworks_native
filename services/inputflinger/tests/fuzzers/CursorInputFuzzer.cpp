@@ -16,6 +16,7 @@
 
 #include <CursorInputMapper.h>
 #include <FuzzContainer.h>
+#include <MapperHelpers.h>
 
 namespace android {
 
@@ -65,22 +66,11 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                     mapper.populateDeviceInfo(info);
                 },
                 [&]() -> void {
-                    int32_t type, code;
-                    type = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidTypes)
-                                              : fdp->ConsumeIntegral<int32_t>();
-                    code = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidCodes)
-                                              : fdp->ConsumeIntegral<int32_t>();
-
                     // Need to reconfigure with 0 or you risk a NPE.
                     std::list<NotifyArgs> unused =
                             mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
                                                InputReaderConfiguration::Change(0));
-                    RawEvent rawEvent{fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<int32_t>(),
-                                      type,
-                                      code,
-                                      fdp->ConsumeIntegral<int32_t>()};
+                    RawEvent rawEvent = getFuzzedRawEvent(*fdp);
                     unused += mapper.process(&rawEvent);
                 },
                 [&]() -> void {
