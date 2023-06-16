@@ -3586,7 +3586,7 @@ Dumpstate::RunStatus Dumpstate::ParseCommandlineAndRun(int argc, char* argv[]) {
         // an app; they are irrelevant here because bugreport is triggered via command line.
         // Update Last ID before calling Run().
         Initialize();
-        status = Run(-1 /* calling_uid */, "" /* calling_package */);
+        status = Run(0 /* calling_uid */, "" /* calling_package */);
     }
     return status;
 }
