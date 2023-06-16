@@ -31,6 +31,7 @@
 #include "LayerLog.h"
 #include "LayerSnapshotBuilder.h"
 #include "TimeStats/TimeStats.h"
+#include "Tracing/TransactionTracing.h"
 
 namespace android::surfaceflinger::frontend {
 
@@ -435,13 +436,13 @@ void LayerSnapshotBuilder::updateSnapshots(const Args& args) {
         // multiple children.
         LayerHierarchy::ScopedAddToTraversalPath addChildToPath(root, args.root.getLayer()->id,
                                                                 LayerHierarchy::Variant::Attached);
-        updateSnapshotsInHierarchy(args, args.root, root, mRootSnapshot);
+        updateSnapshotsInHierarchy(args, args.root, root, mRootSnapshot, /*depth=*/0);
     } else {
         for (auto& [childHierarchy, variant] : args.root.mChildren) {
             LayerHierarchy::ScopedAddToTraversalPath addChildToPath(root,
                                                                     childHierarchy->getLayer()->id,
                                                                     variant);
-            updateSnapshotsInHierarchy(args, *childHierarchy, root, mRootSnapshot);
+            updateSnapshotsInHierarchy(args, *childHierarchy, root, mRootSnapshot, /*depth=*/0);
         }
     }
 
@@ -494,7 +495,15 @@ void LayerSnapshotBuilder::update(const Args& args) {
 
 const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
         const Args& args, const LayerHierarchy& hierarchy,
-        LayerHierarchy::TraversalPath& traversalPath, const LayerSnapshot& parentSnapshot) {
+        LayerHierarchy::TraversalPath& traversalPath, const LayerSnapshot& parentSnapshot,
+        int depth) {
+    if (depth > 50) {
+        TransactionTraceWriter::getInstance().invoke("layer_builder_stack_overflow_",
+                                                     /*overwrite=*/false);
+        LOG_ALWAYS_FATAL("Cycle detected in LayerSnapshotBuilder. See "
+                         "builder_stack_overflow_transactions.winscope");
+    }
+
     const RequestedLayerState* layer = hierarchy.getLayer();
     LayerSnapshot* snapshot = getSnapshot(traversalPath);
     const bool newSnapshot = snapshot == nullptr;
@@ -517,7 +526,8 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
                                                                 childHierarchy->getLayer()->id,
                                                                 variant);
         const LayerSnapshot& childSnapshot =
-                updateSnapshotsInHierarchy(args, *childHierarchy, traversalPath, *snapshot);
+                updateSnapshotsInHierarchy(args, *childHierarchy, traversalPath, *snapshot,
+                                           depth + 1);
         updateChildState(*snapshot, childSnapshot, args);
     }
 
