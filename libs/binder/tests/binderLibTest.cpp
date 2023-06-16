@@ -82,7 +82,7 @@ static char binderserverarg[] = "--binderserver";
 static constexpr int kSchedPolicy = SCHED_RR;
 static constexpr int kSchedPriority = 7;
 static constexpr int kSchedPriorityMore = 8;
-static constexpr int kKernelThreads = 15;
+static constexpr int kKernelThreads = 17; // anything different than the default
 
 static String16 binderLibTestServiceName = String16("test.binderLib");
 
@@ -1357,17 +1357,20 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_MAX_THREAD_COUNT, data, &reply),
                 StatusEq(NO_ERROR));
     int32_t replyi = reply.readInt32();
-    // Expect 16 threads: kKernelThreads = 15 + Pool thread == 16
-    EXPECT_TRUE(replyi == kKernelThreads || replyi == kKernelThreads + 1);
+    // see getThreadPoolMaxTotalThreadCount for why there is a race
+    EXPECT_TRUE(replyi == kKernelThreads + 1 || replyi == kKernelThreads + 2) << replyi;
+
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_PROCESS_LOCK, data, &reply), NO_ERROR);
 
     /*
-     * This will use all threads in the pool expect the main pool thread.
-     * The service should run fine without locking, and the thread count should
-     * not exceed 16 (15 Max + pool thread).
+     * This will use all threads in the pool but one. There are actually kKernelThreads+2
+     * available in the other process (startThreadPool, joinThreadPool, + the kernel-
+     * started threads from setThreadPoolMaxThreadCount
+     *
+     * Adding one more will cause it to deadlock.
      */
     std::vector<std::thread> ts;
-    for (size_t i = 0; i < kKernelThreads; i++) {
+    for (size_t i = 0; i < kKernelThreads + 1; i++) {
         ts.push_back(std::thread([&] {
             Parcel local_reply;
             EXPECT_THAT(server->transact(BINDER_LIB_TEST_LOCK_UNLOCK, data, &local_reply),
@@ -1375,8 +1378,13 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
         }));
     }
 
-    data.writeInt32(500);
-    // Give a chance for all threads to be used
+    // make sure all of the above calls will be queued in parallel. Otherwise, most of
+    // the time, the below call will pre-empt them (presumably because we have the
+    // scheduler timeslice already + scheduler hint).
+    sleep(1);
+
+    data.writeInt32(1000);
+    // Give a chance for all threads to be used (kKernelThreads + 1 thread in use)
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_UNLOCK_AFTER_MS, data, &reply), NO_ERROR);
 
     for (auto &t : ts) {
@@ -1386,7 +1394,7 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_MAX_THREAD_COUNT, data, &reply),
                 StatusEq(NO_ERROR));
     replyi = reply.readInt32();
-    EXPECT_EQ(replyi, kKernelThreads + 1);
+    EXPECT_EQ(replyi, kKernelThreads + 2);
 }
 
 TEST_F(BinderLibTest, ThreadPoolStarted) {

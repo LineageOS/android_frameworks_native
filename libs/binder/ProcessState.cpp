@@ -192,6 +192,7 @@ void ProcessState::startThreadPool()
     AutoMutex _l(mLock);
     if (!mThreadPoolStarted) {
         if (mMaxThreads == 0) {
+            // see also getThreadPoolMaxTotalThreadCount
             ALOGW("Extra binder thread started, but 0 threads requested. Do not use "
                   "*startThreadPool when zero threads are requested.");
         }
@@ -407,6 +408,11 @@ void ProcessState::spawnPooledThread(bool isMain)
         mKernelStartedThreads++;
         pthread_mutex_unlock(&mThreadCountLock);
     }
+    // TODO: if startThreadPool is called on another thread after the process
+    // starts up, the kernel might think that it already requested those
+    // binder threads, and additional won't be started. This is likely to
+    // cause deadlocks, and it will also cause getThreadPoolMaxTotalThreadCount
+    // to return too high of a value.
 }
 
 status_t ProcessState::setThreadPoolMaxThreadCount(size_t maxThreads) {
@@ -426,12 +432,32 @@ size_t ProcessState::getThreadPoolMaxTotalThreadCount() const {
     pthread_mutex_lock(&mThreadCountLock);
     base::ScopeGuard detachGuard = [&]() { pthread_mutex_unlock(&mThreadCountLock); };
 
-    // may actually be one more than this, if join is called
     if (mThreadPoolStarted) {
-        return mCurrentThreads < mKernelStartedThreads
-                ? mMaxThreads
-                : mMaxThreads + mCurrentThreads - mKernelStartedThreads;
+        LOG_ALWAYS_FATAL_IF(mKernelStartedThreads > mMaxThreads + 1,
+                            "too many kernel-started threads: %zu > %zu + 1", mKernelStartedThreads,
+                            mMaxThreads);
+
+        // calling startThreadPool starts a thread
+        size_t threads = 1;
+
+        // the kernel is configured to start up to mMaxThreads more threads
+        threads += mMaxThreads;
+
+        // Users may call IPCThreadState::joinThreadPool directly. We don't
+        // currently have a way to count this directly (it could be added by
+        // adding a separate private joinKernelThread method in IPCThreadState).
+        // So, if we are in a race between the kernel thread variable being
+        // incremented in this file and mCurrentThreads being incremented
+        // in IPCThreadState, temporarily forget about the extra join threads.
+        // This is okay, because most callers of this method only care about
+        // having 0, 1, or more threads.
+        if (mCurrentThreads > mKernelStartedThreads) {
+            threads += mCurrentThreads - mKernelStartedThreads;
+        }
+
+        return threads;
     }
+
     // must not be initialized or maybe has poll thread setup, we
     // currently don't track this in libbinder
     LOG_ALWAYS_FATAL_IF(mKernelStartedThreads != 0,
