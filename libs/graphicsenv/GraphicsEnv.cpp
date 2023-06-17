@@ -142,8 +142,8 @@ bool GraphicsEnv::isDebuggable() {
     return appDebuggable || platformDebuggable;
 }
 
-void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,
-                                                 const std::string sphalLibraries) {
+void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string& path,
+                                                 const std::string& sphalLibraries) {
     if (!mDriverPath.empty() || !mSphalLibraries.empty()) {
         ALOGV("ignoring attempt to change driver path from '%s' to '%s' or change sphal libraries "
               "from '%s' to '%s'",
@@ -392,55 +392,24 @@ bool GraphicsEnv::setInjectLayersPrSetDumpable() {
     return true;
 }
 
-void* GraphicsEnv::loadLibrary(std::string name) {
-    const android_dlextinfo dlextinfo = {
-            .flags = ANDROID_DLEXT_USE_NAMESPACE,
-            .library_namespace = getAngleNamespace(),
-    };
-
-    std::string libName = std::string("lib") + name + "_angle.so";
-
-    void* so = android_dlopen_ext(libName.c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
-
-    if (so) {
-        ALOGD("dlopen_ext from APK (%s) success at %p", libName.c_str(), so);
-        return so;
-    } else {
-        ALOGE("dlopen_ext(\"%s\") failed: %s", libName.c_str(), dlerror());
-    }
-
-    return nullptr;
-}
-
-bool GraphicsEnv::shouldUseAngle(std::string appName) {
-    if (appName != mAngleAppName) {
-        // Make sure we are checking the app we were init'ed for
-        ALOGE("App name does not match: expected '%s', got '%s'", mAngleAppName.c_str(),
-              appName.c_str());
-        return false;
-    }
-
-    return shouldUseAngle();
-}
-
 bool GraphicsEnv::shouldUseAngle() {
     // Make sure we are init'ed
-    if (mAngleAppName.empty()) {
-        ALOGV("App name is empty. setAngleInfo() has not been called to enable ANGLE.");
+    if (mPackageName.empty()) {
+        ALOGV("Package name is empty. setAngleInfo() has not been called to enable ANGLE.");
         return false;
     }
 
-    return (mUseAngle == YES) ? true : false;
+    return (mShouldUseAngle == YES) ? true : false;
 }
 
-void GraphicsEnv::updateUseAngle() {
+void GraphicsEnv::updateShouldUseAngle() {
     const char* ANGLE_PREFER_ANGLE = "angle";
     const char* ANGLE_PREFER_NATIVE = "native";
 
-    mUseAngle = NO;
+    mShouldUseAngle = NO;
     if (mAngleDeveloperOptIn == ANGLE_PREFER_ANGLE) {
         ALOGV("User set \"Developer Options\" to force the use of ANGLE");
-        mUseAngle = YES;
+        mShouldUseAngle = YES;
     } else if (mAngleDeveloperOptIn == ANGLE_PREFER_NATIVE) {
         ALOGV("User set \"Developer Options\" to force the use of Native");
     } else {
@@ -448,13 +417,13 @@ void GraphicsEnv::updateUseAngle() {
     }
 }
 
-void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName,
-                               const std::string developerOptIn,
+void GraphicsEnv::setAngleInfo(const std::string& path, const std::string& packageName,
+                               const std::string& developerOptIn,
                                const std::vector<std::string> eglFeatures) {
-    if (mUseAngle != UNKNOWN) {
+    if (mShouldUseAngle != UNKNOWN) {
         // We've already figured out an answer for this app, so just return.
-        ALOGV("Already evaluated the rules file for '%s': use ANGLE = %s", appName.c_str(),
-              (mUseAngle == YES) ? "true" : "false");
+        ALOGV("Already evaluated the rules file for '%s': use ANGLE = %s", packageName.c_str(),
+              (mShouldUseAngle == YES) ? "true" : "false");
         return;
     }
 
@@ -462,16 +431,17 @@ void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName
 
     ALOGV("setting ANGLE path to '%s'", path.c_str());
     mAnglePath = path;
-    ALOGV("setting ANGLE app name to '%s'", appName.c_str());
-    mAngleAppName = appName;
+    ALOGV("setting app package name to '%s'", packageName.c_str());
+    mPackageName = packageName;
     ALOGV("setting ANGLE application opt-in to '%s'", developerOptIn.c_str());
     mAngleDeveloperOptIn = developerOptIn;
 
     // Update the current status of whether we should use ANGLE or not
-    updateUseAngle();
+    updateShouldUseAngle();
 }
 
-void GraphicsEnv::setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths) {
+void GraphicsEnv::setLayerPaths(NativeLoaderNamespace* appNamespace,
+                                const std::string& layerPaths) {
     if (mLayerPaths.empty()) {
         mLayerPaths = layerPaths;
         mAppNamespace = appNamespace;
@@ -485,8 +455,8 @@ NativeLoaderNamespace* GraphicsEnv::getAppNamespace() {
     return mAppNamespace;
 }
 
-std::string& GraphicsEnv::getAngleAppName() {
-    return mAngleAppName;
+std::string& GraphicsEnv::getPackageName() {
+    return mPackageName;
 }
 
 const std::vector<std::string>& GraphicsEnv::getAngleEglFeatures() {
@@ -505,11 +475,11 @@ const std::string& GraphicsEnv::getDebugLayersGLES() {
     return mDebugLayersGLES;
 }
 
-void GraphicsEnv::setDebugLayers(const std::string layers) {
+void GraphicsEnv::setDebugLayers(const std::string& layers) {
     mDebugLayers = layers;
 }
 
-void GraphicsEnv::setDebugLayersGLES(const std::string layers) {
+void GraphicsEnv::setDebugLayersGLES(const std::string& layers) {
     mDebugLayersGLES = layers;
 }
 
