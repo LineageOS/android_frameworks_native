@@ -2776,31 +2776,55 @@ void SurfaceFlinger::postComposition(scheduler::FrameTargeter& pacesetterFrameTa
         for (auto& [compositionDisplay, listener] : hdrInfoListeners) {
             HdrLayerInfoReporter::HdrLayerInfo info;
             int32_t maxArea = 0;
-            mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
-                const auto layerFe = layer->getCompositionEngineLayerFE();
-                const frontend::LayerSnapshot& snapshot = *layer->getLayerSnapshot();
-                if (snapshot.isVisible &&
-                    compositionDisplay->includesLayer(snapshot.outputFilter)) {
-                    if (isHdrLayer(snapshot)) {
-                        const auto* outputLayer =
-                            compositionDisplay->getOutputLayerForLayer(layerFe);
-                        if (outputLayer) {
-                            const float desiredHdrSdrRatio = snapshot.desiredHdrSdrRatio <= 1.f
-                                    ? std::numeric_limits<float>::infinity()
-                                    : snapshot.desiredHdrSdrRatio;
-                            info.mergeDesiredRatio(desiredHdrSdrRatio);
-                            info.numberOfHdrLayers++;
-                            const auto displayFrame = outputLayer->getState().displayFrame;
-                            const int32_t area = displayFrame.width() * displayFrame.height();
-                            if (area > maxArea) {
-                                maxArea = area;
-                                info.maxW = displayFrame.width();
-                                info.maxH = displayFrame.height();
+            auto updateInfoFn =
+                    [&](const std::shared_ptr<compositionengine::Display>& compositionDisplay,
+                        const frontend::LayerSnapshot& snapshot, const sp<LayerFE>& layerFe) {
+                        if (snapshot.isVisible &&
+                            compositionDisplay->includesLayer(snapshot.outputFilter)) {
+                            if (isHdrLayer(snapshot)) {
+                                const auto* outputLayer =
+                                        compositionDisplay->getOutputLayerForLayer(layerFe);
+                                if (outputLayer) {
+                                    const float desiredHdrSdrRatio =
+                                            snapshot.desiredHdrSdrRatio <= 1.f
+                                            ? std::numeric_limits<float>::infinity()
+                                            : snapshot.desiredHdrSdrRatio;
+                                    info.mergeDesiredRatio(desiredHdrSdrRatio);
+                                    info.numberOfHdrLayers++;
+                                    const auto displayFrame = outputLayer->getState().displayFrame;
+                                    const int32_t area =
+                                            displayFrame.width() * displayFrame.height();
+                                    if (area > maxArea) {
+                                        maxArea = area;
+                                        info.maxW = displayFrame.width();
+                                        info.maxH = displayFrame.height();
+                                    }
+                                }
                             }
                         }
-                    }
-                }
-            });
+                    };
+
+            if (mConfig->layerLifecycleManagerEnabled) {
+                mLayerSnapshotBuilder.forEachVisibleSnapshot(
+                        [&, compositionDisplay = compositionDisplay](
+                                std::unique_ptr<frontend::LayerSnapshot>& snapshot) {
+                            auto it = mLegacyLayers.find(snapshot->sequence);
+                            LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(),
+                                                "Couldnt find layer object for %s",
+                                                snapshot->getDebugString().c_str());
+                            auto& legacyLayer = it->second;
+                            sp<LayerFE> layerFe =
+                                    legacyLayer->getCompositionEngineLayerFE(snapshot->path);
+
+                            updateInfoFn(compositionDisplay, *snapshot, layerFe);
+                        });
+            } else {
+                mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
+                    const auto layerFe = layer->getCompositionEngineLayerFE();
+                    const frontend::LayerSnapshot& snapshot = *layer->getLayerSnapshot();
+                    updateInfoFn(compositionDisplay, snapshot, layerFe);
+                });
+            }
             listener->dispatchHdrLayerInfo(info);
         }
     }
