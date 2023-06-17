@@ -30,23 +30,7 @@
 
 namespace android {
 
-class StreamSplitterTest : public ::testing::Test {
-
-protected:
-    StreamSplitterTest() {
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("Begin test: %s.%s", testInfo->test_case_name(),
-                testInfo->name());
-    }
-
-    ~StreamSplitterTest() {
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("End test:   %s.%s", testInfo->test_case_name(),
-                testInfo->name());
-    }
-};
+class StreamSplitterTest : public ::testing::Test {};
 
 struct FakeListener : public BnConsumerListener {
     virtual void onFrameAvailable(const BufferItem& /* item */) {}

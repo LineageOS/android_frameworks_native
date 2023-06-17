@@ -17,6 +17,7 @@
 #define LOG_TAG "IGraphicBufferProducer_test"
 //#define LOG_NDEBUG 0
 
+#include "Constants.h"
 #include "MockConsumer.h"
 
 #include <gtest/gtest.h>
@@ -40,7 +41,6 @@
 #define TEST_API NATIVE_WINDOW_API_CPU
 #define TEST_API_OTHER NATIVE_WINDOW_API_EGL // valid API that's not TEST_API
 #define TEST_CONTROLLED_BY_APP false
-#define TEST_PRODUCER_USAGE_BITS (0)
 
 namespace android {
 
@@ -82,11 +82,6 @@ protected:
     IGraphicBufferProducerTest() {}
 
     virtual void SetUp() {
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("Begin test: %s.%s", testInfo->test_case_name(),
-                testInfo->name());
-
         mMC = new MockConsumer;
 
         switch (GetParam()) {
@@ -109,13 +104,6 @@ protected:
 
         // Must connect consumer before producer connects will succeed.
         ASSERT_OK(mConsumer->consumerConnect(mMC, /*controlledByApp*/ false));
-    }
-
-    virtual void TearDown() {
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("End test:   %s.%s", testInfo->test_case_name(),
-                testInfo->name());
     }
 
     status_t TryConnectProducer() {
