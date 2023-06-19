@@ -271,7 +271,7 @@ void TouchInputMapper::dump(std::string& dump) {
                          toString(mFusedStylusPointerId).c_str());
     dump += StringPrintf(INDENT4 "External Stylus Data Timeout: %" PRId64 "\n",
                          mExternalStylusFusionTimeout);
-    dump += StringPrintf(INDENT4 " External Stylus Buttons Applied: 0x%08x",
+    dump += StringPrintf(INDENT4 "External Stylus Buttons Applied: 0x%08x\n",
                          mExternalStylusButtonsApplied);
     dump += INDENT3 "External Stylus State:\n";
     dumpStylusState(dump, mExternalStylusState);
