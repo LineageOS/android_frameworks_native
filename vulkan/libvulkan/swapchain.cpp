@@ -1112,12 +1112,17 @@ VkResult GetPhysicalDeviceSurfaceFormats2KHR(
                             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2;
                         imageFormatInfo.format =
                             pSurfaceFormats[i].surfaceFormat.format;
+                        imageFormatInfo.type = VK_IMAGE_TYPE_2D;
+                        imageFormatInfo.usage =
+                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
                         imageFormatInfo.pNext = nullptr;
 
                         VkImageCompressionControlEXT compressionControl = {};
                         compressionControl.sType =
                             VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT;
                         compressionControl.pNext = imageFormatInfo.pNext;
+                        compressionControl.flags =
+                            VK_IMAGE_COMPRESSION_FIXED_RATE_DEFAULT_EXT;
 
                         imageFormatInfo.pNext = &compressionControl;
 
