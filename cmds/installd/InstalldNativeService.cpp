@@ -3574,22 +3574,22 @@ binder::Status InstalldNativeService::tryMountDataMirror(
     std::lock_guard<std::recursive_mutex> lock(mMountsLock);
 
     std::string mirrorVolCePath(StringPrintf("%s/%s", kDataMirrorCePath, uuid_));
-    if (fs_prepare_dir(mirrorVolCePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
+    if (fs_prepare_dir(mirrorVolCePath.c_str(), 0511, AID_SYSTEM, AID_SYSTEM) != 0) {
         return error("Failed to create CE data mirror");
     }
 
     std::string mirrorVolDePath(StringPrintf("%s/%s", kDataMirrorDePath, uuid_));
-    if (fs_prepare_dir(mirrorVolDePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
+    if (fs_prepare_dir(mirrorVolDePath.c_str(), 0511, AID_SYSTEM, AID_SYSTEM) != 0) {
         return error("Failed to create DE data mirror");
     }
 
     std::string mirrorVolMiscCePath(StringPrintf("%s/%s", kMiscMirrorCePath, uuid_));
-    if (fs_prepare_dir(mirrorVolMiscCePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
+    if (fs_prepare_dir(mirrorVolMiscCePath.c_str(), 0511, AID_SYSTEM, AID_SYSTEM) != 0) {
         return error("Failed to create CE misc mirror");
     }
 
     std::string mirrorVolMiscDePath(StringPrintf("%s/%s", kMiscMirrorDePath, uuid_));
-    if (fs_prepare_dir(mirrorVolMiscDePath.c_str(), 0711, AID_SYSTEM, AID_SYSTEM) != 0) {
+    if (fs_prepare_dir(mirrorVolMiscDePath.c_str(), 0511, AID_SYSTEM, AID_SYSTEM) != 0) {
         return error("Failed to create DE misc mirror");
     }
 
