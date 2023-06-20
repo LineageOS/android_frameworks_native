@@ -17,7 +17,6 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <ftl/fake_guard.h>
-#include <gui/TraceUtils.h>
 #include <scheduler/Fps.h>
 #include <scheduler/Timer.h>
 
@@ -145,14 +144,6 @@ void VsyncSchedule::startPeriodTransition(Period period, bool force) {
 }
 
 bool VsyncSchedule::addResyncSample(TimePoint timestamp, ftl::Optional<Period> hwcVsyncPeriod) {
-    ATRACE_CALL();
-
-    if (mClearTimestampsOnNextSample) {
-        ATRACE_FORMAT("clearing sample after HW vsync enabled", __func__);
-        getTracker().resetModel();
-        mClearTimestampsOnNextSample = false;
-    }
-
     bool needsHwVsync = false;
     bool periodFlushed = false;
     {
@@ -179,7 +170,7 @@ void VsyncSchedule::enableHardwareVsync() {
 
 void VsyncSchedule::enableHardwareVsyncLocked() {
     if (mHwVsyncState == HwVsyncState::Disabled) {
-        mClearTimestampsOnNextSample = true;
+        getTracker().resetModel();
         mRequestHardwareVsync(mId, true);
         mHwVsyncState = HwVsyncState::Enabled;
     }

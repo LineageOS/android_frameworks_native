@@ -150,11 +150,6 @@ private:
     // device is off.
     HwVsyncState mPendingHwVsyncState GUARDED_BY(kMainThreadContext) = HwVsyncState::Disabled;
 
-    // Whether to reset the timestamps stored in the vsync model on the next hw vsync sample. This
-    // is to avoid clearing the model when hw vsync is enabled, in order to be consistent with the
-    // stale timestamps. Instead, clear the model on the first hw vsync callback.
-    bool mClearTimestampsOnNextSample = false;
-
     class PredictedVsyncTracer;
     using TracerPtr = std::unique_ptr<PredictedVsyncTracer>;
 
