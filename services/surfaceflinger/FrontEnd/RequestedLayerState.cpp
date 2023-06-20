@@ -131,6 +131,7 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     const uint32_t oldFlags = flags;
     const half oldAlpha = color.a;
     const bool hadBuffer = externalTexture != nullptr;
+    uint64_t oldFramenumber = hadBuffer ? bufferData->frameNumber : 0;
     const bool hadSideStream = sidebandStream != nullptr;
     const layer_state_t& clientState = resolvedComposerState.state;
     const bool hadBlur = hasBlur();
@@ -147,12 +148,9 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
             changes |= RequestedLayerState::Changes::Geometry;
         }
     }
+
     if (clientState.what & layer_state_t::eBufferChanged) {
         externalTexture = resolvedComposerState.externalTexture;
-        barrierProducerId = std::max(bufferData->producerId, barrierProducerId);
-        barrierFrameNumber = std::max(bufferData->frameNumber, barrierFrameNumber);
-        // TODO(b/277265947) log and flush transaction trace when we detect out of order updates
-
         const bool hasBuffer = externalTexture != nullptr;
         if (hasBuffer || hasBuffer != hadBuffer) {
             changes |= RequestedLayerState::Changes::Buffer;
@@ -162,6 +160,28 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
             changes |= RequestedLayerState::Changes::Geometry |
                     RequestedLayerState::Changes::VisibleRegion |
                     RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Input;
+        }
+
+        if (hasBuffer) {
+            const bool frameNumberChanged =
+                    bufferData->flags.test(BufferData::BufferDataChange::frameNumberChanged);
+            const uint64_t frameNumber =
+                    frameNumberChanged ? bufferData->frameNumber : oldFramenumber + 1;
+            bufferData->frameNumber = frameNumber;
+
+            if ((barrierProducerId > bufferData->producerId) ||
+                ((barrierProducerId == bufferData->producerId) &&
+                 (barrierFrameNumber > bufferData->frameNumber))) {
+                ALOGE("Out of order buffers detected for %s producedId=%d frameNumber=%" PRIu64
+                      " -> producedId=%d frameNumber=%" PRIu64,
+                      getDebugString().c_str(), bufferData->producerId, bufferData->frameNumber,
+                      bufferData->producerId, frameNumber);
+                TransactionTraceWriter::getInstance().invoke("out_of_order_buffers_",
+                                                             /*overwrite=*/false);
+            }
+
+            barrierProducerId = std::max(bufferData->producerId, barrierProducerId);
+            barrierFrameNumber = std::max(bufferData->frameNumber, barrierFrameNumber);
         }
     }
 
