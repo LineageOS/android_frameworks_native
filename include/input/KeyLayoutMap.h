@@ -17,12 +17,12 @@
 #pragma once
 
 #include <android-base/result.h>
+#include <input/InputDevice.h>
+
 #include <stdint.h>
 #include <utils/Errors.h>
 #include <utils/Tokenizer.h>
 #include <set>
-
-#include <input/InputDevice.h>
 
 namespace android {
 
