@@ -26,11 +26,10 @@
 
 namespace android {
 
-
 /*
  * Input dispatcher policy interface.
  *
- * The input reader policy is used by the input reader to interact with the Window Manager
+ * The input dispatcher policy is used by the input dispatcher to interact with the Window Manager
  * and other system components.
  *
  * The actual implementation is partially supported by callbacks into the DVM
