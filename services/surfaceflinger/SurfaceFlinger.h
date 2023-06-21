@@ -1454,6 +1454,11 @@ private:
     nsecs_t mAnimationTransactionTimeout = s2ns(5);
 
     friend class SurfaceComposerAIDL;
+
+    // Layers visible during the last commit. This set should only be used for testing set equality
+    // and membership. The pointers should not be dereferenced as it's possible the set contains
+    // pointers to freed layers.
+    std::unordered_set<Layer*> mVisibleLayers;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

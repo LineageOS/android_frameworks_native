@@ -34,15 +34,15 @@ public:
     void addWindowInfosListener(sp<gui::IWindowInfosListener>);
     void removeWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
 
-    void windowInfosChanged(const std::vector<gui::WindowInfo>&,
-                            const std::vector<gui::DisplayInfo>&, bool shouldSync);
+    void windowInfosChanged(std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>,
+                            bool shouldSync, bool forceImmediateCall);
 
 protected:
     void binderDied(const wp<IBinder>& who) override;
 
 private:
     struct WindowInfosReportedListener;
-    void windowInfosReported();
+    void windowInfosReported(bool shouldSync);
 
     SurfaceFlinger& mFlinger;
     std::mutex mListenersMutex;
@@ -51,8 +51,10 @@ private:
     ftl::SmallMap<wp<IBinder>, const sp<gui::IWindowInfosListener>, kStaticCapacity>
             mWindowInfosListeners GUARDED_BY(mListenersMutex);
 
-    sp<gui::IWindowInfosReportedListener> mWindowInfosReportedListener;
-    std::atomic<size_t> mCallbacksPending{0};
+    std::mutex mMessagesMutex;
+    uint32_t mActiveMessageCount GUARDED_BY(mMessagesMutex) = 0;
+    std::function<void(bool)> mWindowInfosChangedDelayed GUARDED_BY(mMessagesMutex);
+    bool mShouldSyncDelayed;
 };
 
 } // namespace android

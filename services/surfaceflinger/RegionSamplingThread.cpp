@@ -203,25 +203,14 @@ float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t st
         return 0.0f;
     }
 
-    // (b/133849373) ROT_90 screencap images produced upside down
-    auto area = sample_area;
-    if (orientation & ui::Transform::ROT_90) {
-        area.top = height - area.top;
-        area.bottom = height - area.bottom;
-        std::swap(area.top, area.bottom);
-
-        area.left = width - area.left;
-        area.right = width - area.right;
-        std::swap(area.left, area.right);
-    }
-
-    const uint32_t pixelCount = (area.bottom - area.top) * (area.right - area.left);
+    const uint32_t pixelCount =
+            (sample_area.bottom - sample_area.top) * (sample_area.right - sample_area.left);
     uint32_t accumulatedLuma = 0;
 
     // Calculates luma with approximation of Rec. 709 primaries
-    for (int32_t row = area.top; row < area.bottom; ++row) {
+    for (int32_t row = sample_area.top; row < sample_area.bottom; ++row) {
         const uint32_t* rowBase = data + row * stride;
-        for (int32_t column = area.left; column < area.right; ++column) {
+        for (int32_t column = sample_area.left; column < sample_area.right; ++column) {
             uint32_t pixel = rowBase[column];
             const uint32_t r = pixel & 0xFF;
             const uint32_t g = (pixel >> 8) & 0xFF;
