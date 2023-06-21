@@ -18,8 +18,15 @@
 
 #include <scheduler/Time.h>
 #include <scheduler/VsyncId.h>
+#include <scheduler/interface/CompositeResult.h>
 
 namespace android {
+namespace scheduler {
+
+class FrameTarget;
+class FrameTargeter;
+
+} // namespace scheduler
 
 struct ICompositor {
     // Configures physical displays, processing hotplug and/or mode setting via the Composer HAL.
@@ -27,11 +34,11 @@ struct ICompositor {
 
     // Commits transactions for layers and displays. Returns whether any state has been invalidated,
     // i.e. whether a frame should be composited for each display.
-    virtual bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) = 0;
+    virtual bool commit(const scheduler::FrameTarget&) = 0;
 
     // Composites a frame for each display. CompositionEngine performs GPU and/or HAL composition
     // via RenderEngine and the Composer HAL, respectively.
-    virtual void composite(TimePoint frameTime, VsyncId) = 0;
+    virtual CompositeResult composite(scheduler::FrameTargeter&) = 0;
 
     // Samples the composited frame via RegionSamplingThread.
     virtual void sample() = 0;

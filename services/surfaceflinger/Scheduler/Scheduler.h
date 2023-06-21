@@ -35,6 +35,7 @@
 #include <ftl/fake_guard.h>
 #include <ftl/optional.h>
 #include <scheduler/Features.h>
+#include <scheduler/FrameTargeter.h>
 #include <scheduler/Time.h>
 #include <scheduler/VsyncConfig.h>
 #include <ui/DisplayId.h>
@@ -249,9 +250,11 @@ public:
         return std::const_pointer_cast<VsyncSchedule>(std::as_const(*this).getVsyncSchedule(idOpt));
     }
 
+    const FrameTarget& pacesetterFrameTarget() { return mPacesetterFrameTargeter.target(); }
+
     // Returns true if a given vsync timestamp is considered valid vsync
     // for a given uid
-    bool isVsyncValid(TimePoint expectedVsyncTimestamp, uid_t uid) const;
+    bool isVsyncValid(TimePoint expectedVsyncTime, uid_t uid) const;
 
     bool isVsyncInPhase(TimePoint expectedVsyncTime, Fps frameRate) const;
 
@@ -445,6 +448,8 @@ private:
 
     ftl::Optional<PhysicalDisplayId> mPacesetterDisplayId GUARDED_BY(mDisplayLock)
             GUARDED_BY(kMainThreadContext);
+
+    FrameTargeter mPacesetterFrameTargeter{mFeatures.test(Feature::kBackpressureGpuComposition)};
 
     ftl::Optional<DisplayRef> pacesetterDisplayLocked() REQUIRES(mDisplayLock) {
         return static_cast<const Scheduler*>(this)->pacesetterDisplayLocked().transform(
