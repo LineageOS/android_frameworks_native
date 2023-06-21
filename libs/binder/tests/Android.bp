@@ -804,5 +804,12 @@ cc_defaults {
 
 cc_defaults {
     name: "fuzzer_disable_leaks",
-    //TODO(b/286112918) : Readd leak detection options
+    fuzz_config: {
+        asan_options: [
+            "detect_leaks=0",
+        ],
+        hwasan_options: [
+            "detect_leaks=0",
+        ],
+    },
 }
