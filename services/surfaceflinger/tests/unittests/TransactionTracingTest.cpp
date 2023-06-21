@@ -37,7 +37,7 @@ protected:
     static constexpr size_t SMALL_BUFFER_SIZE = 1024;
     TransactionTracing mTracing;
 
-    void flush(int64_t vsyncId) { mTracing.flush(vsyncId); }
+    void flush() { mTracing.flush(); }
     proto::TransactionTraceFile writeToProto() { return mTracing.writeToProto(); }
 
     proto::TransactionTraceEntry bufferFront() {
@@ -57,7 +57,7 @@ protected:
         std::vector<TransactionState> transactions;
         update.transactions.emplace_back(transaction);
         mTracing.addCommittedTransactions(vsyncId, 0, update, {}, false);
-        flush(vsyncId);
+        flush();
     }
 
     void verifyEntry(const proto::TransactionTraceEntry& actualProto,
@@ -116,7 +116,7 @@ TEST_F(TransactionTracingTest, addTransactions) {
     secondUpdate.transactions =
             std::vector<TransactionState>(transactions.begin(), transactions.begin() + 50);
     mTracing.addCommittedTransactions(secondTransactionSetVsyncId, 0, secondUpdate, {}, false);
-    flush(secondTransactionSetVsyncId);
+    flush();
 
     proto::TransactionTraceFile proto = writeToProto();
     ASSERT_EQ(proto.entry().size(), 2);
@@ -158,7 +158,7 @@ protected:
             VSYNC_ID_FIRST_LAYER_CHANGE = ++mVsyncId;
             mTracing.addCommittedTransactions(VSYNC_ID_FIRST_LAYER_CHANGE, 0, update, {}, false);
 
-            flush(VSYNC_ID_FIRST_LAYER_CHANGE);
+            flush();
         }
 
         // add transactions that modify the layer state further so we can test that layer state
@@ -178,7 +178,7 @@ protected:
             update.transactions.emplace_back(transaction);
             VSYNC_ID_SECOND_LAYER_CHANGE = ++mVsyncId;
             mTracing.addCommittedTransactions(VSYNC_ID_SECOND_LAYER_CHANGE, 0, update, {}, false);
-            flush(VSYNC_ID_SECOND_LAYER_CHANGE);
+            flush();
         }
 
         // remove child layer
@@ -290,7 +290,7 @@ protected:
 
             update.transactions.emplace_back(transaction);
             mTracing.addCommittedTransactions(mVsyncId, 0, update, {}, false);
-            flush(mVsyncId);
+            flush();
         }
     }
 
