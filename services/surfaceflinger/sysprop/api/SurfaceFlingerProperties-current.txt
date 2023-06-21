@@ -1,6 +1,10 @@
 props {
   module: "android.sysprop.SurfaceFlingerProperties"
   prop {
+    api_name: "clear_slots_with_set_layer_buffer"
+    prop_name: "ro.surface_flinger.clear_slots_with_set_layer_buffer"
+  }
+  prop {
     api_name: "color_space_agnostic_dataspace"
     type: Long
     prop_name: "ro.surface_flinger.color_space_agnostic_dataspace"
