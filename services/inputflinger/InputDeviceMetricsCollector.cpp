@@ -81,10 +81,11 @@ class : public InputDeviceMetricsLogger {
         std::vector<int32_t> uids;
         std::vector<int32_t> durationsPerUid;
         for (auto& [uid, dur] : report.uidBreakdown) {
-            uids.push_back(uid);
+            uids.push_back(uid.val());
             int32_t durMillis = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
             durationsPerUid.push_back(durMillis);
-            ALOGD_IF(DEBUG, "        - uid: %d\t duration: %dms", uid, durMillis);
+            ALOGD_IF(DEBUG, "        - uid: %s\t duration: %dms", uid.toString().c_str(),
+                     durMillis);
         }
         util::stats_write(util::INPUTDEVICE_USAGE_REPORTED, identifier.vendor, identifier.product,
                           identifier.version, linuxBusToInputDeviceBusEnum(identifier.bus),
@@ -260,12 +261,8 @@ void InputDeviceMetricsCollector::notifyPointerCaptureChanged(
 }
 
 void InputDeviceMetricsCollector::notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
-                                                          const std::set<int32_t>& uids) {
-    std::set<Uid> typeSafeUids;
-    for (auto uid : uids) {
-        typeSafeUids.emplace(uid);
-    }
-    mInteractionsQueue.push(DeviceId{deviceId}, timestamp, typeSafeUids);
+                                                          const std::set<Uid>& uids) {
+    mInteractionsQueue.push(DeviceId{deviceId}, timestamp, uids);
 }
 
 void InputDeviceMetricsCollector::dump(std::string& dump) {

@@ -126,6 +126,10 @@ inline const std::string binderToString(const sp<IBinder>& binder) {
     return StringPrintf("%p", binder.get());
 }
 
+static std::string uidString(const gui::Uid& uid) {
+    return uid.toString();
+}
+
 inline int32_t getMotionEventActionPointerIndex(int32_t action) {
     return (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >>
             AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
@@ -557,7 +561,7 @@ bool canReceiveForegroundTouches(const WindowInfo& info) {
     return !info.inputConfig.test(gui::WindowInfo::InputConfig::NOT_TOUCHABLE) && !info.isSpy();
 }
 
-bool isWindowOwnedBy(const sp<WindowInfoHandle>& windowHandle, int32_t pid, int32_t uid) {
+bool isWindowOwnedBy(const sp<WindowInfoHandle>& windowHandle, int32_t pid, gui::Uid uid) {
     if (windowHandle == nullptr) {
         return false;
     }
@@ -577,14 +581,16 @@ std::optional<std::string> verifyTargetedInjection(const sp<WindowInfoHandle>& w
         // The event was not injected, or the injected event does not target a window.
         return {};
     }
-    const int32_t uid = *entry.injectionState->targetUid;
+    const auto uid = *entry.injectionState->targetUid;
     if (window == nullptr) {
-        return StringPrintf("No valid window target for injection into uid %d.", uid);
+        return StringPrintf("No valid window target for injection into uid %s.",
+                            uid.toString().c_str());
     }
     if (entry.injectionState->targetUid != window->getInfo()->ownerUid) {
-        return StringPrintf("Injected event targeted at uid %d would be dispatched to window '%s' "
-                            "owned by uid %d.",
-                            uid, window->getName().c_str(), window->getInfo()->ownerUid);
+        return StringPrintf("Injected event targeted at uid %s would be dispatched to window '%s' "
+                            "owned by uid %s.",
+                            uid.toString().c_str(), window->getName().c_str(),
+                            window->getInfo()->ownerUid.toString().c_str());
     }
     return {};
 }
@@ -2585,8 +2591,8 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         }
         if (!errs.empty()) {
             ALOGW("Dropping targeted injection: At least one touched window is not owned by uid "
-                  "%d:%s",
-                  *entry.injectionState->targetUid, errs.c_str());
+                  "%s:%s",
+                  entry.injectionState->targetUid->toString().c_str(), errs.c_str());
             outInjectionResult = InputEventInjectionResult::TARGET_MISMATCH;
             return {};
         }
@@ -2598,7 +2604,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         sp<WindowInfoHandle> foregroundWindowHandle =
                 tempTouchState.getFirstForegroundWindowHandle();
         if (foregroundWindowHandle) {
-            const int32_t foregroundWindowUid = foregroundWindowHandle->getInfo()->ownerUid;
+            const auto foregroundWindowUid = foregroundWindowHandle->getInfo()->ownerUid;
             for (InputTarget& target : targets) {
                 if (target.flags.test(InputTarget::Flags::DISPATCH_AS_OUTSIDE)) {
                     sp<WindowInfoHandle> targetWindow =
@@ -2962,8 +2968,8 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
     TouchOcclusionInfo info;
     info.hasBlockingOcclusion = false;
     info.obscuringOpacity = 0;
-    info.obscuringUid = -1;
-    std::map<int32_t, float> opacityByUid;
+    info.obscuringUid = gui::Uid::INVALID;
+    std::map<gui::Uid, float> opacityByUid;
     for (const sp<WindowInfoHandle>& otherHandle : windowHandles) {
         if (windowHandle == otherHandle) {
             break; // All future windows are below us. Exit early.
@@ -2985,7 +2991,7 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
                 break;
             }
             if (otherInfo->touchOcclusionMode == TouchOcclusionMode::USE_OPACITY) {
-                uint32_t uid = otherInfo->ownerUid;
+                const auto uid = otherInfo->ownerUid;
                 float opacity =
                         (opacityByUid.find(uid) == opacityByUid.end()) ? 0 : opacityByUid[uid];
                 // Given windows A and B:
@@ -3009,29 +3015,30 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
 
 std::string InputDispatcher::dumpWindowForTouchOcclusion(const WindowInfo* info,
                                                          bool isTouchedWindow) const {
-    return StringPrintf(INDENT2 "* %spackage=%s/%" PRId32 ", id=%" PRId32 ", mode=%s, alpha=%.2f, "
+    return StringPrintf(INDENT2 "* %spackage=%s/%s, id=%" PRId32 ", mode=%s, alpha=%.2f, "
                                 "frame=[%" PRId32 ",%" PRId32 "][%" PRId32 ",%" PRId32
                                 "], touchableRegion=%s, window={%s}, inputConfig={%s}, "
                                 "hasToken=%s, applicationInfo.name=%s, applicationInfo.token=%s\n",
                         isTouchedWindow ? "[TOUCHED] " : "", info->packageName.c_str(),
-                        info->ownerUid, info->id, toString(info->touchOcclusionMode).c_str(),
-                        info->alpha, info->frameLeft, info->frameTop, info->frameRight,
-                        info->frameBottom, dumpRegion(info->touchableRegion).c_str(),
-                        info->name.c_str(), info->inputConfig.string().c_str(),
-                        toString(info->token != nullptr), info->applicationInfo.name.c_str(),
+                        info->ownerUid.toString().c_str(), info->id,
+                        toString(info->touchOcclusionMode).c_str(), info->alpha, info->frameLeft,
+                        info->frameTop, info->frameRight, info->frameBottom,
+                        dumpRegion(info->touchableRegion).c_str(), info->name.c_str(),
+                        info->inputConfig.string().c_str(), toString(info->token != nullptr),
+                        info->applicationInfo.name.c_str(),
                         binderToString(info->applicationInfo.token).c_str());
 }
 
 bool InputDispatcher::isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const {
     if (occlusionInfo.hasBlockingOcclusion) {
-        ALOGW("Untrusted touch due to occlusion by %s/%d", occlusionInfo.obscuringPackage.c_str(),
-              occlusionInfo.obscuringUid);
+        ALOGW("Untrusted touch due to occlusion by %s/%s", occlusionInfo.obscuringPackage.c_str(),
+              occlusionInfo.obscuringUid.toString().c_str());
         return false;
     }
     if (occlusionInfo.obscuringOpacity > mMaximumObscuringOpacityForTouch) {
-        ALOGW("Untrusted touch due to occlusion by %s/%d (obscuring opacity = "
+        ALOGW("Untrusted touch due to occlusion by %s/%s (obscuring opacity = "
               "%.2f, maximum allowed = %.2f)",
-              occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid,
+              occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid.toString().c_str(),
               occlusionInfo.obscuringOpacity, mMaximumObscuringOpacityForTouch);
         return false;
     }
@@ -3453,7 +3460,7 @@ void InputDispatcher::processInteractionsLocked(const EventEntry& entry,
         return; // Not a key or a motion
     }
 
-    std::set<int32_t> interactionUids;
+    std::set<gui::Uid> interactionUids;
     std::unordered_set<sp<IBinder>, StrongPointerHash<IBinder>> newConnectionTokens;
     std::vector<std::shared_ptr<Connection>> newConnections;
     for (const InputTarget& target : targets) {
@@ -4529,7 +4536,7 @@ void InputDispatcher::notifyPointerCaptureChanged(const NotifyPointerCaptureChan
 }
 
 InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* event,
-                                                            std::optional<int32_t> targetUid,
+                                                            std::optional<gui::Uid> targetUid,
                                                             InputEventInjectionSync syncMode,
                                                             std::chrono::milliseconds timeout,
                                                             uint32_t policyFlags) {
@@ -4540,7 +4547,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
     }
 
     if (debugInboundEventDetails()) {
-        LOG(DEBUG) << __func__ << ": targetUid=" << toString(targetUid)
+        LOG(DEBUG) << __func__ << ": targetUid=" << toString(targetUid, &uidString)
                    << ", syncMode=" << ftl::enum_string(syncMode) << ", timeout=" << timeout.count()
                    << "ms, policyFlags=0x" << std::hex << policyFlags << std::dec
                    << ", event=" << *event;
@@ -4985,8 +4992,8 @@ bool InputDispatcher::canWindowReceiveMotionLocked(const sp<WindowInfoHandle>& w
                 ALOGD("%s", log.c_str());
             }
         }
-        ALOGW("Dropping untrusted touch event due to %s/%d", occlusionInfo.obscuringPackage.c_str(),
-              occlusionInfo.obscuringUid);
+        ALOGW("Dropping untrusted touch event due to %s/%s", occlusionInfo.obscuringPackage.c_str(),
+              occlusionInfo.obscuringUid.toString().c_str());
         return false;
     }
 
@@ -5348,15 +5355,16 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
     mLooper->wake();
 }
 
-bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission,
-                                     int32_t displayId) {
+bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, gui::Uid uid,
+                                     bool hasPermission, int32_t displayId) {
     bool needWake = false;
     {
         std::scoped_lock lock(mLock);
         ALOGD_IF(DEBUG_TOUCH_MODE,
-                 "Request to change touch mode to %s (calling pid=%d, uid=%d, "
+                 "Request to change touch mode to %s (calling pid=%d, uid=%s, "
                  "hasPermission=%s, target displayId=%d, mTouchModePerDisplay[displayId]=%s)",
-                 toString(inTouchMode), pid, uid, toString(hasPermission), displayId,
+                 toString(inTouchMode), pid, uid.toString().c_str(), toString(hasPermission),
+                 displayId,
                  mTouchModePerDisplay.count(displayId) == 0
                          ? "not set"
                          : std::to_string(mTouchModePerDisplay[displayId]).c_str());
@@ -5368,9 +5376,9 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
         if (!hasPermission) {
             if (!focusedWindowIsOwnedByLocked(pid, uid) &&
                 !recentWindowsAreOwnedByLocked(pid, uid)) {
-                ALOGD("Touch mode switch rejected, caller (pid=%d, uid=%d) doesn't own the focused "
+                ALOGD("Touch mode switch rejected, caller (pid=%d, uid=%s) doesn't own the focused "
                       "window nor none of the previously interacted window",
-                      pid, uid);
+                      pid, uid.toString().c_str());
                 return false;
             }
         }
@@ -5386,7 +5394,7 @@ bool InputDispatcher::setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid,
     return true;
 }
 
-bool InputDispatcher::focusedWindowIsOwnedByLocked(int32_t pid, int32_t uid) {
+bool InputDispatcher::focusedWindowIsOwnedByLocked(int32_t pid, gui::Uid uid) {
     const sp<IBinder> focusedToken = mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
     if (focusedToken == nullptr) {
         return false;
@@ -5395,7 +5403,7 @@ bool InputDispatcher::focusedWindowIsOwnedByLocked(int32_t pid, int32_t uid) {
     return isWindowOwnedBy(windowHandle, pid, uid);
 }
 
-bool InputDispatcher::recentWindowsAreOwnedByLocked(int32_t pid, int32_t uid) {
+bool InputDispatcher::recentWindowsAreOwnedByLocked(int32_t pid, gui::Uid uid) {
     return std::find_if(mInteractionConnectionTokens.begin(), mInteractionConnectionTokens.end(),
                         [&](const sp<IBinder>& connectionToken) REQUIRES(mLock) {
                             const sp<WindowInfoHandle> windowHandle =
@@ -5680,10 +5688,11 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
                                          windowInfo->applicationInfo.name.c_str(),
                                          binderToString(windowInfo->applicationInfo.token).c_str());
                     dump += dumpRegion(windowInfo->touchableRegion);
-                    dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
+                    dump += StringPrintf(", ownerPid=%d, ownerUid=%s, dispatchingTimeout=%" PRId64
                                          "ms, hasToken=%s, "
                                          "touchOcclusionMode=%s\n",
-                                         windowInfo->ownerPid, windowInfo->ownerUid,
+                                         windowInfo->ownerPid,
+                                         windowInfo->ownerUid.toString().c_str(),
                                          millis(windowInfo->dispatchingTimeout),
                                          binderToString(windowInfo->token).c_str(),
                                          toString(windowInfo->touchOcclusionMode).c_str());

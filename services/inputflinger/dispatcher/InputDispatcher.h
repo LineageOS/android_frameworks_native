@@ -104,7 +104,7 @@ public:
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
     android::os::InputEventInjectionResult injectInputEvent(
-            const InputEvent* event, std::optional<int32_t> targetUid,
+            const InputEvent* event, std::optional<gui::Uid> targetUid,
             android::os::InputEventInjectionSync syncMode, std::chrono::milliseconds timeout,
             uint32_t policyFlags) override;
 
@@ -119,7 +119,7 @@ public:
     void setFocusedDisplay(int32_t displayId) override;
     void setInputDispatchMode(bool enabled, bool frozen) override;
     void setInputFilterEnabled(bool enabled) override;
-    bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission,
+    bool setInTouchMode(bool inTouchMode, int32_t pid, gui::Uid uid, bool hasPermission,
                         int32_t displayId) override;
     void setMaximumObscuringOpacityForTouch(float opacity) override;
 
@@ -574,7 +574,7 @@ private:
         bool hasBlockingOcclusion;
         float obscuringOpacity;
         std::string obscuringPackage;
-        int32_t obscuringUid;
+        gui::Uid obscuringUid = gui::Uid::INVALID;
         std::vector<std::string> debugInfo;
     };
 
@@ -703,8 +703,8 @@ private:
     void traceWaitQueueLength(const Connection& connection);
 
     // Check window ownership
-    bool focusedWindowIsOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
-    bool recentWindowsAreOwnedByLocked(int32_t pid, int32_t uid) REQUIRES(mLock);
+    bool focusedWindowIsOwnedByLocked(int32_t pid, gui::Uid uid) REQUIRES(mLock);
+    bool recentWindowsAreOwnedByLocked(int32_t pid, gui::Uid uid) REQUIRES(mLock);
 
     sp<InputReporterInterface> mReporter;
 
