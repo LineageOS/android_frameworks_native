@@ -62,7 +62,7 @@ TEST(WindowInfo, Parcelling) {
     i.transform.set({0.4, -1, 100, 0.5, 0, 40, 0, 0, 1});
     i.touchOcclusionMode = TouchOcclusionMode::ALLOW;
     i.ownerPid = 19;
-    i.ownerUid = 24;
+    i.ownerUid = gui::Uid{24};
     i.packageName = "com.example.package";
     i.inputConfig = WindowInfo::InputConfig::NOT_FOCUSABLE;
     i.displayId = 34;

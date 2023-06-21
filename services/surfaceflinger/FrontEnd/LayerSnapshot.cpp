@@ -46,7 +46,7 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
     premultipliedAlpha = state.premultipliedAlpha;
     inputInfo.name = state.name;
     inputInfo.id = static_cast<int32_t>(uniqueSequence);
-    inputInfo.ownerUid = static_cast<int32_t>(state.ownerUid);
+    inputInfo.ownerUid = gui::Uid{state.ownerUid};
     inputInfo.ownerPid = state.ownerPid;
     uid = state.ownerUid;
     pid = state.ownerPid;

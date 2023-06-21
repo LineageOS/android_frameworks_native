@@ -76,7 +76,7 @@ public:
      * perform all necessary permission checks prior to injecting events.
      */
     virtual android::os::InputEventInjectionResult injectInputEvent(
-            const InputEvent* event, std::optional<int32_t> targetUid,
+            const InputEvent* event, std::optional<gui::Uid> targetUid,
             android::os::InputEventInjectionSync syncMode, std::chrono::milliseconds timeout,
             uint32_t policyFlags) = 0;
 
@@ -134,7 +134,7 @@ public:
      *
      * Returns true when changing touch mode state.
      */
-    virtual bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission,
+    virtual bool setInTouchMode(bool inTouchMode, int32_t pid, gui::Uid uid, bool hasPermission,
                                 int32_t displayId) = 0;
 
     /**
