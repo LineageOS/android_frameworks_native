@@ -19,6 +19,7 @@
 #include <android-base/thread_annotations.h>
 #include <layerproto/TransactionProto.h>
 #include <utils/Errors.h>
+#include <utils/Singleton.h>
 #include <utils/Timers.h>
 
 #include <memory>
@@ -60,10 +61,12 @@ public:
     void addQueuedTransaction(const TransactionState&);
     void addCommittedTransactions(int64_t vsyncId, nsecs_t commitTime, frontend::Update& update,
                                   const frontend::DisplayInfos&, bool displayInfoChanged);
-    status_t writeToFile(std::string filename = FILE_NAME);
+    status_t writeToFile(const std::string& filename = FILE_PATH);
     void setBufferSize(size_t bufferSizeInBytes);
     void onLayerRemoved(int layerId);
     void dump(std::string&) const;
+    // Wait until all the committed transactions for the specified vsync id are added to the buffer.
+    void flush() EXCLUDES(mMainThreadLock);
     static constexpr auto CONTINUOUS_TRACING_BUFFER_SIZE = 512 * 1024;
     static constexpr auto ACTIVE_TRACING_BUFFER_SIZE = 100 * 1024 * 1024;
     // version 1 - switching to support new frontend
@@ -73,7 +76,9 @@ private:
     friend class TransactionTracingTest;
     friend class SurfaceFlinger;
 
-    static constexpr auto FILE_NAME = "/data/misc/wmtrace/transactions_trace.winscope";
+    static constexpr auto DIR_NAME = "/data/misc/wmtrace/";
+    static constexpr auto FILE_NAME = "/transactions_trace.winscope";
+    static constexpr auto FILE_PATH = "/data/misc/wmtrace/transactions_trace.winscope";
 
     mutable std::mutex mTraceLock;
     RingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry> mBuffer
@@ -111,6 +116,7 @@ private:
 
     std::vector<uint32_t /* layerId */> mDestroyedLayers GUARDED_BY(mMainThreadLock);
     std::vector<uint32_t /* layerId */> mPendingDestroyedLayers; // only accessed by main thread
+    int64_t mLastUpdatedVsyncId = -1;
 
     proto::TransactionTraceFile createTraceFileProto() const;
     void loop();
@@ -121,10 +127,21 @@ private:
     void addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) REQUIRES(mTraceLock);
     void updateStartingStateLocked(const proto::TransactionTraceEntry& entry) REQUIRES(mTraceLock);
     // TEST
-    // Wait until all the committed transactions for the specified vsync id are added to the buffer.
-    void flush(int64_t vsyncId) EXCLUDES(mMainThreadLock);
     // Return buffer contents as trace file proto
     proto::TransactionTraceFile writeToProto() EXCLUDES(mMainThreadLock);
+};
+
+class TransactionTraceWriter : public Singleton<TransactionTraceWriter> {
+    friend class Singleton<TransactionTracing>;
+    std::function<void(const std::string& prefix, bool overwrite)> mWriterFunction =
+            [](const std::string&, bool) {};
+
+public:
+    void setWriterFunction(
+            std::function<void(const std::string& prefix, bool overwrite)> function) {
+        mWriterFunction = std::move(function);
+    }
+    void invoke(const std::string& prefix, bool overwrite) { mWriterFunction(prefix, overwrite); }
 };
 
 } // namespace android

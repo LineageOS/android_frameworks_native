@@ -3125,6 +3125,16 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
         return true;
     }
 
+    if ((mDrawingState.producerId > bufferData.producerId) ||
+        ((mDrawingState.producerId == bufferData.producerId) &&
+         (mDrawingState.frameNumber > frameNumber))) {
+        ALOGE("Out of order buffers detected for %s producedId=%d frameNumber=%" PRIu64
+              " -> producedId=%d frameNumber=%" PRIu64,
+              getDebugName(), mDrawingState.producerId, mDrawingState.frameNumber,
+              bufferData.producerId, frameNumber);
+        TransactionTraceWriter::getInstance().invoke("out_of_order_buffers_", /*overwrite=*/false);
+    }
+
     mDrawingState.producerId = bufferData.producerId;
     mDrawingState.barrierProducerId =
             std::max(mDrawingState.producerId, mDrawingState.barrierProducerId);
@@ -3132,7 +3142,6 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     mDrawingState.barrierFrameNumber =
             std::max(mDrawingState.frameNumber, mDrawingState.barrierFrameNumber);
 
-    // TODO(b/277265947) log and flush transaction trace when we detect out of order updates
     mDrawingState.releaseBufferListener = bufferData.releaseBufferListener;
     mDrawingState.buffer = std::move(buffer);
     mDrawingState.acquireFence = bufferData.flags.test(BufferData::BufferDataChange::fenceChanged)

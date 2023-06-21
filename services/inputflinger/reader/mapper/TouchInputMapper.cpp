@@ -1889,9 +1889,9 @@ std::list<NotifyArgs> TouchInputMapper::consumeRawTouches(nsecs_t when, nsecs_t 
         uint32_t id = mCurrentRawState.rawPointerData.touchingIdBits.firstMarkedBit();
         const RawPointerData::Pointer& pointer = mCurrentRawState.rawPointerData.pointerForId(id);
         // Skip checking whether the pointer is inside the physical frame if the device is in
-        // unscaled mode.
+        // unscaled or pointer mode.
         if (!isPointInsidePhysicalFrame(pointer.x, pointer.y) &&
-            mDeviceMode != DeviceMode::UNSCALED) {
+            mDeviceMode != DeviceMode::UNSCALED && mDeviceMode != DeviceMode::POINTER) {
             // If exactly one pointer went down, check for virtual key hit.
             // Otherwise, we will drop the entire stroke.
             if (mCurrentRawState.rawPointerData.touchingIdBits.count() == 1) {
