@@ -147,13 +147,18 @@ static const char* HAL_SUBNAME_KEY_PROPERTIES[3] = {
         RO_BOARD_PLATFORM_PROPERTY,
 };
 
+// Check whether the loaded system drivers should be unloaded in order to
+// load ANGLE or the updatable graphics drivers.
+// If ANGLE namespace is set, it means the application is identified to run on top of ANGLE.
+// If updatable graphics driver namespace is set, it means the application is identified to
+// run on top of updatable graphics drivers.
 static bool should_unload_system_driver(egl_connection_t* cnx) {
     // Return false if the system driver has been unloaded once.
     if (cnx->systemDriverUnloaded) {
         return false;
     }
 
-    // Return true if Angle namespace is set.
+    // Return true if ANGLE namespace is set.
     android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
     if (ns) {
         return true;
@@ -279,10 +284,10 @@ void* Loader::open(egl_connection_t* cnx)
                                                             false, systemTime() - openTime);
     } else {
         // init_angle_backend will check if loaded driver is ANGLE or not,
-        // will set cnx->useAngle appropriately.
+        // will set cnx->angleLoaded appropriately.
         // Do this here so that we use ANGLE path when driver is ANGLE (e.g. loaded as native),
         // not just loading ANGLE as option.
-        init_angle_backend(hnd->dso[2], cnx);
+        attempt_to_init_angle_backend(hnd->dso[2], cnx);
     }
 
     LOG_ALWAYS_FATAL_IF(!hnd,
@@ -324,7 +329,7 @@ void Loader::close(egl_connection_t* cnx)
     delete hnd;
     cnx->dso = nullptr;
 
-    cnx->useAngle = false;
+    cnx->angleLoaded = false;
 }
 
 void Loader::init_api(void* dso,
@@ -565,14 +570,14 @@ Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
     return hnd;
 }
 
-void Loader::init_angle_backend(void* dso, egl_connection_t* cnx) {
+void Loader::attempt_to_init_angle_backend(void* dso, egl_connection_t* cnx) {
     void* pANGLEGetDisplayPlatform = dlsym(dso, "ANGLEGetDisplayPlatform");
     if (pANGLEGetDisplayPlatform) {
-        ALOGV("ANGLE GLES library in use");
-        cnx->useAngle = true;
+        ALOGV("ANGLE GLES library loaded");
+        cnx->angleLoaded = true;
     } else {
-        ALOGV("Native GLES library in use");
-        cnx->useAngle = false;
+        ALOGV("Native GLES library loaded");
+        cnx->angleLoaded = false;
     }
 }
 
