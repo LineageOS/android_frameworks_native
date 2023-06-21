@@ -404,14 +404,13 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
             .allowIsolated = allowIsolated,
             .dumpPriority = dumpPriority,
             .hasClients = prevClients, // see b/279898063, matters if existing callbacks
-            .guaranteeClient = false,  // handled below
+            .guaranteeClient = false,
             .ctx = ctx,
     };
 
     if (auto it = mNameToRegistrationCallback.find(name); it != mNameToRegistrationCallback.end()) {
-        // TODO: this is only needed once
-        // See also getService - handles case where client never gets the service,
-        // we want the service to quit.
+        // If someone is currently waiting on the service, notify the service that
+        // we're waiting and flush it to the service.
         mNameToService[name].guaranteeClient = true;
         CHECK(handleServiceClientCallback(2 /* sm + transaction */, name, false));
         mNameToService[name].guaranteeClient = true;
@@ -713,6 +712,11 @@ Status ServiceManager::registerClientCallback(const std::string& name, const sp<
     }
 
     mNameToClientCallback[name].push_back(cb);
+
+    // Flush updated info to client callbacks (especially if guaranteeClient
+    // and !hasClient, see b/285202885). We may or may not have clients at
+    // this point, so ignore the return value.
+    (void)handleServiceClientCallback(2 /* sm + transaction */, name, false);
 
     return Status::ok();
 }
