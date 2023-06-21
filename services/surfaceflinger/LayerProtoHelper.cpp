@@ -178,6 +178,7 @@ void LayerProtoHelper::writeToProto(
 
     InputWindowInfoProto* proto = getInputWindowInfoProto();
     proto->set_layout_params_flags(inputInfo.layoutParamsFlags.get());
+    proto->set_input_config(inputInfo.inputConfig.get());
     using U = std::underlying_type_t<WindowInfo::Type>;
     // TODO(b/129481165): This static assert can be safely removed once conversion warnings
     // are re-enabled.
