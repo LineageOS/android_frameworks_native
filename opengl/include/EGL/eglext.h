@@ -699,7 +699,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglQueryDisplayAttribEXT (EGLDisplay dpy, EGLint a
 
 #ifndef EGL_EXT_gl_colorspace_bt2020_hlg
 #define EGL_EXT_gl_colorspace_bt2020_hlg 1
-#define EGL_GL_COLORSPACE_BT2020_HLG_EXT  0x333E
+#define EGL_GL_COLORSPACE_BT2020_HLG_EXT  0x3540
 #endif /* EGL_EXT_gl_colorspace_bt2020_hlg */
 
 #ifndef EGL_EXT_gl_colorspace_bt2020_linear
