@@ -377,7 +377,9 @@ public:
         mPointerCaptureRequest.reset();
     }
 
-    void assertDropTargetEquals(const sp<IBinder>& targetToken) {
+    void assertDropTargetEquals(const InputDispatcherInterface& dispatcher,
+                                const sp<IBinder>& targetToken) {
+        dispatcher.waitForIdle();
         std::scoped_lock lock(mLock);
         ASSERT_TRUE(mNotifyDropWindowWasCalled);
         ASSERT_EQ(targetToken, mDropTargetWindowToken);
@@ -8441,7 +8443,7 @@ TEST_F(InputDispatcherDragTests, DragAndDrop) {
                              {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
-    mFakePolicy->assertDropTargetEquals(mSecondWindow->getToken());
+    mFakePolicy->assertDropTargetEquals(*mDispatcher, mSecondWindow->getToken());
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
@@ -8472,7 +8474,7 @@ TEST_F(InputDispatcherDragTests, StylusDragAndDrop) {
     mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
-    mFakePolicy->assertDropTargetEquals(mSecondWindow->getToken());
+    mFakePolicy->assertDropTargetEquals(*mDispatcher, mSecondWindow->getToken());
 
     // nothing to the window.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -8518,7 +8520,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropOnInvalidWindow) {
                              {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
-    mFakePolicy->assertDropTargetEquals(nullptr);
+    mFakePolicy->assertDropTargetEquals(*mDispatcher, nullptr);
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
@@ -8601,7 +8603,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenSplitTouch) {
               injectMotionEvent(mDispatcher, secondFingerUpEvent, INJECT_EVENT_TIMEOUT,
                                 InputEventInjectionSync::WAIT_FOR_RESULT));
     mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
-    mFakePolicy->assertDropTargetEquals(mWindow->getToken());
+    mFakePolicy->assertDropTargetEquals(*mDispatcher, mWindow->getToken());
     mWindow->assertNoEvents();
     mSecondWindow->consumeMotionMove();
 }
@@ -8651,7 +8653,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenMultiDisplays) {
                              {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
-    mFakePolicy->assertDropTargetEquals(mSecondWindow->getToken());
+    mFakePolicy->assertDropTargetEquals(*mDispatcher, mSecondWindow->getToken());
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
@@ -8700,7 +8702,7 @@ TEST_F(InputDispatcherDragTests, MouseDragAndDrop) {
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
-    mFakePolicy->assertDropTargetEquals(mSecondWindow->getToken());
+    mFakePolicy->assertDropTargetEquals(*mDispatcher, mSecondWindow->getToken());
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
