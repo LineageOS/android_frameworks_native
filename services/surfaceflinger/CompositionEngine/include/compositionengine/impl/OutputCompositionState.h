@@ -32,6 +32,7 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
+#include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/ProjectionSpace.h>
 #include <renderengine/BorderRenderInfo.h>
 #include <ui/LayerStack.h>
@@ -166,6 +167,8 @@ struct OutputCompositionState {
 
     uint64_t lastOutputLayerHash = 0;
     uint64_t outputLayerHash = 0;
+
+    ICEPowerCallback* powerCallback = nullptr;
 
     // Debugging
     void dump(std::string& result) const;
