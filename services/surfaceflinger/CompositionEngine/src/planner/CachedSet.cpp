@@ -162,6 +162,9 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
                        const OutputCompositionState& outputState,
                        bool deviceHandlesColorTransform) {
     ATRACE_CALL();
+    if (outputState.powerCallback) {
+        outputState.powerCallback->notifyCpuLoadUp();
+    }
     const Rect& viewport = outputState.layerStackSpace.getContent();
     const ui::Dataspace& outputDataspace = outputState.dataspace;
     const ui::Transform::RotationFlags orientation =
