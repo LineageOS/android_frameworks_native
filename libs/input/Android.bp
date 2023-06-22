@@ -274,9 +274,6 @@ cc_library {
             ],
         },
         host: {
-            shared: {
-                enabled: false,
-            },
             include_dirs: [
                 "bionic/libc/kernel/android/uapi/",
                 "bionic/libc/kernel/uapi",

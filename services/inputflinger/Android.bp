@@ -79,6 +79,7 @@ cc_defaults {
         "libcrypto",
         "libcutils",
         "libhidlbase",
+        "libinput",
         "libkll",
         "liblog",
         "libprotobuf-cpp-lite",
@@ -95,14 +96,12 @@ cc_defaults {
         android: {
             shared_libs: [
                 "libgui",
-                "libinput",
                 "libstatspull",
                 "libstatssocket",
             ],
         },
         host: {
             static_libs: [
-                "libinput",
                 "libstatspull",
                 "libstatssocket",
             ],
@@ -179,6 +178,7 @@ cc_defaults {
         "libbase",
         "libbinder",
         "libcutils",
+        "libinput",
         "liblog",
         "libutils",
     ],
@@ -186,14 +186,8 @@ cc_defaults {
         "libinputflinger_headers",
     ],
     target: {
-        android: {
-            shared_libs: [
-                "libinput",
-            ],
-        },
         host: {
             static_libs: [
-                "libinput",
                 "libui-types",
             ],
         },
