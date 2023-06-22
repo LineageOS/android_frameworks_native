@@ -632,8 +632,8 @@ private:
 
     // ICompositor overrides:
     void configure() override;
-    bool commit(TimePoint frameTime, VsyncId, TimePoint expectedVsyncTime) override;
-    void composite(TimePoint frameTime, VsyncId) override;
+    bool commit(const scheduler::FrameTarget&) override;
+    CompositeResult composite(scheduler::FrameTargeter&) override;
     void sample() override;
 
     // ISchedulerCallback overrides:
@@ -952,7 +952,8 @@ private:
     /*
      * Compositing
      */
-    void postComposition(nsecs_t callTime) REQUIRES(kMainThreadContext);
+    void postComposition(scheduler::FrameTargeter&, nsecs_t presentStartTime)
+            REQUIRES(kMainThreadContext);
 
     /*
      * Display management
@@ -992,20 +993,6 @@ private:
      * VSYNC
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
-
-    using FenceTimePtr = std::shared_ptr<FenceTime>;
-
-    bool wouldPresentEarly(TimePoint frameTime, Period) const REQUIRES(kMainThreadContext);
-
-    const FenceTimePtr& getPreviousPresentFence(TimePoint frameTime, Period) const
-            REQUIRES(kMainThreadContext);
-
-    // Blocks the thread waiting for up to graceTimeMs in case the fence is about to signal.
-    static bool isFencePending(const FenceTimePtr&, int graceTimeMs);
-
-    // Calculates the expected present time for this frame. For negative offsets, performs a
-    // correction using the predicted vsync for the next frame instead.
-    TimePoint calculateExpectedPresentTime(TimePoint frameTime) const;
 
     /*
      * Display identification
@@ -1252,9 +1239,6 @@ private:
 
     // If blurs should be enabled on this device.
     bool mSupportsBlur = false;
-    std::atomic<uint32_t> mFrameMissedCount = 0;
-    std::atomic<uint32_t> mHwcFrameMissedCount = 0;
-    std::atomic<uint32_t> mGpuFrameMissedCount = 0;
 
     TransactionCallbackInvoker mTransactionCallbackInvoker;
 
@@ -1321,15 +1305,6 @@ private:
 
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
     scheduler::PresentLatencyTracker mPresentLatencyTracker GUARDED_BY(kMainThreadContext);
-
-    struct FenceWithFenceTime {
-        sp<Fence> fence = Fence::NO_FENCE;
-        FenceTimePtr fenceTime = FenceTime::NO_FENCE;
-    };
-    std::array<FenceWithFenceTime, 2> mPreviousPresentFences;
-
-    TimePoint mScheduledPresentTime GUARDED_BY(kMainThreadContext);
-    TimePoint mExpectedPresentTime GUARDED_BY(kMainThreadContext);
 
     // below flags are set by main thread only
     bool mSetActiveModePending = false;

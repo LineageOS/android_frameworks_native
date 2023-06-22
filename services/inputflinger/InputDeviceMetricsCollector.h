@@ -21,6 +21,7 @@
 #include "SyncQueue.h"
 
 #include <ftl/mixins.h>
+#include <gui/WindowInfo.h>
 #include <input/InputDevice.h>
 #include <statslog.h>
 #include <chrono>
@@ -43,7 +44,7 @@ public:
      * Called from the InputDispatcher thread.
      */
     virtual void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
-                                         const std::set<int32_t>& uids) = 0;
+                                         const std::set<gui::Uid>& uids) = 0;
     /**
      * Dump the state of the interaction blocker.
      * This method may be called on any thread (usually by the input manager on a binder thread).
@@ -101,7 +102,7 @@ public:
 
     // Describes the breakdown of an input device usage session by the UIDs that it interacted with.
     using UidUsageBreakdown =
-            std::vector<std::pair<int32_t /*uid*/, std::chrono::nanoseconds /*duration*/>>;
+            std::vector<std::pair<gui::Uid, std::chrono::nanoseconds /*duration*/>>;
 
     struct DeviceUsageReport {
         std::chrono::nanoseconds usageDuration;
@@ -134,7 +135,7 @@ public:
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
     void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
-                                 const std::set<int32_t>& uids) override;
+                                 const std::set<gui::Uid>& uids) override;
     void dump(std::string& dump) override;
 
 private:
@@ -152,13 +153,7 @@ private:
         return std::to_string(ftl::to_underlying(id));
     }
 
-    // Type-safe wrapper for a UID.
-    struct Uid : ftl::Constructible<Uid, std::int32_t>, ftl::Equatable<Uid>, ftl::Orderable<Uid> {
-        using Constructible::Constructible;
-    };
-    static inline std::string toString(const Uid& src) {
-        return std::to_string(ftl::to_underlying(src));
-    }
+    using Uid = gui::Uid;
 
     std::map<DeviceId, InputDeviceInfo> mLoggedDeviceInfos;
 

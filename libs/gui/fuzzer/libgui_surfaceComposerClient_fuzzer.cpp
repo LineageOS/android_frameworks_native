@@ -187,7 +187,7 @@ void SurfaceComposerClientFuzzer::getWindowInfo(gui::WindowInfo* windowInfo) {
     windowInfo->replaceTouchableRegionWithCrop = mFdp.ConsumeBool();
     windowInfo->touchOcclusionMode = mFdp.PickValueInArray(kMode);
     windowInfo->ownerPid = mFdp.ConsumeIntegral<int32_t>();
-    windowInfo->ownerUid = mFdp.ConsumeIntegral<int32_t>();
+    windowInfo->ownerUid = gui::Uid{mFdp.ConsumeIntegral<uid_t>()};
     windowInfo->packageName = mFdp.ConsumeRandomLengthString(kRandomStringMaxBytes);
     windowInfo->inputConfig = mFdp.PickValueInArray(kFeatures);
 }

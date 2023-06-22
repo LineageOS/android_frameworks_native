@@ -96,11 +96,11 @@ static constexpr int32_t POINTER_2_UP =
 
 // The default pid and uid for windows created on the primary display by the test.
 static constexpr int32_t WINDOW_PID = 999;
-static constexpr int32_t WINDOW_UID = 1001;
+static constexpr gui::Uid WINDOW_UID{1001};
 
 // The default pid and uid for the windows created on the secondary display by the test.
 static constexpr int32_t SECONDARY_WINDOW_PID = 1010;
-static constexpr int32_t SECONDARY_WINDOW_UID = 1012;
+static constexpr gui::Uid SECONDARY_WINDOW_UID{1012};
 
 // An arbitrary pid of the gesture monitor window
 static constexpr int32_t MONITOR_PID = 2001;
@@ -417,7 +417,7 @@ public:
         ASSERT_FALSE(mPokedUserActivity) << "Expected user activity not to have been poked";
     }
 
-    void assertNotifyDeviceInteractionWasCalled(int32_t deviceId, std::set<int32_t> uids) {
+    void assertNotifyDeviceInteractionWasCalled(int32_t deviceId, std::set<gui::Uid> uids) {
         ASSERT_EQ(std::make_pair(deviceId, uids), mNotifiedInteractions.popWithTimeout(100ms));
     }
 
@@ -450,7 +450,7 @@ private:
 
     std::chrono::milliseconds mInterceptKeyTimeout = 0ms;
 
-    BlockingQueue<std::pair<int32_t /*deviceId*/, std::set<int32_t /*uid*/>>> mNotifiedInteractions;
+    BlockingQueue<std::pair<int32_t /*deviceId*/, std::set<gui::Uid>>> mNotifiedInteractions;
 
     // All three ANR-related callbacks behave the same way, so we use this generic function to wait
     // for a specific container to become non-empty. When the container is non-empty, return the
@@ -624,7 +624,7 @@ private:
     }
 
     void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
-                                 const std::set<int32_t>& uids) override {
+                                 const std::set<gui::Uid>& uids) override {
         ASSERT_TRUE(mNotifiedInteractions.emplace(deviceId, uids));
     }
 
@@ -1443,7 +1443,7 @@ public:
 
     const std::string& getName() { return mName; }
 
-    void setOwnerInfo(int32_t ownerPid, int32_t ownerUid) {
+    void setOwnerInfo(int32_t ownerPid, gui::Uid ownerUid) {
         mInfo.ownerPid = ownerPid;
         mInfo.ownerUid = ownerUid;
     }
@@ -1469,7 +1469,7 @@ static InputEventInjectionResult injectKey(
         int32_t displayId = ADISPLAY_ID_NONE,
         InputEventInjectionSync syncMode = InputEventInjectionSync::WAIT_FOR_RESULT,
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
-        bool allowKeyRepeat = true, std::optional<int32_t> targetUid = {},
+        bool allowKeyRepeat = true, std::optional<gui::Uid> targetUid = {},
         uint32_t policyFlags = DEFAULT_POLICY_FLAGS) {
     KeyEvent event;
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
@@ -1510,7 +1510,7 @@ static InputEventInjectionResult injectMotionEvent(
         const std::unique_ptr<InputDispatcher>& dispatcher, const MotionEvent& event,
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
         InputEventInjectionSync injectionMode = InputEventInjectionSync::WAIT_FOR_RESULT,
-        std::optional<int32_t> targetUid = {}, uint32_t policyFlags = DEFAULT_POLICY_FLAGS) {
+        std::optional<gui::Uid> targetUid = {}, uint32_t policyFlags = DEFAULT_POLICY_FLAGS) {
     return dispatcher->injectInputEvent(&event, targetUid, injectionMode, injectionTimeout,
                                         policyFlags);
 }
@@ -1523,7 +1523,7 @@ static InputEventInjectionResult injectMotionEvent(
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
         InputEventInjectionSync injectionMode = InputEventInjectionSync::WAIT_FOR_RESULT,
         nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC),
-        std::optional<int32_t> targetUid = {}, uint32_t policyFlags = DEFAULT_POLICY_FLAGS) {
+        std::optional<gui::Uid> targetUid = {}, uint32_t policyFlags = DEFAULT_POLICY_FLAGS) {
     MotionEventBuilder motionBuilder =
             MotionEventBuilder(action, source)
                     .displayId(displayId)
@@ -5509,7 +5509,7 @@ TEST_F(InputDispatcherTest, DisplayRemoved) {
  */
 TEST_F(InputDispatcherTest, SlipperyWindow_SetsFlagPartiallyObscured) {
     constexpr int32_t SLIPPERY_PID = WINDOW_PID + 1;
-    constexpr int32_t SLIPPERY_UID = WINDOW_UID + 1;
+    constexpr gui::Uid SLIPPERY_UID{WINDOW_UID.val() + 1};
 
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
@@ -5590,24 +5590,25 @@ TEST_F(InputDispatcherTest, TouchSlippingIntoWindowThatDropsTouches) {
 }
 
 TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithMotions) {
+    using Uid = gui::Uid;
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
 
     sp<FakeWindowHandle> leftWindow =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
     leftWindow->setFrame(Rect(0, 0, 100, 100));
-    leftWindow->setOwnerInfo(1, 101);
+    leftWindow->setOwnerInfo(1, Uid{101});
 
     sp<FakeWindowHandle> rightSpy =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Right spy", ADISPLAY_ID_DEFAULT);
     rightSpy->setFrame(Rect(100, 0, 200, 100));
-    rightSpy->setOwnerInfo(2, 102);
+    rightSpy->setOwnerInfo(2, Uid{102});
     rightSpy->setSpy(true);
     rightSpy->setTrustedOverlay(true);
 
     sp<FakeWindowHandle> rightWindow =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
     rightWindow->setFrame(Rect(100, 0, 200, 100));
-    rightWindow->setOwnerInfo(3, 103);
+    rightWindow->setOwnerInfo(3, Uid{103});
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {rightSpy, rightWindow, leftWindow}}});
 
@@ -5617,7 +5618,8 @@ TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithMotions) {
                                       .build());
     ASSERT_NO_FATAL_FAILURE(leftWindow->consumeMotionDown());
     mDispatcher->waitForIdle();
-    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {101}));
+    ASSERT_NO_FATAL_FAILURE(
+            mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {Uid{101}}));
 
     // Touch another finger over the right windows
     mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
@@ -5629,7 +5631,8 @@ TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithMotions) {
     ASSERT_NO_FATAL_FAILURE(leftWindow->consumeMotionMove());
     mDispatcher->waitForIdle();
     ASSERT_NO_FATAL_FAILURE(
-            mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {101, 102, 103}));
+            mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID,
+                                                                {Uid{101}, Uid{102}, Uid{103}}));
 
     // Release finger over left window. The UP actions are not treated as device interaction.
     // The windows that did not receive the UP pointer will receive MOVE events, but since this
@@ -5652,7 +5655,7 @@ TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithMotions) {
     ASSERT_NO_FATAL_FAILURE(rightWindow->consumeMotionMove());
     mDispatcher->waitForIdle();
     ASSERT_NO_FATAL_FAILURE(
-            mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {102, 103}));
+            mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {Uid{102}, Uid{103}}));
 
     // Release all fingers
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
@@ -5670,7 +5673,7 @@ TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithKeys) {
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 100, 100));
-    window->setOwnerInfo(1, 101);
+    window->setOwnerInfo(1, gui::Uid{101});
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     setFocusedWindow(window);
@@ -5679,7 +5682,8 @@ TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithKeys) {
     mDispatcher->notifyKey(KeyArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).build());
     ASSERT_NO_FATAL_FAILURE(window->consumeKeyDown(ADISPLAY_ID_DEFAULT));
     mDispatcher->waitForIdle();
-    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {101}));
+    ASSERT_NO_FATAL_FAILURE(
+            mFakePolicy->assertNotifyDeviceInteractionWasCalled(DEVICE_ID, {gui::Uid{101}}));
 
     // The UP actions are not treated as device interaction.
     mDispatcher->notifyKey(KeyArgsBuilder(ACTION_UP, AINPUT_SOURCE_KEYBOARD).build());
@@ -7876,9 +7880,9 @@ protected:
     static_assert(1 - (1 - OPACITY_FAR_BELOW_THRESHOLD) * (1 - OPACITY_FAR_BELOW_THRESHOLD) <
                   MAXIMUM_OBSCURING_OPACITY);
 
-    static const int32_t TOUCHED_APP_UID = 10001;
-    static const int32_t APP_B_UID = 10002;
-    static const int32_t APP_C_UID = 10003;
+    static constexpr gui::Uid TOUCHED_APP_UID{10001};
+    static constexpr gui::Uid APP_B_UID{10002};
+    static constexpr gui::Uid APP_C_UID{10003};
 
     sp<FakeWindowHandle> mTouchWindow;
 
@@ -7893,7 +7897,7 @@ protected:
         mTouchWindow.clear();
     }
 
-    sp<FakeWindowHandle> getOccludingWindow(int32_t uid, std::string name, TouchOcclusionMode mode,
+    sp<FakeWindowHandle> getOccludingWindow(gui::Uid uid, std::string name, TouchOcclusionMode mode,
                                             float alpha = 1.0f) {
         sp<FakeWindowHandle> window = getWindow(uid, name);
         window->setTouchable(false);
@@ -7902,12 +7906,12 @@ protected:
         return window;
     }
 
-    sp<FakeWindowHandle> getWindow(int32_t uid, std::string name) {
+    sp<FakeWindowHandle> getWindow(gui::Uid uid, std::string name) {
         std::shared_ptr<FakeApplicationHandle> app = std::make_shared<FakeApplicationHandle>();
         sp<FakeWindowHandle> window =
                 sp<FakeWindowHandle>::make(app, mDispatcher, name, ADISPLAY_ID_DEFAULT);
         // Generate an arbitrary PID based on the UID
-        window->setOwnerInfo(1777 + (uid % 10000), uid);
+        window->setOwnerInfo(1777 + (uid.val() % 10000), uid);
         return window;
     }
 
@@ -8753,13 +8757,13 @@ TEST_F(InputDispatcherDropInputFeatureTest, ObscuredWindowDropsInput) {
             sp<FakeWindowHandle>::make(obscuringApplication, mDispatcher, "obscuringWindow",
                                        ADISPLAY_ID_DEFAULT);
     obscuringWindow->setFrame(Rect(0, 0, 50, 50));
-    obscuringWindow->setOwnerInfo(111, 111);
+    obscuringWindow->setOwnerInfo(111, gui::Uid{111});
     obscuringWindow->setTouchable(false);
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
                                                              "Test window", ADISPLAY_ID_DEFAULT);
     window->setDropInputIfObscured(true);
-    window->setOwnerInfo(222, 222);
+    window->setOwnerInfo(222, gui::Uid{222});
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {obscuringWindow, window}}});
@@ -8796,13 +8800,13 @@ TEST_F(InputDispatcherDropInputFeatureTest, UnobscuredWindowGetsInput) {
             sp<FakeWindowHandle>::make(obscuringApplication, mDispatcher, "obscuringWindow",
                                        ADISPLAY_ID_DEFAULT);
     obscuringWindow->setFrame(Rect(0, 0, 50, 50));
-    obscuringWindow->setOwnerInfo(111, 111);
+    obscuringWindow->setOwnerInfo(111, gui::Uid{111});
     obscuringWindow->setTouchable(false);
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
                                                              "Test window", ADISPLAY_ID_DEFAULT);
     window->setDropInputIfObscured(true);
-    window->setOwnerInfo(222, 222);
+    window->setOwnerInfo(222, gui::Uid{222});
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {obscuringWindow, window}}});
@@ -8879,7 +8883,7 @@ protected:
         }
     }
 
-    void changeAndVerifyTouchModeInMainDisplayOnly(bool inTouchMode, int32_t pid, int32_t uid,
+    void changeAndVerifyTouchModeInMainDisplayOnly(bool inTouchMode, int32_t pid, gui::Uid uid,
                                                    bool hasPermission) {
         ASSERT_TRUE(mDispatcher->setInTouchMode(inTouchMode, pid, uid, hasPermission,
                                                 ADISPLAY_ID_DEFAULT));
@@ -8899,8 +8903,8 @@ TEST_F(InputDispatcherTouchModeChangedTests, FocusedWindowCanChangeTouchMode) {
 TEST_F(InputDispatcherTouchModeChangedTests, NonFocusedWindowOwnerCannotChangeTouchMode) {
     const WindowInfo& windowInfo = *mWindow->getInfo();
     int32_t ownerPid = windowInfo.ownerPid;
-    int32_t ownerUid = windowInfo.ownerUid;
-    mWindow->setOwnerInfo(/* pid */ -1, /* uid */ -1);
+    gui::Uid ownerUid = windowInfo.ownerUid;
+    mWindow->setOwnerInfo(/*pid=*/-1, gui::Uid::INVALID);
     ASSERT_FALSE(mDispatcher->setInTouchMode(InputDispatcher::kDefaultInTouchMode, ownerPid,
                                              ownerUid, /*hasPermission=*/false,
                                              ADISPLAY_ID_DEFAULT));
@@ -8911,8 +8915,8 @@ TEST_F(InputDispatcherTouchModeChangedTests, NonFocusedWindowOwnerCannotChangeTo
 TEST_F(InputDispatcherTouchModeChangedTests, NonWindowOwnerMayChangeTouchModeOnPermissionGranted) {
     const WindowInfo& windowInfo = *mWindow->getInfo();
     int32_t ownerPid = windowInfo.ownerPid;
-    int32_t ownerUid = windowInfo.ownerUid;
-    mWindow->setOwnerInfo(/* pid */ -1, /* uid */ -1);
+    gui::Uid ownerUid = windowInfo.ownerUid;
+    mWindow->setOwnerInfo(/*pid=*/-1, gui::Uid::INVALID);
     changeAndVerifyTouchModeInMainDisplayOnly(!InputDispatcher::kDefaultInTouchMode, ownerPid,
                                               ownerUid, /*hasPermission=*/true);
 }
@@ -9123,10 +9127,10 @@ TEST_F(InputDispatcherSpyWindowTest, TouchableRegion) {
  */
 TEST_F(InputDispatcherSpyWindowTest, WatchOutsideTouches) {
     auto window = createForeground();
-    window->setOwnerInfo(12, 34);
+    window->setOwnerInfo(12, gui::Uid{34});
     auto spy = createSpy();
     spy->setWatchOutsideTouch(true);
-    spy->setOwnerInfo(56, 78);
+    spy->setOwnerInfo(56, gui::Uid{78});
     spy->setFrame(Rect{0, 0, 20, 20});
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {spy, window}}});
 
@@ -9539,7 +9543,7 @@ public:
                 sp<FakeWindowHandle>::make(overlayApplication, mDispatcher,
                                            "Stylus interceptor window", ADISPLAY_ID_DEFAULT);
         overlay->setFocusable(false);
-        overlay->setOwnerInfo(111, 111);
+        overlay->setOwnerInfo(111, gui::Uid{111});
         overlay->setTouchable(false);
         overlay->setInterceptsStylus(true);
         overlay->setTrustedOverlay(true);
@@ -9550,7 +9554,7 @@ public:
                 sp<FakeWindowHandle>::make(application, mDispatcher, "Application window",
                                            ADISPLAY_ID_DEFAULT);
         window->setFocusable(true);
-        window->setOwnerInfo(222, 222);
+        window->setOwnerInfo(222, gui::Uid{222});
 
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {overlay, window}}});
@@ -9661,11 +9665,11 @@ TEST_F(InputDispatcherStylusInterceptorTest, StylusHandwritingScenario) {
 
 struct User {
     int32_t mPid;
-    int32_t mUid;
+    gui::Uid mUid;
     uint32_t mPolicyFlags{DEFAULT_POLICY_FLAGS};
     std::unique_ptr<InputDispatcher>& mDispatcher;
 
-    User(std::unique_ptr<InputDispatcher>& dispatcher, int32_t pid, int32_t uid)
+    User(std::unique_ptr<InputDispatcher>& dispatcher, int32_t pid, gui::Uid uid)
           : mPid(pid), mUid(uid), mDispatcher(dispatcher) {}
 
     InputEventInjectionResult injectTargetedMotion(int32_t action) const {
@@ -9698,7 +9702,7 @@ struct User {
 using InputDispatcherTargetedInjectionTest = InputDispatcherTest;
 
 TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedWindow) {
-    auto owner = User(mDispatcher, 10, 11);
+    auto owner = User(mDispatcher, 10, gui::Uid{11});
     auto window = owner.createWindow();
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
@@ -9715,11 +9719,11 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedWindow) {
 }
 
 TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedWindow) {
-    auto owner = User(mDispatcher, 10, 11);
+    auto owner = User(mDispatcher, 10, gui::Uid{11});
     auto window = owner.createWindow();
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
-    auto rando = User(mDispatcher, 20, 21);
+    auto rando = User(mDispatcher, 20, gui::Uid{21});
     EXPECT_EQ(InputEventInjectionResult::TARGET_MISMATCH,
               rando.injectTargetedMotion(AMOTION_EVENT_ACTION_DOWN));
 
@@ -9732,7 +9736,7 @@ TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedWindow) {
 }
 
 TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedSpyWindow) {
-    auto owner = User(mDispatcher, 10, 11);
+    auto owner = User(mDispatcher, 10, gui::Uid{11});
     auto window = owner.createWindow();
     auto spy = owner.createWindow();
     spy->setSpy(true);
@@ -9746,10 +9750,10 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedSpyWindow) {
 }
 
 TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedSpyWindow) {
-    auto owner = User(mDispatcher, 10, 11);
+    auto owner = User(mDispatcher, 10, gui::Uid{11});
     auto window = owner.createWindow();
 
-    auto rando = User(mDispatcher, 20, 21);
+    auto rando = User(mDispatcher, 20, gui::Uid{21});
     auto randosSpy = rando.createWindow();
     randosSpy->setSpy(true);
     randosSpy->setTrustedOverlay(true);
@@ -9764,10 +9768,10 @@ TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedSpyWindow) {
 }
 
 TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoAnyWindowWhenNotTargeting) {
-    auto owner = User(mDispatcher, 10, 11);
+    auto owner = User(mDispatcher, 10, gui::Uid{11});
     auto window = owner.createWindow();
 
-    auto rando = User(mDispatcher, 20, 21);
+    auto rando = User(mDispatcher, 20, gui::Uid{21});
     auto randosSpy = rando.createWindow();
     randosSpy->setSpy(true);
     randosSpy->setTrustedOverlay(true);
@@ -9789,10 +9793,10 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoAnyWindowWhenNotTarget
 }
 
 TEST_F(InputDispatcherTargetedInjectionTest, CannotGenerateActionOutsideToOtherUids) {
-    auto owner = User(mDispatcher, 10, 11);
+    auto owner = User(mDispatcher, 10, gui::Uid{11});
     auto window = owner.createWindow();
 
-    auto rando = User(mDispatcher, 20, 21);
+    auto rando = User(mDispatcher, 20, gui::Uid{21});
     auto randosWindow = rando.createWindow();
     randosWindow->setFrame(Rect{-10, -10, -5, -5});
     randosWindow->setWatchOutsideTouch(true);

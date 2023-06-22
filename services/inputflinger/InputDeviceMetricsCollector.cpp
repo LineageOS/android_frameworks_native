@@ -40,6 +40,9 @@ constexpr nanoseconds DEFAULT_USAGE_SESSION_TIMEOUT = std::chrono::minutes(2);
 const bool DEBUG = __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG, ANDROID_LOG_INFO);
 
 int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus) {
+    // When adding cases to this switch, also add them to the copy of this method in
+    // TouchpadInputMapper.cpp.
+    // TODO(b/286394420): deduplicate this method with the one in TouchpadInputMapper.cpp.
     switch (linuxBus) {
         case BUS_USB:
             return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__USB;
@@ -78,10 +81,11 @@ class : public InputDeviceMetricsLogger {
         std::vector<int32_t> uids;
         std::vector<int32_t> durationsPerUid;
         for (auto& [uid, dur] : report.uidBreakdown) {
-            uids.push_back(uid);
+            uids.push_back(uid.val());
             int32_t durMillis = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
             durationsPerUid.push_back(durMillis);
-            ALOGD_IF(DEBUG, "        - uid: %d\t duration: %dms", uid, durMillis);
+            ALOGD_IF(DEBUG, "        - uid: %s\t duration: %dms", uid.toString().c_str(),
+                     durMillis);
         }
         util::stats_write(util::INPUTDEVICE_USAGE_REPORTED, identifier.vendor, identifier.product,
                           identifier.version, linuxBusToInputDeviceBusEnum(identifier.bus),
@@ -257,12 +261,8 @@ void InputDeviceMetricsCollector::notifyPointerCaptureChanged(
 }
 
 void InputDeviceMetricsCollector::notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
-                                                          const std::set<int32_t>& uids) {
-    std::set<Uid> typeSafeUids;
-    for (auto uid : uids) {
-        typeSafeUids.emplace(uid);
-    }
-    mInteractionsQueue.push(DeviceId{deviceId}, timestamp, typeSafeUids);
+                                                          const std::set<Uid>& uids) {
+    mInteractionsQueue.push(DeviceId{deviceId}, timestamp, uids);
 }
 
 void InputDeviceMetricsCollector::dump(std::string& dump) {
