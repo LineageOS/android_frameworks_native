@@ -161,6 +161,15 @@ impl ParcelableHolder {
     }
 }
 
+impl Clone for ParcelableHolder {
+    fn clone(&self) -> ParcelableHolder {
+        ParcelableHolder {
+            data: Mutex::new(self.data.lock().unwrap().clone()),
+            stability: self.stability,
+        }
+    }
+}
+
 impl Serialize for ParcelableHolder {
     fn serialize(&self, parcel: &mut BorrowedParcel<'_>) -> Result<(), StatusCode> {
         parcel.write(&NON_NULL_PARCELABLE_FLAG)?;
