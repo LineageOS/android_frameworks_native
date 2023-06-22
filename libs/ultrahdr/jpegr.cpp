@@ -1070,7 +1070,7 @@ status_t JpegR::applyGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
             }
             case ULTRAHDR_OUTPUT_HDR_PQ:
             {
-#if USE_HLG_OETF_LUT
+#if USE_PQ_OETF_LUT
               ColorTransformFn hdrOetf = pqOetfLUT;
 #else
               ColorTransformFn hdrOetf = pqOetf;

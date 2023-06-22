@@ -312,7 +312,7 @@ Color hlgOetf(Color e);
 float hlgOetfLUT(float e);
 Color hlgOetfLUT(Color e);
 
-constexpr size_t kHlgOETFPrecision = 10;
+constexpr size_t kHlgOETFPrecision = 16;
 constexpr size_t kHlgOETFNumEntries = 1 << kHlgOETFPrecision;
 
 /*
@@ -325,7 +325,7 @@ Color hlgInvOetf(Color e_gamma);
 float hlgInvOetfLUT(float e_gamma);
 Color hlgInvOetfLUT(Color e_gamma);
 
-constexpr size_t kHlgInvOETFPrecision = 10;
+constexpr size_t kHlgInvOETFPrecision = 12;
 constexpr size_t kHlgInvOETFNumEntries = 1 << kHlgInvOETFPrecision;
 
 /*
@@ -338,7 +338,7 @@ Color pqOetf(Color e);
 float pqOetfLUT(float e);
 Color pqOetfLUT(Color e);
 
-constexpr size_t kPqOETFPrecision = 10;
+constexpr size_t kPqOETFPrecision = 16;
 constexpr size_t kPqOETFNumEntries = 1 << kPqOETFPrecision;
 
 /*
@@ -351,7 +351,7 @@ Color pqInvOetf(Color e_gamma);
 float pqInvOetfLUT(float e_gamma);
 Color pqInvOetfLUT(Color e_gamma);
 
-constexpr size_t kPqInvOETFPrecision = 10;
+constexpr size_t kPqInvOETFPrecision = 12;
 constexpr size_t kPqInvOETFNumEntries = 1 << kPqInvOETFPrecision;
 
 
