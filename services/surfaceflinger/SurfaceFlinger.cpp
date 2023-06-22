@@ -2487,6 +2487,7 @@ CompositeResult SurfaceFlinger::composite(scheduler::FrameTargeter& pacesetterFr
     ATRACE_NAME(ftl::Concat(__func__, ' ', ftl::to_underlying(vsyncId)).c_str());
 
     compositionengine::CompositionRefreshArgs refreshArgs;
+    refreshArgs.powerCallback = this;
     const auto& displays = FTL_FAKE_GUARD(mStateLock, mDisplays);
     refreshArgs.outputs.reserve(displays.size());
     std::vector<DisplayId> displayIds;
@@ -3852,6 +3853,10 @@ void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
     }();
 
     mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
+}
+
+void SurfaceFlinger::notifyCpuLoadUp() {
+    mPowerAdvisor->notifyCpuLoadUp();
 }
 
 void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
