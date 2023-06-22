@@ -1008,7 +1008,7 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
         // b/271132344 revisit this and see if we can always use the layers uid/pid
         snapshot.inputInfo.name = requested.name;
         snapshot.inputInfo.ownerUid = gui::Uid{requested.ownerUid};
-        snapshot.inputInfo.ownerPid = requested.ownerPid;
+        snapshot.inputInfo.ownerPid = gui::Pid{requested.ownerPid};
     }
     snapshot.touchCropId = requested.touchCropId;
 
