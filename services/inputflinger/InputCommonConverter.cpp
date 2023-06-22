@@ -289,9 +289,9 @@ static std::vector<common::VideoFrame> convertVideoFrames(
 static void getHalPropertiesAndCoords(const NotifyMotionArgs& args,
                                       std::vector<common::PointerProperties>& outPointerProperties,
                                       std::vector<common::PointerCoords>& outPointerCoords) {
-    outPointerProperties.reserve(args.pointerCount);
-    outPointerCoords.reserve(args.pointerCount);
-    for (size_t i = 0; i < args.pointerCount; i++) {
+    outPointerProperties.reserve(args.getPointerCount());
+    outPointerCoords.reserve(args.getPointerCount());
+    for (size_t i = 0; i < args.getPointerCount(); i++) {
         common::PointerProperties properties;
         properties.id = args.pointerProperties[i].id;
         properties.toolType = getToolType(args.pointerProperties[i].toolType);
