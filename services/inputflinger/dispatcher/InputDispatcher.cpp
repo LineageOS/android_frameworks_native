@@ -6598,7 +6598,7 @@ void InputDispatcher::monitor() {
  * this method can be safely called from any thread, as long as you've ensured that
  * the work you are interested in completing has already been queued.
  */
-bool InputDispatcher::waitForIdle() {
+bool InputDispatcher::waitForIdle() const {
     /**
      * Timeout should represent the longest possible time that a device might spend processing
      * events and commands.
