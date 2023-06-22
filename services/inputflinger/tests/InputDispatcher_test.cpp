@@ -6059,7 +6059,7 @@ protected:
         mDispatcher->notifyMotion(motionArgs);
         ASSERT_TRUE(mDispatcher->waitForIdle());
         if (expectToBeFiltered) {
-            const auto xy = transform.transform(motionArgs.pointerCoords->getXYValue());
+            const auto xy = transform.transform(motionArgs.pointerCoords[0].getXYValue());
             mFakePolicy->assertFilterInputEventWasCalled(motionArgs, xy);
         } else {
             mFakePolicy->assertFilterInputEventWasNotCalled();

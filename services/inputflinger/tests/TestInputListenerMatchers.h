@@ -71,8 +71,8 @@ MATCHER_P(WithKeyCode, keyCode, "KeyEvent with specified key code") {
 }
 
 MATCHER_P(WithPointerCount, count, "MotionEvent with specified number of pointers") {
-    *result_listener << "expected " << count << " pointer(s), but got " << arg.pointerCount;
-    return arg.pointerCount == count;
+    *result_listener << "expected " << count << " pointer(s), but got " << arg.getPointerCount();
+    return arg.getPointerCount() == count;
 }
 
 MATCHER_P2(WithPointerId, index, id, "MotionEvent with specified pointer ID for pointer index") {
