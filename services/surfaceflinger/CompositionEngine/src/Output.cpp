@@ -843,6 +843,7 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
 
     editState().earliestPresentTime = refreshArgs.earliestPresentTime;
     editState().expectedPresentTime = refreshArgs.expectedPresentTime;
+    editState().powerCallback = refreshArgs.powerCallback;
 
     compositionengine::OutputLayer* peekThroughLayer = nullptr;
     sp<GraphicBuffer> previousOverride = nullptr;
