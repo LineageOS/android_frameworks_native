@@ -20,6 +20,7 @@
 
 #include "AidlComposerHal.h"
 
+#include <SurfaceFlingerProperties.h>
 #include <android-base/file.h>
 #include <android/binder_ibinder_platform.h>
 #include <android/binder_manager.h>
@@ -249,15 +250,18 @@ AidlComposer::AidlComposer(const std::string& serviceName) {
         ALOGE("getInterfaceVersion for AidlComposer constructor failed %s",
               status.getDescription().c_str());
     }
-    if (version == 1) {
-        mClearSlotBuffer = sp<GraphicBuffer>::make(1, 1, PIXEL_FORMAT_RGBX_8888,
-                                                   GraphicBuffer::USAGE_HW_COMPOSER |
-                                                           GraphicBuffer::USAGE_SW_READ_OFTEN |
-                                                           GraphicBuffer::USAGE_SW_WRITE_OFTEN,
-                                                   "AidlComposer");
-        if (!mClearSlotBuffer || mClearSlotBuffer->initCheck() != ::android::OK) {
-            LOG_ALWAYS_FATAL("Failed to allocate a buffer for clearing layer buffer slots");
-            return;
+    mSupportsBufferSlotsToClear = version > 1;
+    if (!mSupportsBufferSlotsToClear) {
+        if (sysprop::clear_slots_with_set_layer_buffer(false)) {
+            mClearSlotBuffer = sp<GraphicBuffer>::make(1, 1, PIXEL_FORMAT_RGBX_8888,
+                                                       GraphicBuffer::USAGE_HW_COMPOSER |
+                                                               GraphicBuffer::USAGE_SW_READ_OFTEN |
+                                                               GraphicBuffer::USAGE_SW_WRITE_OFTEN,
+                                                       "AidlComposer");
+            if (!mClearSlotBuffer || mClearSlotBuffer->initCheck() != ::android::OK) {
+                LOG_ALWAYS_FATAL("Failed to allocate a buffer for clearing layer buffer slots");
+                return;
+            }
         }
     }
 
@@ -844,12 +848,12 @@ Error AidlComposer::setLayerBufferSlotsToClear(Display display, Layer layer,
     Error error = Error::NONE;
     mMutex.lock_shared();
     if (auto writer = getWriter(display)) {
-        // Backwards compatible way of clearing buffer is to set the layer buffer with a placeholder
-        // buffer, using the slot that needs to cleared... tricky.
-        if (mClearSlotBuffer == nullptr) {
+        if (mSupportsBufferSlotsToClear) {
             writer->get().setLayerBufferSlotsToClear(translate<int64_t>(display),
                                                      translate<int64_t>(layer), slotsToClear);
-        } else {
+            // Backwards compatible way of clearing buffer slots is to set the layer buffer with a
+            // placeholder buffer, using the slot that needs to cleared... tricky.
+        } else if (mClearSlotBuffer != nullptr) {
             for (uint32_t slot : slotsToClear) {
                 // Don't clear the active buffer slot because we need to restore the active buffer
                 // after clearing the requested buffer slots with a placeholder buffer.
