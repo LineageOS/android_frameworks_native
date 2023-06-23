@@ -38,7 +38,7 @@ public:
         std::string deviceName = mFdp->ConsumeRandomLengthString(16);
         std::string deviceLocation = mFdp->ConsumeRandomLengthString(12);
         int32_t deviceID = mFdp->ConsumeIntegralInRange<int32_t>(0, 5);
-        int32_t deviceGeneration = mFdp->ConsumeIntegralInRange<int32_t>(/*from*/ 0, /*to*/ 5);
+        int32_t deviceGeneration = mFdp->ConsumeIntegralInRange<int32_t>(/*from=*/0, /*to=*/5);
 
         // Create mocked objects.
         mFuzzEventHub = std::make_shared<FuzzEventHub>(mFdp);
