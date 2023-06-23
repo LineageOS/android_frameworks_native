@@ -57,6 +57,8 @@ KawaseBlurFilter::KawaseBlurFilter(): BlurFilter() {
 sk_sp<SkImage> KawaseBlurFilter::generate(GrRecordingContext* context, const uint32_t blurRadius,
                                           const sk_sp<SkImage> input, const SkRect& blurRect)
     const {
+
+    LOG_ALWAYS_FATAL_IF(input == nullptr, "%s: Invalid input image", __func__);
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
     // A radius transformation is required for approximating them, and also to introduce
     // non-integer steps, necessary to smoothly interpolate large radii.
@@ -85,6 +87,7 @@ sk_sp<SkImage> KawaseBlurFilter::generate(GrRecordingContext* context, const uin
 
     // And now we'll build our chain of scaled blur stages
     for (auto i = 1; i < numberOfPasses; i++) {
+        LOG_ALWAYS_FATAL_IF(tmpBlur == nullptr, "%s: tmpBlur is null for pass %d", __func__, i);
         blurBuilder.child("child") =
                 tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
         blurBuilder.uniform("in_blurOffset") = (float) i * radiusByPasses * kInputScale;
