@@ -22,7 +22,6 @@
 
 constexpr size_t kValidTypes[] = {EV_SW,
                                   EV_SYN,
-                                  SYN_REPORT,
                                   EV_ABS,
                                   EV_KEY,
                                   EV_MSC,
@@ -46,7 +45,6 @@ constexpr size_t kValidCodes[] = {
         ABS_MT_PRESSURE,
         ABS_MT_DISTANCE,
         ABS_MT_TOOL_TYPE,
-        SYN_MT_REPORT,
         MSC_SCAN,
         REL_X,
         REL_Y,
