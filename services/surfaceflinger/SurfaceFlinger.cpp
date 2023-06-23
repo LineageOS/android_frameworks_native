@@ -97,6 +97,7 @@
 #include <utils/Timers.h>
 #include <utils/misc.h>
 
+#include <unistd.h>
 #include <algorithm>
 #include <cerrno>
 #include <cinttypes>
@@ -916,11 +917,9 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
             auto writeFn = [&]() {
                 const std::string filename =
                         TransactionTracing::DIR_NAME + prefix + TransactionTracing::FILE_NAME;
-                if (overwrite) {
-                    std::ifstream file(filename);
-                    if (file.is_open()) {
-                        return;
-                    }
+                if (overwrite && access(filename.c_str(), F_OK) == 0) {
+                    ALOGD("TransactionTraceWriter: file=%s already exists", filename.c_str());
+                    return;
                 }
                 mTransactionTracing->flush();
                 mTransactionTracing->writeToFile(filename);
