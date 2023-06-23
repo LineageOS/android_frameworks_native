@@ -243,6 +243,7 @@ phony {
         "inputflinger_keyboard_input_fuzzer",
         "inputflinger_multitouch_input_fuzzer",
         "inputflinger_switch_input_fuzzer",
+        "inputflinger_touchpad_input_fuzzer",
         "inputflinger_input_reader_fuzzer",
         "inputflinger_blocking_queue_fuzzer",
         "inputflinger_input_classifier_fuzzer",

@@ -73,6 +73,10 @@ public:
 
     InputReaderConfiguration& getPolicyConfig() { return mPolicyConfig; }
 
+    void setAbsoluteAxisInfo(int axis, const RawAbsoluteAxisInfo& axisInfo) {
+        mFuzzEventHub->setAbsoluteAxisInfo(mFuzzDevice->getId(), axis, axisInfo);
+    }
+
     template <class T, typename... Args>
     T& getMapper(Args... args) {
         int32_t eventhubId = mFdp->ConsumeIntegral<int32_t>();
