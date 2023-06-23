@@ -53,7 +53,7 @@ public:
      * pid of the owner. The string reason contains information about the input event that we
      * haven't received a response for.
      */
-    virtual void notifyWindowUnresponsive(const sp<IBinder>& token, std::optional<int32_t> pid,
+    virtual void notifyWindowUnresponsive(const sp<IBinder>& token, std::optional<gui::Pid> pid,
                                           const std::string& reason) = 0;
 
     /* Notifies the system that a window just became responsive. This is only called after the
@@ -61,7 +61,7 @@ public:
      * no longer should be shown to the user. The window is eligible to cause a new ANR in the
      * future.
      */
-    virtual void notifyWindowResponsive(const sp<IBinder>& token, std::optional<int32_t> pid) = 0;
+    virtual void notifyWindowResponsive(const sp<IBinder>& token, std::optional<gui::Pid> pid) = 0;
 
     /* Notifies the system that an input channel is unrecoverably broken. */
     virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;
