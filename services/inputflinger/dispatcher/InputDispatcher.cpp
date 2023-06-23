@@ -4332,7 +4332,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
               args.actionButton, args.flags, args.metaState, args.buttonState, args.edgeFlags,
               args.xPrecision, args.yPrecision, args.xCursorPosition, args.yCursorPosition,
               args.downTime);
-        for (uint32_t i = 0; i < args.pointerCount; i++) {
+        for (uint32_t i = 0; i < args.getPointerCount(); i++) {
             ALOGD("  Pointer %d: id=%d, toolType=%s, x=%f, y=%f, pressure=%f, size=%f, "
                   "touchMajor=%f, touchMinor=%f, toolMajor=%f, toolMinor=%f, orientation=%f",
                   i, args.pointerProperties[i].id,
@@ -4349,8 +4349,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
         }
     }
 
-    Result<void> motionCheck = validateMotionEvent(args.action, args.actionButton,
-                                                   args.pointerCount, args.pointerProperties);
+    Result<void> motionCheck =
+            validateMotionEvent(args.action, args.actionButton, args.getPointerCount(),
+                                args.pointerProperties.data());
     if (!motionCheck.ok()) {
         LOG(ERROR) << "Invalid event: " << args.dump() << "; reason: " << motionCheck.error();
         return;
@@ -4361,8 +4362,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
                 mVerifiersByDisplay.try_emplace(args.displayId,
                                                 StringPrintf("display %" PRId32, args.displayId));
         Result<void> result =
-                it->second.processMovement(args.deviceId, args.action, args.pointerCount,
-                                           args.pointerProperties, args.pointerCoords, args.flags);
+                it->second.processMovement(args.deviceId, args.action, args.getPointerCount(),
+                                           args.pointerProperties.data(), args.pointerCoords.data(),
+                                           args.flags);
         if (!result.ok()) {
             LOG(FATAL) << "Bad stream: " << result.error() << " caused by " << args.dump();
         }
@@ -4407,8 +4409,8 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
                              args.metaState, args.buttonState, args.classification,
                              displayTransform, args.xPrecision, args.yPrecision,
                              args.xCursorPosition, args.yCursorPosition, displayTransform,
-                             args.downTime, args.eventTime, args.pointerCount,
-                             args.pointerProperties, args.pointerCoords);
+                             args.downTime, args.eventTime, args.getPointerCount(),
+                             args.pointerProperties.data(), args.pointerCoords.data());
 
             policyFlags |= POLICY_FLAG_FILTERED;
             if (!mPolicy.filterInputEvent(event, policyFlags)) {
@@ -4426,8 +4428,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
                                               args.buttonState, args.classification, args.edgeFlags,
                                               args.xPrecision, args.yPrecision,
                                               args.xCursorPosition, args.yCursorPosition,
-                                              args.downTime, args.pointerCount,
-                                              args.pointerProperties, args.pointerCoords);
+                                              args.downTime, args.getPointerCount(),
+                                              args.pointerProperties.data(),
+                                              args.pointerCoords.data());
 
         if (args.id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
             IdGenerator::getSource(args.id) == IdGenerator::Source::INPUT_READER &&
@@ -6595,7 +6598,7 @@ void InputDispatcher::monitor() {
  * this method can be safely called from any thread, as long as you've ensured that
  * the work you are interested in completing has already been queued.
  */
-bool InputDispatcher::waitForIdle() {
+bool InputDispatcher::waitForIdle() const {
     /**
      * Timeout should represent the longest possible time that a device might spend processing
      * events and commands.
