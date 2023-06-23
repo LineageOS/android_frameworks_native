@@ -124,19 +124,20 @@ void SurfaceFlingerFuzzer::invokeFlinger() {
     mFlinger->setSchedFifo(mFdp.ConsumeBool());
     mFlinger->setSchedAttr(mFdp.ConsumeBool());
     mFlinger->getServiceName();
-    mFlinger->hasSyncFramework = mFdp.ConsumeBool();
-    mFlinger->dispSyncPresentTimeOffset = mFdp.ConsumeIntegral<int64_t>();
-    mFlinger->useHwcForRgbToYuv = mFdp.ConsumeBool();
-    mFlinger->maxFrameBufferAcquiredBuffers = mFdp.ConsumeIntegral<int64_t>();
-    mFlinger->maxGraphicsWidth = mFdp.ConsumeIntegral<uint32_t>();
-    mFlinger->maxGraphicsHeight = mFdp.ConsumeIntegral<uint32_t>();
-    mTestableFlinger.mutableSupportsWideColor() = mFdp.ConsumeBool();
-    mFlinger->useContextPriority = mFdp.ConsumeBool();
 
-    mFlinger->defaultCompositionDataspace = mFdp.PickValueInArray(kDataspaces);
-    mFlinger->defaultCompositionPixelFormat = mFdp.PickValueInArray(kPixelFormats);
-    mFlinger->wideColorGamutCompositionDataspace = mFdp.PickValueInArray(kDataspaces);
-    mFlinger->wideColorGamutCompositionPixelFormat = mFdp.PickValueInArray(kPixelFormats);
+    auto& config = mTestableFlinger.mutableConfig();
+    config.hasSyncFramework = mFdp.ConsumeBool();
+    config.dispSyncPresentTimeOffset = mFdp.ConsumeIntegral<int64_t>();
+    config.useHwcForRgbToYuv = mFdp.ConsumeBool();
+    config.maxFrameBufferAcquiredBuffers = mFdp.ConsumeIntegral<int64_t>();
+    config.maxGraphicsWidth = mFdp.ConsumeIntegral<uint32_t>();
+    config.maxGraphicsHeight = mFdp.ConsumeIntegral<uint32_t>();
+    config.supportsWideColor = mFdp.ConsumeBool();
+    config.useContextPriority = mFdp.ConsumeBool();
+    config.defaultCompositionDataspace = mFdp.PickValueInArray(kDataspaces);
+    config.defaultCompositionPixelFormat = mFdp.PickValueInArray(kPixelFormats);
+    config.wideColorGamutCompositionDataspace = mFdp.PickValueInArray(kDataspaces);
+    config.wideColorGamutCompositionPixelFormat = mFdp.PickValueInArray(kPixelFormats);
 
     mFlinger->enableLatchUnsignaledConfig = mFdp.PickValueInArray(kLatchUnsignaledConfig);
 
@@ -155,7 +156,7 @@ void SurfaceFlingerFuzzer::invokeFlinger() {
 }
 
 void SurfaceFlingerFuzzer::setInternalDisplayPrimaries() {
-    ui::DisplayPrimaries primaries;
+    auto& primaries = mTestableFlinger.mutableConfig().internalDisplayPrimaries;
     primaries.red.X = mFdp.ConsumeFloatingPoint<float>();
     primaries.red.Y = mFdp.ConsumeFloatingPoint<float>();
     primaries.red.Z = mFdp.ConsumeFloatingPoint<float>();
@@ -168,7 +169,6 @@ void SurfaceFlingerFuzzer::setInternalDisplayPrimaries() {
     primaries.white.X = mFdp.ConsumeFloatingPoint<float>();
     primaries.white.Y = mFdp.ConsumeFloatingPoint<float>();
     primaries.white.Z = mFdp.ConsumeFloatingPoint<float>();
-    mTestableFlinger.setInternalDisplayPrimaries(primaries);
 }
 
 void SurfaceFlingerFuzzer::setTransactionState() {

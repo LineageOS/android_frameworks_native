@@ -2562,7 +2562,7 @@ bool Layer::hasInputInfo() const {
 compositionengine::OutputLayer* Layer::findOutputLayerForDisplay(
         const DisplayDevice* display) const {
     if (!display) return nullptr;
-    if (!mFlinger->mLayerLifecycleManagerEnabled) {
+    if (!mFlinger->getConfig().layerLifecycleManagerEnabled) {
         return display->getCompositionDisplay()->getOutputLayerForLayer(
                 getCompositionEngineLayerFE());
     }
@@ -2907,7 +2907,7 @@ void Layer::onSurfaceFrameCreated(
 
 void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
-        if (mFlinger->mLayerLifecycleManagerEnabled) {
+        if (mFlinger->getConfig().layerLifecycleManagerEnabled) {
             handle->transformHint = mTransformHint;
         } else {
             handle->transformHint = mSkipReportingTransformHint
@@ -3162,7 +3162,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     mFlinger->mTimeStats->setPostTime(layerId, mDrawingState.frameNumber, getName().c_str(),
                                       mOwnerUid, postTime, getGameMode());
 
-    if (mFlinger->mLegacyFrontEndEnabled) {
+    if (mFlinger->getConfig().legacyFrontEndEnabled) {
         recordLayerHistoryBufferUpdate(getLayerProps());
     }
 

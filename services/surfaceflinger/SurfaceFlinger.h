@@ -63,6 +63,7 @@
 #include <scheduler/interface/ICompositor.h>
 #include <ui/FenceResult.h>
 
+#include "Client.h"
 #include "Display/PhysicalDisplay.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
@@ -81,6 +82,7 @@
 #include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
+#include "SurfaceFlingerConfig.h"
 #include "SurfaceFlingerFactory.h"
 #include "ThreadContext.h"
 #include "Tracing/LayerTracing.h"
@@ -107,7 +109,6 @@
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/RefreshRateChangedDebugData.h>
-#include "Client.h"
 
 using namespace android::surfaceflinger;
 
@@ -197,10 +198,7 @@ class SurfaceFlinger : public BnSurfaceComposer,
                        private scheduler::ISchedulerCallback,
                        private compositionengine::ICEPowerCallback {
 public:
-    struct SkipInitializationTag {};
-
-    SurfaceFlinger(surfaceflinger::Factory&, SkipInitializationTag) ANDROID_API;
-    explicit SurfaceFlinger(surfaceflinger::Factory&) ANDROID_API;
+    explicit SurfaceFlinger(surfaceflinger::Config&) ANDROID_API;
 
     // set main thread scheduling policy
     static status_t setSchedFifo(bool enabled) ANDROID_API;
@@ -210,50 +208,8 @@ public:
 
     static char const* getServiceName() ANDROID_API { return "SurfaceFlinger"; }
 
-    // If fences from sync Framework are supported.
-    static bool hasSyncFramework;
-
-    // The offset in nanoseconds to use when VsyncController timestamps present fence
-    // signaling time.
-    static int64_t dispSyncPresentTimeOffset;
-
-    // Some hardware can do RGB->YUV conversion more efficiently in hardware
-    // controlled by HWC than in hardware controlled by the video encoder.
-    // This instruct VirtualDisplaySurface to use HWC for such conversion on
-    // GL composition.
-    static bool useHwcForRgbToYuv;
-
-    // Controls the number of buffers SurfaceFlinger will allocate for use in
-    // FramebufferSurface
-    static int64_t maxFrameBufferAcquiredBuffers;
-
-    // Controls the minimum acquired buffers SurfaceFlinger will suggest via
-    // ISurfaceComposer.getMaxAcquiredBufferCount().
-    static int64_t minAcquiredBuffers;
-
-    // Controls the maximum width and height in pixels that the graphics pipeline can support for
-    // GPU fallback composition. For example, 8k devices with 4k GPUs, or 4k devices with 2k GPUs.
-    static uint32_t maxGraphicsWidth;
-    static uint32_t maxGraphicsHeight;
-
     // Indicate if device wants color management on its display.
     static const constexpr bool useColorManagement = true;
-
-    static bool useContextPriority;
-
-    // The data space and pixel format that SurfaceFlinger expects hardware composer
-    // to composite efficiently. Meaning under most scenarios, hardware composer
-    // will accept layers with the data space and pixel format.
-    static ui::Dataspace defaultCompositionDataspace;
-    static ui::PixelFormat defaultCompositionPixelFormat;
-
-    // The data space and pixel format that SurfaceFlinger expects hardware composer
-    // to composite efficiently for wide color gamut surfaces. Meaning under most scenarios,
-    // hardware composer will accept layers with the data space and pixel format.
-    static ui::Dataspace wideColorGamutCompositionDataspace;
-    static ui::PixelFormat wideColorGamutCompositionPixelFormat;
-
-    static constexpr SkipInitializationTag SkipInitialization;
 
     static LatchUnsignaledConfig enableLatchUnsignaledConfig;
 
@@ -275,7 +231,8 @@ public:
     // Schedule sampling independently from commit or composite.
     void scheduleSample();
 
-    surfaceflinger::Factory& getFactory() { return mFactory; }
+    const surfaceflinger::Config& getConfig() { return *mConfig; }
+    surfaceflinger::Factory& getFactory() { return *mConfig->factory; }
 
     // The CompositionEngine encapsulates all composition related interfaces and actions.
     compositionengine::CompositionEngine& getCompositionEngine() const;
@@ -307,10 +264,6 @@ public:
         return mTransactionCallbackInvoker;
     }
 
-    // If set, disables reusing client composition buffers. This can be set by
-    // debug.sf.disable_client_composition_cache
-    bool mDisableClientCompositionCache = false;
-
     // Disables expensive rendering for all displays
     // This is scheduled on the main thread
     void disableExpensiveRendering();
@@ -320,17 +273,6 @@ public:
     // based on the previous frame. If the strategy can be predicted, gpu composition will
     // run parallel to the hwc validateDisplay call and re-run if the predition is incorrect.
     bool mPredictCompositionStrategy = false;
-
-    // If true, then any layer with a SMPTE 170M transfer function is decoded using the sRGB
-    // transfer instead. This is mainly to preserve legacy behavior, where implementations treated
-    // SMPTE 170M as sRGB prior to color management being implemented, and now implementations rely
-    // on this behavior to increase contrast for some media sources.
-    bool mTreat170mAsSrgb = false;
-
-    // Allows to ignore physical orientation provided through hwc API in favour of
-    // 'ro.surface_flinger.primary_display_orientation'.
-    // TODO(b/246793311): Clean up a temporary property
-    bool mIgnoreHwcPhysicalDisplayOrientation = false;
 
     void forceFutureUpdate(int delayInMs);
     const DisplayDevice* getDisplayFromLayerStack(ui::LayerStack)
@@ -666,12 +608,6 @@ private:
     // Keeps track of whether the kernel idle timer is currently enabled, so we don't have to
     // make calls to sys prop each time.
     bool mKernelIdleTimerEnabled = false;
-    // Show spinner with refresh rate overlay
-    bool mRefreshRateOverlaySpinner = false;
-    // Show render rate with refresh rate overlay
-    bool mRefreshRateOverlayRenderRate = false;
-    // Show render rate overlay offseted to the middle of the screen (e.g. for circular displays)
-    bool mRefreshRateOverlayShowInMiddle = false;
 
     void setDesiredActiveMode(display::DisplayModeRequest&&, bool force = false)
             REQUIRES(mStateLock);
@@ -1105,8 +1041,8 @@ private:
      */
     const std::unordered_map<std::string, uint32_t>& getGenericLayerMetadataKeyMap() const;
 
-    static int calculateMaxAcquiredBufferCount(Fps refreshRate,
-                                               std::chrono::nanoseconds presentLatency);
+    int calculateMaxAcquiredBufferCount(Fps refreshRate,
+                                        std::chrono::nanoseconds presentLatency) const;
     int getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) const;
 
     bool isHdrLayer(const frontend::LayerSnapshot& snapshot) const;
@@ -1116,8 +1052,7 @@ private:
     void traverseLegacyLayers(const LayerVector::Visitor& visitor) const;
 
     sp<StartPropertySetThread> mStartPropertySetThread;
-    surfaceflinger::Factory& mFactory;
-    pid_t mPid;
+    surfaceflinger::Config* const mConfig = nullptr;
     std::future<void> mRenderEnginePrimeCacheFuture;
 
     // mStateLock has conventions related to the current thread, because only
@@ -1144,12 +1079,6 @@ private:
     float mGlobalSaturationFactor = 1.0f;
     mat4 mClientColorMatrix;
 
-    size_t mMaxGraphicBufferProducerListSize = MAX_LAYERS;
-    // If there are more GraphicBufferProducers tracked by SurfaceFlinger than
-    // this threshold, then begin logging.
-    size_t mGraphicBufferProducerListSizeLogThreshold =
-            static_cast<size_t>(0.95 * static_cast<double>(MAX_LAYERS));
-
     // protected by mStateLock (but we could use another lock)
     bool mLayersRemoved = false;
     bool mLayersAdded = false;
@@ -1159,7 +1088,6 @@ private:
 
     // constant members (no synchronization needed for access)
     const nsecs_t mBootTime = systemTime();
-    bool mIsUserBuild = true;
 
     // Can only accessed from the main thread, these members
     // don't need synchronization
@@ -1171,7 +1099,6 @@ private:
     // Used to ensure we omit a callback when HDR layer info listener is newly added but the
     // scene hasn't changed
     bool mAddingHDRLayerInfoListener = false;
-    bool mIgnoreHdrCameraLayers = false;
 
     // Set during transaction application stage to track if the input info or children
     // for a layer has changed.
@@ -1230,9 +1157,6 @@ private:
     std::atomic<nsecs_t> mDebugInTransaction = 0;
     std::atomic_bool mForceFullDamage = false;
 
-    bool mLayerCachingEnabled = false;
-    bool mBackpressureGpuComposition = false;
-
     LayerTracing mLayerTracing;
     bool mLayerTracingEnabled = false;
 
@@ -1244,9 +1168,6 @@ private:
     const std::unique_ptr<frametimeline::FrameTimeline> mFrameTimeline;
 
     VsyncId mLastCommittedVsyncId;
-
-    // If blurs should be enabled on this device.
-    bool mSupportsBlur = false;
 
     TransactionCallbackInvoker mTransactionCallbackInvoker;
 
@@ -1279,13 +1200,9 @@ private:
     // This property can be used to force SurfaceFlinger to always pick a certain color mode.
     ui::ColorMode mForceColorMode = ui::ColorMode::NATIVE;
 
-    // Whether to enable wide color gamut (e.g. Display P3) for internal displays that support it.
-    // If false, wide color modes are filtered out for all internal displays.
-    bool mSupportsWideColor = false;
+    std::optional<ui::Dataspace> mOverrideDefaultCompositionDataspace;
+    std::optional<ui::Dataspace> mOverrideWideColorGamutCompositionDataspace;
 
-    ui::Dataspace mDefaultCompositionDataspace;
-    ui::Dataspace mWideColorGamutCompositionDataspace;
-    ui::Dataspace mColorSpaceAgnosticDataspace;
     float mDimmingRatio = -1.f;
 
     std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
@@ -1298,8 +1215,6 @@ private:
     // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
     // any mutex.
     size_t mMaxRenderTargetSize{1};
-
-    const std::string mHwcServiceName;
 
     /*
      * Scheduler
@@ -1317,14 +1232,9 @@ private:
     // below flags are set by main thread only
     bool mSetActiveModePending = false;
 
-    bool mLumaSampling = true;
     sp<RegionSamplingThread> mRegionSamplingThread;
     sp<FpsReporter> mFpsReporter;
     sp<TunnelModeEnabledReporter> mTunnelModeEnabledReporter;
-    ui::DisplayPrimaries mInternalDisplayPrimaries;
-
-    const float mEmulatedDisplayDensity;
-    const float mInternalDisplayDensity;
 
     // Should only be accessed by the main thread.
     sp<os::IInputFlinger> mInputFlinger;
@@ -1400,9 +1310,6 @@ private:
     }
 
     bool mPowerHintSessionEnabled;
-
-    bool mLayerLifecycleManagerEnabled = false;
-    bool mLegacyFrontEndEnabled = true;
 
     frontend::LayerLifecycleManager mLayerLifecycleManager;
     frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};

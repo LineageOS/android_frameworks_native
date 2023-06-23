@@ -50,7 +50,8 @@ using ui::Dataspace;
 
 FramebufferSurface::FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displayId,
                                        const sp<IGraphicBufferConsumer>& consumer,
-                                       const ui::Size& size, const ui::Size& maxSize)
+                                       const ui::Size& size, const ui::Size& maxSize,
+                                       int maxAcquiredBufferCount)
       : ConsumerBase(consumer),
         mDisplayId(displayId),
         mMaxSize(maxSize),
@@ -70,8 +71,7 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displa
                                        GRALLOC_USAGE_HW_COMPOSER);
     const auto limitedSize = limitSize(size);
     mConsumer->setDefaultBufferSize(limitedSize.width, limitedSize.height);
-    mConsumer->setMaxAcquiredBufferCount(
-            SurfaceFlinger::maxFrameBufferAcquiredBuffers - 1);
+    mConsumer->setMaxAcquiredBufferCount(maxAcquiredBufferCount);
 
     for (size_t i = 0; i < sizeof(mHwcBufferIds) / sizeof(mHwcBufferIds[0]); ++i) {
         mHwcBufferIds[i] = UINT64_MAX;

@@ -77,7 +77,8 @@ class VirtualDisplaySurface : public compositionengine::DisplaySurface,
 public:
     VirtualDisplaySurface(HWComposer&, VirtualDisplayId, const sp<IGraphicBufferProducer>& sink,
                           const sp<IGraphicBufferProducer>& bqProducer,
-                          const sp<IGraphicBufferConsumer>& bqConsumer, const std::string& name);
+                          const sp<IGraphicBufferConsumer>& bqConsumer, const std::string& name,
+                          bool useHwcForRgbToYuv);
 
     //
     // DisplaySurface interface

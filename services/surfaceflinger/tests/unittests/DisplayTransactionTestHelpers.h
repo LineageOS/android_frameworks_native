@@ -684,7 +684,7 @@ struct WideColorNotSupportedVariant {
     static constexpr bool WIDE_COLOR_SUPPORTED = false;
 
     static void injectConfigChange(DisplayTransactionTest* test) {
-        test->mFlinger.mutableSupportsWideColor() = true;
+        test->mFlinger.mutableConfig().supportsWideColor = true;
     }
 
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
@@ -699,7 +699,7 @@ struct WideColorSupportNotConfiguredVariant {
     static constexpr bool WIDE_COLOR_SUPPORTED = false;
 
     static void injectConfigChange(DisplayTransactionTest* test) {
-        test->mFlinger.mutableSupportsWideColor() = false;
+        test->mFlinger.mutableConfig().supportsWideColor = false;
         test->mFlinger.mutableDisplayColorSetting() = DisplayColorSetting::kUnmanaged;
     }
 

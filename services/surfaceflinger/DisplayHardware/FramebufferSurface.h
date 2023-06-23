@@ -42,7 +42,7 @@ class FramebufferSurface : public ConsumerBase, public compositionengine::Displa
 public:
     FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displayId,
                        const sp<IGraphicBufferConsumer>& consumer, const ui::Size& size,
-                       const ui::Size& maxSize);
+                       const ui::Size& maxSize, int maxAcquiredBufferCount);
 
     virtual status_t beginFrame(bool mustRecompose);
     virtual status_t prepareFrame(CompositionType compositionType);

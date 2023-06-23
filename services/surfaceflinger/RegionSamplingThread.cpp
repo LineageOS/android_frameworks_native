@@ -322,7 +322,7 @@ void RegionSamplingThread::captureSample() {
     };
 
     std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshots;
-    if (mFlinger.mLayerLifecycleManagerEnabled) {
+    if (mFlinger.getConfig().layerLifecycleManagerEnabled) {
         auto filterFn = [&](const frontend::LayerSnapshot& snapshot,
                             bool& outStopTraversal) -> bool {
             const Rect bounds =
