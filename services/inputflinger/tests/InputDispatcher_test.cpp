@@ -3932,9 +3932,7 @@ TEST_F(InputDispatcherTest, TouchpadThreeFingerSwipeNotSentToSingleWindow) {
 /**
  * Send a two-pointer gesture to a single window. The window's orientation changes in response to
  * the first pointer.
- * Ensure that the second pointer is not sent to the window.
- *
- * The subsequent gesture should be correctly delivered to the window.
+ * Ensure that the second pointer and the subsequent gesture is correctly delivered to the window.
  */
 TEST_F(InputDispatcherTest, MultiplePointersWithRotatingWindow) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
@@ -3964,8 +3962,6 @@ TEST_F(InputDispatcherTest, MultiplePointersWithRotatingWindow) {
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowDup}}});
 
-    window->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
-
     mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                                       .downTime(baseTime + 10)
                                       .eventTime(baseTime + 30)
@@ -3973,18 +3969,25 @@ TEST_F(InputDispatcherTest, MultiplePointersWithRotatingWindow) {
                                       .pointer(PointerBuilder(1, ToolType::FINGER).x(200).y(200))
                                       .build());
 
-    // Finish the gesture and start a new one. Ensure the new gesture is sent to the window
+    window->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
+
+    // Finish the gesture and start a new one. Ensure all events are sent to the window.
     mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN)
                                       .downTime(baseTime + 10)
                                       .eventTime(baseTime + 40)
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                                       .pointer(PointerBuilder(1, ToolType::FINGER).x(200).y(200))
                                       .build());
+
+    window->consumeMotionEvent(WithMotionAction(POINTER_1_UP));
+
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
                                       .downTime(baseTime + 10)
                                       .eventTime(baseTime + 50)
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                                       .build());
+
+    window->consumeMotionEvent(WithMotionAction(ACTION_UP));
 
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                                       .downTime(baseTime + 60)
