@@ -61,7 +61,7 @@
 // For older HALs which don't support batching, use a smaller socket buffer size.
 #define SOCKET_BUFFER_SIZE_NON_BATCHED (4 * 1024)
 
-#define SENSOR_REGISTRATIONS_BUF_SIZE 200
+#define SENSOR_REGISTRATIONS_BUF_SIZE 500
 
 // Apps that targets S+ and do not have HIGH_SAMPLING_RATE_SENSORS permission will be capped
 // at 200 Hz. The cap also applies to all requests when the mic toggle is flipped to on, regardless
