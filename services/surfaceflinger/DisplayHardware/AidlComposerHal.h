@@ -285,6 +285,8 @@ private:
     // threading annotations.
     ftl::SharedMutex mMutex;
 
+    // Whether or not explicitly clearing buffer slots is supported.
+    bool mSupportsBufferSlotsToClear;
     // Buffer slots for layers are cleared by setting the slot buffer to this buffer.
     sp<GraphicBuffer> mClearSlotBuffer;
 
