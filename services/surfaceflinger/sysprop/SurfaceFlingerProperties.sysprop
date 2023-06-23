@@ -471,3 +471,17 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.ignore_hdr_camera_layers"
 }
+
+# When enabled, SurfaceFlinger will attempt to clear the per-layer HAL buffer cache slots for
+# buffers when they are evicted from the app cache by using additional setLayerBuffer commands.
+# Ideally, this behavior would always be enabled to reduce graphics memory consumption. However,
+# Some HAL implementations may not support the additional setLayerBuffer commands used to clear
+# the cache slots.
+prop {
+    api_name: "clear_slots_with_set_layer_buffer"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.clear_slots_with_set_layer_buffer"
+}
+
