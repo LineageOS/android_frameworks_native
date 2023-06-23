@@ -119,7 +119,7 @@ public:
     void setFocusedDisplay(int32_t displayId) override;
     void setInputDispatchMode(bool enabled, bool frozen) override;
     void setInputFilterEnabled(bool enabled) override;
-    bool setInTouchMode(bool inTouchMode, int32_t pid, gui::Uid uid, bool hasPermission,
+    bool setInTouchMode(bool inTouchMode, gui::Pid pid, gui::Uid uid, bool hasPermission,
                         int32_t displayId) override;
     void setMaximumObscuringOpacityForTouch(float opacity) override;
 
@@ -132,7 +132,7 @@ public:
     void setFocusedWindow(const android::gui::FocusRequest&) override;
     base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
                                                                    const std::string& name,
-                                                                   int32_t pid) override;
+                                                                   gui::Pid pid) override;
     status_t removeInputChannel(const sp<IBinder>& connectionToken) override;
     status_t pilferPointers(const sp<IBinder>& token) override;
     void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) override;
@@ -271,7 +271,7 @@ private:
             mConnectionsByToken GUARDED_BY(mLock);
 
     // Find a monitor pid by the provided token.
-    std::optional<int32_t> findMonitorPidByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
+    std::optional<gui::Pid> findMonitorPidByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
     std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay GUARDED_BY(mLock);
@@ -522,10 +522,10 @@ private:
     void processConnectionResponsiveLocked(const Connection& connection) REQUIRES(mLock);
 
     void sendWindowUnresponsiveCommandLocked(const sp<IBinder>& connectionToken,
-                                             std::optional<int32_t> pid, std::string reason)
+                                             std::optional<gui::Pid> pid, std::string reason)
             REQUIRES(mLock);
     void sendWindowResponsiveCommandLocked(const sp<IBinder>& connectionToken,
-                                           std::optional<int32_t> pid) REQUIRES(mLock);
+                                           std::optional<gui::Pid> pid) REQUIRES(mLock);
 
     // Optimization: AnrTracker is used to quickly find which connection is due for a timeout next.
     // AnrTracker must be kept in-sync with all responsive connection.waitQueues.
@@ -703,8 +703,8 @@ private:
     void traceWaitQueueLength(const Connection& connection);
 
     // Check window ownership
-    bool focusedWindowIsOwnedByLocked(int32_t pid, gui::Uid uid) REQUIRES(mLock);
-    bool recentWindowsAreOwnedByLocked(int32_t pid, gui::Uid uid) REQUIRES(mLock);
+    bool focusedWindowIsOwnedByLocked(gui::Pid pid, gui::Uid uid) REQUIRES(mLock);
+    bool recentWindowsAreOwnedByLocked(gui::Pid pid, gui::Uid uid) REQUIRES(mLock);
 
     sp<InputReporterInterface> mReporter;
 
