@@ -5126,13 +5126,6 @@ void InputDispatcher::setInputWindowsLocked(
     // Copy old handles for release if they are no longer present.
     const std::vector<sp<WindowInfoHandle>> oldWindowHandles = getWindowHandlesLocked(displayId);
 
-    // Save the old windows' orientation by ID before it gets updated.
-    std::unordered_map<int32_t, uint32_t> oldWindowOrientations;
-    for (const sp<WindowInfoHandle>& handle : oldWindowHandles) {
-        oldWindowOrientations.emplace(handle->getId(),
-                                      handle->getInfo()->transform.getOrientation());
-    }
-
     updateWindowHandlesForDisplayLocked(windowInfoHandles, displayId);
 
     const std::vector<sp<WindowInfoHandle>>& windowHandles = getWindowHandlesLocked(displayId);
@@ -5183,23 +5176,6 @@ void InputDispatcher::setInputWindowsLocked(
             ALOGI("Drag window went away: %s", mDragState->dragWindow->getName().c_str());
             sendDropWindowCommandLocked(nullptr, 0, 0);
             mDragState.reset();
-        }
-    }
-
-    // Determine if the orientation of any of the input windows have changed, and cancel all
-    // pointer events if necessary.
-    for (const sp<WindowInfoHandle>& oldWindowHandle : oldWindowHandles) {
-        const sp<WindowInfoHandle> newWindowHandle = getWindowHandleLocked(oldWindowHandle);
-        if (newWindowHandle != nullptr &&
-            newWindowHandle->getInfo()->transform.getOrientation() !=
-                    oldWindowOrientations[oldWindowHandle->getId()]) {
-            std::shared_ptr<InputChannel> inputChannel =
-                    getInputChannelLocked(newWindowHandle->getToken());
-            if (inputChannel != nullptr) {
-                CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
-                                           "touched window's orientation changed");
-                synthesizeCancelationEventsForInputChannelLocked(inputChannel, options);
-            }
         }
     }
 
