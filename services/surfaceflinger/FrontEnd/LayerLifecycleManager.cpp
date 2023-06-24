@@ -17,7 +17,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #undef LOG_TAG
-#define LOG_TAG "LayerLifecycleManager"
+#define LOG_TAG "SurfaceFlinger"
 
 #include "LayerLifecycleManager.h"
 #include "Client.h" // temporarily needed for LayerCreationArgs
@@ -51,6 +51,7 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
                              it->second.owner.getDebugString().c_str());
         }
         mAddedLayers.push_back(newLayer.get());
+        mChangedLayers.push_back(newLayer.get());
         layer.parentId = linkLayer(layer.parentId, layer.id);
         layer.relativeParentId = linkLayer(layer.relativeParentId, layer.id);
         if (layer.layerStackToMirror != ui::INVALID_LAYER_STACK) {
@@ -202,6 +203,10 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
                 continue;
             }
 
+            if (layer->changes.get() == 0) {
+                mChangedLayers.push_back(layer);
+            }
+
             if (transaction.flags & ISurfaceComposer::eAnimation) {
                 layer->changes |= RequestedLayerState::Changes::Animation;
             }
@@ -244,6 +249,7 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
                     bgColorLayer->what |= layer_state_t::eColorChanged |
                             layer_state_t::eDataspaceChanged | layer_state_t::eAlphaChanged;
                     bgColorLayer->changes |= RequestedLayerState::Changes::Content;
+                    mChangedLayers.push_back(bgColorLayer);
                     mGlobalChanges |= RequestedLayerState::Changes::Content;
                 }
             }
@@ -290,6 +296,7 @@ void LayerLifecycleManager::commitChanges() {
         }
     }
     mDestroyedLayers.clear();
+    mChangedLayers.clear();
     mGlobalChanges.clear();
 }
 
@@ -310,8 +317,23 @@ const std::vector<std::unique_ptr<RequestedLayerState>>& LayerLifecycleManager::
     return mDestroyedLayers;
 }
 
+const std::vector<RequestedLayerState*>& LayerLifecycleManager::getChangedLayers() const {
+    return mChangedLayers;
+}
+
 const ftl::Flags<RequestedLayerState::Changes> LayerLifecycleManager::getGlobalChanges() const {
     return mGlobalChanges;
+}
+
+const RequestedLayerState* LayerLifecycleManager::getLayerFromId(uint32_t id) const {
+    if (id == UNASSIGNED_LAYER_ID) {
+        return nullptr;
+    }
+    auto it = mIdToLayer.find(id);
+    if (it == mIdToLayer.end()) {
+        return nullptr;
+    }
+    return &it->second.owner;
 }
 
 RequestedLayerState* LayerLifecycleManager::getLayerFromId(uint32_t id) {

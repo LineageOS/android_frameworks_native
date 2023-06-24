@@ -122,7 +122,9 @@ private:
 
     std::unordered_map<LayerHierarchy::TraversalPath, LayerSnapshot*,
                        LayerHierarchy::TraversalPathHash>
-            mIdToSnapshot;
+            mPathToSnapshot;
+    std::multimap<uint32_t, LayerSnapshot*> mIdToSnapshots;
+
     // Track snapshots that needs touchable region crop from other snapshots
     std::unordered_set<LayerHierarchy::TraversalPath, LayerHierarchy::TraversalPathHash>
             mNeedsTouchableRegionCrop;
