@@ -16,7 +16,7 @@
 
 // #define LOG_NDEBUG 0
 #undef LOG_TAG
-#define LOG_TAG "TransactionHandler"
+#define LOG_TAG "SurfaceFlinger"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <cutils/trace.h>

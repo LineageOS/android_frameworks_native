@@ -76,7 +76,9 @@ public:
     void removeLifecycleListener(std::shared_ptr<ILifecycleListener>);
     const std::vector<std::unique_ptr<RequestedLayerState>>& getLayers() const;
     const std::vector<std::unique_ptr<RequestedLayerState>>& getDestroyedLayers() const;
+    const std::vector<RequestedLayerState*>& getChangedLayers() const;
     const ftl::Flags<RequestedLayerState::Changes> getGlobalChanges() const;
+    const RequestedLayerState* getLayerFromId(uint32_t) const;
 
 private:
     friend class LayerLifecycleManagerTest;
@@ -111,6 +113,8 @@ private:
     // Keeps track of all the layers that were added in order. Changes will be cleared once
     // committed.
     std::vector<RequestedLayerState*> mAddedLayers;
+    // Keeps track of new and layers with states changes since last commit.
+    std::vector<RequestedLayerState*> mChangedLayers;
 };
 
 } // namespace android::surfaceflinger::frontend
