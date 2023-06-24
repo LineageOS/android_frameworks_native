@@ -270,9 +270,9 @@ struct layer_state_t {
             layer_state_t::eFrameRateChanged | layer_state_t::eFixedTransformHintChanged;
 
     // Changes affecting data sent to input.
-    static constexpr uint64_t INPUT_CHANGES = layer_state_t::GEOMETRY_CHANGES |
-            layer_state_t::HIERARCHY_CHANGES | layer_state_t::eInputInfoChanged |
-            layer_state_t::eDropInputModeChanged | layer_state_t::eTrustedOverlayChanged;
+    static constexpr uint64_t INPUT_CHANGES = layer_state_t::eInputInfoChanged |
+            layer_state_t::eDropInputModeChanged | layer_state_t::eTrustedOverlayChanged |
+            layer_state_t::eLayerStackChanged;
 
     // Changes that affect the visible region on a display.
     static constexpr uint64_t VISIBLE_REGION_CHANGES =

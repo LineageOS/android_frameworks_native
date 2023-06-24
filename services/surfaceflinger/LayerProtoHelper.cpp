@@ -428,7 +428,7 @@ void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
 
     layerInfo->set_is_relative_of(requestedState.isRelativeOf);
 
-    layerInfo->set_owner_uid(requestedState.ownerUid);
+    layerInfo->set_owner_uid(requestedState.ownerUid.val());
 
     if ((traceFlags & LayerTracing::TRACE_INPUT) && snapshot.hasInputInfo()) {
         LayerProtoHelper::writeToProto(snapshot.inputInfo, {},

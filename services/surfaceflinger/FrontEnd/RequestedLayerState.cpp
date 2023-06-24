@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// #define LOG_NDEBUG 0
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #undef LOG_TAG
-#define LOG_TAG "RequestedLayerState"
+#define LOG_TAG "SurfaceFlinger"
 
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
@@ -132,12 +133,16 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     const half oldAlpha = color.a;
     const bool hadBuffer = externalTexture != nullptr;
     uint64_t oldFramenumber = hadBuffer ? bufferData->frameNumber : 0;
+    const ui::Size oldBufferSize = hadBuffer
+            ? ui::Size(externalTexture->getWidth(), externalTexture->getHeight())
+            : ui::Size();
     const bool hadSideStream = sidebandStream != nullptr;
     const layer_state_t& clientState = resolvedComposerState.state;
     const bool hadBlur = hasBlur();
     uint64_t clientChanges = what | layer_state_t::diff(clientState);
     layer_state_t::merge(clientState);
     what = clientChanges;
+    LLOGV(layerId, "requested=%" PRIu64 "flags=%" PRIu64, clientState.what, clientChanges);
 
     if (clientState.what & layer_state_t::eFlagsChanged) {
         if ((oldFlags ^ flags) & layer_state_t::eLayerHidden) {
@@ -154,6 +159,13 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         const bool hasBuffer = externalTexture != nullptr;
         if (hasBuffer || hasBuffer != hadBuffer) {
             changes |= RequestedLayerState::Changes::Buffer;
+            const ui::Size newBufferSize = hasBuffer
+                    ? ui::Size(externalTexture->getWidth(), externalTexture->getHeight())
+                    : ui::Size();
+            if (oldBufferSize != newBufferSize) {
+                changes |= RequestedLayerState::Changes::BufferSize;
+                changes |= RequestedLayerState::Changes::Geometry;
+            }
         }
 
         if (hasBuffer != hadBuffer) {
@@ -281,7 +293,7 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
             // child layers.
             if (static_cast<int32_t>(gameMode) != requestedGameMode) {
                 gameMode = static_cast<gui::GameMode>(requestedGameMode);
-                changes |= RequestedLayerState::Changes::AffectsChildren;
+                changes |= RequestedLayerState::Changes::GameMode;
             }
         }
     }
@@ -372,7 +384,7 @@ bool RequestedLayerState::isHiddenByPolicy() const {
     return (flags & layer_state_t::eLayerHidden) == layer_state_t::eLayerHidden;
 };
 half4 RequestedLayerState::getColor() const {
-    if ((sidebandStream != nullptr) || (externalTexture != nullptr)) {
+    if (sidebandStream || externalTexture) {
         return {0._hf, 0._hf, 0._hf, color.a};
     }
     return color;
