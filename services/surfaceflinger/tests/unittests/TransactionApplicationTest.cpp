@@ -1082,6 +1082,7 @@ TEST(TransactionHandlerTest, QueueTransaction) {
     transaction.applyToken = sp<BBinder>::make();
     transaction.id = 42;
     handler.queueTransaction(std::move(transaction));
+    handler.collectTransactions();
     std::vector<TransactionState> transactionsReadyToBeApplied = handler.flushTransactions();
 
     EXPECT_EQ(transactionsReadyToBeApplied.size(), 1u);

@@ -2054,12 +2054,22 @@ void SurfaceFlinger::configure() FTL_FAKE_GUARD(kMainThreadContext) {
     }
 }
 
-bool SurfaceFlinger::updateLayerSnapshotsLegacy(VsyncId vsyncId, frontend::Update& update,
-                                                bool transactionsFlushed,
+bool SurfaceFlinger::updateLayerSnapshotsLegacy(VsyncId vsyncId, nsecs_t frameTimeNs,
+                                                bool flushTransactions,
                                                 bool& outTransactionsAreEmpty) {
     ATRACE_CALL();
+    frontend::Update update;
+    if (flushTransactions) {
+        update = flushLifecycleUpdates();
+        if (mTransactionTracing) {
+            mTransactionTracing->addCommittedTransactions(ftl::to_underlying(vsyncId), frameTimeNs,
+                                                          update, mFrontEndDisplayInfos,
+                                                          mFrontEndDisplayInfosChanged);
+        }
+    }
+
     bool needsTraversal = false;
-    if (transactionsFlushed) {
+    if (flushTransactions) {
         needsTraversal |= commitMirrorDisplays(vsyncId);
         needsTraversal |= commitCreatedLayers(vsyncId, update.layerCreatedStates);
         needsTraversal |= applyTransactions(update.transactions, vsyncId);
@@ -2107,12 +2117,43 @@ void SurfaceFlinger::updateLayerHistory(const frontend::LayerSnapshot& snapshot)
     }
 }
 
-bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, frontend::Update& update,
-                                          bool transactionsFlushed, bool& outTransactionsAreEmpty) {
+bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
+                                          bool flushTransactions, bool& outTransactionsAreEmpty) {
     using Changes = frontend::RequestedLayerState::Changes;
     ATRACE_CALL();
-    {
+    frontend::Update update;
+    if (flushTransactions) {
+        ATRACE_NAME("TransactionHandler:flushTransactions");
+        // Locking:
+        // 1. to prevent onHandleDestroyed from being called while the state lock is held,
+        // we must keep a copy of the transactions (specifically the composer
+        // states) around outside the scope of the lock.
+        // 2. Transactions and created layers do not share a lock. To prevent applying
+        // transactions with layers still in the createdLayer queue, collect the transactions
+        // before committing the created layers.
+        // 3. Transactions can only be flushed after adding layers, since the layer can be a newly
+        // created one
+        mTransactionHandler.collectTransactions();
+        {
+            // TODO(b/238781169) lockless queue this and keep order.
+            std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
+            update.layerCreatedStates = std::move(mCreatedLayers);
+            mCreatedLayers.clear();
+            update.newLayers = std::move(mNewLayers);
+            mNewLayers.clear();
+            update.layerCreationArgs = std::move(mNewLayerArgs);
+            mNewLayerArgs.clear();
+            update.destroyedHandles = std::move(mDestroyedHandles);
+            mDestroyedHandles.clear();
+        }
+
         mLayerLifecycleManager.addLayers(std::move(update.newLayers));
+        update.transactions = mTransactionHandler.flushTransactions();
+        if (mTransactionTracing) {
+            mTransactionTracing->addCommittedTransactions(ftl::to_underlying(vsyncId), frameTimeNs,
+                                                          update, mFrontEndDisplayInfos,
+                                                          mFrontEndDisplayInfosChanged);
+        }
         mLayerLifecycleManager.applyTransactions(update.transactions);
         mLayerLifecycleManager.onHandlesDestroyed(update.destroyedHandles);
         for (auto& legacyLayer : update.layerCreatedStates) {
@@ -2121,11 +2162,11 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, frontend::Update& upd
                 mLegacyLayers[layer->sequence] = layer;
             }
         }
-    }
-    if (mLayerLifecycleManager.getGlobalChanges().test(Changes::Hierarchy)) {
-        ATRACE_NAME("LayerHierarchyBuilder:update");
-        mLayerHierarchyBuilder.update(mLayerLifecycleManager.getLayers(),
-                                      mLayerLifecycleManager.getDestroyedLayers());
+        if (mLayerLifecycleManager.getGlobalChanges().test(Changes::Hierarchy)) {
+            ATRACE_NAME("LayerHierarchyBuilder:update");
+            mLayerHierarchyBuilder.update(mLayerLifecycleManager.getLayers(),
+                                          mLayerLifecycleManager.getDestroyedLayers());
+        }
     }
 
     bool mustComposite = false;
@@ -2299,25 +2340,16 @@ bool SurfaceFlinger::commit(const scheduler::FrameTarget& pacesetterFrameTarget)
                                     Fps::fromPeriodNsecs(vsyncPeriod.ns()));
 
         const bool flushTransactions = clearTransactionFlags(eTransactionFlushNeeded);
-        frontend::Update updates;
-        if (flushTransactions) {
-            updates = flushLifecycleUpdates();
-            if (mTransactionTracing) {
-                mTransactionTracing
-                        ->addCommittedTransactions(ftl::to_underlying(vsyncId),
-                                                   pacesetterFrameTarget.frameBeginTime().ns(),
-                                                   updates, mFrontEndDisplayInfos,
-                                                   mFrontEndDisplayInfosChanged);
-            }
-        }
         bool transactionsAreEmpty;
         if (mConfig->legacyFrontEndEnabled) {
-            mustComposite |= updateLayerSnapshotsLegacy(vsyncId, updates, flushTransactions,
-                                                        transactionsAreEmpty);
+            mustComposite |=
+                    updateLayerSnapshotsLegacy(vsyncId, pacesetterFrameTarget.frameBeginTime().ns(),
+                                               flushTransactions, transactionsAreEmpty);
         }
         if (mConfig->layerLifecycleManagerEnabled) {
             mustComposite |=
-                    updateLayerSnapshots(vsyncId, updates, flushTransactions, transactionsAreEmpty);
+                    updateLayerSnapshots(vsyncId, pacesetterFrameTarget.frameBeginTime().ns(),
+                                         flushTransactions, transactionsAreEmpty);
         }
 
         if (transactionFlushNeeded()) {
@@ -4123,18 +4155,16 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyTimelin
     return TransactionReadiness::Ready;
 }
 
-TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferCheck(
+TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferCheckLegacy(
         const TransactionHandler::TransactionFlushState& flushState) {
     using TransactionReadiness = TransactionHandler::TransactionReadiness;
     auto ready = TransactionReadiness::Ready;
-    flushState.transaction->traverseStatesWithBuffersWhileTrue([&](const layer_state_t& s,
-                                                                   const std::shared_ptr<
-                                                                           renderengine::
-                                                                                   ExternalTexture>&
-                                                                           externalTexture)
-                                                                       -> bool {
-        sp<Layer> layer = LayerHandle::getLayer(s.surface);
+    flushState.transaction->traverseStatesWithBuffersWhileTrue([&](const ResolvedComposerState&
+                                                                           resolvedState) -> bool {
+        sp<Layer> layer = LayerHandle::getLayer(resolvedState.state.surface);
+
         const auto& transaction = *flushState.transaction;
+        const auto& s = resolvedState.state;
         // check for barrier frames
         if (s.bufferData->hasBarrier) {
             // The current producerId is already a newer producer than the buffer that has a
@@ -4142,7 +4172,7 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
             // don't wait on the barrier since we know that's stale information.
             if (layer->getDrawingState().barrierProducerId > s.bufferData->producerId) {
                 layer->callReleaseBufferCallback(s.bufferData->releaseBufferListener,
-                                                 externalTexture->getBuffer(),
+                                                 resolvedState.externalTexture->getBuffer(),
                                                  s.bufferData->frameNumber,
                                                  s.bufferData->acquireFence);
                 // Delete the entire state at this point and not just release the buffer because
@@ -4188,9 +4218,10 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
                 s.bufferData->acquireFence->getStatus() != Fence::Status::Unsignaled;
         if (!fenceSignaled) {
             // check fence status
-            const bool allowLatchUnsignaled =
-                    shouldLatchUnsignaled(layer, s, transaction.states.size(),
-                                          flushState.firstTransaction);
+            const bool allowLatchUnsignaled = shouldLatchUnsignaled(s, transaction.states.size(),
+                                                                    flushState.firstTransaction) &&
+                    layer->isSimpleBufferUpdate(s);
+
             if (allowLatchUnsignaled) {
                 ATRACE_FORMAT("fence unsignaled try allowLatchUnsignaled %s",
                               layer->getDebugName());
@@ -4215,15 +4246,120 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
     return ready;
 }
 
+TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferCheck(
+        const TransactionHandler::TransactionFlushState& flushState) {
+    using TransactionReadiness = TransactionHandler::TransactionReadiness;
+    auto ready = TransactionReadiness::Ready;
+    flushState.transaction->traverseStatesWithBuffersWhileTrue([&](const ResolvedComposerState&
+                                                                           resolvedState) -> bool {
+        const frontend::RequestedLayerState* layer =
+                mLayerLifecycleManager.getLayerFromId(resolvedState.layerId);
+        const auto& transaction = *flushState.transaction;
+        const auto& s = resolvedState.state;
+        // check for barrier frames
+        if (s.bufferData->hasBarrier) {
+            // The current producerId is already a newer producer than the buffer that has a
+            // barrier. This means the incoming buffer is older and we can release it here. We
+            // don't wait on the barrier since we know that's stale information.
+            if (layer->barrierProducerId > s.bufferData->producerId) {
+                if (s.bufferData->releaseBufferListener) {
+                    uint32_t currentMaxAcquiredBufferCount =
+                            getMaxAcquiredBufferCountForCurrentRefreshRate(layer->ownerUid.val());
+                    ATRACE_FORMAT_INSTANT("callReleaseBufferCallback %s - %" PRIu64,
+                                          layer->name.c_str(), s.bufferData->frameNumber);
+                    s.bufferData->releaseBufferListener
+                            ->onReleaseBuffer({resolvedState.externalTexture->getBuffer()->getId(),
+                                               s.bufferData->frameNumber},
+                                              s.bufferData->acquireFence
+                                                      ? s.bufferData->acquireFence
+                                                      : Fence::NO_FENCE,
+                                              currentMaxAcquiredBufferCount);
+                }
+
+                // Delete the entire state at this point and not just release the buffer because
+                // everything associated with the Layer in this Transaction is now out of date.
+                ATRACE_FORMAT("DeleteStaleBuffer %s barrierProducerId:%d > %d", layer->name.c_str(),
+                              layer->barrierProducerId, s.bufferData->producerId);
+                return TraverseBuffersReturnValues::DELETE_AND_CONTINUE_TRAVERSAL;
+            }
+
+            if (layer->barrierFrameNumber < s.bufferData->barrierFrameNumber) {
+                const bool willApplyBarrierFrame =
+                        flushState.bufferLayersReadyToPresent.contains(s.surface.get()) &&
+                        ((flushState.bufferLayersReadyToPresent.get(s.surface.get()) >=
+                          s.bufferData->barrierFrameNumber));
+                if (!willApplyBarrierFrame) {
+                    ATRACE_FORMAT("NotReadyBarrier %s barrierFrameNumber:%" PRId64 " > %" PRId64,
+                                  layer->name.c_str(), layer->barrierFrameNumber,
+                                  s.bufferData->barrierFrameNumber);
+                    ready = TransactionReadiness::NotReadyBarrier;
+                    return TraverseBuffersReturnValues::STOP_TRAVERSAL;
+                }
+            }
+        }
+
+        // If backpressure is enabled and we already have a buffer to commit, keep
+        // the transaction in the queue.
+        const bool hasPendingBuffer =
+                flushState.bufferLayersReadyToPresent.contains(s.surface.get());
+        if (layer->backpressureEnabled() && hasPendingBuffer && transaction.isAutoTimestamp) {
+            ATRACE_FORMAT("hasPendingBuffer %s", layer->name.c_str());
+            ready = TransactionReadiness::NotReady;
+            return TraverseBuffersReturnValues::STOP_TRAVERSAL;
+        }
+
+        // ignore the acquire fence if LatchUnsignaledConfig::Always is set.
+        const bool checkAcquireFence = enableLatchUnsignaledConfig != LatchUnsignaledConfig::Always;
+        const bool acquireFenceAvailable = s.bufferData &&
+                s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&
+                s.bufferData->acquireFence;
+        const bool fenceSignaled = !checkAcquireFence || !acquireFenceAvailable ||
+                s.bufferData->acquireFence->getStatus() != Fence::Status::Unsignaled;
+        if (!fenceSignaled) {
+            // check fence status
+            const bool allowLatchUnsignaled = shouldLatchUnsignaled(s, transaction.states.size(),
+                                                                    flushState.firstTransaction) &&
+                    layer->isSimpleBufferUpdate(s);
+            if (allowLatchUnsignaled) {
+                ATRACE_FORMAT("fence unsignaled try allowLatchUnsignaled %s", layer->name.c_str());
+                ready = TransactionReadiness::NotReadyUnsignaled;
+            } else {
+                ready = TransactionReadiness::NotReady;
+                auto& listener = s.bufferData->releaseBufferListener;
+                if (listener &&
+                    (flushState.queueProcessTime - transaction.postTime) >
+                            std::chrono::nanoseconds(4s).count()) {
+                    mTransactionHandler
+                            .onTransactionQueueStalled(transaction.id, listener,
+                                                       "Buffer processing hung up due to stuck "
+                                                       "fence. Indicates GPU hang");
+                }
+                ATRACE_FORMAT("fence unsignaled %s", layer->name.c_str());
+                return TraverseBuffersReturnValues::STOP_TRAVERSAL;
+            }
+        }
+        return TraverseBuffersReturnValues::CONTINUE_TRAVERSAL;
+    });
+    return ready;
+}
+
 void SurfaceFlinger::addTransactionReadyFilters() {
     mTransactionHandler.addTransactionReadyFilter(
             std::bind(&SurfaceFlinger::transactionReadyTimelineCheck, this, std::placeholders::_1));
-    mTransactionHandler.addTransactionReadyFilter(
-            std::bind(&SurfaceFlinger::transactionReadyBufferCheck, this, std::placeholders::_1));
+    if (mConfig->layerLifecycleManagerEnabled) {
+        mTransactionHandler.addTransactionReadyFilter(
+                std::bind(&SurfaceFlinger::transactionReadyBufferCheck, this,
+                          std::placeholders::_1));
+    } else {
+        mTransactionHandler.addTransactionReadyFilter(
+                std::bind(&SurfaceFlinger::transactionReadyBufferCheckLegacy, this,
+                          std::placeholders::_1));
+    }
 }
 
 // For tests only
 bool SurfaceFlinger::flushTransactionQueues(VsyncId vsyncId) {
+    mTransactionHandler.collectTransactions();
     std::vector<TransactionState> transactions = mTransactionHandler.flushTransactions();
     return applyTransactions(transactions, vsyncId);
 }
@@ -4276,8 +4412,8 @@ bool SurfaceFlinger::frameIsEarly(TimePoint expectedPresentTime, VsyncId vsyncId
             predictedPresentTime - expectedPresentTime >= earlyLatchVsyncThreshold;
 }
 
-bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_state_t& state,
-                                           size_t numStates, bool firstTransaction) const {
+bool SurfaceFlinger::shouldLatchUnsignaled(const layer_state_t& state, size_t numStates,
+                                           bool firstTransaction) const {
     if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Disabled) {
         ATRACE_FORMAT_INSTANT("%s: false (LatchUnsignaledConfig::Disabled)", __func__);
         return false;
@@ -4314,7 +4450,7 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const sp<Layer>& layer, const layer_s
         }
     }
 
-    return layer->isSimpleBufferUpdate(state);
+    return true;
 }
 
 status_t SurfaceFlinger::setTransactionState(
@@ -8158,6 +8294,7 @@ frontend::Update SurfaceFlinger::flushLifecycleUpdates() {
     // 2. Transactions and created layers do not share a lock. To prevent applying
     // transactions with layers still in the createdLayer queue, flush the transactions
     // before committing the created layers.
+    mTransactionHandler.collectTransactions();
     update.transactions = mTransactionHandler.flushTransactions();
     {
         // TODO(b/238781169) lockless queue this and keep order.

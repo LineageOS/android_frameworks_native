@@ -19,6 +19,7 @@
 #undef LOG_TAG
 #define LOG_TAG "SurfaceFlinger"
 
+#include <gui/TraceUtils.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 #include <sys/types.h>
@@ -505,6 +506,51 @@ bool RequestedLayerState::hasSidebandStreamFrame() const {
 
 bool RequestedLayerState::willReleaseBufferOnLatch() const {
     return changes.test(Changes::Buffer) && !externalTexture;
+}
+
+bool RequestedLayerState::backpressureEnabled() const {
+    return flags & layer_state_t::eEnableBackpressure;
+}
+
+bool RequestedLayerState::isSimpleBufferUpdate(const layer_state_t& s) const {
+    static constexpr uint64_t requiredFlags = layer_state_t::eBufferChanged;
+    if ((s.what & requiredFlags) != requiredFlags) {
+        ATRACE_FORMAT_INSTANT("%s: false [missing required flags 0x%" PRIx64 "]", __func__,
+                              (s.what | requiredFlags) & ~s.what);
+        return false;
+    }
+
+    static constexpr uint64_t deniedFlags = layer_state_t::eProducerDisconnect |
+            layer_state_t::eLayerChanged | layer_state_t::eRelativeLayerChanged |
+            layer_state_t::eTransparentRegionChanged | layer_state_t::eFlagsChanged |
+            layer_state_t::eBlurRegionsChanged | layer_state_t::eLayerStackChanged |
+            layer_state_t::eAutoRefreshChanged | layer_state_t::eReparent;
+    if (s.what & deniedFlags) {
+        ATRACE_FORMAT_INSTANT("%s: false [has denied flags 0x%" PRIx64 "]", __func__,
+                              s.what & deniedFlags);
+        return false;
+    }
+
+    bool changedFlags = diff(s);
+    static constexpr auto deniedChanges = layer_state_t::ePositionChanged |
+            layer_state_t::eAlphaChanged | layer_state_t::eColorTransformChanged |
+            layer_state_t::eBackgroundColorChanged | layer_state_t::eMatrixChanged |
+            layer_state_t::eCornerRadiusChanged | layer_state_t::eBackgroundBlurRadiusChanged |
+            layer_state_t::eBufferTransformChanged |
+            layer_state_t::eTransformToDisplayInverseChanged | layer_state_t::eCropChanged |
+            layer_state_t::eDataspaceChanged | layer_state_t::eHdrMetadataChanged |
+            layer_state_t::eSidebandStreamChanged | layer_state_t::eColorSpaceAgnosticChanged |
+            layer_state_t::eShadowRadiusChanged | layer_state_t::eFixedTransformHintChanged |
+            layer_state_t::eTrustedOverlayChanged | layer_state_t::eStretchChanged |
+            layer_state_t::eBufferCropChanged | layer_state_t::eDestinationFrameChanged |
+            layer_state_t::eDimmingEnabledChanged | layer_state_t::eExtendedRangeBrightnessChanged;
+    if (changedFlags & deniedChanges) {
+        ATRACE_FORMAT_INSTANT("%s: false [has denied changes flags 0x%" PRIx64 "]", __func__,
+                              s.what & deniedChanges);
+        return false;
+    }
+
+    return true;
 }
 
 void RequestedLayerState::clearChanges() {

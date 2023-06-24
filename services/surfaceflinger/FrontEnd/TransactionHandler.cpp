@@ -33,7 +33,7 @@ void TransactionHandler::queueTransaction(TransactionState&& state) {
     ATRACE_INT("TransactionQueue", static_cast<int>(mPendingTransactionCount.load()));
 }
 
-std::vector<TransactionState> TransactionHandler::flushTransactions() {
+void TransactionHandler::collectTransactions() {
     while (!mLocklessTransactionQueue.isEmpty()) {
         auto maybeTransaction = mLocklessTransactionQueue.pop();
         if (!maybeTransaction.has_value()) {
@@ -42,7 +42,9 @@ std::vector<TransactionState> TransactionHandler::flushTransactions() {
         auto transaction = maybeTransaction.value();
         mPendingTransactionQueues[transaction.applyToken].emplace(std::move(transaction));
     }
+}
 
+std::vector<TransactionState> TransactionHandler::flushTransactions() {
     // Collect transaction that are ready to be applied.
     std::vector<TransactionState> transactions;
     TransactionFlushState flushState;

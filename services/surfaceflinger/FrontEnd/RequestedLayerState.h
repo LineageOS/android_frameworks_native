@@ -82,6 +82,8 @@ struct RequestedLayerState : layer_state_t {
     bool hasReadyFrame() const;
     bool hasSidebandStreamFrame() const;
     bool willReleaseBufferOnLatch() const;
+    bool backpressureEnabled() const;
+    bool isSimpleBufferUpdate(const layer_state_t&) const;
 
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
