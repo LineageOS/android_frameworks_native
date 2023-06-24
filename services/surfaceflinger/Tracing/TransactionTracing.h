@@ -77,7 +77,7 @@ private:
     friend class SurfaceFlinger;
 
     static constexpr auto DIR_NAME = "/data/misc/wmtrace/";
-    static constexpr auto FILE_NAME = "/transactions_trace.winscope";
+    static constexpr auto FILE_NAME = "transactions_trace.winscope";
     static constexpr auto FILE_PATH = "/data/misc/wmtrace/transactions_trace.winscope";
 
     mutable std::mutex mTraceLock;
