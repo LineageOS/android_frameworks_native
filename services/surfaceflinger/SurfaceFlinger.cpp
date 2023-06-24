@@ -2172,6 +2172,7 @@ void SurfaceFlinger::configure() FTL_FAKE_GUARD(kMainThreadContext) {
 bool SurfaceFlinger::updateLayerSnapshotsLegacy(VsyncId vsyncId, frontend::Update& update,
                                                 bool transactionsFlushed,
                                                 bool& outTransactionsAreEmpty) {
+    ATRACE_CALL();
     bool needsTraversal = false;
     if (transactionsFlushed) {
         needsTraversal |= commitMirrorDisplays(vsyncId);
@@ -2224,7 +2225,7 @@ void SurfaceFlinger::updateLayerHistory(const frontend::LayerSnapshot& snapshot)
 bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, frontend::Update& update,
                                           bool transactionsFlushed, bool& outTransactionsAreEmpty) {
     using Changes = frontend::RequestedLayerState::Changes;
-    ATRACE_NAME("updateLayerSnapshots");
+    ATRACE_CALL();
     {
         mLayerLifecycleManager.addLayers(std::move(update.newLayers));
         mLayerLifecycleManager.applyTransactions(update.transactions);
@@ -8164,7 +8165,7 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(
                     if (layerStack && snapshot->outputFilter.layerStack != *layerStack) {
                         return;
                     }
-                    if (uid != CaptureArgs::UNSET_UID && snapshot->uid != uid) {
+                    if (uid != CaptureArgs::UNSET_UID && snapshot->uid != gui::Uid(uid)) {
                         return;
                     }
                     if (!snapshot->hasSomethingToDraw()) {

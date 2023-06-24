@@ -42,10 +42,10 @@ class LayerHierarchyBuilder;
 class LayerHierarchy {
 public:
     enum Variant : uint32_t {
-        Attached,
-        Detached,
-        Relative,
-        Mirror,
+        Attached, // child of the parent
+        Detached, // child of the parent but currently relative parented to another layer
+        Relative, // relative child of the parent
+        Mirror,   // mirrored from another layer
         ftl_first = Attached,
         ftl_last = Mirror,
     };
