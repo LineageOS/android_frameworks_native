@@ -49,15 +49,38 @@
       "name": "CtsViewTestCases",
       "options": [
         {
-          "include-filter": "android.view.cts.input",
-          "include-filter": "android.view.cts.HoverTest",
-          "include-filter": "android.view.cts.MotionEventTest",
-          "include-filter": "android.view.cts.PointerCaptureTest",
-          "include-filter": "android.view.cts.TooltipTest",
-          "include-filter": "android.view.cts.TouchDelegateTest",
-          "include-filter": "android.view.cts.VelocityTrackerTest",
-          "include-filter": "android.view.cts.VerifyInputEventTest",
-          "include-filter": "android.view.cts.ViewTest",
+          "include-filter": "android.view.cts.input"
+        }
+      ]
+    },
+    {
+      "name": "CtsViewTestCases",
+      "options": [
+        {
+          "include-filter": "android.view.cts.HoverTest"
+        },
+        {
+          "include-filter": "android.view.cts.MotionEventTest"
+        },
+        {
+          "include-filter": "android.view.cts.PointerCaptureTest"
+        },
+        {
+          "include-filter": "android.view.cts.TooltipTest"
+        },
+        {
+          "include-filter": "android.view.cts.TouchDelegateTest"
+        },
+        {
+          "include-filter": "android.view.cts.VelocityTrackerTest"
+        },
+        {
+          "include-filter": "android.view.cts.VerifyInputEventTest"
+        },
+        {
+          "include-filter": "android.view.cts.ViewTest"
+        },
+        {
           "include-filter": "android.view.cts.ViewUnbufferedTest"
         }
       ]
@@ -66,7 +89,9 @@
       "name": "CtsWidgetTestCases",
       "options": [
         {
-          "include-filter": "android.widget.cts.NumberPickerTest",
+          "include-filter": "android.widget.cts.NumberPickerTest"
+        },
+        {
           "include-filter": "android.widget.cts.SeekBarTest"
         }
       ]
@@ -75,8 +100,17 @@
       "name": "FrameworksCoreTests",
       "options": [
         {
-          "include-filter": "android.hardware.input",
-          "include-filter": "android.view.VerifiedKeyEventTest",
+          "include-filter": "android.hardware.input"
+        }
+      ]
+    },
+    {
+      "name": "FrameworksCoreTests",
+      "options": [
+        {
+          "include-filter": "android.view.VerifiedKeyEventTest"
+        },
+        {
           "include-filter": "android.view.VerifiedMotionEventTest"
         }
       ]
@@ -153,15 +187,38 @@
       "name": "CtsViewTestCases",
       "options": [
         {
-          "include-filter": "android.view.cts.input",
-          "include-filter": "android.view.cts.HoverTest",
-          "include-filter": "android.view.cts.MotionEventTest",
-          "include-filter": "android.view.cts.PointerCaptureTest",
-          "include-filter": "android.view.cts.TooltipTest",
-          "include-filter": "android.view.cts.TouchDelegateTest",
-          "include-filter": "android.view.cts.VelocityTrackerTest",
-          "include-filter": "android.view.cts.VerifyInputEventTest",
-          "include-filter": "android.view.cts.ViewTest",
+          "include-filter": "android.view.cts.input"
+        }
+      ]
+    },
+    {
+      "name": "CtsViewTestCases",
+      "options": [
+        {
+          "include-filter": "android.view.cts.HoverTest"
+        },
+        {
+          "include-filter": "android.view.cts.MotionEventTest"
+        },
+        {
+          "include-filter": "android.view.cts.PointerCaptureTest"
+        },
+        {
+          "include-filter": "android.view.cts.TooltipTest"
+        },
+        {
+          "include-filter": "android.view.cts.TouchDelegateTest"
+        },
+        {
+          "include-filter": "android.view.cts.VelocityTrackerTest"
+        },
+        {
+          "include-filter": "android.view.cts.VerifyInputEventTest"
+        },
+        {
+          "include-filter": "android.view.cts.ViewTest"
+        },
+        {
           "include-filter": "android.view.cts.ViewUnbufferedTest"
         }
       ]
@@ -170,7 +227,9 @@
       "name": "CtsWidgetTestCases",
       "options": [
         {
-          "include-filter": "android.widget.cts.NumberPickerTest",
+          "include-filter": "android.widget.cts.NumberPickerTest"
+        },
+        {
           "include-filter": "android.widget.cts.SeekBarTest"
         }
       ]
@@ -179,7 +238,9 @@
       "name": "FrameworksCoreTests",
       "options": [
         {
-          "include-filter": "android.view.VerifiedKeyEventTest",
+          "include-filter": "android.view.VerifiedKeyEventTest"
+        },
+        {
           "include-filter": "android.view.VerifiedMotionEventTest"
         }
       ]
