@@ -9584,6 +9584,7 @@ public:
 using InputDispatcherStylusInterceptorDeathTest = InputDispatcherStylusInterceptorTest;
 
 TEST_F(InputDispatcherStylusInterceptorDeathTest, UntrustedOverlay_AbortsDispatcher) {
+    testing::GTEST_FLAG(death_test_style) = "threadsafe";
     ScopedSilentDeath _silentDeath;
 
     auto [overlay, window] = setupStylusOverlayScenario();
