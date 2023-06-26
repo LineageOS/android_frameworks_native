@@ -64,6 +64,14 @@ public:
         Sensor s;
         Vector<Sensor> v;
         uint32_t n = reply.readUint32();
+        // The size of the n Sensor elements on the wire is what we really want, but
+        // this is better than nothing.
+        if (n > reply.dataAvail()) {
+            ALOGE("Failed to get a reasonable size of the sensor list. This is likely a "
+                  "malformed reply parcel. Number of elements: %d, data available in reply: %zu",
+                  n, reply.dataAvail());
+            return v;
+        }
         v.setCapacity(n);
         while (n) {
             n--;
@@ -86,6 +94,14 @@ public:
         Sensor s;
         Vector<Sensor> v;
         uint32_t n = reply.readUint32();
+        // The size of the n Sensor elements on the wire is what we really want, but
+        // this is better than nothing.
+        if (n > reply.dataAvail()) {
+            ALOGE("Failed to get a reasonable size of the sensor list. This is likely a "
+                  "malformed reply parcel. Number of elements: %d, data available in reply: %zu",
+                  n, reply.dataAvail());
+            return v;
+        }
         v.setCapacity(n);
         while (n) {
             n--;
@@ -109,6 +125,14 @@ public:
         Sensor s;
         Vector<Sensor> v;
         uint32_t n = reply.readUint32();
+        // The size of the n Sensor elements on the wire is what we really want, but
+        // this is better than nothing.
+        if (n > reply.dataAvail()) {
+            ALOGE("Failed to get a reasonable size of the sensor list. This is likely a "
+                  "malformed reply parcel. Number of elements: %d, data available in reply: %zu",
+                  n, reply.dataAvail());
+            return v;
+        }
         v.setCapacity(n);
         while (n) {
             n--;
