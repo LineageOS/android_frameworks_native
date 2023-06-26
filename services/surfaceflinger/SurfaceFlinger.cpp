@@ -1830,8 +1830,21 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                        float currentDimmingRatio =
                                compositionDisplay->editState().sdrWhitePointNits /
                                compositionDisplay->editState().displayBrightnessNits;
-                       compositionDisplay->setDisplayBrightness(brightness.sdrWhitePointNits,
-                                                                brightness.displayBrightnessNits);
+                       static constexpr float kDimmingThreshold = 0.02f;
+                       if (brightness.sdrWhitePointNits == 0.f ||
+                           abs(brightness.sdrWhitePointNits - brightness.displayBrightnessNits) /
+                                           brightness.sdrWhitePointNits >=
+                                   kDimmingThreshold) {
+                           // to optimize, skip brightness setter if the brightness difference ratio
+                           // is lower than threshold
+                           compositionDisplay
+                                   ->setDisplayBrightness(brightness.sdrWhitePointNits,
+                                                          brightness.displayBrightnessNits);
+                       } else {
+                           compositionDisplay->setDisplayBrightness(brightness.sdrWhitePointNits,
+                                                                    brightness.sdrWhitePointNits);
+                       }
+
                        FTL_FAKE_GUARD(kMainThreadContext,
                                       display->stageBrightness(brightness.displayBrightness));
 
