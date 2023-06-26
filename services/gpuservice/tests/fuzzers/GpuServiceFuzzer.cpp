@@ -16,7 +16,7 @@
 
 #include <fuzzbinder/libbinder_driver.h>
 
-#include "GpuService.h"
+#include "gpuservice/GpuService.h"
 
 using ::android::fuzzService;
 using ::android::GpuService;
