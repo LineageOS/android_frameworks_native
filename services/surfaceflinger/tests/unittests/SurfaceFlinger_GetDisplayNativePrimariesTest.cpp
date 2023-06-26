@@ -84,7 +84,9 @@ TEST_F(GetDisplayNativePrimaries, internalDisplayWithPrimariesData) {
     injector.inject();
     auto internalDisplayToken = injector.token();
 
-    populateDummyDisplayNativePrimaries(mFlinger.mutableConfig().internalDisplayPrimaries);
+    ui::DisplayPrimaries expectedPrimaries;
+    populateDummyDisplayNativePrimaries(expectedPrimaries);
+    mFlinger.setInternalDisplayPrimaries(expectedPrimaries);
 
     ui::DisplayPrimaries primaries;
     EXPECT_EQ(NO_ERROR, mFlinger.getDisplayNativePrimaries(internalDisplayToken, primaries));

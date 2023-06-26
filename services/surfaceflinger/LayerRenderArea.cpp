@@ -78,7 +78,7 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
         mTransform = mLayerTransform.inverse();
     }
 
-    if (mFlinger.getConfig().layerLifecycleManagerEnabled) {
+    if (mFlinger.mLayerLifecycleManagerEnabled) {
         drawLayers();
         return;
     }

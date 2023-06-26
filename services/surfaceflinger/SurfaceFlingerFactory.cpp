@@ -14,17 +14,22 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "SurfaceFlinger.h"
-#include "SurfaceFlingerConfig.h"
 #include "SurfaceFlingerDefaultFactory.h"
 
 namespace android::surfaceflinger {
 
 sp<SurfaceFlinger> createSurfaceFlinger() {
     static DefaultFactory factory;
-    static Config config = Config::makeProduction(&factory);
 
-    return sp<SurfaceFlinger>::make(config);
+    return sp<SurfaceFlinger>::make(factory);
 }
 
 } // namespace android::surfaceflinger
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

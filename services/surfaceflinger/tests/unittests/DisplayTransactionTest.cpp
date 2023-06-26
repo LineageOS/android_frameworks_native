@@ -34,7 +34,7 @@ DisplayTransactionTest::DisplayTransactionTest(bool withMockScheduler) {
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-    mFlinger.mutableConfig().supportsWideColor = false;
+    mFlinger.mutableSupportsWideColor() = false;
     mFlinger.mutableDisplayColorSetting() = DisplayColorSetting::kUnmanaged;
 
     mFlinger.setCreateBufferQueueFunction([](auto, auto, auto) {

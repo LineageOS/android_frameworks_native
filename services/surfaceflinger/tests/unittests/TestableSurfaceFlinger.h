@@ -45,8 +45,6 @@
 #include "Scheduler/RefreshRateSelector.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
-#include "SurfaceFlingerConfig.h"
-#include "SurfaceFlingerDefaultFactory.h"
 #include "TestableScheduler.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
@@ -170,14 +168,12 @@ public:
 
     TestableSurfaceFlinger(sp<SurfaceFlinger> flinger = nullptr) : mFlinger(flinger) {
         if (!mFlinger) {
-            mFlinger = sp<SurfaceFlinger>::make(mConfig);
+            mFlinger = sp<SurfaceFlinger>::make(mFactory, SurfaceFlinger::SkipInitialization);
         }
     }
 
     SurfaceFlinger* flinger() { return mFlinger.get(); }
     scheduler::TestableScheduler* scheduler() { return mScheduler; }
-
-    auto& mutableConfig() { return mConfig; }
 
     // Extend this as needed for accessing SurfaceFlinger private (and public)
     // functions.
@@ -314,6 +310,10 @@ public:
             surfaceflinger::test::Factory::CreateNativeWindowSurfaceFunction;
     void setCreateNativeWindowSurface(CreateNativeWindowSurfaceFunction f) {
         mFactory.mCreateNativeWindowSurface = f;
+    }
+
+    void setInternalDisplayPrimaries(const ui::DisplayPrimaries& primaries) {
+        memcpy(&mFlinger->mInternalDisplayPrimaries, &primaries, sizeof(ui::DisplayPrimaries));
     }
 
     static auto& mutableLayerDrawingState(const sp<Layer>& layer) { return layer->mDrawingState; }
@@ -513,7 +513,7 @@ public:
 
     auto calculateMaxAcquiredBufferCount(Fps refreshRate,
                                          std::chrono::nanoseconds presentLatency) const {
-        return mFlinger->calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
+        return SurfaceFlinger::calculateMaxAcquiredBufferCount(refreshRate, presentLatency);
     }
 
     auto setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
@@ -596,6 +596,8 @@ public:
     const auto& hwcPhysicalDisplayIdMap() const { return getHwComposer().mPhysicalDisplayIdMap; }
     const auto& hwcDisplayData() const { return getHwComposer().mDisplayData; }
 
+    auto& mutableSupportsWideColor() { return mFlinger->mSupportsWideColor; }
+
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
     auto& mutableDisplayColorSetting() { return mFlinger->mDisplayColorSetting; }
     auto& mutableDisplays() { return mFlinger->mDisplays; }
@@ -619,6 +621,8 @@ public:
     auto& mutableActiveDisplayRotationFlags() {
         return SurfaceFlinger::sActiveDisplayRotationFlags;
     }
+
+    auto& mutableMinAcquiredBuffers() { return SurfaceFlinger::minAcquiredBuffers; }
 
     auto fromHandle(const sp<IBinder>& handle) { return LayerHandle::getLayer(handle); }
 
@@ -1004,7 +1008,6 @@ private:
     static constexpr VsyncId kVsyncId{123};
 
     surfaceflinger::test::Factory mFactory;
-    surfaceflinger::Config mConfig = surfaceflinger::Config::makeDefault(&mFactory);
     sp<SurfaceFlinger> mFlinger;
     scheduler::mock::SchedulerCallback mSchedulerCallback;
     scheduler::mock::NoOpSchedulerCallback mNoOpSchedulerCallback;
