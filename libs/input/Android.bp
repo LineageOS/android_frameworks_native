@@ -109,62 +109,6 @@ cc_library_static {
     ],
 }
 
-genrule {
-    name: "libinput_cxx_bridge_code",
-    tools: ["cxxbridge"],
-    cmd: "$(location cxxbridge) $(in) >> $(out)",
-    srcs: ["input_verifier.rs"],
-    out: ["inputverifier_generated.cpp"],
-}
-
-genrule {
-    name: "libinput_cxx_bridge_header",
-    tools: ["cxxbridge"],
-    cmd: "$(location cxxbridge) $(in) --header >> $(out)",
-    srcs: ["input_verifier.rs"],
-    out: ["input_verifier.rs.h"],
-}
-
-rust_defaults {
-    name: "libinput_rust_defaults",
-    srcs: ["input_verifier.rs"],
-    host_supported: true,
-    rustlibs: [
-        "libbitflags",
-        "libcxx",
-        "libinput_bindgen",
-        "liblogger",
-        "liblog_rust",
-        "inputconstants-rust",
-    ],
-
-    shared_libs: [
-        "libbase",
-        "liblog",
-    ],
-}
-
-rust_ffi_static {
-    name: "libinput_rust",
-    crate_name: "input",
-    defaults: ["libinput_rust_defaults"],
-}
-
-rust_test {
-    name: "libinput_rust_test",
-    defaults: ["libinput_rust_defaults"],
-    whole_static_libs: [
-        "libinput_from_rust_to_cpp",
-    ],
-    test_options: {
-        unit_test: true,
-    },
-    test_suites: ["device_tests"],
-    sanitize: {
-        hwaddress: true,
-    },
-}
-
 cc_library {
     name: "libinput",
     cpp_std: "c++20",
@@ -176,7 +120,6 @@ cc_library {
         "-Wno-unused-parameter",
     ],
     srcs: [
-        "FromRustToCpp.cpp",
         "Input.cpp",
         "InputDevice.cpp",
         "InputEventLabels.cpp",
@@ -208,8 +151,6 @@ cc_library {
         "toolbox_input_labels",
     ],
 
-    generated_sources: ["libinput_cxx_bridge_code"],
-
     shared_libs: [
         "libbase",
         "libcutils",
@@ -235,7 +176,7 @@ cc_library {
     ],
 
     whole_static_libs: [
-        "libinput_rust",
+        "libinput_rust_ffi",
     ],
 
     export_static_lib_headers: [

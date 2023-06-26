@@ -18,7 +18,7 @@
 
 #include <android-base/logging.h>
 #include <input/InputVerifier.h>
-#include "input_verifier.rs.h"
+#include "input_cxx_bridge.rs.h"
 
 using android::base::Error;
 using android::base::Result;
