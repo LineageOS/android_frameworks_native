@@ -174,7 +174,7 @@ auto DisplayDevice::getInputInfo() const -> InputInfo {
 
 void DisplayDevice::setPowerMode(hal::PowerMode mode) {
     if (mode == hal::PowerMode::OFF || mode == hal::PowerMode::ON) {
-        if (mStagedBrightness && mBrightness != *mStagedBrightness) {
+        if (mStagedBrightness && mBrightness != mStagedBrightness) {
             getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
             mBrightness = *mStagedBrightness;
         }
@@ -336,7 +336,7 @@ void DisplayDevice::stageBrightness(float brightness) {
 }
 
 void DisplayDevice::persistBrightness(bool needsComposite) {
-    if (mStagedBrightness && mBrightness != *mStagedBrightness) {
+    if (mStagedBrightness && mBrightness != mStagedBrightness) {
         if (needsComposite) {
             getCompositionDisplay()->setNextBrightness(*mStagedBrightness);
         }

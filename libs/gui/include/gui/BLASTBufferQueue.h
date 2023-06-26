@@ -111,7 +111,7 @@ public:
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format);
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
-    status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
+    status_t setFrameTimelineInfo(uint64_t frameNumber, const FrameTimelineInfo& info);
 
     void setSidebandStream(const sp<NativeHandle>& stream);
 
@@ -141,12 +141,11 @@ private:
 
     void resizeFrameEventHistory(size_t newSize);
 
-    void acquireNextBufferLocked(
+    status_t acquireNextBufferLocked(
             const std::optional<SurfaceComposerClient::Transaction*> transaction) REQUIRES(mMutex);
     Rect computeCrop(const BufferItem& item) REQUIRES(mMutex);
     // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
     bool rejectBuffer(const BufferItem& item) REQUIRES(mMutex);
-    bool maxBuffersAcquired(bool includeExtraAcquire) const REQUIRES(mMutex);
     static PixelFormat convertBufferFormat(PixelFormat& format);
     void mergePendingTransactions(SurfaceComposerClient::Transaction* t, uint64_t frameNumber)
             REQUIRES(mMutex);
@@ -155,7 +154,6 @@ private:
     void acquireAndReleaseBuffer() REQUIRES(mMutex);
     void releaseBuffer(const ReleaseCallbackId& callbackId, const sp<Fence>& releaseFence)
             REQUIRES(mMutex);
-    void flushAndWaitForFreeBuffer(std::unique_lock<std::mutex>& lock);
 
     std::string mName;
     // Represents the queued buffer count from buffer queue,
@@ -244,7 +242,7 @@ private:
     std::vector<std::tuple<uint64_t /* framenumber */, SurfaceComposerClient::Transaction>>
             mPendingTransactions GUARDED_BY(mMutex);
 
-    std::queue<FrameTimelineInfo> mNextFrameTimelineInfoQueue GUARDED_BY(mMutex);
+    std::queue<std::pair<uint64_t, FrameTimelineInfo>> mPendingFrameTimelines GUARDED_BY(mMutex);
 
     // Tracks the last acquired frame number
     uint64_t mLastAcquiredFrameNumber GUARDED_BY(mMutex) = 0;

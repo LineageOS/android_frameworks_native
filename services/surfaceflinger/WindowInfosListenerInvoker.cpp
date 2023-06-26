@@ -28,19 +28,26 @@ using gui::WindowInfo;
 
 struct WindowInfosListenerInvoker::WindowInfosReportedListener
       : gui::BnWindowInfosReportedListener {
-    explicit WindowInfosReportedListener(WindowInfosListenerInvoker& invoker) : mInvoker(invoker) {}
+    explicit WindowInfosReportedListener(WindowInfosListenerInvoker& invoker, size_t callbackCount,
+                                         bool shouldSync)
+          : mInvoker(invoker), mCallbacksPending(callbackCount), mShouldSync(shouldSync) {}
 
     binder::Status onWindowInfosReported() override {
-        mInvoker.windowInfosReported();
+        mCallbacksPending--;
+        if (mCallbacksPending == 0) {
+            mInvoker.windowInfosReported(mShouldSync);
+        }
         return binder::Status::ok();
     }
 
+private:
     WindowInfosListenerInvoker& mInvoker;
+    std::atomic<size_t> mCallbacksPending;
+    bool mShouldSync;
 };
 
 WindowInfosListenerInvoker::WindowInfosListenerInvoker(SurfaceFlinger& flinger)
-      : mFlinger(flinger),
-        mWindowInfosReportedListener(sp<WindowInfosReportedListener>::make(*this)) {}
+      : mFlinger(flinger) {}
 
 void WindowInfosListenerInvoker::addWindowInfosListener(sp<IWindowInfosListener> listener) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
@@ -64,30 +71,76 @@ void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
     mWindowInfosListeners.erase(who);
 }
 
-void WindowInfosListenerInvoker::windowInfosChanged(const std::vector<WindowInfo>& windowInfos,
-                                                    const std::vector<DisplayInfo>& displayInfos,
-                                                    bool shouldSync) {
-    ftl::SmallVector<const sp<IWindowInfosListener>, kStaticCapacity> windowInfosListeners;
-    {
-        std::scoped_lock lock(mListenersMutex);
-        for (const auto& [_, listener] : mWindowInfosListeners) {
-            windowInfosListeners.push_back(listener);
+void WindowInfosListenerInvoker::windowInfosChanged(std::vector<WindowInfo> windowInfos,
+                                                    std::vector<DisplayInfo> displayInfos,
+                                                    bool shouldSync, bool forceImmediateCall) {
+    auto callListeners = [this, windowInfos = std::move(windowInfos),
+                          displayInfos = std::move(displayInfos)](bool shouldSync) mutable {
+        ftl::SmallVector<const sp<IWindowInfosListener>, kStaticCapacity> windowInfosListeners;
+        {
+            std::scoped_lock lock(mListenersMutex);
+            for (const auto& [_, listener] : mWindowInfosListeners) {
+                windowInfosListeners.push_back(listener);
+            }
         }
-    }
 
-    mCallbacksPending = windowInfosListeners.size();
+        auto reportedListener =
+                sp<WindowInfosReportedListener>::make(*this, windowInfosListeners.size(),
+                                                      shouldSync);
 
-    for (const auto& listener : windowInfosListeners) {
-        listener->onWindowInfosChanged(windowInfos, displayInfos,
-                                       shouldSync ? mWindowInfosReportedListener : nullptr);
+        for (const auto& listener : windowInfosListeners) {
+            auto status =
+                    listener->onWindowInfosChanged(windowInfos, displayInfos, reportedListener);
+            if (!status.isOk()) {
+                reportedListener->onWindowInfosReported();
+            }
+        }
+    };
+
+    {
+        std::scoped_lock lock(mMessagesMutex);
+        // If there are unacked messages and this isn't a forced call, then return immediately.
+        // If a forced window infos change doesn't happen first, the update will be sent after
+        // the WindowInfosReportedListeners are called. If a forced window infos change happens or
+        // if there are subsequent delayed messages before this update is sent, then this message
+        // will be dropped and the listeners will only be called with the latest info. This is done
+        // to reduce the amount of binder memory used.
+        if (mActiveMessageCount > 0 && !forceImmediateCall) {
+            mWindowInfosChangedDelayed = std::move(callListeners);
+            mShouldSyncDelayed |= shouldSync;
+            return;
+        }
+
+        mWindowInfosChangedDelayed = nullptr;
+        shouldSync |= mShouldSyncDelayed;
+        mShouldSyncDelayed = false;
+        mActiveMessageCount++;
     }
+    callListeners(shouldSync);
 }
 
-void WindowInfosListenerInvoker::windowInfosReported() {
-    mCallbacksPending--;
-    if (mCallbacksPending == 0) {
+void WindowInfosListenerInvoker::windowInfosReported(bool shouldSync) {
+    if (shouldSync) {
         mFlinger.windowInfosReported();
     }
+
+    std::function<void(bool)> callListeners;
+    bool shouldSyncDelayed;
+    {
+        std::scoped_lock lock{mMessagesMutex};
+        mActiveMessageCount--;
+        if (!mWindowInfosChangedDelayed || mActiveMessageCount > 0) {
+            return;
+        }
+
+        mActiveMessageCount++;
+        callListeners = std::move(mWindowInfosChangedDelayed);
+        mWindowInfosChangedDelayed = nullptr;
+        shouldSyncDelayed = mShouldSyncDelayed;
+        mShouldSyncDelayed = false;
+    }
+
+    callListeners(shouldSyncDelayed);
 }
 
 } // namespace android
