@@ -3,12 +3,21 @@ package {
 }
 
 filegroup {
-    name: "motion_predictor_model.fb",
-    srcs: ["motion_predictor_model.fb"],
+    name: "motion_predictor_model",
+    srcs: [
+        "motion_predictor_model.tflite",
+        "motion_predictor_config.xml",
+    ],
 }
 
 prebuilt_etc {
     name: "motion_predictor_model_prebuilt",
     filename_from_src: true,
-    src: "motion_predictor_model.fb",
+    src: "motion_predictor_model.tflite",
+}
+
+prebuilt_etc {
+    name: "motion_predictor_model_config",
+    filename_from_src: true,
+    src: "motion_predictor_config.xml",
 }
