@@ -185,13 +185,6 @@ cc_defaults {
     header_libs: [
         "libinputflinger_headers",
     ],
-    target: {
-        host: {
-            static_libs: [
-                "libui-types",
-            ],
-        },
-    },
 }
 
 cc_library_shared {
