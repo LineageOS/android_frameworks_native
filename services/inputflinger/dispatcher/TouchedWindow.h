@@ -53,6 +53,10 @@ struct TouchedWindow {
      * nullopt.
      */
     std::set<int32_t> getTouchingDeviceIds() const;
+    /**
+     * The ids of devices that are currently touching or hovering.
+     */
+    std::set<int32_t> getActiveDeviceIds() const;
 
     // Pilfering pointers
     bool hasPilferingPointers(int32_t deviceId) const;

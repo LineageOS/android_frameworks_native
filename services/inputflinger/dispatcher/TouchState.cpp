@@ -31,6 +31,21 @@ void TouchState::reset() {
     *this = TouchState();
 }
 
+std::set<int32_t> TouchState::getActiveDeviceIds() const {
+    std::set<int32_t> out;
+    for (const TouchedWindow& w : windows) {
+        std::set<int32_t> deviceIds = w.getActiveDeviceIds();
+        out.insert(deviceIds.begin(), deviceIds.end());
+    }
+    return out;
+}
+
+bool TouchState::hasTouchingPointers(int32_t deviceId) const {
+    return std::any_of(windows.begin(), windows.end(), [&](const TouchedWindow& window) {
+        return window.hasTouchingPointers(deviceId);
+    });
+}
+
 void TouchState::removeTouchingPointer(int32_t removedDeviceId, int32_t pointerId) {
     for (TouchedWindow& touchedWindow : windows) {
         touchedWindow.removeTouchingPointer(removedDeviceId, pointerId);
@@ -262,8 +277,7 @@ void TouchState::removeAllPointersForDevice(int32_t removedDeviceId) {
 
 std::string TouchState::dump() const {
     std::string out;
-    out += StringPrintf("deviceId=%d, source=%s\n", deviceId,
-                        inputEventSourceToString(source).c_str());
+    out += StringPrintf("source=%s\n", inputEventSourceToString(source).c_str());
     if (!windows.empty()) {
         out += "  Windows:\n";
         for (size_t i = 0; i < windows.size(); i++) {
