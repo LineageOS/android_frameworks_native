@@ -29,6 +29,11 @@ namespace android {
 
 struct NativeLoaderNamespace;
 
+// The GraphicsEnv is a singleton per application process and is used to properly set up the
+// graphics drivers for the application process during application starts. The architecture of
+// the graphics driver loader does not support runtime switch and only supports switch to different
+// graphics drivers when application process launches and hence the only way to switch to different
+// graphics drivers is to completely kill the application process and relaunch the application.
 class GraphicsEnv {
 public:
     static GraphicsEnv& getInstance();
@@ -103,8 +108,8 @@ public:
     // (libraries must be stored uncompressed and page aligned); such elements
     // in the search path must have a '!' after the zip filename, e.g.
     //     /system/app/ANGLEPrebuilt/ANGLEPrebuilt.apk!/lib/arm64-v8a
-    void setAngleInfo(const std::string& path, const std::string& packageName,
-                      const std::string& devOptIn, const std::vector<std::string> eglFeatures);
+    void setAngleInfo(const std::string& path, const bool useSystemAngle,
+                      const std::string& packageName, const std::vector<std::string> eglFeatures);
     // Get the ANGLE driver namespace.
     android_namespace_t* getAngleNamespace();
     // Get the app package name.
@@ -132,12 +137,10 @@ public:
     const std::string& getDebugLayersGLES();
 
 private:
-    enum UseAngle { UNKNOWN, YES, NO };
-
-    // Update whether ANGLE should be used.
-    void updateShouldUseAngle();
     // Link updatable driver namespace with llndk and vndk-sp libs.
-    bool linkDriverNamespaceLocked(android_namespace_t* vndkNamespace);
+    bool linkDriverNamespaceLocked(android_namespace_t* destNamespace,
+                                   android_namespace_t* vndkNamespace,
+                                   const std::string& sharedSphalLibraries);
     // Check whether this process is ready to send stats.
     bool readyToSendGpuStatsLocked();
     // Send the initial complete GpuStats to GpuService.
@@ -165,12 +168,12 @@ private:
     std::string mAnglePath;
     // App's package name.
     std::string mPackageName;
-    // ANGLE developer opt in status.
-    std::string mAngleDeveloperOptIn;
     // ANGLE EGL features;
     std::vector<std::string> mAngleEglFeatures;
-    // Use ANGLE flag.
-    UseAngle mShouldUseAngle = UNKNOWN;
+    // Whether ANGLE should be used.
+    bool mShouldUseAngle = false;
+    // Whether loader should load system ANGLE.
+    bool mUseSystemAngle = false;
     // ANGLE namespace.
     android_namespace_t* mAngleNamespace = nullptr;
 
