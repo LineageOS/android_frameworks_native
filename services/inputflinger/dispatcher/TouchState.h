@@ -29,8 +29,6 @@ class WindowInfoHandle;
 namespace inputdispatcher {
 
 struct TouchState {
-    // id of the device that is currently down, others are rejected
-    int32_t deviceId = -1;
     // source of the device that is current down, others are rejected
     uint32_t source = 0;
 
@@ -43,6 +41,9 @@ struct TouchState {
     void reset();
     void clearWindowsWithoutPointers();
 
+    std::set<int32_t> getActiveDeviceIds() const;
+
+    bool hasTouchingPointers(int32_t device) const;
     void removeTouchingPointer(int32_t deviceId, int32_t pointerId);
     void removeTouchingPointerFromWindow(int32_t deviceId, int32_t pointerId,
                                          const sp<android::gui::WindowInfoHandle>& windowHandle);
