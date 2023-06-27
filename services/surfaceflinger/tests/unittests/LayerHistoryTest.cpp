@@ -437,6 +437,117 @@ TEST_F(LayerHistoryTest, oneLayerExplicitExactVote) {
     EXPECT_EQ(0, frequentLayerCount(time));
 }
 
+TEST_F(LayerHistoryTest, oneLayerExplicitCategory) {
+    auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree())
+            .WillRepeatedly(
+                    Return(Layer::FrameRate(0_Hz, Layer::FrameRateCompatibility::Default,
+                                            Seamlessness::OnlySeamless, FrameRateCategory::High)));
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+
+    nsecs_t time = systemTime();
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
+        time += HI_FPS_PERIOD;
+    }
+
+    ASSERT_EQ(1, summarizeLayerHistory(time).size());
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(1, frequentLayerCount(time));
+    // First LayerRequirement is the frame rate specification
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitCategory, summarizeLayerHistory(time)[0].vote);
+    EXPECT_EQ(0_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
+    EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[0].frameRateCategory);
+
+    // layer became inactive, but the vote stays
+    setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
+    time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
+    ASSERT_EQ(1, summarizeLayerHistory(time).size());
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitCategory, summarizeLayerHistory(time)[0].vote);
+    EXPECT_EQ(0_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
+    EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[0].frameRateCategory);
+}
+
+// This test case should be the same as oneLayerNoVote except instead of layer vote is NoVote,
+// the category is NoPreference.
+TEST_F(LayerHistoryTest, oneLayerCategoryNoPreference) {
+    auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree())
+            .WillRepeatedly(Return(Layer::FrameRate(0_Hz, Layer::FrameRateCompatibility::Default,
+                                                    Seamlessness::OnlySeamless,
+                                                    FrameRateCategory::NoPreference)));
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+
+    nsecs_t time = systemTime();
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
+        time += HI_FPS_PERIOD;
+    }
+
+    ASSERT_TRUE(summarizeLayerHistory(time).empty());
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(1, frequentLayerCount(time));
+
+    // layer became inactive
+    time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
+    ASSERT_TRUE(summarizeLayerHistory(time).empty());
+    EXPECT_EQ(0, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+}
+
+TEST_F(LayerHistoryTest, oneLayerExplicitVoteWithCategory) {
+    auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree())
+            .WillRepeatedly(
+                    Return(Layer::FrameRate(73.4_Hz, Layer::FrameRateCompatibility::Default,
+                                            Seamlessness::OnlySeamless, FrameRateCategory::High)));
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+
+    nsecs_t time = systemTime();
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
+        time += HI_FPS_PERIOD;
+    }
+
+    // There are 2 LayerRequirement's due to the frame rate category.
+    ASSERT_EQ(2, summarizeLayerHistory(time).size());
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(1, frequentLayerCount(time));
+    // First LayerRequirement is the layer's category specification
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitCategory, summarizeLayerHistory(time)[0].vote);
+    EXPECT_EQ(73.4_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
+    EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[0].frameRateCategory);
+
+    // Second LayerRequirement is the frame rate specification
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitDefault, summarizeLayerHistory(time)[1].vote);
+    EXPECT_EQ(73.4_Hz, summarizeLayerHistory(time)[1].desiredRefreshRate);
+    EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[1].frameRateCategory);
+
+    // layer became inactive, but the vote stays
+    setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
+    time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
+    ASSERT_EQ(2, summarizeLayerHistory(time).size());
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitCategory, summarizeLayerHistory(time)[0].vote);
+    EXPECT_EQ(73.4_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
+    EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[0].frameRateCategory);
+}
+
 TEST_F(LayerHistoryTest, multipleLayers) {
     auto layer1 = createLayer("A");
     auto layer2 = createLayer("B");

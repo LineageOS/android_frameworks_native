@@ -275,6 +275,25 @@ std::pair<nsecs_t, nsecs_t> RefreshRateSelector::getDisplayFrames(nsecs_t layerP
     return {quotient, remainder};
 }
 
+float RefreshRateSelector::calculateNonExactMatchingDefaultLayerScoreLocked(
+        nsecs_t displayPeriod, nsecs_t layerPeriod) const {
+    // Find the actual rate the layer will render, assuming
+    // that layerPeriod is the minimal period to render a frame.
+    // For example if layerPeriod is 20ms and displayPeriod is 16ms,
+    // then the actualLayerPeriod will be 32ms, because it is the
+    // smallest multiple of the display period which is >= layerPeriod.
+    auto actualLayerPeriod = displayPeriod;
+    int multiplier = 1;
+    while (layerPeriod > actualLayerPeriod + MARGIN_FOR_PERIOD_CALCULATION) {
+        multiplier++;
+        actualLayerPeriod = displayPeriod * multiplier;
+    }
+
+    // Because of the threshold we used above it's possible that score is slightly
+    // above 1.
+    return std::min(1.0f, static_cast<float>(layerPeriod) / static_cast<float>(actualLayerPeriod));
+}
+
 float RefreshRateSelector::calculateNonExactMatchingLayerScoreLocked(const LayerRequirement& layer,
                                                                      Fps refreshRate) const {
     constexpr float kScoreForFractionalPairs = .8f;
@@ -282,22 +301,7 @@ float RefreshRateSelector::calculateNonExactMatchingLayerScoreLocked(const Layer
     const auto displayPeriod = refreshRate.getPeriodNsecs();
     const auto layerPeriod = layer.desiredRefreshRate.getPeriodNsecs();
     if (layer.vote == LayerVoteType::ExplicitDefault) {
-        // Find the actual rate the layer will render, assuming
-        // that layerPeriod is the minimal period to render a frame.
-        // For example if layerPeriod is 20ms and displayPeriod is 16ms,
-        // then the actualLayerPeriod will be 32ms, because it is the
-        // smallest multiple of the display period which is >= layerPeriod.
-        auto actualLayerPeriod = displayPeriod;
-        int multiplier = 1;
-        while (layerPeriod > actualLayerPeriod + MARGIN_FOR_PERIOD_CALCULATION) {
-            multiplier++;
-            actualLayerPeriod = displayPeriod * multiplier;
-        }
-
-        // Because of the threshold we used above it's possible that score is slightly
-        // above 1.
-        return std::min(1.0f,
-                        static_cast<float>(layerPeriod) / static_cast<float>(actualLayerPeriod));
+        return calculateNonExactMatchingDefaultLayerScoreLocked(displayPeriod, layerPeriod);
     }
 
     if (layer.vote == LayerVoteType::ExplicitExactOrMultiple ||
@@ -372,6 +376,22 @@ float RefreshRateSelector::calculateLayerScoreLocked(const LayerRequirement& lay
     constexpr float kSeamedSwitchPenalty = 0.95f;
     const float seamlessness = isSeamlessSwitch ? 1.0f : kSeamedSwitchPenalty;
 
+    if (layer.vote == LayerVoteType::ExplicitCategory) {
+        if (getFrameRateCategoryRange(layer.frameRateCategory).includes(refreshRate)) {
+            return 1.f;
+        }
+
+        FpsRange categoryRange = getFrameRateCategoryRange(layer.frameRateCategory);
+        using fps_approx_ops::operator<;
+        if (refreshRate < categoryRange.min) {
+            return calculateNonExactMatchingDefaultLayerScoreLocked(refreshRate.getPeriodNsecs(),
+                                                                    categoryRange.min
+                                                                            .getPeriodNsecs());
+        }
+        return calculateNonExactMatchingDefaultLayerScoreLocked(refreshRate.getPeriodNsecs(),
+                                                                categoryRange.max.getPeriodNsecs());
+    }
+
     // If the layer wants Max, give higher score to the higher refresh rate
     if (layer.vote == LayerVoteType::Max) {
         return calculateDistanceScoreFromMax(refreshRate);
@@ -391,7 +411,8 @@ float RefreshRateSelector::calculateLayerScoreLocked(const LayerRequirement& lay
 
     // If the layer frame rate is a divisor of the refresh rate it should score
     // the highest score.
-    if (getFrameRateDivisor(refreshRate, layer.desiredRefreshRate) > 0) {
+    if (layer.desiredRefreshRate.isValid() &&
+        getFrameRateDivisor(refreshRate, layer.desiredRefreshRate) > 0) {
         return 1.0f * seamlessness;
     }
 
@@ -441,6 +462,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     int explicitDefaultVoteLayers = 0;
     int explicitExactOrMultipleVoteLayers = 0;
     int explicitExact = 0;
+    int explicitCategoryVoteLayers = 0;
     int seamedFocusedLayers = 0;
 
     for (const auto& layer : layers) {
@@ -463,6 +485,9 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
             case LayerVoteType::ExplicitExact:
                 explicitExact++;
                 break;
+            case LayerVoteType::ExplicitCategory:
+                explicitCategoryVoteLayers++;
+                break;
             case LayerVoteType::Heuristic:
                 break;
         }
@@ -473,7 +498,8 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     }
 
     const bool hasExplicitVoteLayers = explicitDefaultVoteLayers > 0 ||
-            explicitExactOrMultipleVoteLayers > 0 || explicitExact > 0;
+            explicitExactOrMultipleVoteLayers > 0 || explicitExact > 0 ||
+            explicitCategoryVoteLayers > 0;
 
     const Policy* policy = getCurrentPolicyLocked();
     const auto& defaultMode = mDisplayModes.get(policy->defaultMode)->get();
@@ -536,10 +562,11 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     }
 
     for (const auto& layer : layers) {
-        ALOGV("Calculating score for %s (%s, weight %.2f, desired %.2f) ", layer.name.c_str(),
-              ftl::enum_string(layer.vote).c_str(), layer.weight,
-              layer.desiredRefreshRate.getValue());
-        if (layer.vote == LayerVoteType::NoVote || layer.vote == LayerVoteType::Min) {
+        ALOGV("Calculating score for %s (%s, weight %.2f, desired %.2f, category %s) ",
+              layer.name.c_str(), ftl::enum_string(layer.vote).c_str(), layer.weight,
+              layer.desiredRefreshRate.getValue(),
+              ftl::enum_string(layer.frameRateCategory).c_str());
+        if (layer.isNoVote() || layer.vote == LayerVoteType::Min) {
             continue;
         }
 
@@ -607,6 +634,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
                     case LayerVoteType::Max:
                     case LayerVoteType::ExplicitDefault:
                     case LayerVoteType::ExplicitExact:
+                    case LayerVoteType::ExplicitCategory:
                         return false;
                 }
             }(layer.vote);
@@ -722,7 +750,8 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     const auto touchRefreshRates = rankFrameRates(anchorGroup, RefreshRateOrder::Descending);
     using fps_approx_ops::operator<;
 
-    if (signals.touch && explicitDefaultVoteLayers == 0 && touchBoostForExplicitExact &&
+    if (signals.touch && explicitDefaultVoteLayers == 0 && explicitCategoryVoteLayers == 0 &&
+        touchBoostForExplicitExact &&
         scores.front().frameRateMode.fps < touchRefreshRates.front().frameRateMode.fps) {
         ALOGV("Touch Boost");
         ATRACE_FORMAT_INSTANT("%s (Touch Boost [late])",
@@ -838,8 +867,10 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
             }
 
             LOG_ALWAYS_FATAL_IF(layer->vote != LayerVoteType::ExplicitDefault &&
-                                layer->vote != LayerVoteType::ExplicitExactOrMultiple &&
-                                layer->vote != LayerVoteType::ExplicitExact);
+                                        layer->vote != LayerVoteType::ExplicitExactOrMultiple &&
+                                        layer->vote != LayerVoteType::ExplicitExact &&
+                                        layer->vote != LayerVoteType::ExplicitCategory,
+                                "Invalid layer vote type for frame rate overrides");
             for (auto& [fps, score] : scoredFrameRates) {
                 constexpr bool isSeamlessSwitch = true;
                 const auto layerScore = calculateLayerScoreLocked(*layer, fps, isSeamlessSwitch);
@@ -1378,6 +1409,27 @@ void RefreshRateSelector::dump(utils::Dumper& dumper) const {
 
 std::chrono::milliseconds RefreshRateSelector::getIdleTimerTimeout() {
     return mConfig.idleTimerTimeout;
+}
+
+// TODO(b/293651105): Extract category FpsRange mapping to OEM-configurable config.
+FpsRange RefreshRateSelector::getFrameRateCategoryRange(FrameRateCategory category) {
+    switch (category) {
+        case FrameRateCategory::High:
+            return FpsRange{90_Hz, 120_Hz};
+        case FrameRateCategory::Normal:
+            return FpsRange{60_Hz, 90_Hz};
+        case FrameRateCategory::Low:
+            return FpsRange{30_Hz, 60_Hz};
+        case FrameRateCategory::NoPreference:
+        case FrameRateCategory::Default:
+            LOG_ALWAYS_FATAL("Should not get fps range for frame rate category: %s",
+                             ftl::enum_string(category).c_str());
+            return FpsRange{0_Hz, 0_Hz};
+        default:
+            LOG_ALWAYS_FATAL("Invalid frame rate category for range: %s",
+                             ftl::enum_string(category).c_str());
+            return FpsRange{0_Hz, 0_Hz};
+    }
 }
 
 } // namespace android::scheduler
