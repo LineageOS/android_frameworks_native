@@ -195,7 +195,6 @@ filegroup {
         "ScreenCaptureOutput.cpp",
         "StartPropertySetThread.cpp",
         "SurfaceFlinger.cpp",
-        "SurfaceFlingerConfig.cpp",
         "SurfaceFlingerDefaultFactory.cpp",
         "Tracing/LayerTracing.cpp",
         "Tracing/TransactionTracing.cpp",

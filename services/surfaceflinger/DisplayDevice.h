@@ -236,7 +236,8 @@ public:
     }
 
     // Enables an overlay to be displayed with the current refresh rate
-    void enableRefreshRateOverlay(bool enable, bool setByHwc) REQUIRES(kMainThreadContext);
+    void enableRefreshRateOverlay(bool enable, bool setByHwc, bool showSpinner, bool showRenderRate,
+                                  bool showInMiddle) REQUIRES(kMainThreadContext);
     void updateRefreshRateOverlayRate(Fps displayFps, Fps renderFps, bool setByHwc = false);
     bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
     bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
