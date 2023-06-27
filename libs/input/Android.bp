@@ -215,6 +215,7 @@ cc_library {
         "libcutils",
         "liblog",
         "libPlatformProperties",
+        "libtinyxml2",
         "libvintf",
     ],
 
@@ -271,6 +272,7 @@ cc_library {
 
             required: [
                 "motion_predictor_model_prebuilt",
+                "motion_predictor_model_config",
             ],
         },
         host: {

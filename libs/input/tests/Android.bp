@@ -64,12 +64,13 @@ cc_test {
         "libcutils",
         "liblog",
         "libPlatformProperties",
+        "libtinyxml2",
         "libutils",
         "libvintf",
     ],
     data: [
         "data/*",
-        ":motion_predictor_model.fb",
+        ":motion_predictor_model",
     ],
     test_options: {
         unit_test: true,

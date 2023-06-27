@@ -36,6 +36,7 @@
 #define ATRACE_TAG ATRACE_TAG_INPUT
 #include <cutils/trace.h>
 #include <log/log.h>
+#include <utils/Timers.h>
 
 #include "tensorflow/lite/core/api/error_reporter.h"
 #include "tensorflow/lite/core/api/op_resolver.h"
@@ -43,6 +44,8 @@
 #include "tensorflow/lite/kernels/builtin_op_kernels.h"
 #include "tensorflow/lite/model.h"
 #include "tensorflow/lite/mutable_op_resolver.h"
+
+#include "tinyxml2.h"
 
 namespace android {
 namespace {
@@ -72,14 +75,29 @@ bool fileExists(const char* filename) {
 
 std::string getModelPath() {
 #if defined(__ANDROID__)
-    static const char* oemModel = "/vendor/etc/motion_predictor_model.fb";
+    static const char* oemModel = "/vendor/etc/motion_predictor_model.tflite";
     if (fileExists(oemModel)) {
         return oemModel;
     }
-    return "/system/etc/motion_predictor_model.fb";
+    return "/system/etc/motion_predictor_model.tflite";
 #else
-    return base::GetExecutableDirectory() + "/motion_predictor_model.fb";
+    return base::GetExecutableDirectory() + "/motion_predictor_model.tflite";
 #endif
+}
+
+std::string getConfigPath() {
+    // The config file should be alongside the model file.
+    return base::Dirname(getModelPath()) + "/motion_predictor_config.xml";
+}
+
+int64_t parseXMLInt64(const tinyxml2::XMLElement& configRoot, const char* elementName) {
+    const tinyxml2::XMLElement* element = configRoot.FirstChildElement(elementName);
+    LOG_ALWAYS_FATAL_IF(!element, "Could not find '%s' element", elementName);
+
+    int64_t value = 0;
+    LOG_ALWAYS_FATAL_IF(element->QueryInt64Text(&value) != tinyxml2::XML_SUCCESS,
+                        "Failed to parse %s: %s", elementName, element->GetText());
+    return value;
 }
 
 // A TFLite ErrorReporter that logs to logcat.
@@ -246,13 +264,23 @@ std::unique_ptr<TfLiteMotionPredictorModel> TfLiteMotionPredictorModel::create()
         PLOG(FATAL) << "Failed to mmap model";
     }
 
+    const std::string configPath = getConfigPath();
+    tinyxml2::XMLDocument configDocument;
+    LOG_ALWAYS_FATAL_IF(configDocument.LoadFile(configPath.c_str()) != tinyxml2::XML_SUCCESS,
+                        "Failed to load config file from %s", configPath.c_str());
+
+    // Parse configuration file.
+    const tinyxml2::XMLElement* configRoot = configDocument.FirstChildElement("motion-predictor");
+    LOG_ALWAYS_FATAL_IF(!configRoot);
+    const nsecs_t predictionInterval = parseXMLInt64(*configRoot, "prediction-interval");
+
     return std::unique_ptr<TfLiteMotionPredictorModel>(
-            new TfLiteMotionPredictorModel(std::move(modelBuffer)));
+            new TfLiteMotionPredictorModel(std::move(modelBuffer), predictionInterval));
 }
 
 TfLiteMotionPredictorModel::TfLiteMotionPredictorModel(
-        std::unique_ptr<android::base::MappedFile> model)
-      : mFlatBuffer(std::move(model)) {
+        std::unique_ptr<android::base::MappedFile> model, nsecs_t predictionInterval)
+      : mFlatBuffer(std::move(model)), mPredictionInterval(predictionInterval) {
     CHECK(mFlatBuffer);
     mErrorReporter = std::make_unique<LoggingErrorReporter>();
     mModel = tflite::FlatBufferModel::VerifyAndBuildFromBuffer(mFlatBuffer->data(),
