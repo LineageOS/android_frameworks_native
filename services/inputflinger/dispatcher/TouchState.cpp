@@ -31,18 +31,19 @@ void TouchState::reset() {
     *this = TouchState();
 }
 
-void TouchState::removeTouchedPointer(int32_t pointerId) {
+void TouchState::removeTouchingPointer(int32_t removedDeviceId, int32_t pointerId) {
     for (TouchedWindow& touchedWindow : windows) {
-        touchedWindow.removeTouchingPointer(pointerId);
+        touchedWindow.removeTouchingPointer(removedDeviceId, pointerId);
     }
     clearWindowsWithoutPointers();
 }
 
-void TouchState::removeTouchedPointerFromWindow(
-        int32_t pointerId, const sp<android::gui::WindowInfoHandle>& windowHandle) {
+void TouchState::removeTouchingPointerFromWindow(
+        int32_t removedDeviceId, int32_t pointerId,
+        const sp<android::gui::WindowInfoHandle>& windowHandle) {
     for (TouchedWindow& touchedWindow : windows) {
         if (touchedWindow.windowHandle == windowHandle) {
-            touchedWindow.removeTouchingPointer(pointerId);
+            touchedWindow.removeTouchingPointer(removedDeviceId, pointerId);
             clearWindowsWithoutPointers();
             return;
         }
@@ -58,13 +59,14 @@ void TouchState::clearHoveringPointers() {
 
 void TouchState::clearWindowsWithoutPointers() {
     std::erase_if(windows, [](const TouchedWindow& w) {
-        return w.pointerIds.none() && !w.hasHoveringPointers();
+        return !w.hasTouchingPointers() && !w.hasHoveringPointers();
     });
 }
 
 void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
                                    ftl::Flags<InputTarget::Flags> targetFlags,
-                                   std::bitset<MAX_POINTER_ID + 1> pointerIds,
+                                   int32_t addedDeviceId,
+                                   std::bitset<MAX_POINTER_ID + 1> touchingPointerIds,
                                    std::optional<nsecs_t> firstDownTimeInTarget) {
     for (TouchedWindow& touchedWindow : windows) {
         // We do not compare windows by token here because two windows that share the same token
@@ -75,11 +77,11 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
                 touchedWindow.targetFlags.clear(InputTarget::Flags::DISPATCH_AS_IS);
             }
             // For cases like hover enter/exit or DISPATCH_AS_OUTSIDE a touch window might not have
-            // downTime set initially. Need to update existing window when an pointer is down for
-            // the window.
-            touchedWindow.pointerIds |= pointerIds;
-            if (!touchedWindow.firstDownTimeInTarget.has_value()) {
-                touchedWindow.firstDownTimeInTarget = firstDownTimeInTarget;
+            // downTime set initially. Need to update existing window when a pointer is down for the
+            // window.
+            touchedWindow.addTouchingPointers(addedDeviceId, touchingPointerIds);
+            if (firstDownTimeInTarget) {
+                touchedWindow.trySetDownTimeInTarget(addedDeviceId, *firstDownTimeInTarget);
             }
             return;
         }
@@ -87,8 +89,10 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
     TouchedWindow touchedWindow;
     touchedWindow.windowHandle = windowHandle;
     touchedWindow.targetFlags = targetFlags;
-    touchedWindow.pointerIds = pointerIds;
-    touchedWindow.firstDownTimeInTarget = firstDownTimeInTarget;
+    touchedWindow.addTouchingPointers(addedDeviceId, touchingPointerIds);
+    if (firstDownTimeInTarget) {
+        touchedWindow.trySetDownTimeInTarget(addedDeviceId, *firstDownTimeInTarget);
+    }
     windows.push_back(touchedWindow);
 }
 
@@ -130,12 +134,12 @@ void TouchState::filterNonAsIsTouchWindows() {
     }
 }
 
-void TouchState::cancelPointersForWindowsExcept(std::bitset<MAX_POINTER_ID + 1> pointerIds,
+void TouchState::cancelPointersForWindowsExcept(int32_t touchedDeviceId,
+                                                std::bitset<MAX_POINTER_ID + 1> pointerIds,
                                                 const sp<IBinder>& token) {
-    if (pointerIds.none()) return;
-    std::for_each(windows.begin(), windows.end(), [&pointerIds, &token](TouchedWindow& w) {
+    std::for_each(windows.begin(), windows.end(), [&](TouchedWindow& w) {
         if (w.windowHandle->getToken() != token) {
-            w.pointerIds &= ~pointerIds;
+            w.removeTouchingPointers(touchedDeviceId, pointerIds);
         }
     });
     clearWindowsWithoutPointers();
@@ -149,24 +153,29 @@ void TouchState::cancelPointersForWindowsExcept(std::bitset<MAX_POINTER_ID + 1> 
  */
 void TouchState::cancelPointersForNonPilferingWindows() {
     // First, find all pointers that are being pilfered, across all windows
-    std::bitset<MAX_POINTER_ID + 1> allPilferedPointerIds;
-    std::for_each(windows.begin(), windows.end(), [&allPilferedPointerIds](const TouchedWindow& w) {
-        allPilferedPointerIds |= w.pilferedPointerIds;
-    });
+    std::map<int32_t /*deviceId*/, std::bitset<MAX_POINTER_ID + 1>> allPilferedPointerIdsByDevice;
+    for (const TouchedWindow& w : windows) {
+        for (const auto& [iterDeviceId, pilferedPointerIds] : w.getPilferingPointers()) {
+            allPilferedPointerIdsByDevice[iterDeviceId] |= pilferedPointerIds;
+        }
+    };
 
     // Optimization: most of the time, pilfering does not occur
-    if (allPilferedPointerIds.none()) return;
+    if (allPilferedPointerIdsByDevice.empty()) return;
 
     // Now, remove all pointers from every window that's being pilfered by other windows.
     // For example, if window A is pilfering pointer 1 (only), and window B is pilfering pointer 2
     // (only), the remove pointer 2 from window A and pointer 1 from window B. Usually, the set of
     // pilfered pointers will be disjoint across all windows, but there's no reason to cause that
     // limitation here.
-    std::for_each(windows.begin(), windows.end(), [&allPilferedPointerIds](TouchedWindow& w) {
-        std::bitset<MAX_POINTER_ID + 1> pilferedByOtherWindows =
-                w.pilferedPointerIds ^ allPilferedPointerIds;
-        w.pointerIds &= ~pilferedByOtherWindows;
-    });
+    for (const auto& [iterDeviceId, allPilferedPointerIds] : allPilferedPointerIdsByDevice) {
+        std::for_each(windows.begin(), windows.end(), [&](TouchedWindow& w) {
+            std::bitset<MAX_POINTER_ID + 1> pilferedByOtherWindows =
+                    w.getPilferingPointers(iterDeviceId) ^ allPilferedPointerIds;
+            // Remove all pointers pilfered by other windows
+            w.removeTouchingPointers(iterDeviceId, pilferedByOtherWindows);
+        });
+    }
     clearWindowsWithoutPointers();
 }
 
@@ -216,7 +225,7 @@ const TouchedWindow& TouchState::getTouchedWindow(const sp<WindowInfoHandle>& wi
 
 bool TouchState::isDown() const {
     return std::any_of(windows.begin(), windows.end(),
-                       [](const TouchedWindow& window) { return window.pointerIds.any(); });
+                       [](const TouchedWindow& window) { return window.hasTouchingPointers(); });
 }
 
 bool TouchState::hasHoveringPointers() const {
@@ -245,12 +254,9 @@ void TouchState::removeHoveringPointer(int32_t hoveringDeviceId, int32_t hoverin
 void TouchState::removeAllPointersForDevice(int32_t removedDeviceId) {
     for (TouchedWindow& window : windows) {
         window.removeAllHoveringPointersForDevice(removedDeviceId);
+        window.removeAllTouchingPointersForDevice(removedDeviceId);
     }
-    if (deviceId == removedDeviceId) {
-        for (TouchedWindow& window : windows) {
-            window.removeAllTouchingPointers();
-        }
-    }
+
     clearWindowsWithoutPointers();
 }
 

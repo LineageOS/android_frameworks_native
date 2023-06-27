@@ -654,7 +654,6 @@ std::vector<TouchedWindow> getHoveringWindowsLocked(const TouchState* oldState,
             TouchedWindow touchedWindow;
             touchedWindow.windowHandle = oldWindow;
             touchedWindow.targetFlags = InputTarget::Flags::DISPATCH_AS_HOVER_EXIT;
-            touchedWindow.pointerIds.set(pointerId);
             out.push_back(touchedWindow);
         }
     }
@@ -673,7 +672,7 @@ std::vector<TouchedWindow> getHoveringWindowsLocked(const TouchState* oldState,
             }
             touchedWindow.targetFlags = InputTarget::Flags::DISPATCH_AS_IS;
         }
-        touchedWindow.pointerIds.set(pointerId);
+        touchedWindow.addHoveringPointer(entry.deviceId, pointerId);
         if (canReceiveForegroundTouches(*newWindow->getInfo())) {
             touchedWindow.targetFlags |= InputTarget::Flags::FOREGROUND;
         }
@@ -2195,8 +2194,8 @@ std::vector<Monitor> InputDispatcher::selectResponsiveMonitorsLocked(
 /**
  * In general, touch should be always split between windows. Some exceptions:
  * 1. Don't split touch is if we have an active pointer down, and a new pointer is going down that's
- * from the same device, *and* the window that's receiving the current pointer does not support
- * split touch.
+ *    from the same device, *and* the window that's receiving the current pointer does not support
+ *    split touch.
  * 2. Don't split mouse events
  */
 bool InputDispatcher::shouldSplitTouch(const TouchState& touchState,
@@ -2221,7 +2220,8 @@ bool InputDispatcher::shouldSplitTouch(const TouchState& touchState,
 
         // Eventually, touchedWindow will contain the deviceId of each pointer that's currently
         // being sent there. For now, use deviceId from touch state.
-        if (entry.deviceId == touchState.deviceId && touchedWindow.pointerIds.any()) {
+        if (entry.deviceId == touchState.deviceId &&
+            touchedWindow.hasTouchingPointers(entry.deviceId)) {
             return false;
         }
     }
@@ -2404,7 +2404,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             // still add a window to the touch state. We should avoid doing that, but some of the
             // later checks ("at least one foreground window") rely on this in order to dispatch
             // the event properly, so that needs to be updated, possibly by looking at InputTargets.
-            tempTouchState.addOrUpdateWindow(windowHandle, targetFlags, pointerIds,
+            tempTouchState.addOrUpdateWindow(windowHandle, targetFlags, entry.deviceId, pointerIds,
                                              isDownOrPointerDown
                                                      ? std::make_optional(entry.eventTime)
                                                      : std::nullopt);
@@ -2428,8 +2428,8 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                         if (isSplit) {
                             wallpaperFlags |= InputTarget::Flags::SPLIT;
                         }
-                        tempTouchState.addOrUpdateWindow(wallpaper, wallpaperFlags, pointerIds,
-                                                         entry.eventTime);
+                        tempTouchState.addOrUpdateWindow(wallpaper, wallpaperFlags, entry.deviceId,
+                                                         pointerIds, entry.eventTime);
                     }
                 }
             }
@@ -2440,12 +2440,12 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         // which is a specific behaviour that we want.
         const int32_t pointerId = entry.pointerProperties[pointerIndex].id;
         for (TouchedWindow& touchedWindow : tempTouchState.windows) {
-            if (touchedWindow.pointerIds.test(pointerId) &&
-                touchedWindow.pilferedPointerIds.count() > 0) {
+            if (touchedWindow.hasTouchingPointer(entry.deviceId, pointerId) &&
+                touchedWindow.hasPilferingPointers(entry.deviceId)) {
                 // This window is already pilfering some pointers, and this new pointer is also
                 // going to it. Therefore, take over this pointer and don't give it to anyone
                 // else.
-                touchedWindow.pilferedPointerIds.set(pointerId);
+                touchedWindow.addPilferingPointer(entry.deviceId, pointerId);
             }
         }
 
@@ -2517,7 +2517,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                         tempTouchState.getTouchedWindow(oldTouchedWindowHandle);
                 addWindowTargetLocked(oldTouchedWindowHandle,
                                       InputTarget::Flags::DISPATCH_AS_SLIPPERY_EXIT, pointerIds,
-                                      touchedWindow.firstDownTimeInTarget, targets);
+                                      touchedWindow.getDownTimeInTarget(entry.deviceId), targets);
 
                 // Make a slippery entrance into the new window.
                 if (newTouchedWindowHandle->getInfo()->supportsSplitTouch()) {
@@ -2538,13 +2538,14 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                     targetFlags |= InputTarget::Flags::WINDOW_IS_PARTIALLY_OBSCURED;
                 }
 
-                tempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags, pointerIds,
-                                                 entry.eventTime);
+                tempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags,
+                                                 entry.deviceId, pointerIds, entry.eventTime);
 
                 // Check if the wallpaper window should deliver the corresponding event.
                 slipWallpaperTouch(targetFlags, oldTouchedWindowHandle, newTouchedWindowHandle,
-                                   tempTouchState, pointerId, targets);
-                tempTouchState.removeTouchedPointerFromWindow(pointerId, oldTouchedWindowHandle);
+                                   tempTouchState, entry.deviceId, pointerId, targets);
+                tempTouchState.removeTouchingPointerFromWindow(entry.deviceId, pointerId,
+                                                               oldTouchedWindowHandle);
             }
         }
 
@@ -2558,7 +2559,8 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                 if (mDragState && mDragState->dragWindow == touchedWindow.windowHandle) {
                     continue;
                 }
-                touchedWindow.pointerIds.set(entry.pointerProperties[pointerIndex].id);
+                touchedWindow.addTouchingPointer(entry.deviceId,
+                                                 entry.pointerProperties[pointerIndex].id);
             }
         }
     }
@@ -2570,7 +2572,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         for (const TouchedWindow& touchedWindow : hoveringWindows) {
             std::optional<InputTarget> target =
                     createInputTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
-                                            touchedWindow.firstDownTimeInTarget);
+                                            touchedWindow.getDownTimeInTarget(entry.deviceId));
             if (!target) {
                 continue;
             }
@@ -2627,15 +2629,16 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
 
     // Output targets from the touch state.
     for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
-        if (touchedWindow.pointerIds.none() && !touchedWindow.hasHoveringPointers(entry.deviceId)) {
+        if (!touchedWindow.hasTouchingPointers(entry.deviceId) &&
+            !touchedWindow.hasHoveringPointers(entry.deviceId)) {
             // Windows with hovering pointers are getting persisted inside TouchState.
             // Do not send this event to those windows.
             continue;
         }
 
         addWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
-                              touchedWindow.pointerIds, touchedWindow.firstDownTimeInTarget,
-                              targets);
+                              touchedWindow.getTouchingPointers(entry.deviceId),
+                              touchedWindow.getDownTimeInTarget(entry.deviceId), targets);
     }
 
     // During targeted injection, only allow owned targets to receive events
@@ -2694,7 +2697,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         }
     } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
         // Pointer went up.
-        tempTouchState.removeTouchedPointer(entry.pointerProperties[0].id);
+        tempTouchState.removeTouchingPointer(entry.deviceId, entry.pointerProperties[0].id);
     } else if (maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
         // All pointers up or canceled.
         tempTouchState.reset();
@@ -2711,8 +2714,8 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
 
         for (size_t i = 0; i < tempTouchState.windows.size();) {
             TouchedWindow& touchedWindow = tempTouchState.windows[i];
-            touchedWindow.pointerIds.reset(pointerId);
-            if (touchedWindow.pointerIds.none()) {
+            touchedWindow.removeTouchingPointer(entry.deviceId, pointerId);
+            if (!touchedWindow.hasTouchingPointers(entry.deviceId)) {
                 tempTouchState.windows.erase(tempTouchState.windows.begin() + i);
                 continue;
             }
@@ -5451,14 +5454,22 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
 
         // Find the target touch state and touched window by fromToken.
         auto [state, touchedWindow, displayId] = findTouchStateWindowAndDisplayLocked(fromToken);
+
         if (state == nullptr || touchedWindow == nullptr) {
-            ALOGD("Focus transfer failed because from window is not being touched.");
+            ALOGD("Touch transfer failed because from window is not being touched.");
             return false;
         }
+        std::set<int32_t> deviceIds = touchedWindow->getTouchingDeviceIds();
+        if (deviceIds.size() != 1) {
+            LOG(DEBUG) << "Can't transfer touch. Currently touching devices: " << dumpSet(deviceIds)
+                       << " for window: " << touchedWindow->dump();
+            return false;
+        }
+        const int32_t deviceId = *deviceIds.begin();
 
         sp<WindowInfoHandle> toWindowHandle = getWindowHandleLocked(toToken, displayId);
         if (toWindowHandle == nullptr) {
-            ALOGW("Cannot transfer focus because to window not found.");
+            ALOGW("Cannot transfer touch because to window not found.");
             return false;
         }
 
@@ -5470,7 +5481,7 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
 
         // Erase old window.
         ftl::Flags<InputTarget::Flags> oldTargetFlags = touchedWindow->targetFlags;
-        std::bitset<MAX_POINTER_ID + 1> pointerIds = touchedWindow->pointerIds;
+        std::bitset<MAX_POINTER_ID + 1> pointerIds = touchedWindow->getTouchingPointers(deviceId);
         sp<WindowInfoHandle> fromWindowHandle = touchedWindow->windowHandle;
         state->removeWindowByToken(fromToken);
 
@@ -5481,7 +5492,8 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         if (canReceiveForegroundTouches(*toWindowHandle->getInfo())) {
             newTargetFlags |= InputTarget::Flags::FOREGROUND;
         }
-        state->addOrUpdateWindow(toWindowHandle, newTargetFlags, pointerIds, downTimeInTarget);
+        state->addOrUpdateWindow(toWindowHandle, newTargetFlags, deviceId, pointerIds,
+                                 downTimeInTarget);
 
         // Store the dragging window.
         if (isDragDrop) {
@@ -5500,16 +5512,15 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         std::shared_ptr<Connection> toConnection = getConnectionLocked(toToken);
         if (fromConnection != nullptr && toConnection != nullptr) {
             fromConnection->inputState.mergePointerStateTo(toConnection->inputState);
-            CancelationOptions
-                    options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
-                            "transferring touch focus from this window to another window");
+            CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
+                                       "transferring touch from this window to another window");
             synthesizeCancelationEventsForConnectionLocked(fromConnection, options);
             synthesizePointerDownEventsForConnectionLocked(downTimeInTarget, toConnection,
                                                            newTargetFlags);
 
             // Check if the wallpaper window should deliver the corresponding event.
             transferWallpaperTouch(oldTargetFlags, newTargetFlags, fromWindowHandle, toWindowHandle,
-                                   *state, pointerIds);
+                                   *state, deviceId, pointerIds);
         }
     } // release lock
 
@@ -5993,20 +6004,28 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
     }
 
     auto [statePtr, windowPtr, displayId] = findTouchStateWindowAndDisplayLocked(token);
-    if (statePtr == nullptr || windowPtr == nullptr || windowPtr->pointerIds.none()) {
+    if (statePtr == nullptr || windowPtr == nullptr) {
         ALOGW("Attempted to pilfer points from a channel without any on-going pointer streams."
               " Ignoring.");
         return BAD_VALUE;
     }
+    std::set<int32_t> deviceIds = windowPtr->getTouchingDeviceIds();
+    if (deviceIds.size() != 1) {
+        LOG(WARNING) << "Can't pilfer. Currently touching devices: " << dumpSet(deviceIds)
+                     << " in window: " << windowPtr->dump();
+        return BAD_VALUE;
+    }
+    const int32_t deviceId = *deviceIds.begin();
 
     TouchState& state = *statePtr;
     TouchedWindow& window = *windowPtr;
     // Send cancel events to all the input channels we're stealing from.
     CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
                                "input channel stole pointer stream");
-    options.deviceId = state.deviceId;
+    options.deviceId = deviceId;
     options.displayId = displayId;
-    options.pointerIds = window.pointerIds;
+    std::bitset<MAX_POINTER_ID + 1> pointerIds = window.getTouchingPointers(deviceId);
+    options.pointerIds = pointerIds;
     std::string canceledWindows;
     for (const TouchedWindow& w : state.windows) {
         const std::shared_ptr<InputChannel> channel =
@@ -6023,9 +6042,9 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
 
     // Prevent the gesture from being sent to any other windows.
     // This only blocks relevant pointers to be sent to other windows
-    window.pilferedPointerIds |= window.pointerIds;
+    window.addPilferingPointers(deviceId, pointerIds);
 
-    state.cancelPointersForWindowsExcept(window.pointerIds, token);
+    state.cancelPointersForWindowsExcept(deviceId, pointerIds, token);
     return OK;
 }
 
@@ -6812,7 +6831,7 @@ void InputDispatcher::setMonitorDispatchingTimeoutForTest(std::chrono::nanosecon
 void InputDispatcher::slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFlags,
                                          const sp<WindowInfoHandle>& oldWindowHandle,
                                          const sp<WindowInfoHandle>& newWindowHandle,
-                                         TouchState& state, int32_t pointerId,
+                                         TouchState& state, int32_t deviceId, int32_t pointerId,
                                          std::vector<InputTarget>& targets) const {
     std::bitset<MAX_POINTER_ID + 1> pointerIds;
     pointerIds.set(pointerId);
@@ -6834,8 +6853,8 @@ void InputDispatcher::slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFl
         addWindowTargetLocked(oldWallpaper,
                               oldTouchedWindow.targetFlags |
                                       InputTarget::Flags::DISPATCH_AS_SLIPPERY_EXIT,
-                              pointerIds, oldTouchedWindow.firstDownTimeInTarget, targets);
-        state.removeTouchedPointerFromWindow(pointerId, oldWallpaper);
+                              pointerIds, oldTouchedWindow.getDownTimeInTarget(deviceId), targets);
+        state.removeTouchingPointerFromWindow(deviceId, pointerId, oldWallpaper);
     }
 
     if (newWallpaper != nullptr) {
@@ -6843,7 +6862,7 @@ void InputDispatcher::slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFl
                                 InputTarget::Flags::DISPATCH_AS_SLIPPERY_ENTER |
                                         InputTarget::Flags::WINDOW_IS_OBSCURED |
                                         InputTarget::Flags::WINDOW_IS_PARTIALLY_OBSCURED,
-                                pointerIds);
+                                deviceId, pointerIds);
     }
 }
 
@@ -6851,7 +6870,7 @@ void InputDispatcher::transferWallpaperTouch(ftl::Flags<InputTarget::Flags> oldT
                                              ftl::Flags<InputTarget::Flags> newTargetFlags,
                                              const sp<WindowInfoHandle> fromWindowHandle,
                                              const sp<WindowInfoHandle> toWindowHandle,
-                                             TouchState& state,
+                                             TouchState& state, int32_t deviceId,
                                              std::bitset<MAX_POINTER_ID + 1> pointerIds) {
     const bool oldHasWallpaper = oldTargetFlags.test(InputTarget::Flags::FOREGROUND) &&
             fromWindowHandle->getInfo()->inputConfig.test(
@@ -6881,7 +6900,8 @@ void InputDispatcher::transferWallpaperTouch(ftl::Flags<InputTarget::Flags> oldT
                 oldTargetFlags & (InputTarget::Flags::SPLIT | InputTarget::Flags::DISPATCH_AS_IS);
         wallpaperFlags |= InputTarget::Flags::WINDOW_IS_OBSCURED |
                 InputTarget::Flags::WINDOW_IS_PARTIALLY_OBSCURED;
-        state.addOrUpdateWindow(newWallpaper, wallpaperFlags, pointerIds, downTimeInTarget);
+        state.addOrUpdateWindow(newWallpaper, wallpaperFlags, deviceId, pointerIds,
+                                downTimeInTarget);
         std::shared_ptr<Connection> wallpaperConnection =
                 getConnectionLocked(newWallpaper->getToken());
         if (wallpaperConnection != nullptr) {
