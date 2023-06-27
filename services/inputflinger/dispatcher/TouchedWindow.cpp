@@ -134,6 +134,14 @@ std::set<int32_t> TouchedWindow::getTouchingDeviceIds() const {
     return deviceIds;
 }
 
+std::set<int32_t> TouchedWindow::getActiveDeviceIds() const {
+    std::set<int32_t> out;
+    for (const auto& [deviceId, _] : mDeviceStates) {
+        out.emplace(deviceId);
+    }
+    return out;
+}
+
 bool TouchedWindow::hasPilferingPointers(int32_t deviceId) const {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {

@@ -2218,10 +2218,7 @@ bool InputDispatcher::shouldSplitTouch(const TouchState& touchState,
             continue;
         }
 
-        // Eventually, touchedWindow will contain the deviceId of each pointer that's currently
-        // being sent there. For now, use deviceId from touch state.
-        if (entry.deviceId == touchState.deviceId &&
-            touchedWindow.hasTouchingPointers(entry.deviceId)) {
+        if (touchedWindow.hasTouchingPointers(entry.deviceId)) {
             return false;
         }
     }
@@ -2254,8 +2251,14 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     }
 
     bool isSplit = shouldSplitTouch(tempTouchState, entry);
-    const bool switchedDevice = (oldState != nullptr) &&
-            (oldState->deviceId != entry.deviceId || oldState->source != entry.source);
+    bool switchedDevice = false;
+    if (oldState != nullptr) {
+        std::set<int32_t> oldActiveDevices = oldState->getActiveDeviceIds();
+        const bool anotherDeviceIsActive =
+                oldActiveDevices.count(entry.deviceId) == 0 && !oldActiveDevices.empty();
+        switchedDevice |= anotherDeviceIsActive;
+        switchedDevice |= oldState->source != entry.source;
+    }
 
     const bool isHoverAction = (maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE ||
                                 maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
@@ -2274,7 +2277,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     // from another device. However, if the new event is a down event, let's cancel the current
     // touch and let the new one take over.
     if (switchedDevice && wasDown && !isDown) {
-        LOG(INFO) << "Dropping event because a pointer for device " << oldState->deviceId
+        LOG(INFO) << "Dropping event because a pointer for another device "
                   << " is already down in display " << displayId << ": " << entry.getDescription();
         // TODO(b/211379801): test multiple simultaneous input streams.
         outInjectionResult = InputEventInjectionResult::FAILED;
@@ -2284,7 +2287,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     if (newGesture) {
         // If a new gesture is starting, clear the touch state completely.
         tempTouchState.reset();
-        tempTouchState.deviceId = entry.deviceId;
         tempTouchState.source = entry.source;
         isSplit = false;
     } else if (switchedDevice && maskedAction == AMOTION_EVENT_ACTION_MOVE) {
@@ -2692,7 +2694,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         }
         if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
             maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
-            tempTouchState.deviceId = entry.deviceId;
             tempTouchState.source = entry.source;
         }
     } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
@@ -4392,7 +4393,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
             const auto touchStateIt = mTouchStatesByDisplay.find(args.displayId);
             if (touchStateIt != mTouchStatesByDisplay.end()) {
                 const TouchState& touchState = touchStateIt->second;
-                if (touchState.deviceId == args.deviceId && touchState.isDown()) {
+                if (touchState.hasTouchingPointers(args.deviceId)) {
                     policyFlags |= POLICY_FLAG_PASS_TO_USER;
                 }
             }
