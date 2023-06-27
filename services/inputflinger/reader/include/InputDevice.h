@@ -191,6 +191,7 @@ private:
     std::unique_ptr<PeripheralControllerInterface> mController;
 
     uint32_t mSources;
+    bool mIsWaking;
     bool mIsExternal;
     std::optional<uint8_t> mAssociatedDisplayPort;
     std::optional<std::string> mAssociatedDisplayUniqueId;
@@ -206,6 +207,10 @@ private:
             InputDeviceContext& contextPtr, const InputReaderConfiguration& readerConfig);
 
     PropertyMap mConfiguration;
+
+    // Runs logic post a `process` call. This can be used to update the generated `NotifyArgs` as
+    // per the properties of the InputDevice.
+    void postProcess(std::list<NotifyArgs>& args) const;
 
     // helpers to interate over the devices collection
     // run a function against every mapper on every subdevice
