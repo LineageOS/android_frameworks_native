@@ -16,12 +16,12 @@
 
 #pragma once
 
-#include <SkColor.h>
+#include "Utils/OverlayUtils.h"
+
 #include <vector>
 
 #include <ftl/flags.h>
 #include <ftl/small_map.h>
-#include <gui/SurfaceComposerClient.h>
 #include <ui/LayerStack.h>
 #include <ui/Size.h>
 #include <ui/Transform.h>
@@ -34,21 +34,7 @@ class SkCanvas;
 namespace android {
 
 class GraphicBuffer;
-class SurfaceControl;
 class SurfaceFlinger;
-
-// Helper class to delete the SurfaceControl on a helper thread as
-// SurfaceControl assumes its destruction happens without SurfaceFlinger::mStateLock held.
-class SurfaceControlHolder {
-public:
-    explicit SurfaceControlHolder(sp<SurfaceControl> sc) : mSurfaceControl(std::move(sc)){};
-    ~SurfaceControlHolder();
-
-    const sp<SurfaceControl>& get() const { return mSurfaceControl; }
-
-private:
-    sp<SurfaceControl> mSurfaceControl;
-};
 
 class RefreshRateOverlay {
 public:
@@ -70,18 +56,9 @@ public:
 private:
     using Buffers = std::vector<sp<GraphicBuffer>>;
 
-    class SevenSegmentDrawer {
-    public:
-        static Buffers draw(int displayFps, int renderFps, SkColor, ui::Transform::RotationFlags,
-                            ftl::Flags<Features>);
-
-    private:
-        enum class Segment { Upper, UpperLeft, UpperRight, Middle, LowerLeft, LowerRight, Bottom };
-
-        static void drawSegment(Segment, int left, SkColor, SkCanvas&);
-        static void drawDigit(int digit, int left, SkColor, SkCanvas&);
-        static void drawNumber(int number, int left, SkColor, SkCanvas&);
-    };
+    static Buffers draw(int displayFps, int renderFps, SkColor, ui::Transform::RotationFlags,
+                        ftl::Flags<Features>);
+    static void drawNumber(int number, int left, SkColor, SkCanvas&);
 
     const Buffers& getOrCreateBuffers(Fps, Fps);
 

@@ -55,6 +55,7 @@ namespace android {
 
 class Fence;
 class HWComposer;
+class HdrSdrRatioOverlay;
 class IGraphicBufferProducer;
 class Layer;
 class RefreshRateOverlay;
@@ -235,13 +236,19 @@ public:
         return mRefreshRateSelector;
     }
 
+    void animateOverlay();
+
     // Enables an overlay to be displayed with the current refresh rate
     void enableRefreshRateOverlay(bool enable, bool setByHwc, bool showSpinner, bool showRenderRate,
                                   bool showInMiddle) REQUIRES(kMainThreadContext);
     void updateRefreshRateOverlayRate(Fps displayFps, Fps renderFps, bool setByHwc = false);
     bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
     bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
-    void animateRefreshRateOverlay();
+
+    // Enables an overlay to be display with the hdr/sdr ratio
+    void enableHdrSdrRatioOverlay(bool enable) REQUIRES(kMainThreadContext);
+    void updateHdrSdrRatioOverlayRatio(float currentHdrSdrRatio);
+    bool isHdrSdrRatioOverlayEnabled() const { return mHdrSdrRatioOverlay != nullptr; }
 
     nsecs_t getVsyncPeriodFromHWC() const;
 
@@ -271,6 +278,7 @@ private:
 
     const ui::Rotation mPhysicalOrientation;
     ui::Rotation mOrientation = ui::ROTATION_0;
+    bool mIsOrientationChanged = false;
 
     // Allow nullopt as initial power mode.
     using TracedPowerMode = TracedOrdinal<hardware::graphics::composer::hal::PowerMode>;
@@ -297,6 +305,9 @@ private:
 
     std::shared_ptr<scheduler::RefreshRateSelector> mRefreshRateSelector;
     std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
+    std::unique_ptr<HdrSdrRatioOverlay> mHdrSdrRatioOverlay;
+    // This parameter is only used for hdr/sdr ratio overlay
+    float mHdrSdrRatio = 1.0f;
 
     mutable std::mutex mActiveModeLock;
     ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);

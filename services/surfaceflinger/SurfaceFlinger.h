@@ -672,6 +672,8 @@ private:
     bool mRefreshRateOverlayRenderRate = false;
     // Show render rate overlay offseted to the middle of the screen (e.g. for circular displays)
     bool mRefreshRateOverlayShowInMiddle = false;
+    // Show hdr sdr ratio overlay
+    bool mHdrSdrRatioOverlay = false;
 
     void setDesiredActiveMode(display::DisplayModeRequest&&, bool force = false)
             REQUIRES(mStateLock);
@@ -1288,7 +1290,6 @@ private:
     ui::Dataspace mDefaultCompositionDataspace;
     ui::Dataspace mWideColorGamutCompositionDataspace;
     ui::Dataspace mColorSpaceAgnosticDataspace;
-    float mDimmingRatio = -1.f;
 
     std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
     std::atomic<int> mNumTrustedPresentationListeners = 0;
@@ -1336,6 +1337,8 @@ private:
 
     void enableRefreshRateOverlay(bool enable) REQUIRES(mStateLock, kMainThreadContext);
 
+    void enableHdrSdrRatioOverlay(bool enable) REQUIRES(mStateLock, kMainThreadContext);
+
     // Flag used to set override desired display mode from backdoor
     bool mDebugDisplayModeSetByBackdoor = false;
 
@@ -1380,6 +1383,10 @@ private:
     bool isRefreshRateOverlayEnabled() const REQUIRES(mStateLock) {
         return hasDisplay(
                 [](const auto& display) { return display.isRefreshRateOverlayEnabled(); });
+    }
+    bool isHdrSdrRatioOverlayEnabled() const REQUIRES(mStateLock) {
+        return hasDisplay(
+                [](const auto& display) { return display.isHdrSdrRatioOverlayEnabled(); });
     }
     std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshotsForScreenshots(
             std::optional<ui::LayerStack> layerStack, uint32_t uid,
