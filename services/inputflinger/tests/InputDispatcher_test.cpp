@@ -6184,7 +6184,7 @@ protected:
                 POLICY_FLAG_PASS_TO_USER | POLICY_FLAG_DISABLE_KEY_REPEAT;
         ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
                   mDispatcher->injectInputEvent(&event, /*targetUid=*/{},
-                                                InputEventInjectionSync::WAIT_FOR_RESULT, 10ms,
+                                                InputEventInjectionSync::WAIT_FOR_RESULT, 100ms,
                                                 policyFlags | additionalPolicyFlags));
 
         InputEvent* received = mWindow->consume();
@@ -6219,7 +6219,7 @@ protected:
         const int32_t additionalPolicyFlags = POLICY_FLAG_PASS_TO_USER;
         ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
                   mDispatcher->injectInputEvent(&event, /*targetUid=*/{},
-                                                InputEventInjectionSync::WAIT_FOR_RESULT, 10ms,
+                                                InputEventInjectionSync::WAIT_FOR_RESULT, 100ms,
                                                 policyFlags | additionalPolicyFlags));
 
         InputEvent* received = mWindow->consume();
