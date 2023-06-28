@@ -31,7 +31,7 @@ using std::chrono_literals::operator""ns;
 
 namespace {
 
-constexpr nanoseconds DEFAULT_USAGE_SESSION_TIMEOUT = std::chrono::minutes(2);
+constexpr nanoseconds DEFAULT_USAGE_SESSION_TIMEOUT = std::chrono::seconds(5);
 
 /**
  * Log debug messages about metrics events logged to statsd.

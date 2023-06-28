@@ -36,9 +36,6 @@
 namespace android {
 namespace {
 
-const int64_t PREDICTION_INTERVAL_NANOS =
-        12500000 / 3; // TODO(b/266747937): Get this from the model.
-
 /**
  * Log debug messages about predictions.
  * Enable this via "adb shell setprop log.tag.MotionPredictor DEBUG"
@@ -189,7 +186,7 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
         // TODO(b/266747654): Stop predictions if predicted pressure is < some threshold.
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, predictedPressure[i]);
 
-        predictionTime += PREDICTION_INTERVAL_NANOS;
+        predictionTime += mModel->predictionInterval();
         if (i == 0) {
             hasPredictions = true;
             prediction->initialize(InputEvent::nextId(), event.getDeviceId(), event.getSource(),
@@ -208,7 +205,6 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
         axisFrom = axisTo;
         axisTo = point;
     }
-    // TODO(b/266747511): Interpolate to futureTime?
     if (!hasPredictions) {
         return nullptr;
     }

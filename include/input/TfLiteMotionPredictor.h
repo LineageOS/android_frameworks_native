@@ -25,6 +25,7 @@
 
 #include <android-base/mapped_file.h>
 #include <input/RingBuffer.h>
+#include <utils/Timers.h>
 
 #include <tensorflow/lite/core/api/error_reporter.h>
 #include <tensorflow/lite/interpreter.h>
@@ -109,6 +110,9 @@ public:
     // Returns the length of the model's output buffers.
     size_t outputLength() const;
 
+    // Returns the time interval between predictions.
+    nsecs_t predictionInterval() const { return mPredictionInterval; }
+
     // Executes the model.
     // Returns true if the model successfully executed and the output tensors can be read.
     bool invoke();
@@ -127,7 +131,8 @@ public:
     std::span<const float> outputPressure() const;
 
 private:
-    explicit TfLiteMotionPredictorModel(std::unique_ptr<android::base::MappedFile> model);
+    explicit TfLiteMotionPredictorModel(std::unique_ptr<android::base::MappedFile> model,
+                                        nsecs_t predictionInterval);
 
     void allocateTensors();
     void attachInputTensors();
@@ -148,6 +153,8 @@ private:
     std::unique_ptr<tflite::FlatBufferModel> mModel;
     std::unique_ptr<tflite::Interpreter> mInterpreter;
     tflite::SignatureRunner* mRunner = nullptr;
+
+    const nsecs_t mPredictionInterval = 0;
 };
 
 } // namespace android
