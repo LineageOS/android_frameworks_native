@@ -137,7 +137,7 @@ bool AIBinder::associateClass(const AIBinder_Class* clazz) {
     // since it's an error condition. Do the comparison after we take the lock and
     // check the pointer equality fast path. By always taking the lock, it's also
     // more flake-proof. However, the check is not dependent on the lock.
-    if (descriptor != newDescriptor) {
+    if (descriptor != newDescriptor && !(asABpBinder() && asABpBinder()->isServiceFuzzing())) {
         if (getBinder()->isBinderAlive()) {
             LOG(ERROR) << __func__ << ": Expecting binder to have class '" << newDescriptor
                        << "' but descriptor is actually '" << SanitizeString(descriptor) << "'.";

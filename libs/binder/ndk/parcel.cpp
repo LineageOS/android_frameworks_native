@@ -270,6 +270,13 @@ binder_status_t AParcel_readStrongBinder(const AParcel* parcel, AIBinder** binde
     }
     sp<AIBinder> ret = ABpBinder::lookupOrCreateFromBinder(readBinder);
     AIBinder_incStrong(ret.get());
+
+    if (ret.get() != nullptr && parcel->get()->isServiceFuzzing()) {
+        if (auto bp = ret->asABpBinder(); bp != nullptr) {
+            bp->setServiceFuzzing();
+        }
+    }
+
     *binder = ret.get();
     return PruneStatusT(status);
 }
