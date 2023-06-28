@@ -20,6 +20,7 @@
 
 #include "RotaryEncoderInputMapper.h"
 
+#include <utils/Timers.h>
 #include <optional>
 
 #include "CursorScrollAccumulator.h"
@@ -30,14 +31,6 @@ RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDeviceContext& deviceCon
                                                    const InputReaderConfiguration& readerConfig)
       : InputMapper(deviceContext, readerConfig), mOrientation(ui::ROTATION_0) {
     mSource = AINPUT_SOURCE_ROTARY_ENCODER;
-
-    const PropertyMap& config = getDeviceContext().getConfiguration();
-    float slopThreshold = config.getInt("rotary_encoder.slop_threshold").value_or(0);
-    int32_t slopDurationMs = config.getInt("rotary_encoder.slop_duration_ms").value_or(0);
-    if (slopThreshold > 0 && slopDurationMs > 0) {
-        mSlopController = std::make_unique<SlopController>(slopThreshold,
-                                                           (nsecs_t)(slopDurationMs * 1000000));
-    }
 }
 
 RotaryEncoderInputMapper::~RotaryEncoderInputMapper() {}
@@ -70,6 +63,7 @@ void RotaryEncoderInputMapper::dump(std::string& dump) {
     dump += INDENT2 "Rotary Encoder Input Mapper:\n";
     dump += StringPrintf(INDENT3 "HaveWheel: %s\n",
                          toString(mRotaryEncoderScrollAccumulator.haveRelativeVWheel()));
+    dump += StringPrintf(INDENT3 "HaveSlopController: %s\n", toString(mSlopController != nullptr));
 }
 
 std::list<NotifyArgs> RotaryEncoderInputMapper::reconfigure(nsecs_t when,
@@ -78,6 +72,16 @@ std::list<NotifyArgs> RotaryEncoderInputMapper::reconfigure(nsecs_t when,
     std::list<NotifyArgs> out = InputMapper::reconfigure(when, config, changes);
     if (!changes.any()) {
         mRotaryEncoderScrollAccumulator.configure(getDeviceContext());
+
+        const PropertyMap& propertyMap = getDeviceContext().getConfiguration();
+        float slopThreshold = propertyMap.getInt("rotary_encoder.slop_threshold").value_or(0);
+        int32_t slopDurationNs = milliseconds_to_nanoseconds(
+                propertyMap.getInt("rotary_encoder.slop_duration_ms").value_or(0));
+        if (slopThreshold > 0 && slopDurationNs > 0) {
+            mSlopController = std::make_unique<SlopController>(slopThreshold, slopDurationNs);
+        } else {
+            mSlopController = nullptr;
+        }
     }
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO)) {
         std::optional<DisplayViewport> internalViewport =

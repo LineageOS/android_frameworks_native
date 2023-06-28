@@ -28,10 +28,9 @@ namespace android {
  * Current slop logic:
  *      "If time since last event > Xns, then discard the next N values."
  */
-class SlopController {
+class SlopController final {
 public:
     SlopController(float slopThreshold, nsecs_t slopDurationNanos);
-    virtual ~SlopController();
 
     /**
      * Consumes an event with a given time and value for slop processing.
@@ -40,7 +39,7 @@ public:
     float consumeEvent(nsecs_t eventTime, float value);
 
 private:
-    bool shouldResetSlopTracking(nsecs_t eventTimeNanos, float value);
+    bool shouldResetSlopTracking(nsecs_t eventTimeNanos, float value) const;
 
     /** The amount of event values ignored after an inactivity of the slop duration. */
     const float mSlopThreshold;

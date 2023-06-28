@@ -33,8 +33,6 @@ namespace android {
 SlopController::SlopController(float slopThreshold, nsecs_t slopDurationNanos)
       : mSlopThreshold(slopThreshold), mSlopDurationNanos(slopDurationNanos) {}
 
-SlopController::~SlopController() {}
-
 float SlopController::consumeEvent(nsecs_t eventTimeNanos, float value) {
     if (mSlopDurationNanos == 0) {
         return value;
@@ -64,7 +62,7 @@ float SlopController::consumeEvent(nsecs_t eventTimeNanos, float value) {
     return 0;
 }
 
-bool SlopController::shouldResetSlopTracking(nsecs_t eventTimeNanos, float value) {
+bool SlopController::shouldResetSlopTracking(nsecs_t eventTimeNanos, float value) const {
     const nsecs_t ageNanos = eventTimeNanos - mLastEventTimeNanos;
     if (ageNanos >= mSlopDurationNanos) {
         return true;

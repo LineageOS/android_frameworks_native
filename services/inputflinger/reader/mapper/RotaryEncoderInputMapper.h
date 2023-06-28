@@ -47,7 +47,7 @@ private:
     int32_t mSource;
     float mScalingFactor;
     ui::Rotation mOrientation;
-    std::unique_ptr<SlopController> mSlopController = nullptr;
+    std::unique_ptr<SlopController> mSlopController;
 
     explicit RotaryEncoderInputMapper(InputDeviceContext& deviceContext,
                                       const InputReaderConfiguration& readerConfig);
