@@ -15,6 +15,7 @@
  */
 
 #include <FuzzContainer.h>
+#include <MapperHelpers.h>
 #include <SwitchInputMapper.h>
 
 namespace android {
@@ -36,16 +37,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {
-                    int32_t type = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidTypes)
-                                                      : fdp->ConsumeIntegral<int32_t>();
-                    int32_t code = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidCodes)
-                                                      : fdp->ConsumeIntegral<int32_t>();
-                    RawEvent rawEvent{fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<int32_t>(),
-                                      type,
-                                      code,
-                                      fdp->ConsumeIntegral<int32_t>()};
+                    RawEvent rawEvent = getFuzzedRawEvent(*fdp);
                     std::list<NotifyArgs> unused = mapper.process(&rawEvent);
                 },
                 [&]() -> void {

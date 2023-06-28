@@ -22,7 +22,6 @@
 
 constexpr size_t kValidTypes[] = {EV_SW,
                                   EV_SYN,
-                                  SYN_REPORT,
                                   EV_ABS,
                                   EV_KEY,
                                   EV_MSC,
@@ -46,7 +45,6 @@ constexpr size_t kValidCodes[] = {
         ABS_MT_PRESSURE,
         ABS_MT_DISTANCE,
         ABS_MT_TOOL_TYPE,
-        SYN_MT_REPORT,
         MSC_SCAN,
         REL_X,
         REL_Y,
@@ -72,6 +70,22 @@ ToolType getFuzzedToolType(Fdp& fdp) {
                             static_cast<int32_t>(ToolType::ftl_first),
                             static_cast<int32_t>(ToolType::ftl_last));
     return static_cast<ToolType>(toolType);
+}
+
+template <class Fdp>
+RawEvent getFuzzedRawEvent(Fdp& fdp) {
+    const int32_t type = fdp.ConsumeBool() ? fdp.PickValueInArray(kValidTypes)
+                                           : fdp.template ConsumeIntegral<int32_t>();
+    const int32_t code = fdp.ConsumeBool() ? fdp.PickValueInArray(kValidCodes)
+                                           : fdp.template ConsumeIntegral<int32_t>();
+    return RawEvent{
+            .when = fdp.template ConsumeIntegral<nsecs_t>(),
+            .readTime = fdp.template ConsumeIntegral<nsecs_t>(),
+            .deviceId = fdp.template ConsumeIntegral<int32_t>(),
+            .type = type,
+            .code = code,
+            .value = fdp.template ConsumeIntegral<int32_t>(),
+    };
 }
 
 class FuzzEventHub : public EventHubInterface {
@@ -118,18 +132,7 @@ public:
         std::vector<RawEvent> events;
         const size_t count = mFdp->ConsumeIntegralInRange<size_t>(0, kMaxSize);
         for (size_t i = 0; i < count; ++i) {
-            int32_t type = mFdp->ConsumeBool() ? mFdp->PickValueInArray(kValidTypes)
-                                               : mFdp->ConsumeIntegral<int32_t>();
-            int32_t code = mFdp->ConsumeBool() ? mFdp->PickValueInArray(kValidCodes)
-                                               : mFdp->ConsumeIntegral<int32_t>();
-            events.push_back({
-                    .when = mFdp->ConsumeIntegral<nsecs_t>(),
-                    .readTime = mFdp->ConsumeIntegral<nsecs_t>(),
-                    .deviceId = mFdp->ConsumeIntegral<int32_t>(),
-                    .type = type,
-                    .code = code,
-                    .value = mFdp->ConsumeIntegral<int32_t>(),
-            });
+            events.push_back(getFuzzedRawEvent(*mFdp));
         }
         return events;
     }

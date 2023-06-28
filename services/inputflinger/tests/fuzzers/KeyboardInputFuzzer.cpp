@@ -16,6 +16,7 @@
 
 #include <FuzzContainer.h>
 #include <KeyboardInputMapper.h>
+#include <MapperHelpers.h>
 
 namespace android {
 
@@ -72,17 +73,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                     std::list<NotifyArgs> unused = mapper.reset(fdp->ConsumeIntegral<nsecs_t>());
                 },
                 [&]() -> void {
-                    int32_t type, code;
-                    type = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidTypes)
-                                              : fdp->ConsumeIntegral<int32_t>();
-                    code = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidCodes)
-                                              : fdp->ConsumeIntegral<int32_t>();
-                    RawEvent rawEvent{fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<int32_t>(),
-                                      type,
-                                      code,
-                                      fdp->ConsumeIntegral<int32_t>()};
+                    RawEvent rawEvent = getFuzzedRawEvent(*fdp);
                     std::list<NotifyArgs> unused = mapper.process(&rawEvent);
                 },
                 [&]() -> void {
