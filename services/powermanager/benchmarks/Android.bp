@@ -23,6 +23,7 @@ package {
 
 cc_benchmark {
     name: "libpowermanager_benchmarks",
+    defaults: ["android.hardware.power-ndk_shared"],
     srcs: [
         "main.cpp",
         "PowerHalAidlBenchmarks.cpp",
@@ -41,7 +42,6 @@ cc_benchmark {
         "android.hardware.power@1.1",
         "android.hardware.power@1.2",
         "android.hardware.power@1.3",
-        "android.hardware.power-V4-ndk",
     ],
     static_libs: [
         "libtestUtil",
