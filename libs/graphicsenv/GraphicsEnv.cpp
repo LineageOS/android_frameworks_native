@@ -402,7 +402,7 @@ bool GraphicsEnv::shouldUseAngle() {
     return mShouldUseAngle;
 }
 
-void GraphicsEnv::setAngleInfo(const std::string& path, const bool useSystemAngle,
+void GraphicsEnv::setAngleInfo(const std::string& path, const bool shouldUseSystemAngle,
                                const std::string& packageName,
                                const std::vector<std::string> eglFeatures) {
     if (mShouldUseAngle) {
@@ -420,7 +420,7 @@ void GraphicsEnv::setAngleInfo(const std::string& path, const bool useSystemAngl
     ALOGV("setting app package name to '%s'", packageName.c_str());
     mPackageName = std::move(packageName);
     mShouldUseAngle = true;
-    mUseSystemAngle = useSystemAngle;
+    mShouldUseSystemAngle = shouldUseSystemAngle;
 }
 
 void GraphicsEnv::setLayerPaths(NativeLoaderNamespace* appNamespace,
@@ -571,7 +571,7 @@ android_namespace_t* GraphicsEnv::getAngleNamespace() {
         return mAngleNamespace;
     }
 
-    if (mAnglePath.empty() && !mUseSystemAngle) {
+    if (mAnglePath.empty() && !mShouldUseSystemAngle) {
         ALOGV("mAnglePath is empty and not using system ANGLE, abort creating ANGLE namespace");
         return nullptr;
     }
@@ -589,18 +589,19 @@ android_namespace_t* GraphicsEnv::getAngleNamespace() {
     // are properly inherited.
     mAngleNamespace =
             android_create_namespace("ANGLE",
-                                     mUseSystemAngle ? defaultLibraryPaths
-                                                     : mAnglePath.c_str(), // ld_library_path
-                                     mUseSystemAngle ? defaultLibraryPaths
-                                                     : mAnglePath.c_str(), // default_library_path
+                                     mShouldUseSystemAngle ? defaultLibraryPaths
+                                                           : mAnglePath.c_str(), // ld_library_path
+                                     mShouldUseSystemAngle
+                                             ? defaultLibraryPaths
+                                             : mAnglePath.c_str(), // default_library_path
                                      ANDROID_NAMESPACE_TYPE_SHARED_ISOLATED,
                                      nullptr, // permitted_when_isolated_path
-                                     mUseSystemAngle ? android_get_exported_namespace("sphal")
-                                                     : nullptr); // parent
+                                     mShouldUseSystemAngle ? android_get_exported_namespace("sphal")
+                                                           : nullptr); // parent
 
     ALOGD_IF(!mAngleNamespace, "Could not create ANGLE namespace from default");
 
-    if (!mUseSystemAngle) {
+    if (!mShouldUseSystemAngle) {
         return mAngleNamespace;
     }
 
@@ -623,6 +624,10 @@ void GraphicsEnv::nativeToggleAngleAsSystemDriver(bool enabled) {
         return;
     }
     gpuService->toggleAngleAsSystemDriver(enabled);
+}
+
+bool GraphicsEnv::shouldUseSystemAngle() {
+    return mShouldUseSystemAngle;
 }
 
 } // namespace android
