@@ -24,6 +24,8 @@ using android::base::Error;
 using android::base::Result;
 using android::input::RustPointerProperties;
 
+using DeviceId = int32_t;
+
 namespace android {
 
 // --- InputVerifier ---
@@ -31,7 +33,8 @@ namespace android {
 InputVerifier::InputVerifier(const std::string& name)
       : mVerifier(android::input::verifier::create(name)){};
 
-Result<void> InputVerifier::processMovement(int32_t deviceId, int32_t action, uint32_t pointerCount,
+Result<void> InputVerifier::processMovement(DeviceId deviceId, int32_t action,
+                                            uint32_t pointerCount,
                                             const PointerProperties* pointerProperties,
                                             const PointerCoords* pointerCoords, int32_t flags) {
     std::vector<RustPointerProperties> rpp;
@@ -47,6 +50,10 @@ Result<void> InputVerifier::processMovement(int32_t deviceId, int32_t action, ui
     } else {
         return Error() << errorMessage;
     }
+}
+
+void InputVerifier::resetDevice(DeviceId deviceId) {
+    android::input::verifier::reset_device(*mVerifier, deviceId);
 }
 
 } // namespace android

@@ -51,6 +51,8 @@ public:
                                                 const PointerProperties* pointerProperties,
                                                 const PointerCoords* pointerCoords, int32_t flags);
 
+    void resetDevice(int32_t deviceId);
+
 private:
     rust::Box<android::input::verifier::InputVerifier> mVerifier;
 };

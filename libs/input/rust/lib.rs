@@ -54,6 +54,7 @@ mod ffi {
             pointer_properties: &[RustPointerProperties],
             flags: i32,
         ) -> String;
+        fn reset_device(verifier: &mut InputVerifier, device_id: i32);
     }
 
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -63,6 +64,10 @@ mod ffi {
 }
 
 use crate::ffi::RustPointerProperties;
+
+fn create(name: String) -> Box<InputVerifier> {
+    Box::new(InputVerifier::new(&name, ffi::shouldLog("InputVerifierLogEvents")))
+}
 
 fn process_movement(
     verifier: &mut InputVerifier,
@@ -83,6 +88,6 @@ fn process_movement(
     }
 }
 
-fn create(name: String) -> Box<InputVerifier> {
-    Box::new(InputVerifier::new(&name, ffi::shouldLog("InputVerifierLogEvents")))
+fn reset_device(verifier: &mut InputVerifier, device_id: i32) {
+    verifier.reset_device(DeviceId(device_id));
 }

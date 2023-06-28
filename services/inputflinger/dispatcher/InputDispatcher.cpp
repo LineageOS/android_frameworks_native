@@ -4516,6 +4516,10 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
         std::unique_ptr<DeviceResetEntry> newEntry =
                 std::make_unique<DeviceResetEntry>(args.id, args.eventTime, args.deviceId);
         needWake = enqueueInboundEventLocked(std::move(newEntry));
+
+        for (auto& [_, verifier] : mVerifiersByDisplay) {
+            verifier.resetDevice(args.deviceId);
+        }
     } // release lock
 
     if (needWake) {

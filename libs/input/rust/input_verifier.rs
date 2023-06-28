@@ -27,6 +27,7 @@ pub struct InputVerifier {
     name: String,
     should_log: bool,
     touching_pointer_ids_by_device: HashMap<DeviceId, HashSet<i32>>,
+    hovering_pointer_ids_by_device: HashMap<DeviceId, HashSet<i32>>,
 }
 
 impl InputVerifier {
@@ -37,7 +38,12 @@ impl InputVerifier {
                 .with_tag_on_device("InputVerifier")
                 .with_min_level(log::Level::Trace),
         );
-        Self { name: name.to_owned(), should_log, touching_pointer_ids_by_device: HashMap::new() }
+        Self {
+            name: name.to_owned(),
+            should_log,
+            touching_pointer_ids_by_device: HashMap::new(),
+            hovering_pointer_ids_by_device: HashMap::new(),
+        }
     }
 
     /// Process a pointer movement event from an InputDevice.
@@ -135,7 +141,7 @@ impl InputVerifier {
                         self.name, pointer_id, it, device_id
                     ));
                 }
-                it.clear();
+                self.touching_pointer_ids_by_device.remove(&device_id);
             }
             MotionAction::Cancel => {
                 if flags.contains(MotionFlags::CANCELED) {
@@ -153,9 +159,66 @@ impl InputVerifier {
                 }
                 self.touching_pointer_ids_by_device.remove(&device_id);
             }
+            /*
+             * The hovering protocol currently supports a single pointer only, because we do not
+             * have ACTION_HOVER_POINTER_ENTER or ACTION_HOVER_POINTER_EXIT.
+             * Still, we are keeping the infrastructure here pretty general in case that is
+             * eventually supported.
+             */
+            MotionAction::HoverEnter => {
+                if self.hovering_pointer_ids_by_device.contains_key(&device_id) {
+                    return Err(format!(
+                        "{}: Invalid HOVER_ENTER event - pointers already hovering for device {:?}:\
+                        {:?}",
+                        self.name, device_id, self.hovering_pointer_ids_by_device
+                    ));
+                }
+                let it = self
+                    .hovering_pointer_ids_by_device
+                    .entry(device_id)
+                    .or_insert_with(HashSet::new);
+                it.insert(pointer_properties[0].id);
+            }
+            MotionAction::HoverMove => {
+                // For compatibility reasons, we allow HOVER_MOVE without a prior HOVER_ENTER.
+                // If there was no prior HOVER_ENTER, just start a new hovering pointer.
+                let it = self
+                    .hovering_pointer_ids_by_device
+                    .entry(device_id)
+                    .or_insert_with(HashSet::new);
+                it.insert(pointer_properties[0].id);
+            }
+            MotionAction::HoverExit => {
+                if !self.hovering_pointer_ids_by_device.contains_key(&device_id) {
+                    return Err(format!(
+                        "{}: Invalid HOVER_EXIT event - no pointers are hovering for device {:?}",
+                        self.name, device_id
+                    ));
+                }
+                let pointer_id = pointer_properties[0].id;
+                let it = self.hovering_pointer_ids_by_device.get_mut(&device_id).unwrap();
+                it.remove(&pointer_id);
+
+                if !it.is_empty() {
+                    return Err(format!(
+                        "{}: Removed hovering pointer {}, but pointers are still\
+                               hovering for device {:?}: {:?}",
+                        self.name, pointer_id, device_id, it
+                    ));
+                }
+                self.hovering_pointer_ids_by_device.remove(&device_id);
+            }
             _ => return Ok(()),
         }
         Ok(())
+    }
+
+    /// Notify the verifier that the device has been reset, which will cause the verifier to erase
+    /// the current internal state for this device. Subsequent events from this device are expected
+    //// to start a new gesture.
+    pub fn reset_device(&mut self, device_id: DeviceId) {
+        self.touching_pointer_ids_by_device.remove(&device_id);
+        self.hovering_pointer_ids_by_device.remove(&device_id);
     }
 
     fn ensure_touching_pointers_match(
@@ -267,6 +330,70 @@ mod tests {
             .process_movement(
                 DeviceId(1),
                 input_bindgen::AMOTION_EVENT_ACTION_UP,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn correct_hover_sequence() {
+        let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
+        let pointer_properties = Vec::from([RustPointerProperties { id: 0 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_HOVER_ENTER,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_HOVER_MOVE,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_HOVER_EXIT,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_HOVER_ENTER,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn double_hover_enter() {
+        let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
+        let pointer_properties = Vec::from([RustPointerProperties { id: 0 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_HOVER_ENTER,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_HOVER_ENTER,
                 &pointer_properties,
                 MotionFlags::empty(),
             )
