@@ -26,7 +26,9 @@
 #include <android-base/thread_annotations.h>
 #include <android/sysprop/InputProperties.sysprop.h>
 #include <input/Input.h>
+#include <input/MotionPredictorMetricsManager.h>
 #include <input/TfLiteMotionPredictor.h>
+#include <utils/Timers.h> // for nsecs_t
 
 namespace android {
 
@@ -69,6 +71,7 @@ public:
      */
     MotionPredictor(nsecs_t predictionTimestampOffsetNanos,
                     std::function<bool()> checkEnableMotionPrediction = isMotionPredictionEnabled);
+
     /**
      * Record the actual motion received by the view. This event will be used for calculating the
      * predictions.
@@ -77,7 +80,9 @@ public:
      * consistent with the previously recorded events.
      */
     android::base::Result<void> record(const MotionEvent& event);
+
     std::unique_ptr<MotionEvent> predict(nsecs_t timestamp);
+
     bool isPredictionAvailable(int32_t deviceId, int32_t source);
 
 private:
@@ -88,6 +93,8 @@ private:
 
     std::unique_ptr<TfLiteMotionPredictorBuffers> mBuffers;
     std::optional<MotionEvent> mLastEvent;
+
+    std::optional<MotionPredictorMetricsManager> mMetricsManager;
 };
 
 } // namespace android
