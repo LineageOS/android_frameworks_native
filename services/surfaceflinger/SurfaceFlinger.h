@@ -654,6 +654,8 @@ private:
     status_t getStalledTransactionInfo(
             int pid, std::optional<TransactionHandler::StalledTransactionInfo>& result);
 
+    void updateHdcpLevels(hal::HWDisplayId hwcDisplayId, int32_t connectedLevel, int32_t maxLevel);
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
@@ -1276,6 +1278,7 @@ private:
         hal::Connection connection = hal::Connection::INVALID;
     };
 
+    bool mIsHdcpViaNegVsync = false;
     bool mIsHotplugErrViaNegVsync = false;
 
     std::mutex mHotplugMutex;

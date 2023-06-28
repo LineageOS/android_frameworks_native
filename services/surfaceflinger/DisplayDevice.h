@@ -95,6 +95,7 @@ public:
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
     bool isSecure() const;
+    void setSecure(bool secure);
 
     int getWidth() const;
     int getHeight() const;

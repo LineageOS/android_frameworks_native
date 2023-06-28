@@ -40,6 +40,9 @@ public:
     // True if the display is secure
     virtual bool isSecure() const = 0;
 
+    // Sets the secure flag for the display
+    virtual void setSecure(bool secure) = 0;
+
     // True if the display is virtual
     virtual bool isVirtual() const = 0;
 
