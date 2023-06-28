@@ -186,7 +186,7 @@ status_t InputManager::dump(int fd, const Vector<String16>& args) {
 
     dump += " InputFlinger dump\n";
 
-    ::write(fd, dump.c_str(), dump.size());
+    TEMP_FAILURE_RETRY(::write(fd, dump.c_str(), dump.size()));
     return NO_ERROR;
 }
 

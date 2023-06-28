@@ -118,6 +118,7 @@ cc_defaults {
 
 cc_library_shared {
     name: "libinputflinger",
+    host_supported: true,
     defaults: [
         "inputflinger_defaults",
         "libinputflinger_defaults",

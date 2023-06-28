@@ -120,9 +120,11 @@ cc_library {
         "-Wno-unused-parameter",
     ],
     srcs: [
+        "android/os/IInputFlinger.aidl",
         "Input.cpp",
         "InputDevice.cpp",
         "InputEventLabels.cpp",
+        "InputTransport.cpp",
         "InputVerifier.cpp",
         "Keyboard.cpp",
         "KeyCharacterMap.cpp",
@@ -153,6 +155,7 @@ cc_library {
 
     shared_libs: [
         "libbase",
+        "libbinder",
         "libcutils",
         "liblog",
         "libPlatformProperties",
@@ -172,6 +175,7 @@ cc_library {
 
     static_libs: [
         "inputconstants-cpp",
+        "libgui_window_info_static",
         "libui-types",
         "libtflite_static",
     ],
@@ -181,6 +185,7 @@ cc_library {
     ],
 
     export_static_lib_headers: [
+        "libgui_window_info_static",
         "libui-types",
     ],
 
@@ -191,24 +196,10 @@ cc_library {
 
     target: {
         android: {
-            srcs: [
-                "InputTransport.cpp",
-                "android/os/IInputFlinger.aidl",
-            ],
-
             export_shared_lib_headers: ["libbinder"],
 
             shared_libs: [
                 "libutils",
-                "libbinder",
-            ],
-
-            static_libs: [
-                "libgui_window_info_static",
-            ],
-
-            export_static_lib_headers: [
-                "libgui_window_info_static",
             ],
 
             required: [
@@ -221,21 +212,6 @@ cc_library {
                 "bionic/libc/kernel/android/uapi/",
                 "bionic/libc/kernel/uapi",
                 "frameworks/native/libs/arect/include",
-            ],
-        },
-        host_linux: {
-            srcs: [
-                "InputTransport.cpp",
-            ],
-            static_libs: [
-                "libgui_window_info_static",
-            ],
-            shared_libs: [
-                "libbinder",
-            ],
-
-            export_static_lib_headers: [
-                "libgui_window_info_static",
             ],
         },
     },
