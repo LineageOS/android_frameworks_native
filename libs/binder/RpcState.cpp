@@ -63,6 +63,7 @@ static bool enableAncillaryFds(RpcSession::FileDescriptorTransportMode mode) {
         case RpcSession::FileDescriptorTransportMode::TRUSTY:
             return true;
     }
+    LOG_ALWAYS_FATAL("Invalid FileDescriptorTransportMode: %d", static_cast<int>(mode));
 }
 
 RpcState::RpcState() {}
