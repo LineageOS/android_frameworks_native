@@ -138,6 +138,8 @@ class ICInterface : public SharedRefBase {
 
     /**
      * Dumps information about the interface. By default, dumps nothing.
+     *
+     * This method is not given ownership of the FD.
      */
     virtual inline binder_status_t dump(int fd, const char** args, uint32_t numArgs);
 
