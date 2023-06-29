@@ -674,7 +674,7 @@ TEST_P(BinderRpc, SessionWithIncomingThreadpoolDoesntLeak) {
     // session 0 - will check for leaks in destrutor of proc
     // session 1 - we want to make sure it gets deleted when we drop all references to it
     auto proc = createRpcTestSocketServerProcess(
-            {.numThreads = 1, .numIncomingConnectionsBySession = {0, 1}, .numSessions = 2});
+            {.numThreads = 1, .numSessions = 2, .numIncomingConnectionsBySession = {0, 1}});
 
     wp<RpcSession> session = proc.proc->sessions.at(1).session;
 
