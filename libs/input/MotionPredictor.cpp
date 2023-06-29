@@ -67,7 +67,7 @@ MotionPredictor::MotionPredictor(nsecs_t predictionTimestampOffsetNanos,
 android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
     if (mLastEvent && mLastEvent->getDeviceId() != event.getDeviceId()) {
         // We still have an active gesture for another device. The provided MotionEvent is not
-        // consistent the previous gesture.
+        // consistent with the previous gesture.
         LOG(ERROR) << "Inconsistent event stream: last event is " << *mLastEvent << ", but "
                    << __func__ << " is called with " << event;
         return android::base::Error()
@@ -83,9 +83,10 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
     // Initialise the model now that it's likely to be used.
     if (!mModel) {
         mModel = TfLiteMotionPredictorModel::create();
+        LOG_ALWAYS_FATAL_IF(!mModel);
     }
 
-    if (mBuffers == nullptr) {
+    if (!mBuffers) {
         mBuffers = std::make_unique<TfLiteMotionPredictorBuffers>(mModel->inputLength());
     }
 
@@ -133,6 +134,15 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
         mLastEvent = MotionEvent();
     }
     mLastEvent->copyFrom(&event, /*keepHistory=*/false);
+
+    // Pass input event to the MetricsManager.
+    if (!mMetricsManager) {
+        mMetricsManager =
+                std::make_optional<MotionPredictorMetricsManager>(mModel->predictionInterval(),
+                                                                  mModel->outputLength());
+    }
+    mMetricsManager->onRecord(event);
+
     return {};
 }
 
@@ -174,16 +184,17 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
     const int64_t futureTime = timestamp + mPredictionTimestampOffsetNanos;
 
     for (int i = 0; i < predictedR.size() && predictionTime <= futureTime; ++i) {
-        const TfLiteMotionPredictorSample::Point point =
-                convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
-        // TODO(b/266747654): Stop predictions if confidence is < some threshold.
+        // TODO(b/266747654): Stop predictions if confidence and/or predicted pressure are below
+        // some thresholds.
 
-        ALOGD_IF(isDebug(), "prediction %d: %f, %f", i, point.x, point.y);
+        const TfLiteMotionPredictorSample::Point predictedPoint =
+                convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
+
+        ALOGD_IF(isDebug(), "prediction %d: %f, %f", i, predictedPoint.x, predictedPoint.y);
         PointerCoords coords;
         coords.clear();
-        coords.setAxisValue(AMOTION_EVENT_AXIS_X, point.x);
-        coords.setAxisValue(AMOTION_EVENT_AXIS_Y, point.y);
-        // TODO(b/266747654): Stop predictions if predicted pressure is < some threshold.
+        coords.setAxisValue(AMOTION_EVENT_AXIS_X, predictedPoint.x);
+        coords.setAxisValue(AMOTION_EVENT_AXIS_Y, predictedPoint.y);
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, predictedPressure[i]);
 
         predictionTime += mModel->predictionInterval();
@@ -203,11 +214,17 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
         }
 
         axisFrom = axisTo;
-        axisTo = point;
+        axisTo = predictedPoint;
     }
+
     if (!hasPredictions) {
         return nullptr;
     }
+
+    // Pass predictions to the MetricsManager.
+    LOG_ALWAYS_FATAL_IF(!mMetricsManager);
+    mMetricsManager->onPredict(*prediction);
+
     return prediction;
 }
 
