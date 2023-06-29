@@ -218,6 +218,8 @@ public:
         return mUpcomingActiveMode;
     }
 
+    bool isModeSetPending() const REQUIRES(kMainThreadContext) { return mIsModeSetPending; }
+
     scheduler::FrameRateMode getActiveMode() const REQUIRES(kMainThreadContext) {
         return mRefreshRateSelector->getActiveMode();
     }
@@ -227,6 +229,9 @@ public:
     status_t initiateModeChange(const ActiveModeInfo&,
                                 const hal::VsyncPeriodChangeConstraints& constraints,
                                 hal::VsyncPeriodChangeTimeline* outTimeline)
+            REQUIRES(kMainThreadContext);
+
+    void finalizeModeChange(DisplayModeId, Fps displayFps, Fps renderFps)
             REQUIRES(kMainThreadContext);
 
     scheduler::RefreshRateSelector& refreshRateSelector() const { return *mRefreshRateSelector; }
@@ -313,7 +318,9 @@ private:
     ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
     TracedOrdinal<bool> mDesiredActiveModeChanged GUARDED_BY(mActiveModeLock) =
             {ftl::Concat("DesiredActiveModeChanged-", getId().value).c_str(), false};
+
     ActiveModeInfo mUpcomingActiveMode GUARDED_BY(kMainThreadContext);
+    bool mIsModeSetPending GUARDED_BY(kMainThreadContext) = false;
 };
 
 struct DisplayDeviceState {
