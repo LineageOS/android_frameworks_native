@@ -79,6 +79,7 @@ struct BinderRpcTestProcessSession {
         expectAlreadyShutdown = true;
     }
 
+    BinderRpcTestProcessSession(std::unique_ptr<ProcessSession> proc) : proc(std::move(proc)){};
     BinderRpcTestProcessSession(BinderRpcTestProcessSession&&) = default;
     ~BinderRpcTestProcessSession() {
         if (!expectAlreadyShutdown) {
@@ -138,9 +139,7 @@ public:
     }
 
     BinderRpcTestProcessSession createRpcTestSocketServerProcess(const BinderRpcOptions& options) {
-        BinderRpcTestProcessSession ret{
-                .proc = createRpcTestSocketServerProcessEtc(options),
-        };
+        BinderRpcTestProcessSession ret(createRpcTestSocketServerProcessEtc(options));
 
         ret.rootBinder = ret.proc->sessions.empty() ? nullptr : ret.proc->sessions.at(0).root;
         ret.rootIface = interface_cast<IBinderRpcTest>(ret.rootBinder);
