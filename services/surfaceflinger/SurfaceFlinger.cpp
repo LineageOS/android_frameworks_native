@@ -1197,9 +1197,9 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& displayToken,
 }
 
 void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request, bool force) {
-    ATRACE_CALL();
-
     const auto displayId = request.mode.modePtr->getPhysicalDisplayId();
+    ATRACE_NAME(ftl::Concat(__func__, ' ', displayId.value).c_str());
+
     const auto display = getDisplayDeviceLocked(displayId);
     if (!display) {
         ALOGW("%s: display is no longer valid", __func__);
@@ -1227,17 +1227,24 @@ void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request,
             // As we called to set period, we will call to onRefreshRateChangeCompleted once
             // VsyncController model is locked.
             mScheduler->modulateVsync(displayId, &VsyncModulator::onRefreshRateChangeInitiated);
-            updatePhaseConfiguration(mode.fps);
+
+            if (displayId == mActiveDisplayId) {
+                updatePhaseConfiguration(mode.fps);
+            }
+
             mScheduler->setModeChangePending(true);
             break;
         case DisplayDevice::DesiredActiveModeAction::InitiateRenderRateSwitch:
             mScheduler->setRenderRate(displayId, mode.fps);
-            updatePhaseConfiguration(mode.fps);
-            mRefreshRateStats->setRefreshRate(mode.fps);
-            if (display->getPhysicalId() == mActiveDisplayId && emitEvent) {
-                mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, mode);
+
+            if (displayId == mActiveDisplayId) {
+                updatePhaseConfiguration(mode.fps);
+                mRefreshRateStats->setRefreshRate(mode.fps);
             }
 
+            if (emitEvent) {
+                dispatchDisplayModeChangeEvent(displayId, mode);
+            }
             break;
         case DisplayDevice::DesiredActiveModeAction::None:
             break;
@@ -1293,24 +1300,20 @@ status_t SurfaceFlinger::setActiveModeFromBackdoor(const sp<display::DisplayToke
     return future.get();
 }
 
-void SurfaceFlinger::updateInternalStateWithChangedMode() {
-    ATRACE_CALL();
+void SurfaceFlinger::finalizeDisplayModeChange(DisplayDevice& display) {
+    const auto displayId = display.getPhysicalId();
+    ATRACE_NAME(ftl::Concat(__func__, ' ', displayId.value).c_str());
 
-    const auto display = getDefaultDisplayDeviceLocked();
-    if (!display) {
-        return;
-    }
-
-    const auto upcomingModeInfo = display->getUpcomingActiveMode();
+    const auto upcomingModeInfo = display.getUpcomingActiveMode();
     if (!upcomingModeInfo.modeOpt) {
         // There is no pending mode change. This can happen if the active
         // display changed and the mode change happened on a different display.
         return;
     }
 
-    if (display->getActiveMode().modePtr->getResolution() !=
+    if (display.getActiveMode().modePtr->getResolution() !=
         upcomingModeInfo.modeOpt->modePtr->getResolution()) {
-        auto& state = mCurrentState.displays.editValueFor(display->getDisplayToken());
+        auto& state = mCurrentState.displays.editValueFor(display.getDisplayToken());
         // We need to generate new sequenceId in order to recreate the display (and this
         // way the framebuffer).
         state.sequenceId = DisplayDeviceState{}.sequenceId;
@@ -1321,27 +1324,24 @@ void SurfaceFlinger::updateInternalStateWithChangedMode() {
         return;
     }
 
-    mPhysicalDisplays.get(display->getPhysicalId())
-            .transform(&PhysicalDisplay::snapshotRef)
-            .transform(ftl::unit_fn([&](const display::DisplaySnapshot& snapshot) {
-                FTL_FAKE_GUARD(kMainThreadContext,
-                               display->setActiveMode(upcomingModeInfo.modeOpt->modePtr->getId(),
-                                                      upcomingModeInfo.modeOpt->modePtr->getFps(),
-                                                      upcomingModeInfo.modeOpt->fps));
-            }));
+    const auto& activeMode = *upcomingModeInfo.modeOpt;
+    display.finalizeModeChange(activeMode.modePtr->getId(), activeMode.modePtr->getFps(),
+                               activeMode.fps);
 
-    const Fps refreshRate = upcomingModeInfo.modeOpt->fps;
-    mRefreshRateStats->setRefreshRate(refreshRate);
-    updatePhaseConfiguration(refreshRate);
+    if (displayId == mActiveDisplayId) {
+        mRefreshRateStats->setRefreshRate(activeMode.fps);
+        updatePhaseConfiguration(activeMode.fps);
+    }
 
     if (upcomingModeInfo.event != scheduler::DisplayModeEvent::None) {
-        mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, *upcomingModeInfo.modeOpt);
+        dispatchDisplayModeChangeEvent(displayId, activeMode);
     }
 }
 
 void SurfaceFlinger::clearDesiredActiveModeState(const sp<DisplayDevice>& display) {
     display->clearDesiredActiveModeState();
     if (display->getPhysicalId() == mActiveDisplayId) {
+        // TODO(b/255635711): Check for pending mode changes on other displays.
         mScheduler->setModeChangePending(false);
     }
 }
@@ -1355,21 +1355,18 @@ void SurfaceFlinger::desiredActiveModeChangeDone(const sp<DisplayDevice>& displa
     clearDesiredActiveModeState(display);
     mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, displayFps);
     mScheduler->setRenderRate(displayId, renderFps);
-    updatePhaseConfiguration(renderFps);
+
+    if (displayId == mActiveDisplayId) {
+        updatePhaseConfiguration(renderFps);
+    }
 }
 
-void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
+void SurfaceFlinger::initiateDisplayModeChanges() {
     ATRACE_CALL();
 
     std::optional<PhysicalDisplayId> displayToUpdateImmediately;
 
     for (const auto& [id, physical] : mPhysicalDisplays) {
-        const auto& snapshot = physical.snapshot();
-
-        if (snapshot.connectionType() != ui::DisplayConnectionType::Internal) {
-            continue;
-        }
-
         const auto display = getDisplayDeviceLocked(id);
         if (!display) continue;
 
@@ -1380,14 +1377,14 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
             continue;
         }
 
-        if (id != mActiveDisplayId) {
-            // Display is no longer the active display, so abort the mode change.
+        if (!display->isPoweredOn()) {
+            // Display is no longer powered on, so abort the mode change.
             clearDesiredActiveModeState(display);
             continue;
         }
 
         const auto desiredModeId = desiredActiveMode->modeOpt->modePtr->getId();
-        const auto displayModePtrOpt = snapshot.displayModes().get(desiredModeId);
+        const auto displayModePtrOpt = physical.snapshot().displayModes().get(desiredModeId);
 
         if (!displayModePtrOpt) {
             ALOGW("Desired display mode is no longer supported. Mode ID = %d",
@@ -1437,19 +1434,18 @@ void SurfaceFlinger::setActiveModeInHwcIfNeeded() {
 
         if (outTimeline.refreshRequired) {
             scheduleComposite(FrameHint::kNone);
-            mSetActiveModePending = true;
         } else {
-            // Updating the internal state should be done outside the loop,
-            // because it can recreate a DisplayDevice and modify mDisplays
-            // which will invalidate the iterator.
+            // TODO(b/255635711): Remove `displayToUpdateImmediately` to `finalizeDisplayModeChange`
+            // for all displays. This was only needed when the loop iterated over `mDisplays` rather
+            // than `mPhysicalDisplays`.
             displayToUpdateImmediately = display->getPhysicalId();
         }
     }
 
     if (displayToUpdateImmediately) {
-        updateInternalStateWithChangedMode();
-
         const auto display = getDisplayDeviceLocked(*displayToUpdateImmediately);
+        finalizeDisplayModeChange(*display);
+
         const auto desiredActiveMode = display->getDesiredActiveMode();
         if (desiredActiveMode && display->getActiveMode() == desiredActiveMode->modeOpt) {
             desiredActiveModeChangeDone(display);
@@ -2336,7 +2332,10 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, frontend::Update& upd
     return mustComposite;
 }
 
-bool SurfaceFlinger::commit(const scheduler::FrameTarget& pacesetterFrameTarget) {
+bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
+                            const scheduler::FrameTargets& frameTargets) {
+    const scheduler::FrameTarget& pacesetterFrameTarget = *frameTargets.get(pacesetterId)->get();
+
     const VsyncId vsyncId = pacesetterFrameTarget.vsyncId();
     ATRACE_NAME(ftl::Concat(__func__, ' ', ftl::to_underlying(vsyncId)).c_str());
 
@@ -2349,20 +2348,35 @@ bool SurfaceFlinger::commit(const scheduler::FrameTarget& pacesetterFrameTarget)
         mTracingEnabledChanged = false;
     }
 
-    // If we are in the middle of a mode change and the fence hasn't
-    // fired yet just wait for the next commit.
-    if (mSetActiveModePending) {
-        if (pacesetterFrameTarget.isFramePending()) {
-            mScheduler->scheduleFrame();
-            return false;
-        }
+    // If a mode set is pending and the fence hasn't fired yet, wait for the next commit.
+    if (std::any_of(frameTargets.begin(), frameTargets.end(),
+                    [this](const auto& pair) FTL_FAKE_GUARD(mStateLock)
+                            FTL_FAKE_GUARD(kMainThreadContext) {
+                                if (!pair.second->isFramePending()) return false;
 
-        // We received the present fence from the HWC, so we assume it successfully updated
-        // the mode, hence we update SF.
-        mSetActiveModePending = false;
-        {
-            Mutex::Autolock lock(mStateLock);
-            updateInternalStateWithChangedMode();
+                                if (const auto display = getDisplayDeviceLocked(pair.first)) {
+                                    return display->isModeSetPending();
+                                }
+
+                                return false;
+                            })) {
+        mScheduler->scheduleFrame();
+        return false;
+    }
+
+    {
+        Mutex::Autolock lock(mStateLock);
+
+        for (const auto [id, target] : frameTargets) {
+            // TODO(b/241285876): This is `nullptr` when the DisplayDevice is about to be removed in
+            // this commit, since the PhysicalDisplay has already been removed. Rather than checking
+            // for `nullptr` below, change Scheduler::onFrameSignal to filter out the FrameTarget of
+            // the removed display.
+            const auto display = getDisplayDeviceLocked(id);
+
+            if (display && display->isModeSetPending()) {
+                finalizeDisplayModeChange(*display);
+            }
         }
     }
 
@@ -2456,7 +2470,7 @@ bool SurfaceFlinger::commit(const scheduler::FrameTarget& pacesetterFrameTarget)
     {
         Mutex::Autolock lock(mStateLock);
         mScheduler->chooseRefreshRateForContent();
-        setActiveModeInHwcIfNeeded();
+        initiateDisplayModeChanges();
     }
 
     updateCursorAsync();
@@ -3238,6 +3252,16 @@ void SurfaceFlinger::dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bo
     mScheduler->onHotplugReceived(mSfConnectionHandle, displayId, connected);
 }
 
+void SurfaceFlinger::dispatchDisplayModeChangeEvent(PhysicalDisplayId displayId,
+                                                    const scheduler::FrameRateMode& mode) {
+    // TODO(b/255635821): Merge code paths and move to Scheduler.
+    const auto onDisplayModeChanged = displayId == mActiveDisplayId
+            ? &scheduler::Scheduler::onPrimaryDisplayModeChanged
+            : &scheduler::Scheduler::onNonPrimaryDisplayModeChanged;
+
+    ((*mScheduler).*onDisplayModeChanged)(mAppConnectionHandle, mode);
+}
+
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const wp<IBinder>& displayToken,
         std::shared_ptr<compositionengine::Display> compositionDisplay,
@@ -3337,14 +3361,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                                                     Dataspace::UNKNOWN});
 
     if (const auto& physical = state.physical) {
-        mPhysicalDisplays.get(physical->id)
-                .transform(&PhysicalDisplay::snapshotRef)
-                .transform(ftl::unit_fn([&](const display::DisplaySnapshot& snapshot) {
-                    FTL_FAKE_GUARD(kMainThreadContext,
-                                   display->setActiveMode(physical->activeMode->getId(),
-                                                          physical->activeMode->getFps(),
-                                                          physical->activeMode->getFps()));
-                }));
+        const auto& mode = *physical->activeMode;
+        display->setActiveMode(mode.getId(), mode.getFps(), mode.getFps());
     }
 
     display->setLayerFilter(makeLayerFilterForDisplay(display->getId(), state.layerStack));
@@ -3863,12 +3881,8 @@ void SurfaceFlinger::requestDisplayModes(std::vector<display::DisplayModeRequest
 
         if (!display) continue;
 
-        const bool isInternalDisplay = mPhysicalDisplays.get(displayId)
-                                               .transform(&PhysicalDisplay::isInternal)
-                                               .value_or(false);
-
-        if (isInternalDisplay && displayId != mActiveDisplayId) {
-            ALOGV("%s(%s): Inactive display", __func__, to_string(displayId).c_str());
+        if (!display->isPoweredOn()) {
+            ALOGV("%s(%s): Display is powered off", __func__, to_string(displayId).c_str());
             continue;
         }
 
@@ -3876,7 +3890,7 @@ void SurfaceFlinger::requestDisplayModes(std::vector<display::DisplayModeRequest
             setDesiredActiveMode(std::move(request));
         } else {
             ALOGV("%s: Mode %d is disallowed for display %s", __func__, modePtr->getId().value(),
-                  to_string(display->getId()).c_str());
+                  to_string(displayId).c_str());
         }
     }
 }
@@ -7582,6 +7596,7 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         const sp<DisplayDevice>& display,
         const scheduler::RefreshRateSelector::PolicyVariant& policy) {
     const auto displayId = display->getPhysicalId();
+    ATRACE_NAME(ftl::Concat(__func__, ' ', displayId.value).c_str());
 
     Mutex::Autolock lock(mStateLock);
 
@@ -7602,13 +7617,11 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
             break;
     }
 
-    const bool isInternalDisplay = mPhysicalDisplays.get(displayId)
-                                           .transform(&PhysicalDisplay::isInternal)
-                                           .value_or(false);
-
-    if (isInternalDisplay && displayId != mActiveDisplayId) {
-        // The policy will be be applied when the display becomes active.
-        ALOGV("%s(%s): Inactive display", __func__, to_string(displayId).c_str());
+    // TODO(b/255635711): Apply the policy once the display is powered on, which is currently only
+    // done for the internal display that becomes active on fold/unfold. For now, assume that DM
+    // always powers on the secondary (internal or external) display before setting its policy.
+    if (!display->isPoweredOn()) {
+        ALOGV("%s(%s): Display is powered off", __func__, to_string(displayId).c_str());
         return NO_ERROR;
     }
 
@@ -7954,7 +7967,9 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
 
     resetPhaseConfiguration(activeDisplay.getActiveMode().fps);
 
+    // TODO(b/255635711): Check for pending mode changes on other displays.
     mScheduler->setModeChangePending(false);
+
     mScheduler->setPacesetterDisplay(mActiveDisplayId);
 
     onActiveDisplaySizeChanged(activeDisplay);
