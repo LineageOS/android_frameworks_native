@@ -152,6 +152,7 @@ public:
     // When fuzzing, we want to remove certain ABI checks that cause significant
     // lost coverage, and we also want to avoid logs that cost too much to write.
     void setServiceFuzzing();
+    bool isServiceFuzzing() const;
 
     void                freeData();
 
