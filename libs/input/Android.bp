@@ -139,6 +139,7 @@ cc_library {
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",
         "MotionPredictor.cpp",
+        "MotionPredictorMetricsManager.cpp",
         "PrintTools.cpp",
         "PropertyMap.cpp",
         "TfLiteMotionPredictor.cpp",
@@ -152,9 +153,13 @@ cc_library {
     header_libs: [
         "flatbuffer_headers",
         "jni_headers",
+        "libeigen",
         "tensorflow_headers",
     ],
-    export_header_lib_headers: ["jni_headers"],
+    export_header_lib_headers: [
+        "jni_headers",
+        "libeigen",
+    ],
 
     generated_headers: [
         "cxx-bridge-header",
@@ -206,6 +211,17 @@ cc_library {
 
     target: {
         android: {
+            export_shared_lib_headers: ["libbinder"],
+
+            shared_libs: [
+                "libutils",
+                "libbinder",
+                // Stats logging library and its dependencies.
+                "libstatslog_libinput",
+                "libstatsbootstrap",
+                "android.os.statsbootstrap_aidl-cpp",
+            ],
+
             required: [
                 "motion_predictor_model_prebuilt",
                 "motion_predictor_model_config",
@@ -226,6 +242,43 @@ cc_library {
             "frameworks/native/libs/gui",
         ],
     },
+}
+
+// Use bootstrap version of stats logging library.
+// libinput is a bootstrap process (starts early in the boot process), and thus can't use the normal
+// `libstatslog` because that requires `libstatssocket`, which is only available later in the boot.
+cc_library {
+    name: "libstatslog_libinput",
+    generated_sources: ["statslog_libinput.cpp"],
+    generated_headers: ["statslog_libinput.h"],
+    export_generated_headers: ["statslog_libinput.h"],
+    shared_libs: [
+        "libbinder",
+        "libstatsbootstrap",
+        "libutils",
+        "android.os.statsbootstrap_aidl-cpp",
+    ],
+}
+
+genrule {
+    name: "statslog_libinput.h",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --header $(genDir)/statslog_libinput.h --module libinput" +
+        " --namespace android,stats,libinput --bootstrap",
+    out: [
+        "statslog_libinput.h",
+    ],
+}
+
+genrule {
+    name: "statslog_libinput.cpp",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --cpp $(genDir)/statslog_libinput.cpp --module libinput" +
+        " --namespace android,stats,libinput --importHeader statslog_libinput.h" +
+        " --bootstrap",
+    out: [
+        "statslog_libinput.cpp",
+    ],
 }
 
 cc_defaults {
