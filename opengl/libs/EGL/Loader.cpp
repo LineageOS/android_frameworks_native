@@ -169,6 +169,11 @@ static bool should_unload_system_driver(egl_connection_t* cnx) {
         }
     }
 
+    // Return true if native GLES drivers should be used and ANGLE is already loaded.
+    if (android::GraphicsEnv::getInstance().shouldUseNativeDriver() && cnx->angleLoaded) {
+        return true;
+    }
+
     // Return true if updated driver namespace is set.
     ns = android::GraphicsEnv::getInstance().getDriverNamespace();
     if (ns) {
@@ -240,16 +245,28 @@ void* Loader::open(egl_connection_t* cnx) {
     if (!hnd) {
         // Secondly, try to load from driver apk.
         hnd = attempt_to_load_updated_driver(cnx);
+
+        // If updated driver apk is set but fail to load, abort here.
+        LOG_ALWAYS_FATAL_IF(android::GraphicsEnv::getInstance().getDriverNamespace(),
+                            "couldn't find an OpenGL ES implementation from %s",
+                            android::GraphicsEnv::getInstance().getDriverPath().c_str());
     }
 
+    // Attempt to load native GLES drivers specified by ro.hardware.egl if native is selected.
+    // If native is selected but fail to load, abort.
+    if (!hnd && android::GraphicsEnv::getInstance().shouldUseNativeDriver()) {
+        auto driverSuffix = base::GetProperty(RO_DRIVER_SUFFIX_PROPERTY, "");
+        LOG_ALWAYS_FATAL_IF(driverSuffix.empty(),
+                            "Native GLES driver is selected but not specified in %s",
+                            RO_DRIVER_SUFFIX_PROPERTY);
+        hnd = attempt_to_load_system_driver(cnx, driverSuffix.c_str(), true);
+        LOG_ALWAYS_FATAL_IF(!hnd, "Native GLES driver is selected but failed to load. %s=%s",
+                            RO_DRIVER_SUFFIX_PROPERTY, driverSuffix.c_str());
+    }
+
+    // Finally, try to load default driver.
     bool failToLoadFromDriverSuffixProperty = false;
     if (!hnd) {
-        // If updated driver apk is set but fail to load, abort here.
-        if (android::GraphicsEnv::getInstance().getDriverNamespace()) {
-            LOG_ALWAYS_FATAL("couldn't find an OpenGL ES implementation from %s",
-                             android::GraphicsEnv::getInstance().getDriverPath().c_str());
-        }
-        // Finally, try to load system driver.
         // Start by searching for the library name appended by the system
         // properties of the GLES userspace driver in both locations.
         // i.e.:
