@@ -161,6 +161,7 @@ class FakeInputMapper : public InputMapper {
     // fake mapping which would normally come from keyCharacterMap
     std::unordered_map<int32_t, int32_t> mKeyCodeMapping;
     std::vector<int32_t> mSupportedKeyCodes;
+    std::list<NotifyArgs> mProcessResult;
 
     std::mutex mLock;
     std::condition_variable mStateChangedCondition;
@@ -189,6 +190,14 @@ public:
 
     void setMetaState(int32_t metaState) {
         mMetaState = metaState;
+    }
+
+    // Sets the return value for the `process` call.
+    void setProcessResult(std::list<NotifyArgs> notifyArgs) {
+        mProcessResult.clear();
+        for (auto notifyArg : notifyArgs) {
+            mProcessResult.push_back(notifyArg);
+        }
     }
 
     void assertConfigureWasCalled() {
@@ -291,7 +300,7 @@ private:
         mLastEvent = *rawEvent;
         mProcessWasCalled = true;
         mStateChangedCondition.notify_all();
-        return {};
+        return mProcessResult;
     }
 
     int32_t getKeyCodeState(uint32_t, int32_t keyCode) override {
@@ -2473,6 +2482,73 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
 
     ASSERT_NO_FATAL_FAILURE(mapper1.assertProcessWasCalled());
     ASSERT_NO_FATAL_FAILURE(mapper2.assertProcessWasCalled());
+}
+
+TEST_F(InputDeviceTest, WakeDevice_AddsWakeFlagToProcessNotifyArgs) {
+    mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, "device.wake", "1");
+    FakeInputMapper& mapper =
+            mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                                AINPUT_SOURCE_KEYBOARD);
+    NotifyMotionArgs args1;
+    NotifySwitchArgs args2;
+    NotifyKeyArgs args3;
+    mapper.setProcessResult({args1, args2, args3});
+
+    InputReaderConfiguration config;
+    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, config, /*changes=*/{});
+
+    RawEvent event;
+    event.deviceId = EVENTHUB_ID;
+    std::list<NotifyArgs> notifyArgs = mDevice->process(&event, 1);
+
+    for (auto& arg : notifyArgs) {
+        if (const auto notifyMotionArgs = std::get_if<NotifyMotionArgs>(&arg)) {
+            ASSERT_EQ(POLICY_FLAG_WAKE, notifyMotionArgs->policyFlags);
+        } else if (const auto notifySwitchArgs = std::get_if<NotifySwitchArgs>(&arg)) {
+            ASSERT_EQ(POLICY_FLAG_WAKE, notifySwitchArgs->policyFlags);
+        } else if (const auto notifyKeyArgs = std::get_if<NotifyKeyArgs>(&arg)) {
+            ASSERT_EQ(POLICY_FLAG_WAKE, notifyKeyArgs->policyFlags);
+        }
+    }
+}
+
+TEST_F(InputDeviceTest, NotWakeDevice_DoesNotAddWakeFlagToProcessNotifyArgs) {
+    mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, "device.wake", "0");
+    FakeInputMapper& mapper =
+            mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                                AINPUT_SOURCE_KEYBOARD);
+    NotifyMotionArgs args;
+    mapper.setProcessResult({args});
+
+    InputReaderConfiguration config;
+    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, config, /*changes=*/{});
+
+    RawEvent event;
+    event.deviceId = EVENTHUB_ID;
+    std::list<NotifyArgs> notifyArgs = mDevice->process(&event, 1);
+
+    // POLICY_FLAG_WAKE is not added to the NotifyArgs.
+    ASSERT_EQ(0u, std::get<NotifyMotionArgs>(notifyArgs.front()).policyFlags);
+}
+
+TEST_F(InputDeviceTest, NotWakeDevice_DoesNotRemoveExistingWakeFlagFromProcessNotifyArgs) {
+    mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, "device.wake", "0");
+    FakeInputMapper& mapper =
+            mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                                AINPUT_SOURCE_KEYBOARD);
+    NotifyMotionArgs args;
+    args.policyFlags = POLICY_FLAG_WAKE;
+    mapper.setProcessResult({args});
+
+    InputReaderConfiguration config;
+    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, config, /*changes=*/{});
+
+    RawEvent event;
+    event.deviceId = EVENTHUB_ID;
+    std::list<NotifyArgs> notifyArgs = mDevice->process(&event, 1);
+
+    // The POLICY_FLAG_WAKE is preserved, despite the device being a non-wake device.
+    ASSERT_EQ(POLICY_FLAG_WAKE, std::get<NotifyMotionArgs>(notifyArgs.front()).policyFlags);
 }
 
 // A single input device is associated with a specific display. Check that:

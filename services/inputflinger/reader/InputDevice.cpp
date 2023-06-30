@@ -48,6 +48,7 @@ InputDevice::InputDevice(InputReaderContext* context, int32_t id, int32_t genera
         mIdentifier(identifier),
         mClasses(0),
         mSources(0),
+        mIsWaking(false),
         mIsExternal(false),
         mHasMic(false),
         mDropUntilNextSync(false) {}
@@ -101,6 +102,7 @@ void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
     dump += StringPrintf(INDENT "%s", eventHubDevStr.c_str());
     dump += StringPrintf(INDENT2 "Generation: %d\n", mGeneration);
     dump += StringPrintf(INDENT2 "IsExternal: %s\n", toString(mIsExternal));
+    dump += StringPrintf(INDENT2 "IsWaking: %s\n", toString(mIsWaking));
     dump += StringPrintf(INDENT2 "AssociatedDisplayPort: ");
     if (mAssociatedDisplayPort) {
         dump += StringPrintf("%" PRIu8 "\n", *mAssociatedDisplayPort);
@@ -220,6 +222,7 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
 
             mAssociatedDeviceType =
                     getValueByKey(readerConfig.deviceTypeAssociations, mIdentifier.location);
+            mIsWaking = mConfiguration.getBool("device.wake").value_or(false);
         }
 
         if (!changes.any() || changes.test(Change::KEYBOARD_LAYOUTS)) {
@@ -376,7 +379,23 @@ std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t cou
         }
         --count;
     }
+    postProcess(out);
     return out;
+}
+
+void InputDevice::postProcess(std::list<NotifyArgs>& args) const {
+    if (mIsWaking) {
+        // Update policy flags to request wake for the `NotifyArgs` that come from waking devices.
+        for (auto& arg : args) {
+            if (const auto notifyMotionArgs = std::get_if<NotifyMotionArgs>(&arg)) {
+                notifyMotionArgs->policyFlags |= POLICY_FLAG_WAKE;
+            } else if (const auto notifySwitchArgs = std::get_if<NotifySwitchArgs>(&arg)) {
+                notifySwitchArgs->policyFlags |= POLICY_FLAG_WAKE;
+            } else if (const auto notifyKeyArgs = std::get_if<NotifyKeyArgs>(&arg)) {
+                notifyKeyArgs->policyFlags |= POLICY_FLAG_WAKE;
+            }
+        }
+    }
 }
 
 std::list<NotifyArgs> InputDevice::timeoutExpired(nsecs_t when) {
