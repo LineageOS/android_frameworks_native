@@ -497,10 +497,6 @@ LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
         return LatchUnsignaledConfig::AutoSingleLayer;
     }
 
-    if (base::GetBoolProperty("debug.sf.latch_unsignaled"s, false)) {
-        return LatchUnsignaledConfig::Always;
-    }
-
     return LatchUnsignaledConfig::Disabled;
 }
 
@@ -4364,12 +4360,10 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
             return TraverseBuffersReturnValues::STOP_TRAVERSAL;
         }
 
-        // ignore the acquire fence if LatchUnsignaledConfig::Always is set.
-        const bool checkAcquireFence = enableLatchUnsignaledConfig != LatchUnsignaledConfig::Always;
         const bool acquireFenceAvailable = s.bufferData &&
                 s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&
                 s.bufferData->acquireFence;
-        const bool fenceSignaled = !checkAcquireFence || !acquireFenceAvailable ||
+        const bool fenceSignaled = !acquireFenceAvailable ||
                 s.bufferData->acquireFence->getStatus() != Fence::Status::Unsignaled;
         if (!fenceSignaled) {
             // check fence status
@@ -4463,12 +4457,10 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
             return TraverseBuffersReturnValues::STOP_TRAVERSAL;
         }
 
-        // ignore the acquire fence if LatchUnsignaledConfig::Always is set.
-        const bool checkAcquireFence = enableLatchUnsignaledConfig != LatchUnsignaledConfig::Always;
         const bool acquireFenceAvailable = s.bufferData &&
                 s.bufferData->flags.test(BufferData::BufferDataChange::fenceChanged) &&
                 s.bufferData->acquireFence;
-        const bool fenceSignaled = !checkAcquireFence || !acquireFenceAvailable ||
+        const bool fenceSignaled = !acquireFenceAvailable ||
                 s.bufferData->acquireFence->getStatus() != Fence::Status::Unsignaled;
         if (!fenceSignaled) {
             // check fence status
@@ -4572,11 +4564,6 @@ bool SurfaceFlinger::shouldLatchUnsignaled(const layer_state_t& state, size_t nu
     if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Disabled) {
         ATRACE_FORMAT_INSTANT("%s: false (LatchUnsignaledConfig::Disabled)", __func__);
         return false;
-    }
-
-    if (enableLatchUnsignaledConfig == LatchUnsignaledConfig::Always) {
-        ATRACE_FORMAT_INSTANT("%s: true (LatchUnsignaledConfig::Always)", __func__);
-        return true;
     }
 
     // We only want to latch unsignaled when a single layer is updated in this
