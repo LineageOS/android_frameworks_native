@@ -33,6 +33,10 @@ void fuzzService(const std::vector<sp<IBinder>>& binders, FuzzedDataProvider&& p
             .extraFds = {},
     };
 
+    // always refresh the calling identity, because we sometimes set it below, but also,
+    // the code we're fuzzing might reset it
+    IPCThreadState::self()->clearCallingIdentity();
+
     // Always take so that a perturbation of just the one ConsumeBool byte will always
     // take the same path, but with a different UID. Without this, the fuzzer needs to
     // guess both the change in value and the shift at the same time.
