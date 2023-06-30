@@ -28,6 +28,7 @@ inputflinger_tidy_checks = [
 
 cc_defaults {
     name: "inputflinger_defaults",
+    host_supported: true,
     cpp_std: "c++20",
     cflags: [
         "-Wall",
@@ -50,6 +51,20 @@ cc_defaults {
         "-*", // Disable all checks not explicitly enabled for now
     ] + inputflinger_tidy_checks,
     tidy_checks_as_errors: inputflinger_tidy_checks,
+    target: {
+        host: {
+            sanitize: {
+                address: true,
+            },
+            include_dirs: [
+                "bionic/libc/kernel/android/uapi/",
+                "bionic/libc/kernel/uapi",
+            ],
+            cflags: [
+                "-D__ANDROID_HOST__",
+            ],
+        },
+    },
 }
 
 /////////////////////////////////////////////////
@@ -104,13 +119,6 @@ cc_defaults {
             static_libs: [
                 "libstatspull",
                 "libstatssocket",
-            ],
-            include_dirs: [
-                "bionic/libc/kernel/android/uapi/",
-                "bionic/libc/kernel/uapi",
-            ],
-            cflags: [
-                "-D__ANDROID_HOST__",
             ],
         },
     },
@@ -212,6 +220,7 @@ phony {
         // native targets
         "libgui_test",
         "libinput",
+        "libinputreader_static",
         "libinputflinger",
         "inputflinger_tests",
         "inputflinger_benchmarks",

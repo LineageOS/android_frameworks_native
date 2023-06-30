@@ -409,7 +409,7 @@ status_t InputChannel::openInputChannelPair(const std::string& name,
     setsockopt(sockets[1], SOL_SOCKET, SO_SNDBUF, &bufferSize, sizeof(bufferSize));
     setsockopt(sockets[1], SOL_SOCKET, SO_RCVBUF, &bufferSize, sizeof(bufferSize));
 
-    sp<IBinder> token = new BBinder();
+    sp<IBinder> token = sp<BBinder>::make();
 
     std::string serverChannelName = name + " (server)";
     android::base::unique_fd serverFd(sockets[0]);

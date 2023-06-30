@@ -78,18 +78,6 @@ cc_test {
                 "libvintf",
             ],
         },
-        host: {
-            sanitize: {
-                address: true,
-            },
-            include_dirs: [
-                "bionic/libc/kernel/android/uapi/",
-                "bionic/libc/kernel/uapi",
-            ],
-            cflags: [
-                "-D__ANDROID_HOST__",
-            ],
-        },
     },
     sanitize: {
         hwaddress: true,

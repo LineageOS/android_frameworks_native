@@ -118,6 +118,11 @@ cc_library {
         "-Wextra",
         "-Werror",
         "-Wno-unused-parameter",
+        "-Wthread-safety",
+        "-Wshadow",
+        "-Wshadow-field-in-constructor-modified",
+        "-Wshadow-uncaptured-local",
+        "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
     ],
     srcs: [
         "android/os/IInputFlinger.aidl",
@@ -160,6 +165,7 @@ cc_library {
         "liblog",
         "libPlatformProperties",
         "libtinyxml2",
+        "libutils",
         "libvintf",
     ],
 
@@ -196,12 +202,6 @@ cc_library {
 
     target: {
         android: {
-            export_shared_lib_headers: ["libbinder"],
-
-            shared_libs: [
-                "libutils",
-            ],
-
             required: [
                 "motion_predictor_model_prebuilt",
                 "motion_predictor_model_config",
@@ -211,7 +211,6 @@ cc_library {
             include_dirs: [
                 "bionic/libc/kernel/android/uapi/",
                 "bionic/libc/kernel/uapi",
-                "frameworks/native/libs/arect/include",
             ],
         },
     },
