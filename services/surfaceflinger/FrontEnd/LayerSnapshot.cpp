@@ -131,6 +131,8 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
             ? path
             : LayerHierarchy::TraversalPath::ROOT;
     reachablilty = LayerSnapshot::Reachablilty::Unreachable;
+    frameRateSelectionPriority = state.frameRateSelectionPriority;
+    layerMetadata = state.metadata;
 }
 
 // As documented in libhardware header, formats in the range

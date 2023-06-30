@@ -20,6 +20,7 @@
 #include "FrontEnd/LayerHierarchy.h"
 #include "FrontEnd/LayerLifecycleManager.h"
 #include "FrontEnd/LayerSnapshotBuilder.h"
+#include "Layer.h"
 #include "LayerHierarchyTest.h"
 
 #define UPDATE_AND_VERIFY(BUILDER, ...)                                    \
@@ -465,6 +466,50 @@ TEST_F(LayerSnapshotTest, cleanUpUnreachableSnapshotsAfterLayerDestruction) {
     UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
 
     EXPECT_LE(startingNumSnapshots - 2, mSnapshotBuilder.getSnapshots().size());
+}
+
+TEST_F(LayerSnapshotTest, snashotContainsMetadataFromLayerCreationArgs) {
+    LayerCreationArgs args(std::make_optional<uint32_t>(200));
+    args.name = "testlayer";
+    args.addToRoot = true;
+    args.metadata.setInt32(42, 24);
+
+    std::vector<std::unique_ptr<RequestedLayerState>> layers;
+    layers.emplace_back(std::make_unique<RequestedLayerState>(args));
+    EXPECT_TRUE(layers.back()->metadata.has(42));
+    EXPECT_EQ(layers.back()->metadata.getInt32(42, 0), 24);
+    mLifecycleManager.addLayers(std::move(layers));
+
+    std::vector<uint32_t> expected = STARTING_ZORDER;
+    expected.push_back(200);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+
+    EXPECT_TRUE(mSnapshotBuilder.getSnapshot(200)->layerMetadata.has(42));
+    EXPECT_EQ(mSnapshotBuilder.getSnapshot(200)->layerMetadata.getInt32(42, 0), 24);
+}
+
+TEST_F(LayerSnapshotTest, frameRateSelectionPriorityPassedToChildLayers) {
+    setFrameRateSelectionPriority(11, 1);
+
+    setFrameRateSelectionPriority(12, 2);
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRateSelectionPriority, Layer::PRIORITY_UNSET);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRateSelectionPriority, 1);
+    EXPECT_EQ(getSnapshot({.id = 12})->frameRateSelectionPriority, 2);
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRateSelectionPriority, 2);
+    EXPECT_EQ(getSnapshot({.id = 1221})->frameRateSelectionPriority, 2);
+
+    // reparent and verify the child gets the new parent's framerate selection priority
+    reparentLayer(122, 11);
+
+    std::vector<uint32_t> expected = {1, 11, 111, 122, 1221, 12, 121, 13, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRateSelectionPriority, Layer::PRIORITY_UNSET);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRateSelectionPriority, 1);
+    EXPECT_EQ(getSnapshot({.id = 12})->frameRateSelectionPriority, 2);
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRateSelectionPriority, 1);
+    EXPECT_EQ(getSnapshot({.id = 1221})->frameRateSelectionPriority, 1);
 }
 
 } // namespace android::surfaceflinger::frontend

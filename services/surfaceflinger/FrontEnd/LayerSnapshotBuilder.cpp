@@ -29,6 +29,7 @@
 
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/Hal.h"
+#include "Layer.h" // eFrameRateSelectionPriority constants
 #include "LayerLog.h"
 #include "LayerSnapshotBuilder.h"
 #include "TimeStats/TimeStats.h"
@@ -817,6 +818,13 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                                scheduler::LayerInfo::FrameRateCompatibility::NoVote))
                 ? requested.requestedFrameRate
                 : parentSnapshot.frameRate;
+    }
+
+    if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionPriority) {
+        snapshot.frameRateSelectionPriority =
+                (requested.frameRateSelectionPriority == Layer::PRIORITY_UNSET)
+                ? parentSnapshot.frameRateSelectionPriority
+                : requested.frameRateSelectionPriority;
     }
 
     if (forceUpdate ||

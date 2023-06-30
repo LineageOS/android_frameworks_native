@@ -267,7 +267,8 @@ struct layer_state_t {
             layer_state_t::HIERARCHY_CHANGES | layer_state_t::eAlphaChanged |
             layer_state_t::eColorTransformChanged | layer_state_t::eCornerRadiusChanged |
             layer_state_t::eFlagsChanged | layer_state_t::eTrustedOverlayChanged |
-            layer_state_t::eFrameRateChanged | layer_state_t::eFixedTransformHintChanged;
+            layer_state_t::eFrameRateChanged | layer_state_t::eFrameRateSelectionPriority |
+            layer_state_t::eFixedTransformHintChanged;
 
     // Changes affecting data sent to input.
     static constexpr uint64_t INPUT_CHANGES = layer_state_t::eInputInfoChanged |

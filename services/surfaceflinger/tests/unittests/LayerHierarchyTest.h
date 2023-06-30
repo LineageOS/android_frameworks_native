@@ -308,6 +308,17 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setFrameRateSelectionPriority(uint32_t id, int32_t priority) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eFrameRateSelectionPriority;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.frameRateSelectionPriority = priority;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     LayerLifecycleManager mLifecycleManager;
 };
 

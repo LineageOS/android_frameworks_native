@@ -94,7 +94,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     ui::Transform::RotationFlags fixedTransformHint;
     std::optional<ui::Transform::RotationFlags> transformHint;
     bool handleSkipScreenshotFlag = false;
-    int32_t frameRateSelectionPriority;
+    int32_t frameRateSelectionPriority = -1;
     LayerHierarchy::TraversalPath mirrorRootPath;
     uint32_t touchCropId;
     gui::Uid uid = gui::Uid::INVALID;
