@@ -127,6 +127,16 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     gameMode = gui::GameMode::Unsupported;
     requestedFrameRate = {};
     cachingHint = gui::CachingHint::Enabled;
+
+    if (name.length() > 77) {
+        std::string shortened;
+        shortened.append(name, 0, 36);
+        shortened.append("[...]");
+        shortened.append(name, name.length() - 36);
+        debugName = std::move(shortened);
+    } else {
+        debugName = name;
+    }
 }
 
 void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerState) {
@@ -369,6 +379,13 @@ std::string RequestedLayerState::getDebugString() const {
     if (z != 0) debug << " z=" << z;
     if (layerStack.id != 0) debug << " layerStack=" << layerStack.id;
     return debug.str();
+}
+
+std::ostream& operator<<(std::ostream& out, const RequestedLayerState& obj) {
+    out << obj.debugName;
+    if (obj.relativeParentId != UNASSIGNED_LAYER_ID) out << " parent=" << obj.parentId;
+    if (!obj.handleAlive) out << " handleNotAlive";
+    return out;
 }
 
 std::string RequestedLayerState::getDebugStringShort() const {

@@ -5722,7 +5722,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--edid"s, argsDumper(&SurfaceFlinger::dumpRawDisplayIdentificationData)},
                 {"--events"s, dumper(&SurfaceFlinger::dumpEvents)},
                 {"--frametimeline"s, argsDumper(&SurfaceFlinger::dumpFrameTimeline)},
-                {"--hwclayers"s, dumper(&SurfaceFlinger::dumpHwcLayersMinidumpLocked)},
+                {"--hwclayers"s, dumper(&SurfaceFlinger::dumpHwcLayersMinidumpLockedLegacy)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
                 {"--list"s, dumper(&SurfaceFlinger::listLayersLocked)},
@@ -5740,17 +5740,56 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
         // traversals, which can result in use-after-frees.
         std::string compositionLayers;
         mScheduler
-                ->schedule([&] {
-                    StringAppendF(&compositionLayers, "Composition layers\n");
-                    mDrawingState.traverseInZOrder([&](Layer* layer) {
-                        auto* compositionState = layer->getCompositionState();
-                        if (!compositionState || !compositionState->isVisible) return;
+                ->schedule([&]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(kMainThreadContext) {
+                    if (!mLayerLifecycleManagerEnabled) {
+                        StringAppendF(&compositionLayers, "Composition layers\n");
+                        mDrawingState.traverseInZOrder([&](Layer* layer) {
+                            auto* compositionState = layer->getCompositionState();
+                            if (!compositionState || !compositionState->isVisible) return;
+                            android::base::StringAppendF(&compositionLayers, "* Layer %p (%s)\n",
+                                                         layer,
+                                                         layer->getDebugName()
+                                                                 ? layer->getDebugName()
+                                                                 : "<unknown>");
+                            compositionState->dump(compositionLayers);
+                        });
+                    } else {
+                        std::ostringstream out;
+                        out << "\nComposition list\n";
+                        ui::LayerStack lastPrintedLayerStackHeader = ui::INVALID_LAYER_STACK;
+                        mLayerSnapshotBuilder.forEachVisibleSnapshot(
+                                [&](std::unique_ptr<frontend::LayerSnapshot>& snapshot) {
+                                    if (snapshot->hasSomethingToDraw()) {
+                                        if (lastPrintedLayerStackHeader !=
+                                            snapshot->outputFilter.layerStack) {
+                                            lastPrintedLayerStackHeader =
+                                                    snapshot->outputFilter.layerStack;
+                                            out << "LayerStack=" << lastPrintedLayerStackHeader.id
+                                                << "\n";
+                                        }
+                                        out << "  " << *snapshot << "\n";
+                                    }
+                                });
 
-                        android::base::StringAppendF(&compositionLayers, "* Layer %p (%s)\n", layer,
-                                                     layer->getDebugName() ? layer->getDebugName()
-                                                                           : "<unknown>");
-                        compositionState->dump(compositionLayers);
-                    });
+                        out << "\nInput list\n";
+                        lastPrintedLayerStackHeader = ui::INVALID_LAYER_STACK;
+                        mLayerSnapshotBuilder.forEachInputSnapshot(
+                                [&](const frontend::LayerSnapshot& snapshot) {
+                                    if (lastPrintedLayerStackHeader !=
+                                        snapshot.outputFilter.layerStack) {
+                                        lastPrintedLayerStackHeader =
+                                                snapshot.outputFilter.layerStack;
+                                        out << "LayerStack=" << lastPrintedLayerStackHeader.id
+                                            << "\n";
+                                    }
+                                    out << "  " << snapshot << "\n";
+                                });
+
+                        out << "\nLayer Hierarchy\n"
+                            << mLayerHierarchyBuilder.getHierarchy() << "\n\n";
+                        compositionLayers = out.str();
+                        dumpHwcLayersMinidump(compositionLayers);
+                    }
                 })
                 .get();
 
@@ -6080,7 +6119,7 @@ void SurfaceFlinger::dumpOffscreenLayers(std::string& result) {
     result.append(future.get());
 }
 
-void SurfaceFlinger::dumpHwcLayersMinidumpLocked(std::string& result) const {
+void SurfaceFlinger::dumpHwcLayersMinidumpLockedLegacy(std::string& result) const {
     for (const auto& [token, display] : mDisplays) {
         const auto displayId = HalDisplayId::tryCast(display->getId());
         if (!displayId) {
@@ -6092,7 +6131,33 @@ void SurfaceFlinger::dumpHwcLayersMinidumpLocked(std::string& result) const {
         Layer::miniDumpHeader(result);
 
         const DisplayDevice& ref = *display;
-        mDrawingState.traverseInZOrder([&](Layer* layer) { layer->miniDump(result, ref); });
+        mDrawingState.traverseInZOrder([&](Layer* layer) { layer->miniDumpLegacy(result, ref); });
+        result.append("\n");
+    }
+}
+
+void SurfaceFlinger::dumpHwcLayersMinidump(std::string& result) const {
+    for (const auto& [token, display] : mDisplays) {
+        const auto displayId = HalDisplayId::tryCast(display->getId());
+        if (!displayId) {
+            continue;
+        }
+
+        StringAppendF(&result, "Display %s (%s) HWC layers:\n", to_string(*displayId).c_str(),
+                      displayId == mActiveDisplayId ? "active" : "inactive");
+        Layer::miniDumpHeader(result);
+
+        const DisplayDevice& ref = *display;
+        mLayerSnapshotBuilder.forEachVisibleSnapshot([&](const frontend::LayerSnapshot& snapshot) {
+            if (!snapshot.hasSomethingToDraw() ||
+                ref.getLayerStack() != snapshot.outputFilter.layerStack) {
+                return;
+            }
+            auto it = mLegacyLayers.find(snapshot.sequence);
+            LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
+                                snapshot.getDebugString().c_str());
+            it->second->miniDump(result, snapshot, ref);
+        });
         result.append("\n");
     }
 }
@@ -6141,7 +6206,10 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
      * Dump the visible layer list
      */
     colorizer.bold(result);
-    StringAppendF(&result, "Visible layers (count = %zu)\n", mNumLayers.load());
+    StringAppendF(&result, "SurfaceFlinger New Frontend Enabled:%s\n",
+                  mLayerLifecycleManagerEnabled ? "true" : "false");
+    StringAppendF(&result, "Active Layers - layers with client handles (count = %zu)\n",
+                  mNumLayers.load());
     colorizer.reset(result);
 
     result.append(compositionLayers);
@@ -6214,7 +6282,9 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     }
     result.push_back('\n');
 
-    dumpHwcLayersMinidumpLocked(result);
+    if (mLegacyFrontEndEnabled) {
+        dumpHwcLayersMinidumpLockedLegacy(result);
+    }
 
     {
         DumpArgs plannerArgs;

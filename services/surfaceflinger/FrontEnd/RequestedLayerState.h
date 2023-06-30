@@ -74,6 +74,7 @@ struct RequestedLayerState : layer_state_t {
     Rect getBufferCrop() const;
     std::string getDebugString() const;
     std::string getDebugStringShort() const;
+    friend std::ostream& operator<<(std::ostream& os, const RequestedLayerState& obj);
     aidl::android::hardware::graphics::composer3::Composition getCompositionType() const;
     bool hasValidRelativeParent() const;
     bool hasInputInfo() const;
@@ -118,6 +119,7 @@ struct RequestedLayerState : layer_state_t {
     uint32_t bgColorLayerId = UNASSIGNED_LAYER_ID;
     uint64_t barrierFrameNumber = 0;
     uint32_t barrierProducerId = 0;
+    std::string debugName;
 
     // book keeping states
     bool handleAlive = true;

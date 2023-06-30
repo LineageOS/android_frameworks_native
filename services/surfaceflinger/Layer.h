@@ -343,6 +343,7 @@ public:
     virtual sp<LayerFE> getCompositionEngineLayerFE() const;
     virtual sp<LayerFE> copyCompositionEngineLayerFE() const;
     sp<LayerFE> getCompositionEngineLayerFE(const frontend::LayerHierarchy::TraversalPath&);
+    sp<LayerFE> getOrCreateCompositionEngineLayerFE(const frontend::LayerHierarchy::TraversalPath&);
 
     const frontend::LayerSnapshot* getLayerSnapshot() const;
     frontend::LayerSnapshot* editLayerSnapshot();
@@ -692,7 +693,8 @@ public:
 
     gui::LayerDebugInfo getLayerDebugInfo(const DisplayDevice*) const;
 
-    void miniDump(std::string& result, const DisplayDevice&) const;
+    void miniDumpLegacy(std::string& result, const DisplayDevice&) const;
+    void miniDump(std::string& result, const frontend::LayerSnapshot&, const DisplayDevice&) const;
     void dumpFrameStats(std::string& result) const;
     void dumpOffscreenDebugInfo(std::string& result) const;
     void clearFrameStats();
@@ -960,6 +962,8 @@ protected:
     void addZOrderRelative(const wp<Layer>& relative);
     void removeZOrderRelative(const wp<Layer>& relative);
     compositionengine::OutputLayer* findOutputLayerForDisplay(const DisplayDevice*) const;
+    compositionengine::OutputLayer* findOutputLayerForDisplay(
+            const DisplayDevice*, const frontend::LayerHierarchy::TraversalPath& path) const;
     bool usingRelativeZ(LayerVector::StateSet) const;
 
     virtual ui::Transform getInputTransform() const;
@@ -1064,7 +1068,8 @@ private:
 
     aidl::android::hardware::graphics::composer3::Composition getCompositionType(
             const DisplayDevice&) const;
-
+    aidl::android::hardware::graphics::composer3::Composition getCompositionType(
+            const compositionengine::OutputLayer*) const;
     /**
      * Returns an unsorted vector of all layers that are part of this tree.
      * That includes the current layer and all its descendants.
