@@ -17,35 +17,102 @@
 #include <BnTestService.h>
 #include <fuzzbinder/libbinder_driver.h>
 
+#include <binder/IPCThreadState.h>
 #include <log/log.h>
 
-using android::fuzzService;
-using android::sp;
 using android::binder::Status;
 
 namespace android {
+
+enum class CrashType {
+    NONE,
+    ON_PLAIN,
+    ON_BINDER,
+    ON_KNOWN_UID,
+};
+
 // This service is to verify that fuzzService is functioning properly
 class TestService : public BnTestService {
 public:
-    Status setIntData(int /*input*/) {
-        LOG_ALWAYS_FATAL("Expected crash in setIntData");
+    TestService(CrashType crash) : mCrash(crash) {}
+
+    void onData() {
+        switch (mCrash) {
+            case CrashType::ON_PLAIN: {
+                LOG_ALWAYS_FATAL("Expected crash, PLAIN.");
+                break;
+            }
+            case CrashType::ON_KNOWN_UID: {
+                if (IPCThreadState::self()->getCallingUid() == getuid()) {
+                    LOG_ALWAYS_FATAL("Expected crash, KNOWN_UID.");
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    Status setIntData(int /*input*/) override {
+        onData();
         return Status::ok();
     }
 
-    Status setCharData(char16_t /*input*/) {
-        LOG_ALWAYS_FATAL("Expected crash in setCharData");
+    Status setCharData(char16_t /*input*/) override {
+        onData();
         return Status::ok();
     }
 
-    Status setBooleanData(bool /*input*/) {
-        LOG_ALWAYS_FATAL("Expected crash in setBooleanData");
+    Status setBooleanData(bool /*input*/) override {
+        onData();
         return Status::ok();
     }
+
+    Status setService(const sp<ITestService>& service) override {
+        onData();
+        if (mCrash == CrashType::ON_BINDER && service != nullptr) {
+            LOG_ALWAYS_FATAL("Expected crash, BINDER.");
+        }
+        return Status::ok();
+    }
+
+private:
+    CrashType mCrash;
 };
-} // namespace android
+
+CrashType gCrashType = CrashType::NONE;
+
+extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
+    if (*argc < 2) {
+        printf("You must specify at least one argument\n");
+        exit(0); // success because this is a crash test
+    }
+
+    std::string arg = std::string((*argv)[1]);
+
+    // ignore first argument, because we consume it
+    (*argv)[1] = (*argv[0]);
+    (*argc)--;
+    (*argv)++;
+
+    if (arg == "PLAIN") {
+        gCrashType = CrashType::ON_PLAIN;
+    } else if (arg == "KNOWN_UID") {
+        gCrashType = CrashType::ON_KNOWN_UID;
+    } else if (arg == "BINDER") {
+        gCrashType = CrashType::ON_BINDER;
+    } else {
+        printf("INVALID ARG\n");
+        exit(0); // success because this is a crash test
+    }
+
+    return 0;
+}
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    auto service = sp<android::TestService>::make();
+    auto service = sp<TestService>::make(gCrashType);
     fuzzService(service, FuzzedDataProvider(data, size));
     return 0;
 }
+
+} // namespace android
