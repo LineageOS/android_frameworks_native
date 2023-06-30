@@ -1049,7 +1049,8 @@ private:
      */
     void dumpAllLocked(const DumpArgs& args, const std::string& compositionLayers,
                        std::string& result) const REQUIRES(mStateLock);
-    void dumpHwcLayersMinidumpLocked(std::string& result) const REQUIRES(mStateLock);
+    void dumpHwcLayersMinidump(std::string& result) const REQUIRES(mStateLock, kMainThreadContext);
+    void dumpHwcLayersMinidumpLockedLegacy(std::string& result) const REQUIRES(mStateLock);
 
     void appendSfConfigString(std::string& result) const;
     void listLayersLocked(std::string& result) const;

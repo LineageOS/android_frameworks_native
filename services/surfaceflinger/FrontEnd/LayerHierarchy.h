@@ -156,7 +156,12 @@ public:
     const RequestedLayerState* getLayer() const;
     const LayerHierarchy* getRelativeParent() const;
     const LayerHierarchy* getParent() const;
-    std::string getDebugString(const char* prefix = "") const;
+    friend std::ostream& operator<<(std::ostream& os, const LayerHierarchy& obj) {
+        std::string prefix = " ";
+        obj.dump(os, prefix, LayerHierarchy::Variant::Attached, /*isLastChild=*/false);
+        return os;
+    }
+
     std::string getDebugStringShort() const;
     // Traverse the hierarchy and return true if loops are found. The outInvalidRelativeRoot
     // will contain the first relative root that was visited twice in a traversal.
@@ -172,6 +177,8 @@ private:
     void updateChild(LayerHierarchy*, LayerHierarchy::Variant);
     void traverseInZOrder(const Visitor& visitor, LayerHierarchy::TraversalPath& parent) const;
     void traverse(const Visitor& visitor, LayerHierarchy::TraversalPath& parent) const;
+    void dump(std::ostream& out, const std::string& prefix, LayerHierarchy::Variant variant,
+              bool isLastChild) const;
 
     const RequestedLayerState* mLayer;
     LayerHierarchy* mParent = nullptr;

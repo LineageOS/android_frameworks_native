@@ -67,6 +67,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     // generated from the same layer, for example when mirroring.
     int32_t sequence;
     std::string name;
+    std::string debugName;
     uint32_t textureName;
     bool contentOpaque;
     bool layerOpaqueFlagSet;
@@ -145,7 +146,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     bool hasInputInfo() const;
     FloatRect sourceBounds() const;
     Hwc2::IComposerClient::BlendMode getBlendMode(const RequestedLayerState& requested) const;
-
+    friend std::ostream& operator<<(std::ostream& os, const LayerSnapshot& obj);
     void merge(const RequestedLayerState& requested, bool forceUpdate, bool displayChanges,
                bool forceFullDamage, uint32_t displayRotationFlags);
 };
