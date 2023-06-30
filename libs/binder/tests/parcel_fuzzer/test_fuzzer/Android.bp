@@ -36,8 +36,8 @@ cc_fuzz {
         triage_assignee: "waghpawan@google.com",
 
         // This fuzzer should be used only test fuzzService locally
-        fuzz_on_haiku_host: false,
-        fuzz_on_haiku_device: false,
+        fuzz_on_haiku_host: true,
+        fuzz_on_haiku_device: true,
     },
 }
 
