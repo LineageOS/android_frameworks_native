@@ -27,16 +27,18 @@ then
     exit 1
 fi
 
-echo "INFO: Running fuzzer : test_service_fuzzer_should_crash"
+for CRASH_TYPE in PLAIN KNOWN_UID BINDER; do
+    echo "INFO: Running fuzzer : test_service_fuzzer_should_crash $CRASH_TYPE"
 
-./test_service_fuzzer_should_crash -max_total_time=30 &>${FUZZER_OUT}
+    ./test_service_fuzzer_should_crash "$CRASH_TYPE" -max_total_time=30 &>"$FUZZER_OUT"
 
-echo "INFO: Searching fuzzer output for expected crashes"
-if grep -q "Expected crash in set" ${FUZZER_OUT};
-then
-    echo -e "${color_success}Success: Found expected crash. fuzzService test successful!"
-else
-    echo -e "${color_failed}Failed: Unable to find successful fuzzing output from test_service_fuzzer_should_crash"
-    echo "${color_reset}"
-    exit 1
-fi
+    echo "INFO: Searching fuzzer output for expected crashes"
+    if grep -q "Expected crash, $CRASH_TYPE." "$FUZZER_OUT"
+    then
+        echo -e "${color_success}Success: Found expected crash. fuzzService test successful!"
+    else
+        echo -e "${color_failed}Failed: Unable to find successful fuzzing output from test_service_fuzzer_should_crash"
+        echo "${color_reset}"
+        exit 1
+    fi
+done
