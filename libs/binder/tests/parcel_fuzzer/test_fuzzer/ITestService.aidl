@@ -21,4 +21,6 @@ interface ITestService {
     void setCharData(char input);
 
     void setBooleanData(boolean input);
+
+    void setService(ITestService service);
 }
