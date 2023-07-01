@@ -2621,6 +2621,10 @@ compositionengine::OutputLayer* Layer::findOutputLayerForDisplay(
 compositionengine::OutputLayer* Layer::findOutputLayerForDisplay(
         const DisplayDevice* display, const frontend::LayerHierarchy::TraversalPath& path) const {
     if (!display) return nullptr;
+    if (!mFlinger->mLayerLifecycleManagerEnabled) {
+        return display->getCompositionDisplay()->getOutputLayerForLayer(
+                getCompositionEngineLayerFE());
+    }
     sp<LayerFE> layerFE;
     for (auto& [p, layer] : mLayerFEs) {
         if (p == path) {
