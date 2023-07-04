@@ -2374,11 +2374,15 @@ static void collectManualExternalStatsForUser(const std::string& path, struct st
         p->fts_number = p->fts_parent->fts_number;
         switch (p->fts_info) {
         case FTS_D:
-            if (p->fts_level == 4
+            if (p->fts_level == 3
+                    && !strcmp(p->fts_parent->fts_name, "obb")
+                    && !strcmp(p->fts_parent->fts_parent->fts_name, "Android")) {
+                p->fts_number = 1;
+            } else if (p->fts_level == 4
                     && !strcmp(p->fts_name, "cache")
                     && !strcmp(p->fts_parent->fts_parent->fts_name, "data")
                     && !strcmp(p->fts_parent->fts_parent->fts_parent->fts_name, "Android")) {
-                p->fts_number = 1;
+                p->fts_number = 2;
             }
             [[fallthrough]]; // to count the directory
         case FTS_DEFAULT:
@@ -2387,9 +2391,13 @@ static void collectManualExternalStatsForUser(const std::string& path, struct st
         case FTS_SLNONE:
             int64_t size = (p->fts_statp->st_blocks * 512);
             if (p->fts_number == 1) {
-                stats->cacheSize += size;
+                stats->codeSize += size;
+            } else {
+                if (p->fts_number == 2) {
+                    stats->cacheSize += size;
+                }
+                stats->dataSize += size;
             }
-            stats->dataSize += size;
             break;
         }
     }
@@ -2735,11 +2743,6 @@ binder::Status InstalldNativeService::getUserSize(const std::optional<std::strin
         extStats.dataSize = dataSize;
         atrace_pm_end();
     } else {
-        atrace_pm_begin("obb");
-        auto obbPath = create_data_path(uuid_) + "/media/obb";
-        calculate_tree_size(obbPath, &extStats.codeSize);
-        atrace_pm_end();
-
         atrace_pm_begin("code");
         calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize);
         atrace_pm_end();
@@ -2770,9 +2773,10 @@ binder::Status InstalldNativeService::getUserSize(const std::optional<std::strin
         atrace_pm_begin("external");
         auto dataMediaPath = create_data_media_path(uuid_, userId);
         collectManualExternalStatsForUser(dataMediaPath, &extStats);
+
 #if MEASURE_DEBUG
         LOG(DEBUG) << "Measured external data " << extStats.dataSize << " cache "
-                << extStats.cacheSize;
+                << extStats.cacheSize << " code " << extStats.codeSize;
 #endif
         atrace_pm_end();
 
