@@ -289,6 +289,7 @@ public:
     }
     void setTouchAffineTransformation(const TouchAffineTransformation t) { mTransform = t; }
     void notifyStylusGestureStarted(int32_t, nsecs_t) {}
+    bool isInputMethodConnectionActive() override { return mFdp->ConsumeBool(); }
 };
 
 class FuzzInputListener : public virtual InputListenerInterface {
