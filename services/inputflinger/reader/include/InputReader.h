@@ -155,6 +155,9 @@ protected:
         int32_t getNextId() NO_THREAD_SAFETY_ANALYSIS override;
         void updateLedMetaState(int32_t metaState) REQUIRES(mReader->mLock) override;
         int32_t getLedMetaState() REQUIRES(mReader->mLock) REQUIRES(mLock) override;
+        void setPreventingTouchpadTaps(bool prevent) REQUIRES(mReader->mLock)
+                REQUIRES(mLock) override;
+        bool isPreventingTouchpadTaps() REQUIRES(mReader->mLock) REQUIRES(mLock) override;
     } mContext;
 
     friend class ContextImpl;
@@ -184,6 +187,9 @@ private:
     // EventHubIds contained in the input device from the input device instance.
     std::unordered_map<std::shared_ptr<InputDevice>, std::vector<int32_t> /*eventHubId*/>
             mDeviceToEventHubIdsMap GUARDED_BY(mLock);
+
+    // true if tap-to-click on touchpad currently disabled
+    bool mPreventingTouchpadTaps GUARDED_BY(mLock){false};
 
     // low-level input event decoding and device management
     [[nodiscard]] std::list<NotifyArgs> processEventsLocked(const RawEvent* rawEvents, size_t count)

@@ -242,7 +242,7 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
             keyDown.downTime = when;
             mKeyDowns.push_back(keyDown);
         }
-        tryHideCursorOnKeyDown();
+        onKeyDownProcessed();
     } else {
         // Remove key down.
         if (keyDownIndex) {
@@ -420,12 +420,18 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
     return out;
 }
 
-void KeyboardInputMapper::tryHideCursorOnKeyDown() {
-    // Hide the cursor while user is inputting text, ignoring meta keys or multiple simultaneous
-    // down keys as they are likely to be shortcuts
-    const bool shouldHideCursor = mKeyDowns.size() == 1 && !isMetaKey(mKeyDowns[0].keyCode);
-    if (shouldHideCursor && getContext()->getPolicy()->isInputMethodConnectionActive()) {
-        getContext()->fadePointer();
+void KeyboardInputMapper::onKeyDownProcessed() {
+    InputReaderContext& context = *getContext();
+    if (context.isPreventingTouchpadTaps()) {
+        // avoid pinging java service unnecessarily
+        return;
+    }
+    // Ignore meta keys or multiple simultaneous down keys as they are likely to be keyboard
+    // shortcuts
+    bool shouldHideCursor = mKeyDowns.size() == 1 && !isMetaKey(mKeyDowns[0].keyCode);
+    if (shouldHideCursor && context.getPolicy()->isInputMethodConnectionActive()) {
+        context.fadePointer();
+        context.setPreventingTouchpadTaps(true);
     }
 }
 
