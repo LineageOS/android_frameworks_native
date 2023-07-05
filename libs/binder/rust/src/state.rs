@@ -22,10 +22,18 @@ use libc::{pid_t, uid_t};
 pub struct ProcessState;
 
 impl ProcessState {
-    /// Start the Binder IPC thread pool
+    /// Starts the Binder IPC thread pool.
     ///
-    /// Starts 1 thread, plus allows the kernel to lazily start up to 'num_threads'
-    /// additional threads as specified by set_thread_pool_max_thread_count.
+    /// Starts 1 thread, plus allows the kernel to lazily start up to
+    /// `num_threads` additional threads as specified by
+    /// [`set_thread_pool_max_thread_count`](Self::set_thread_pool_max_thread_count).
+    ///
+    /// This should be done before creating any Binder client or server. If
+    /// neither this nor [`join_thread_pool`](Self::join_thread_pool) are
+    /// called, then some things (such as callbacks and
+    /// [`IBinder::link_to_death`](crate::IBinder::link_to_death)) will silently
+    /// not work: the callbacks will be queued but never called as there is no
+    /// thread to call them on.
     pub fn start_thread_pool() {
         unsafe {
             // Safety: Safe FFI
@@ -33,10 +41,12 @@ impl ProcessState {
         }
     }
 
-    /// Set the maximum number of threads that can be started in the threadpool.
+    /// Sets the maximum number of threads that can be started in the
+    /// threadpool.
     ///
-    /// By default, after startThreadPool is called, this is 15. If it is called
-    /// additional times, the thread pool size can only be increased.
+    /// By default, after [`start_thread_pool`](Self::start_thread_pool) is
+    /// called, this is 15. If it is called additional times, the thread pool
+    /// size can only be increased.
     pub fn set_thread_pool_max_thread_count(num_threads: u32) {
         unsafe {
             // Safety: Safe FFI
@@ -44,10 +54,13 @@ impl ProcessState {
         }
     }
 
-    /// Block on the Binder IPC thread pool
+    /// Blocks on the Binder IPC thread pool by adding the current thread to the
+    /// pool.
     ///
-    /// This adds additional threads in addition to what is created by
-    /// set_thread_pool_max_thread_count and start_thread_pool.
+    /// Note that this adds the current thread in addition to those that are
+    /// created by
+    /// [`set_thread_pool_max_thread_count`](Self::set_thread_pool_max_thread_count)
+    /// and [`start_thread_pool`](Self::start_thread_pool).
     pub fn join_thread_pool() {
         unsafe {
             // Safety: Safe FFI
