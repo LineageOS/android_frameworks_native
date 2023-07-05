@@ -2257,7 +2257,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         const bool anotherDeviceIsActive =
                 oldActiveDevices.count(entry.deviceId) == 0 && !oldActiveDevices.empty();
         switchedDevice |= anotherDeviceIsActive;
-        switchedDevice |= oldState->source != entry.source;
     }
 
     const bool isHoverAction = (maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE ||
@@ -2287,7 +2286,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     if (newGesture) {
         // If a new gesture is starting, clear the touch state completely.
         tempTouchState.reset();
-        tempTouchState.source = entry.source;
         isSplit = false;
     } else if (switchedDevice && maskedAction == AMOTION_EVENT_ACTION_MOVE) {
         ALOGI("Dropping move event because a pointer for a different device is already active "
@@ -2694,7 +2692,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         }
         if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
             maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
-            tempTouchState.source = entry.source;
         }
     } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
         // Pointer went up.
