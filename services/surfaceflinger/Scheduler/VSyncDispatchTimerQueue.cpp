@@ -237,6 +237,7 @@ VSyncDispatchTimerQueue::VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper> tk,
 
 VSyncDispatchTimerQueue::~VSyncDispatchTimerQueue() {
     std::lock_guard lock(mMutex);
+    mRunning = false;
     cancelTimer();
     for (auto& [_, entry] : mCallbacks) {
         ALOGE("Forgot to unregister a callback on VSyncDispatch!");
@@ -305,6 +306,10 @@ void VSyncDispatchTimerQueue::timerCallback() {
     std::vector<Invocation> invocations;
     {
         std::lock_guard lock(mMutex);
+        if (!mRunning) {
+            ALOGD("TimerQueue is not running. Skipping callback.");
+            return;
+        }
         auto const now = mTimeKeeper->now();
         mLastTimerCallback = now;
         for (auto it = mCallbacks.begin(); it != mCallbacks.end(); it++) {
