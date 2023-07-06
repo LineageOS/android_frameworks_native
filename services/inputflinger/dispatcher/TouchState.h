@@ -29,9 +29,6 @@ class WindowInfoHandle;
 namespace inputdispatcher {
 
 struct TouchState {
-    // source of the device that is current down, others are rejected
-    uint32_t source = 0;
-
     std::vector<TouchedWindow> windows;
 
     TouchState() = default;
