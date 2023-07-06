@@ -260,7 +260,14 @@ pub trait IBinder {
     /// Trying to use this function on a local binder will result in an
     /// INVALID_OPERATION code being returned and nothing happening.
     ///
-    /// This link always holds a weak reference to its recipient.
+    /// This link only holds a weak reference to its recipient. If the
+    /// `DeathRecipient` is dropped then it will be unlinked.
+    ///
+    /// Note that the notifications won't work if you don't first start at least
+    /// one Binder thread by calling
+    /// [`ProcessState::start_thread_pool`](crate::ProcessState::start_thread_pool)
+    /// or
+    /// [`ProcessState::join_thread_pool`](crate::ProcessState::join_thread_pool).
     fn link_to_death(&mut self, recipient: &mut DeathRecipient) -> Result<()>;
 
     /// Remove a previously registered death notification.
