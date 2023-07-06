@@ -50,6 +50,18 @@ TEST(SyncQueueTest, isFIFO) {
     }
 }
 
+// Make sure the queue has strict capacity limits.
+TEST(SyncQueueTest, QueueReachesCapacity) {
+    constexpr size_t capacity = 3;
+    SyncQueue<int> queue(capacity);
+
+    // First 3 elements should be added successfully
+    ASSERT_TRUE(queue.push(1));
+    ASSERT_TRUE(queue.push(2));
+    ASSERT_TRUE(queue.push(3));
+    ASSERT_FALSE(queue.push(4)) << "Queue should reach capacity at size " << capacity;
+}
+
 TEST(SyncQueueTest, AllowsMultipleThreads) {
     SyncQueue<int> queue;
 

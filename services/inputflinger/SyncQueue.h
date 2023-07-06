@@ -27,6 +27,10 @@ namespace android {
 template <class T>
 class SyncQueue {
 public:
+    SyncQueue() = default;
+
+    SyncQueue(size_t capacity) : mCapacity(capacity) {}
+
     /** Retrieve and remove the oldest object. Returns std::nullopt if the queue is empty. */
     std::optional<T> pop() {
         std::scoped_lock lock(mLock);
@@ -38,14 +42,23 @@ public:
         return t;
     };
 
-    /** Add a new object to the queue. */
+    /**
+     * Add a new object to the queue.
+     * Return true if an element was successfully added.
+     * Return false if the queue is full.
+     */
     template <class... Args>
-    void push(Args&&... args) {
+    bool push(Args&&... args) {
         std::scoped_lock lock(mLock);
+        if (mCapacity && mQueue.size() == mCapacity) {
+            return false;
+        }
         mQueue.emplace_back(args...);
+        return true;
     };
 
 private:
+    const std::optional<size_t> mCapacity;
     std::mutex mLock;
     std::list<T> mQueue GUARDED_BY(mLock);
 };
