@@ -144,7 +144,7 @@ impl InputVerifier {
                 self.touching_pointer_ids_by_device.remove(&device_id);
             }
             MotionAction::Cancel => {
-                if flags.contains(MotionFlags::CANCELED) {
+                if !flags.contains(MotionFlags::CANCELED) {
                     return Err(format!(
                         "{}: For ACTION_CANCEL, must set FLAG_CANCELED",
                         self.name
@@ -323,7 +323,51 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_up() {
+    fn action_cancel() {
+        let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
+        let pointer_properties = Vec::from([RustPointerProperties { id: 0 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_DOWN,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_CANCEL,
+                &pointer_properties,
+                MotionFlags::CANCELED,
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn invalid_action_cancel() {
+        let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
+        let pointer_properties = Vec::from([RustPointerProperties { id: 0 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_DOWN,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                input_bindgen::AMOTION_EVENT_ACTION_CANCEL,
+                &pointer_properties,
+                MotionFlags::empty(), // forgot to set FLAG_CANCELED
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn invalid_up() {
         let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
         let pointer_properties = Vec::from([RustPointerProperties { id: 0 }]);
         assert!(verifier
