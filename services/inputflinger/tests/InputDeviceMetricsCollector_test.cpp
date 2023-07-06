@@ -421,6 +421,7 @@ TEST_F(InputDeviceMetricsCollectorTest, DontLogUsageForIgnoredDevices) {
         // Device was used.
         mMetricsCollector.notifyMotion(generateMotionArgs(ignoredDeviceId));
         mTestListener.assertNotifyMotionWasCalled();
+        mMetricsCollector.notifyDeviceInteraction(ignoredDeviceId, TIME.count(), uids({0, 1, 2}));
         ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
 
         // Device was used again after the usage timeout expired, but we still don't log usage.

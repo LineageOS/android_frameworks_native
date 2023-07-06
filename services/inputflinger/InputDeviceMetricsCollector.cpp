@@ -31,13 +31,15 @@ using std::chrono_literals::operator""ns;
 
 namespace {
 
-constexpr nanoseconds DEFAULT_USAGE_SESSION_TIMEOUT = std::chrono::seconds(5);
+constexpr nanoseconds DEFAULT_USAGE_SESSION_TIMEOUT = std::chrono::minutes(2);
 
 /**
  * Log debug messages about metrics events logged to statsd.
  * Enable this via "adb shell setprop log.tag.InputDeviceMetricsCollector DEBUG" (requires restart)
  */
 const bool DEBUG = __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG, ANDROID_LOG_INFO);
+
+constexpr size_t INTERACTIONS_QUEUE_CAPACITY = 500;
 
 int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus) {
     // When adding cases to this switch, also add them to the copy of this method in
@@ -201,7 +203,10 @@ InputDeviceMetricsCollector::InputDeviceMetricsCollector(InputListenerInterface&
 InputDeviceMetricsCollector::InputDeviceMetricsCollector(InputListenerInterface& listener,
                                                          InputDeviceMetricsLogger& logger,
                                                          nanoseconds usageSessionTimeout)
-      : mNextListener(listener), mLogger(logger), mUsageSessionTimeout(usageSessionTimeout) {}
+      : mNextListener(listener),
+        mLogger(logger),
+        mUsageSessionTimeout(usageSessionTimeout),
+        mInteractionsQueue(INTERACTIONS_QUEUE_CAPACITY) {}
 
 void InputDeviceMetricsCollector::notifyInputDevicesChanged(
         const NotifyInputDevicesChangedArgs& args) {
@@ -262,6 +267,9 @@ void InputDeviceMetricsCollector::notifyPointerCaptureChanged(
 
 void InputDeviceMetricsCollector::notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
                                                           const std::set<Uid>& uids) {
+    if (isIgnoredInputDeviceId(deviceId)) {
+        return;
+    }
     mInteractionsQueue.push(DeviceId{deviceId}, timestamp, uids);
 }
 
