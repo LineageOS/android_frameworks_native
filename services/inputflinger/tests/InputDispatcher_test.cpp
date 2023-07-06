@@ -641,7 +641,7 @@ protected:
     void SetUp() override {
         mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
         mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy, STALE_EVENT_TIMEOUT);
-        mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
+        mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
         // Start InputDispatcher thread
         ASSERT_EQ(OK, mDispatcher->start());
     }
@@ -682,7 +682,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesKeyEvents) {
     // Rejects undefined key actions.
     event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
                      INVALID_HMAC,
-                     /*action*/ -1, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0, ARBITRARY_TIME,
+                     /*action=*/-1, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0, ARBITRARY_TIME,
                      ARBITRARY_TIME);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
@@ -718,11 +718,11 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     ui::Transform identityTransform;
     // Rejects undefined motion actions.
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
-                     /*action*/ -1, 0, 0, edgeFlags, metaState, 0, classification,
+                     /*action=*/-1, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
                      ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     /*pointerCount=*/1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -734,7 +734,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
                      ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     /*pointerCount=*/1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -746,7 +746,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      identityTransform, ARBITRARY_TIME, ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     /*pointerCount=*/1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -758,7 +758,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
                      ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     /*pointerCount=*/1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -770,7 +770,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      identityTransform, ARBITRARY_TIME, ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     /*pointerCount=*/1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -782,7 +782,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
                      ARBITRARY_TIME,
-                     /*pointerCount*/ 0, pointerProperties, pointerCoords);
+                     /*pointerCount=*/0, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -793,7 +793,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
                      ARBITRARY_TIME,
-                     /*pointerCount*/ MAX_POINTERS + 1, pointerProperties, pointerCoords);
+                     /*pointerCount=*/MAX_POINTERS + 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -806,7 +806,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
                      ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     /*pointerCount=*/1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -818,7 +818,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
                      ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     /*pointerCount=*/1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -832,7 +832,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, ARBITRARY_TIME,
                      ARBITRARY_TIME,
-                     /*pointerCount*/ 2, pointerProperties, pointerCoords);
+                     /*pointerCount=*/2, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                             0ms, 0))
@@ -1551,8 +1551,8 @@ static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLA
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
     NotifyKeyArgs args(/*id=*/0, currentTime, /*readTime=*/0, DEVICE_ID, AINPUT_SOURCE_KEYBOARD,
-                       displayId, POLICY_FLAG_PASS_TO_USER, action, /* flags */ 0, AKEYCODE_A,
-                       KEY_A, AMETA_NONE, currentTime);
+                       displayId, POLICY_FLAG_PASS_TO_USER, action, /*flags=*/0, AKEYCODE_A, KEY_A,
+                       AMETA_NONE, currentTime);
 
     return args;
 }
@@ -1562,7 +1562,7 @@ static NotifyKeyArgs generateSystemShortcutArgs(int32_t action,
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
     NotifyKeyArgs args(/*id=*/0, currentTime, /*readTime=*/0, DEVICE_ID, AINPUT_SOURCE_KEYBOARD,
-                       displayId, 0, action, /* flags */ 0, AKEYCODE_C, KEY_C, AMETA_META_ON,
+                       displayId, 0, action, /*flags=*/0, AKEYCODE_C, KEY_C, AMETA_META_ON,
                        currentTime);
 
     return args;
@@ -1573,7 +1573,7 @@ static NotifyKeyArgs generateAssistantKeyArgs(int32_t action,
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
     NotifyKeyArgs args(/*id=*/0, currentTime, /*readTime=*/0, DEVICE_ID, AINPUT_SOURCE_KEYBOARD,
-                       displayId, 0, action, /* flags */ 0, AKEYCODE_ASSIST, KEY_ASSISTANT,
+                       displayId, 0, action, /*flags=*/0, AKEYCODE_ASSIST, KEY_ASSISTANT,
                        AMETA_NONE, currentTime);
 
     return args;
@@ -1603,12 +1603,12 @@ static NotifyKeyArgs generateAssistantKeyArgs(int32_t action,
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid motion event.
     NotifyMotionArgs args(/*id=*/0, currentTime, /*readTime=*/0, DEVICE_ID, source, displayId,
-                          POLICY_FLAG_PASS_TO_USER, action, /* actionButton */ 0, /* flags */ 0,
-                          AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
+                          POLICY_FLAG_PASS_TO_USER, action, /*actionButton=*/0, /*flags=*/0,
+                          AMETA_NONE, /*buttonState=*/0, MotionClassification::NONE,
                           AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount, pointerProperties,
-                          pointerCoords, /* xPrecision */ 0, /* yPrecision */ 0,
+                          pointerCoords, /*xPrecision=*/0, /*yPrecision=*/0,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                          AMOTION_EVENT_INVALID_CURSOR_POSITION, currentTime, /* videoFrames */ {});
+                          AMOTION_EVENT_INVALID_CURSOR_POSITION, currentTime, /*videoFrames=*/{});
 
     return args;
 }
@@ -1923,8 +1923,7 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
                                                    AINPUT_SOURCE_TOUCHSCREEN)
                                         .displayId(ADISPLAY_ID_DEFAULT)
                                         .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
-                                        .pointer(PointerBuilder(/* id */ 1,
-                                                                ToolType::FINGER)
+                                        .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER)
                                                          .x(100)
                                                          .y(100))
                                         .build(),
@@ -5700,7 +5699,7 @@ protected:
     virtual void SetUp() override {
         mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
         mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy);
-        mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
+        mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
         mDispatcher->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
         ASSERT_EQ(OK, mDispatcher->start());
 
@@ -6092,36 +6091,36 @@ protected:
 // Test InputFilter for MotionEvent
 TEST_F(InputFilterTest, MotionEvent_InputFilter) {
     // Since the InputFilter is disabled by default, check if touch events aren't filtered.
-    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered*/ false);
-    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered*/ false);
+    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered=*/false);
+    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered=*/false);
 
     // Enable InputFilter
     mDispatcher->setInputFilterEnabled(true);
     // Test touch on both primary and second display, and check if both events are filtered.
-    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered*/ true);
-    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered*/ true);
+    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered=*/true);
+    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered=*/true);
 
     // Disable InputFilter
     mDispatcher->setInputFilterEnabled(false);
     // Test touch on both primary and second display, and check if both events aren't filtered.
-    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered*/ false);
-    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered*/ false);
+    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered=*/false);
+    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered=*/false);
 }
 
 // Test InputFilter for KeyEvent
 TEST_F(InputFilterTest, KeyEvent_InputFilter) {
     // Since the InputFilter is disabled by default, check if key event aren't filtered.
-    testNotifyKey(/*expectToBeFiltered*/ false);
+    testNotifyKey(/*expectToBeFiltered=*/false);
 
     // Enable InputFilter
     mDispatcher->setInputFilterEnabled(true);
     // Send a key event, and check if it is filtered.
-    testNotifyKey(/*expectToBeFiltered*/ true);
+    testNotifyKey(/*expectToBeFiltered=*/true);
 
     // Disable InputFilter
     mDispatcher->setInputFilterEnabled(false);
     // Send a key event, and check if it isn't filtered.
-    testNotifyKey(/*expectToBeFiltered*/ false);
+    testNotifyKey(/*expectToBeFiltered=*/false);
 }
 
 // Ensure that MotionEvents sent to the InputFilter through InputListener are converted to the
@@ -6144,8 +6143,8 @@ TEST_F(InputFilterTest, MotionEvent_UsesLogicalDisplayCoordinates_notifyMotion) 
     mDispatcher->setInputFilterEnabled(true);
 
     // Ensure the correct transforms are used for the displays.
-    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered*/ true, firstDisplayTransform);
-    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered*/ true, secondDisplayTransform);
+    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered=*/true, firstDisplayTransform);
+    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered=*/true, secondDisplayTransform);
 }
 
 class InputFilterInjectionPolicyTest : public InputDispatcherTest {
@@ -6214,7 +6213,7 @@ protected:
                          identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                          AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, eventTime,
                          eventTime,
-                         /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                         /*pointerCount=*/1, pointerProperties, pointerCoords);
 
         const int32_t additionalPolicyFlags = POLICY_FLAG_PASS_TO_USER;
         ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -6763,7 +6762,7 @@ TEST_F(InputDispatcherSingleWindowAnr, StaleKeyEventDoesNotAnr) {
 
     // Define a valid key down event that is stale (too old).
     event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
-                     INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, /* flags */ 0, AKEYCODE_A, KEY_A,
+                     INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, /*flags=*/0, AKEYCODE_A, KEY_A,
                      AMETA_NONE, /*repeatCount=*/1, eventTime, eventTime);
 
     const int32_t policyFlags = POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER;
@@ -9435,8 +9434,8 @@ TEST_F(InputDispatcherPilferPointersTest, PartiallyPilferRequiredPointers) {
 
     // Spy window pilfers the pointers.
     EXPECT_EQ(OK, mDispatcher->pilferPointers(spy->getToken()));
-    window->consumeMotionPointerUp(/* idx */ 2, ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_CANCELED);
-    window->consumeMotionPointerUp(/* idx */ 1, ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_CANCELED);
+    window->consumeMotionPointerUp(/*idx=*/2, ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_CANCELED);
+    window->consumeMotionPointerUp(/*idx=*/1, ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_CANCELED);
 
     spy->assertNoEvents();
     window->assertNoEvents();

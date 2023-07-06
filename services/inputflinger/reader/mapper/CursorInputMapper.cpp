@@ -347,7 +347,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                                AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                                &pointerCoords, mXPrecision, mYPrecision,
                                                xCursorPosition, yCursorPosition, downTime,
-                                               /* videoFrames */ {}));
+                                               /*videoFrames=*/{}));
             }
         }
 
@@ -357,7 +357,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                        &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
                                        yCursorPosition, downTime,
-                                       /* videoFrames */ {}));
+                                       /*videoFrames=*/{}));
 
         if (buttonsPressed) {
             BitSet32 pressed(buttonsPressed);
@@ -371,7 +371,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                                AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                                &pointerCoords, mXPrecision, mYPrecision,
                                                xCursorPosition, yCursorPosition, downTime,
-                                               /* videoFrames */ {}));
+                                               /*videoFrames=*/{}));
             }
         }
 
@@ -386,7 +386,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                            AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                            &pointerCoords, mXPrecision, mYPrecision,
                                            xCursorPosition, yCursorPosition, downTime,
-                                           /* videoFrames */ {}));
+                                           /*videoFrames=*/{}));
         }
 
         // Send scroll events.
@@ -401,7 +401,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                            AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                            &pointerCoords, mXPrecision, mYPrecision,
                                            xCursorPosition, yCursorPosition, downTime,
-                                           /* videoFrames */ {}));
+                                           /*videoFrames=*/{}));
         }
     }
 
