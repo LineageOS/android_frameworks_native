@@ -234,7 +234,7 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
     }
 
     InputDeviceIdentifier identifier = mEventHub->getDeviceIdentifier(eventHubId);
-    std::shared_ptr<InputDevice> device = createDeviceLocked(when, eventHubId, identifier);
+    std::shared_ptr<InputDevice> device = createDeviceLocked(eventHubId, identifier);
 
     notifyAll(device->configure(when, mConfig, /*changes=*/{}));
     notifyAll(device->reset(when));
@@ -319,7 +319,7 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
 }
 
 std::shared_ptr<InputDevice> InputReader::createDeviceLocked(
-        nsecs_t when, int32_t eventHubId, const InputDeviceIdentifier& identifier) {
+        int32_t eventHubId, const InputDeviceIdentifier& identifier) {
     auto deviceIt = std::find_if(mDevices.begin(), mDevices.end(), [identifier](auto& devicePair) {
         const InputDeviceIdentifier identifier2 =
                 devicePair.second->getDeviceInfo().getIdentifier();
@@ -334,7 +334,7 @@ std::shared_ptr<InputDevice> InputReader::createDeviceLocked(
         device = std::make_shared<InputDevice>(&mContext, deviceId, bumpGenerationLocked(),
                                                identifier);
     }
-    notifyAll(device->addEventHubDevice(when, eventHubId, mConfig));
+    device->addEventHubDevice(eventHubId, mConfig);
     return device;
 }
 
