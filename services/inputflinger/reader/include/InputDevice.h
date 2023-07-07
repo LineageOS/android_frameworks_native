@@ -77,7 +77,6 @@ public:
     inline bool isIgnored() { return !getMapperCount() && !mController; }
 
     bool isEnabled();
-    [[nodiscard]] std::list<NotifyArgs> setEnabled(bool enabled, nsecs_t when);
 
     void dump(std::string& dump, const std::string& eventHubDevStr);
     void addEmptyEventHubDevice(int32_t eventHubId);
@@ -205,6 +204,9 @@ private:
 
     std::vector<std::unique_ptr<InputMapper>> createMappers(
             InputDeviceContext& contextPtr, const InputReaderConfiguration& readerConfig);
+
+    [[nodiscard]] std::list<NotifyArgs> updateEnableState(
+            nsecs_t when, const InputReaderConfiguration& readerConfig, bool forceEnable = false);
 
     PropertyMap mConfiguration;
 
