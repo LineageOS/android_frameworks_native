@@ -240,8 +240,8 @@ void InputState::MotionMemento::setPointers(const MotionEntry& entry) {
                 continue;
             }
         }
-        pointerProperties[pointerCount].copyFrom(entry.pointerProperties[i]);
-        pointerCoords[pointerCount].copyFrom(entry.pointerCoords[i]);
+        pointerProperties[pointerCount] = entry.pointerProperties[i];
+        pointerCoords[pointerCount] = entry.pointerCoords[i];
         pointerCount++;
     }
 }
@@ -251,8 +251,8 @@ void InputState::MotionMemento::mergePointerStateTo(MotionMemento& other) const 
         if (other.firstNewPointerIdx < 0) {
             other.firstNewPointerIdx = other.pointerCount;
         }
-        other.pointerProperties[other.pointerCount].copyFrom(pointerProperties[i]);
-        other.pointerCoords[other.pointerCount].copyFrom(pointerCoords[i]);
+        other.pointerProperties[other.pointerCount] = pointerProperties[i];
+        other.pointerCoords[other.pointerCount] = pointerCoords[i];
         other.pointerCount++;
     }
 }
@@ -324,17 +324,16 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
 
         // We will deliver all pointers the target already knows about
         for (uint32_t i = 0; i < static_cast<uint32_t>(memento.firstNewPointerIdx); i++) {
-            pointerProperties[i].copyFrom(memento.pointerProperties[i]);
-            pointerCoords[i].copyFrom(memento.pointerCoords[i]);
+            pointerProperties[i] = memento.pointerProperties[i];
+            pointerCoords[i] = memento.pointerCoords[i];
             pointerCount++;
         }
 
         // We will send explicit events for all pointers the target doesn't know about
         for (uint32_t i = static_cast<uint32_t>(memento.firstNewPointerIdx);
                 i < memento.pointerCount; i++) {
-
-            pointerProperties[i].copyFrom(memento.pointerProperties[i]);
-            pointerCoords[i].copyFrom(memento.pointerCoords[i]);
+            pointerProperties[i] = memento.pointerProperties[i];
+            pointerCoords[i] = memento.pointerCoords[i];
             pointerCount++;
 
             // Down only if the first pointer, pointer down otherwise
@@ -370,8 +369,8 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
     std::vector<PointerCoords> pointerCoords(MAX_POINTERS);
     for (uint32_t pointerIdx = 0; pointerIdx < memento.pointerCount; pointerIdx++) {
         uint32_t pointerId = uint32_t(memento.pointerProperties[pointerIdx].id);
-        pointerProperties[pointerIdx].copyFrom(memento.pointerProperties[pointerIdx]);
-        pointerCoords[pointerIdx].copyFrom(memento.pointerCoords[pointerIdx]);
+        pointerProperties[pointerIdx] = memento.pointerProperties[pointerIdx];
+        pointerCoords[pointerIdx] = memento.pointerCoords[pointerIdx];
         if (pointerIds.test(pointerId)) {
             canceledPointerIndices.push_back(pointerIdx);
         }

@@ -692,8 +692,8 @@ status_t InputPublisher::publishMotionEvent(
     msg.body.motion.eventTime = eventTime;
     msg.body.motion.pointerCount = pointerCount;
     for (uint32_t i = 0; i < pointerCount; i++) {
-        msg.body.motion.pointers[i].properties.copyFrom(pointerProperties[i]);
-        msg.body.motion.pointers[i].coords.copyFrom(pointerCoords[i]);
+        msg.body.motion.pointers[i].properties = pointerProperties[i];
+        msg.body.motion.pointers[i].coords = pointerCoords[i];
     }
 
     return mChannel->sendMessage(&msg);
@@ -1270,13 +1270,13 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
             // We know here that the coordinates for the pointer haven't changed because we
             // would've cleared the resampled bit in rewriteMessage if they had. We can't modify
             // lastResample in place becasue the mapping from pointer ID to index may have changed.
-            touchState.lastResample.pointers[i].copyFrom(oldLastResample.getPointerById(id));
+            touchState.lastResample.pointers[i] = oldLastResample.getPointerById(id);
             continue;
         }
 
         PointerCoords& resampledCoords = touchState.lastResample.pointers[i];
         const PointerCoords& currentCoords = current->getPointerById(id);
-        resampledCoords.copyFrom(currentCoords);
+        resampledCoords = currentCoords;
         if (other->idBits.hasBit(id) && shouldResampleTool(event->getToolType(i))) {
             const PointerCoords& otherCoords = other->getPointerById(id);
             resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_X,
@@ -1454,8 +1454,8 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
     for (uint32_t i = 0; i < pointerCount; i++) {
-        pointerProperties[i].copyFrom(msg->body.motion.pointers[i].properties);
-        pointerCoords[i].copyFrom(msg->body.motion.pointers[i].coords);
+        pointerProperties[i] = msg->body.motion.pointers[i].properties;
+        pointerCoords[i] = msg->body.motion.pointers[i].coords;
     }
 
     ui::Transform transform;
@@ -1484,7 +1484,7 @@ void InputConsumer::addSample(MotionEvent* event, const InputMessage* msg) {
     uint32_t pointerCount = msg->body.motion.pointerCount;
     PointerCoords pointerCoords[pointerCount];
     for (uint32_t i = 0; i < pointerCount; i++) {
-        pointerCoords[i].copyFrom(msg->body.motion.pointers[i].coords);
+        pointerCoords[i] = msg->body.motion.pointers[i].coords;
     }
 
     event->setMetaState(event->getMetaState() | msg->body.motion.metaState);
