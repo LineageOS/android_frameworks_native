@@ -66,38 +66,23 @@ bool InputDevice::isEnabled() {
     return enabled;
 }
 
-std::list<NotifyArgs> InputDevice::updateEnableState(nsecs_t when,
-                                                     const InputReaderConfiguration& readerConfig,
-                                                     bool forceEnable) {
-    bool enable = true;
-    if (!forceEnable) {
-        // If the device was explicitly disabled by the user, it would be present in the
-        // "disabledDevices" list. This device should be disabled.
-        enable = readerConfig.disabledDevices.find(mId) == readerConfig.disabledDevices.end();
-
-        // If a device is associated with a specific display but there is no
-        // associated DisplayViewport, don't enable the device.
-        if (enable && (mAssociatedDisplayPort || mAssociatedDisplayUniqueId) &&
-            !mAssociatedViewport) {
-            const std::string desc = mAssociatedDisplayPort
-                    ? "port " + std::to_string(*mAssociatedDisplayPort)
-                    : "uniqueId " + *mAssociatedDisplayUniqueId;
-            ALOGW("Cannot enable input device %s because it is associated "
-                  "with %s, but the corresponding viewport is not found",
-                  getName().c_str(), desc.c_str());
-            enable = false;
-        }
+std::list<NotifyArgs> InputDevice::setEnabled(bool enabled, nsecs_t when) {
+    std::list<NotifyArgs> out;
+    if (enabled && mAssociatedDisplayPort && !mAssociatedViewport) {
+        ALOGW("Cannot enable input device %s because it is associated with port %" PRIu8 ", "
+              "but the corresponding viewport is not found",
+              getName().c_str(), *mAssociatedDisplayPort);
+        enabled = false;
     }
 
-    std::list<NotifyArgs> out;
-    if (isEnabled() == enable) {
+    if (isEnabled() == enabled) {
         return out;
     }
 
     // When resetting some devices, the driver needs to be queried to ensure that a proper reset is
     // performed. The querying must happen when the device is enabled, so we reset after enabling
     // but before disabling the device. See MultiTouchMotionAccumulator::reset for more information.
-    if (enable) {
+    if (enabled) {
         for_each_subdevice([](auto& context) { context.enableDevice(); });
         out += reset(when);
     } else {
@@ -267,6 +252,15 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
             }
         }
 
+        if (changes.test(Change::ENABLED_STATE)) {
+            // Do not execute this code on the first configure, because 'setEnabled' would call
+            // InputMapper::reset, and you can't reset a mapper before it has been configured.
+            // The mappers are configured for the first time at the bottom of this function.
+            auto it = readerConfig.disabledDevices.find(mId);
+            bool enabled = it == readerConfig.disabledDevices.end();
+            out += setEnabled(enabled, when);
+        }
+
         if (!changes.any() || changes.test(Change::DISPLAY_INFO)) {
             // In most situations, no port or name will be specified.
             mAssociatedDisplayPort = std::nullopt;
@@ -290,8 +284,12 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
                 }
             }
 
-            // If it is associated with a specific display, then find the corresponding viewport
-            // which will be used to enable/disable the device.
+            // If the device was explicitly disabled by the user, it would be present in the
+            // "disabledDevices" list. If it is associated with a specific display, and it was not
+            // explicitly disabled, then enable/disable the device based on whether we can find the
+            // corresponding viewport.
+            bool enabled =
+                    (readerConfig.disabledDevices.find(mId) == readerConfig.disabledDevices.end());
             if (mAssociatedDisplayPort) {
                 mAssociatedViewport =
                         readerConfig.getDisplayViewportByPort(*mAssociatedDisplayPort);
@@ -299,6 +297,7 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
                     ALOGW("Input device %s should be associated with display on port %" PRIu8 ", "
                           "but the corresponding viewport is not found.",
                           getName().c_str(), *mAssociatedDisplayPort);
+                    enabled = false;
                 }
             } else if (mAssociatedDisplayUniqueId != std::nullopt) {
                 mAssociatedViewport =
@@ -307,17 +306,16 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
                     ALOGW("Input device %s should be associated with display %s but the "
                           "corresponding viewport cannot be found",
                           getName().c_str(), mAssociatedDisplayUniqueId->c_str());
+                    enabled = false;
                 }
             }
-        }
 
-        if (changes.test(Change::ENABLED_STATE) || changes.test(Change::DISPLAY_INFO)) {
-            // Whether a device is enabled can depend on the display association,
-            // so update the enabled state when there is a change in display info.
-            // NOTE: The first configuration of a mapper must happen with the device enabled.
-            // Do not execute this code on the first configure to prevent mappers
-            // from being configured with the device disabled.
-            out += updateEnableState(when, readerConfig, false);
+            if (changes.any()) {
+                // For first-time configuration, only allow device to be disabled after mappers have
+                // finished configuring. This is because we need to read some of the properties from
+                // the device's open fd.
+                out += setEnabled(enabled, when);
+            }
         }
 
         for_each_mapper([this, when, &readerConfig, changes, &out](InputMapper& mapper) {
@@ -328,7 +326,9 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
         // If a device is just plugged but it might be disabled, we need to update some info like
         // axis range of touch from each InputMapper first, then disable it.
         if (!changes.any()) {
-            out += updateEnableState(when, readerConfig);
+            out += setEnabled(readerConfig.disabledDevices.find(mId) ==
+                                      readerConfig.disabledDevices.end(),
+                              when);
         }
     }
     return out;
