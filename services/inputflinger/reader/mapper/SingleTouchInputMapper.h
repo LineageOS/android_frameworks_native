@@ -27,6 +27,8 @@ public:
     friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
                                                 const InputReaderConfiguration& readerConfig,
                                                 Args... args);
+    explicit SingleTouchInputMapper(InputDeviceContext& deviceContext,
+                                    const InputReaderConfiguration& readerConfig);
 
     ~SingleTouchInputMapper() override;
 
@@ -40,8 +42,6 @@ protected:
 
 private:
     SingleTouchMotionAccumulator mSingleTouchMotionAccumulator;
-    explicit SingleTouchInputMapper(InputDeviceContext& deviceContext,
-                                    const InputReaderConfiguration& readerConfig);
 };
 
 } // namespace android
