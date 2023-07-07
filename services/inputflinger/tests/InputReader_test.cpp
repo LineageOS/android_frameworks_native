@@ -2477,7 +2477,7 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
 
 // A single input device is associated with a specific display. Check that:
 // 1. Device is disabled if the viewport corresponding to the associated display is not found
-// 2. Device is disabled when setEnabled API is called
+// 2. Device is disabled when configure API is called
 TEST_F(InputDeviceTest, Configure_AssignsDisplayPort) {
     mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
                                         AINPUT_SOURCE_TOUCHSCREEN);
