@@ -16,9 +16,10 @@
 
 #include "../InputDeviceMetricsCollector.h"
 
+#include <NotifyArgsBuilders.h>
 #include <gtest/gtest.h>
 #include <gui/constants.h>
-#include <input/EventBuilders.h>
+#include <input/InputEventBuilders.h>
 #include <linux/input.h>
 
 #include <array>
