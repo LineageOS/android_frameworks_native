@@ -80,11 +80,13 @@ public:
 
     void dump(std::string& dump, const std::string& eventHubDevStr);
     void addEmptyEventHubDevice(int32_t eventHubId);
-    void addEventHubDevice(int32_t eventHubId, const InputReaderConfiguration& readerConfig);
+    [[nodiscard]] std::list<NotifyArgs> addEventHubDevice(
+            nsecs_t when, int32_t eventHubId, const InputReaderConfiguration& readerConfig);
     void removeEventHubDevice(int32_t eventHubId);
     [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
                                                   const InputReaderConfiguration& readerConfig,
-                                                  ConfigurationChanges changes);
+                                                  ConfigurationChanges changes,
+                                                  bool forceEnable = false);
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when);
     [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvents, size_t count);
     [[nodiscard]] std::list<NotifyArgs> timeoutExpired(nsecs_t when);
