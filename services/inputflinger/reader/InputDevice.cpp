@@ -171,18 +171,23 @@ void InputDevice::addEmptyEventHubDevice(int32_t eventHubId) {
     mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
 }
 
-void InputDevice::addEventHubDevice(int32_t eventHubId,
-                                    const InputReaderConfiguration& readerConfig) {
+[[nodiscard]] std::list<NotifyArgs> InputDevice::addEventHubDevice(
+        nsecs_t when, int32_t eventHubId, const InputReaderConfiguration& readerConfig) {
     if (mDevices.find(eventHubId) != mDevices.end()) {
-        return;
+        return {};
     }
-    std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
-    std::vector<std::unique_ptr<InputMapper>> mappers = createMappers(*contextPtr, readerConfig);
 
-    // insert the context into the devices set
-    mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
+    // Add an empty device configure and keep it enabled to allow mapper population
+    // with correct configuration/context
+    addEmptyEventHubDevice(eventHubId);
+    std::list<NotifyArgs> out = configure(when, readerConfig, {}, /*forceEnable=*/true);
+
+    DevicePair& devicePair = mDevices[eventHubId];
+    devicePair.second = createMappers(*devicePair.first, readerConfig);
+
     // Must change generation to flag this device as changed
     bumpGeneration();
+    return out;
 }
 
 void InputDevice::removeEventHubDevice(int32_t eventHubId) {
@@ -195,7 +200,7 @@ void InputDevice::removeEventHubDevice(int32_t eventHubId) {
 
 std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
                                              const InputReaderConfiguration& readerConfig,
-                                             ConfigurationChanges changes) {
+                                             ConfigurationChanges changes, bool forceEnable) {
     std::list<NotifyArgs> out;
     mSources = 0;
     mClasses = ftl::Flags<InputDeviceClass>(0);
@@ -308,25 +313,17 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
             }
         }
 
-        if (changes.test(Change::ENABLED_STATE) || changes.test(Change::DISPLAY_INFO)) {
+        if (!changes.any() || changes.test(Change::ENABLED_STATE) ||
+            changes.test(Change::DISPLAY_INFO)) {
             // Whether a device is enabled can depend on the display association,
             // so update the enabled state when there is a change in display info.
-            // NOTE: The first configuration of a mapper must happen with the device enabled.
-            // Do not execute this code on the first configure to prevent mappers
-            // from being configured with the device disabled.
-            out += updateEnableState(when, readerConfig, false);
+            out += updateEnableState(when, readerConfig, forceEnable);
         }
 
         for_each_mapper([this, when, &readerConfig, changes, &out](InputMapper& mapper) {
             out += mapper.reconfigure(when, readerConfig, changes);
             mSources |= mapper.getSources();
         });
-
-        // If a device is just plugged but it might be disabled, we need to update some info like
-        // axis range of touch from each InputMapper first, then disable it.
-        if (!changes.any()) {
-            out += updateEnableState(when, readerConfig);
-        }
     }
     return out;
 }
