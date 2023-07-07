@@ -300,15 +300,14 @@ impl InterfaceClass {
     /// [`declare_binder_interface!`].
     pub fn new<I: InterfaceClassMethods>() -> InterfaceClass {
         let descriptor = CString::new(I::get_descriptor()).unwrap();
+        // Safety: `AIBinder_Class_define` expects a valid C string, and three
+        // valid callback functions, all non-null pointers. The C string is
+        // copied and need not be valid for longer than the call, so we can drop
+        // it after the call. We can safely assign null to the onDump and
+        // handleShellCommand callbacks as long as the class pointer was
+        // non-null. Rust None for a Option<fn> is guaranteed to be a NULL
+        // pointer. Rust retains ownership of the pointer after it is defined.
         let ptr = unsafe {
-            // Safety: `AIBinder_Class_define` expects a valid C string, and
-            // three valid callback functions, all non-null pointers. The C
-            // string is copied and need not be valid for longer than the call,
-            // so we can drop it after the call. We can safely assign null to
-            // the onDump and handleShellCommand callbacks as long as the class
-            // pointer was non-null. Rust None for a Option<fn> is guaranteed to
-            // be a NULL pointer. Rust retains ownership of the pointer after it
-            // is defined.
             let class = sys::AIBinder_Class_define(
                 descriptor.as_ptr(),
                 Some(I::on_create),
@@ -338,13 +337,12 @@ impl InterfaceClass {
 
     /// Get the interface descriptor string of this class.
     pub fn get_descriptor(&self) -> String {
+        // SAFETY: The descriptor returned by AIBinder_Class_getDescriptor is
+        // always a two-byte null terminated sequence of u16s. Thus, we can
+        // continue reading from the pointer until we hit a null value, and this
+        // pointer can be a valid slice if the slice length is <= the number of
+        // u16 elements before the null terminator.
         unsafe {
-            // SAFETY: The descriptor returned by AIBinder_Class_getDescriptor
-            // is always a two-byte null terminated sequence of u16s. Thus, we
-            // can continue reading from the pointer until we hit a null value,
-            // and this pointer can be a valid slice if the slice length is <=
-            // the number of u16 elements before the null terminator.
-
             let raw_descriptor: *const c_char = sys::AIBinder_Class_getDescriptor(self.0);
             CStr::from_ptr(raw_descriptor)
                 .to_str()
@@ -542,17 +540,15 @@ macro_rules! binder_fn_get_class {
             static CLASS_INIT: std::sync::Once = std::sync::Once::new();
             static mut CLASS: Option<$crate::binder_impl::InterfaceClass> = None;
 
+            // Safety: This assignment is guarded by the `CLASS_INIT` `Once`
+            // variable, and therefore is thread-safe, as it can only occur
+            // once.
             CLASS_INIT.call_once(|| unsafe {
-                // Safety: This assignment is guarded by the `CLASS_INIT` `Once`
-                // variable, and therefore is thread-safe, as it can only occur
-                // once.
                 CLASS = Some($constructor);
             });
-            unsafe {
-                // Safety: The `CLASS` variable can only be mutated once, above,
-                // and is subsequently safe to read from any thread.
-                CLASS.unwrap()
-            }
+            // Safety: The `CLASS` variable can only be mutated once, above, and
+            // is subsequently safe to read from any thread.
+            unsafe { CLASS.unwrap() }
         }
     };
 }
@@ -664,6 +660,8 @@ pub unsafe trait AsNative<T> {
     fn as_native_mut(&mut self) -> *mut T;
 }
 
+// Safety: If V is a valid Android C++ type then we can either use that or a
+// null pointer.
 unsafe impl<T, V: AsNative<T>> AsNative<T> for Option<V> {
     fn as_native(&self) -> *const T {
         self.as_ref().map_or(ptr::null(), |v| v.as_native())
@@ -924,15 +922,15 @@ macro_rules! declare_binder_interface {
                 static CLASS_INIT: std::sync::Once = std::sync::Once::new();
                 static mut CLASS: Option<$crate::binder_impl::InterfaceClass> = None;
 
+                // Safety: This assignment is guarded by the `CLASS_INIT` `Once`
+                // variable, and therefore is thread-safe, as it can only occur
+                // once.
                 CLASS_INIT.call_once(|| unsafe {
-                    // Safety: This assignment is guarded by the `CLASS_INIT` `Once`
-                    // variable, and therefore is thread-safe, as it can only occur
-                    // once.
                     CLASS = Some($crate::binder_impl::InterfaceClass::new::<$crate::binder_impl::Binder<$native>>());
                 });
+                // Safety: The `CLASS` variable can only be mutated once, above,
+                // and is subsequently safe to read from any thread.
                 unsafe {
-                    // Safety: The `CLASS` variable can only be mutated once, above,
-                    // and is subsequently safe to read from any thread.
                     CLASS.unwrap()
                 }
             }
