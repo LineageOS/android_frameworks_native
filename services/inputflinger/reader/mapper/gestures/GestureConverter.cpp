@@ -239,6 +239,11 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /* actionButton= */ 0,
                                      newButtonState, /* pointerCount= */ 1, mFingerProps.data(),
                                      &coords, xCursorPosition, yCursorPosition));
+        // Send a HOVER_MOVE to tell the application that the mouse is hovering again.
+        out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                     /*actionButton=*/0, newButtonState, /*pointerCount=*/1,
+                                     mFingerProps.data(), &coords, xCursorPosition,
+                                     yCursorPosition));
     }
     mButtonState = newButtonState;
     return out;
