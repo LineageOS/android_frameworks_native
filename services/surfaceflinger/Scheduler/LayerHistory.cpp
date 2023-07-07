@@ -131,22 +131,6 @@ void LayerHistory::record(int32_t id, const LayerProps& layerProps, nsecs_t pres
     const auto& info = layerPair->second;
     info->setLastPresentTime(presentTime, now, updateType, mModeChangePending, layerProps);
 
-    // Set frame rate to attached choreographer.
-    // TODO(b/260898223): Change to use layer hierarchy and handle frame rate vote.
-    if (updateType == LayerUpdateType::SetFrameRate) {
-        auto range = mAttachedChoreographers.equal_range(id);
-        auto it = range.first;
-        while (it != range.second) {
-            sp<EventThreadConnection> choreographerConnection = it->second.promote();
-            if (choreographerConnection) {
-                choreographerConnection->frameRate = layerProps.setFrameRateVote.rate;
-                it++;
-            } else {
-                it = mAttachedChoreographers.erase(it);
-            }
-        }
-    }
-
     // Activate layer if inactive.
     if (found == LayerStatus::LayerInInactiveMap) {
         mActiveLayerInfos.insert(
@@ -299,12 +283,6 @@ float LayerHistory::getLayerFramerate(nsecs_t now, int32_t id) const {
         return layerPair->second->getFps(now).getValue();
     }
     return 0.f;
-}
-
-void LayerHistory::attachChoreographer(int32_t layerId,
-                                       const sp<EventThreadConnection>& choreographerConnection) {
-    std::lock_guard lock(mLock);
-    mAttachedChoreographers.insert({layerId, wp<EventThreadConnection>(choreographerConnection)});
 }
 
 auto LayerHistory::findLayer(int32_t id) -> std::pair<LayerStatus, LayerPair*> {

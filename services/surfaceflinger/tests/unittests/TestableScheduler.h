@@ -39,7 +39,7 @@ public:
     TestableScheduler(RefreshRateSelectorPtr selectorPtr, ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
                               std::make_shared<mock::VSyncTracker>(), std::move(selectorPtr),
-                              /* modulatorPtr */ nullptr, callback) {}
+                              sp<VsyncModulator>::make(VsyncConfigSet{}), callback) {}
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       std::shared_ptr<VSyncTracker> tracker, RefreshRateSelectorPtr selectorPtr,
@@ -104,6 +104,7 @@ public:
 
     auto& mutableAppConnectionHandle() { return mAppConnectionHandle; }
     auto& mutableLayerHistory() { return mLayerHistory; }
+    auto& mutableAttachedChoreographers() { return mAttachedChoreographers; }
 
     size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
         return mLayerHistory.mActiveLayerInfos.size() + mLayerHistory.mInactiveLayerInfos.size();
@@ -166,6 +167,12 @@ public:
         std::lock_guard<std::mutex> lock(schedule->mHwVsyncLock);
         schedule->mHwVsyncState = enabled ? VsyncSchedule::HwVsyncState::Enabled
                                           : VsyncSchedule::HwVsyncState::Disabled;
+    }
+
+    void updateAttachedChoreographers(
+            const surfaceflinger::frontend::LayerHierarchy& layerHierarchy,
+            Fps displayRefreshRate) {
+        Scheduler::updateAttachedChoreographers(layerHierarchy, displayRefreshRate);
     }
 
     using Scheduler::onHardwareVsyncRequest;

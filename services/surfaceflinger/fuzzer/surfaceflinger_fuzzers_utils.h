@@ -792,6 +792,7 @@ private:
     void requestDisplayModes(std::vector<display::DisplayModeRequest>) override {}
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() override {}
+    void onChoreographerAttached() override {}
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger =

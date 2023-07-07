@@ -2325,6 +2325,11 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
                                                       Changes::Visibility)) {
         mVisibleRegionsDirty = true;
     }
+    if (mLayerLifecycleManager.getGlobalChanges().any(Changes::Hierarchy | Changes::FrameRate)) {
+        // The frame rate of attached choreographers can only change as a result of a
+        // FrameRate change (including when Hierarchy changes).
+        mUpdateAttachedChoreographer = true;
+    }
     outTransactionsAreEmpty = mLayerLifecycleManager.getGlobalChanges().get() == 0;
     mustComposite |= mLayerLifecycleManager.getGlobalChanges().get() != 0;
 
@@ -2501,8 +2506,14 @@ bool SurfaceFlinger::commit(const scheduler::FrameTarget& pacesetterFrameTarget)
     // Hold mStateLock as chooseRefreshRateForContent promotes wp<Layer> to sp<Layer>
     // and may eventually call to ~Layer() if it holds the last reference
     {
+        bool updateAttachedChoreographer = mUpdateAttachedChoreographer;
+        mUpdateAttachedChoreographer = false;
+
         Mutex::Autolock lock(mStateLock);
-        mScheduler->chooseRefreshRateForContent();
+        mScheduler->chooseRefreshRateForContent(mLayerLifecycleManagerEnabled
+                                                        ? &mLayerHierarchyBuilder.getHierarchy()
+                                                        : nullptr,
+                                                updateAttachedChoreographer);
         setActiveModeInHwcIfNeeded();
     }
 
@@ -3922,6 +3933,14 @@ void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
 
 void SurfaceFlinger::notifyCpuLoadUp() {
     mPowerAdvisor->notifyCpuLoadUp();
+}
+
+void SurfaceFlinger::onChoreographerAttached() {
+    ATRACE_CALL();
+    if (mLayerLifecycleManagerEnabled) {
+        mUpdateAttachedChoreographer = true;
+        scheduleCommit(FrameHint::kNone);
+    }
 }
 
 void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
@@ -7938,6 +7957,7 @@ void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
     if (mTransactionTracing) {
         mTransactionTracing->onLayerRemoved(layer->getSequence());
     }
+    mScheduler->onLayerDestroyed(layer);
 }
 
 void SurfaceFlinger::onLayerUpdate() {

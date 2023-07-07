@@ -853,6 +853,8 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
                                       return lhs < rhs && !ScoredFrameRate::scoresEqual(lhs, rhs);
                                   });
         ALOGV("%s: overriding to %s for uid=%d", __func__, to_string(overrideFps).c_str(), uid);
+        ATRACE_FORMAT_INSTANT("%s: overriding to %s for uid=%d", __func__,
+                              to_string(overrideFps).c_str(), uid);
         frameRateOverrides.emplace(uid, overrideFps);
     }
 

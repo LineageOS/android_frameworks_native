@@ -260,29 +260,40 @@ ConnectionHandle Scheduler::createConnection(std::unique_ptr<EventThread> eventT
     const ConnectionHandle handle = ConnectionHandle{mNextConnectionHandleId++};
     ALOGV("Creating a connection handle with ID %" PRIuPTR, handle.id);
 
-    auto connection = createConnectionInternal(eventThread.get());
+    auto connection = eventThread->createEventConnection([&] { resync(); });
 
     std::lock_guard<std::mutex> lock(mConnectionsLock);
     mConnections.emplace(handle, Connection{connection, std::move(eventThread)});
     return handle;
 }
 
-sp<EventThreadConnection> Scheduler::createConnectionInternal(
-        EventThread* eventThread, EventRegistrationFlags eventRegistration,
-        const sp<IBinder>& layerHandle) {
-    int32_t layerId = static_cast<int32_t>(LayerHandle::getLayerId(layerHandle));
-    auto connection = eventThread->createEventConnection([&] { resync(); }, eventRegistration);
-    mLayerHistory.attachChoreographer(layerId, connection);
-    return connection;
-}
-
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
         ConnectionHandle handle, EventRegistrationFlags eventRegistration,
         const sp<IBinder>& layerHandle) {
-    std::lock_guard<std::mutex> lock(mConnectionsLock);
-    RETURN_IF_INVALID_HANDLE(handle, nullptr);
-    return createConnectionInternal(mConnections[handle].thread.get(), eventRegistration,
-                                    layerHandle);
+    const auto connection = [&]() -> sp<EventThreadConnection> {
+        std::scoped_lock lock(mConnectionsLock);
+        RETURN_IF_INVALID_HANDLE(handle, nullptr);
+
+        return mConnections[handle].thread->createEventConnection([&] { resync(); },
+                                                                  eventRegistration);
+    }();
+    const auto layerId = static_cast<int32_t>(LayerHandle::getLayerId(layerHandle));
+
+    if (layerId != static_cast<int32_t>(UNASSIGNED_LAYER_ID)) {
+        // TODO(b/290409668): Moving the choreographer attachment to be a transaction that will be
+        // processed on the main thread.
+        mSchedulerCallback.onChoreographerAttached();
+
+        std::scoped_lock lock(mChoreographerLock);
+        const auto [iter, emplaced] =
+                mAttachedChoreographers.emplace(layerId,
+                                                AttachedChoreographers{Fps(), {connection}});
+        if (!emplaced) {
+            iter->second.connections.emplace(connection);
+            connection->frameRate = iter->second.frameRate;
+        }
+    }
+    return connection;
 }
 
 sp<EventThreadConnection> Scheduler::getEventConnection(ConnectionHandle handle) {
@@ -555,6 +566,11 @@ void Scheduler::deregisterLayer(Layer* layer) {
     mLayerHistory.deregisterLayer(layer);
 }
 
+void Scheduler::onLayerDestroyed(Layer* layer) {
+    std::scoped_lock lock(mChoreographerLock);
+    mAttachedChoreographers.erase(layer->getSequence());
+}
+
 void Scheduler::recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
                                    LayerHistory::LayerUpdateType updateType) {
     if (pacesetterSelectorPtr()->canSwitch()) {
@@ -571,7 +587,9 @@ void Scheduler::setDefaultFrameRateCompatibility(Layer* layer) {
                                                    mFeatures.test(Feature::kContentDetection));
 }
 
-void Scheduler::chooseRefreshRateForContent() {
+void Scheduler::chooseRefreshRateForContent(
+        const surfaceflinger::frontend::LayerHierarchy* hierarchy,
+        bool updateAttachedChoreographer) {
     const auto selectorPtr = pacesetterSelectorPtr();
     if (!selectorPtr->canSwitch()) return;
 
@@ -579,6 +597,20 @@ void Scheduler::chooseRefreshRateForContent() {
 
     LayerHistory::Summary summary = mLayerHistory.summarize(*selectorPtr, systemTime());
     applyPolicy(&Policy::contentRequirements, std::move(summary));
+
+    if (updateAttachedChoreographer) {
+        LOG_ALWAYS_FATAL_IF(!hierarchy);
+
+        // update the attached choreographers after we selected the render rate.
+        const ftl::Optional<FrameRateMode> modeOpt = [&] {
+            std::scoped_lock lock(mPolicyLock);
+            return mPolicy.modeOpt;
+        }();
+
+        if (modeOpt) {
+            updateAttachedChoreographers(*hierarchy, modeOpt->fps);
+        }
+    }
 }
 
 void Scheduler::resetIdleTimer() {
@@ -820,6 +852,105 @@ void Scheduler::demotePacesetterDisplay() {
     // Clear state that depends on the pacesetter's RefreshRateSelector.
     std::scoped_lock lock(mPolicyLock);
     mPolicy = {};
+}
+
+void Scheduler::updateAttachedChoreographersFrameRate(
+        const surfaceflinger::frontend::RequestedLayerState& layer, Fps fps) {
+    std::scoped_lock lock(mChoreographerLock);
+
+    const auto layerId = static_cast<int32_t>(layer.id);
+    const auto choreographers = mAttachedChoreographers.find(layerId);
+    if (choreographers == mAttachedChoreographers.end()) {
+        return;
+    }
+
+    auto& layerChoreographers = choreographers->second;
+
+    layerChoreographers.frameRate = fps;
+    ATRACE_FORMAT_INSTANT("%s: %s for %s", __func__, to_string(fps).c_str(), layer.name.c_str());
+    ALOGV("%s: %s for %s", __func__, to_string(fps).c_str(), layer.name.c_str());
+
+    auto it = layerChoreographers.connections.begin();
+    while (it != layerChoreographers.connections.end()) {
+        sp<EventThreadConnection> choreographerConnection = it->promote();
+        if (choreographerConnection) {
+            choreographerConnection->frameRate = fps;
+            it++;
+        } else {
+            it = choreographers->second.connections.erase(it);
+        }
+    }
+
+    if (layerChoreographers.connections.empty()) {
+        mAttachedChoreographers.erase(choreographers);
+    }
+}
+
+int Scheduler::updateAttachedChoreographersInternal(
+        const surfaceflinger::frontend::LayerHierarchy& layerHierarchy, Fps displayRefreshRate,
+        int parentDivisor) {
+    const char* name = layerHierarchy.getLayer() ? layerHierarchy.getLayer()->name.c_str() : "Root";
+
+    int divisor = 0;
+    if (layerHierarchy.getLayer()) {
+        const auto frameRateCompatibility = layerHierarchy.getLayer()->frameRateCompatibility;
+        const auto frameRate = Fps::fromValue(layerHierarchy.getLayer()->frameRate);
+        ALOGV("%s: %s frameRate %s parentDivisor=%d", __func__, name, to_string(frameRate).c_str(),
+              parentDivisor);
+
+        if (frameRate.isValid()) {
+            if (frameRateCompatibility == ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE ||
+                frameRateCompatibility == ANATIVEWINDOW_FRAME_RATE_EXACT) {
+                // Since this layer wants an exact match, we would only set a frame rate if the
+                // desired rate is a divisor of the display refresh rate.
+                divisor = RefreshRateSelector::getFrameRateDivisor(displayRefreshRate, frameRate);
+            } else if (frameRateCompatibility == ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT) {
+                // find the closest frame rate divisor for the desired frame rate.
+                divisor = static_cast<int>(
+                        std::round(displayRefreshRate.getValue() / frameRate.getValue()));
+            }
+        }
+    }
+
+    // We start by traversing the children, updating their choreographers, and getting back the
+    // aggregated frame rate.
+    int childrenDivisor = 0;
+    for (const auto& [child, _] : layerHierarchy.mChildren) {
+        LOG_ALWAYS_FATAL_IF(child == nullptr || child->getLayer() == nullptr);
+
+        ALOGV("%s: %s traversing child %s", __func__, name, child->getLayer()->name.c_str());
+
+        const int childDivisor =
+                updateAttachedChoreographersInternal(*child, displayRefreshRate, divisor);
+        childrenDivisor = childrenDivisor > 0 ? childrenDivisor : childDivisor;
+        if (childDivisor > 0) {
+            childrenDivisor = std::gcd(childrenDivisor, childDivisor);
+        }
+        ALOGV("%s: %s childrenDivisor=%d", __func__, name, childrenDivisor);
+    }
+
+    ALOGV("%s: %s divisor=%d", __func__, name, divisor);
+
+    // If there is no explicit vote for this layer. Use the children's vote if exists
+    divisor = (divisor == 0) ? childrenDivisor : divisor;
+    ALOGV("%s: %s divisor=%d with children", __func__, name, divisor);
+
+    // If there is no explicit vote for this layer or its children, Use the parent vote if exists
+    divisor = (divisor == 0) ? parentDivisor : divisor;
+    ALOGV("%s: %s divisor=%d with parent", __func__, name, divisor);
+
+    if (layerHierarchy.getLayer()) {
+        Fps fps = divisor > 1 ? displayRefreshRate / (unsigned int)divisor : Fps();
+        updateAttachedChoreographersFrameRate(*layerHierarchy.getLayer(), fps);
+    }
+
+    return divisor;
+}
+
+void Scheduler::updateAttachedChoreographers(
+        const surfaceflinger::frontend::LayerHierarchy& layerHierarchy, Fps displayRefreshRate) {
+    ATRACE_CALL();
+    updateAttachedChoreographersInternal(layerHierarchy, displayRefreshRate, 0);
 }
 
 template <typename S, typename T>
