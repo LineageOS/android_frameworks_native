@@ -493,12 +493,12 @@ struct PointerProperties {
         toolType = ToolType::UNKNOWN;
     }
 
-    bool operator==(const PointerProperties& other) const;
+    bool operator==(const PointerProperties& other) const = default;
     inline bool operator!=(const PointerProperties& other) const {
         return !(*this == other);
     }
 
-    void copyFrom(const PointerProperties& other);
+    PointerProperties& operator=(const PointerProperties&) = default;
 };
 
 /*

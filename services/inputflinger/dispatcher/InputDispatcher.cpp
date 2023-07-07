@@ -4093,9 +4093,9 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
         uint32_t pointerId = uint32_t(pointerProperties.id);
         if (pointerIds.test(pointerId)) {
             splitPointerIndexMap[splitPointerCount] = originalPointerIndex;
-            splitPointerProperties[splitPointerCount].copyFrom(pointerProperties);
-            splitPointerCoords[splitPointerCount].copyFrom(
-                    originalMotionEntry.pointerCoords[originalPointerIndex]);
+            splitPointerProperties[splitPointerCount] = pointerProperties;
+            splitPointerCoords[splitPointerCount] =
+                    originalMotionEntry.pointerCoords[originalPointerIndex];
             splitPointerCount += 1;
         }
     }

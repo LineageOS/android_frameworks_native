@@ -235,8 +235,8 @@ MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32
         downTime(downTime),
         pointerCount(pointerCount) {
     for (uint32_t i = 0; i < pointerCount; i++) {
-        this->pointerProperties[i].copyFrom(pointerProperties[i]);
-        this->pointerCoords[i].copyFrom(pointerCoords[i]);
+        this->pointerProperties[i] = pointerProperties[i];
+        this->pointerCoords[i] = pointerCoords[i];
     }
 }
 

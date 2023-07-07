@@ -2009,12 +2009,12 @@ static bool updateMovedPointers(const PropertiesArray& inProperties, CoordsArray
         PointerCoords& curOutCoords = outCoords[outIndex];
 
         if (curInProperties != curOutProperties) {
-            curOutProperties.copyFrom(curInProperties);
+            curOutProperties = curInProperties;
             changed = true;
         }
 
         if (curInCoords != curOutCoords) {
-            curOutCoords.copyFrom(curInCoords);
+            curOutCoords = curInCoords;
             changed = true;
         }
     }
@@ -2756,10 +2756,9 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
         for (BitSet32 idBits(mPointerGesture.currentGestureIdBits); !idBits.isEmpty();) {
             uint32_t id = idBits.clearFirstMarkedBit();
             uint32_t index = mPointerGesture.currentGestureIdToIndex[id];
-            mPointerGesture.lastGestureProperties[index].copyFrom(
-                    mPointerGesture.currentGestureProperties[index]);
-            mPointerGesture.lastGestureCoords[index].copyFrom(
-                    mPointerGesture.currentGestureCoords[index]);
+            mPointerGesture.lastGestureProperties[index] =
+                    mPointerGesture.currentGestureProperties[index];
+            mPointerGesture.lastGestureCoords[index] = mPointerGesture.currentGestureCoords[index];
             mPointerGesture.lastGestureIdToIndex[id] = index;
         }
     }
@@ -3543,8 +3542,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerStylus(nsecs_t when, nsec
             std::tie(x, y) = mPointerController->getPosition();
         }
 
-        mPointerSimple.currentCoords.copyFrom(
-                mCurrentCookedState.cookedPointerData.pointerCoords[index]);
+        mPointerSimple.currentCoords = mCurrentCookedState.cookedPointerData.pointerCoords[index];
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
         mPointerSimple.currentProperties.id = 0;
@@ -3582,8 +3580,8 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerMouse(nsecs_t when, nsecs
 
         const auto [x, y] = mPointerController->getPosition();
         const uint32_t currentIndex = mCurrentRawState.rawPointerData.idToIndex[id];
-        mPointerSimple.currentCoords.copyFrom(
-                mCurrentCookedState.cookedPointerData.pointerCoords[currentIndex]);
+        mPointerSimple.currentCoords =
+                mCurrentCookedState.cookedPointerData.pointerCoords[currentIndex];
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE,
@@ -3723,8 +3721,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
         mWheelXVelocityControl.move(when, &hscroll, nullptr);
 
         // Send scroll.
-        PointerCoords pointerCoords;
-        pointerCoords.copyFrom(mPointerSimple.currentCoords);
+        PointerCoords pointerCoords = mPointerSimple.currentCoords;
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
@@ -3740,8 +3737,8 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
 
     // Save state.
     if (down || hovering) {
-        mPointerSimple.lastCoords.copyFrom(mPointerSimple.currentCoords);
-        mPointerSimple.lastProperties.copyFrom(mPointerSimple.currentProperties);
+        mPointerSimple.lastCoords = mPointerSimple.currentCoords;
+        mPointerSimple.lastProperties = mPointerSimple.currentProperties;
         mPointerSimple.displayId = displayId;
         mPointerSimple.source = mSource;
         mPointerSimple.lastCursorX = cursorPosition.x;
@@ -3795,8 +3792,8 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
     while (!idBits.isEmpty()) {
         uint32_t id = idBits.clearFirstMarkedBit();
         uint32_t index = idToIndex[id];
-        pointerProperties[pointerCount].copyFrom(properties[index]);
-        pointerCoords[pointerCount].copyFrom(coords[index]);
+        pointerProperties[pointerCount] = properties[index];
+        pointerCoords[pointerCount] = coords[index];
 
         if (changedId >= 0 && id == uint32_t(changedId)) {
             action |= pointerCount << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
