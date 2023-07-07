@@ -2744,7 +2744,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
                                        buttonState, MotionClassification::NONE,
                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                        &pointerCoords, 0, 0, x, y, mPointerGesture.downTime,
-                                       /* videoFrames */ {}));
+                                       /*videoFrames=*/{}));
     }
 
     // Update state.
@@ -3643,7 +3643,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                        mOrientedXPrecision, mOrientedYPrecision,
                                        mPointerSimple.lastCursorX, mPointerSimple.lastCursorY,
                                        mPointerSimple.downTime,
-                                       /* videoFrames */ {}));
+                                       /*videoFrames=*/{}));
     }
 
     if (mPointerSimple.hovering && !hovering) {
@@ -3658,7 +3658,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                  &mPointerSimple.lastCoords, mOrientedXPrecision,
                                  mOrientedYPrecision, mPointerSimple.lastCursorX,
                                  mPointerSimple.lastCursorY, mPointerSimple.downTime,
-                                 /* videoFrames */ {}));
+                                 /*videoFrames=*/{}));
     }
 
     if (down) {
@@ -3675,7 +3675,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                            &mPointerSimple.currentProperties,
                                            &mPointerSimple.currentCoords, mOrientedXPrecision,
                                            mOrientedYPrecision, cursorPosition.x, cursorPosition.y,
-                                           mPointerSimple.downTime, /* videoFrames */ {}));
+                                           mPointerSimple.downTime, /*videoFrames=*/{}));
         }
 
         // Send move.
@@ -3686,7 +3686,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                        &mPointerSimple.currentProperties,
                                        &mPointerSimple.currentCoords, mOrientedXPrecision,
                                        mOrientedYPrecision, cursorPosition.x, cursorPosition.y,
-                                       mPointerSimple.downTime, /* videoFrames */ {}));
+                                       mPointerSimple.downTime, /*videoFrames=*/{}));
     }
 
     if (hovering) {
@@ -3702,7 +3702,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                            &mPointerSimple.currentProperties,
                                            &mPointerSimple.currentCoords, mOrientedXPrecision,
                                            mOrientedYPrecision, cursorPosition.x, cursorPosition.y,
-                                           mPointerSimple.downTime, /* videoFrames */ {}));
+                                           mPointerSimple.downTime, /*videoFrames=*/{}));
         }
 
         // Send hover move.
@@ -3713,7 +3713,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                  MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
                                  &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                                  mOrientedXPrecision, mOrientedYPrecision, cursorPosition.x,
-                                 cursorPosition.y, mPointerSimple.downTime, /* videoFrames */ {}));
+                                 cursorPosition.y, mPointerSimple.downTime, /*videoFrames=*/{}));
     }
 
     if (mCurrentRawState.rawVScroll || mCurrentRawState.rawHScroll) {
@@ -3735,7 +3735,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsec
                                        &mPointerSimple.currentProperties, &pointerCoords,
                                        mOrientedXPrecision, mOrientedYPrecision, cursorPosition.x,
                                        cursorPosition.y, mPointerSimple.downTime,
-                                       /* videoFrames */ {}));
+                                       /*videoFrames=*/{}));
     }
 
     // Save state.
@@ -3766,7 +3766,7 @@ std::list<NotifyArgs> TouchInputMapper::abortPointerSimple(nsecs_t when, nsecs_t
                                        mOrientedXPrecision, mOrientedYPrecision,
                                        mPointerSimple.lastCursorX, mPointerSimple.lastCursorY,
                                        mPointerSimple.downTime,
-                                       /* videoFrames */ {}));
+                                       /*videoFrames=*/{}));
         if (mPointerController != nullptr) {
             mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
         }

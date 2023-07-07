@@ -2980,7 +2980,7 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
             !haveSameApplicationToken(windowInfo, otherInfo)) {
             if (DEBUG_TOUCH_OCCLUSION) {
                 info.debugInfo.push_back(
-                        dumpWindowForTouchOcclusion(otherInfo, /* isTouchedWindow */ false));
+                        dumpWindowForTouchOcclusion(otherInfo, /*isTouchedWindow=*/false));
             }
             // canBeObscuredBy() has returned true above, which means this window is untrusted, so
             // we perform the checks below to see if the touch can be propagated or not based on the
@@ -3008,8 +3008,7 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
         }
     }
     if (DEBUG_TOUCH_OCCLUSION) {
-        info.debugInfo.push_back(
-                dumpWindowForTouchOcclusion(windowInfo, /* isTouchedWindow */ true));
+        info.debugInfo.push_back(dumpWindowForTouchOcclusion(windowInfo, /*isTouchedWindow=*/true));
     }
     return info;
 }
@@ -6705,7 +6704,7 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
     { // acquire lock
         std::scoped_lock _l(mLock);
         // Set an empty list to remove all handles from the specific display.
-        setInputWindowsLocked(/* window handles */ {}, displayId);
+        setInputWindowsLocked(/*windowInfoHandles=*/{}, displayId);
         setFocusedApplicationLocked(displayId, nullptr);
         // Call focus resolver to clean up stale requests. This must be called after input windows
         // have been removed for the removed display.

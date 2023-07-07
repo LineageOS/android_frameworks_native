@@ -148,10 +148,10 @@ std::list<NotifyArgs> RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readT
         out.push_back(
                 NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
                                  displayId, policyFlags, AMOTION_EVENT_ACTION_SCROLL, 0, 0,
-                                 metaState, /* buttonState */ 0, MotionClassification::NONE,
+                                 metaState, /*buttonState=*/0, MotionClassification::NONE,
                                  AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                  &pointerCoords, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                 AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {}));
+                                 AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /*videoFrames=*/{}));
     }
 
     mRotaryEncoderScrollAccumulator.finishSync();
