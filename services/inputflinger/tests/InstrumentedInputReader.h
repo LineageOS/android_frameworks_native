@@ -44,7 +44,7 @@ public:
 
 protected:
     virtual std::shared_ptr<InputDevice> createDeviceLocked(
-            nsecs_t when, int32_t eventHubId, const InputDeviceIdentifier& identifier);
+            int32_t eventHubId, const InputDeviceIdentifier& identifier);
 
     class FakeInputReaderContext : public ContextImpl {
     public:
