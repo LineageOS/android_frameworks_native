@@ -50,14 +50,14 @@ pub trait Parcelable {
     fn read_from_parcel(&mut self, parcel: &BorrowedParcel<'_>) -> Result<()>;
 }
 
-/// A struct whose instances can be written to a [`Parcel`].
+/// A struct whose instances can be written to a [`crate::parcel::Parcel`].
 // Might be able to hook this up as a serde backend in the future?
 pub trait Serialize {
-    /// Serialize this instance into the given [`Parcel`].
+    /// Serialize this instance into the given [`crate::parcel::Parcel`].
     fn serialize(&self, parcel: &mut BorrowedParcel<'_>) -> Result<()>;
 }
 
-/// A struct whose instances can be restored from a [`Parcel`].
+/// A struct whose instances can be restored from a [`crate::parcel::Parcel`].
 // Might be able to hook this up as a serde backend in the future?
 pub trait Deserialize: Sized {
     /// Type for the uninitialized value of this type. Will be either `Self`
@@ -80,10 +80,10 @@ pub trait Deserialize: Sized {
     /// Convert an initialized value of type `Self` into `Self::UninitType`.
     fn from_init(value: Self) -> Self::UninitType;
 
-    /// Deserialize an instance from the given [`Parcel`].
+    /// Deserialize an instance from the given [`crate::parcel::Parcel`].
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self>;
 
-    /// Deserialize an instance from the given [`Parcel`] onto the
+    /// Deserialize an instance from the given [`crate::parcel::Parcel`] onto the
     /// current object. This operation will overwrite the old value
     /// partially or completely, depending on how much data is available.
     fn deserialize_from(&mut self, parcel: &BorrowedParcel<'_>) -> Result<()> {
@@ -880,7 +880,6 @@ impl<T: DeserializeOption> Deserialize for Option<T> {
 /// `Serialize`, `SerializeArray` and `SerializeOption` for
 /// structured parcelables. The target type must implement the
 /// `Parcelable` trait.
-/// ```
 #[macro_export]
 macro_rules! impl_serialize_for_parcelable {
     ($parcelable:ident) => {
