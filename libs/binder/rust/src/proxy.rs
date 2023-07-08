@@ -574,7 +574,7 @@ impl Drop for WpIBinder {
 
 /// Rust wrapper around DeathRecipient objects.
 ///
-/// The cookie in this struct represents an Arc<F> for the owned callback.
+/// The cookie in this struct represents an `Arc<F>` for the owned callback.
 /// This struct owns a ref-count of it, and so does every binder that we
 /// have been linked with.
 ///
@@ -667,7 +667,7 @@ impl DeathRecipient {
     ///
     /// # Safety
     ///
-    /// The `cookie` parameter must be the cookie for an Arc<F> and
+    /// The `cookie` parameter must be the cookie for an `Arc<F>` and
     /// the caller must hold a ref-count to it.
     unsafe extern "C" fn binder_died<F>(cookie: *mut c_void)
     where
@@ -682,7 +682,7 @@ impl DeathRecipient {
     ///
     /// # Safety
     ///
-    /// The `cookie` parameter must be the cookie for an Arc<F> and
+    /// The `cookie` parameter must be the cookie for an `Arc<F>` and
     /// the owner must give up a ref-count to it.
     unsafe extern "C" fn cookie_decr_refcount<F>(cookie: *mut c_void)
     where
@@ -695,7 +695,7 @@ impl DeathRecipient {
     ///
     /// # Safety
     ///
-    /// The `cookie` parameter must be the cookie for an Arc<F> and
+    /// The `cookie` parameter must be the cookie for an `Arc<F>` and
     /// the owner must handle the created ref-count properly.
     unsafe extern "C" fn cookie_incr_refcount<F>(cookie: *mut c_void)
     where

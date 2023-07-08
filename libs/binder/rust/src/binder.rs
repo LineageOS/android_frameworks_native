@@ -97,8 +97,8 @@ where
 
 /// Interface stability promise
 ///
-/// An interface can promise to be a stable vendor interface ([`Vintf`]), or
-/// makes no stability guarantees ([`Local`]). [`Local`] is
+/// An interface can promise to be a stable vendor interface ([`Stability::Vintf`]),
+/// or makes no stability guarantees ([`Stability::Local`]). [`Stability::Local`] is
 /// currently the default stability.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Stability {
@@ -139,8 +139,8 @@ impl TryFrom<i32> for Stability {
 /// via `Binder::new(object)`.
 ///
 /// This is a low-level interface that should normally be automatically
-/// generated from AIDL via the [`declare_binder_interface!`] macro. When using
-/// the AIDL backend, users need only implement the high-level AIDL-defined
+/// generated from AIDL via the [`crate::declare_binder_interface!`] macro.
+/// When using the AIDL backend, users need only implement the high-level AIDL-defined
 /// interface. The AIDL compiler then generates a container struct that wraps
 /// the user-defined service and implements `Remotable`.
 pub trait Remotable: Send + Sync {
@@ -297,7 +297,7 @@ impl InterfaceClass {
     /// Note: the returned pointer will not be constant. Calling this method
     /// multiple times for the same type will result in distinct class
     /// pointers. A static getter for this value is implemented in
-    /// [`declare_binder_interface!`].
+    /// [`crate::declare_binder_interface!`].
     pub fn new<I: InterfaceClassMethods>() -> InterfaceClass {
         let descriptor = CString::new(I::get_descriptor()).unwrap();
         let ptr = unsafe {
