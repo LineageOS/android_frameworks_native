@@ -6606,11 +6606,11 @@ class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
         InputDispatcherTest::SetUp();
 
         mApplication = std::make_shared<FakeApplicationHandle>();
-        mApplication->setDispatchingTimeout(20ms);
+        mApplication->setDispatchingTimeout(100ms);
         mWindow = sp<FakeWindowHandle>::make(mApplication, mDispatcher, "TestWindow",
                                              ADISPLAY_ID_DEFAULT);
         mWindow->setFrame(Rect(0, 0, 30, 30));
-        mWindow->setDispatchingTimeout(30ms);
+        mWindow->setDispatchingTimeout(100ms);
         mWindow->setFocusable(true);
 
         // Set focused application.
@@ -6676,7 +6676,7 @@ TEST_F(InputDispatcherSingleWindowAnr, WhenFocusedApplicationChanges_NoAnr) {
 
     InputEventInjectionResult result =
             injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::NONE, /*injectionTimeout=*/10ms,
+                      InputEventInjectionSync::NONE, /*injectionTimeout=*/50ms,
                       /*allowKeyRepeat=*/false);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, result);
     // Key will not go to window because we have no focused window.
@@ -6740,7 +6740,7 @@ TEST_F(InputDispatcherSingleWindowAnr, FocusedApplication_NoFocusedWindow) {
     // injection times out (instead of failing).
     const InputEventInjectionResult result =
             injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::WAIT_FOR_RESULT, 10ms, /*allowKeyRepeat=*/false);
+                      InputEventInjectionSync::WAIT_FOR_RESULT, 50ms, /*allowKeyRepeat=*/false);
     ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
     const std::chrono::duration timeout = mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
     mFakePolicy->assertNotifyNoFocusedWindowAnrWasCalled(timeout, mApplication);
@@ -6791,7 +6791,7 @@ TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_DoesNotSendDuplicateAnr) 
     // injection times out (instead of failing).
     const InputEventInjectionResult result =
             injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::WAIT_FOR_RESULT, 10ms, /*allowKeyRepeat=*/false);
+                      InputEventInjectionSync::WAIT_FOR_RESULT, 50ms, /*allowKeyRepeat=*/false);
     ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
     const std::chrono::duration appTimeout =
             mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
@@ -6815,7 +6815,7 @@ TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_DropsFocusedEvents) {
     // Once a focused event arrives, we get an ANR for this application
     const InputEventInjectionResult result =
             injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::WAIT_FOR_RESULT, 10ms);
+                      InputEventInjectionSync::WAIT_FOR_RESULT, 50ms);
     ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
 
     const std::chrono::duration timeout = mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
@@ -7031,7 +7031,7 @@ TEST_F(InputDispatcherSingleWindowAnr, Key_StaysPendingWhileMotionIsProcessed) {
 
     InputEventInjectionResult result =
             injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::WAIT_FOR_RESULT, 10ms);
+                      InputEventInjectionSync::WAIT_FOR_RESULT, 50ms);
     ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
     // Key will not be sent to the window, yet, because the window is still processing events
     // and the key remains pending, waiting for the touch events to be processed
@@ -7136,7 +7136,7 @@ class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
         InputDispatcherTest::SetUp();
 
         mApplication = std::make_shared<FakeApplicationHandle>();
-        mApplication->setDispatchingTimeout(10ms);
+        mApplication->setDispatchingTimeout(100ms);
         mUnfocusedWindow = sp<FakeWindowHandle>::make(mApplication, mDispatcher, "Unfocused",
                                                       ADISPLAY_ID_DEFAULT);
         mUnfocusedWindow->setFrame(Rect(0, 0, 30, 30));
@@ -7145,7 +7145,7 @@ class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
 
         mFocusedWindow = sp<FakeWindowHandle>::make(mApplication, mDispatcher, "Focused",
                                                     ADISPLAY_ID_DEFAULT);
-        mFocusedWindow->setDispatchingTimeout(30ms);
+        mFocusedWindow->setDispatchingTimeout(100ms);
         mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
 
         // Set focused application.
@@ -7231,20 +7231,21 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsive) {
 // But we should receive ANR for both.
 TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsiveWithSameTimeout) {
     // Set the timeout for unfocused window to match the focused window
-    mUnfocusedWindow->setDispatchingTimeout(10ms);
+    mUnfocusedWindow->setDispatchingTimeout(
+            mFocusedWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT));
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mUnfocusedWindow, mFocusedWindow}}});
 
     tapOnFocusedWindow();
     // we should have ACTION_DOWN/ACTION_UP on focused window and ACTION_OUTSIDE on unfocused window
-    sp<IBinder> anrConnectionToken1, anrConnectionToken2;
-    ASSERT_NO_FATAL_FAILURE(anrConnectionToken1 = mFakePolicy->getUnresponsiveWindowToken(10ms));
-    ASSERT_NO_FATAL_FAILURE(anrConnectionToken2 = mFakePolicy->getUnresponsiveWindowToken(0ms));
-
     // We don't know which window will ANR first. But both of them should happen eventually.
-    ASSERT_TRUE(mFocusedWindow->getToken() == anrConnectionToken1 ||
-                mFocusedWindow->getToken() == anrConnectionToken2);
-    ASSERT_TRUE(mUnfocusedWindow->getToken() == anrConnectionToken1 ||
-                mUnfocusedWindow->getToken() == anrConnectionToken2);
+    std::array<sp<IBinder>, 2> anrConnectionTokens = {mFakePolicy->getUnresponsiveWindowToken(
+                                                              mFocusedWindow->getDispatchingTimeout(
+                                                                      DISPATCHING_TIMEOUT)),
+                                                      mFakePolicy->getUnresponsiveWindowToken(0ms)};
+
+    ASSERT_THAT(anrConnectionTokens,
+                ::testing::UnorderedElementsAre(testing::Eq(mFocusedWindow->getToken()),
+                                                testing::Eq(mUnfocusedWindow->getToken())));
 
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertNotifyAnrWasNotCalled();
@@ -7253,15 +7254,13 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsiveWithSameTimeout
     mFocusedWindow->consumeMotionUp();
     mUnfocusedWindow->consumeMotionOutside();
 
-    sp<IBinder> responsiveToken1, responsiveToken2;
-    ASSERT_NO_FATAL_FAILURE(responsiveToken1 = mFakePolicy->getResponsiveWindowToken());
-    ASSERT_NO_FATAL_FAILURE(responsiveToken2 = mFakePolicy->getResponsiveWindowToken());
+    std::array<sp<IBinder>, 2> responsiveTokens = {mFakePolicy->getResponsiveWindowToken(),
+                                                   mFakePolicy->getResponsiveWindowToken()};
 
     // Both applications should be marked as responsive, in any order
-    ASSERT_TRUE(mFocusedWindow->getToken() == responsiveToken1 ||
-                mFocusedWindow->getToken() == responsiveToken2);
-    ASSERT_TRUE(mUnfocusedWindow->getToken() == responsiveToken1 ||
-                mUnfocusedWindow->getToken() == responsiveToken2);
+    ASSERT_THAT(responsiveTokens,
+                ::testing::UnorderedElementsAre(testing::Eq(mFocusedWindow->getToken()),
+                                                testing::Eq(mUnfocusedWindow->getToken())));
     mFakePolicy->assertNotifyAnrWasNotCalled();
 }
 
@@ -7361,7 +7360,7 @@ TEST_F(InputDispatcherMultiWindowAnr, PendingKey_GoesToNewlyFocusedWindow) {
 
     InputEventInjectionResult result =
             injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::NONE, /*injectionTimeout=*/10ms);
+                      InputEventInjectionSync::NONE, /*injectionTimeout=*/50ms);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, result);
     // Key will not be sent to the window, yet, because the window is still processing events
     // and the key remains pending, waiting for the touch events to be processed
@@ -7449,7 +7448,7 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
 TEST_F(InputDispatcherMultiWindowAnr, FocusedWindowWithoutSetFocusedApplication_NoAnr) {
     std::shared_ptr<FakeApplicationHandle> focusedApplication =
             std::make_shared<FakeApplicationHandle>();
-    focusedApplication->setDispatchingTimeout(60ms);
+    focusedApplication->setDispatchingTimeout(100ms);
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, focusedApplication);
     // The application that owns 'mFocusedWindow' and 'mUnfocusedWindow' is not focused.
     mFocusedWindow->setFocusable(false);
@@ -7462,7 +7461,7 @@ TEST_F(InputDispatcherMultiWindowAnr, FocusedWindowWithoutSetFocusedApplication_
     // Key will not be sent anywhere because we have no focused window. It will remain pending.
     InputEventInjectionResult result =
             injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::NONE, /*injectionTimeout=*/10ms,
+                      InputEventInjectionSync::NONE, /*injectionTimeout=*/50ms,
                       /*allowKeyRepeat=*/false);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, result);
 
@@ -7473,7 +7472,7 @@ TEST_F(InputDispatcherMultiWindowAnr, FocusedWindowWithoutSetFocusedApplication_
     // simply be added to the queue without 'shouldPruneInboundQueueLocked' returning 'true'.
     // For this test, it means that the key would get delivered to the window once it becomes
     // focused.
-    std::this_thread::sleep_for(10ms);
+    std::this_thread::sleep_for(50ms);
 
     // Touch unfocused window. This should force the pending key to get dropped.
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
