@@ -461,7 +461,7 @@ impl<'a> BorrowedParcel<'a> {
     /// and call a closure with the sub-parcel as its parameter.
     /// The closure can keep reading data from the sub-parcel
     /// until it runs out of input data. The closure is responsible
-    /// for calling [`ReadableSubParcel::has_more_data`] to check for
+    /// for calling `ReadableSubParcel::has_more_data` to check for
     /// more data before every read, at least until Rust generators
     /// are stabilized.
     /// After the closure returns, skip to the end of the current
@@ -595,7 +595,7 @@ impl Parcel {
     /// and call a closure with the sub-parcel as its parameter.
     /// The closure can keep reading data from the sub-parcel
     /// until it runs out of input data. The closure is responsible
-    /// for calling [`ReadableSubParcel::has_more_data`] to check for
+    /// for calling `ReadableSubParcel::has_more_data` to check for
     /// more data before every read, at least until Rust generators
     /// are stabilized.
     /// After the closure returns, skip to the end of the current
