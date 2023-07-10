@@ -58,13 +58,14 @@ struct CurveSegment {
 };
 
 const std::vector<CurveSegment> segments = {
-        {10.922, 3.19, 0},
-        {31.750, 4.79, -17.526},
-        {98.044, 7.28, -96.52},
-        {std::numeric_limits<double>::infinity(), 15.04, -857.758},
+        {32.002, 3.19, 0},
+        {52.83, 4.79, -51.254},
+        {119.124, 7.28, -182.737},
+        {std::numeric_limits<double>::infinity(), 15.04, -1107.556},
 };
 
-const std::vector<double> sensitivityFactors = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18};
+const std::vector<double> sensitivityFactors = {1,  2,  4,  6,  7,  8,  9, 10,
+                                                11, 12, 13, 14, 16, 18, 20};
 
 std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
                                                           size_t propertySize) {
