@@ -139,7 +139,8 @@ TEST_F(TouchpadInputMapperTest, HoverAndLeftButtonPress) {
                             VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_DOWN)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_PRESS)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
-                            VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP))));
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE))));
 
     // Liftoff
     args.clear();
