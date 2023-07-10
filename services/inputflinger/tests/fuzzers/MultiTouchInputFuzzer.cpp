@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <FuzzContainer.h>
+#include <InputDevice.h>
 #include <InputReaderBase.h>
 #include <MapperHelpers.h>
 #include <MultiTouchInputMapper.h>
@@ -23,53 +23,63 @@ namespace android {
 
 const int32_t kMaxKeycodes = 100;
 
-static void addProperty(FuzzContainer& fuzzer, std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) {
+static void addProperty(FuzzEventHub& eventHub, std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) {
     // Pick a random property to set for the mapper to have set.
     fdp->PickValueInArray<std::function<void()>>(
-            {[&]() -> void { fuzzer.addProperty("touch.deviceType", "touchScreen"); },
+            {[&]() -> void { eventHub.addProperty("touch.deviceType", "touchScreen"); },
              [&]() -> void {
-                 fuzzer.addProperty("touch.deviceType", fdp->ConsumeRandomLengthString(8).data());
+                 eventHub.addProperty("touch.deviceType", fdp->ConsumeRandomLengthString(8).data());
              },
              [&]() -> void {
-                 fuzzer.addProperty("touch.size.scale", fdp->ConsumeRandomLengthString(8).data());
+                 eventHub.addProperty("touch.size.scale", fdp->ConsumeRandomLengthString(8).data());
              },
              [&]() -> void {
-                 fuzzer.addProperty("touch.size.bias", fdp->ConsumeRandomLengthString(8).data());
+                 eventHub.addProperty("touch.size.bias", fdp->ConsumeRandomLengthString(8).data());
              },
              [&]() -> void {
-                 fuzzer.addProperty("touch.size.isSummed",
-                                    fdp->ConsumeRandomLengthString(8).data());
+                 eventHub.addProperty("touch.size.isSummed",
+                                      fdp->ConsumeRandomLengthString(8).data());
              },
              [&]() -> void {
-                 fuzzer.addProperty("touch.size.calibration",
-                                    fdp->ConsumeRandomLengthString(8).data());
+                 eventHub.addProperty("touch.size.calibration",
+                                      fdp->ConsumeRandomLengthString(8).data());
              },
              [&]() -> void {
-                 fuzzer.addProperty("touch.pressure.scale",
-                                    fdp->ConsumeRandomLengthString(8).data());
+                 eventHub.addProperty("touch.pressure.scale",
+                                      fdp->ConsumeRandomLengthString(8).data());
              },
              [&]() -> void {
-                 fuzzer.addProperty("touch.size.calibration",
-                                    fdp->ConsumeBool() ? "diameter" : "area");
+                 eventHub.addProperty("touch.size.calibration",
+                                      fdp->ConsumeBool() ? "diameter" : "area");
              },
              [&]() -> void {
-                 fuzzer.addProperty("touch.pressure.calibration",
-                                    fdp->ConsumeRandomLengthString(8).data());
+                 eventHub.addProperty("touch.pressure.calibration",
+                                      fdp->ConsumeRandomLengthString(8).data());
              }})();
 }
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp =
             std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
-    FuzzContainer fuzzer(fdp);
+
+    // Create mocked objects to support the fuzzed input mapper.
+    std::shared_ptr<FuzzEventHub> eventHub = std::make_shared<FuzzEventHub>(fdp);
+    FuzzInputReaderContext context(eventHub, fdp);
+    InputDevice device = getFuzzedInputDevice(*fdp, &context);
 
     InputReaderConfiguration policyConfig;
-    MultiTouchInputMapper& mapper = fuzzer.getMapper<MultiTouchInputMapper>(policyConfig);
+    MultiTouchInputMapper& mapper =
+            getMapperForDevice<ThreadSafeFuzzedDataProvider, MultiTouchInputMapper>(*fdp.get(),
+                                                                                    device,
+                                                                                    policyConfig);
 
     // Loop through mapper operations until randomness is exhausted.
     while (fdp->remaining_bytes() > 0) {
         fdp->PickValueInArray<std::function<void()>>({
-                [&]() -> void { addProperty(fuzzer, fdp); },
+                [&]() -> void {
+                    addProperty(*eventHub.get(), fdp);
+                    configureAndResetDevice(*fdp, device);
+                },
                 [&]() -> void {
                     std::string dump;
                     mapper.dump(dump);

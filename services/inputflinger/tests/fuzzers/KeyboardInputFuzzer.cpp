@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <FuzzContainer.h>
+#include <InputDevice.h>
 #include <InputReaderBase.h>
 #include <KeyboardInputMapper.h>
 #include <MapperHelpers.h>
@@ -23,38 +23,43 @@ namespace android {
 
 const int32_t kMaxKeycodes = 100;
 
-static void addProperty(FuzzContainer& fuzzer, std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) {
+static void addProperty(FuzzEventHub& eventHub, std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) {
     // Pick a random property to set for the mapper to have set.
     fdp->PickValueInArray<std::function<void()>>(
-            {[&]() -> void { fuzzer.addProperty("keyboard.orientationAware", "1"); },
+            {[&]() -> void { eventHub.addProperty("keyboard.orientationAware", "1"); },
              [&]() -> void {
-                 fuzzer.addProperty("keyboard.orientationAware",
-                                    fdp->ConsumeRandomLengthString(100).data());
+                 eventHub.addProperty("keyboard.orientationAware",
+                                      fdp->ConsumeRandomLengthString(100).data());
              },
              [&]() -> void {
-                 fuzzer.addProperty("keyboard.doNotWakeByDefault",
-                                    fdp->ConsumeRandomLengthString(100).data());
+                 eventHub.addProperty("keyboard.doNotWakeByDefault",
+                                      fdp->ConsumeRandomLengthString(100).data());
              },
              [&]() -> void {
-                 fuzzer.addProperty("keyboard.handlesKeyRepeat",
-                                    fdp->ConsumeRandomLengthString(100).data());
+                 eventHub.addProperty("keyboard.handlesKeyRepeat",
+                                      fdp->ConsumeRandomLengthString(100).data());
              }})();
 }
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp =
             std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
-    FuzzContainer fuzzer(fdp);
 
-    KeyboardInputMapper& mapper =
-            fuzzer.getMapper<KeyboardInputMapper>(InputReaderConfiguration{},
-                                                  fdp->ConsumeIntegral<uint32_t>(),
-                                                  fdp->ConsumeIntegral<int32_t>());
+    // Create mocked objects to support the fuzzed input mapper.
+    std::shared_ptr<FuzzEventHub> eventHub = std::make_shared<FuzzEventHub>(fdp);
+    FuzzInputReaderContext context(eventHub, fdp);
+    InputDevice device = getFuzzedInputDevice(*fdp, &context);
+
+    KeyboardInputMapper& mapper = getMapperForDevice<
+            ThreadSafeFuzzedDataProvider,
+            KeyboardInputMapper>(*fdp.get(), device, InputReaderConfiguration{},
+                                 /*source=*/fdp->ConsumeIntegral<uint32_t>(),
+                                 /*keyboardType=*/fdp->ConsumeIntegral<int32_t>());
 
     // Loop through mapper operations until randomness is exhausted.
     while (fdp->remaining_bytes() > 0) {
         fdp->PickValueInArray<std::function<void()>>({
-                [&]() -> void { addProperty(fuzzer, fdp); },
+                [&]() -> void { addProperty(*eventHub.get(), fdp); },
                 [&]() -> void {
                     std::string dump;
                     mapper.dump(dump);

@@ -16,6 +16,7 @@
 #pragma once
 
 #include <map>
+#include <memory>
 
 #include <EventHub.h>
 #include <InputDevice.h>
@@ -328,10 +329,8 @@ class FuzzInputReaderContext : public InputReaderContext {
 
 public:
     FuzzInputReaderContext(std::shared_ptr<EventHubInterface> eventHub,
-                           const sp<InputReaderPolicyInterface>& policy,
-                           InputListenerInterface& listener,
-                           std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp)
-          : mEventHub(eventHub), mPolicy(policy), mFdp(mFdp) {}
+                           std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp)
+          : mEventHub(eventHub), mPolicy(sp<FuzzInputReaderPolicy>::make(fdp)), mFdp(fdp) {}
     ~FuzzInputReaderContext() {}
     void updateGlobalMetaState() override {}
     int32_t getGlobalMetaState() { return mFdp->ConsumeIntegral<int32_t>(); }
@@ -357,5 +356,33 @@ public:
     int32_t getLedMetaState() override { return mFdp->ConsumeIntegral<int32_t>(); };
     void notifyStylusGestureStarted(int32_t, nsecs_t) {}
 };
+
+template <class Fdp>
+InputDevice getFuzzedInputDevice(Fdp& fdp, FuzzInputReaderContext* context) {
+    InputDeviceIdentifier identifier;
+    identifier.name = fdp.ConsumeRandomLengthString(16);
+    identifier.location = fdp.ConsumeRandomLengthString(12);
+    int32_t deviceID = fdp.ConsumeIntegralInRange(0, 5);
+    int32_t deviceGeneration = fdp.ConsumeIntegralInRange(0, 5);
+    return InputDevice(context, deviceID, deviceGeneration, identifier);
+}
+
+template <class Fdp>
+void configureAndResetDevice(Fdp& fdp, InputDevice& device) {
+    nsecs_t arbitraryTime = fdp.template ConsumeIntegral<nsecs_t>();
+    std::list<NotifyArgs> out;
+    out += device.configure(arbitraryTime, /*readerConfig=*/{}, /*changes=*/{});
+    out += device.reset(arbitraryTime);
+}
+
+template <class Fdp, class T, typename... Args>
+T& getMapperForDevice(Fdp& fdp, InputDevice& device, Args... args) {
+    int32_t eventhubId = fdp.template ConsumeIntegral<int32_t>();
+    // ensure a device entry exists for this eventHubId
+    device.addEmptyEventHubDevice(eventhubId);
+    configureAndResetDevice(fdp, device);
+
+    return device.template constructAndAddMapper<T>(eventhubId, args...);
+}
 
 } // namespace android
