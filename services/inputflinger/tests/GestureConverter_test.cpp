@@ -169,7 +169,7 @@ TEST_F(GestureConverterTest, ButtonsChange) {
                            /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_RIGHT,
                            /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, rightUpGesture);
-    ASSERT_EQ(2u, args.size());
+    ASSERT_EQ(3u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
@@ -181,6 +181,10 @@ TEST_F(GestureConverterTest, ButtonsChange) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
                       WithCoords(POINTER_X, POINTER_Y),
                       WithToolType(ToolType::FINGER)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithButtonState(0),
+                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, DragWithButton) {
@@ -225,7 +229,7 @@ TEST_F(GestureConverterTest, DragWithButton) {
                       /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_LEFT,
                       /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, upGesture);
-    ASSERT_EQ(2u, args.size());
+    ASSERT_EQ(3u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
@@ -237,6 +241,10 @@ TEST_F(GestureConverterTest, DragWithButton) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
                       WithCoords(POINTER_X - 5, POINTER_Y + 10),
                       WithToolType(ToolType::FINGER)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithButtonState(0),
+                      WithCoords(POINTER_X - 5, POINTER_Y + 10), WithToolType(ToolType::FINGER)));
 }
 
 TEST_F(GestureConverterTest, Scroll) {
