@@ -21,6 +21,7 @@
 #include <linux/input-event-codes.h>
 
 #include <FuzzContainer.h>
+#include <InputReaderBase.h>
 #include <MapperHelpers.h>
 #include <TouchpadInputMapper.h>
 
@@ -133,7 +134,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     setAxisInfos(*fdp, fuzzer);
     setDeviceSpecificConfig(*fdp, fuzzer);
 
-    auto policyConfig = fuzzer.getPolicyConfig();
+    InputReaderConfiguration policyConfig;
     // Some settings are fuzzed here, as well as in the main loop, to provide randomized data to the
     // TouchpadInputMapper constructor.
     setTouchpadSettings(*fdp, policyConfig);

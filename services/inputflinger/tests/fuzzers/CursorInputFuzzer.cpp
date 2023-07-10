@@ -16,6 +16,7 @@
 
 #include <CursorInputMapper.h>
 #include <FuzzContainer.h>
+#include <InputReaderBase.h>
 #include <MapperHelpers.h>
 
 namespace android {
@@ -39,7 +40,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
             std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
     FuzzContainer fuzzer(fdp);
 
-    auto policyConfig = fuzzer.getPolicyConfig();
+    InputReaderConfiguration policyConfig;
     CursorInputMapper& mapper = fuzzer.getMapper<CursorInputMapper>(policyConfig);
 
     // Loop through mapper operations until randomness is exhausted.
