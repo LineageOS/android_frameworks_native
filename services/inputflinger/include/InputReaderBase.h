@@ -437,7 +437,8 @@ public:
 
     /* Gets the keyboard layout for a particular input device. */
     virtual std::shared_ptr<KeyCharacterMap> getKeyboardLayoutOverlay(
-            const InputDeviceIdentifier& identifier) = 0;
+            const InputDeviceIdentifier& identifier,
+            const std::optional<KeyboardLayoutInfo> keyboardLayoutInfo) = 0;
 
     /* Gets a user-supplied alias for a particular input device, or an empty string if none. */
     virtual std::string getDeviceAlias(const InputDeviceIdentifier& identifier) = 0;

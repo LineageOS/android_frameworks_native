@@ -294,7 +294,8 @@ public:
     }
     void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) override {}
     std::shared_ptr<KeyCharacterMap> getKeyboardLayoutOverlay(
-            const InputDeviceIdentifier& identifier) override {
+            const InputDeviceIdentifier& identifier,
+            const std::optional<KeyboardLayoutInfo> layoutInfo) override {
         return nullptr;
     }
     std::string getDeviceAlias(const InputDeviceIdentifier& identifier) {
