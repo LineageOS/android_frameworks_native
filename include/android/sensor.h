@@ -29,6 +29,8 @@
 #ifndef ANDROID_SENSOR_H
 #define ANDROID_SENSOR_H
 
+#include <sys/cdefs.h>
+
 /******************************************************************
  *
  * IMPORTANT NOTICE:
@@ -45,11 +47,6 @@
  *   - DO NOT CHANGE THE LAYOUT OR SIZE OF STRUCTURES
  */
 
-// This file is included by modules that have host support but android/looper.h is not supported
-// on host. __REMOVED_IN needs to be defined in order for android/looper.h to be compiled.
-#ifndef __BIONIC__
-#define __REMOVED_IN(x) __attribute__((deprecated))
-#endif
 #include <android/looper.h>
 
 #include <stdbool.h>
@@ -57,6 +54,8 @@
 #include <math.h>
 #include <stdint.h>
 
+// This file may also be built on glibc or on Windows/MacOS libc's, so no-op
+// and deprecated definitions are provided.
 #if !defined(__INTRODUCED_IN)
 #define __INTRODUCED_IN(__api_level) /* nothing */
 #endif
