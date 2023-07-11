@@ -36,7 +36,7 @@ public:
 
     // Returns true if the specified source is known to have received a hover enter
     // motion event.
-    bool isHovering(int32_t deviceId, uint32_t source, int32_t displayId) const;
+    bool isHovering(DeviceId deviceId, uint32_t source, int32_t displayId) const;
 
     // Records tracking information for a key event that has just been published.
     // Returns true if the event should be delivered, false if it is inconsistent
@@ -76,7 +76,7 @@ public:
 
 private:
     struct KeyMemento {
-        int32_t deviceId;
+        DeviceId deviceId;
         uint32_t source;
         int32_t displayId;
         int32_t keyCode;
@@ -88,7 +88,7 @@ private:
     };
 
     struct MotionMemento {
-        int32_t deviceId;
+        DeviceId deviceId;
         uint32_t source;
         int32_t displayId;
         int32_t flags;
