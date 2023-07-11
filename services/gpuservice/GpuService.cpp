@@ -16,7 +16,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "GpuService.h"
+#include "gpuservice/GpuService.h"
 
 #include <android-base/stringprintf.h>
 #include <binder/IPCThreadState.h>
@@ -34,6 +34,7 @@
 #include <vkjson.h>
 
 #include <thread>
+#include <memory>
 
 namespace android {
 
@@ -55,17 +56,20 @@ GpuService::GpuService()
         mGpuStats(std::make_unique<GpuStats>()),
         mGpuMemTracer(std::make_unique<GpuMemTracer>()) {
 
-    std::thread gpuMemAsyncInitThread([this]() {
+    mGpuMemAsyncInitThread = std::make_unique<std::thread>([this] (){
         mGpuMem->initialize();
         mGpuMemTracer->initialize(mGpuMem);
     });
-    gpuMemAsyncInitThread.detach();
 
-    std::thread gpuWorkAsyncInitThread([this]() {
+    mGpuWorkAsyncInitThread = std::make_unique<std::thread>([this]() {
         mGpuWork->initialize();
     });
-    gpuWorkAsyncInitThread.detach();
 };
+
+GpuService::~GpuService() {
+    mGpuWorkAsyncInitThread->join();
+    mGpuMemAsyncInitThread->join();
+}
 
 void GpuService::setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
