@@ -501,6 +501,9 @@ struct PointerProperties {
     PointerProperties& operator=(const PointerProperties&) = default;
 };
 
+// TODO(b/211379801) : Use a strong type from ftl/mixins.h instead
+using DeviceId = int32_t;
+
 /*
  * Input events.
  */
@@ -512,7 +515,7 @@ public:
 
     inline int32_t getId() const { return mId; }
 
-    inline int32_t getDeviceId() const { return mDeviceId; }
+    inline DeviceId getDeviceId() const { return mDeviceId; }
 
     inline uint32_t getSource() const { return mSource; }
 
@@ -527,13 +530,13 @@ public:
     static int32_t nextId();
 
 protected:
-    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
+    void initialize(int32_t id, DeviceId deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac);
 
     void initialize(const InputEvent& from);
 
     int32_t mId;
-    int32_t mDeviceId;
+    DeviceId mDeviceId;
     uint32_t mSource;
     int32_t mDisplayId;
     std::array<uint8_t, 32> mHmac;
@@ -571,7 +574,7 @@ public:
     static const char* getLabel(int32_t keyCode);
     static std::optional<int> getKeyCodeFromLabel(const char* label);
 
-    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
+    void initialize(int32_t id, DeviceId deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac, int32_t action, int32_t flags, int32_t keyCode,
                     int32_t scanCode, int32_t metaState, int32_t repeatCount, nsecs_t downTime,
                     nsecs_t eventTime);
@@ -835,7 +838,7 @@ public:
 
     ssize_t findPointerIndex(int32_t pointerId) const;
 
-    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
+    void initialize(int32_t id, DeviceId deviceId, uint32_t source, int32_t displayId,
                     std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
                     int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
                     MotionClassification classification, const ui::Transform& transform,
@@ -1013,7 +1016,7 @@ struct __attribute__((__packed__)) VerifiedInputEvent {
     };
 
     Type type;
-    int32_t deviceId;
+    DeviceId deviceId;
     nsecs_t eventTimeNanos;
     uint32_t source;
     int32_t displayId;
