@@ -29,6 +29,7 @@ struct ISchedulerCallback {
     virtual void requestDisplayModes(std::vector<display::DisplayModeRequest>) = 0;
     virtual void kernelTimerChanged(bool expired) = 0;
     virtual void triggerOnFrameRateOverridesChanged() = 0;
+    virtual void onChoreographerAttached() = 0;
 
 protected:
     ~ISchedulerCallback() = default;

@@ -646,6 +646,7 @@ private:
     void requestDisplayModes(std::vector<display::DisplayModeRequest>) override;
     void kernelTimerChanged(bool expired) override;
     void triggerOnFrameRateOverridesChanged() override;
+    void onChoreographerAttached() override;
 
     // ICEPowerCallback overrides:
     void notifyCpuLoadUp() override;
@@ -1181,6 +1182,7 @@ private:
     bool mUpdateInputInfo = false;
     bool mSomeChildrenChanged;
     bool mForceTransactionDisplayChange = false;
+    bool mUpdateAttachedChoreographer = false;
 
     // Set if LayerMetadata has changed since the last LayerMetadata snapshot.
     bool mLayerMetadataSnapshotNeeded = false;

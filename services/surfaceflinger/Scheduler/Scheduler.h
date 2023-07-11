@@ -52,6 +52,8 @@
 #include "Utils/Dumper.h"
 #include "VsyncModulator.h"
 
+#include <FrontEnd/LayerHierarchy.h>
+
 namespace android::scheduler {
 
 // Opaque handle to scheduler connection.
@@ -153,7 +155,7 @@ public:
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ConnectionHandle, EventRegistrationFlags eventRegistration = {},
-            const sp<IBinder>& layerHandle = nullptr);
+            const sp<IBinder>& layerHandle = nullptr) EXCLUDES(mChoreographerLock);
 
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
@@ -230,9 +232,11 @@ public:
     void setModeChangePending(bool pending);
     void setDefaultFrameRateCompatibility(Layer*);
     void deregisterLayer(Layer*);
+    void onLayerDestroyed(Layer*) EXCLUDES(mChoreographerLock);
 
     // Detects content using layer history, and selects a matching refresh rate.
-    void chooseRefreshRateForContent() EXCLUDES(mDisplayLock);
+    void chooseRefreshRateForContent(const surfaceflinger::frontend::LayerHierarchy*,
+                                     bool updateAttachedChoreographer) EXCLUDES(mDisplayLock);
 
     void resetIdleTimer();
 
@@ -310,9 +314,6 @@ private:
 
     // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);
-    sp<EventThreadConnection> createConnectionInternal(
-            EventThread*, EventRegistrationFlags eventRegistration = {},
-            const sp<IBinder>& layerHandle = nullptr);
 
     // Update feature state machine to given state when corresponding timer resets or expires.
     void kernelIdleTimerCallback(TimerState) EXCLUDES(mDisplayLock);
@@ -386,6 +387,12 @@ private:
     GlobalSignals makeGlobalSignals() const REQUIRES(mPolicyLock);
 
     bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
+    void updateAttachedChoreographers(const surfaceflinger::frontend::LayerHierarchy&,
+                                      Fps displayRefreshRate);
+    int updateAttachedChoreographersInternal(const surfaceflinger::frontend::LayerHierarchy&,
+                                             Fps displayRefreshRate, int parentDivisor);
+    void updateAttachedChoreographersFrameRate(const surfaceflinger::frontend::RequestedLayerState&,
+                                               Fps fps) EXCLUDES(mChoreographerLock);
 
     void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mDisplayLock);
 
@@ -505,6 +512,16 @@ private:
         // Parameters for latest dispatch of mode change event.
         std::optional<ModeChangedParams> cachedModeChangedParams;
     } mPolicy GUARDED_BY(mPolicyLock);
+
+    std::mutex mChoreographerLock;
+
+    struct AttachedChoreographers {
+        Fps frameRate;
+        std::unordered_set<wp<EventThreadConnection>, WpHash> connections;
+    };
+    // Map keyed by layer ID (sequence) to choreographer connections.
+    std::unordered_map<int32_t, AttachedChoreographers> mAttachedChoreographers
+            GUARDED_BY(mChoreographerLock);
 
     std::mutex mVsyncTimelineLock;
     std::optional<hal::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline

@@ -30,6 +30,10 @@
 #include "mock/MockLayer.h"
 #include "mock/MockSchedulerCallback.h"
 
+#include <FrontEnd/LayerHierarchy.h>
+
+#include "FpsOps.h"
+
 namespace android::scheduler {
 
 using android::mock::createDisplayMode;
@@ -41,6 +45,10 @@ namespace {
 
 using MockEventThread = android::mock::EventThread;
 using MockLayer = android::mock::MockLayer;
+
+using LayerHierarchy = surfaceflinger::frontend::LayerHierarchy;
+using LayerHierarchyBuilder = surfaceflinger::frontend::LayerHierarchyBuilder;
+using RequestedLayerState = surfaceflinger::frontend::RequestedLayerState;
 
 class SchedulerTest : public testing::Test {
 protected:
@@ -83,6 +91,7 @@ protected:
 
     mock::SchedulerCallback mSchedulerCallback;
     TestableScheduler* mScheduler = new TestableScheduler{mSelector, mSchedulerCallback};
+    surfaceflinger::frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};
 
     ConnectionHandle mConnectionHandle;
     MockEventThread* mEventThread;
@@ -199,7 +208,8 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, requestDisplayModes(_)).Times(0);
-    mScheduler->chooseRefreshRateForContent();
+    mScheduler->chooseRefreshRateForContent(/*LayerHierarchy*/ nullptr,
+                                            /*updateAttachedChoreographer*/ false);
 }
 
 TEST_F(SchedulerTest, updateDisplayModes) {
@@ -278,11 +288,13 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, requestDisplayModes(Is120Hz())).Times(1);
-    mScheduler->chooseRefreshRateForContent();
+    mScheduler->chooseRefreshRateForContent(/*LayerHierarchy*/ nullptr,
+                                            /*updateAttachedChoreographer*/ false);
 
     // No-op if layer requirements have not changed.
     EXPECT_CALL(mSchedulerCallback, requestDisplayModes(_)).Times(0);
-    mScheduler->chooseRefreshRateForContent();
+    mScheduler->chooseRefreshRateForContent(/*LayerHierarchy*/ nullptr,
+                                            /*updateAttachedChoreographer*/ false);
 }
 
 TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
@@ -435,6 +447,346 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         const auto actualChoices = mScheduler->chooseDisplayModes();
         EXPECT_EQ(expectedChoices, actualChoices);
     }
+}
+
+class AttachedChoreographerTest : public SchedulerTest {
+protected:
+    void frameRateTestScenario(Fps layerFps, int8_t frameRateCompatibility, Fps displayFps,
+                               Fps expectedChoreographerFps);
+};
+
+TEST_F(AttachedChoreographerTest, registerSingle) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    const sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    EXPECT_EQ(1u, mScheduler->mutableAttachedChoreographers().size());
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+    EXPECT_EQ(1u,
+              mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.size());
+    EXPECT_FALSE(
+            mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate.isValid());
+}
+
+TEST_F(AttachedChoreographerTest, registerMultipleOnSameLayer) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    const auto handle = layer->getHandle();
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached).Times(2);
+
+    EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_))
+            .WillOnce(Return(0))
+            .WillOnce(Return(0));
+
+    const auto mockConnection1 = sp<MockEventThreadConnection>::make(mEventThread);
+    const auto mockConnection2 = sp<MockEventThreadConnection>::make(mEventThread);
+    EXPECT_CALL(*mEventThread, createEventConnection(_, _))
+            .WillOnce(Return(mockConnection1))
+            .WillOnce(Return(mockConnection2));
+
+    const sp<IDisplayEventConnection> connection1 =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, handle);
+    const sp<IDisplayEventConnection> connection2 =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, handle);
+
+    EXPECT_EQ(1u, mScheduler->mutableAttachedChoreographers().size());
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+    EXPECT_EQ(2u,
+              mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.size());
+    EXPECT_FALSE(
+            mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate.isValid());
+}
+
+TEST_F(AttachedChoreographerTest, registerMultipleOnDifferentLayers) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    const sp<MockLayer> layer1 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> layer2 = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached).Times(2);
+    const sp<IDisplayEventConnection> connection1 =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer1->getHandle());
+    const sp<IDisplayEventConnection> connection2 =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer2->getHandle());
+
+    EXPECT_EQ(2u, mScheduler->mutableAttachedChoreographers().size());
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer1->getSequence()));
+    EXPECT_EQ(1u,
+              mScheduler->mutableAttachedChoreographers()[layer1->getSequence()]
+                      .connections.size());
+    EXPECT_FALSE(
+            mScheduler->mutableAttachedChoreographers()[layer1->getSequence()].frameRate.isValid());
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer2->getSequence()));
+    EXPECT_EQ(1u,
+              mScheduler->mutableAttachedChoreographers()[layer2->getSequence()]
+                      .connections.size());
+    EXPECT_FALSE(
+            mScheduler->mutableAttachedChoreographers()[layer2->getSequence()].frameRate.isValid());
+}
+
+TEST_F(AttachedChoreographerTest, removedWhenConnectionIsGone) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+    EXPECT_EQ(1u,
+              mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.size());
+
+    // The connection is used all over this test, so it is quite hard to release it from here.
+    // Instead, we just do a small shortcut.
+    {
+        EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_)).WillOnce(Return(0));
+        sp<MockEventThreadConnection> mockConnection =
+                sp<MockEventThreadConnection>::make(mEventThread);
+        mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.clear();
+        mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.emplace(
+                mockConnection);
+    }
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+    mScheduler->updateAttachedChoreographers(hierarchy, 60_Hz);
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+}
+
+TEST_F(AttachedChoreographerTest, removedWhenLayerIsGone) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    const sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    layer.clear();
+    mFlinger.mutableLayersPendingRemoval().clear();
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+}
+
+void AttachedChoreographerTest::frameRateTestScenario(Fps layerFps, int8_t frameRateCompatibility,
+                                                      Fps displayFps,
+                                                      Fps expectedChoreographerFps) {
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+
+    layerState.frameRate = layerFps.getValue();
+    layerState.frameRateCompatibility = frameRateCompatibility;
+
+    mScheduler->updateAttachedChoreographers(hierarchy, displayFps);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+    EXPECT_EQ(expectedChoreographerFps,
+              mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate);
+    EXPECT_EQ(expectedChoreographerFps, mEventThreadConnection->frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateDefault) {
+    Fps layerFps = 30_Hz;
+    int8_t frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+    Fps displayFps = 60_Hz;
+    Fps expectedChoreographerFps = 30_Hz;
+
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+
+    layerFps = Fps::fromValue(32.7f);
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateExact) {
+    Fps layerFps = 30_Hz;
+    int8_t frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_EXACT;
+    Fps displayFps = 60_Hz;
+    Fps expectedChoreographerFps = 30_Hz;
+
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+
+    layerFps = Fps::fromValue(32.7f);
+    expectedChoreographerFps = {};
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateExactOrMultiple) {
+    Fps layerFps = 30_Hz;
+    int8_t frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE;
+    Fps displayFps = 60_Hz;
+    Fps expectedChoreographerFps = 30_Hz;
+
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+
+    layerFps = Fps::fromValue(32.7f);
+    expectedChoreographerFps = {};
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateParent) {
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, parent->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&hierarchy, LayerHierarchy::Variant::Attached));
+
+    layerState.frameRate = (30_Hz).getValue();
+    layerState.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(parent->getSequence()));
+
+    EXPECT_EQ(30_Hz, mScheduler->mutableAttachedChoreographers()[parent->getSequence()].frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateParent2Children) {
+    const sp<MockLayer> layer1 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> layer2 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, parent->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layer1State(LayerCreationArgs(layer1->getSequence()));
+    LayerHierarchy layer1Hierarchy(&layer1State);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&layer1Hierarchy, LayerHierarchy::Variant::Attached));
+
+    RequestedLayerState layer2State(LayerCreationArgs(layer1->getSequence()));
+    LayerHierarchy layer2Hierarchy(&layer2State);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&layer2Hierarchy, LayerHierarchy::Variant::Attached));
+
+    layer1State.frameRate = (30_Hz).getValue();
+    layer1State.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    layer2State.frameRate = (20_Hz).getValue();
+    layer2State.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(parent->getSequence()));
+
+    EXPECT_EQ(60_Hz, mScheduler->mutableAttachedChoreographers()[parent->getSequence()].frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateParentConflictingChildren) {
+    const sp<MockLayer> layer1 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> layer2 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, parent->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layer1State(LayerCreationArgs(layer1->getSequence()));
+    LayerHierarchy layer1Hierarchy(&layer1State);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&layer1Hierarchy, LayerHierarchy::Variant::Attached));
+
+    RequestedLayerState layer2State(LayerCreationArgs(layer1->getSequence()));
+    LayerHierarchy layer2Hierarchy(&layer2State);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&layer2Hierarchy, LayerHierarchy::Variant::Attached));
+
+    layer1State.frameRate = (30_Hz).getValue();
+    layer1State.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    layer2State.frameRate = (25_Hz).getValue();
+    layer2State.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(parent->getSequence()));
+
+    EXPECT_EQ(Fps(), mScheduler->mutableAttachedChoreographers()[parent->getSequence()].frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateChild) {
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&hierarchy, LayerHierarchy::Variant::Attached));
+
+    parentState.frameRate = (30_Hz).getValue();
+    parentState.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+
+    EXPECT_EQ(30_Hz, mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateChildNotOverriddenByParent) {
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&hierarchy, LayerHierarchy::Variant::Attached));
+
+    parentState.frameRate = (30_Hz).getValue();
+    parentState.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    layerState.frameRate = (60_Hz).getValue();
+    layerState.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+
+    EXPECT_EQ(60_Hz, mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate);
 }
 
 } // namespace android::scheduler
