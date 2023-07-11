@@ -18,7 +18,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
 #include <sys/resource.h>
-#include "GpuService.h"
+#include "gpuservice/GpuService.h"
 
 using namespace android;
 
