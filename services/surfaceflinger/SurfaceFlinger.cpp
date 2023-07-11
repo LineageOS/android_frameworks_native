@@ -7352,7 +7352,10 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                       renderArea->getHintForSeamlessTransition());
             sdrWhitePointNits = state.sdrWhitePointNits;
             displayBrightnessNits = state.displayBrightnessNits;
-            if (sdrWhitePointNits > 1.0f) {
+            // Only clamp the display brightness if this is not a seamless transition. Otherwise
+            // for seamless transitions it's important to match the current display state as the
+            // buffer will be shown under these same conditions, and we want to avoid any flickers
+            if (sdrWhitePointNits > 1.0f && !renderArea->getHintForSeamlessTransition()) {
                 // Restrict the amount of HDR "headroom" in the screenshot to avoid over-dimming
                 // the SDR portion. 2.0 chosen by experimentation
                 constexpr float kMaxScreenshotHeadroom = 2.0f;
