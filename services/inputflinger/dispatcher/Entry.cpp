@@ -321,7 +321,28 @@ DispatchEntry::DispatchEntry(std::shared_ptr<EventEntry> eventEntry,
         globalScaleFactor(globalScaleFactor),
         deliveryTime(0),
         resolvedAction(0),
-        resolvedFlags(0) {}
+        resolvedFlags(0) {
+    switch (this->eventEntry->type) {
+        case EventEntry::Type::KEY: {
+            const KeyEntry& keyEntry = static_cast<KeyEntry&>(*this->eventEntry);
+            resolvedEventId = keyEntry.id;
+            resolvedAction = keyEntry.action;
+            resolvedFlags = keyEntry.flags;
+
+            break;
+        }
+        case EventEntry::Type::MOTION: {
+            const MotionEntry& motionEntry = static_cast<MotionEntry&>(*this->eventEntry);
+            resolvedEventId = motionEntry.id;
+            resolvedAction = motionEntry.action;
+            resolvedFlags = motionEntry.flags;
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
 
 uint32_t DispatchEntry::nextSeq() {
     // Sequence number 0 is reserved and will never be returned.
