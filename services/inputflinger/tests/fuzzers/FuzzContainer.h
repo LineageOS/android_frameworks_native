@@ -25,11 +25,9 @@ namespace android {
 
 class FuzzContainer {
     std::shared_ptr<FuzzEventHub> mFuzzEventHub;
-    sp<FuzzInputReaderPolicy> mFuzzPolicy;
     FuzzInputListener mFuzzListener;
     std::unique_ptr<FuzzInputReaderContext> mFuzzContext;
     std::unique_ptr<InputDevice> mFuzzDevice;
-    InputReaderConfiguration mPolicyConfig;
     std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
 
 public:
@@ -42,8 +40,8 @@ public:
 
         // Create mocked objects.
         mFuzzEventHub = std::make_shared<FuzzEventHub>(mFdp);
-        mFuzzPolicy = sp<FuzzInputReaderPolicy>::make(mFdp);
-        mFuzzContext = std::make_unique<FuzzInputReaderContext>(mFuzzEventHub, mFuzzPolicy,
+        sp<FuzzInputReaderPolicy> policy = sp<FuzzInputReaderPolicy>::make(mFdp);
+        mFuzzContext = std::make_unique<FuzzInputReaderContext>(mFuzzEventHub, policy,
                                                                 mFuzzListener, mFdp);
 
         InputDeviceIdentifier identifier;
@@ -51,7 +49,6 @@ public:
         identifier.location = deviceLocation;
         mFuzzDevice = std::make_unique<InputDevice>(mFuzzContext.get(), deviceID, deviceGeneration,
                                                     identifier);
-        mFuzzPolicy->getReaderConfiguration(&mPolicyConfig);
     }
 
     ~FuzzContainer() {}
@@ -59,7 +56,7 @@ public:
     void configureDevice() {
         nsecs_t arbitraryTime = mFdp->ConsumeIntegral<nsecs_t>();
         std::list<NotifyArgs> out;
-        out += mFuzzDevice->configure(arbitraryTime, mPolicyConfig, /*changes=*/{});
+        out += mFuzzDevice->configure(arbitraryTime, /*readerConfig=*/{}, /*changes=*/{});
         out += mFuzzDevice->reset(arbitraryTime);
         for (const NotifyArgs& args : out) {
             mFuzzListener.notify(args);
@@ -71,7 +68,9 @@ public:
         configureDevice();
     }
 
-    InputReaderConfiguration& getPolicyConfig() { return mPolicyConfig; }
+    void setAbsoluteAxisInfo(int axis, const RawAbsoluteAxisInfo& axisInfo) {
+        mFuzzEventHub->setAbsoluteAxisInfo(mFuzzDevice->getId(), axis, axisInfo);
+    }
 
     template <class T, typename... Args>
     T& getMapper(Args... args) {

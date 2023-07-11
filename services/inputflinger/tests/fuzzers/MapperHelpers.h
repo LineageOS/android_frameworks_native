@@ -15,6 +15,9 @@
  */
 #pragma once
 
+#include <map>
+
+#include <EventHub.h>
 #include <InputDevice.h>
 #include <InputMapper.h>
 #include <InputReader.h>
@@ -92,6 +95,7 @@ class FuzzEventHub : public EventHubInterface {
     InputDeviceIdentifier mIdentifier;
     std::vector<TouchVideoFrame> mVideoFrames;
     PropertyMap mFuzzConfig;
+    std::map<int32_t /* deviceId */, std::map<int /* axis */, RawAbsoluteAxisInfo>> mAxes;
     std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
 
 public:
@@ -111,8 +115,18 @@ public:
     std::optional<PropertyMap> getConfiguration(int32_t deviceId) const override {
         return mFuzzConfig;
     }
+    void setAbsoluteAxisInfo(int32_t deviceId, int axis, const RawAbsoluteAxisInfo& axisInfo) {
+        mAxes[deviceId][axis] = axisInfo;
+    }
     status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                  RawAbsoluteAxisInfo* outAxisInfo) const override {
+        if (auto deviceAxesIt = mAxes.find(deviceId); deviceAxesIt != mAxes.end()) {
+            const std::map<int, RawAbsoluteAxisInfo>& deviceAxes = deviceAxesIt->second;
+            if (auto axisInfoIt = deviceAxes.find(axis); axisInfoIt != deviceAxes.end()) {
+                *outAxisInfo = axisInfoIt->second;
+                return OK;
+            }
+        }
         return mFdp->ConsumeIntegral<status_t>();
     }
     bool hasRelativeAxis(int32_t deviceId, int axis) const override { return mFdp->ConsumeBool(); }

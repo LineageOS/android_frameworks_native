@@ -100,6 +100,22 @@ cc_fuzz {
 }
 
 cc_fuzz {
+    name: "inputflinger_touchpad_input_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "TouchpadInputFuzzer.cpp",
+    ],
+    static_libs: [
+        "libchrome-gestures",
+    ],
+    header_libs: [
+        "libchrome-gestures_headers",
+    ],
+}
+
+cc_fuzz {
     name: "inputflinger_input_reader_fuzzer",
     defaults: [
         "inputflinger_fuzz_defaults",

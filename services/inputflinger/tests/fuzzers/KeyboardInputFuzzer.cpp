@@ -15,6 +15,7 @@
  */
 
 #include <FuzzContainer.h>
+#include <InputReaderBase.h>
 #include <KeyboardInputMapper.h>
 #include <MapperHelpers.h>
 
@@ -45,9 +46,9 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
             std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
     FuzzContainer fuzzer(fdp);
 
-    auto policyConfig = fuzzer.getPolicyConfig();
     KeyboardInputMapper& mapper =
-            fuzzer.getMapper<KeyboardInputMapper>(policyConfig, fdp->ConsumeIntegral<uint32_t>(),
+            fuzzer.getMapper<KeyboardInputMapper>(InputReaderConfiguration{},
+                                                  fdp->ConsumeIntegral<uint32_t>(),
                                                   fdp->ConsumeIntegral<int32_t>());
 
     // Loop through mapper operations until randomness is exhausted.
@@ -65,7 +66,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {
                     std::list<NotifyArgs> unused =
-                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
+                            mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), /*readerConfig=*/{},
                                                InputReaderConfiguration::Change(
                                                        fdp->ConsumeIntegral<uint32_t>()));
                 },
