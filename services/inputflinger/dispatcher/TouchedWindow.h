@@ -71,7 +71,7 @@ struct TouchedWindow {
 
     void removeAllTouchingPointersForDevice(DeviceId deviceId);
     void removeAllHoveringPointersForDevice(DeviceId deviceId);
-    void clearHoveringPointers();
+    void clearHoveringPointers(DeviceId deviceId);
     std::string dump() const;
 
 private:

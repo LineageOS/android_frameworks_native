@@ -39,8 +39,6 @@ struct TouchState {
     void reset();
     void clearWindowsWithoutPointers();
 
-    std::set<DeviceId> getActiveDeviceIds() const;
-
     bool hasTouchingPointers(DeviceId deviceId) const;
     void removeTouchingPointer(DeviceId deviceId, int32_t pointerId);
     void removeTouchingPointerFromWindow(DeviceId deviceId, int32_t pointerId,
@@ -52,7 +50,7 @@ struct TouchState {
     void addHoveringPointerToWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                     DeviceId deviceId, int32_t hoveringPointerId);
     void removeHoveringPointer(DeviceId deviceId, int32_t hoveringPointerId);
-    void clearHoveringPointers();
+    void clearHoveringPointers(DeviceId deviceId);
 
     void removeAllPointersForDevice(DeviceId deviceId);
     void removeWindowByToken(const sp<IBinder>& token);
@@ -72,8 +70,8 @@ struct TouchState {
     const TouchedWindow& getTouchedWindow(
             const sp<android::gui::WindowInfoHandle>& windowHandle) const;
     // Whether any of the windows are currently being touched
-    bool isDown() const;
-    bool hasHoveringPointers() const;
+    bool isDown(DeviceId deviceId) const;
+    bool hasHoveringPointers(DeviceId deviceId) const;
 
     std::set<sp<android::gui::WindowInfoHandle>> getWindowsWithHoveringPointer(
             DeviceId deviceId, int32_t pointerId) const;
