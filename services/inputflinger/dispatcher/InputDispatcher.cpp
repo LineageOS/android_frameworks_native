@@ -2690,9 +2690,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                      "Conflicting pointer actions: Hover received while pointer was down.");
             *outConflictingPointerActions = true;
         }
-        if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
-            maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
-        }
     } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
         // Pointer went up.
         tempTouchState.removeTouchingPointer(entry.deviceId, entry.pointerProperties[0].id);
