@@ -7311,16 +7311,27 @@ ui::Dataspace pickBestDataspace(ui::Dataspace requestedDataspace, const DisplayD
 
 } // namespace
 
-status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
-                                        const sp<IScreenCaptureListener>& captureListener) {
+static void invokeScreenCaptureError(const status_t status,
+                                     const sp<IScreenCaptureListener>& captureListener) {
+    ScreenCaptureResults captureResults;
+    captureResults.fenceResult = base::unexpected(status);
+    captureListener->onScreenCaptureCompleted(captureResults);
+}
+
+void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
+                                    const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
     status_t validate = validateScreenshotPermissions(args);
     if (validate != OK) {
-        return validate;
+        invokeScreenCaptureError(validate, captureListener);
+        return;
     }
 
-    if (!args.displayToken) return BAD_VALUE;
+    if (!args.displayToken) {
+        invokeScreenCaptureError(BAD_VALUE, captureListener);
+        return;
+    }
 
     wp<const DisplayDevice> displayWeak;
     ui::LayerStack layerStack;
@@ -7329,7 +7340,10 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     {
         Mutex::Autolock lock(mStateLock);
         sp<DisplayDevice> display = getDisplayDeviceLocked(args.displayToken);
-        if (!display) return NAME_NOT_FOUND;
+        if (!display) {
+            invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
+            return;
+        }
         displayWeak = display;
         layerStack = display->getLayerStack();
 
@@ -7344,7 +7358,8 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                 excludeLayerIds.emplace(excludeLayer);
             } else {
                 ALOGW("Invalid layer handle passed as excludeLayer to captureDisplay");
-                return NAME_NOT_FOUND;
+                invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
+                return;
             }
         }
     }
@@ -7367,14 +7382,12 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
     }
 
-    auto future = captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, reqSize,
-                                      args.pixelFormat, args.allowProtected, args.grayscale,
-                                      captureListener);
-    return fenceStatus(future.get());
+    captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, reqSize, args.pixelFormat,
+                        args.allowProtected, args.grayscale, captureListener);
 }
 
-status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
-                                        const sp<IScreenCaptureListener>& captureListener) {
+void SurfaceFlinger::captureDisplay(DisplayId displayId,
+                                    const sp<IScreenCaptureListener>& captureListener) {
     ui::LayerStack layerStack;
     wp<const DisplayDevice> displayWeak;
     ui::Size size;
@@ -7383,7 +7396,8 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
 
         const auto display = getDisplayDeviceLocked(displayId);
         if (!display) {
-            return NAME_NOT_FOUND;
+            invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
+            return;
         }
 
         displayWeak = display;
@@ -7411,25 +7425,25 @@ status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
 
     if (captureListener == nullptr) {
         ALOGE("capture screen must provide a capture listener callback");
-        return BAD_VALUE;
+        invokeScreenCaptureError(BAD_VALUE, captureListener);
+        return;
     }
 
     constexpr bool kAllowProtected = false;
     constexpr bool kGrayscale = false;
 
-    auto future = captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, size,
-                                      ui::PixelFormat::RGBA_8888, kAllowProtected, kGrayscale,
-                                      captureListener);
-    return fenceStatus(future.get());
+    captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, size,
+                        ui::PixelFormat::RGBA_8888, kAllowProtected, kGrayscale, captureListener);
 }
 
-status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
-                                       const sp<IScreenCaptureListener>& captureListener) {
+void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
+                                   const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
     status_t validate = validateScreenshotPermissions(args);
     if (validate != OK) {
-        return validate;
+        invokeScreenCaptureError(validate, captureListener);
+        return;
     }
 
     ui::Size reqSize;
@@ -7447,13 +7461,15 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         parent = LayerHandle::getLayer(args.layerHandle);
         if (parent == nullptr) {
             ALOGE("captureLayers called with an invalid or removed parent");
-            return NAME_NOT_FOUND;
+            invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
+            return;
         }
 
         if (!canCaptureBlackoutContent &&
             parent->getDrawingState().flags & layer_state_t::eLayerSecure) {
             ALOGW("Attempting to capture secure layer: PERMISSION_DENIED");
-            return PERMISSION_DENIED;
+            invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
+            return;
         }
 
         Rect parentSourceBounds = parent->getCroppedBufferSize(parent->getDrawingState());
@@ -7470,7 +7486,8 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         if (crop.isEmpty() || args.frameScaleX <= 0.0f || args.frameScaleY <= 0.0f) {
             // Error out if the layer has no source bounds (i.e. they are boundless) and a source
             // crop was not specified, or an invalid frame scale was provided.
-            return BAD_VALUE;
+            invokeScreenCaptureError(BAD_VALUE, captureListener);
+            return;
         }
         reqSize = ui::Size(crop.width() * args.frameScaleX, crop.height() * args.frameScaleY);
 
@@ -7480,7 +7497,8 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                 excludeLayerIds.emplace(excludeLayer);
             } else {
                 ALOGW("Invalid layer handle passed as excludeLayer to captureLayers");
-                return NAME_NOT_FOUND;
+                invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
+                return;
             }
         }
     } // mStateLock
@@ -7488,7 +7506,8 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     // really small crop or frameScale
     if (reqSize.width <= 0 || reqSize.height <= 0) {
         ALOGW("Failed to captureLayes: crop or scale too small");
-        return BAD_VALUE;
+        invokeScreenCaptureError(BAD_VALUE, captureListener);
+        return;
     }
 
     bool childrenOnly = args.childrenOnly;
@@ -7552,26 +7571,27 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
     if (captureListener == nullptr) {
         ALOGE("capture screen must provide a capture listener callback");
-        return BAD_VALUE;
+        invokeScreenCaptureError(BAD_VALUE, captureListener);
+        return;
     }
 
-    auto future = captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, reqSize,
-                                      args.pixelFormat, args.allowProtected, args.grayscale,
-                                      captureListener);
-    return fenceStatus(future.get());
+    captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, reqSize, args.pixelFormat,
+                        args.allowProtected, args.grayscale, captureListener);
 }
 
-ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
-        RenderAreaFuture renderAreaFuture, GetLayerSnapshotsFunction getLayerSnapshots,
-        ui::Size bufferSize, ui::PixelFormat reqPixelFormat, bool allowProtected, bool grayscale,
-        const sp<IScreenCaptureListener>& captureListener) {
+void SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
+                                         GetLayerSnapshotsFunction getLayerSnapshots,
+                                         ui::Size bufferSize, ui::PixelFormat reqPixelFormat,
+                                         bool allowProtected, bool grayscale,
+                                         const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
     if (exceedsMaxRenderTargetSize(bufferSize.getWidth(), bufferSize.getHeight())) {
         ALOGE("Attempted to capture screen with size (%" PRId32 ", %" PRId32
               ") that exceeds render target size limit.",
               bufferSize.getWidth(), bufferSize.getHeight());
-        return ftl::yield<FenceResult>(base::unexpected(BAD_VALUE)).share();
+        invokeScreenCaptureError(BAD_VALUE, captureListener);
+        return;
     }
 
     // Loop over all visible layers to see whether there's any protected layer. A protected layer is
@@ -7611,14 +7631,16 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
         // Otherwise an irreponsible process may cause an SF crash by allocating
         // too much.
         ALOGE("%s: Buffer failed to allocate: %d", __func__, bufferStatus);
-        return ftl::yield<FenceResult>(base::unexpected(bufferStatus)).share();
+        invokeScreenCaptureError(bufferStatus, captureListener);
+        return;
     }
     const std::shared_ptr<renderengine::ExternalTexture> texture = std::make_shared<
             renderengine::impl::ExternalTexture>(buffer, getRenderEngine(),
                                                  renderengine::impl::ExternalTexture::Usage::
                                                          WRITEABLE);
-    return captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, texture,
-                               false /* regionSampling */, grayscale, captureListener);
+    auto fence = captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, texture,
+                                     false /* regionSampling */, grayscale, captureListener);
+    fence.get();
 }
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
@@ -9055,28 +9077,28 @@ binder::Status SurfaceComposerAIDL::setGameContentType(const sp<IBinder>& displa
 
 binder::Status SurfaceComposerAIDL::captureDisplay(
         const DisplayCaptureArgs& args, const sp<IScreenCaptureListener>& captureListener) {
-    status_t status = mFlinger->captureDisplay(args, captureListener);
-    return binderStatusFromStatusT(status);
+    mFlinger->captureDisplay(args, captureListener);
+    return binderStatusFromStatusT(NO_ERROR);
 }
 
 binder::Status SurfaceComposerAIDL::captureDisplayById(
         int64_t displayId, const sp<IScreenCaptureListener>& captureListener) {
-    status_t status;
+    // status_t status;
     IPCThreadState* ipc = IPCThreadState::self();
     const int uid = ipc->getCallingUid();
     if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
         std::optional<DisplayId> id = DisplayId::fromValue(static_cast<uint64_t>(displayId));
-        status = mFlinger->captureDisplay(*id, captureListener);
+        mFlinger->captureDisplay(*id, captureListener);
     } else {
-        status = PERMISSION_DENIED;
+        invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
     }
-    return binderStatusFromStatusT(status);
+    return binderStatusFromStatusT(NO_ERROR);
 }
 
 binder::Status SurfaceComposerAIDL::captureLayers(
         const LayerCaptureArgs& args, const sp<IScreenCaptureListener>& captureListener) {
-    status_t status = mFlinger->captureLayers(args, captureListener);
-    return binderStatusFromStatusT(status);
+    mFlinger->captureLayers(args, captureListener);
+    return binderStatusFromStatusT(NO_ERROR);
 }
 
 binder::Status SurfaceComposerAIDL::overrideHdrTypes(const sp<IBinder>& display,
