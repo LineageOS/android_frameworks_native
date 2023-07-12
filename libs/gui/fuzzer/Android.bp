@@ -90,6 +90,7 @@ cc_fuzz {
     ],
     defaults: [
         "libgui_fuzzer_defaults",
+        "service_fuzzer_defaults",
     ],
 }
 
@@ -100,6 +101,7 @@ cc_fuzz {
     ],
     defaults: [
         "libgui_fuzzer_defaults",
+        "service_fuzzer_defaults",
     ],
 }
 
