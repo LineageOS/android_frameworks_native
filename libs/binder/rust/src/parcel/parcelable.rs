@@ -102,8 +102,8 @@ pub trait Deserialize: Sized {
 pub trait SerializeArray: Serialize + Sized {
     /// Serialize an array of this type into the given parcel.
     fn serialize_array(slice: &[Self], parcel: &mut BorrowedParcel<'_>) -> Result<()> {
+        // Safety: Safe FFI, slice will always be a safe pointer to pass.
         let res = unsafe {
-            // Safety: Safe FFI, slice will always be a safe pointer to pass.
             sys::AParcel_writeParcelableArray(
                 parcel.as_native_mut(),
                 slice.as_ptr() as *const c_void,
@@ -117,7 +117,9 @@ pub trait SerializeArray: Serialize + Sized {
 
 /// Callback to serialize an element of a generic parcelable array.
 ///
-/// Safety: We are relying on binder_ndk to not overrun our slice. As long as it
+/// # Safety
+///
+/// We are relying on binder_ndk to not overrun our slice. As long as it
 /// doesn't provide an index larger than the length of the original slice in
 /// serialize_array, this operation is safe. The index provided is zero-based.
 unsafe extern "C" fn serialize_element<T: Serialize>(
@@ -125,9 +127,14 @@ unsafe extern "C" fn serialize_element<T: Serialize>(
     array: *const c_void,
     index: usize,
 ) -> status_t {
-    let slice: &[T] = slice::from_raw_parts(array.cast(), index + 1);
+    // Safety: The caller guarantees that `array` is a valid pointer of the
+    // appropriate type.
+    let slice: &[T] = unsafe { slice::from_raw_parts(array.cast(), index + 1) };
 
-    let mut parcel = match BorrowedParcel::from_raw(parcel) {
+    // Safety: The caller must give us a parcel pointer which is either null or
+    // valid at least for the duration of this function call. We don't keep the
+    // resulting value beyond the function.
+    let mut parcel = match unsafe { BorrowedParcel::from_raw(parcel) } {
         None => return StatusCode::UNEXPECTED_NULL as status_t,
         Some(p) => p,
     };
@@ -142,9 +149,9 @@ pub trait DeserializeArray: Deserialize {
     /// Deserialize an array of type from the given parcel.
     fn deserialize_array(parcel: &BorrowedParcel<'_>) -> Result<Option<Vec<Self>>> {
         let mut vec: Option<Vec<Self::UninitType>> = None;
+        // Safety: Safe FFI, vec is the correct opaque type expected by
+        // allocate_vec and deserialize_element.
         let res = unsafe {
-            // Safety: Safe FFI, vec is the correct opaque type expected by
-            // allocate_vec and deserialize_element.
             sys::AParcel_readParcelableArray(
                 parcel.as_native(),
                 &mut vec as *mut _ as *mut c_void,
@@ -153,20 +160,20 @@ pub trait DeserializeArray: Deserialize {
             )
         };
         status_result(res)?;
-        let vec: Option<Vec<Self>> = unsafe {
-            // Safety: We are assuming that the NDK correctly initialized every
-            // element of the vector by now, so we know that all the
-            // UninitTypes are now properly initialized. We can transmute from
-            // Vec<T::UninitType> to Vec<T> because T::UninitType has the same
-            // alignment and size as T, so the pointer to the vector allocation
-            // will be compatible.
-            mem::transmute(vec)
-        };
+        // Safety: We are assuming that the NDK correctly initialized every
+        // element of the vector by now, so we know that all the
+        // UninitTypes are now properly initialized. We can transmute from
+        // Vec<T::UninitType> to Vec<T> because T::UninitType has the same
+        // alignment and size as T, so the pointer to the vector allocation
+        // will be compatible.
+        let vec: Option<Vec<Self>> = unsafe { mem::transmute(vec) };
         Ok(vec)
     }
 }
 
 /// Callback to deserialize a parcelable element.
+///
+/// # Safety
 ///
 /// The opaque array data pointer must be a mutable pointer to an
 /// `Option<Vec<T::UninitType>>` with at least enough elements for `index` to be valid
@@ -176,13 +183,18 @@ unsafe extern "C" fn deserialize_element<T: Deserialize>(
     array: *mut c_void,
     index: usize,
 ) -> status_t {
-    let vec = &mut *(array as *mut Option<Vec<T::UninitType>>);
+    // Safety: The caller guarantees that `array` is a valid pointer of the
+    // appropriate type.
+    let vec = unsafe { &mut *(array as *mut Option<Vec<T::UninitType>>) };
     let vec = match vec {
         Some(v) => v,
         None => return StatusCode::BAD_INDEX as status_t,
     };
 
-    let parcel = match BorrowedParcel::from_raw(parcel as *mut _) {
+    // Safety: The caller must give us a parcel pointer which is either null or
+    // valid at least for the duration of this function call. We don't keep the
+    // resulting value beyond the function.
+    let parcel = match unsafe { BorrowedParcel::from_raw(parcel as *mut _) } {
         None => return StatusCode::UNEXPECTED_NULL as status_t,
         Some(p) => p,
     };
@@ -254,16 +266,21 @@ pub trait DeserializeOption: Deserialize {
 ///
 /// The opaque data pointer passed to the array read function must be a mutable
 /// pointer to an `Option<Vec<T::UninitType>>`. `buffer` will be assigned a mutable pointer
-/// to the allocated vector data if this function returns true.
+/// to the allocated vector data if this function returns true. `buffer` must be a valid pointer.
 unsafe extern "C" fn allocate_vec_with_buffer<T: Deserialize>(
     data: *mut c_void,
     len: i32,
     buffer: *mut *mut T,
 ) -> bool {
-    let res = allocate_vec::<T>(data, len);
-    let vec = &mut *(data as *mut Option<Vec<T::UninitType>>);
+    // Safety: We have the same safety requirements as `allocate_vec` for `data`.
+    let res = unsafe { allocate_vec::<T>(data, len) };
+    // Safety: The caller guarantees that `data` is a valid mutable pointer to the appropriate type.
+    let vec = unsafe { &mut *(data as *mut Option<Vec<T::UninitType>>) };
     if let Some(new_vec) = vec {
-        *buffer = new_vec.as_mut_ptr() as *mut T;
+        // Safety: The caller guarantees that `buffer` is a valid pointer.
+        unsafe {
+            *buffer = new_vec.as_mut_ptr() as *mut T;
+        }
     }
     res
 }
@@ -275,7 +292,8 @@ unsafe extern "C" fn allocate_vec_with_buffer<T: Deserialize>(
 /// The opaque data pointer passed to the array read function must be a mutable
 /// pointer to an `Option<Vec<T::UninitType>>`.
 unsafe extern "C" fn allocate_vec<T: Deserialize>(data: *mut c_void, len: i32) -> bool {
-    let vec = &mut *(data as *mut Option<Vec<T::UninitType>>);
+    // Safety: The caller guarantees that `data` is a valid mutable pointer to the appropriate type.
+    let vec = unsafe { &mut *(data as *mut Option<Vec<T::UninitType>>) };
     if len < 0 {
         *vec = None;
         return true;
@@ -286,7 +304,10 @@ unsafe extern "C" fn allocate_vec<T: Deserialize>(data: *mut c_void, len: i32) -
     let mut new_vec: Vec<T::UninitType> = Vec::with_capacity(len as usize);
     new_vec.resize_with(len as usize, T::uninit);
 
-    ptr::write(vec, Some(new_vec));
+    // Safety: The caller guarantees that vec is a valid mutable pointer to the appropriate type.
+    unsafe {
+        ptr::write(vec, Some(new_vec));
+    }
     true
 }
 
@@ -305,21 +326,21 @@ unsafe fn vec_assume_init<T: Deserialize>(vec: Vec<T::UninitType>) -> Vec<T> {
     // Assert at compile time that `T` and `T::UninitType` have the same size and alignment.
     let _ = T::ASSERT_UNINIT_SIZE_AND_ALIGNMENT;
 
-    // We can convert from Vec<T::UninitType> to Vec<T> because T::UninitType
-    // has the same alignment and size as T, so the pointer to the vector
-    // allocation will be compatible.
     let mut vec = ManuallyDrop::new(vec);
-    Vec::from_raw_parts(vec.as_mut_ptr().cast(), vec.len(), vec.capacity())
+    // Safety: We can convert from Vec<T::UninitType> to Vec<T> because
+    // T::UninitType has the same alignment and size as T, so the pointer to the
+    // vector allocation will be compatible.
+    unsafe { Vec::from_raw_parts(vec.as_mut_ptr().cast(), vec.len(), vec.capacity()) }
 }
 
 macro_rules! impl_parcelable {
     {Serialize, $ty:ty, $write_fn:path} => {
         impl Serialize for $ty {
             fn serialize(&self, parcel: &mut BorrowedParcel<'_>) -> Result<()> {
+                // Safety: `Parcel` always contains a valid pointer to an
+                // `AParcel`, and any `$ty` literal value is safe to pass to
+                // `$write_fn`.
                 unsafe {
-                    // Safety: `Parcel` always contains a valid pointer to an
-                    // `AParcel`, and any `$ty` literal value is safe to pass to
-                    // `$write_fn`.
                     status_result($write_fn(parcel.as_native_mut(), *self))
                 }
             }
@@ -333,11 +354,11 @@ macro_rules! impl_parcelable {
             fn from_init(value: Self) -> Self::UninitType { value }
             fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
                 let mut val = Self::default();
+                // Safety: `Parcel` always contains a valid pointer to an
+                // `AParcel`. We pass a valid, mutable pointer to `val`, a
+                // literal of type `$ty`, and `$read_fn` will write the
+                // value read into `val` if successful
                 unsafe {
-                    // Safety: `Parcel` always contains a valid pointer to an
-                    // `AParcel`. We pass a valid, mutable pointer to `val`, a
-                    // literal of type `$ty`, and `$read_fn` will write the
-                    // value read into `val` if successful
                     status_result($read_fn(parcel.as_native(), &mut val))?
                 };
                 Ok(val)
@@ -348,13 +369,13 @@ macro_rules! impl_parcelable {
     {SerializeArray, $ty:ty, $write_array_fn:path} => {
         impl SerializeArray for $ty {
             fn serialize_array(slice: &[Self], parcel: &mut BorrowedParcel<'_>) -> Result<()> {
+                // Safety: `Parcel` always contains a valid pointer to an
+                // `AParcel`. If the slice is > 0 length, `slice.as_ptr()`
+                // will be a valid pointer to an array of elements of type
+                // `$ty`. If the slice length is 0, `slice.as_ptr()` may be
+                // dangling, but this is safe since the pointer is not
+                // dereferenced if the length parameter is 0.
                 let status = unsafe {
-                    // Safety: `Parcel` always contains a valid pointer to an
-                    // `AParcel`. If the slice is > 0 length, `slice.as_ptr()`
-                    // will be a valid pointer to an array of elements of type
-                    // `$ty`. If the slice length is 0, `slice.as_ptr()` may be
-                    // dangling, but this is safe since the pointer is not
-                    // dereferenced if the length parameter is 0.
                     $write_array_fn(
                         parcel.as_native_mut(),
                         slice.as_ptr(),
@@ -373,11 +394,11 @@ macro_rules! impl_parcelable {
         impl DeserializeArray for $ty {
             fn deserialize_array(parcel: &BorrowedParcel<'_>) -> Result<Option<Vec<Self>>> {
                 let mut vec: Option<Vec<Self::UninitType>> = None;
+                // Safety: `Parcel` always contains a valid pointer to an
+                // `AParcel`. `allocate_vec<T>` expects the opaque pointer to
+                // be of type `*mut Option<Vec<T::UninitType>>`, so `&mut vec` is
+                // correct for it.
                 let status = unsafe {
-                    // Safety: `Parcel` always contains a valid pointer to an
-                    // `AParcel`. `allocate_vec<T>` expects the opaque pointer to
-                    // be of type `*mut Option<Vec<T::UninitType>>`, so `&mut vec` is
-                    // correct for it.
                     $read_array_fn(
                         parcel.as_native(),
                         &mut vec as *mut _ as *mut c_void,
@@ -385,11 +406,11 @@ macro_rules! impl_parcelable {
                     )
                 };
                 status_result(status)?;
+                // Safety: We are assuming that the NDK correctly
+                // initialized every element of the vector by now, so we
+                // know that all the UninitTypes are now properly
+                // initialized.
                 let vec: Option<Vec<Self>> = unsafe {
-                    // Safety: We are assuming that the NDK correctly
-                    // initialized every element of the vector by now, so we
-                    // know that all the UninitTypes are now properly
-                    // initialized.
                     vec.map(|vec| vec_assume_init(vec))
                 };
                 Ok(vec)
@@ -479,13 +500,13 @@ impl Deserialize for u8 {
 
 impl SerializeArray for u8 {
     fn serialize_array(slice: &[Self], parcel: &mut BorrowedParcel<'_>) -> Result<()> {
+        // Safety: `Parcel` always contains a valid pointer to an
+        // `AParcel`. If the slice is > 0 length, `slice.as_ptr()` will be a
+        // valid pointer to an array of elements of type `$ty`. If the slice
+        // length is 0, `slice.as_ptr()` may be dangling, but this is safe
+        // since the pointer is not dereferenced if the length parameter is
+        // 0.
         let status = unsafe {
-            // Safety: `Parcel` always contains a valid pointer to an
-            // `AParcel`. If the slice is > 0 length, `slice.as_ptr()` will be a
-            // valid pointer to an array of elements of type `$ty`. If the slice
-            // length is 0, `slice.as_ptr()` may be dangling, but this is safe
-            // since the pointer is not dereferenced if the length parameter is
-            // 0.
             sys::AParcel_writeByteArray(
                 parcel.as_native_mut(),
                 slice.as_ptr() as *const i8,
@@ -518,13 +539,13 @@ impl Deserialize for i16 {
 
 impl SerializeArray for i16 {
     fn serialize_array(slice: &[Self], parcel: &mut BorrowedParcel<'_>) -> Result<()> {
+        // Safety: `Parcel` always contains a valid pointer to an
+        // `AParcel`. If the slice is > 0 length, `slice.as_ptr()` will be a
+        // valid pointer to an array of elements of type `$ty`. If the slice
+        // length is 0, `slice.as_ptr()` may be dangling, but this is safe
+        // since the pointer is not dereferenced if the length parameter is
+        // 0.
         let status = unsafe {
-            // Safety: `Parcel` always contains a valid pointer to an
-            // `AParcel`. If the slice is > 0 length, `slice.as_ptr()` will be a
-            // valid pointer to an array of elements of type `$ty`. If the slice
-            // length is 0, `slice.as_ptr()` may be dangling, but this is safe
-            // since the pointer is not dereferenced if the length parameter is
-            // 0.
             sys::AParcel_writeCharArray(
                 parcel.as_native_mut(),
                 slice.as_ptr() as *const u16,
@@ -538,22 +559,22 @@ impl SerializeArray for i16 {
 impl SerializeOption for str {
     fn serialize_option(this: Option<&Self>, parcel: &mut BorrowedParcel<'_>) -> Result<()> {
         match this {
+            // Safety: `Parcel` always contains a valid pointer to an
+            // `AParcel`. If the string pointer is null,
+            // `AParcel_writeString` requires that the length is -1 to
+            // indicate that we want to serialize a null string.
             None => unsafe {
-                // Safety: `Parcel` always contains a valid pointer to an
-                // `AParcel`. If the string pointer is null,
-                // `AParcel_writeString` requires that the length is -1 to
-                // indicate that we want to serialize a null string.
                 status_result(sys::AParcel_writeString(parcel.as_native_mut(), ptr::null(), -1))
             },
+            // Safety: `Parcel` always contains a valid pointer to an
+            // `AParcel`. `AParcel_writeString` assumes that we pass a utf-8
+            // string pointer of `length` bytes, which is what str in Rust
+            // is. The docstring for `AParcel_writeString` says that the
+            // string input should be null-terminated, but it doesn't
+            // actually rely on that fact in the code. If this ever becomes
+            // necessary, we will need to null-terminate the str buffer
+            // before sending it.
             Some(s) => unsafe {
-                // Safety: `Parcel` always contains a valid pointer to an
-                // `AParcel`. `AParcel_writeString` assumes that we pass a utf-8
-                // string pointer of `length` bytes, which is what str in Rust
-                // is. The docstring for `AParcel_writeString` says that the
-                // string input should be null-terminated, but it doesn't
-                // actually rely on that fact in the code. If this ever becomes
-                // necessary, we will need to null-terminate the str buffer
-                // before sending it.
                 status_result(sys::AParcel_writeString(
                     parcel.as_native_mut(),
                     s.as_ptr() as *const c_char,
@@ -597,11 +618,11 @@ impl Deserialize for Option<String> {
 
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         let mut vec: Option<Vec<u8>> = None;
+        // Safety: `Parcel` always contains a valid pointer to an `AParcel`.
+        // `Option<Vec<u8>>` is equivalent to the expected `Option<Vec<i8>>`
+        // for `allocate_vec`, so `vec` is safe to pass as the opaque data
+        // pointer on platforms where char is signed.
         let status = unsafe {
-            // Safety: `Parcel` always contains a valid pointer to an `AParcel`.
-            // `Option<Vec<u8>>` is equivalent to the expected `Option<Vec<i8>>`
-            // for `allocate_vec`, so `vec` is safe to pass as the opaque data
-            // pointer on platforms where char is signed.
             sys::AParcel_readString(
                 parcel.as_native(),
                 &mut vec as *mut _ as *mut c_void,
@@ -751,11 +772,11 @@ impl Deserialize for Stability {
 
 impl Serialize for Status {
     fn serialize(&self, parcel: &mut BorrowedParcel<'_>) -> Result<()> {
+        // Safety: `Parcel` always contains a valid pointer to an `AParcel`
+        // and `Status` always contains a valid pointer to an `AStatus`, so
+        // both parameters are valid and safe. This call does not take
+        // ownership of either of its parameters.
         unsafe {
-            // Safety: `Parcel` always contains a valid pointer to an `AParcel`
-            // and `Status` always contains a valid pointer to an `AStatus`, so
-            // both parameters are valid and safe. This call does not take
-            // ownership of either of its parameters.
             status_result(sys::AParcel_writeStatusHeader(parcel.as_native_mut(), self.as_native()))
         }
     }
@@ -772,21 +793,18 @@ impl Deserialize for Status {
 
     fn deserialize(parcel: &BorrowedParcel<'_>) -> Result<Self> {
         let mut status_ptr = ptr::null_mut();
-        let ret_status = unsafe {
-            // Safety: `Parcel` always contains a valid pointer to an
-            // `AParcel`. We pass a mutable out pointer which will be
-            // assigned a valid `AStatus` pointer if the function returns
-            // status OK. This function passes ownership of the status
-            // pointer to the caller, if it was assigned.
-            sys::AParcel_readStatusHeader(parcel.as_native(), &mut status_ptr)
-        };
+        let ret_status =
+        // Safety: `Parcel` always contains a valid pointer to an
+        // `AParcel`. We pass a mutable out pointer which will be
+        // assigned a valid `AStatus` pointer if the function returns
+        // status OK. This function passes ownership of the status
+        // pointer to the caller, if it was assigned.
+            unsafe { sys::AParcel_readStatusHeader(parcel.as_native(), &mut status_ptr) };
         status_result(ret_status)?;
-        Ok(unsafe {
-            // Safety: At this point, the return status of the read call was ok,
-            // so we know that `status_ptr` is a valid, owned pointer to an
-            // `AStatus`, from which we can safely construct a `Status` object.
-            Status::from_ptr(status_ptr)
-        })
+        // Safety: At this point, the return status of the read call was ok,
+        // so we know that `status_ptr` is a valid, owned pointer to an
+        // `AStatus`, from which we can safely construct a `Status` object.
+        Ok(unsafe { Status::from_ptr(status_ptr) })
     }
 }
 
