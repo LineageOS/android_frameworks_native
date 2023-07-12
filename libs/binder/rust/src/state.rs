@@ -35,8 +35,8 @@ impl ProcessState {
     /// not work: the callbacks will be queued but never called as there is no
     /// thread to call them on.
     pub fn start_thread_pool() {
+        // Safety: Safe FFI
         unsafe {
-            // Safety: Safe FFI
             sys::ABinderProcess_startThreadPool();
         }
     }
@@ -48,8 +48,8 @@ impl ProcessState {
     /// called, this is 15. If it is called additional times, the thread pool
     /// size can only be increased.
     pub fn set_thread_pool_max_thread_count(num_threads: u32) {
+        // Safety: Safe FFI
         unsafe {
-            // Safety: Safe FFI
             sys::ABinderProcess_setThreadPoolMaxThreadCount(num_threads);
         }
     }
@@ -62,8 +62,8 @@ impl ProcessState {
     /// [`set_thread_pool_max_thread_count`](Self::set_thread_pool_max_thread_count)
     /// and [`start_thread_pool`](Self::start_thread_pool).
     pub fn join_thread_pool() {
+        // Safety: Safe FFI
         unsafe {
-            // Safety: Safe FFI
             sys::ABinderProcess_joinThreadPool();
         }
     }
@@ -86,10 +86,8 @@ impl ThreadState {
     /// \return calling uid or the current process's UID if this thread isn't
     /// processing a transaction.
     pub fn get_calling_uid() -> uid_t {
-        unsafe {
-            // Safety: Safe FFI
-            sys::AIBinder_getCallingUid()
-        }
+        // Safety: Safe FFI
+        unsafe { sys::AIBinder_getCallingUid() }
     }
 
     /// This returns the calling PID assuming that this thread is called from a
@@ -111,10 +109,8 @@ impl ThreadState {
     /// If the transaction being processed is a oneway transaction, then this
     /// method will return 0.
     pub fn get_calling_pid() -> pid_t {
-        unsafe {
-            // Safety: Safe FFI
-            sys::AIBinder_getCallingPid()
-        }
+        // Safety: Safe FFI
+        unsafe { sys::AIBinder_getCallingPid() }
     }
 
     /// Determine whether the current thread is currently executing an incoming transaction.
@@ -122,10 +118,8 @@ impl ThreadState {
     /// \return true if the current thread is currently executing an incoming transaction, and false
     /// otherwise.
     pub fn is_handling_transaction() -> bool {
-        unsafe {
-            // Safety: Safe FFI
-            sys::AIBinder_isHandlingTransaction()
-        }
+        // Safety: Safe FFI
+        unsafe { sys::AIBinder_isHandlingTransaction() }
     }
 
     /// This function makes the client's security context available to the
