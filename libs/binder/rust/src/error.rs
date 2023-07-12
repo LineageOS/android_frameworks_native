@@ -112,41 +112,35 @@ fn to_cstring<T: AsRef<str>>(message: T) -> Option<CString> {
 impl Status {
     /// Create a status object representing a successful transaction.
     pub fn ok() -> Self {
-        let ptr = unsafe {
-            // Safety: `AStatus_newOk` always returns a new, heap allocated
-            // pointer to an `ASTatus` object, so we know this pointer will be
-            // valid.
-            //
-            // Rust takes ownership of the returned pointer.
-            sys::AStatus_newOk()
-        };
+        // Safety: `AStatus_newOk` always returns a new, heap allocated
+        // pointer to an `ASTatus` object, so we know this pointer will be
+        // valid.
+        //
+        // Rust takes ownership of the returned pointer.
+        let ptr = unsafe { sys::AStatus_newOk() };
         Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
     }
 
     /// Create a status object from a service specific error
     pub fn new_service_specific_error(err: i32, message: Option<&CStr>) -> Status {
         let ptr = if let Some(message) = message {
-            unsafe {
-                // Safety: Any i32 is a valid service specific error for the
-                // error code parameter. We construct a valid, null-terminated
-                // `CString` from the message, which must be a valid C-style
-                // string to pass as the message. This function always returns a
-                // new, heap allocated pointer to an `AStatus` object, so we
-                // know the returned pointer will be valid.
-                //
-                // Rust takes ownership of the returned pointer.
-                sys::AStatus_fromServiceSpecificErrorWithMessage(err, message.as_ptr())
-            }
+            // Safety: Any i32 is a valid service specific error for the
+            // error code parameter. We construct a valid, null-terminated
+            // `CString` from the message, which must be a valid C-style
+            // string to pass as the message. This function always returns a
+            // new, heap allocated pointer to an `AStatus` object, so we
+            // know the returned pointer will be valid.
+            //
+            // Rust takes ownership of the returned pointer.
+            unsafe { sys::AStatus_fromServiceSpecificErrorWithMessage(err, message.as_ptr()) }
         } else {
-            unsafe {
-                // Safety: Any i32 is a valid service specific error for the
-                // error code parameter. This function always returns a new,
-                // heap allocated pointer to an `AStatus` object, so we know the
-                // returned pointer will be valid.
-                //
-                // Rust takes ownership of the returned pointer.
-                sys::AStatus_fromServiceSpecificError(err)
-            }
+            // Safety: Any i32 is a valid service specific error for the
+            // error code parameter. This function always returns a new,
+            // heap allocated pointer to an `AStatus` object, so we know the
+            // returned pointer will be valid.
+            //
+            // Rust takes ownership of the returned pointer.
+            unsafe { sys::AStatus_fromServiceSpecificError(err) }
         };
         Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
     }
@@ -159,6 +153,8 @@ impl Status {
     /// Create a status object from an exception code
     pub fn new_exception(exception: ExceptionCode, message: Option<&CStr>) -> Status {
         if let Some(message) = message {
+            // Safety: the C string pointer is valid and not retained by the
+            // function.
             let ptr = unsafe {
                 sys::AStatus_fromExceptionCodeWithMessage(exception as i32, message.as_ptr())
             };
@@ -187,37 +183,31 @@ impl Status {
 
     /// Returns `true` if this status represents a successful transaction.
     pub fn is_ok(&self) -> bool {
-        unsafe {
-            // Safety: `Status` always contains a valid `AStatus` pointer, so we
-            // are always passing a valid pointer to `AStatus_isOk` here.
-            sys::AStatus_isOk(self.as_native())
-        }
+        // Safety: `Status` always contains a valid `AStatus` pointer, so we
+        // are always passing a valid pointer to `AStatus_isOk` here.
+        unsafe { sys::AStatus_isOk(self.as_native()) }
     }
 
     /// Returns a description of the status.
     pub fn get_description(&self) -> String {
-        let description_ptr = unsafe {
-            // Safety: `Status` always contains a valid `AStatus` pointer, so we
-            // are always passing a valid pointer to `AStatus_getDescription`
-            // here.
-            //
-            // `AStatus_getDescription` always returns a valid pointer to a null
-            // terminated C string. Rust is responsible for freeing this pointer
-            // via `AStatus_deleteDescription`.
-            sys::AStatus_getDescription(self.as_native())
-        };
-        let description = unsafe {
-            // Safety: `AStatus_getDescription` always returns a valid C string,
-            // which can be safely converted to a `CStr`.
-            CStr::from_ptr(description_ptr)
-        };
+        // Safety: `Status` always contains a valid `AStatus` pointer, so we
+        // are always passing a valid pointer to `AStatus_getDescription`
+        // here.
+        //
+        // `AStatus_getDescription` always returns a valid pointer to a null
+        // terminated C string. Rust is responsible for freeing this pointer
+        // via `AStatus_deleteDescription`.
+        let description_ptr = unsafe { sys::AStatus_getDescription(self.as_native()) };
+        // Safety: `AStatus_getDescription` always returns a valid C string,
+        // which can be safely converted to a `CStr`.
+        let description = unsafe { CStr::from_ptr(description_ptr) };
         let description = description.to_string_lossy().to_string();
+        // Safety: `description_ptr` was returned from
+        // `AStatus_getDescription` above, and must be freed via
+        // `AStatus_deleteDescription`. We must not access the pointer after
+        // this call, so we copy it into an owned string above and return
+        // that string.
         unsafe {
-            // Safety: `description_ptr` was returned from
-            // `AStatus_getDescription` above, and must be freed via
-            // `AStatus_deleteDescription`. We must not access the pointer after
-            // this call, so we copy it into an owned string above and return
-            // that string.
             sys::AStatus_deleteDescription(description_ptr);
         }
         description
@@ -225,12 +215,10 @@ impl Status {
 
     /// Returns the exception code of the status.
     pub fn exception_code(&self) -> ExceptionCode {
-        let code = unsafe {
-            // Safety: `Status` always contains a valid `AStatus` pointer, so we
-            // are always passing a valid pointer to `AStatus_getExceptionCode`
-            // here.
-            sys::AStatus_getExceptionCode(self.as_native())
-        };
+        // Safety: `Status` always contains a valid `AStatus` pointer, so we
+        // are always passing a valid pointer to `AStatus_getExceptionCode`
+        // here.
+        let code = unsafe { sys::AStatus_getExceptionCode(self.as_native()) };
         parse_exception_code(code)
     }
 
@@ -241,11 +229,9 @@ impl Status {
     /// exception or a service specific error. To find out if this transaction
     /// as a whole is okay, use [`is_ok`](Self::is_ok) instead.
     pub fn transaction_error(&self) -> StatusCode {
-        let code = unsafe {
-            // Safety: `Status` always contains a valid `AStatus` pointer, so we
-            // are always passing a valid pointer to `AStatus_getStatus` here.
-            sys::AStatus_getStatus(self.as_native())
-        };
+        // Safety: `Status` always contains a valid `AStatus` pointer, so we
+        // are always passing a valid pointer to `AStatus_getStatus` here.
+        let code = unsafe { sys::AStatus_getStatus(self.as_native()) };
         parse_status_code(code)
     }
 
@@ -258,12 +244,10 @@ impl Status {
     /// find out if this transaction as a whole is okay, use
     /// [`is_ok`](Self::is_ok) instead.
     pub fn service_specific_error(&self) -> i32 {
-        unsafe {
-            // Safety: `Status` always contains a valid `AStatus` pointer, so we
-            // are always passing a valid pointer to
-            // `AStatus_getServiceSpecificError` here.
-            sys::AStatus_getServiceSpecificError(self.as_native())
-        }
+        // Safety: `Status` always contains a valid `AStatus` pointer, so we
+        // are always passing a valid pointer to
+        // `AStatus_getServiceSpecificError` here.
+        unsafe { sys::AStatus_getServiceSpecificError(self.as_native()) }
     }
 
     /// Calls `op` if the status was ok, otherwise returns an `Err` value of
@@ -321,24 +305,20 @@ impl From<StatusCode> for Status {
 
 impl From<status_t> for Status {
     fn from(status: status_t) -> Status {
-        let ptr = unsafe {
-            // Safety: `AStatus_fromStatus` expects any `status_t` integer, so
-            // this is a safe FFI call. Unknown values will be coerced into
-            // UNKNOWN_ERROR.
-            sys::AStatus_fromStatus(status)
-        };
+        // Safety: `AStatus_fromStatus` expects any `status_t` integer, so
+        // this is a safe FFI call. Unknown values will be coerced into
+        // UNKNOWN_ERROR.
+        let ptr = unsafe { sys::AStatus_fromStatus(status) };
         Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
     }
 }
 
 impl From<ExceptionCode> for Status {
     fn from(code: ExceptionCode) -> Status {
-        let ptr = unsafe {
-            // Safety: `AStatus_fromExceptionCode` expects any
-            // `binder_exception_t` (i32) integer, so this is a safe FFI call.
-            // Unknown values will be coerced into EX_TRANSACTION_FAILED.
-            sys::AStatus_fromExceptionCode(code as i32)
-        };
+        // Safety: `AStatus_fromExceptionCode` expects any
+        // `binder_exception_t` (i32) integer, so this is a safe FFI call.
+        // Unknown values will be coerced into EX_TRANSACTION_FAILED.
+        let ptr = unsafe { sys::AStatus_fromExceptionCode(code as i32) };
         Self(ptr::NonNull::new(ptr).expect("Unexpected null AStatus pointer"))
     }
 }
@@ -363,20 +343,18 @@ impl From<Status> for status_t {
 
 impl Drop for Status {
     fn drop(&mut self) {
+        // Safety: `Status` manages the lifetime of its inner `AStatus`
+        // pointee, so we need to delete it here. We know that the pointer
+        // will be valid here since `Status` always contains a valid pointer
+        // while it is alive.
         unsafe {
-            // Safety: `Status` manages the lifetime of its inner `AStatus`
-            // pointee, so we need to delete it here. We know that the pointer
-            // will be valid here since `Status` always contains a valid pointer
-            // while it is alive.
             sys::AStatus_delete(self.0.as_mut());
         }
     }
 }
 
-/// # Safety
-///
-/// `Status` always contains a valid pointer to an `AStatus` object, so we can
-/// trivially convert it to a correctly-typed raw pointer.
+/// Safety: `Status` always contains a valid pointer to an `AStatus` object, so
+/// we can trivially convert it to a correctly-typed raw pointer.
 ///
 /// Care must be taken that the returned pointer is only dereferenced while the
 /// `Status` object is still alive.
@@ -386,11 +364,9 @@ unsafe impl AsNative<sys::AStatus> for Status {
     }
 
     fn as_native_mut(&mut self) -> *mut sys::AStatus {
-        unsafe {
-            // Safety: The pointer will be valid here since `Status` always
-            // contains a valid and initialized pointer while it is alive.
-            self.0.as_mut()
-        }
+        // Safety: The pointer will be valid here since `Status` always contains
+        // a valid and initialized pointer while it is alive.
+        unsafe { self.0.as_mut() }
     }
 }
 

@@ -52,11 +52,8 @@ pub struct Parcel {
     ptr: NonNull<sys::AParcel>,
 }
 
-/// # Safety
-///
-/// This type guarantees that it owns the AParcel and that all access to
-/// the AParcel happens through the Parcel, so it is ok to send across
-/// threads.
+/// Safety: This type guarantees that it owns the AParcel and that all access to
+/// the AParcel happens through the Parcel, so it is ok to send across threads.
 unsafe impl Send for Parcel {}
 
 /// Container for a message (data and object references) that can be sent
@@ -73,11 +70,9 @@ pub struct BorrowedParcel<'a> {
 impl Parcel {
     /// Create a new empty `Parcel`.
     pub fn new() -> Parcel {
-        let ptr = unsafe {
-            // Safety: If `AParcel_create` succeeds, it always returns
-            // a valid pointer. If it fails, the process will crash.
-            sys::AParcel_create()
-        };
+        // Safety: If `AParcel_create` succeeds, it always returns
+        // a valid pointer. If it fails, the process will crash.
+        let ptr = unsafe { sys::AParcel_create() };
         Self { ptr: NonNull::new(ptr).expect("AParcel_create returned null pointer") }
     }
 
@@ -171,10 +166,8 @@ impl<'a> BorrowedParcel<'a> {
     }
 }
 
-/// # Safety
-///
-/// The `Parcel` constructors guarantee that a `Parcel` object will always
-/// contain a valid pointer to an `AParcel`.
+/// Safety: The `Parcel` constructors guarantee that a `Parcel` object will
+/// always contain a valid pointer to an `AParcel`.
 unsafe impl AsNative<sys::AParcel> for Parcel {
     fn as_native(&self) -> *const sys::AParcel {
         self.ptr.as_ptr()
@@ -185,10 +178,8 @@ unsafe impl AsNative<sys::AParcel> for Parcel {
     }
 }
 
-/// # Safety
-///
-/// The `BorrowedParcel` constructors guarantee that a `BorrowedParcel` object
-/// will always contain a valid pointer to an `AParcel`.
+/// Safety: The `BorrowedParcel` constructors guarantee that a `BorrowedParcel`
+/// object will always contain a valid pointer to an `AParcel`.
 unsafe impl<'a> AsNative<sys::AParcel> for BorrowedParcel<'a> {
     fn as_native(&self) -> *const sys::AParcel {
         self.ptr.as_ptr()
@@ -203,10 +194,8 @@ unsafe impl<'a> AsNative<sys::AParcel> for BorrowedParcel<'a> {
 impl<'a> BorrowedParcel<'a> {
     /// Data written to parcelable is zero'd before being deleted or reallocated.
     pub fn mark_sensitive(&mut self) {
-        unsafe {
-            // Safety: guaranteed to have a parcel object, and this method never fails
-            sys::AParcel_markSensitive(self.as_native())
-        }
+        // Safety: guaranteed to have a parcel object, and this method never fails
+        unsafe { sys::AParcel_markSensitive(self.as_native()) }
     }
 
     /// Write a type that implements [`Serialize`] to the parcel.
@@ -265,11 +254,15 @@ impl<'a> BorrowedParcel<'a> {
             f(&mut subparcel)?;
         }
         let end = self.get_data_position();
+        // Safety: start is less than the current size of the parcel data
+        // buffer, because we just got it with `get_data_position`.
         unsafe {
             self.set_data_position(start)?;
         }
         assert!(end >= start);
         self.write(&(end - start))?;
+        // Safety: end is less than the current size of the parcel data
+        // buffer, because we just got it with `get_data_position`.
         unsafe {
             self.set_data_position(end)?;
         }
@@ -278,20 +271,16 @@ impl<'a> BorrowedParcel<'a> {
 
     /// Returns the current position in the parcel data.
     pub fn get_data_position(&self) -> i32 {
-        unsafe {
-            // Safety: `BorrowedParcel` always contains a valid pointer to an
-            // `AParcel`, and this call is otherwise safe.
-            sys::AParcel_getDataPosition(self.as_native())
-        }
+        // Safety: `BorrowedParcel` always contains a valid pointer to an
+        // `AParcel`, and this call is otherwise safe.
+        unsafe { sys::AParcel_getDataPosition(self.as_native()) }
     }
 
     /// Returns the total size of the parcel.
     pub fn get_data_size(&self) -> i32 {
-        unsafe {
-            // Safety: `BorrowedParcel` always contains a valid pointer to an
-            // `AParcel`, and this call is otherwise safe.
-            sys::AParcel_getDataSize(self.as_native())
-        }
+        // Safety: `BorrowedParcel` always contains a valid pointer to an
+        // `AParcel`, and this call is otherwise safe.
+        unsafe { sys::AParcel_getDataSize(self.as_native()) }
     }
 
     /// Move the current read/write position in the parcel.
@@ -304,7 +293,9 @@ impl<'a> BorrowedParcel<'a> {
     /// accesses are bounds checked, this call is still safe, but we can't rely
     /// on that.
     pub unsafe fn set_data_position(&self, pos: i32) -> Result<()> {
-        status_result(sys::AParcel_setDataPosition(self.as_native(), pos))
+        // Safety: `BorrowedParcel` always contains a valid pointer to an
+        // `AParcel`, and the caller guarantees that `pos` is within bounds.
+        status_result(unsafe { sys::AParcel_setDataPosition(self.as_native(), pos) })
     }
 
     /// Append a subset of another parcel.
@@ -317,10 +308,10 @@ impl<'a> BorrowedParcel<'a> {
         start: i32,
         size: i32,
     ) -> Result<()> {
+        // Safety: `Parcel::appendFrom` from C++ checks that `start`
+        // and `size` are in bounds, and returns an error otherwise.
+        // Both `self` and `other` always contain valid pointers.
         let status = unsafe {
-            // Safety: `Parcel::appendFrom` from C++ checks that `start`
-            // and `size` are in bounds, and returns an error otherwise.
-            // Both `self` and `other` always contain valid pointers.
             sys::AParcel_appendFrom(other.as_native(), self.as_native_mut(), start, size)
         };
         status_result(status)
@@ -418,7 +409,9 @@ impl Parcel {
     /// accesses are bounds checked, this call is still safe, but we can't rely
     /// on that.
     pub unsafe fn set_data_position(&self, pos: i32) -> Result<()> {
-        self.borrowed_ref().set_data_position(pos)
+        // Safety: We have the same safety requirements as
+        // `BorrowedParcel::set_data_position`.
+        unsafe { self.borrowed_ref().set_data_position(pos) }
     }
 
     /// Append a subset of another parcel.
@@ -504,7 +497,10 @@ impl<'a> BorrowedParcel<'a> {
         f(subparcel)?;
 
         // Advance the data position to the actual end,
-        // in case the closure read less data than was available
+        // in case the closure read less data than was available.
+        //
+        // Safety: end must be less than the current size of the parcel, because
+        // we checked above against `get_data_size`.
         unsafe {
             self.set_data_position(end)?;
         }
@@ -649,17 +645,17 @@ impl Parcel {
 // Internal APIs
 impl<'a> BorrowedParcel<'a> {
     pub(crate) fn write_binder(&mut self, binder: Option<&SpIBinder>) -> Result<()> {
+        // Safety: `BorrowedParcel` always contains a valid pointer to an
+        // `AParcel`. `AsNative` for `Option<SpIBinder`> will either return
+        // null or a valid pointer to an `AIBinder`, both of which are
+        // valid, safe inputs to `AParcel_writeStrongBinder`.
+        //
+        // This call does not take ownership of the binder. However, it does
+        // require a mutable pointer, which we cannot extract from an
+        // immutable reference, so we clone the binder, incrementing the
+        // refcount before the call. The refcount will be immediately
+        // decremented when this temporary is dropped.
         unsafe {
-            // Safety: `BorrowedParcel` always contains a valid pointer to an
-            // `AParcel`. `AsNative` for `Option<SpIBinder`> will either return
-            // null or a valid pointer to an `AIBinder`, both of which are
-            // valid, safe inputs to `AParcel_writeStrongBinder`.
-            //
-            // This call does not take ownership of the binder. However, it does
-            // require a mutable pointer, which we cannot extract from an
-            // immutable reference, so we clone the binder, incrementing the
-            // refcount before the call. The refcount will be immediately
-            // decremented when this temporary is dropped.
             status_result(sys::AParcel_writeStrongBinder(
                 self.as_native_mut(),
                 binder.cloned().as_native_mut(),
@@ -669,33 +665,28 @@ impl<'a> BorrowedParcel<'a> {
 
     pub(crate) fn read_binder(&self) -> Result<Option<SpIBinder>> {
         let mut binder = ptr::null_mut();
-        let status = unsafe {
-            // Safety: `BorrowedParcel` always contains a valid pointer to an
-            // `AParcel`. We pass a valid, mutable out pointer to the `binder`
-            // parameter. After this call, `binder` will be either null or a
-            // valid pointer to an `AIBinder` owned by the caller.
-            sys::AParcel_readStrongBinder(self.as_native(), &mut binder)
-        };
+        // Safety: `BorrowedParcel` always contains a valid pointer to an
+        // `AParcel`. We pass a valid, mutable out pointer to the `binder`
+        // parameter. After this call, `binder` will be either null or a
+        // valid pointer to an `AIBinder` owned by the caller.
+        let status = unsafe { sys::AParcel_readStrongBinder(self.as_native(), &mut binder) };
 
         status_result(status)?;
 
-        Ok(unsafe {
-            // Safety: `binder` is either null or a valid, owned pointer at this
-            // point, so can be safely passed to `SpIBinder::from_raw`.
-            SpIBinder::from_raw(binder)
-        })
+        // Safety: `binder` is either null or a valid, owned pointer at this
+        // point, so can be safely passed to `SpIBinder::from_raw`.
+        Ok(unsafe { SpIBinder::from_raw(binder) })
     }
 }
 
 impl Drop for Parcel {
     fn drop(&mut self) {
         // Run the C++ Parcel complete object destructor
-        unsafe {
-            // Safety: `Parcel` always contains a valid pointer to an
-            // `AParcel`. Since we own the parcel, we can safely delete it
-            // here.
-            sys::AParcel_delete(self.ptr.as_ptr())
-        }
+        //
+        // Safety: `Parcel` always contains a valid pointer to an
+        // `AParcel`. Since we own the parcel, we can safely delete it
+        // here.
+        unsafe { sys::AParcel_delete(self.ptr.as_ptr()) }
     }
 }
 

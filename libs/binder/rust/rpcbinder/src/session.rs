@@ -36,15 +36,15 @@ foreign_type! {
     pub struct RpcSessionRef;
 }
 
-/// SAFETY - The opaque handle can be cloned freely.
+/// SAFETY: The opaque handle can be cloned freely.
 unsafe impl Send for RpcSession {}
-/// SAFETY - The underlying C++ RpcSession class is thread-safe.
+/// SAFETY: The underlying C++ RpcSession class is thread-safe.
 unsafe impl Sync for RpcSession {}
 
 impl RpcSession {
     /// Allocates a new RpcSession object.
     pub fn new() -> RpcSession {
-        // SAFETY - Takes ownership of the returned handle, which has correct refcount.
+        // SAFETY: Takes ownership of the returned handle, which has correct refcount.
         unsafe { RpcSession::from_ptr(binder_rpc_unstable_bindgen::ARpcSession_new()) }
     }
 }
@@ -58,7 +58,7 @@ impl Default for RpcSession {
 impl RpcSessionRef {
     /// Sets the file descriptor transport mode for this session.
     pub fn set_file_descriptor_transport_mode(&self, mode: FileDescriptorTransportMode) {
-        // SAFETY - Only passes the 'self' pointer as an opaque handle.
+        // SAFETY: Only passes the 'self' pointer as an opaque handle.
         unsafe {
             binder_rpc_unstable_bindgen::ARpcSession_setFileDescriptorTransportMode(
                 self.as_ptr(),
@@ -69,7 +69,7 @@ impl RpcSessionRef {
 
     /// Sets the maximum number of incoming threads.
     pub fn set_max_incoming_threads(&self, threads: usize) {
-        // SAFETY - Only passes the 'self' pointer as an opaque handle.
+        // SAFETY: Only passes the 'self' pointer as an opaque handle.
         unsafe {
             binder_rpc_unstable_bindgen::ARpcSession_setMaxIncomingThreads(self.as_ptr(), threads)
         };
@@ -77,7 +77,7 @@ impl RpcSessionRef {
 
     /// Sets the maximum number of outgoing connections.
     pub fn set_max_outgoing_connections(&self, connections: usize) {
-        // SAFETY - Only passes the 'self' pointer as an opaque handle.
+        // SAFETY: Only passes the 'self' pointer as an opaque handle.
         unsafe {
             binder_rpc_unstable_bindgen::ARpcSession_setMaxOutgoingConnections(
                 self.as_ptr(),
@@ -210,10 +210,10 @@ impl RpcSessionRef {
 type RequestFd<'a> = &'a mut dyn FnMut() -> Option<RawFd>;
 
 unsafe extern "C" fn request_fd_wrapper(param: *mut c_void) -> c_int {
+    let request_fd_ptr = param as *mut RequestFd;
     // SAFETY: This is only ever called by RpcPreconnectedClient, within the lifetime of the
     // BinderFdFactory reference, with param being a properly aligned non-null pointer to an
     // initialized instance.
-    let request_fd_ptr = param as *mut RequestFd;
-    let request_fd = request_fd_ptr.as_mut().unwrap();
+    let request_fd = unsafe { request_fd_ptr.as_mut().unwrap() };
     request_fd().unwrap_or(-1)
 }
