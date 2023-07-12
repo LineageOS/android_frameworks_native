@@ -20,6 +20,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <utils/Log.h>
+#include <mutex>
 
 #include "BackgroundExecutor.h"
 
@@ -58,6 +59,19 @@ BackgroundExecutor::~BackgroundExecutor() {
 void BackgroundExecutor::sendCallbacks(Callbacks&& tasks) {
     mCallbacksQueue.push(std::move(tasks));
     LOG_ALWAYS_FATAL_IF(sem_post(&mSemaphore), "sem_post failed");
+}
+
+void BackgroundExecutor::flushQueue() {
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool flushComplete = false;
+    sendCallbacks({[&]() {
+        std::scoped_lock lock{mutex};
+        flushComplete = true;
+        cv.notify_one();
+    }});
+    std::unique_lock<std::mutex> lock{mutex};
+    cv.wait(lock, [&]() { return flushComplete; });
 }
 
 } // namespace android

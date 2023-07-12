@@ -34,6 +34,7 @@ public:
     // Queues callbacks onto a work queue to be executed by a background thread.
     // This is safe to call from multiple threads.
     void sendCallbacks(Callbacks&& tasks);
+    void flushQueue();
 
 private:
     sem_t mSemaphore;
