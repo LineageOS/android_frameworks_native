@@ -22,7 +22,6 @@
 namespace android {
 
 using gui::DisplayInfo;
-using gui::IWindowInfosReportedListener;
 using gui::WindowInfo;
 using gui::WindowInfosListener;
 using gui::aidl_utils::statusTFromBinderStatus;
@@ -40,8 +39,13 @@ status_t WindowInfosListenerReporter::addWindowInfosListener(
     {
         std::scoped_lock lock(mListenersMutex);
         if (mWindowInfosListeners.empty()) {
-            binder::Status s = surfaceComposer->addWindowInfosListener(this);
+            gui::WindowInfosListenerInfo listenerInfo;
+            binder::Status s = surfaceComposer->addWindowInfosListener(this, &listenerInfo);
             status = statusTFromBinderStatus(s);
+            if (status == OK) {
+                mWindowInfosPublisher = std::move(listenerInfo.windowInfosPublisher);
+                mListenerId = listenerInfo.listenerId;
+            }
         }
 
         if (status == OK) {
@@ -85,8 +89,7 @@ status_t WindowInfosListenerReporter::removeWindowInfosListener(
 }
 
 binder::Status WindowInfosListenerReporter::onWindowInfosChanged(
-        const gui::WindowInfosUpdate& update,
-        const sp<IWindowInfosReportedListener>& windowInfosReportedListener) {
+        const gui::WindowInfosUpdate& update) {
     std::unordered_set<sp<WindowInfosListener>, gui::SpHash<WindowInfosListener>>
             windowInfosListeners;
 
@@ -104,9 +107,7 @@ binder::Status WindowInfosListenerReporter::onWindowInfosChanged(
         listener->onWindowInfosChanged(update);
     }
 
-    if (windowInfosReportedListener) {
-        windowInfosReportedListener->onWindowInfosReported();
-    }
+    mWindowInfosPublisher->ackWindowInfosReceived(update.vsyncId, mListenerId);
 
     return binder::Status::ok();
 }
@@ -114,7 +115,10 @@ binder::Status WindowInfosListenerReporter::onWindowInfosChanged(
 void WindowInfosListenerReporter::reconnect(const sp<gui::ISurfaceComposer>& composerService) {
     std::scoped_lock lock(mListenersMutex);
     if (!mWindowInfosListeners.empty()) {
-        composerService->addWindowInfosListener(this);
+        gui::WindowInfosListenerInfo listenerInfo;
+        composerService->addWindowInfosListener(this, &listenerInfo);
+        mWindowInfosPublisher = std::move(listenerInfo.windowInfosPublisher);
+        mListenerId = listenerInfo.listenerId;
     }
 }
 
