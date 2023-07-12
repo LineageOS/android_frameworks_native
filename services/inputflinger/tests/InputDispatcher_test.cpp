@@ -17,6 +17,7 @@
 #include "../dispatcher/InputDispatcher.h"
 #include "../BlockingQueue.h"
 
+#include <NotifyArgsBuilders.h>
 #include <android-base/properties.h>
 #include <android-base/silent_death_test.h>
 #include <android-base/stringprintf.h>
@@ -25,7 +26,6 @@
 #include <fcntl.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <input/EventBuilders.h>
 #include <input/Input.h>
 #include <linux/input.h>
 #include <sys/epoll.h>
