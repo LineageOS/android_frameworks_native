@@ -26,6 +26,7 @@
 #include <android/gui/IScreenCaptureListener.h>
 #include <android/gui/ITunnelModeEnabledListener.h>
 #include <android/gui/IWindowInfosListener.h>
+#include <android/gui/IWindowInfosPublisher.h>
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
 #include <gui/ITransactionCompletedListener.h>
