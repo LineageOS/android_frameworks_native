@@ -158,10 +158,6 @@ TEST_F(SchedulerTest, validConnectionHandle) {
 
     EXPECT_CALL(*mEventThread, setDuration(10ns, 20ns)).Times(1);
     mScheduler->setDuration(mConnectionHandle, 10ns, 20ns);
-
-    static constexpr size_t kEventConnections = 5;
-    EXPECT_CALL(*mEventThread, getEventThreadConnectionCount()).WillOnce(Return(kEventConnections));
-    EXPECT_EQ(kEventConnections, mScheduler->getEventThreadConnectionCount(mConnectionHandle));
 }
 
 TEST_F(SchedulerTest, registerDisplay) FTL_FAKE_GUARD(kMainThreadContext) {

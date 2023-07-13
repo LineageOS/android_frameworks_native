@@ -57,9 +57,6 @@ public:
     virtual void incrementMissedFrames() = 0;
     // Increments the number of times the display refresh rate changed.
     virtual void incrementRefreshRateSwitches() = 0;
-    // Records the most up-to-date count of display event connections.
-    // The stored count will be the maximum ever recoded.
-    virtual void recordDisplayEventConnectionCount(int32_t count) = 0;
 
     // Records the start and end times for a frame.
     // The start time is the same as the beginning of a SurfaceFlinger
@@ -253,7 +250,6 @@ public:
     void incrementTotalFrames() override;
     void incrementMissedFrames() override;
     void incrementRefreshRateSwitches() override;
-    void recordDisplayEventConnectionCount(int32_t count) override;
 
     void recordFrameDuration(nsecs_t startTime, nsecs_t endTime) override;
     void recordRenderEngineDuration(nsecs_t startTime, nsecs_t endTime) override;
