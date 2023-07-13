@@ -634,31 +634,6 @@ TEST_F(EventThreadTest, connectionsRemovedIfEventDeliveryError) {
     expectVSyncCallbackScheduleReceived(false);
 }
 
-TEST_F(EventThreadTest, tracksEventConnections) {
-    setupEventThread(VSYNC_PERIOD);
-
-    EXPECT_EQ(2, mThread->getEventThreadConnectionCount());
-    ConnectionEventRecorder errorConnectionEventRecorder{NO_MEMORY};
-    sp<MockEventThreadConnection> errorConnection = createConnection(errorConnectionEventRecorder);
-    mThread->setVsyncRate(1, errorConnection);
-    EXPECT_EQ(3, mThread->getEventThreadConnectionCount());
-    ConnectionEventRecorder secondConnectionEventRecorder{0};
-    sp<MockEventThreadConnection> secondConnection =
-            createConnection(secondConnectionEventRecorder);
-    mThread->setVsyncRate(1, secondConnection);
-    EXPECT_EQ(4, mThread->getEventThreadConnectionCount());
-
-    // EventThread should enable vsync callbacks.
-    expectVSyncCallbackScheduleReceived(true);
-
-    // The first event will be seen by the connection, which then returns an error.
-    onVSyncEvent(123, 456, 789);
-    expectVsyncEventReceivedByConnection("errorConnection", errorConnectionEventRecorder, 123, 1u);
-    expectVsyncEventReceivedByConnection("successConnection", secondConnectionEventRecorder, 123,
-                                         1u);
-    EXPECT_EQ(3, mThread->getEventThreadConnectionCount());
-}
-
 TEST_F(EventThreadTest, eventsDroppedIfNonfatalEventDeliveryError) {
     setupEventThread(VSYNC_PERIOD);
 

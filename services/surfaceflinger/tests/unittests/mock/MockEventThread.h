@@ -49,7 +49,6 @@ public:
                 (const sp<android::EventThreadConnection>&), (const, override));
     MOCK_METHOD(void, requestLatestConfig, (const sp<android::EventThreadConnection>&));
     MOCK_METHOD(void, pauseVsyncCallback, (bool));
-    MOCK_METHOD(size_t, getEventThreadConnectionCount, (), (override));
     MOCK_METHOD(void, onNewVsyncSchedule, (std::shared_ptr<scheduler::VsyncSchedule>), (override));
 };
 

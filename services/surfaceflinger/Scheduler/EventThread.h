@@ -131,9 +131,6 @@ public:
     virtual VsyncEventData getLatestVsyncEventData(
             const sp<EventThreadConnection>& connection) const = 0;
 
-    // Retrieves the number of event connections tracked by this EventThread.
-    virtual size_t getEventThreadConnectionCount() = 0;
-
     virtual void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) = 0;
 };
 
@@ -171,8 +168,6 @@ public:
 
     void setDuration(std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration) override;
-
-    size_t getEventThreadConnectionCount() override;
 
     void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) override EXCLUDES(mMutex);
 

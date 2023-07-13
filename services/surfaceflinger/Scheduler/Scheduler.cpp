@@ -393,12 +393,6 @@ void Scheduler::onNonPrimaryDisplayModeChanged(ConnectionHandle handle, const Fr
     thread->onModeChanged(mode);
 }
 
-size_t Scheduler::getEventThreadConnectionCount(ConnectionHandle handle) {
-    std::lock_guard<std::mutex> lock(mConnectionsLock);
-    RETURN_IF_INVALID_HANDLE(handle, 0);
-    return mConnections[handle].thread->getEventThreadConnectionCount();
-}
-
 void Scheduler::dump(ConnectionHandle handle, std::string& result) const {
     android::EventThread* thread;
     {
