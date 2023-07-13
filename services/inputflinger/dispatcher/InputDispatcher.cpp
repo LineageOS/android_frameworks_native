@@ -6560,7 +6560,7 @@ void InputDispatcher::traceWaitQueueLength(const Connection& connection) {
     }
 }
 
-void InputDispatcher::dump(std::string& dump) {
+void InputDispatcher::dump(std::string& dump) const {
     std::scoped_lock _l(mLock);
 
     dump += "Input Dispatcher State:\n";

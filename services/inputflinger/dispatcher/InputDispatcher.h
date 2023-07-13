@@ -87,7 +87,7 @@ public:
                              std::chrono::nanoseconds staleEventTimeout);
     ~InputDispatcher() override;
 
-    void dump(std::string& dump) override;
+    void dump(std::string& dump) const override;
     void monitor() override;
     bool waitForIdle() const override;
     status_t start() override;
