@@ -39,7 +39,7 @@ public:
     /* Dumps the state of the input dispatcher.
      *
      * This method may be called on any thread (usually by the input manager). */
-    virtual void dump(std::string& dump) = 0;
+    virtual void dump(std::string& dump) const = 0;
 
     /* Called by the heatbeat to ensures that the dispatcher has not deadlocked. */
     virtual void monitor() = 0;
