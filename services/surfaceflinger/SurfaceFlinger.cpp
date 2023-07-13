@@ -7826,19 +7826,22 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
     bool setByHwc = getHwComposer().hasCapability(Capability::REFRESH_RATE_CHANGED_CALLBACK_DEBUG);
     for (const auto& [id, display] : mPhysicalDisplays) {
         if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal) {
-            if (setByHwc) {
-                const auto status =
-                        getHwComposer().setRefreshRateChangedCallbackDebugEnabled(id, enable);
-                if (status != NO_ERROR) {
-                    ALOGE("Error updating the refresh rate changed callback debug enabled");
-                    return;
-                }
-            }
-
             if (const auto device = getDisplayDeviceLocked(id)) {
-                device->enableRefreshRateOverlay(enable, setByHwc, mRefreshRateOverlaySpinner,
-                                                 mRefreshRateOverlayRenderRate,
-                                                 mRefreshRateOverlayShowInMiddle);
+                const auto enableOverlay = [&](const bool setByHwc) FTL_FAKE_GUARD(
+                                                   kMainThreadContext) {
+                    device->enableRefreshRateOverlay(enable, setByHwc, mRefreshRateOverlaySpinner,
+                                                     mRefreshRateOverlayRenderRate,
+                                                     mRefreshRateOverlayShowInMiddle);
+                };
+                enableOverlay(setByHwc);
+                if (setByHwc) {
+                    const auto status =
+                            getHwComposer().setRefreshRateChangedCallbackDebugEnabled(id, enable);
+                    if (status != NO_ERROR) {
+                        ALOGE("Error updating the refresh rate changed callback debug enabled");
+                        enableOverlay(/*setByHwc*/ false);
+                    }
+                }
             }
         }
     }
