@@ -8740,6 +8740,75 @@ TEST_F(InputDispatcherDragTests, MouseDragAndDrop) {
     mSecondWindow->assertNoEvents();
 }
 
+/**
+ * Start drag and drop with a pointer whose id is not 0, cancel the current touch, and ensure drag
+ * and drop is also canceled. Then inject a simple gesture, and ensure dispatcher does not crash.
+ */
+TEST_F(InputDispatcherDragTests, DragAndDropFinishedWhenCancelCurrentTouch) {
+    // Down on second window
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    ASSERT_NO_FATAL_FAILURE(mSecondWindow->consumeMotionDown());
+    ASSERT_NO_FATAL_FAILURE(mSpyWindow->consumeMotionDown());
+
+    // Down on first window
+    const MotionEvent secondFingerDownEvent =
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .displayId(ADISPLAY_ID_DEFAULT)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(150).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(50).y(50))
+                    .build();
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
+                                InputEventInjectionSync::WAIT_FOR_RESULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    ASSERT_NO_FATAL_FAILURE(mWindow->consumeMotionDown());
+    ASSERT_NO_FATAL_FAILURE(mSecondWindow->consumeMotionMove());
+    ASSERT_NO_FATAL_FAILURE(mSpyWindow->consumeMotionPointerDown(1));
+
+    // Start drag on first window
+    ASSERT_TRUE(startDrag(/*sendDown=*/false, AINPUT_SOURCE_TOUCHSCREEN));
+
+    // Trigger cancel
+    mDispatcher->cancelCurrentTouch();
+    ASSERT_NO_FATAL_FAILURE(mSecondWindow->consumeMotionCancel());
+    ASSERT_NO_FATAL_FAILURE(mDragWindow->consumeMotionCancel());
+    ASSERT_NO_FATAL_FAILURE(mSpyWindow->consumeMotionCancel());
+
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    // The D&D finished with nullptr
+    mFakePolicy->assertDropTargetEquals(nullptr);
+
+    // Remove drag window
+    mDispatcher->onWindowInfosChanged({{*mWindow->getInfo(), *mSecondWindow->getInfo()}, {}, 0, 0});
+
+    // Inject a simple gesture, ensure dispatcher not crashed
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               PointF{50, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    ASSERT_NO_FATAL_FAILURE(mWindow->consumeMotionDown());
+
+    const MotionEvent moveEvent =
+            MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                    .displayId(ADISPLAY_ID_DEFAULT)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .build();
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, moveEvent, INJECT_EVENT_TIMEOUT,
+                                InputEventInjectionSync::WAIT_FOR_RESULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    ASSERT_NO_FATAL_FAILURE(mWindow->consumeMotionMove());
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, {50, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    ASSERT_NO_FATAL_FAILURE(mWindow->consumeMotionUp());
+}
+
 class InputDispatcherDropInputFeatureTest : public InputDispatcherTest {};
 
 TEST_F(InputDispatcherDropInputFeatureTest, WindowDropsInput) {
