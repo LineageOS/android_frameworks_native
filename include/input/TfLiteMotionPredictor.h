@@ -99,6 +99,14 @@ private:
 // A TFLite model for generating motion predictions.
 class TfLiteMotionPredictorModel {
 public:
+    struct Config {
+        // The time between predictions.
+        nsecs_t predictionInterval = 0;
+        // The noise floor for predictions.
+        // Distances (r) less than this should be discarded as noise.
+        float distanceNoiseFloor = 0;
+    };
+
     // Creates a model from an encoded Flatbuffer model.
     static std::unique_ptr<TfLiteMotionPredictorModel> create();
 
@@ -110,8 +118,7 @@ public:
     // Returns the length of the model's output buffers.
     size_t outputLength() const;
 
-    // Returns the time interval between predictions.
-    nsecs_t predictionInterval() const { return mPredictionInterval; }
+    const Config& config() const { return mConfig; }
 
     // Executes the model.
     // Returns true if the model successfully executed and the output tensors can be read.
@@ -132,7 +139,7 @@ public:
 
 private:
     explicit TfLiteMotionPredictorModel(std::unique_ptr<android::base::MappedFile> model,
-                                        nsecs_t predictionInterval);
+                                        Config config);
 
     void allocateTensors();
     void attachInputTensors();
@@ -154,7 +161,7 @@ private:
     std::unique_ptr<tflite::Interpreter> mInterpreter;
     tflite::SignatureRunner* mRunner = nullptr;
 
-    const nsecs_t mPredictionInterval = 0;
+    const Config mConfig = {};
 };
 
 } // namespace android
