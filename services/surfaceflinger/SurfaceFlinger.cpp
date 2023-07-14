@@ -1963,6 +1963,11 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
 
                        FTL_FAKE_GUARD(kMainThreadContext,
                                       display->stageBrightness(brightness.displayBrightness));
+                       float currentHdrSdrRatio =
+                               compositionDisplay->editState().displayBrightnessNits /
+                               compositionDisplay->editState().sdrWhitePointNits;
+                       FTL_FAKE_GUARD(kMainThreadContext,
+                                      display->updateHdrSdrRatioOverlayRatio(currentHdrSdrRatio));
 
                        if (brightness.sdrWhitePointNits / brightness.displayBrightnessNits !=
                            currentDimmingRatio) {
@@ -2459,10 +2464,10 @@ bool SurfaceFlinger::commit(const scheduler::FrameTarget& pacesetterFrameTarget)
         mPowerAdvisor->updateTargetWorkDuration(idealVsyncPeriod);
     }
 
-    if (mRefreshRateOverlaySpinner) {
+    if (mRefreshRateOverlaySpinner || mHdrSdrRatioOverlay) {
         Mutex::Autolock lock(mStateLock);
         if (const auto display = getDefaultDisplayDeviceLocked()) {
-            display->animateRefreshRateOverlay();
+            display->animateOverlay();
         }
     }
 
@@ -6477,9 +6482,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1042 are currently used for backdoors. The code
+    // Numbers from 1000 to 1043 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1042) {
+    if (code >= 1000 && code <= 1043) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -6938,6 +6943,24 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     mLayerTracing.writeToFile();
                 }
                 reply->writeInt32(NO_ERROR);
+                return NO_ERROR;
+            }
+            // hdr sdr ratio overlay
+            case 1043: {
+                auto future = mScheduler->schedule(
+                        [&]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(kMainThreadContext) {
+                            n = data.readInt32();
+                            mHdrSdrRatioOverlay = n != 0;
+                            switch (n) {
+                                case 0:
+                                case 1:
+                                    enableHdrSdrRatioOverlay(mHdrSdrRatioOverlay);
+                                    break;
+                                default:
+                                    reply->writeBool(isHdrSdrRatioOverlayEnabled());
+                            }
+                        });
+                future.wait();
                 return NO_ERROR;
             }
         }
@@ -8034,6 +8057,16 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
                 device->enableRefreshRateOverlay(enable, setByHwc, mRefreshRateOverlaySpinner,
                                                  mRefreshRateOverlayRenderRate,
                                                  mRefreshRateOverlayShowInMiddle);
+            }
+        }
+    }
+}
+
+void SurfaceFlinger::enableHdrSdrRatioOverlay(bool enable) {
+    for (const auto& [id, display] : mPhysicalDisplays) {
+        if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal) {
+            if (const auto device = getDisplayDeviceLocked(id)) {
+                device->enableHdrSdrRatioOverlay(enable);
             }
         }
     }
