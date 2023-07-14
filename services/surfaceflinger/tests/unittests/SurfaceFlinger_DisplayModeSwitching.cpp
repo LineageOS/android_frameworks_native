@@ -49,9 +49,17 @@ public:
         mFlinger.onComposerHalHotplug(PrimaryDisplayVariant::HWC_DISPLAY_ID, Connection::CONNECTED);
         mFlinger.configureAndCommit();
 
+        auto vsyncController = std::make_unique<mock::VsyncController>();
+        auto vsyncTracker = std::make_shared<mock::VSyncTracker>();
+
+        EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+        EXPECT_CALL(*vsyncTracker, currentPeriod())
+                .WillRepeatedly(Return(
+                        TestableSurfaceFlinger::FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
+
         mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
                            .setRefreshRateSelector(std::move(selectorPtr))
-                           .inject();
+                           .inject(std::move(vsyncController), std::move(vsyncTracker));
 
         // isVsyncPeriodSwitchSupported should return true, otherwise the SF's HWC proxy
         // will call setActiveConfig instead of setActiveConfigWithConstraints.
