@@ -2863,6 +2863,31 @@ void EventHub::dump(std::string& dump) const {
                                  device->associatedDevice
                                          ? device->associatedDevice->sysfsRootPath.c_str()
                                          : "<none>");
+            if (device->keyBitmask.any(0, KEY_MAX + 1)) {
+                const auto pressedKeys = device->keyState.dumpSetIndices(", ", [](int i) {
+                    return InputEventLookup::getLinuxEvdevLabel(EV_KEY, i, 1).code;
+                });
+                dump += StringPrintf(INDENT3 "KeyState (pressed): %s\n", pressedKeys.c_str());
+            }
+            if (device->swBitmask.any(0, SW_MAX + 1)) {
+                const auto pressedSwitches = device->swState.dumpSetIndices(", ", [](int i) {
+                    return InputEventLookup::getLinuxEvdevLabel(EV_SW, i, 1).code;
+                });
+                dump += StringPrintf(INDENT3 "SwState (pressed): %s\n", pressedSwitches.c_str());
+            }
+            if (!device->absState.empty()) {
+                std::string axisValues;
+                for (const auto& [axis, state] : device->absState) {
+                    if (!axisValues.empty()) {
+                        axisValues += ", ";
+                    }
+                    axisValues += StringPrintf("%s=%d",
+                                               InputEventLookup::getLinuxEvdevLabel(EV_ABS, axis, 0)
+                                                       .code.c_str(),
+                                               state.value);
+                }
+                dump += INDENT3 "AbsState: " + axisValues + "\n";
+            }
         }
 
         dump += INDENT "Unattached video devices:\n";

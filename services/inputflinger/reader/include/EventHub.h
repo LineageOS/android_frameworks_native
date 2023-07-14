@@ -19,6 +19,8 @@
 #include <bitset>
 #include <climits>
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <ostream>
 #include <string>
 #include <unordered_map>
@@ -469,6 +471,20 @@ public:
             mData[i] = std::bitset<WIDTH>(buffer[i]);
         }
     }
+    /* Dump the indices in the bit array that are set. */
+    inline std::string dumpSetIndices(std::string separator,
+                                      std::function<std::string(size_t /*index*/)> format) {
+        std::string dmp;
+        for (size_t i = 0; i < BITS; i++) {
+            if (test(i)) {
+                if (!dmp.empty()) {
+                    dmp += separator;
+                }
+                dmp += format(i);
+            }
+        }
+        return dmp.empty() ? "<none>" : dmp;
+    }
 
 private:
     std::array<std::bitset<WIDTH>, COUNT> mData;
@@ -624,7 +640,7 @@ private:
             RawAbsoluteAxisInfo info;
             int value;
         };
-        std::unordered_map<int /*axis*/, AxisState> absState;
+        std::map<int /*axis*/, AxisState> absState;
 
         std::string configurationFile;
         std::unique_ptr<PropertyMap> configuration;
