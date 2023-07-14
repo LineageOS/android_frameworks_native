@@ -8484,33 +8484,35 @@ binder::Status SurfaceComposerAIDL::getStaticDisplayInfo(int64_t displayId,
         outInfo->secure = info.secure;
         outInfo->installOrientation = static_cast<gui::Rotation>(info.installOrientation);
 
-        gui::DeviceProductInfo dinfo;
-        std::optional<DeviceProductInfo> dpi = info.deviceProductInfo;
-        dinfo.name = std::move(dpi->name);
-        dinfo.manufacturerPnpId =
-                std::vector<uint8_t>(dpi->manufacturerPnpId.begin(), dpi->manufacturerPnpId.end());
-        dinfo.productId = dpi->productId;
-        dinfo.relativeAddress =
-                std::vector<uint8_t>(dpi->relativeAddress.begin(), dpi->relativeAddress.end());
-        if (const auto* model =
-                    std::get_if<DeviceProductInfo::ModelYear>(&dpi->manufactureOrModelDate)) {
-            gui::DeviceProductInfo::ModelYear modelYear;
-            modelYear.year = model->year;
-            dinfo.manufactureOrModelDate.set<Tag::modelYear>(modelYear);
-        } else if (const auto* manufacture = std::get_if<DeviceProductInfo::ManufactureYear>(
-                           &dpi->manufactureOrModelDate)) {
-            gui::DeviceProductInfo::ManufactureYear date;
-            date.modelYear.year = manufacture->year;
-            dinfo.manufactureOrModelDate.set<Tag::manufactureYear>(date);
-        } else if (const auto* manufacture = std::get_if<DeviceProductInfo::ManufactureWeekAndYear>(
-                           &dpi->manufactureOrModelDate)) {
-            gui::DeviceProductInfo::ManufactureWeekAndYear date;
-            date.manufactureYear.modelYear.year = manufacture->year;
-            date.week = manufacture->week;
-            dinfo.manufactureOrModelDate.set<Tag::manufactureWeekAndYear>(date);
-        }
+        if (const std::optional<DeviceProductInfo> dpi = info.deviceProductInfo) {
+            gui::DeviceProductInfo dinfo;
+            dinfo.name = std::move(dpi->name);
+            dinfo.manufacturerPnpId = std::vector<uint8_t>(dpi->manufacturerPnpId.begin(),
+                                                           dpi->manufacturerPnpId.end());
+            dinfo.productId = dpi->productId;
+            dinfo.relativeAddress =
+                    std::vector<uint8_t>(dpi->relativeAddress.begin(), dpi->relativeAddress.end());
+            if (const auto* model =
+                        std::get_if<DeviceProductInfo::ModelYear>(&dpi->manufactureOrModelDate)) {
+                gui::DeviceProductInfo::ModelYear modelYear;
+                modelYear.year = model->year;
+                dinfo.manufactureOrModelDate.set<Tag::modelYear>(modelYear);
+            } else if (const auto* manufacture = std::get_if<DeviceProductInfo::ManufactureYear>(
+                               &dpi->manufactureOrModelDate)) {
+                gui::DeviceProductInfo::ManufactureYear date;
+                date.modelYear.year = manufacture->year;
+                dinfo.manufactureOrModelDate.set<Tag::manufactureYear>(date);
+            } else if (const auto* manufacture =
+                               std::get_if<DeviceProductInfo::ManufactureWeekAndYear>(
+                                       &dpi->manufactureOrModelDate)) {
+                gui::DeviceProductInfo::ManufactureWeekAndYear date;
+                date.manufactureYear.modelYear.year = manufacture->year;
+                date.week = manufacture->week;
+                dinfo.manufactureOrModelDate.set<Tag::manufactureWeekAndYear>(date);
+            }
 
-        outInfo->deviceProductInfo = dinfo;
+            outInfo->deviceProductInfo = dinfo;
+        }
     }
     return binderStatusFromStatusT(status);
 }
