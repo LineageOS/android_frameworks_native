@@ -172,11 +172,8 @@ status_t SensorManager::assertStateLocked() {
 
         mSensors = mSensorServer->getSensorList(mOpPackageName);
         size_t count = mSensors.size();
-        if (count == 0) {
-            ALOGE("Failed to get Sensor list");
-            mSensorServer.clear();
-            return UNKNOWN_ERROR;
-        }
+        // If count is 0, mSensorList will be non-null. This is old
+        // existing behavior and callers expect this.
         mSensorList =
                 static_cast<Sensor const**>(malloc(count * sizeof(Sensor*)));
         LOG_ALWAYS_FATAL_IF(mSensorList == nullptr, "mSensorList NULL");
