@@ -180,18 +180,19 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
             .targetLuminanceNits = outputState.displayBrightnessNits,
     };
 
-    LayerFE::ClientCompositionTargetSettings targetSettings{
-            .clip = Region(viewport),
-            .needsFiltering = false,
-            .isSecure = outputState.isSecure,
-            .supportsProtectedContent = false,
-            .viewport = viewport,
-            .dataspace = outputDataspace,
-            .realContentIsVisible = true,
-            .clearContent = false,
-            .blurSetting = LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
-            .whitePointNits = outputState.displayBrightnessNits,
-    };
+    LayerFE::ClientCompositionTargetSettings
+            targetSettings{.clip = Region(viewport),
+                           .needsFiltering = false,
+                           .isSecure = outputState.isSecure,
+                           .supportsProtectedContent = false,
+                           .viewport = viewport,
+                           .dataspace = outputDataspace,
+                           .realContentIsVisible = true,
+                           .clearContent = false,
+                           .blurSetting =
+                                   LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+                           .whitePointNits = outputState.displayBrightnessNits,
+                           .treat170mAsSrgb = outputState.treat170mAsSrgb};
 
     std::vector<renderengine::LayerSettings> layerSettings;
     renderengine::LayerSettings highlight;
