@@ -27,7 +27,7 @@ then
     exit 1
 fi
 
-for CRASH_TYPE in PLAIN KNOWN_UID BINDER; do
+for CRASH_TYPE in PLAIN KNOWN_UID AID_SYSTEM AID_ROOT BINDER; do
     echo "INFO: Running fuzzer : test_service_fuzzer_should_crash $CRASH_TYPE"
 
     ./test_service_fuzzer_should_crash "$CRASH_TYPE" -max_total_time=30 &>"$FUZZER_OUT"
