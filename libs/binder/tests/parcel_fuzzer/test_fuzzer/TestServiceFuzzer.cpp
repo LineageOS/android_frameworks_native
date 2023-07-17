@@ -20,6 +20,8 @@
 #include <binder/IPCThreadState.h>
 #include <log/log.h>
 
+#include <private/android_filesystem_config.h>
+
 using android::binder::Status;
 
 namespace android {
@@ -29,6 +31,8 @@ enum class CrashType {
     ON_PLAIN,
     ON_BINDER,
     ON_KNOWN_UID,
+    ON_SYSTEM_AID,
+    ON_ROOT_AID,
 };
 
 // This service is to verify that fuzzService is functioning properly
@@ -45,6 +49,18 @@ public:
             case CrashType::ON_KNOWN_UID: {
                 if (IPCThreadState::self()->getCallingUid() == getuid()) {
                     LOG_ALWAYS_FATAL("Expected crash, KNOWN_UID.");
+                }
+                break;
+            }
+            case CrashType::ON_SYSTEM_AID: {
+                if (IPCThreadState::self()->getCallingUid() == AID_SYSTEM) {
+                    LOG_ALWAYS_FATAL("Expected crash, AID_SYSTEM.");
+                }
+                break;
+            }
+            case CrashType::ON_ROOT_AID: {
+                if (IPCThreadState::self()->getCallingUid() == AID_ROOT) {
+                    LOG_ALWAYS_FATAL("Expected crash, AID_ROOT.");
                 }
                 break;
             }
@@ -99,6 +115,10 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
         gCrashType = CrashType::ON_PLAIN;
     } else if (arg == "KNOWN_UID") {
         gCrashType = CrashType::ON_KNOWN_UID;
+    } else if (arg == "AID_SYSTEM") {
+        gCrashType = CrashType::ON_SYSTEM_AID;
+    } else if (arg == "AID_ROOT") {
+        gCrashType = CrashType::ON_ROOT_AID;
     } else if (arg == "BINDER") {
         gCrashType = CrashType::ON_BINDER;
     } else {
