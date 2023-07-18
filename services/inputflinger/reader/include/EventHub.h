@@ -411,7 +411,17 @@ public:
      * Note the parameter "bit" is an index to the bit, 0 <= bit < BITS.
      */
     inline bool test(size_t bit) const {
-        return (bit < BITS) ? mData[bit / WIDTH].test(bit % WIDTH) : false;
+        return (bit < BITS) && mData[bit / WIDTH].test(bit % WIDTH);
+    }
+    /* Sets the given bit in the bit array to given value.
+     * Returns true if the given bit is a valid index and thus was set successfully.
+     */
+    inline bool set(size_t bit, bool value) {
+        if (bit >= BITS) {
+            return false;
+        }
+        mData[bit / WIDTH].set(bit % WIDTH, value);
+        return true;
     }
     /* Returns total number of bytes needed for the array */
     inline size_t bytes() { return (BITS + CHAR_BIT - 1) / CHAR_BIT; }
@@ -653,6 +663,10 @@ private:
         void setLedForControllerLocked();
         status_t mapLed(int32_t led, int32_t* outScanCode) const;
         void setLedStateLocked(int32_t led, bool on);
+
+        bool currentFrameDropped;
+        void trackInputEvent(const struct input_event& event);
+        void readDeviceState();
     };
 
     /**
