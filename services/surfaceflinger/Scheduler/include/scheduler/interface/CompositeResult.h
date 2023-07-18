@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <ui/DisplayId.h>
+#include <ui/DisplayMap.h>
+
 #include <scheduler/interface/CompositionCoverage.h>
 
 namespace android {
@@ -23,5 +26,7 @@ namespace android {
 struct CompositeResult {
     CompositionCoverageFlags compositionCoverage;
 };
+
+using CompositeResultsPerDisplay = ui::PhysicalDisplayMap<PhysicalDisplayId, CompositeResult>;
 
 } // namespace android

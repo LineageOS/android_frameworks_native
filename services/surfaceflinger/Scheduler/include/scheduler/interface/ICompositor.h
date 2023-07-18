@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <ui/DisplayId.h>
+#include <ui/DisplayMap.h>
+
 #include <scheduler/Time.h>
 #include <scheduler/VsyncId.h>
 #include <scheduler/interface/CompositeResult.h>
@@ -25,6 +28,8 @@ namespace scheduler {
 
 class FrameTarget;
 class FrameTargeter;
+
+using FrameTargeters = ui::PhysicalDisplayMap<PhysicalDisplayId, scheduler::FrameTargeter*>;
 
 } // namespace scheduler
 
@@ -38,7 +43,8 @@ struct ICompositor {
 
     // Composites a frame for each display. CompositionEngine performs GPU and/or HAL composition
     // via RenderEngine and the Composer HAL, respectively.
-    virtual CompositeResult composite(scheduler::FrameTargeter&) = 0;
+    virtual CompositeResultsPerDisplay composite(PhysicalDisplayId pacesetterId,
+                                                 const scheduler::FrameTargeters&) = 0;
 
     // Samples the composited frame via RegionSamplingThread.
     virtual void sample() = 0;
