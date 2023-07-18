@@ -16,6 +16,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <aidl/android/hardware/graphics/common/PixelFormat.h>
 #include <android/hardware/graphics/common/1.0/types.h>
 #include <grallocusage/GrallocUsageConversion.h>
 #include <graphicsenv/GraphicsEnv.h>
@@ -25,8 +26,6 @@
 #include <sync/sync.h>
 #include <system/window.h>
 #include <ui/BufferQueueDefs.h>
-#include <ui/DebugUtils.h>
-#include <ui/PixelFormat.h>
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
@@ -37,6 +36,7 @@
 
 #include "driver.h"
 
+using PixelFormat = aidl::android::hardware::graphics::common::PixelFormat;
 using android::hardware::graphics::common::V1_0::BufferUsage;
 
 namespace vulkan {
@@ -503,27 +503,27 @@ void copy_ready_timings(Swapchain& swapchain,
     *count = num_copied;
 }
 
-android::PixelFormat GetNativePixelFormat(VkFormat format) {
-    android::PixelFormat native_format = android::PIXEL_FORMAT_RGBA_8888;
+PixelFormat GetNativePixelFormat(VkFormat format) {
+    PixelFormat native_format = PixelFormat::RGBA_8888;
     switch (format) {
         case VK_FORMAT_R8G8B8A8_UNORM:
         case VK_FORMAT_R8G8B8A8_SRGB:
-            native_format = android::PIXEL_FORMAT_RGBA_8888;
+            native_format = PixelFormat::RGBA_8888;
             break;
         case VK_FORMAT_R5G6B5_UNORM_PACK16:
-            native_format = android::PIXEL_FORMAT_RGB_565;
+            native_format = PixelFormat::RGB_565;
             break;
         case VK_FORMAT_R16G16B16A16_SFLOAT:
-            native_format = android::PIXEL_FORMAT_RGBA_FP16;
+            native_format = PixelFormat::RGBA_FP16;
             break;
         case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
-            native_format = android::PIXEL_FORMAT_RGBA_1010102;
+            native_format = PixelFormat::RGBA_1010102;
             break;
         case VK_FORMAT_R8_UNORM:
-            native_format = android::PIXEL_FORMAT_R_8;
+            native_format = PixelFormat::R_8;
             break;
         case VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16:
-            native_format = android::PIXEL_FORMAT_RGBA_10101010;
+            native_format = PixelFormat::RGBA_10101010;
             break;
         default:
             ALOGV("unsupported swapchain format %d", format);
@@ -1356,7 +1356,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     if (!allocator)
         allocator = &GetData(device).allocator;
 
-    android::PixelFormat native_pixel_format =
+    PixelFormat native_pixel_format =
         GetNativePixelFormat(create_info->imageFormat);
     android_dataspace native_dataspace =
         GetNativeDataspace(create_info->imageColorSpace);
@@ -1457,10 +1457,11 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     const auto& dispatch = GetData(device).driver;
 
-    err = native_window_set_buffers_format(window, native_pixel_format);
+    err = native_window_set_buffers_format(
+        window, static_cast<int>(native_pixel_format));
     if (err != android::OK) {
         ALOGE("native_window_set_buffers_format(%s) failed: %s (%d)",
-              decodePixelFormat(native_pixel_format).c_str(), strerror(-err), err);
+              toString(native_pixel_format).c_str(), strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
