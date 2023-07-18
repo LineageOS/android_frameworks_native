@@ -119,6 +119,10 @@ inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
+bool isEmpty(const std::stringstream& ss) {
+    return ss.rdbuf()->in_avail() == 0;
+}
+
 inline const std::string binderToString(const sp<IBinder>& binder) {
     if (binder == nullptr) {
         return "<null>";
@@ -5778,6 +5782,12 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
                 dump += dumpQueue(connection->waitQueue, currentTime);
             } else {
                 dump += INDENT3 "WaitQueue: <empty>\n";
+            }
+            std::stringstream inputStateDump;
+            inputStateDump << connection->inputState;
+            if (!isEmpty(inputStateDump)) {
+                dump += INDENT3 "InputState: ";
+                dump += inputStateDump.str() + "\n";
             }
         }
     } else {

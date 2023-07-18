@@ -35,7 +35,7 @@ bool TouchedWindow::hasHoveringPointers() const {
     return false;
 }
 
-bool TouchedWindow::hasHoveringPointers(int32_t deviceId) const {
+bool TouchedWindow::hasHoveringPointers(DeviceId deviceId) const {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return false;
@@ -53,7 +53,7 @@ void TouchedWindow::clearHoveringPointers() {
     std::erase_if(mDeviceStates, [](const auto& pair) { return !pair.second.hasPointers(); });
 }
 
-bool TouchedWindow::hasHoveringPointer(int32_t deviceId, int32_t pointerId) const {
+bool TouchedWindow::hasHoveringPointer(DeviceId deviceId, int32_t pointerId) const {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return false;
@@ -63,15 +63,15 @@ bool TouchedWindow::hasHoveringPointer(int32_t deviceId, int32_t pointerId) cons
     return state.hoveringPointerIds.test(pointerId);
 }
 
-void TouchedWindow::addHoveringPointer(int32_t deviceId, int32_t pointerId) {
+void TouchedWindow::addHoveringPointer(DeviceId deviceId, int32_t pointerId) {
     mDeviceStates[deviceId].hoveringPointerIds.set(pointerId);
 }
 
-void TouchedWindow::addTouchingPointer(int32_t deviceId, int32_t pointerId) {
+void TouchedWindow::addTouchingPointer(DeviceId deviceId, int32_t pointerId) {
     mDeviceStates[deviceId].touchingPointerIds.set(pointerId);
 }
 
-void TouchedWindow::addTouchingPointers(int32_t deviceId,
+void TouchedWindow::addTouchingPointers(DeviceId deviceId,
                                         std::bitset<MAX_POINTER_ID + 1> pointers) {
     mDeviceStates[deviceId].touchingPointerIds |= pointers;
 }
@@ -85,15 +85,15 @@ bool TouchedWindow::hasTouchingPointers() const {
     return false;
 }
 
-bool TouchedWindow::hasTouchingPointers(int32_t deviceId) const {
+bool TouchedWindow::hasTouchingPointers(DeviceId deviceId) const {
     return getTouchingPointers(deviceId).any();
 }
 
-bool TouchedWindow::hasTouchingPointer(int32_t deviceId, int32_t pointerId) const {
+bool TouchedWindow::hasTouchingPointer(DeviceId deviceId, int32_t pointerId) const {
     return getTouchingPointers(deviceId).test(pointerId);
 }
 
-std::bitset<MAX_POINTER_ID + 1> TouchedWindow::getTouchingPointers(int32_t deviceId) const {
+std::bitset<MAX_POINTER_ID + 1> TouchedWindow::getTouchingPointers(DeviceId deviceId) const {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return {};
@@ -103,14 +103,14 @@ std::bitset<MAX_POINTER_ID + 1> TouchedWindow::getTouchingPointers(int32_t devic
     return state.touchingPointerIds;
 }
 
-void TouchedWindow::removeTouchingPointer(int32_t deviceId, int32_t pointerId) {
+void TouchedWindow::removeTouchingPointer(DeviceId deviceId, int32_t pointerId) {
     std::bitset<MAX_POINTER_ID + 1> pointerIds;
     pointerIds.set(pointerId, true);
 
     removeTouchingPointers(deviceId, pointerIds);
 }
 
-void TouchedWindow::removeTouchingPointers(int32_t deviceId,
+void TouchedWindow::removeTouchingPointers(DeviceId deviceId,
                                            std::bitset<MAX_POINTER_ID + 1> pointers) {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
@@ -126,23 +126,23 @@ void TouchedWindow::removeTouchingPointers(int32_t deviceId,
     }
 }
 
-std::set<int32_t> TouchedWindow::getTouchingDeviceIds() const {
-    std::set<int32_t> deviceIds;
+std::set<DeviceId> TouchedWindow::getTouchingDeviceIds() const {
+    std::set<DeviceId> deviceIds;
     for (const auto& [deviceId, _] : mDeviceStates) {
         deviceIds.insert(deviceId);
     }
     return deviceIds;
 }
 
-std::set<int32_t> TouchedWindow::getActiveDeviceIds() const {
-    std::set<int32_t> out;
+std::set<DeviceId> TouchedWindow::getActiveDeviceIds() const {
+    std::set<DeviceId> out;
     for (const auto& [deviceId, _] : mDeviceStates) {
         out.emplace(deviceId);
     }
     return out;
 }
 
-bool TouchedWindow::hasPilferingPointers(int32_t deviceId) const {
+bool TouchedWindow::hasPilferingPointers(DeviceId deviceId) const {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return false;
@@ -152,16 +152,16 @@ bool TouchedWindow::hasPilferingPointers(int32_t deviceId) const {
     return state.pilferingPointerIds.any();
 }
 
-void TouchedWindow::addPilferingPointers(int32_t deviceId,
+void TouchedWindow::addPilferingPointers(DeviceId deviceId,
                                          std::bitset<MAX_POINTER_ID + 1> pointerIds) {
     mDeviceStates[deviceId].pilferingPointerIds |= pointerIds;
 }
 
-void TouchedWindow::addPilferingPointer(int32_t deviceId, int32_t pointerId) {
+void TouchedWindow::addPilferingPointer(DeviceId deviceId, int32_t pointerId) {
     mDeviceStates[deviceId].pilferingPointerIds.set(pointerId);
 }
 
-std::bitset<MAX_POINTER_ID + 1> TouchedWindow::getPilferingPointers(int32_t deviceId) const {
+std::bitset<MAX_POINTER_ID + 1> TouchedWindow::getPilferingPointers(DeviceId deviceId) const {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return {};
@@ -171,15 +171,15 @@ std::bitset<MAX_POINTER_ID + 1> TouchedWindow::getPilferingPointers(int32_t devi
     return state.pilferingPointerIds;
 }
 
-std::map<int32_t, std::bitset<MAX_POINTER_ID + 1>> TouchedWindow::getPilferingPointers() const {
-    std::map<int32_t, std::bitset<MAX_POINTER_ID + 1>> out;
+std::map<DeviceId, std::bitset<MAX_POINTER_ID + 1>> TouchedWindow::getPilferingPointers() const {
+    std::map<DeviceId, std::bitset<MAX_POINTER_ID + 1>> out;
     for (const auto& [deviceId, state] : mDeviceStates) {
         out.emplace(deviceId, state.pilferingPointerIds);
     }
     return out;
 }
 
-std::optional<nsecs_t> TouchedWindow::getDownTimeInTarget(int32_t deviceId) const {
+std::optional<nsecs_t> TouchedWindow::getDownTimeInTarget(DeviceId deviceId) const {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return {};
@@ -188,7 +188,7 @@ std::optional<nsecs_t> TouchedWindow::getDownTimeInTarget(int32_t deviceId) cons
     return state.downTimeInTarget;
 }
 
-void TouchedWindow::trySetDownTimeInTarget(int32_t deviceId, nsecs_t downTime) {
+void TouchedWindow::trySetDownTimeInTarget(DeviceId deviceId, nsecs_t downTime) {
     auto [stateIt, _] = mDeviceStates.try_emplace(deviceId);
     DeviceState& state = stateIt->second;
 
@@ -197,7 +197,7 @@ void TouchedWindow::trySetDownTimeInTarget(int32_t deviceId, nsecs_t downTime) {
     }
 }
 
-void TouchedWindow::removeAllTouchingPointersForDevice(int32_t deviceId) {
+void TouchedWindow::removeAllTouchingPointersForDevice(DeviceId deviceId) {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return;
@@ -213,7 +213,7 @@ void TouchedWindow::removeAllTouchingPointersForDevice(int32_t deviceId) {
     }
 }
 
-void TouchedWindow::removeHoveringPointer(int32_t deviceId, int32_t pointerId) {
+void TouchedWindow::removeHoveringPointer(DeviceId deviceId, int32_t pointerId) {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return;
@@ -227,7 +227,7 @@ void TouchedWindow::removeHoveringPointer(int32_t deviceId, int32_t pointerId) {
     }
 }
 
-void TouchedWindow::removeAllHoveringPointersForDevice(int32_t deviceId) {
+void TouchedWindow::removeAllHoveringPointersForDevice(DeviceId deviceId) {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return;

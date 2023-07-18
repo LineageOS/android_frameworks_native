@@ -139,6 +139,6 @@ struct InputTarget {
     std::string getPointerInfoString() const;
 };
 
-std::string dispatchModeToString(int32_t dispatchMode);
+std::ostream& operator<<(std::ostream& out, const InputTarget& target);
 
 } // namespace android::inputdispatcher

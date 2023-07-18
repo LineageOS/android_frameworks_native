@@ -525,4 +525,14 @@ bool InputState::shouldCancelMotion(const MotionMemento& memento,
     }
 }
 
+std::ostream& operator<<(std::ostream& out, const InputState& state) {
+    if (!state.mMotionMementos.empty()) {
+        out << "mMotionMementos: ";
+        for (const InputState::MotionMemento& memento : state.mMotionMementos) {
+            out << "{deviceId= " << memento.deviceId << ", hovering=" << memento.hovering << "}, ";
+        }
+    }
+    return out;
+}
+
 } // namespace android::inputdispatcher

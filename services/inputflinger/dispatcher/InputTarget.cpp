@@ -76,4 +76,24 @@ std::string InputTarget::getPointerInfoString() const {
     }
     return out;
 }
+
+std::ostream& operator<<(std::ostream& out, const InputTarget& target) {
+    out << "{inputChannel=";
+    if (target.inputChannel != nullptr) {
+        out << target.inputChannel->getName();
+    } else {
+        out << "<null>";
+    }
+    out << ", windowHandle=";
+    if (target.windowHandle != nullptr) {
+        out << target.windowHandle->getName();
+    } else {
+        out << "<null>";
+    }
+    out << ", targetFlags=" << target.flags.string();
+    out << ", pointers=" << target.getPointerInfoString();
+    out << "}";
+    return out;
+}
+
 } // namespace android::inputdispatcher

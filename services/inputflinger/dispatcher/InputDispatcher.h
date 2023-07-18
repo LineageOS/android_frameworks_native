@@ -25,7 +25,6 @@
 #include "InputDispatcherConfiguration.h"
 #include "InputDispatcherInterface.h"
 #include "InputDispatcherPolicyInterface.h"
-#include "InputState.h"
 #include "InputTarget.h"
 #include "InputThread.h"
 #include "LatencyAggregator.h"

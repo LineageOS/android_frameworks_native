@@ -128,7 +128,10 @@ private:
     std::vector<std::unique_ptr<MotionEntry>> synthesizeCancelationEventsForPointers(
             const MotionMemento& memento, std::bitset<MAX_POINTER_ID + 1> pointerIds,
             nsecs_t currentTime);
+    friend std::ostream& operator<<(std::ostream& out, const InputState& state);
 };
+
+std::ostream& operator<<(std::ostream& out, const InputState& state);
 
 } // namespace inputdispatcher
 } // namespace android
