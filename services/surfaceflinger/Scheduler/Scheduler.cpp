@@ -777,6 +777,12 @@ void Scheduler::dumpVsync(std::string& out) const {
 }
 
 bool Scheduler::updateFrameRateOverrides(GlobalSignals consideredSignals, Fps displayRefreshRate) {
+    std::scoped_lock lock(mPolicyLock);
+    return updateFrameRateOverridesLocked(consideredSignals, displayRefreshRate);
+}
+
+bool Scheduler::updateFrameRateOverridesLocked(GlobalSignals consideredSignals,
+                                               Fps displayRefreshRate) {
     if (consideredSignals.idle) return false;
 
     const auto frameRateOverrides =
@@ -995,7 +1001,7 @@ auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals 
                                                 .emitEvent = !choice.consideredSignals.idle});
         }
 
-        frameRateOverridesChanged = updateFrameRateOverrides(consideredSignals, modeOpt->fps);
+        frameRateOverridesChanged = updateFrameRateOverridesLocked(consideredSignals, modeOpt->fps);
 
         if (mPolicy.modeOpt != modeOpt) {
             mPolicy.modeOpt = modeOpt;
