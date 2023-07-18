@@ -558,7 +558,7 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
         const LayerSnapshot& childSnapshot =
                 updateSnapshotsInHierarchy(args, *childHierarchy, traversalPath, *snapshot,
                                            depth + 1);
-        updateChildState(*snapshot, childSnapshot, args);
+        updateFrameRateFromChildSnapshot(*snapshot, childSnapshot, args);
     }
 
     if (oldFrameRate == snapshot->frameRate) {
@@ -666,36 +666,40 @@ void LayerSnapshotBuilder::updateRelativeState(LayerSnapshot& snapshot,
     }
 }
 
-void LayerSnapshotBuilder::updateChildState(LayerSnapshot& snapshot,
-                                            const LayerSnapshot& childSnapshot, const Args& args) {
-    if (snapshot.childState.hasValidFrameRate) {
+void LayerSnapshotBuilder::updateFrameRateFromChildSnapshot(LayerSnapshot& snapshot,
+                                                            const LayerSnapshot& childSnapshot,
+                                                            const Args& args) {
+    if (args.forceUpdate == ForceUpdateFlags::NONE &&
+        !childSnapshot.changes.any(RequestedLayerState::Changes::FrameRate |
+                                   RequestedLayerState::Changes::Hierarchy)) {
         return;
     }
-    if (args.forceUpdate == ForceUpdateFlags::ALL ||
-        childSnapshot.changes.test(RequestedLayerState::Changes::FrameRate)) {
-        // We return whether this layer ot its children has a vote. We ignore ExactOrMultiple votes
-        // for the same reason we are allowing touch boost for those layers. See
-        // RefreshRateSelector::rankFrameRates for details.
-        using FrameRateCompatibility = scheduler::LayerInfo::FrameRateCompatibility;
-        const auto layerVotedWithDefaultCompatibility = childSnapshot.frameRate.rate.isValid() &&
-                childSnapshot.frameRate.type == FrameRateCompatibility::Default;
-        const auto layerVotedWithNoVote =
-                childSnapshot.frameRate.type == FrameRateCompatibility::NoVote;
-        const auto layerVotedWithExactCompatibility = childSnapshot.frameRate.rate.isValid() &&
-                childSnapshot.frameRate.type == FrameRateCompatibility::Exact;
 
-        snapshot.childState.hasValidFrameRate |= layerVotedWithDefaultCompatibility ||
-                layerVotedWithNoVote || layerVotedWithExactCompatibility;
+    using FrameRateCompatibility = scheduler::LayerInfo::FrameRateCompatibility;
+    if (snapshot.frameRate.rate.isValid() ||
+        snapshot.frameRate.type == FrameRateCompatibility::NoVote) {
+        // we already have a valid framerate.
+        return;
+    }
 
-        // If we don't have a valid frame rate, but the children do, we set this
-        // layer as NoVote to allow the children to control the refresh rate
-        if (!snapshot.frameRate.rate.isValid() &&
-            snapshot.frameRate.type != FrameRateCompatibility::NoVote &&
-            snapshot.childState.hasValidFrameRate) {
-            snapshot.frameRate =
-                    scheduler::LayerInfo::FrameRate(Fps(), FrameRateCompatibility::NoVote);
-            snapshot.changes |= childSnapshot.changes & RequestedLayerState::Changes::FrameRate;
-        }
+    // We return whether this layer or its children has a vote. We ignore ExactOrMultiple votes
+    // for the same reason we are allowing touch boost for those layers. See
+    // RefreshRateSelector::rankFrameRates for details.
+    const auto layerVotedWithDefaultCompatibility = childSnapshot.frameRate.rate.isValid() &&
+            childSnapshot.frameRate.type == FrameRateCompatibility::Default;
+    const auto layerVotedWithNoVote =
+            childSnapshot.frameRate.type == FrameRateCompatibility::NoVote;
+    const auto layerVotedWithExactCompatibility = childSnapshot.frameRate.rate.isValid() &&
+            childSnapshot.frameRate.type == FrameRateCompatibility::Exact;
+
+    bool childHasValidFrameRate = layerVotedWithDefaultCompatibility || layerVotedWithNoVote ||
+            layerVotedWithExactCompatibility;
+
+    // If we don't have a valid frame rate, but the children do, we set this
+    // layer as NoVote to allow the children to control the refresh rate
+    if (childHasValidFrameRate) {
+        snapshot.frameRate = scheduler::LayerInfo::FrameRate(Fps(), FrameRateCompatibility::NoVote);
+        snapshot.changes |= RequestedLayerState::Changes::FrameRate;
     }
 }
 
@@ -812,7 +816,9 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         }
     }
 
-    if (forceUpdate || snapshot.changes.any(RequestedLayerState::Changes::FrameRate)) {
+    if (forceUpdate ||
+        snapshot.changes.any(RequestedLayerState::Changes::FrameRate |
+                             RequestedLayerState::Changes::Hierarchy)) {
         snapshot.frameRate = (requested.requestedFrameRate.rate.isValid() ||
                               (requested.requestedFrameRate.type ==
                                scheduler::LayerInfo::FrameRateCompatibility::NoVote))

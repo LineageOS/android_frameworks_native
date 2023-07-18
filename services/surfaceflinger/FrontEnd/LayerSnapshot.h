@@ -41,10 +41,6 @@ struct RoundedCornerState {
     }
 };
 
-struct ChildState {
-    bool hasValidFrameRate = false;
-};
-
 // LayerSnapshot stores Layer state used by CompositionEngine and RenderEngine. Composition
 // Engine uses a pointer to LayerSnapshot (as LayerFECompositionState*) and the LayerSettings
 // passed to Render Engine are created using properties stored on this struct.
@@ -99,7 +95,6 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     uint32_t touchCropId;
     gui::Uid uid = gui::Uid::INVALID;
     gui::Pid pid = gui::Pid::INVALID;
-    ChildState childState;
     enum class Reachablilty : uint32_t {
         // Can traverse the hierarchy from a root node and reach this snapshot
         Reachable,
