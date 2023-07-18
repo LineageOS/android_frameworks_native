@@ -67,10 +67,6 @@ void TouchedWindow::addHoveringPointer(DeviceId deviceId, int32_t pointerId) {
     mDeviceStates[deviceId].hoveringPointerIds.set(pointerId);
 }
 
-void TouchedWindow::addTouchingPointer(DeviceId deviceId, int32_t pointerId) {
-    mDeviceStates[deviceId].touchingPointerIds.set(pointerId);
-}
-
 void TouchedWindow::addTouchingPointers(DeviceId deviceId,
                                         std::bitset<MAX_POINTER_ID + 1> pointers) {
     mDeviceStates[deviceId].touchingPointerIds |= pointers;

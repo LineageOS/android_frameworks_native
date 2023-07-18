@@ -38,9 +38,9 @@ struct TouchState {
     void reset();
     void clearWindowsWithoutPointers();
 
-    std::set<int32_t> getActiveDeviceIds() const;
+    std::set<DeviceId> getActiveDeviceIds() const;
 
-    bool hasTouchingPointers(int32_t device) const;
+    bool hasTouchingPointers(DeviceId deviceId) const;
     void removeTouchingPointer(DeviceId deviceId, int32_t pointerId);
     void removeTouchingPointerFromWindow(DeviceId deviceId, int32_t pointerId,
                                          const sp<android::gui::WindowInfoHandle>& windowHandle);

@@ -44,7 +44,6 @@ struct TouchedWindow {
     bool hasTouchingPointers() const;
     bool hasTouchingPointers(DeviceId deviceId) const;
     std::bitset<MAX_POINTER_ID + 1> getTouchingPointers(DeviceId deviceId) const;
-    void addTouchingPointer(DeviceId deviceId, int32_t pointerId);
     void addTouchingPointers(DeviceId deviceId, std::bitset<MAX_POINTER_ID + 1> pointers);
     void removeTouchingPointer(DeviceId deviceId, int32_t pointerId);
     void removeTouchingPointers(DeviceId deviceId, std::bitset<MAX_POINTER_ID + 1> pointers);

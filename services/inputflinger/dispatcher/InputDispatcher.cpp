@@ -134,11 +134,6 @@ static std::string uidString(const gui::Uid& uid) {
     return uid.toString();
 }
 
-inline int32_t getMotionEventActionPointerIndex(int32_t action) {
-    return (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >>
-            AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
-}
-
 Result<void> checkKeyAction(int32_t action) {
     switch (action) {
         case AKEY_EVENT_ACTION_DOWN:
@@ -606,7 +601,7 @@ std::pair<float, float> resolveTouchedPosition(const MotionEntry& entry) {
         return {entry.xCursorPosition, entry.yCursorPosition};
     }
 
-    const int32_t pointerIndex = getMotionEventActionPointerIndex(entry.action);
+    const int32_t pointerIndex = MotionEvent::getActionIndex(entry.action);
     return {entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_X),
             entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_Y)};
 }
@@ -2309,7 +2304,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     if (newGesture || (isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN)) {
         /* Case 1: New splittable pointer going down, or need target for hover or scroll. */
         const auto [x, y] = resolveTouchedPosition(entry);
-        const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
+        const int32_t pointerIndex = MotionEvent::getActionIndex(action);
         // Outside targets should be added upon first dispatched DOWN event. That means, this should
         // be a pointer that would generate ACTION_DOWN, *and* touch should not already be down.
         const bool isStylus = isPointerFromStylus(entry, pointerIndex);
@@ -2558,15 +2553,16 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         // Update the pointerIds for non-splittable when it received pointer down.
         if (!isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN) {
             // If no split, we suppose all touched windows should receive pointer down.
-            const int32_t pointerIndex = getMotionEventActionPointerIndex(action);
+            const int32_t pointerIndex = MotionEvent::getActionIndex(action);
             for (size_t i = 0; i < tempTouchState.windows.size(); i++) {
                 TouchedWindow& touchedWindow = tempTouchState.windows[i];
                 // Ignore drag window for it should just track one pointer.
                 if (mDragState && mDragState->dragWindow == touchedWindow.windowHandle) {
                     continue;
                 }
-                touchedWindow.addTouchingPointer(entry.deviceId,
-                                                 entry.pointerProperties[pointerIndex].id);
+                std::bitset<MAX_POINTER_ID + 1> touchingPointers;
+                touchingPointers.set(entry.pointerProperties[pointerIndex].id);
+                touchedWindow.addTouchingPointers(entry.deviceId, touchingPointers);
             }
         }
     }
@@ -2710,18 +2706,9 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         }
     } else if (maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
         // One pointer went up.
-        int32_t pointerIndex = getMotionEventActionPointerIndex(action);
-        uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
-
-        for (size_t i = 0; i < tempTouchState.windows.size();) {
-            TouchedWindow& touchedWindow = tempTouchState.windows[i];
-            touchedWindow.removeTouchingPointer(entry.deviceId, pointerId);
-            if (!touchedWindow.hasTouchingPointers(entry.deviceId)) {
-                tempTouchState.windows.erase(tempTouchState.windows.begin() + i);
-                continue;
-            }
-            i += 1;
-        }
+        const int32_t pointerIndex = MotionEvent::getActionIndex(action);
+        const uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
+        tempTouchState.removeTouchingPointer(entry.deviceId, pointerId);
     }
 
     // Save changes unless the action was scroll in which case the temporary touch
@@ -2820,7 +2807,7 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
         }
 
         case AMOTION_EVENT_ACTION_POINTER_UP:
-            if (getMotionEventActionPointerIndex(entry.action) != pointerIndex) {
+            if (MotionEvent::getActionIndex(entry.action) != pointerIndex) {
                 break;
             }
             // The drag pointer is up.
@@ -4114,7 +4101,7 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
     int32_t maskedAction = action & AMOTION_EVENT_ACTION_MASK;
     if (maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN ||
         maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
-        int32_t originalPointerIndex = getMotionEventActionPointerIndex(action);
+        int32_t originalPointerIndex = MotionEvent::getActionIndex(action);
         const PointerProperties& pointerProperties =
                 originalMotionEntry.pointerProperties[originalPointerIndex];
         uint32_t pointerId = uint32_t(pointerProperties.id);
