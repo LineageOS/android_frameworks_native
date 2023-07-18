@@ -39,6 +39,7 @@
 #include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayConfiguration.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerCallback.h>
 #include <aidl/android/hardware/graphics/composer3/OverlayProperties.h>
 
@@ -85,6 +86,7 @@ using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
 using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
 using AidlTransform = ::aidl::android::hardware::graphics::common::Transform;
+using DisplayConfiguration = V3_0::DisplayConfiguration;
 using aidl::android::hardware::graphics::common::Hdr;
 
 class Composer {
@@ -103,6 +105,7 @@ public:
     };
 
     virtual bool isSupported(OptionalFeature) const = 0;
+    virtual bool getDisplayConfigurationsSupported() const = 0;
 
     virtual std::vector<aidl::android::hardware::graphics::composer3::Capability>
     getCapabilities() = 0;
@@ -130,6 +133,9 @@ public:
     virtual Error getDisplayAttribute(Display display, Config config,
                                       IComposerClient::Attribute attribute, int32_t* outValue) = 0;
     virtual Error getDisplayConfigs(Display display, std::vector<Config>* outConfigs) = 0;
+
+    virtual Error getDisplayConfigurations(Display, std::vector<DisplayConfiguration>*) = 0;
+
     virtual Error getDisplayName(Display display, std::string* outName) = 0;
 
     virtual Error getDisplayRequests(Display display, uint32_t* outDisplayRequestMask,

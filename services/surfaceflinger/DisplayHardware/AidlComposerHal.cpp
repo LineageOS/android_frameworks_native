@@ -244,14 +244,13 @@ AidlComposer::AidlComposer(const std::string& serviceName) {
     addReader(translate<Display>(kSingleReaderKey));
 
     // If unable to read interface version, then become backwards compatible.
-    int32_t version = 1;
-    const auto status = mAidlComposerClient->getInterfaceVersion(&version);
+    const auto status = mAidlComposerClient->getInterfaceVersion(&mComposerInterfaceVersion);
     if (!status.isOk()) {
         ALOGE("getInterfaceVersion for AidlComposer constructor failed %s",
               status.getDescription().c_str());
     }
-    mSupportsBufferSlotsToClear = version > 1;
-    if (!mSupportsBufferSlotsToClear) {
+
+    if (mComposerInterfaceVersion <= 1) {
         if (sysprop::clear_slots_with_set_layer_buffer(false)) {
             mClearSlotBuffer = sp<GraphicBuffer>::make(1, 1, PIXEL_FORMAT_RGBX_8888,
                                                        GraphicBuffer::USAGE_HW_COMPOSER |
@@ -279,6 +278,10 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
         case OptionalFeature::PhysicalDisplayOrientation:
             return true;
     }
+}
+
+bool AidlComposer::getDisplayConfigurationsSupported() const {
+    return mComposerInterfaceVersion >= 3;
 }
 
 std::vector<Capability> AidlComposer::getCapabilities() {
@@ -486,6 +489,18 @@ Error AidlComposer::getDisplayConfigs(Display display, std::vector<Config>* outC
         return static_cast<Error>(status.getServiceSpecificError());
     }
     *outConfigs = translate<Config>(configs);
+    return Error::NONE;
+}
+
+Error AidlComposer::getDisplayConfigurations(Display display,
+                                             std::vector<DisplayConfiguration>* outConfigs) {
+    const auto status =
+            mAidlComposerClient->getDisplayConfigurations(translate<int64_t>(display), outConfigs);
+    if (!status.isOk()) {
+        ALOGE("getDisplayConfigurations failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+
     return Error::NONE;
 }
 
@@ -848,7 +863,7 @@ Error AidlComposer::setLayerBufferSlotsToClear(Display display, Layer layer,
     Error error = Error::NONE;
     mMutex.lock_shared();
     if (auto writer = getWriter(display)) {
-        if (mSupportsBufferSlotsToClear) {
+        if (mComposerInterfaceVersion > 1) {
             writer->get().setLayerBufferSlotsToClear(translate<int64_t>(display),
                                                      translate<int64_t>(layer), slotsToClear);
             // Backwards compatible way of clearing buffer slots is to set the layer buffer with a

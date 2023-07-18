@@ -269,6 +269,11 @@ bool HidlComposer::isSupported(OptionalFeature feature) const {
     }
 }
 
+bool HidlComposer::getDisplayConfigurationsSupported() const {
+    // getDisplayConfigurations is not supported on the HIDL composer.
+    return false;
+};
+
 std::vector<Capability> HidlComposer::getCapabilities() {
     std::vector<Capability> capabilities;
     mComposer->getCapabilities([&](const auto& tmpCapabilities) {
@@ -475,6 +480,11 @@ Error HidlComposer::getDisplayConfigs(Display display, std::vector<Config>* outC
     });
 
     return error;
+}
+
+Error HidlComposer::getDisplayConfigurations(Display, std::vector<DisplayConfiguration>*) {
+    LOG_ALWAYS_FATAL("getDisplayConfigurations should not have been called on this, as "
+                     "it's a HWC3 interface version 3 feature");
 }
 
 Error HidlComposer::getDisplayName(Display display, std::string* outName) {

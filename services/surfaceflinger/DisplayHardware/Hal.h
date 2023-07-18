@@ -23,6 +23,7 @@
 #include <aidl/android/hardware/graphics/common/Hdr.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayConfiguration.h>
 
 #define ERROR_HAS_CHANGES 5
 
@@ -34,6 +35,7 @@ namespace V2_1 = android::hardware::graphics::composer::V2_1;
 namespace V2_2 = android::hardware::graphics::composer::V2_2;
 namespace V2_3 = android::hardware::graphics::composer::V2_3;
 namespace V2_4 = android::hardware::graphics::composer::V2_4;
+namespace V3_0 = ::aidl::android::hardware::graphics::composer3;
 
 using types::V1_0::ColorTransform;
 using types::V1_0::Transform;
@@ -70,6 +72,7 @@ using PowerMode = IComposerClient::PowerMode;
 using Vsync = IComposerClient::Vsync;
 using VsyncPeriodChangeConstraints = IComposerClient::VsyncPeriodChangeConstraints;
 using Hdr = aidl::android::hardware::graphics::common::Hdr;
+using DisplayConfiguration = V3_0::DisplayConfiguration;
 
 } // namespace hardware::graphics::composer::hal
 
