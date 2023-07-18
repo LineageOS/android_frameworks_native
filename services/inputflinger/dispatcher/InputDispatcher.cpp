@@ -2338,6 +2338,8 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             } else if (isSplit) {
                 // New window does not support splitting but we have already split events.
                 // Ignore the new window.
+                LOG(INFO) << "Skipping " << newTouchedWindowHandle->getName()
+                          << " because it doesn't support split touch";
                 newTouchedWindowHandle = nullptr;
             }
         } else {

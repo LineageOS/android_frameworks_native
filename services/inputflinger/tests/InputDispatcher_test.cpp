@@ -2386,7 +2386,6 @@ TEST_F(InputDispatcherTest, MultiDeviceSplitTouch) {
 
     const int32_t touchDeviceId = 4;
     const int32_t mouseDeviceId = 6;
-    NotifyMotionArgs args;
 
     // Start hovering over the left window
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
@@ -2462,7 +2461,6 @@ TEST_F(InputDispatcherTest, MixedTouchAndMouseWithPointerDown) {
 
     const int32_t touchDeviceId = 4;
     const int32_t mouseDeviceId = 6;
-    NotifyMotionArgs args;
 
     // First touch pointer down
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
@@ -2528,7 +2526,6 @@ TEST_F(InputDispatcherTest, UnfinishedInjectedEvent) {
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     const int32_t touchDeviceId = 4;
-    NotifyMotionArgs args;
     // Pretend a test injects an ACTION_DOWN mouse event, but forgets to lift up the touch after
     // completion.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -2696,9 +2693,7 @@ TEST_F(InputDispatcherTest, StylusHoverAndTouchTap) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_STYLUS)
                                         .deviceId(stylusDeviceId)
-                                        .pointer(PointerBuilder(0, ToolType::STYLUS)
-                                                         .x(50)
-                                                         .y(50))
+                                        .pointer(PointerBuilder(0, ToolType::STYLUS).x(60).y(60))
                                         .build()));
     // No event should be sent. This event should be ignored because a pointer from another device
     // is already down.
@@ -2721,9 +2716,7 @@ TEST_F(InputDispatcherTest, StylusHoverAndTouchTap) {
                                 MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
                                                    AINPUT_SOURCE_STYLUS)
                                         .deviceId(stylusDeviceId)
-                                        .pointer(PointerBuilder(0, ToolType::STYLUS)
-                                                         .x(50)
-                                                         .y(50))
+                                        .pointer(PointerBuilder(0, ToolType::STYLUS).x(70).y(70))
                                         .build()));
     window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
     // No more events
@@ -3806,6 +3799,44 @@ TEST_F(InputDispatcherTest, NonSplitTouchableWindowReceivesMultiTouch) {
     EXPECT_EQ(90, event->getY(0));  // 50 + 40
     EXPECT_EQ(-10, event->getX(1)); // -30 + 20
     EXPECT_EQ(-10, event->getY(1)); // -50 + 40
+}
+
+/**
+ * Two windows: a splittable and a non-splittable.
+ * The non-splittable window shouldn't receive any "incomplete" gestures.
+ * Send the first pointer to the splittable window, and then touch the non-splittable window.
+ * The second pointer should be dropped because the initial window is splittable, so it won't get
+ * any pointers outside of it, and the second window is non-splittable, so it shouldn't get any
+ * "incomplete" gestures.
+ */
+TEST_F(InputDispatcherTest, SplittableAndNonSplittableWindows) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left splittable Window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftWindow->setPreventSplitting(false);
+    leftWindow->setFrame(Rect(0, 0, 100, 100));
+    sp<FakeWindowHandle> rightWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right non-splittable Window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightWindow->setPreventSplitting(true);
+    rightWindow->setFrame(Rect(100, 100, 200, 200));
+    mDispatcher->onWindowInfosChanged(
+            {{*leftWindow->getInfo(), *rightWindow->getInfo()}, {}, 0, 0});
+
+    // Touch down on left, splittable window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .build());
+    leftWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(150).y(150))
+                    .build());
+    leftWindow->assertNoEvents();
+    rightWindow->assertNoEvents();
 }
 
 TEST_F(InputDispatcherTest, TouchpadThreeFingerSwipeOnlySentToTrustedOverlays) {
