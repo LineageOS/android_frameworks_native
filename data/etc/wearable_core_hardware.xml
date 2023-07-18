@@ -36,6 +36,7 @@
     <feature name="android.hardware.security.model.compatible" />
 
     <!-- basic system services -->
+    <feature name="android.software.credentials" />
     <feature name="android.software.home_screen" />
     <feature name="android.software.secure_lock_screen" />
 
