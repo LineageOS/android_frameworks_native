@@ -117,7 +117,6 @@ public:
     const std::vector<std::string>& getAngleEglFeatures();
     // Set the persist.graphics.egl system property value.
     void nativeToggleAngleAsSystemDriver(bool enabled);
-    bool shouldUseSystemAngle();
 
     /*
      * Apis for debug layer
@@ -174,7 +173,7 @@ private:
     // Whether ANGLE should be used.
     bool mShouldUseAngle = false;
     // Whether loader should load system ANGLE.
-    bool mShouldUseSystemAngle = false;
+    bool mUseSystemAngle = false;
     // ANGLE namespace.
     android_namespace_t* mAngleNamespace = nullptr;
 

@@ -161,12 +161,7 @@ static bool should_unload_system_driver(egl_connection_t* cnx) {
     // Return true if ANGLE namespace is set.
     android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
     if (ns) {
-        // Unless the default GLES driver is ANGLE and the process should use system ANGLE, since
-        // the intended GLES driver is already loaded.
-        // This should be updated in a later patch that cleans up namespaces
-        if (!(cnx->angleLoaded && android::GraphicsEnv::getInstance().shouldUseSystemAngle())) {
-            return true;
-        }
+        return true;
     }
 
     // Return true if updated driver namespace is set.
@@ -211,17 +206,17 @@ void Loader::unload_system_driver(egl_connection_t* cnx) {
             do_android_unload_sphal_library(hnd->dso[0]);
         }
         cnx->dso = nullptr;
-        cnx->angleLoaded = false;
     }
 
     cnx->systemDriverUnloaded = true;
 }
 
-void* Loader::open(egl_connection_t* cnx) {
+void* Loader::open(egl_connection_t* cnx)
+{
     ATRACE_CALL();
     const nsecs_t openTime = systemTime();
 
-    if (cnx->dso && should_unload_system_driver(cnx)) {
+    if (should_unload_system_driver(cnx)) {
         unload_system_driver(cnx);
     }
 
@@ -230,12 +225,8 @@ void* Loader::open(egl_connection_t* cnx) {
         return cnx->dso;
     }
 
-    driver_t* hnd = nullptr;
-    // Firstly, try to load ANGLE driver, if ANGLE should be loaded and fail, abort.
-    if (android::GraphicsEnv::getInstance().shouldUseAngle()) {
-        hnd = attempt_to_load_angle(cnx);
-        LOG_ALWAYS_FATAL_IF(!hnd, "Failed to load ANGLE.");
-    }
+    // Firstly, try to load ANGLE driver.
+    driver_t* hnd = attempt_to_load_angle(cnx);
 
     if (!hnd) {
         // Secondly, try to load from driver apk.
@@ -549,6 +540,10 @@ static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
 
 Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
     ATRACE_CALL();
+
+    if (!android::GraphicsEnv::getInstance().shouldUseAngle()) {
+        return nullptr;
+    }
 
     android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
     if (!ns) {
