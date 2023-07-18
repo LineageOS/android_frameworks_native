@@ -2523,7 +2523,9 @@ bool SurfaceFlinger::commit(const scheduler::FrameTarget& pacesetterFrameTarget)
     }
 
     updateCursorAsync();
-    updateInputFlinger(vsyncId, pacesetterFrameTarget.frameBeginTime());
+    if (!mustComposite) {
+        updateInputFlinger(vsyncId, pacesetterFrameTarget.frameBeginTime());
+    }
 
     if (mLayerTracingEnabled && !mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         // This will block and tracing should only be enabled for debugging.
@@ -2717,6 +2719,8 @@ CompositeResult SurfaceFlinger::composite(scheduler::FrameTargeter& pacesetterFr
         // This will block and should only be used for debugging.
         addToLayerTracing(mVisibleRegionsDirty, pacesetterFrameTarget.frameBeginTime(), vsyncId);
     }
+
+    updateInputFlinger(vsyncId, pacesetterFrameTarget.frameBeginTime());
 
     if (mVisibleRegionsDirty) mHdrLayerInfoChanged = true;
     mVisibleRegionsDirty = false;
