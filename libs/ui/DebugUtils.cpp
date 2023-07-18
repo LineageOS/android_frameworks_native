@@ -304,6 +304,12 @@ std::string decodePixelFormat(android::PixelFormat format) {
             return std::string("BGRA_8888");
         case android::PIXEL_FORMAT_R_8:
             return std::string("R_8");
+        case android::PIXEL_FORMAT_R_16_UINT:
+            return std::string("R_16_UINT");
+        case android::PIXEL_FORMAT_RG_1616_UINT:
+            return std::string("RG_1616_UINT");
+        case android::PIXEL_FORMAT_RGBA_10101010:
+            return std::string("RGBA_10101010");
         default:
             return StringPrintf("Unknown %#08x", format);
     }
