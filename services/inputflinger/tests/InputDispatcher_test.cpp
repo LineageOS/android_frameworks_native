@@ -1167,23 +1167,6 @@ public:
         return handle;
     }
 
-    /**
-     * This is different from clone, because clone will make a "mirror" window - a window with the
-     * same token, but a different ID. The original window and the clone window are allowed to be
-     * sent to the dispatcher at the same time - they can coexist inside the dispatcher.
-     * This function will create a different object of WindowInfoHandle, but with the same
-     * properties as the original object - including the ID.
-     * You can use either the old or the new object to consume the events.
-     * IMPORTANT: The duplicated object is supposed to replace the original object, and not appear
-     * at the same time inside dispatcher.
-     */
-    sp<FakeWindowHandle> duplicate() {
-        sp<FakeWindowHandle> handle = sp<FakeWindowHandle>::make(mName);
-        handle->mInfo = mInfo;
-        handle->mInputReceiver = mInputReceiver;
-        return handle;
-    }
-
     void setTouchable(bool touchable) {
         mInfo.setInputConfig(WindowInfo::InputConfig::NOT_TOUCHABLE, !touchable);
     }
@@ -3969,7 +3952,7 @@ TEST_F(InputDispatcherTest, MultiplePointersWithRotatingWindow) {
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 400, 400));
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     const nsecs_t baseTime = systemTime(SYSTEM_TIME_MONOTONIC);
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
@@ -3980,17 +3963,10 @@ TEST_F(InputDispatcherTest, MultiplePointersWithRotatingWindow) {
 
     window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
 
-    // We need a new window object for the same window, because dispatcher will store objects by
-    // reference. That means that the testing code and the dispatcher will refer to the same shared
-    // object. Calling window->setTransform here would affect dispatcher's comparison
-    // of the old window to the new window, since both the old window and the new window would be
-    // updated to the same value.
-    sp<FakeWindowHandle> windowDup = window->duplicate();
-
     // Change the transform so that the orientation is now different from original.
-    windowDup->setWindowTransform(0, -1, 1, 0);
+    window->setWindowTransform(0, -1, 1, 0);
 
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowDup}}});
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                                       .downTime(baseTime + 10)
@@ -4025,7 +4001,7 @@ TEST_F(InputDispatcherTest, MultiplePointersWithRotatingWindow) {
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(40).y(40))
                                       .build());
 
-    windowDup->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+    window->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
 }
 
 /**
