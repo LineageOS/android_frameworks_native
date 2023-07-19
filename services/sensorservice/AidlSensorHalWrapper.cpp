@@ -308,8 +308,12 @@ status_t AidlSensorHalWrapper::configureDirectChannel(int32_t sensorHandle, int3
     }
 
     int32_t token;
-    mSensors->configDirectReport(sensorHandle, channelHandle, rate, &token);
-    return token;
+    status_t status = convertToStatus(
+        mSensors->configDirectReport(sensorHandle, channelHandle, rate, &token));
+    if (status == OK && rate != ISensors::RateLevel::STOP) {
+        status = static_cast<status_t>(token);
+    }
+    return status;
 }
 
 void AidlSensorHalWrapper::writeWakeLockHandled(uint32_t count) {
