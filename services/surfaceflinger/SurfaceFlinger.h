@@ -632,9 +632,12 @@ private:
     void onRefreshRateChangedDebug(const RefreshRateChangedDebugData&) override;
 
     // ICompositor overrides:
-    void configure() override;
-    bool commit(const scheduler::FrameTarget&) override;
-    CompositeResult composite(scheduler::FrameTargeter&) override;
+    void configure() override REQUIRES(kMainThreadContext);
+    bool commit(const scheduler::FrameTarget&) override REQUIRES(kMainThreadContext);
+    CompositeResultsPerDisplay composite(PhysicalDisplayId pacesetterId,
+                                         const scheduler::FrameTargeters&) override
+            REQUIRES(kMainThreadContext);
+
     void sample() override;
 
     // ISchedulerCallback overrides:
@@ -883,6 +886,14 @@ private:
         return findDisplay([id](const auto& display) { return display.getId() == id; });
     }
 
+    std::shared_ptr<compositionengine::Display> getCompositionDisplayLocked(DisplayId id) const
+            REQUIRES(mStateLock) {
+        if (const auto display = getDisplayDeviceLocked(id)) {
+            return display->getCompositionDisplay();
+        }
+        return nullptr;
+    }
+
     // Returns the primary display or (for foldables) the active display, assuming that the inner
     // and outer displays have mutually exclusive power states.
     sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const REQUIRES(mStateLock) {
@@ -956,8 +967,8 @@ private:
     /*
      * Compositing
      */
-    void postComposition(scheduler::FrameTargeter&, nsecs_t presentStartTime)
-            REQUIRES(kMainThreadContext);
+    void postComposition(PhysicalDisplayId pacesetterId, const scheduler::FrameTargeters&,
+                         nsecs_t presentStartTime) REQUIRES(kMainThreadContext);
 
     /*
      * Display management
@@ -1289,7 +1300,7 @@ private:
 
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
 
-    CompositionCoverageFlags mCompositionCoverage;
+    CompositionCoveragePerDisplay mCompositionCoverage;
 
     // mMaxRenderTargetSize is only set once in init() so it doesn't need to be protected by
     // any mutex.

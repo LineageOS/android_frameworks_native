@@ -50,7 +50,7 @@ constexpr PowerMode kPowerModes[] = {PowerMode::ON, PowerMode::DOZE, PowerMode::
 
 constexpr uint16_t kRandomStringLength = 256;
 constexpr std::chrono::duration kSyncPeriod(16ms);
-constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId::fromPort(42u);
+constexpr PhysicalDisplayId kDisplayId = PhysicalDisplayId::fromPort(42u);
 
 template <typename T>
 void dump(T* component, FuzzedDataProvider* fdp) {
@@ -177,9 +177,8 @@ void SchedulerFuzzer::fuzzVSyncPredictor() {
     uint16_t now = mFdp.ConsumeIntegral<uint16_t>();
     uint16_t historySize = mFdp.ConsumeIntegralInRange<uint16_t>(1, UINT16_MAX);
     uint16_t minimumSamplesForPrediction = mFdp.ConsumeIntegralInRange<uint16_t>(1, UINT16_MAX);
-    scheduler::VSyncPredictor tracker{DEFAULT_DISPLAY_ID,
-                                      mFdp.ConsumeIntegral<uint16_t>() /*period*/, historySize,
-                                      minimumSamplesForPrediction,
+    scheduler::VSyncPredictor tracker{kDisplayId, mFdp.ConsumeIntegral<uint16_t>() /*period*/,
+                                      historySize, minimumSamplesForPrediction,
                                       mFdp.ConsumeIntegral<uint32_t>() /*outlierTolerancePercent*/};
     uint16_t period = mFdp.ConsumeIntegral<uint16_t>();
     tracker.setPeriod(period);
@@ -251,7 +250,7 @@ void SchedulerFuzzer::fuzzLayerHistory() {
 
 void SchedulerFuzzer::fuzzVSyncReactor() {
     std::shared_ptr<FuzzImplVSyncTracker> vSyncTracker = std::make_shared<FuzzImplVSyncTracker>();
-    scheduler::VSyncReactor reactor(DEFAULT_DISPLAY_ID,
+    scheduler::VSyncReactor reactor(kDisplayId,
                                     std::make_unique<ClockWrapper>(
                                             std::make_shared<FuzzImplClock>()),
                                     *vSyncTracker, mFdp.ConsumeIntegral<uint8_t>() /*pendingLimit*/,
@@ -408,7 +407,7 @@ void SchedulerFuzzer::fuzzPresentLatencyTracker() {
 }
 
 void SchedulerFuzzer::fuzzFrameTargeter() {
-    scheduler::FrameTargeter frameTargeter(mFdp.ConsumeBool());
+    scheduler::FrameTargeter frameTargeter(kDisplayId, mFdp.ConsumeBool());
 
     const struct VsyncSource final : scheduler::IVsyncSource {
         explicit VsyncSource(FuzzedDataProvider& fuzzer) : fuzzer(fuzzer) {}
