@@ -43,9 +43,6 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t ahardwarebuffer_format);
 // whether this is a YUV type format
 bool AHardwareBuffer_formatIsYuv(uint32_t format);
 
-// number of bytes per pixel or 0 if unknown or multi-planar
-uint32_t AHardwareBuffer_bytesPerPixel(uint32_t format);
-
 // convert AHardwareBuffer format to HAL format (note: this is a no-op)
 uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t format);
 

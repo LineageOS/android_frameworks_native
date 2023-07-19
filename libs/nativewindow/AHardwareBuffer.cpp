@@ -227,11 +227,14 @@ int AHardwareBuffer_lockPlanes(AHardwareBuffer* buffer, uint64_t usage,
       }
       return result;
     } else {
-      const uint32_t pixelStride = AHardwareBuffer_bytesPerPixel(format);
+      int32_t bytesPerPixel;
+      int32_t bytesPerStride;
+      int result = gBuffer->lockAsync(usage, usage, bounds, &outPlanes->planes[0].data, fence,
+                                      &bytesPerPixel, &bytesPerStride);
       outPlanes->planeCount = 1;
-      outPlanes->planes[0].pixelStride = pixelStride;
-      outPlanes->planes[0].rowStride = gBuffer->getStride() * pixelStride;
-      return gBuffer->lockAsync(usage, usage, bounds, &outPlanes->planes[0].data, fence);
+      outPlanes->planes[0].pixelStride = bytesPerPixel;
+      outPlanes->planes[0].rowStride = bytesPerStride;
+      return result;
     }
 }
 
@@ -679,32 +682,6 @@ bool AHardwareBuffer_formatIsYuv(uint32_t format) {
         default:
             return false;
     }
-}
-
-uint32_t AHardwareBuffer_bytesPerPixel(uint32_t format) {
-  switch (format) {
-      case AHARDWAREBUFFER_FORMAT_R8_UNORM:
-          return 1;
-      case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:
-      case AHARDWAREBUFFER_FORMAT_D16_UNORM:
-      case AHARDWAREBUFFER_FORMAT_R16_UINT:
-          return 2;
-      case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
-      case AHARDWAREBUFFER_FORMAT_D24_UNORM:
-          return 3;
-      case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:
-      case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
-      case AHARDWAREBUFFER_FORMAT_D32_FLOAT:
-      case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
-      case AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT:
-      case AHARDWAREBUFFER_FORMAT_R16G16_UINT:
-          return 4;
-      case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
-      case AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM:
-          return 8;
-      default:
-          return 0;
-  }
 }
 
 uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t hal_format) {
