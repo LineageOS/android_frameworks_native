@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <FuzzContainer.h>
+#include <InputDevice.h>
 #include <InputReaderBase.h>
 #include <MapperHelpers.h>
 #include <SwitchInputMapper.h>
@@ -24,9 +24,15 @@ namespace android {
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp =
             std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
-    FuzzContainer fuzzer(fdp);
 
-    SwitchInputMapper& mapper = fuzzer.getMapper<SwitchInputMapper>(InputReaderConfiguration{});
+    // Create mocked objects to support the fuzzed input mapper.
+    std::shared_ptr<FuzzEventHub> eventHub = std::make_shared<FuzzEventHub>(fdp);
+    FuzzInputReaderContext context(eventHub, fdp);
+    InputDevice device = getFuzzedInputDevice(*fdp, &context);
+
+    SwitchInputMapper& mapper =
+            getMapperForDevice<ThreadSafeFuzzedDataProvider,
+                               SwitchInputMapper>(*fdp.get(), device, InputReaderConfiguration{});
 
     // Loop through mapper operations until randomness is exhausted.
     while (fdp->remaining_bytes() > 0) {

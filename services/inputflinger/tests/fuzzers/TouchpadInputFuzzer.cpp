@@ -15,12 +15,13 @@
  */
 
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <linux/input-event-codes.h>
 
-#include <FuzzContainer.h>
+#include <InputDevice.h>
 #include <InputReaderBase.h>
 #include <MapperHelpers.h>
 #include <TouchpadInputMapper.h>
@@ -29,30 +30,30 @@ namespace android {
 
 namespace {
 
-void setAxisInfo(ThreadSafeFuzzedDataProvider& fdp, FuzzContainer& fuzzer, int axis) {
+void setAxisInfo(ThreadSafeFuzzedDataProvider& fdp, FuzzEventHub& eventHub, int32_t id, int axis) {
     if (fdp.ConsumeBool()) {
-        fuzzer.setAbsoluteAxisInfo(axis,
-                                   RawAbsoluteAxisInfo{
-                                           .valid = fdp.ConsumeBool(),
-                                           .minValue = fdp.ConsumeIntegral<int32_t>(),
-                                           .maxValue = fdp.ConsumeIntegral<int32_t>(),
-                                           .flat = fdp.ConsumeIntegral<int32_t>(),
-                                           .fuzz = fdp.ConsumeIntegral<int32_t>(),
-                                           .resolution = fdp.ConsumeIntegral<int32_t>(),
-                                   });
+        eventHub.setAbsoluteAxisInfo(id, axis,
+                                     RawAbsoluteAxisInfo{
+                                             .valid = fdp.ConsumeBool(),
+                                             .minValue = fdp.ConsumeIntegral<int32_t>(),
+                                             .maxValue = fdp.ConsumeIntegral<int32_t>(),
+                                             .flat = fdp.ConsumeIntegral<int32_t>(),
+                                             .fuzz = fdp.ConsumeIntegral<int32_t>(),
+                                             .resolution = fdp.ConsumeIntegral<int32_t>(),
+                                     });
     }
 }
 
-void setAxisInfos(ThreadSafeFuzzedDataProvider& fdp, FuzzContainer& fuzzer) {
-    setAxisInfo(fdp, fuzzer, ABS_MT_SLOT);
-    setAxisInfo(fdp, fuzzer, ABS_MT_POSITION_X);
-    setAxisInfo(fdp, fuzzer, ABS_MT_POSITION_Y);
-    setAxisInfo(fdp, fuzzer, ABS_MT_PRESSURE);
-    setAxisInfo(fdp, fuzzer, ABS_MT_ORIENTATION);
-    setAxisInfo(fdp, fuzzer, ABS_MT_TOUCH_MAJOR);
-    setAxisInfo(fdp, fuzzer, ABS_MT_TOUCH_MINOR);
-    setAxisInfo(fdp, fuzzer, ABS_MT_WIDTH_MAJOR);
-    setAxisInfo(fdp, fuzzer, ABS_MT_WIDTH_MINOR);
+void setAxisInfos(ThreadSafeFuzzedDataProvider& fdp, FuzzEventHub& eventHub, int32_t id) {
+    setAxisInfo(fdp, eventHub, id, ABS_MT_SLOT);
+    setAxisInfo(fdp, eventHub, id, ABS_MT_POSITION_X);
+    setAxisInfo(fdp, eventHub, id, ABS_MT_POSITION_Y);
+    setAxisInfo(fdp, eventHub, id, ABS_MT_PRESSURE);
+    setAxisInfo(fdp, eventHub, id, ABS_MT_ORIENTATION);
+    setAxisInfo(fdp, eventHub, id, ABS_MT_TOUCH_MAJOR);
+    setAxisInfo(fdp, eventHub, id, ABS_MT_TOUCH_MINOR);
+    setAxisInfo(fdp, eventHub, id, ABS_MT_WIDTH_MAJOR);
+    setAxisInfo(fdp, eventHub, id, ABS_MT_WIDTH_MINOR);
 }
 
 const std::vector<std::string> boolPropertiesToFuzz = {
@@ -89,32 +90,32 @@ const std::vector<std::string> doublePropertiesToFuzz = {
         "gestureProp.Two_Finger_Vertical_Close_Distance_Thresh",
 };
 
-void setDeviceSpecificConfig(ThreadSafeFuzzedDataProvider& fdp, FuzzContainer& fuzzer) {
+void setDeviceSpecificConfig(ThreadSafeFuzzedDataProvider& fdp, FuzzEventHub& eventHub) {
     // There are a great many gesture properties offered by the Gestures library, all of which could
     // potentially be set in Input Device Configuration files. Maintaining a complete list is
     // impractical, so instead we only fuzz properties which are used in at least one IDC file, or
     // which are likely to be used in future (e.g. ones for controlling palm rejection).
 
     if (fdp.ConsumeBool()) {
-        fuzzer.addProperty("gestureProp.Touchpad_Stack_Version",
-                           std::to_string(fdp.ConsumeIntegral<int>()));
+        eventHub.addProperty("gestureProp.Touchpad_Stack_Version",
+                             std::to_string(fdp.ConsumeIntegral<int>()));
     }
 
     for (auto& propertyName : boolPropertiesToFuzz) {
         if (fdp.ConsumeBool()) {
-            fuzzer.addProperty(propertyName, fdp.ConsumeBool() ? "1" : "0");
+            eventHub.addProperty(propertyName, fdp.ConsumeBool() ? "1" : "0");
         }
     }
 
     for (auto& propertyName : doublePropertiesToFuzz) {
         if (fdp.ConsumeBool()) {
-            fuzzer.addProperty(propertyName, std::to_string(fdp.ConsumeFloatingPoint<double>()));
+            eventHub.addProperty(propertyName, std::to_string(fdp.ConsumeFloatingPoint<double>()));
         }
     }
 
     if (fdp.ConsumeBool()) {
-        fuzzer.addProperty("gestureProp." + fdp.ConsumeRandomLengthString(),
-                           std::to_string(fdp.ConsumeIntegral<int>()));
+        eventHub.addProperty("gestureProp." + fdp.ConsumeRandomLengthString(),
+                             std::to_string(fdp.ConsumeIntegral<int>()));
     }
 }
 
@@ -130,16 +131,23 @@ void setTouchpadSettings(ThreadSafeFuzzedDataProvider& fdp, InputReaderConfigura
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp =
             std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
-    FuzzContainer fuzzer(fdp);
-    setAxisInfos(*fdp, fuzzer);
-    setDeviceSpecificConfig(*fdp, fuzzer);
+
+    // Create mocked objects to support the fuzzed input mapper.
+    std::shared_ptr<FuzzEventHub> eventHub = std::make_shared<FuzzEventHub>(fdp);
+    FuzzInputReaderContext context(eventHub, fdp);
+    InputDevice device = getFuzzedInputDevice(*fdp, &context);
+
+    setAxisInfos(*fdp, *eventHub.get(), device.getId());
+    setDeviceSpecificConfig(*fdp, *eventHub.get());
 
     InputReaderConfiguration policyConfig;
     // Some settings are fuzzed here, as well as in the main loop, to provide randomized data to the
     // TouchpadInputMapper constructor.
     setTouchpadSettings(*fdp, policyConfig);
     policyConfig.pointerCaptureRequest.enable = fdp->ConsumeBool();
-    TouchpadInputMapper& mapper = fuzzer.getMapper<TouchpadInputMapper>(policyConfig);
+    TouchpadInputMapper& mapper =
+            getMapperForDevice<ThreadSafeFuzzedDataProvider, TouchpadInputMapper>(*fdp, device,
+                                                                                  policyConfig);
 
     // Loop through mapper operations until randomness is exhausted.
     while (fdp->remaining_bytes() > 0) {
