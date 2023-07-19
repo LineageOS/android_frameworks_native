@@ -482,7 +482,8 @@ Error HidlComposer::getDisplayConfigs(Display display, std::vector<Config>* outC
     return error;
 }
 
-Error HidlComposer::getDisplayConfigurations(Display, std::vector<DisplayConfiguration>*) {
+Error HidlComposer::getDisplayConfigurations(Display, int32_t /*maxFrameIntervalNs*/,
+                                             std::vector<DisplayConfiguration>*) {
     LOG_ALWAYS_FATAL("getDisplayConfigurations should not have been called on this, as "
                      "it's a HWC3 interface version 3 feature");
 }

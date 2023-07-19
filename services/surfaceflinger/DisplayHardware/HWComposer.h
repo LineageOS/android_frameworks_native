@@ -229,7 +229,8 @@ public:
 
     virtual bool isConnected(PhysicalDisplayId) const = 0;
 
-    virtual std::vector<HWCDisplayMode> getModes(PhysicalDisplayId) const = 0;
+    virtual std::vector<HWCDisplayMode> getModes(PhysicalDisplayId,
+                                                 int32_t maxFrameIntervalNs) const = 0;
 
     virtual std::optional<hal::HWConfigId> getActiveMode(PhysicalDisplayId) const = 0;
 
@@ -412,7 +413,8 @@ public:
 
     bool isConnected(PhysicalDisplayId) const override;
 
-    std::vector<HWCDisplayMode> getModes(PhysicalDisplayId) const override;
+    std::vector<HWCDisplayMode> getModes(PhysicalDisplayId,
+                                         int32_t maxFrameIntervalNs) const override;
 
     std::optional<hal::HWConfigId> getActiveMode(PhysicalDisplayId) const override;
 
@@ -501,7 +503,8 @@ private:
     std::optional<DisplayIdentificationInfo> onHotplugDisconnect(hal::HWDisplayId);
     bool shouldIgnoreHotplugConnect(hal::HWDisplayId, bool hasDisplayIdentificationData) const;
 
-    std::vector<HWCDisplayMode> getModesFromDisplayConfigurations(uint64_t hwcDisplayId) const;
+    std::vector<HWCDisplayMode> getModesFromDisplayConfigurations(uint64_t hwcDisplayId,
+                                                                  int32_t maxFrameIntervalNs) const;
     std::vector<HWCDisplayMode> getModesFromLegacyDisplayConfigs(uint64_t hwcDisplayId) const;
 
     int32_t getAttribute(hal::HWDisplayId hwcDisplayId, hal::HWConfigId configId,

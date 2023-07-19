@@ -134,7 +134,8 @@ public:
                                       IComposerClient::Attribute attribute, int32_t* outValue) = 0;
     virtual Error getDisplayConfigs(Display display, std::vector<Config>* outConfigs) = 0;
 
-    virtual Error getDisplayConfigurations(Display, std::vector<DisplayConfiguration>*) = 0;
+    virtual Error getDisplayConfigurations(Display, int32_t maxFrameIntervalNs,
+                                           std::vector<DisplayConfiguration>*) = 0;
 
     virtual Error getDisplayName(Display display, std::string* outName) = 0;
 
