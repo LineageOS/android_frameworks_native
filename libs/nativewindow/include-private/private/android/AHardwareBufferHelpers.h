@@ -37,9 +37,6 @@ namespace android {
 // parameters. Note: this does not verify any platform-specific contraints.
 bool AHardwareBuffer_isValidDescription(const AHardwareBuffer_Desc* desc, bool log);
 
-// whether this AHardwareBuffer format is valid
-bool AHardwareBuffer_isValidPixelFormat(uint32_t ahardwarebuffer_format);
-
 // whether this is a YUV type format
 bool AHardwareBuffer_formatIsYuv(uint32_t format);
 
