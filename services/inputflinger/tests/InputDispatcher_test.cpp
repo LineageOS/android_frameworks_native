@@ -9015,6 +9015,7 @@ using InputDispatcherSpyWindowDeathTest = InputDispatcherSpyWindowTest;
  * Adding a spy window that is not a trusted overlay causes Dispatcher to abort.
  */
 TEST_F(InputDispatcherSpyWindowDeathTest, UntrustedSpy_AbortsDispatcher) {
+    testing::GTEST_FLAG(death_test_style) = "threadsafe";
     ScopedSilentDeath _silentDeath;
 
     auto spy = createSpy();
