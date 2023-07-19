@@ -6387,8 +6387,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
                   ftl::to_underlying(windowInfosDebug.maxSendDelayVsyncId));
     StringAppendF(&result, "  max send delay (ns): %" PRId64 " ns\n",
                   windowInfosDebug.maxSendDelayDuration);
-    StringAppendF(&result, "  unsent messages: %" PRIu32 "\n",
-                  windowInfosDebug.pendingMessageCount);
+    StringAppendF(&result, "  unsent messages: %zu\n", windowInfosDebug.pendingMessageCount);
     result.append("\n");
 }
 
@@ -8263,9 +8262,9 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
                                    forceApplyPolicy);
 }
 
-status_t SurfaceFlinger::addWindowInfosListener(
-        const sp<IWindowInfosListener>& windowInfosListener) {
-    mWindowInfosListenerInvoker->addWindowInfosListener(windowInfosListener);
+status_t SurfaceFlinger::addWindowInfosListener(const sp<IWindowInfosListener>& windowInfosListener,
+                                                gui::WindowInfosListenerInfo* outInfo) {
+    mWindowInfosListenerInvoker->addWindowInfosListener(windowInfosListener, outInfo);
     setTransactionFlags(eInputInfoUpdateNeeded);
     return NO_ERROR;
 }
@@ -9349,7 +9348,8 @@ binder::Status SurfaceComposerAIDL::getMaxAcquiredBufferCount(int32_t* buffers) 
 }
 
 binder::Status SurfaceComposerAIDL::addWindowInfosListener(
-        const sp<gui::IWindowInfosListener>& windowInfosListener) {
+        const sp<gui::IWindowInfosListener>& windowInfosListener,
+        gui::WindowInfosListenerInfo* outInfo) {
     status_t status;
     const int pid = IPCThreadState::self()->getCallingPid();
     const int uid = IPCThreadState::self()->getCallingUid();
@@ -9357,7 +9357,7 @@ binder::Status SurfaceComposerAIDL::addWindowInfosListener(
     // WindowInfosListeners
     if (uid == AID_SYSTEM || uid == AID_GRAPHICS ||
         checkPermission(sAccessSurfaceFlinger, pid, uid)) {
-        status = mFlinger->addWindowInfosListener(windowInfosListener);
+        status = mFlinger->addWindowInfosListener(windowInfosListener, outInfo);
     } else {
         status = PERMISSION_DENIED;
     }
