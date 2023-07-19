@@ -52,7 +52,7 @@ mod ffi {
             device_id: i32,
             action: u32,
             pointer_properties: &[RustPointerProperties],
-            flags: i32,
+            flags: u32,
         ) -> String;
         fn reset_device(verifier: &mut InputVerifier, device_id: i32);
     }
@@ -74,7 +74,7 @@ fn process_movement(
     device_id: i32,
     action: u32,
     pointer_properties: &[RustPointerProperties],
-    flags: i32,
+    flags: u32,
 ) -> String {
     let result = verifier.process_movement(
         DeviceId(device_id),

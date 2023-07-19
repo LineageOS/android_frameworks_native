@@ -44,7 +44,7 @@ Result<void> InputVerifier::processMovement(DeviceId deviceId, int32_t action,
     rust::Slice<const RustPointerProperties> properties{rpp.data(), rpp.size()};
     rust::String errorMessage =
             android::input::verifier::process_movement(*mVerifier, deviceId, action, properties,
-                                                       flags);
+                                                       static_cast<uint32_t>(flags));
     if (errorMessage.empty()) {
         return {};
     } else {

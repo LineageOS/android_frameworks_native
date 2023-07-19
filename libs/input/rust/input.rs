@@ -119,8 +119,18 @@ impl MotionAction {
 
 bitflags! {
     /// MotionEvent flags.
-    pub struct MotionFlags: i32 {
+    pub struct MotionFlags: u32 {
         /// FLAG_CANCELED
-        const CANCELED = input_bindgen::AMOTION_EVENT_FLAG_CANCELED;
+        const CANCELED = input_bindgen::AMOTION_EVENT_FLAG_CANCELED as u32;
+        /// FLAG_WINDOW_IS_OBSCURED
+        const WINDOW_IS_OBSCURED = input_bindgen::AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
+        /// FLAG_WINDOW_IS_PARTIALLY_OBSCURED
+        const WINDOW_IS_PARTIALLY_OBSCURED =
+                input_bindgen::AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
+        /// FLAG_IS_ACCESSIBILITY_EVENT
+        const IS_ACCESSIBILITY_EVENT =
+                input_bindgen::AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
+        /// FLAG_NO_FOCUS_CHANGE
+        const NO_FOCUS_CHANGE = input_bindgen::AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE;
     }
 }
