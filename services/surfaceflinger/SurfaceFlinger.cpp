@@ -7923,7 +7923,13 @@ status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
         return INVALID_OPERATION;
     }
 
-    setDesiredActiveMode({std::move(preferredMode), .emitEvent = true}, force);
+    setDesiredActiveMode({preferredMode, .emitEvent = true}, force);
+
+    // Update the frameRateOverride list as the display render rate might have changed
+    if (mScheduler->updateFrameRateOverrides(/*consideredSignals*/ {}, preferredMode.fps)) {
+        triggerOnFrameRateOverridesChanged();
+    }
+
     return NO_ERROR;
 }
 
