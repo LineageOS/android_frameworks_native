@@ -319,6 +319,20 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setFrameRate(uint32_t id, float frameRate, int8_t compatibility,
+                      int8_t changeFrameRateStrategy) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eFrameRateChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.frameRate = frameRate;
+        transactions.back().states.front().state.frameRateCompatibility = compatibility;
+        transactions.back().states.front().state.changeFrameRateStrategy = changeFrameRateStrategy;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     LayerLifecycleManager mLifecycleManager;
 };
 

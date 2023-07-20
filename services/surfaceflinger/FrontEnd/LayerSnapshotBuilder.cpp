@@ -540,7 +540,7 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
                         primaryDisplayRotationFlags);
         snapshot->changes |= RequestedLayerState::Changes::Created;
     }
-    scheduler::LayerInfo::FrameRate oldFrameRate = snapshot->frameRate;
+
     if (traversalPath.isRelative()) {
         bool parentIsRelative = traversalPath.variant == LayerHierarchy::Variant::Relative;
         updateRelativeState(*snapshot, parentSnapshot, parentIsRelative, args);
@@ -561,9 +561,6 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
         updateFrameRateFromChildSnapshot(*snapshot, childSnapshot, args);
     }
 
-    if (oldFrameRate == snapshot->frameRate) {
-        snapshot->changes.clear(RequestedLayerState::Changes::FrameRate);
-    }
     return *snapshot;
 }
 
@@ -670,8 +667,10 @@ void LayerSnapshotBuilder::updateFrameRateFromChildSnapshot(LayerSnapshot& snaps
                                                             const LayerSnapshot& childSnapshot,
                                                             const Args& args) {
     if (args.forceUpdate == ForceUpdateFlags::NONE &&
-        !childSnapshot.changes.any(RequestedLayerState::Changes::FrameRate |
-                                   RequestedLayerState::Changes::Hierarchy)) {
+        !args.layerLifecycleManager.getGlobalChanges().any(
+                RequestedLayerState::Changes::Hierarchy) &&
+        !childSnapshot.changes.any(RequestedLayerState::Changes::FrameRate) &&
+        !snapshot.changes.any(RequestedLayerState::Changes::FrameRate)) {
         return;
     }
 
@@ -817,6 +816,8 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     }
 
     if (forceUpdate ||
+        args.layerLifecycleManager.getGlobalChanges().any(
+                RequestedLayerState::Changes::Hierarchy) ||
         snapshot.changes.any(RequestedLayerState::Changes::FrameRate |
                              RequestedLayerState::Changes::Hierarchy)) {
         snapshot.frameRate = (requested.requestedFrameRate.rate.isValid() ||
@@ -824,6 +825,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                                scheduler::LayerInfo::FrameRateCompatibility::NoVote))
                 ? requested.requestedFrameRate
                 : parentSnapshot.frameRate;
+        snapshot.changes |= RequestedLayerState::Changes::FrameRate;
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionPriority) {

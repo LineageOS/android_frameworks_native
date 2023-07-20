@@ -512,4 +512,88 @@ TEST_F(LayerSnapshotTest, frameRateSelectionPriorityPassedToChildLayers) {
     EXPECT_EQ(getSnapshot({.id = 1221})->frameRateSelectionPriority, 1);
 }
 
+TEST_F(LayerSnapshotTest, framerate) {
+    setFrameRate(11, 244.f, 0, 0);
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    // verify parent is gets no vote
+    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::NoVote);
+    EXPECT_TRUE(getSnapshot({.id = 1})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // verify layer and children get the requested votes
+    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_TRUE(getSnapshot({.id = 11})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_TRUE(getSnapshot({.id = 111})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // reparent and verify the child gets the new parent's framerate
+    reparentLayer(122, 11);
+
+    std::vector<uint32_t> expected = {1, 11, 111, 122, 1221, 12, 121, 13, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+    // verify parent is gets no vote
+    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::NoVote);
+
+    // verify layer and children get the requested votes
+    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+
+    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+
+    EXPECT_TRUE(getSnapshot({.id = 122})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_TRUE(getSnapshot({.id = 122})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // reparent and verify the new parent gets no vote
+    reparentLayer(11, 2);
+    expected = {1, 12, 121, 13, 2, 11, 111, 122, 1221};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+
+    // verify old parent has invalid framerate (default)
+    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_TRUE(getSnapshot({.id = 1})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // verify new parent get no vote
+    EXPECT_FALSE(getSnapshot({.id = 2})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 2})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::NoVote);
+    EXPECT_TRUE(getSnapshot({.id = 2})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // verify layer and children get the requested votes (unchanged)
+    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+
+    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+
+    EXPECT_TRUE(getSnapshot({.id = 122})->frameRate.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+}
+
 } // namespace android::surfaceflinger::frontend
