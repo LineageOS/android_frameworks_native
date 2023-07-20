@@ -65,7 +65,6 @@ LIBNATIVEWINDOW {
 LIBNATIVEWINDOW_PLATFORM {
   global:
     extern "C++" {
-      android::AHardwareBuffer_isValidPixelFormat*;
       android::AHardwareBuffer_convertFromPixelFormat*;
       android::AHardwareBuffer_convertToPixelFormat*;
       android::AHardwareBuffer_convertFromGrallocUsageBits*;
