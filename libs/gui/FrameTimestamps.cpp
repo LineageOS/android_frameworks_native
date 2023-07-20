@@ -255,7 +255,6 @@ void ProducerFrameEventHistory::updateAcquireFence(
         uint64_t frameNumber, std::shared_ptr<FenceTime>&& acquire) {
     FrameEvents* frame = getFrame(frameNumber, &mAcquireOffset);
     if (frame == nullptr) {
-        ALOGE("updateAcquireFence: Did not find frame.");
         return;
     }
 
