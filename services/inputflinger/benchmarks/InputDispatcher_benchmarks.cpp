@@ -268,7 +268,7 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
 
-    dispatcher.setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    dispatcher.onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     NotifyMotionArgs motionArgs = generateMotionArgs();
 
@@ -303,7 +303,7 @@ static void benchmarkInjectMotion(benchmark::State& state) {
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
 
-    dispatcher.setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    dispatcher.onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     for (auto _ : state) {
         MotionEvent event = generateMotionEvent();

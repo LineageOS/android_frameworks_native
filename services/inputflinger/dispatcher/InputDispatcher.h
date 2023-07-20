@@ -109,9 +109,6 @@ public:
 
     std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) override;
 
-    void setInputWindows(
-            const std::unordered_map<int32_t, std::vector<sp<android::gui::WindowInfoHandle>>>&
-                    handlesPerDisplay) override;
     void setFocusedApplication(
             int32_t displayId,
             const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) override;
