@@ -626,16 +626,16 @@ private:
 
         ftl::Flags<InputDeviceClass> classes;
 
-        BitArray<KEY_MAX> keyBitmask;
-        BitArray<KEY_MAX> keyState;
-        BitArray<REL_MAX> relBitmask;
-        BitArray<SW_MAX> swBitmask;
-        BitArray<SW_MAX> swState;
-        BitArray<LED_MAX> ledBitmask;
-        BitArray<FF_MAX> ffBitmask;
-        BitArray<INPUT_PROP_MAX> propBitmask;
-        BitArray<MSC_MAX> mscBitmask;
-        BitArray<ABS_MAX> absBitmask;
+        BitArray<KEY_CNT> keyBitmask;
+        BitArray<KEY_CNT> keyState;
+        BitArray<REL_CNT> relBitmask;
+        BitArray<SW_CNT> swBitmask;
+        BitArray<SW_CNT> swState;
+        BitArray<LED_CNT> ledBitmask;
+        BitArray<FF_CNT> ffBitmask;
+        BitArray<INPUT_PROP_CNT> propBitmask;
+        BitArray<MSC_CNT> mscBitmask;
+        BitArray<ABS_CNT> absBitmask;
         struct AxisState {
             RawAbsoluteAxisInfo info;
             int value;
