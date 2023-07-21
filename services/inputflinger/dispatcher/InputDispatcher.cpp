@@ -5057,19 +5057,6 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
     mWindowHandlesByDisplay[displayId] = newHandles;
 }
 
-void InputDispatcher::setInputWindows(
-        const std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>>& handlesPerDisplay) {
-    // TODO(b/198444055): Remove setInputWindows from InputDispatcher.
-    { // acquire lock
-        std::scoped_lock _l(mLock);
-        for (const auto& [displayId, handles] : handlesPerDisplay) {
-            setInputWindowsLocked(handles, displayId);
-        }
-    }
-    // Wake up poll loop since it may need to make new input dispatching choices.
-    mLooper->wake();
-}
-
 /**
  * Called from InputManagerService, update window handle list by displayId that can receive input.
  * A window handle contains information about InputChannel, Touch Region, Types, Focused,...

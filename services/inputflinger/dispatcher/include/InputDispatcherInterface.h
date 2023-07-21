@@ -87,14 +87,6 @@ public:
      */
     virtual std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) = 0;
 
-    /* Sets the list of input windows per display.
-     *
-     * This method may be called on any thread (usually by the input manager).
-     */
-    virtual void setInputWindows(
-            const std::unordered_map<int32_t, std::vector<sp<gui::WindowInfoHandle>>>&
-                    handlesPerDisplay) = 0;
-
     /* Sets the focused application on the given display.
      *
      * This method may be called on any thread (usually by the input manager).
