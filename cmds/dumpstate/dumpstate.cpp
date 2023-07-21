@@ -1754,6 +1754,20 @@ Dumpstate::RunStatus Dumpstate::dumpstate() {
 
     RunCommand("SYSTEM PROPERTIES", {"getprop"});
 
+    DumpFile("SYSTEM BUILD-TIME RELEASE FLAGS", "/system/etc/build_flags.json");
+    DumpFile("SYSTEM_EXT BUILD-TIME RELEASE FLAGS", "/system_ext/etc/build_flags.json");
+    DumpFile("PRODUCT BUILD-TIME RELEASE FLAGS", "/product/etc/build_flags.json");
+    DumpFile("VENDOR BUILD-TIME RELEASE FLAGS", "/vendor/etc/build_flags.json");
+
+    DumpFile("SYSTEM BUILD-TIME ACONFIG FLAGS (check dumpstate build_config for runtime values)",
+            "/system/etc/aconfig_flags.textproto");
+    DumpFile("SYSTEM_EXT BUILD-TIME ACONFIG FLAGS (check dumpstate build_config for runtime"
+            " values)", "/system_ext/etc/aconfig_flags.textproto");
+    DumpFile("PRODUCT BUILD-TIME ACONFIG FLAGS (check dumpstate build_config for runtime values)",
+            "/product/etc/aconfig_flags.textproto");
+    DumpFile("VENDOR BUILD-TIME ACONFIG FLAGS (check dumpstate build_config for runtime values)",
+            "/vendor/etc/aconfig_flags.textproto");
+
     RunCommand("STORAGED IO INFO", {"storaged", "-u", "-p"});
 
     RunCommand("FILESYSTEMS & FREE SPACE", {"df"});
