@@ -29,9 +29,10 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
-#include <fstream>
-#include <string>
 #include <utils.h>
+#include <fstream>
+#include <functional>
+#include <string>
 
 #include "utils.h"
 
