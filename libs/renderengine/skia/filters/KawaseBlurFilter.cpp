@@ -61,25 +61,7 @@ KawaseBlurFilter::KawaseBlurFilter(): BlurFilter() {
 
 // Draws the given runtime shader on a GPU (Ganesh) surface and returns the result as an
 // SkImage.
-static sk_sp<SkImage> makeImage(GrRecordingContext* context, SkRuntimeShaderBuilder* builder,
-                                const SkImageInfo& resultInfo) {
-    if (resultInfo.alphaType() == kUnpremul_SkAlphaType ||
-        resultInfo.alphaType() == kUnknown_SkAlphaType) {
-        return nullptr;
-    }
-    constexpr int kSampleCount = 1;
-    constexpr bool kMipmapped = false;
-
-    sk_sp<SkSurface> surface = SkSurfaces::RenderTarget(context,
-                                                        skgpu::Budgeted::kYes,
-                                                        resultInfo,
-                                                        kSampleCount,
-                                                        kTopLeft_GrSurfaceOrigin,
-                                                        nullptr,
-                                                        kMipmapped);
-    if (!surface) {
-        return nullptr;
-    }
+static sk_sp<SkImage> makeImage(SkSurface* surface, SkRuntimeShaderBuilder* builder) {
     sk_sp<SkShader> shader = builder->makeShader(nullptr);
     if (!shader) {
         return nullptr;
@@ -97,11 +79,16 @@ sk_sp<SkImage> KawaseBlurFilter::generate(GrRecordingContext* context,
                                           const SkRect& blurRect) const {
     LOG_ALWAYS_FATAL_IF(context == nullptr, "%s: Needs GPU context", __func__);
     LOG_ALWAYS_FATAL_IF(input == nullptr, "%s: Invalid input image", __func__);
+
+    if (blurRadius == 0) {
+        return input;
+    }
+
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
     // A radius transformation is required for approximating them, and also to introduce
     // non-integer steps, necessary to smoothly interpolate large radii.
     float tmpRadius = (float)blurRadius / 2.0f;
-    float numberOfPasses = std::min(kMaxPasses, (uint32_t)ceil(tmpRadius));
+    uint32_t numberOfPasses = std::min(kMaxPasses, (uint32_t)ceil(tmpRadius));
     float radiusByPasses = tmpRadius / (float)numberOfPasses;
 
     // create blur surface with the bit depth and colorspace of the original surface
@@ -121,15 +108,33 @@ sk_sp<SkImage> KawaseBlurFilter::generate(GrRecordingContext* context,
             input->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear, blurMatrix);
     blurBuilder.uniform("in_blurOffset") = radiusByPasses * kInputScale;
 
-    sk_sp<SkImage> tmpBlur = makeImage(context, &blurBuilder, scaledInfo);
+    constexpr int kSampleCount = 1;
+    constexpr bool kMipmapped = false;
+    constexpr SkSurfaceProps* kProps = nullptr;
+    sk_sp<SkSurface> surface =
+            SkSurfaces::RenderTarget(context, skgpu::Budgeted::kYes, scaledInfo, kSampleCount,
+                                     kTopLeft_GrSurfaceOrigin, kProps, kMipmapped);
+    LOG_ALWAYS_FATAL_IF(!surface, "%s: Failed to create surface for blurring!", __func__);
+    sk_sp<SkImage> tmpBlur = makeImage(surface.get(), &blurBuilder);
 
-    // And now we'll build our chain of scaled blur stages
-    for (auto i = 1; i < numberOfPasses; i++) {
-        LOG_ALWAYS_FATAL_IF(tmpBlur == nullptr, "%s: tmpBlur is null for pass %d", __func__, i);
-        blurBuilder.child("child") =
-                tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
-        blurBuilder.uniform("in_blurOffset") = (float) i * radiusByPasses * kInputScale;
-        tmpBlur = makeImage(context, &blurBuilder, scaledInfo);
+    // And now we'll build our chain of scaled blur stages. If there is more than one pass,
+    // create a second surface and ping pong between them.
+    sk_sp<SkSurface> surfaceTwo;
+    if (numberOfPasses <= 1) {
+        LOG_ALWAYS_FATAL_IF(tmpBlur == nullptr, "%s: tmpBlur is null", __func__);
+    } else {
+        surfaceTwo = surface->makeSurface(scaledInfo);
+        LOG_ALWAYS_FATAL_IF(!surfaceTwo, "%s: Failed to create second blur surface!", __func__);
+
+        for (auto i = 1; i < numberOfPasses; i++) {
+            LOG_ALWAYS_FATAL_IF(tmpBlur == nullptr, "%s: tmpBlur is null for pass %d", __func__, i);
+            blurBuilder.child("child") =
+                    tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
+            blurBuilder.uniform("in_blurOffset") = (float) i * radiusByPasses * kInputScale;
+            tmpBlur = makeImage(surfaceTwo.get(), &blurBuilder);
+            using std::swap;
+            swap(surface, surfaceTwo);
+        }
     }
 
     return tmpBlur;
