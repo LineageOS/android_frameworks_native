@@ -26,7 +26,7 @@ use binder::{
 use binder::binder_impl::{Binder, BorrowedParcel, TransactionCode};
 
 use std::ffi::{c_void, CStr, CString};
-use std::sync::Once;
+use std::sync::OnceLock;
 
 #[allow(
     non_camel_case_types,
@@ -70,20 +70,18 @@ macro_rules! assert {
     };
 }
 
-static SERVICE_ONCE: Once = Once::new();
-static mut SERVICE: Option<SpIBinder> = None;
+static SERVICE: OnceLock<SpIBinder> = OnceLock::new();
 
 /// Start binder service and return a raw AIBinder pointer to it.
 ///
 /// Safe to call multiple times, only creates the service once.
 #[no_mangle]
 pub extern "C" fn rust_service() -> *mut c_void {
-    unsafe {
-        SERVICE_ONCE.call_once(|| {
-            SERVICE = Some(BnReadParcelTest::new_binder((), BinderFeatures::default()).as_binder());
-        });
-        SERVICE.as_ref().unwrap().as_raw().cast()
-    }
+    let service = SERVICE
+        .get_or_init(|| BnReadParcelTest::new_binder((), BinderFeatures::default()).as_binder());
+    // SAFETY: The SpIBinder will remain alive as long as the program is running because it is in
+    // the static SERVICE, so the pointer is valid forever.
+    unsafe { service.as_raw().cast() }
 }
 
 /// Empty interface just to use the declare_binder_interface macro
@@ -279,8 +277,7 @@ fn on_transact(
             assert!(ibinders[1].is_none());
             assert!(parcel.read::<Option<Vec<Option<SpIBinder>>>>()?.is_none());
 
-            let service =
-                unsafe { SERVICE.as_ref().expect("Global binder service not initialized").clone() };
+            let service = SERVICE.get().expect("Global binder service not initialized").clone();
             reply.write(&service)?;
             reply.write(&(None as Option<&SpIBinder>))?;
             reply.write(&[Some(&service), None][..])?;
