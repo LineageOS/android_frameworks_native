@@ -3581,8 +3581,8 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 const KeyEntry& keyEntry = static_cast<const KeyEntry&>(eventEntry);
                 std::array<uint8_t, 32> hmac = getSignature(keyEntry, *dispatchEntry);
                 if (DEBUG_OUTBOUND_EVENT_DETAILS) {
-                    LOG(DEBUG) << "Publishing " << *dispatchEntry << " to "
-                               << connection->getInputChannelName();
+                    LOG(INFO) << "Publishing " << *dispatchEntry << " to "
+                              << connection->getInputChannelName();
                 }
 
                 // Publish the key event.
@@ -3600,8 +3600,8 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
 
             case EventEntry::Type::MOTION: {
                 if (DEBUG_OUTBOUND_EVENT_DETAILS) {
-                    LOG(DEBUG) << "Publishing " << *dispatchEntry << " to "
-                               << connection->getInputChannelName();
+                    LOG(INFO) << "Publishing " << *dispatchEntry << " to "
+                              << connection->getInputChannelName();
                 }
                 status = publishMotionEvent(*connection, *dispatchEntry);
                 break;
@@ -3760,8 +3760,8 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
                                                      const std::shared_ptr<Connection>& connection,
                                                      bool notify) {
     if (DEBUG_DISPATCH_CYCLE) {
-        LOG(DEBUG) << "channel '" << connection->getInputChannelName() << "'~ " << __func__
-                   << " - notify=" << toString(notify);
+        LOG(INFO) << "channel '" << connection->getInputChannelName() << "'~ " << __func__
+                  << " - notify=" << toString(notify);
     }
 
     // Clear the dispatch queues.
@@ -4538,10 +4538,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
     }
 
     if (debugInboundEventDetails()) {
-        LOG(DEBUG) << __func__ << ": targetUid=" << toString(targetUid, &uidString)
-                   << ", syncMode=" << ftl::enum_string(syncMode) << ", timeout=" << timeout.count()
-                   << "ms, policyFlags=0x" << std::hex << policyFlags << std::dec
-                   << ", event=" << *event;
+        LOG(INFO) << __func__ << ": targetUid=" << toString(targetUid, &uidString)
+                  << ", syncMode=" << ftl::enum_string(syncMode) << ", timeout=" << timeout.count()
+                  << "ms, policyFlags=0x" << std::hex << policyFlags << std::dec
+                  << ", event=" << *event;
     }
     nsecs_t endTime = now() + std::chrono::duration_cast<std::chrono::nanoseconds>(timeout).count();
 
@@ -4692,7 +4692,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
     bool needWake = false;
     while (!injectedEntries.empty()) {
         if (DEBUG_INJECTION) {
-            LOG(DEBUG) << "Injecting " << injectedEntries.front()->getDescription();
+            LOG(INFO) << "Injecting " << injectedEntries.front()->getDescription();
         }
         needWake |= enqueueInboundEventLocked(std::move(injectedEntries.front()));
         injectedEntries.pop();
@@ -4756,8 +4756,8 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
     } // release lock
 
     if (DEBUG_INJECTION) {
-        LOG(DEBUG) << "injectInputEvent - Finished with result "
-                   << ftl::enum_string(injectionResult);
+        LOG(INFO) << "injectInputEvent - Finished with result "
+                  << ftl::enum_string(injectionResult);
     }
 
     return injectionResult;
@@ -4801,8 +4801,8 @@ void InputDispatcher::setInjectionResult(EventEntry& entry,
     InjectionState* injectionState = entry.injectionState;
     if (injectionState) {
         if (DEBUG_INJECTION) {
-            LOG(DEBUG) << "Setting input event injection result to "
-                       << ftl::enum_string(injectionResult);
+            LOG(INFO) << "Setting input event injection result to "
+                      << ftl::enum_string(injectionResult);
         }
 
         if (injectionState->injectionIsAsync && !(entry.policyFlags & POLICY_FLAG_FILTERED)) {
@@ -5409,8 +5409,8 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         }
         std::set<int32_t> deviceIds = touchedWindow->getTouchingDeviceIds();
         if (deviceIds.size() != 1) {
-            LOG(DEBUG) << "Can't transfer touch. Currently touching devices: " << dumpSet(deviceIds)
-                       << " for window: " << touchedWindow->dump();
+            LOG(INFO) << "Can't transfer touch. Currently touching devices: " << dumpSet(deviceIds)
+                      << " for window: " << touchedWindow->dump();
             return false;
         }
         const int32_t deviceId = *deviceIds.begin();
