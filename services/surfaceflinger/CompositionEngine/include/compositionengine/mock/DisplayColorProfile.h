@@ -43,8 +43,6 @@ public:
 
     MOCK_CONST_METHOD0(getHdrCapabilities, const HdrCapabilities&());
     MOCK_CONST_METHOD1(isDataspaceSupported, bool(ui::Dataspace));
-    MOCK_CONST_METHOD3(getTargetDataspace,
-                       ui::Dataspace(ui::ColorMode, ui::Dataspace, ui::Dataspace));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };

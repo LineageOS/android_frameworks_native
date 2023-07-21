@@ -67,9 +67,6 @@ struct CompositionRefreshArgs {
     // Controls how the color mode is chosen for an output
     OutputColorSetting outputColorSetting{OutputColorSetting::kEnhanced};
 
-    // If not Dataspace::UNKNOWN, overrides the dataspace on each output
-    ui::Dataspace colorSpaceAgnosticDataspace{ui::Dataspace::UNKNOWN};
-
     // Forces a color mode on the outputs being refreshed
     ui::ColorMode forceOutputColorMode{ui::ColorMode::NATIVE};
 

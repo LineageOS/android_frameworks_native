@@ -199,6 +199,7 @@ prop {
 # useColorManagement indicates whether SurfaceFlinger should manage color
 # by switching to appropriate color mode automatically depending on the
 # Dataspace of the surfaces on screen.
+# DEPRECATED: SurfaceFlinger is always color managed.
 prop {
     api_name: "use_color_management"
     type: Boolean
@@ -207,7 +208,7 @@ prop {
     prop_name: "ro.surface_flinger.use_color_management"
 }
 
-# The following four propertiess define:
+# The following four properties define:
 # Returns the default data space and pixel format that SurfaceFlinger
 # expects to receive and output as well as the wide color gamut data space
 # and pixel format for wide color gamut surfaces.
@@ -276,7 +277,7 @@ prop {
 # The variable works only when useColorManagement is specified. If
 # unspecified, the data space follows what SurfaceFlinger expects for
 # surfaces when useColorManagement is specified.
-
+# DEPRECATED: do not use
 prop {
     api_name: "color_space_agnostic_dataspace"
     type: Long

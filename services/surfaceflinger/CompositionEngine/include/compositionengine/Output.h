@@ -136,7 +136,6 @@ public:
         ui::ColorMode mode{ui::ColorMode::NATIVE};
         ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
         ui::RenderIntent renderIntent{ui::RenderIntent::COLORIMETRIC};
-        ui::Dataspace colorSpaceAgnosticDataspace{ui::Dataspace::UNKNOWN};
     };
 
     // Use internally to incrementally compute visibility/coverage

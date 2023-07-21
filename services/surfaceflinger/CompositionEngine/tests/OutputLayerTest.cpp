@@ -642,7 +642,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
 
 TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly) {
     mLayerFEState.dataspace = ui::Dataspace::DISPLAY_P3;
-    mOutputState.targetDataspace = ui::Dataspace::V0_SCRGB;
+    mOutputState.dataspace = ui::Dataspace::V0_SCRGB;
 
     // If the layer is not colorspace agnostic, the output layer dataspace
     // should use the layers requested colorspace.
@@ -659,11 +659,18 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
     mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(ui::Dataspace::V0_SCRGB, mOutputLayer.getState().dataspace);
+
+    // If the output is HDR, then don't blind the user with a colorspace agnostic dataspace
+    // drawing all white
+    mOutputState.dataspace = ui::Dataspace::BT2020_PQ;
+
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
+
+    EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutputLayer.getState().dataspace);
 }
 
 TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceWith170mReplacement) {
     mLayerFEState.dataspace = ui::Dataspace::TRANSFER_SMPTE_170M;
-    mOutputState.targetDataspace = ui::Dataspace::V0_SCRGB;
     mOutputState.treat170mAsSrgb = false;
     mLayerFEState.isColorspaceAgnostic = false;
 

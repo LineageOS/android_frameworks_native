@@ -175,12 +175,10 @@ const Rect OutputTest::kDefaultDisplaySize{100, 200};
 using ColorProfile = compositionengine::Output::ColorProfile;
 
 void dumpColorProfile(ColorProfile profile, std::string& result, const char* name) {
-    android::base::StringAppendF(&result, "%s (%s[%d] %s[%d] %s[%d] %s[%d]) ", name,
+    android::base::StringAppendF(&result, "%s (%s[%d] %s[%d] %s[%d]) ", name,
                                  toString(profile.mode).c_str(), profile.mode,
                                  toString(profile.dataspace).c_str(), profile.dataspace,
-                                 toString(profile.renderIntent).c_str(), profile.renderIntent,
-                                 toString(profile.colorSpaceAgnosticDataspace).c_str(),
-                                 profile.colorSpaceAgnosticDataspace);
+                                 toString(profile.renderIntent).c_str(), profile.renderIntent);
 }
 
 // Checks for a ColorProfile match
@@ -192,8 +190,7 @@ MATCHER_P(ColorProfileEq, expected, "") {
     *result_listener << buf;
 
     return (expected.mode == arg.mode) && (expected.dataspace == arg.dataspace) &&
-            (expected.renderIntent == arg.renderIntent) &&
-            (expected.colorSpaceAgnosticDataspace == arg.colorSpaceAgnosticDataspace);
+            (expected.renderIntent == arg.renderIntent);
 }
 
 /*
@@ -540,20 +537,14 @@ using OutputSetColorProfileTest = OutputTest;
 TEST_F(OutputSetColorProfileTest, setsStateAndDirtiesOutputIfChanged) {
     using ColorProfile = Output::ColorProfile;
 
-    EXPECT_CALL(*mDisplayColorProfile,
-                getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                   ui::Dataspace::UNKNOWN))
-            .WillOnce(Return(ui::Dataspace::UNKNOWN));
     EXPECT_CALL(*mRenderSurface, setBufferDataspace(ui::Dataspace::DISPLAY_P3)).Times(1);
 
     mOutput->setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC,
-                                          ui::Dataspace::UNKNOWN});
+                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC});
 
     EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mOutput->getState().colorMode);
     EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutput->getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mOutput->getState().renderIntent);
-    EXPECT_EQ(ui::Dataspace::UNKNOWN, mOutput->getState().targetDataspace);
 
     EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
@@ -561,19 +552,12 @@ TEST_F(OutputSetColorProfileTest, setsStateAndDirtiesOutputIfChanged) {
 TEST_F(OutputSetColorProfileTest, doesNothingIfNoChange) {
     using ColorProfile = Output::ColorProfile;
 
-    EXPECT_CALL(*mDisplayColorProfile,
-                getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                   ui::Dataspace::UNKNOWN))
-            .WillOnce(Return(ui::Dataspace::UNKNOWN));
-
     mOutput->editState().colorMode = ui::ColorMode::DISPLAY_P3;
     mOutput->editState().dataspace = ui::Dataspace::DISPLAY_P3;
     mOutput->editState().renderIntent = ui::RenderIntent::TONE_MAP_COLORIMETRIC;
-    mOutput->editState().targetDataspace = ui::Dataspace::UNKNOWN;
 
     mOutput->setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC,
-                                          ui::Dataspace::UNKNOWN});
+                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC});
 
     EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region()));
 }
@@ -2133,12 +2117,11 @@ TEST_F(OutputUpdateColorProfileTest, setsAColorProfileWhenUnmanaged) {
 
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(3u));
     EXPECT_CALL(mOutput,
-                setColorProfile(ColorProfileEq(
-                        ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
-                                     ui::RenderIntent::COLORIMETRIC, ui::Dataspace::UNKNOWN})));
+                setColorProfile(
+                        ColorProfileEq(ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
+                                                    ui::RenderIntent::COLORIMETRIC})));
 
     mRefreshArgs.outputColorSetting = OutputColorSetting::kUnmanaged;
-    mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
 
     mOutput.updateColorProfile(mRefreshArgs);
 }
@@ -2148,7 +2131,6 @@ struct OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile
     OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile() {
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
     }
 
     struct ExpectBestColorModeCallResultUsedToSetColorProfileState
@@ -2163,8 +2145,7 @@ struct OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile
                                     SetArgPointee<4>(renderIntent)));
             EXPECT_CALL(getInstance()->mOutput,
                         setColorProfile(
-                                ColorProfileEq(ColorProfile{colorMode, dataspace, renderIntent,
-                                                            ui::Dataspace::UNKNOWN})));
+                                ColorProfileEq(ColorProfile{colorMode, dataspace, renderIntent})));
             return nextState<ExecuteState>();
         }
     };
@@ -2191,55 +2172,6 @@ TEST_F(OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile,
             .execute();
 }
 
-struct OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile
-      : public OutputUpdateColorProfileTest {
-    OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile() {
-        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
-        EXPECT_CALL(*mDisplayColorProfile,
-                    getBestColorMode(ui::Dataspace::V0_SRGB, ui::RenderIntent::ENHANCE, _, _, _))
-                .WillRepeatedly(DoAll(SetArgPointee<2>(ui::Dataspace::UNKNOWN),
-                                      SetArgPointee<3>(ui::ColorMode::NATIVE),
-                                      SetArgPointee<4>(ui::RenderIntent::COLORIMETRIC)));
-        mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-    }
-
-    struct IfColorSpaceAgnosticDataspaceSetToState
-          : public CallOrderStateMachineHelper<TestType, IfColorSpaceAgnosticDataspaceSetToState> {
-        [[nodiscard]] auto ifColorSpaceAgnosticDataspaceSetTo(ui::Dataspace dataspace) {
-            getInstance()->mRefreshArgs.colorSpaceAgnosticDataspace = dataspace;
-            return nextState<ThenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspaceState>();
-        }
-    };
-
-    struct ThenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspaceState
-          : public CallOrderStateMachineHelper<
-                    TestType, ThenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspaceState> {
-        [[nodiscard]] auto thenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspace(
-                ui::Dataspace dataspace) {
-            EXPECT_CALL(getInstance()->mOutput,
-                        setColorProfile(ColorProfileEq(
-                                ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
-                                             ui::RenderIntent::COLORIMETRIC, dataspace})));
-            return nextState<ExecuteState>();
-        }
-    };
-
-    // Call this member function to start using the mini-DSL defined above.
-    [[nodiscard]] auto verify() { return IfColorSpaceAgnosticDataspaceSetToState::make(this); }
-};
-
-TEST_F(OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile, DisplayP3) {
-    verify().ifColorSpaceAgnosticDataspaceSetTo(ui::Dataspace::DISPLAY_P3)
-            .thenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspace(ui::Dataspace::DISPLAY_P3)
-            .execute();
-}
-
-TEST_F(OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile, V0_SRGB) {
-    verify().ifColorSpaceAgnosticDataspaceSetTo(ui::Dataspace::V0_SRGB)
-            .thenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspace(ui::Dataspace::V0_SRGB)
-            .execute();
-}
-
 struct OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference
       : public OutputUpdateColorProfileTest {
     // Internally the implementation looks through the dataspaces of all the
@@ -2248,7 +2180,6 @@ struct OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference
 
     OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference() {
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
 
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(3u));
         EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());
@@ -2368,7 +2299,6 @@ struct OutputUpdateColorProfileTest_ForceOutputColorOverrides
 
     OutputUpdateColorProfileTest_ForceOutputColorOverrides() {
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
 
         mLayer1.mLayerFEState.dataspace = ui::Dataspace::DISPLAY_BT2020;
 
@@ -2424,7 +2354,6 @@ TEST_F(OutputUpdateColorProfileTest_ForceOutputColorOverrides, DisplayP3_Overrid
 struct OutputUpdateColorProfileTest_Hdr : public OutputUpdateColorProfileTest {
     OutputUpdateColorProfileTest_Hdr() {
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
         EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());
     }
@@ -2703,7 +2632,6 @@ struct OutputUpdateColorProfile_AffectsChosenRenderIntentTest
 
     OutputUpdateColorProfile_AffectsChosenRenderIntentTest() {
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
         mLayer1.mLayerFEState.dataspace = ui::Dataspace::BT2020_PQ;
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1u));
         EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());

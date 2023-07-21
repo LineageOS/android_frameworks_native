@@ -403,23 +403,18 @@ TEST_F(DisplaySetColorModeTest, setsModeUnlessNoChange) {
     mock::DisplayColorProfile* colorProfile = new StrictMock<mock::DisplayColorProfile>();
     mDisplay->setDisplayColorProfileForTest(std::unique_ptr<DisplayColorProfile>(colorProfile));
 
-    EXPECT_CALL(*colorProfile, getTargetDataspace(_, _, _))
-            .WillRepeatedly(Return(ui::Dataspace::UNKNOWN));
-
     // These values are expected to be the initial state.
     ASSERT_EQ(ui::ColorMode::NATIVE, mDisplay->getState().colorMode);
     ASSERT_EQ(ui::Dataspace::UNKNOWN, mDisplay->getState().dataspace);
     ASSERT_EQ(ui::RenderIntent::COLORIMETRIC, mDisplay->getState().renderIntent);
-    ASSERT_EQ(ui::Dataspace::UNKNOWN, mDisplay->getState().targetDataspace);
 
     // Otherwise if the values are unchanged, nothing happens
     mDisplay->setColorProfile(ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
-                                           ui::RenderIntent::COLORIMETRIC, ui::Dataspace::UNKNOWN});
+                                           ui::RenderIntent::COLORIMETRIC});
 
     EXPECT_EQ(ui::ColorMode::NATIVE, mDisplay->getState().colorMode);
     EXPECT_EQ(ui::Dataspace::UNKNOWN, mDisplay->getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, mDisplay->getState().renderIntent);
-    EXPECT_EQ(ui::Dataspace::UNKNOWN, mDisplay->getState().targetDataspace);
 
     // Otherwise if the values are different, updates happen
     EXPECT_CALL(*renderSurface, setBufferDataspace(ui::Dataspace::DISPLAY_P3)).Times(1);
@@ -429,13 +424,11 @@ TEST_F(DisplaySetColorModeTest, setsModeUnlessNoChange) {
             .Times(1);
 
     mDisplay->setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                           ui::RenderIntent::TONE_MAP_COLORIMETRIC,
-                                           ui::Dataspace::UNKNOWN});
+                                           ui::RenderIntent::TONE_MAP_COLORIMETRIC});
 
     EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mDisplay->getState().colorMode);
     EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mDisplay->getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mDisplay->getState().renderIntent);
-    EXPECT_EQ(ui::Dataspace::UNKNOWN, mDisplay->getState().targetDataspace);
 }
 
 TEST_F(DisplaySetColorModeTest, doesNothingForVirtualDisplay) {
@@ -448,19 +441,13 @@ TEST_F(DisplaySetColorModeTest, doesNothingForVirtualDisplay) {
     virtualDisplay->setDisplayColorProfileForTest(
             std::unique_ptr<DisplayColorProfile>(colorProfile));
 
-    EXPECT_CALL(*colorProfile,
-                getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                   ui::Dataspace::UNKNOWN))
-            .WillOnce(Return(ui::Dataspace::UNKNOWN));
-
-    virtualDisplay->setColorProfile(
-            ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                         ui::RenderIntent::TONE_MAP_COLORIMETRIC, ui::Dataspace::UNKNOWN});
+    virtualDisplay->setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3,
+                                                 ui::Dataspace::DISPLAY_P3,
+                                                 ui::RenderIntent::TONE_MAP_COLORIMETRIC});
 
     EXPECT_EQ(ui::ColorMode::NATIVE, virtualDisplay->getState().colorMode);
     EXPECT_EQ(ui::Dataspace::UNKNOWN, virtualDisplay->getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, virtualDisplay->getState().renderIntent);
-    EXPECT_EQ(ui::Dataspace::UNKNOWN, virtualDisplay->getState().targetDataspace);
 }
 
 /*

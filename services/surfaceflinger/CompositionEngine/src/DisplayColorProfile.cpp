@@ -391,17 +391,6 @@ bool DisplayColorProfile::isDataspaceSupported(Dataspace dataspace) const {
     }
 }
 
-ui::Dataspace DisplayColorProfile::getTargetDataspace(ColorMode mode, Dataspace dataspace,
-                                                      Dataspace colorSpaceAgnosticDataspace) const {
-    if (isHdrColorMode(mode)) {
-        return Dataspace::UNKNOWN;
-    }
-    if (colorSpaceAgnosticDataspace != ui::Dataspace::UNKNOWN) {
-        return colorSpaceAgnosticDataspace;
-    }
-    return dataspace;
-}
-
 void DisplayColorProfile::dump(std::string& out) const {
     out.append("   Composition Display Color State:");
 
