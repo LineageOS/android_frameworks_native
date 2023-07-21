@@ -19,6 +19,7 @@
 #include "SensorService.h"
 
 #include <android/util/ProtoOutputStream.h>
+#include <cutils/properties.h>
 #include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 
 namespace android {
@@ -60,10 +61,12 @@ SensorFusion::SensorFusion()
             mGyro = uncalibratedGyro;
         }
 
-        // 200 Hz for gyro events is a good compromise between precision
-        // and power/cpu usage.
-        mEstimatedGyroRate = 200;
-        mTargetDelayNs = 1000000000LL/mEstimatedGyroRate;
+        // Wearable devices will want to tune this parameter
+        // to 100 (Hz) in device.mk to save some power.
+        int32_t value = property_get_int32(
+            "sensors.aosp_low_power_sensor_fusion.maximum_rate", 200);
+        mEstimatedGyroRate = static_cast<float>(value);
+        mTargetDelayNs = 1000000000LL / mEstimatedGyroRate;
 
         for (int i = 0; i<NUM_FUSION_MODE; ++i) {
             mFusions[i].init(i);
