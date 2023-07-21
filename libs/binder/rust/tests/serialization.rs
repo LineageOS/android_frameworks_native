@@ -113,11 +113,13 @@ fn on_transact(
         bindings::Transaction_TEST_BOOL => {
             assert!(parcel.read::<bool>()?);
             assert!(!parcel.read::<bool>()?);
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<bool>>()?, unsafe { bindings::TESTDATA_BOOL });
             assert_eq!(parcel.read::<Option<Vec<bool>>>()?, None);
 
             reply.write(&true)?;
             reply.write(&false)?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_BOOL }[..])?;
             reply.write(&(None as Option<Vec<bool>>))?;
         }
@@ -125,14 +127,18 @@ fn on_transact(
             assert_eq!(parcel.read::<i8>()?, 0);
             assert_eq!(parcel.read::<i8>()?, 1);
             assert_eq!(parcel.read::<i8>()?, i8::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<i8>>()?, unsafe { bindings::TESTDATA_I8 });
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<u8>>()?, unsafe { bindings::TESTDATA_U8 });
             assert_eq!(parcel.read::<Option<Vec<i8>>>()?, None);
 
             reply.write(&0i8)?;
             reply.write(&1i8)?;
             reply.write(&i8::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_I8 }[..])?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_U8 }[..])?;
             reply.write(&(None as Option<Vec<i8>>))?;
         }
@@ -140,12 +146,14 @@ fn on_transact(
             assert_eq!(parcel.read::<u16>()?, 0);
             assert_eq!(parcel.read::<u16>()?, 1);
             assert_eq!(parcel.read::<u16>()?, u16::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<u16>>()?, unsafe { bindings::TESTDATA_CHARS });
             assert_eq!(parcel.read::<Option<Vec<u16>>>()?, None);
 
             reply.write(&0u16)?;
             reply.write(&1u16)?;
             reply.write(&u16::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_CHARS }[..])?;
             reply.write(&(None as Option<Vec<u16>>))?;
         }
@@ -153,12 +161,14 @@ fn on_transact(
             assert_eq!(parcel.read::<i32>()?, 0);
             assert_eq!(parcel.read::<i32>()?, 1);
             assert_eq!(parcel.read::<i32>()?, i32::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<i32>>()?, unsafe { bindings::TESTDATA_I32 });
             assert_eq!(parcel.read::<Option<Vec<i32>>>()?, None);
 
             reply.write(&0i32)?;
             reply.write(&1i32)?;
             reply.write(&i32::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_I32 }[..])?;
             reply.write(&(None as Option<Vec<i32>>))?;
         }
@@ -166,12 +176,14 @@ fn on_transact(
             assert_eq!(parcel.read::<i64>()?, 0);
             assert_eq!(parcel.read::<i64>()?, 1);
             assert_eq!(parcel.read::<i64>()?, i64::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<i64>>()?, unsafe { bindings::TESTDATA_I64 });
             assert_eq!(parcel.read::<Option<Vec<i64>>>()?, None);
 
             reply.write(&0i64)?;
             reply.write(&1i64)?;
             reply.write(&i64::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_I64 }[..])?;
             reply.write(&(None as Option<Vec<i64>>))?;
         }
@@ -179,12 +191,14 @@ fn on_transact(
             assert_eq!(parcel.read::<u64>()?, 0);
             assert_eq!(parcel.read::<u64>()?, 1);
             assert_eq!(parcel.read::<u64>()?, u64::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<u64>>()?, unsafe { bindings::TESTDATA_U64 });
             assert_eq!(parcel.read::<Option<Vec<u64>>>()?, None);
 
             reply.write(&0u64)?;
             reply.write(&1u64)?;
             reply.write(&u64::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_U64 }[..])?;
             reply.write(&(None as Option<Vec<u64>>))?;
         }
@@ -192,10 +206,12 @@ fn on_transact(
             assert_eq!(parcel.read::<f32>()?, 0f32);
             let floats = parcel.read::<Vec<f32>>()?;
             assert!(floats[0].is_nan());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(floats[1..], unsafe { bindings::TESTDATA_FLOAT }[1..]);
             assert_eq!(parcel.read::<Option<Vec<f32>>>()?, None);
 
             reply.write(&0f32)?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_FLOAT }[..])?;
             reply.write(&(None as Option<Vec<f32>>))?;
         }
@@ -203,10 +219,12 @@ fn on_transact(
             assert_eq!(parcel.read::<f64>()?, 0f64);
             let doubles = parcel.read::<Vec<f64>>()?;
             assert!(doubles[0].is_nan());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(doubles[1..], unsafe { bindings::TESTDATA_DOUBLE }[1..]);
             assert_eq!(parcel.read::<Option<Vec<f64>>>()?, None);
 
             reply.write(&0f64)?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_DOUBLE }[..])?;
             reply.write(&(None as Option<Vec<f64>>))?;
         }
@@ -216,14 +234,17 @@ fn on_transact(
             let s: Option<String> = parcel.read()?;
             assert_eq!(s, None);
             let s: Option<Vec<Option<String>>> = parcel.read()?;
+            // SAFETY: Just reading an extern constant.
             for (s, expected) in s.unwrap().iter().zip(unsafe { bindings::TESTDATA_STRS }.iter()) {
                 let expected =
+            // SAFETY: Just reading an extern constant.
                     unsafe { expected.as_ref().and_then(|e| CStr::from_ptr(e).to_str().ok()) };
                 assert_eq!(s.as_deref(), expected);
             }
             let s: Option<Vec<Option<String>>> = parcel.read()?;
             assert_eq!(s, None);
 
+            // SAFETY: Just reading an extern constant.
             let strings: Vec<Option<String>> = unsafe {
                 bindings::TESTDATA_STRS
                     .iter()
