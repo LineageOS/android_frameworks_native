@@ -16,10 +16,11 @@
 
 #define LOG_TAG "VelocityTracker"
 
-#include <array>
+#include <android-base/logging.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <math.h>
+#include <array>
 #include <optional>
 
 #include <input/PrintTools.h>
@@ -243,6 +244,11 @@ void VelocityTracker::clearPointer(int32_t pointerId) {
 
 void VelocityTracker::addMovement(nsecs_t eventTime, int32_t pointerId, int32_t axis,
                                   float position) {
+    if (pointerId < 0 || pointerId > MAX_POINTER_ID) {
+        LOG(FATAL) << "Invalid pointer ID " << pointerId << " for axis "
+                   << MotionEvent::getLabel(axis);
+    }
+
     if (mCurrentPointerIdBits.hasBit(pointerId) &&
         std::chrono::nanoseconds(eventTime - mLastEventTime) > ASSUME_POINTER_STOPPED_TIME) {
         ALOGD_IF(DEBUG_VELOCITY, "VelocityTracker: stopped for %s, clearing state.",
