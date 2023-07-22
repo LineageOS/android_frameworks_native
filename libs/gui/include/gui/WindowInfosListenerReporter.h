@@ -18,7 +18,7 @@
 
 #include <android/gui/BnWindowInfosListener.h>
 #include <android/gui/ISurfaceComposer.h>
-#include <android/gui/IWindowInfosReportedListener.h>
+#include <android/gui/IWindowInfosPublisher.h>
 #include <binder/IBinder.h>
 #include <gui/SpHash.h>
 #include <gui/WindowInfosListener.h>
@@ -30,8 +30,7 @@ namespace android {
 class WindowInfosListenerReporter : public gui::BnWindowInfosListener {
 public:
     static sp<WindowInfosListenerReporter> getInstance();
-    binder::Status onWindowInfosChanged(const gui::WindowInfosUpdate& update,
-                                        const sp<gui::IWindowInfosReportedListener>&) override;
+    binder::Status onWindowInfosChanged(const gui::WindowInfosUpdate& update) override;
     status_t addWindowInfosListener(
             const sp<gui::WindowInfosListener>& windowInfosListener,
             const sp<gui::ISurfaceComposer>&,
@@ -47,5 +46,8 @@ private:
 
     std::vector<gui::WindowInfo> mLastWindowInfos GUARDED_BY(mListenersMutex);
     std::vector<gui::DisplayInfo> mLastDisplayInfos GUARDED_BY(mListenersMutex);
+
+    sp<gui::IWindowInfosPublisher> mWindowInfosPublisher;
+    int64_t mListenerId;
 };
 } // namespace android
