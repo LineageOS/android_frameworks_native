@@ -71,7 +71,8 @@ public:
     MOCK_METHOD4(getDisplayAttribute,
                  Error(Display, Config config, IComposerClient::Attribute, int32_t*));
     MOCK_METHOD2(getDisplayConfigs, Error(Display, std::vector<Config>*));
-    MOCK_METHOD2(getDisplayConfigurations, Error(Display, std::vector<DisplayConfiguration>*));
+    MOCK_METHOD3(getDisplayConfigurations,
+                 Error(Display, int32_t, std::vector<DisplayConfiguration>*));
     MOCK_METHOD2(getDisplayName, Error(Display, std::string*));
     MOCK_METHOD4(getDisplayRequests,
                  Error(Display, uint32_t*, std::vector<Layer>*, std::vector<uint32_t>*));

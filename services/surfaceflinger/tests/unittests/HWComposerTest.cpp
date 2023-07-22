@@ -123,6 +123,7 @@ TEST_F(HWComposerTest, getActiveMode) {
 TEST_F(HWComposerTest, getModesWithLegacyDisplayConfigs) {
     constexpr hal::HWDisplayId kHwcDisplayId = 2;
     constexpr hal::HWConfigId kConfigId = 42;
+    constexpr int32_t kMaxFrameIntervalNs = 50000000; // 20Fps
 
     expectHotplugConnect(kHwcDisplayId);
     const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
@@ -133,7 +134,7 @@ TEST_F(HWComposerTest, getModesWithLegacyDisplayConfigs) {
     {
         EXPECT_CALL(*mHal, getDisplayConfigs(kHwcDisplayId, _))
                 .WillOnce(Return(HalError::BAD_DISPLAY));
-        EXPECT_TRUE(mHwc.getModes(info->id).empty());
+        EXPECT_TRUE(mHwc.getModes(info->id, kMaxFrameIntervalNs).empty());
     }
     {
         constexpr int32_t kWidth = 480;
@@ -172,7 +173,7 @@ TEST_F(HWComposerTest, getModesWithLegacyDisplayConfigs) {
                 .WillRepeatedly(DoAll(SetArgPointee<1>(std::vector<hal::HWConfigId>{kConfigId}),
                                       Return(HalError::NONE)));
 
-        auto modes = mHwc.getModes(info->id);
+        auto modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
         EXPECT_EQ(modes.size(), size_t{1});
         EXPECT_EQ(modes.front().hwcId, kConfigId);
         EXPECT_EQ(modes.front().width, kWidth);
@@ -193,7 +194,7 @@ TEST_F(HWComposerTest, getModesWithLegacyDisplayConfigs) {
                                         _))
                 .WillOnce(DoAll(SetArgPointee<3>(kDpi), Return(HalError::NONE)));
 
-        modes = mHwc.getModes(info->id);
+        modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
         EXPECT_EQ(modes.size(), size_t{1});
         EXPECT_EQ(modes.front().hwcId, kConfigId);
         EXPECT_EQ(modes.front().width, kWidth);
@@ -209,6 +210,7 @@ TEST_F(HWComposerTest, getModesWithLegacyDisplayConfigs) {
 TEST_F(HWComposerTest, getModesWithDisplayConfigurations) {
     constexpr hal::HWDisplayId kHwcDisplayId = 2;
     constexpr hal::HWConfigId kConfigId = 42;
+    constexpr int32_t kMaxFrameIntervalNs = 50000000; // 20Fps
     expectHotplugConnect(kHwcDisplayId);
     const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
     ASSERT_TRUE(info);
@@ -216,9 +218,9 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations) {
     EXPECT_CALL(*mHal, getDisplayConfigurationsSupported()).WillRepeatedly(Return(true));
 
     {
-        EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _))
+        EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
                 .WillOnce(Return(HalError::BAD_DISPLAY));
-        EXPECT_TRUE(mHwc.getModes(info->id).empty());
+        EXPECT_TRUE(mHwc.getModes(info->id, kMaxFrameIntervalNs).empty());
     }
     {
         constexpr int32_t kWidth = 480;
@@ -232,13 +234,13 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations) {
         displayConfiguration.width = kWidth;
         displayConfiguration.vsyncPeriod = kVsyncPeriod;
 
-        EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<hal::DisplayConfiguration>{
+        EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
+                .WillOnce(DoAll(SetArgPointee<2>(std::vector<hal::DisplayConfiguration>{
                                         displayConfiguration}),
                                 Return(HalError::NONE)));
 
         // Optional dpi not supported
-        auto modes = mHwc.getModes(info->id);
+        auto modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
         EXPECT_EQ(modes.size(), size_t{1});
         EXPECT_EQ(modes.front().hwcId, kConfigId);
         EXPECT_EQ(modes.front().width, kWidth);
@@ -252,12 +254,12 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations) {
         constexpr int32_t kDpi = 320;
         displayConfiguration.dpi = {kDpi, kDpi};
 
-        EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<hal::DisplayConfiguration>{
+        EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
+                .WillOnce(DoAll(SetArgPointee<2>(std::vector<hal::DisplayConfiguration>{
                                         displayConfiguration}),
                                 Return(HalError::NONE)));
 
-        modes = mHwc.getModes(info->id);
+        modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
         EXPECT_EQ(modes.size(), size_t{1});
         EXPECT_EQ(modes.front().hwcId, kConfigId);
         EXPECT_EQ(modes.front().width, kWidth);

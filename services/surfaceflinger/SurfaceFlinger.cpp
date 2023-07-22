@@ -3166,7 +3166,9 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
     int attempt = 0;
     constexpr int kMaxAttempts = 3;
     do {
-        hwcModes = getHwComposer().getModes(displayId);
+        hwcModes = getHwComposer().getModes(displayId,
+                                            scheduler::RefreshRateSelector::kMinSupportedFrameRate
+                                                    .getPeriodNsecs());
         activeModeHwcId = getHwComposer().getActiveMode(displayId);
 
         const auto isActiveMode = [activeModeHwcId](const HWComposer::HWCDisplayMode& mode) {

@@ -492,10 +492,11 @@ Error AidlComposer::getDisplayConfigs(Display display, std::vector<Config>* outC
     return Error::NONE;
 }
 
-Error AidlComposer::getDisplayConfigurations(Display display,
+Error AidlComposer::getDisplayConfigurations(Display display, int32_t maxFrameIntervalNs,
                                              std::vector<DisplayConfiguration>* outConfigs) {
     const auto status =
-            mAidlComposerClient->getDisplayConfigurations(translate<int64_t>(display), outConfigs);
+            mAidlComposerClient->getDisplayConfigurations(translate<int64_t>(display),
+                                                          maxFrameIntervalNs, outConfigs);
     if (!status.isOk()) {
         ALOGE("getDisplayConfigurations failed %s", status.getDescription().c_str());
         return static_cast<Error>(status.getServiceSpecificError());

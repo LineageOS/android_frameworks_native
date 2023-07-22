@@ -261,23 +261,24 @@ bool HWComposer::isConnected(PhysicalDisplayId displayId) const {
     return mDisplayData.count(displayId) && mDisplayData.at(displayId).hwcDisplay->isConnected();
 }
 
-std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId displayId) const {
+std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId displayId,
+                                                             int32_t maxFrameIntervalNs) const {
     RETURN_IF_INVALID_DISPLAY(displayId, {});
 
     const auto hwcDisplayId = mDisplayData.at(displayId).hwcDisplay->getId();
 
     if (mComposer->getDisplayConfigurationsSupported()) {
-        return getModesFromDisplayConfigurations(hwcDisplayId);
+        return getModesFromDisplayConfigurations(hwcDisplayId, maxFrameIntervalNs);
     }
 
     return getModesFromLegacyDisplayConfigs(hwcDisplayId);
 }
 
 std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromDisplayConfigurations(
-        uint64_t hwcDisplayId) const {
+        uint64_t hwcDisplayId, int32_t maxFrameIntervalNs) const {
     std::vector<hal::DisplayConfiguration> configs;
-    auto error =
-            static_cast<hal::Error>(mComposer->getDisplayConfigurations(hwcDisplayId, &configs));
+    auto error = static_cast<hal::Error>(
+            mComposer->getDisplayConfigurations(hwcDisplayId, maxFrameIntervalNs, &configs));
     RETURN_IF_HWC_ERROR_FOR("getDisplayConfigurations", error, *toPhysicalDisplayId(hwcDisplayId),
                             {});
 

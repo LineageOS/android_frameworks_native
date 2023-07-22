@@ -597,7 +597,7 @@ void DisplayHardwareFuzzer::invokeComposer() {
                          mFdp.ConsumeBool() ? hal::Vsync::ENABLE : hal::Vsync::DISABLE);
 
     mHwc.isConnected(mPhysicalDisplayId);
-    mHwc.getModes(mPhysicalDisplayId);
+    mHwc.getModes(mPhysicalDisplayId, mFdp.ConsumeIntegral<int32_t>());
     mHwc.getActiveMode(mPhysicalDisplayId);
     mHwc.getColorModes(mPhysicalDisplayId);
     mHwc.hasCapability(mFdp.PickValueInArray(kCapability));

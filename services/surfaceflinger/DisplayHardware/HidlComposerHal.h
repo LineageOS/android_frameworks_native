@@ -197,7 +197,8 @@ public:
     Error getDisplayAttribute(Display display, Config config, IComposerClient::Attribute attribute,
                               int32_t* outValue) override;
     Error getDisplayConfigs(Display display, std::vector<Config>* outConfigs);
-    Error getDisplayConfigurations(Display, std::vector<DisplayConfiguration>*);
+    Error getDisplayConfigurations(Display, int32_t maxFrameIntervalNs,
+                                   std::vector<DisplayConfiguration>*);
     Error getDisplayName(Display display, std::string* outName) override;
 
     Error getDisplayRequests(Display display, uint32_t* outDisplayRequestMask,
