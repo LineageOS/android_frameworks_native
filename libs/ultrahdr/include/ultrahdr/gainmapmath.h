@@ -172,7 +172,7 @@ struct GainLUT {
   }
 
   float getGainFactor(float gain) {
-    uint32_t idx = static_cast<uint32_t>(gain * (kGainFactorNumEntries - 1));
+    uint32_t idx = static_cast<uint32_t>(gain * (kGainFactorNumEntries - 1) + 0.5);
     //TODO() : Remove once conversion modules have appropriate clamping in place
     idx = CLIP3(idx, 0, kGainFactorNumEntries - 1);
     return mGainTable[idx];
