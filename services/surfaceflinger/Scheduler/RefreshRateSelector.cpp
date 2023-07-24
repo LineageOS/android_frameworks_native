@@ -1221,10 +1221,19 @@ void RefreshRateSelector::constructAvailableRefreshRates() {
                     (supportsFrameRateOverride() || ranges.render.includes(mode.getFps()));
         };
 
-        const auto frameRateModes = createFrameRateModes(filterModes, ranges.render);
+        auto frameRateModes = createFrameRateModes(filterModes, ranges.render);
+        if (frameRateModes.empty()) {
+            ALOGW("No matching frame rate modes for %s range. policy: %s", rangeName,
+                  policy->toString().c_str());
+            // TODO(b/292105422): Ideally DisplayManager should not send render ranges smaller than
+            // the min supported. See b/292047939.
+            //  For not we just ignore the render ranges.
+            frameRateModes = createFrameRateModes(filterModes, {});
+        }
         LOG_ALWAYS_FATAL_IF(frameRateModes.empty(),
-                            "No matching frame rate modes for %s range. policy: %s", rangeName,
-                            policy->toString().c_str());
+                            "No matching frame rate modes for %s range even after ignoring the "
+                            "render range. policy: %s",
+                            rangeName, policy->toString().c_str());
 
         const auto stringifyModes = [&] {
             std::string str;

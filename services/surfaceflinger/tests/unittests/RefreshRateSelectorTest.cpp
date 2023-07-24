@@ -3042,5 +3042,20 @@ TEST_P(RefreshRateSelectorTest, frameRateNotInRange) {
     EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
 }
 
+TEST_P(RefreshRateSelectorTest, frameRateIsLowerThanMinSupported) {
+    if (GetParam() != Config::FrameRateOverride::Enabled) {
+        return;
+    }
+
+    auto selector = createSelector(kModes_60_90, kModeId60);
+
+    constexpr Fps kMin = RefreshRateSelector::kMinSupportedFrameRate;
+    constexpr FpsRanges kLowerThanMin = {{60_Hz, 90_Hz}, {kMin / 2, kMin / 2}};
+
+    EXPECT_EQ(SetPolicyResult::Changed,
+              selector.setDisplayManagerPolicy(
+                      {DisplayModeId(kModeId60), kLowerThanMin, kLowerThanMin}));
+}
+
 } // namespace
 } // namespace android::scheduler
