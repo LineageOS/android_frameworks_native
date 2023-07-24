@@ -15,15 +15,7 @@
       "name": "libscheduler_test"
     },
     {
-      "name": "CtsGraphicsTestCases",
-      "options": [
-        {
-          "include-filter": "android.graphics.cts.VulkanPreTransformTest"
-        },
-        {
-          "include-filter": "android.graphics.cts.FrameRateOverrideTest"
-        }
-      ]
+      "name": "CtsGraphicsTestCases"
     },
     {
       "name": "CtsSurfaceControlTests"
