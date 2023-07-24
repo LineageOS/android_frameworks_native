@@ -469,15 +469,14 @@ void Output::uncacheBuffers(std::vector<uint64_t> const& bufferIdsToUncache) {
 
 void Output::rebuildLayerStacks(const compositionengine::CompositionRefreshArgs& refreshArgs,
                                 LayerFESet& layerFESet) {
-    ATRACE_CALL();
-    ALOGV(__FUNCTION__);
-
     auto& outputState = editState();
 
     // Do nothing if this output is not enabled or there is no need to perform this update
     if (!outputState.isEnabled || CC_LIKELY(!refreshArgs.updatingOutputGeometryThisFrame)) {
         return;
     }
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
 
     // Process the layers to determine visibility and coverage
     compositionengine::Output::CoverageState coverage{layerFESet};
