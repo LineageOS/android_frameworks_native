@@ -723,6 +723,8 @@ fn test_read_write() {
 
     parcel.write(&1i32).unwrap();
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         parcel.set_data_position(start).unwrap();
     }
@@ -739,6 +741,8 @@ fn test_read_data() {
 
     parcel.write(&b"Hello, Binder!\0"[..]).unwrap();
     // Skip over string length
+    // SAFETY: str_start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(str_start).is_ok());
     }
@@ -747,42 +751,56 @@ fn test_read_data() {
 
     assert!(parcel.read::<bool>().unwrap());
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
 
     assert_eq!(parcel.read::<i8>().unwrap(), 72i8);
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
 
     assert_eq!(parcel.read::<u16>().unwrap(), 25928);
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
 
     assert_eq!(parcel.read::<i32>().unwrap(), 1819043144);
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
 
     assert_eq!(parcel.read::<u32>().unwrap(), 1819043144);
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
 
     assert_eq!(parcel.read::<i64>().unwrap(), 4764857262830019912);
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
 
     assert_eq!(parcel.read::<u64>().unwrap(), 4764857262830019912);
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
@@ -790,6 +808,8 @@ fn test_read_data() {
     assert_eq!(parcel.read::<f32>().unwrap(), 1143139100000000000000000000.0);
     assert_eq!(parcel.read::<f32>().unwrap(), 40.043392);
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
@@ -797,6 +817,8 @@ fn test_read_data() {
     assert_eq!(parcel.read::<f64>().unwrap(), 34732488246.197815);
 
     // Skip back to before the string length
+    // SAFETY: str_start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(str_start).is_ok());
     }
@@ -810,15 +832,21 @@ fn test_utf8_utf16_conversions() {
     let start = parcel.get_data_position();
 
     assert!(parcel.write("Hello, Binder!").is_ok());
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
     assert_eq!(parcel.read::<Option<String>>().unwrap().unwrap(), "Hello, Binder!",);
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
 
     assert!(parcel.write("Embedded null \0 inside a string").is_ok());
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
@@ -826,6 +854,8 @@ fn test_utf8_utf16_conversions() {
         parcel.read::<Option<String>>().unwrap().unwrap(),
         "Embedded null \0 inside a string",
     );
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
@@ -840,6 +870,8 @@ fn test_utf8_utf16_conversions() {
     let s3 = "Some more text here.";
 
     assert!(parcel.write(&[s1, s2, s3][..]).is_ok());
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         assert!(parcel.set_data_position(start).is_ok());
     }
@@ -865,6 +897,8 @@ fn test_sized_write() {
 
     assert_eq!(parcel.get_data_position(), start + expected_len);
 
+    // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+    // made it any shorter since we got the position.
     unsafe {
         parcel.set_data_position(start).unwrap();
     }
@@ -884,6 +918,8 @@ fn test_append_from() {
     assert_eq!(4, parcel2.get_data_size());
     assert_eq!(Ok(()), parcel2.append_all_from(&parcel1));
     assert_eq!(8, parcel2.get_data_size());
+    // SAFETY: 0 is less than the current size of the parcel data buffer, because the parcel is not
+    // empty.
     unsafe {
         parcel2.set_data_position(0).unwrap();
     }
@@ -894,6 +930,8 @@ fn test_append_from() {
     assert_eq!(Ok(()), parcel2.append_from(&parcel1, 0, 2));
     assert_eq!(Ok(()), parcel2.append_from(&parcel1, 2, 2));
     assert_eq!(4, parcel2.get_data_size());
+    // SAFETY: 0 is less than the current size of the parcel data buffer, because the parcel is not
+    // empty.
     unsafe {
         parcel2.set_data_position(0).unwrap();
     }
@@ -902,6 +940,8 @@ fn test_append_from() {
     let mut parcel2 = Parcel::new();
     assert_eq!(Ok(()), parcel2.append_from(&parcel1, 0, 2));
     assert_eq!(2, parcel2.get_data_size());
+    // SAFETY: 0 is less than the current size of the parcel data buffer, because the parcel is not
+    // empty.
     unsafe {
         parcel2.set_data_position(0).unwrap();
     }

@@ -1087,6 +1087,8 @@ mod tests {
 
         assert!(custom.serialize(&mut parcel.borrowed()).is_ok());
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1109,6 +1111,8 @@ mod tests {
 
         assert!(bools.serialize(&mut parcel.borrowed()).is_ok());
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1118,6 +1122,8 @@ mod tests {
         assert_eq!(parcel.read::<u32>().unwrap(), 0);
         assert_eq!(parcel.read::<u32>().unwrap(), 0);
         assert_eq!(parcel.read::<u32>().unwrap(), 1);
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1133,12 +1139,17 @@ mod tests {
 
         assert!(parcel.write(&u8s[..]).is_ok());
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
 
         assert_eq!(parcel.read::<u32>().unwrap(), 4); // 4 items
         assert_eq!(parcel.read::<u32>().unwrap(), 0x752aff65); // bytes
+
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1148,18 +1159,25 @@ mod tests {
 
         let i8s = [-128i8, 127, 42, -117];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
 
         assert!(parcel.write(&i8s[..]).is_ok());
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
 
         assert_eq!(parcel.read::<u32>().unwrap(), 4); // 4 items
         assert_eq!(parcel.read::<u32>().unwrap(), 0x8b2a7f80); // bytes
+
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1169,10 +1187,14 @@ mod tests {
 
         let u16s = [u16::max_value(), 12_345, 42, 117];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
         assert!(u16s.serialize(&mut parcel.borrowed()).is_ok());
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1182,6 +1204,9 @@ mod tests {
         assert_eq!(parcel.read::<u32>().unwrap(), 12345); // 12,345
         assert_eq!(parcel.read::<u32>().unwrap(), 42); // 42
         assert_eq!(parcel.read::<u32>().unwrap(), 117); // 117
+
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1192,10 +1217,14 @@ mod tests {
 
         let i16s = [i16::max_value(), i16::min_value(), 42, -117];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
         assert!(i16s.serialize(&mut parcel.borrowed()).is_ok());
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1205,6 +1234,9 @@ mod tests {
         assert_eq!(parcel.read::<u32>().unwrap(), 0x8000); // i16::min_value()
         assert_eq!(parcel.read::<u32>().unwrap(), 42); // 42
         assert_eq!(parcel.read::<u32>().unwrap(), 0xff8b); // -117
+
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1215,10 +1247,14 @@ mod tests {
 
         let u32s = [u32::max_value(), 12_345, 42, 117];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
         assert!(u32s.serialize(&mut parcel.borrowed()).is_ok());
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1228,6 +1264,9 @@ mod tests {
         assert_eq!(parcel.read::<u32>().unwrap(), 12345); // 12,345
         assert_eq!(parcel.read::<u32>().unwrap(), 42); // 42
         assert_eq!(parcel.read::<u32>().unwrap(), 117); // 117
+
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1238,10 +1277,14 @@ mod tests {
 
         let i32s = [i32::max_value(), i32::min_value(), 42, -117];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
         assert!(i32s.serialize(&mut parcel.borrowed()).is_ok());
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1251,6 +1294,9 @@ mod tests {
         assert_eq!(parcel.read::<u32>().unwrap(), 0x80000000); // i32::min_value()
         assert_eq!(parcel.read::<u32>().unwrap(), 42); // 42
         assert_eq!(parcel.read::<u32>().unwrap(), 0xffffff8b); // -117
+
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1261,10 +1307,14 @@ mod tests {
 
         let u64s = [u64::max_value(), 12_345, 42, 117];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
         assert!(u64s.serialize(&mut parcel.borrowed()).is_ok());
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1275,10 +1325,14 @@ mod tests {
 
         let i64s = [i64::max_value(), i64::min_value(), 42, -117];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
         assert!(i64s.serialize(&mut parcel.borrowed()).is_ok());
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1289,10 +1343,14 @@ mod tests {
 
         let f32s = [std::f32::NAN, std::f32::INFINITY, 1.23456789, std::f32::EPSILON];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
         assert!(f32s.serialize(&mut parcel.borrowed()).is_ok());
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1305,10 +1363,14 @@ mod tests {
 
         let f64s = [std::f64::NAN, std::f64::INFINITY, 1.234567890123456789, std::f64::EPSILON];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
         assert!(f64s.serialize(&mut parcel.borrowed()).is_ok());
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
@@ -1326,10 +1388,14 @@ mod tests {
 
         let strs = [s1, s2, s3, s4];
 
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
         assert!(strs.serialize(&mut parcel.borrowed()).is_ok());
+        // SAFETY: start is less than the current size of the parcel data buffer, because we haven't
+        // made it any shorter since we got the position.
         unsafe {
             assert!(parcel.set_data_position(start).is_ok());
         }
