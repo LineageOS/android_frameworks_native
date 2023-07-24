@@ -26,7 +26,7 @@ use binder::{
 use binder::binder_impl::{Binder, BorrowedParcel, TransactionCode};
 
 use std::ffi::{c_void, CStr, CString};
-use std::sync::Once;
+use std::sync::OnceLock;
 
 #[allow(
     non_camel_case_types,
@@ -70,20 +70,18 @@ macro_rules! assert {
     };
 }
 
-static SERVICE_ONCE: Once = Once::new();
-static mut SERVICE: Option<SpIBinder> = None;
+static SERVICE: OnceLock<SpIBinder> = OnceLock::new();
 
 /// Start binder service and return a raw AIBinder pointer to it.
 ///
 /// Safe to call multiple times, only creates the service once.
 #[no_mangle]
 pub extern "C" fn rust_service() -> *mut c_void {
-    unsafe {
-        SERVICE_ONCE.call_once(|| {
-            SERVICE = Some(BnReadParcelTest::new_binder((), BinderFeatures::default()).as_binder());
-        });
-        SERVICE.as_ref().unwrap().as_raw().cast()
-    }
+    let service = SERVICE
+        .get_or_init(|| BnReadParcelTest::new_binder((), BinderFeatures::default()).as_binder());
+    // SAFETY: The SpIBinder will remain alive as long as the program is running because it is in
+    // the static SERVICE, so the pointer is valid forever.
+    unsafe { service.as_raw().cast() }
 }
 
 /// Empty interface just to use the declare_binder_interface macro
@@ -113,11 +111,13 @@ fn on_transact(
         bindings::Transaction_TEST_BOOL => {
             assert!(parcel.read::<bool>()?);
             assert!(!parcel.read::<bool>()?);
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<bool>>()?, unsafe { bindings::TESTDATA_BOOL });
             assert_eq!(parcel.read::<Option<Vec<bool>>>()?, None);
 
             reply.write(&true)?;
             reply.write(&false)?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_BOOL }[..])?;
             reply.write(&(None as Option<Vec<bool>>))?;
         }
@@ -125,14 +125,18 @@ fn on_transact(
             assert_eq!(parcel.read::<i8>()?, 0);
             assert_eq!(parcel.read::<i8>()?, 1);
             assert_eq!(parcel.read::<i8>()?, i8::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<i8>>()?, unsafe { bindings::TESTDATA_I8 });
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<u8>>()?, unsafe { bindings::TESTDATA_U8 });
             assert_eq!(parcel.read::<Option<Vec<i8>>>()?, None);
 
             reply.write(&0i8)?;
             reply.write(&1i8)?;
             reply.write(&i8::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_I8 }[..])?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_U8 }[..])?;
             reply.write(&(None as Option<Vec<i8>>))?;
         }
@@ -140,12 +144,14 @@ fn on_transact(
             assert_eq!(parcel.read::<u16>()?, 0);
             assert_eq!(parcel.read::<u16>()?, 1);
             assert_eq!(parcel.read::<u16>()?, u16::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<u16>>()?, unsafe { bindings::TESTDATA_CHARS });
             assert_eq!(parcel.read::<Option<Vec<u16>>>()?, None);
 
             reply.write(&0u16)?;
             reply.write(&1u16)?;
             reply.write(&u16::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_CHARS }[..])?;
             reply.write(&(None as Option<Vec<u16>>))?;
         }
@@ -153,12 +159,14 @@ fn on_transact(
             assert_eq!(parcel.read::<i32>()?, 0);
             assert_eq!(parcel.read::<i32>()?, 1);
             assert_eq!(parcel.read::<i32>()?, i32::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<i32>>()?, unsafe { bindings::TESTDATA_I32 });
             assert_eq!(parcel.read::<Option<Vec<i32>>>()?, None);
 
             reply.write(&0i32)?;
             reply.write(&1i32)?;
             reply.write(&i32::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_I32 }[..])?;
             reply.write(&(None as Option<Vec<i32>>))?;
         }
@@ -166,12 +174,14 @@ fn on_transact(
             assert_eq!(parcel.read::<i64>()?, 0);
             assert_eq!(parcel.read::<i64>()?, 1);
             assert_eq!(parcel.read::<i64>()?, i64::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<i64>>()?, unsafe { bindings::TESTDATA_I64 });
             assert_eq!(parcel.read::<Option<Vec<i64>>>()?, None);
 
             reply.write(&0i64)?;
             reply.write(&1i64)?;
             reply.write(&i64::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_I64 }[..])?;
             reply.write(&(None as Option<Vec<i64>>))?;
         }
@@ -179,12 +189,14 @@ fn on_transact(
             assert_eq!(parcel.read::<u64>()?, 0);
             assert_eq!(parcel.read::<u64>()?, 1);
             assert_eq!(parcel.read::<u64>()?, u64::max_value());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(parcel.read::<Vec<u64>>()?, unsafe { bindings::TESTDATA_U64 });
             assert_eq!(parcel.read::<Option<Vec<u64>>>()?, None);
 
             reply.write(&0u64)?;
             reply.write(&1u64)?;
             reply.write(&u64::max_value())?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_U64 }[..])?;
             reply.write(&(None as Option<Vec<u64>>))?;
         }
@@ -192,10 +204,12 @@ fn on_transact(
             assert_eq!(parcel.read::<f32>()?, 0f32);
             let floats = parcel.read::<Vec<f32>>()?;
             assert!(floats[0].is_nan());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(floats[1..], unsafe { bindings::TESTDATA_FLOAT }[1..]);
             assert_eq!(parcel.read::<Option<Vec<f32>>>()?, None);
 
             reply.write(&0f32)?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_FLOAT }[..])?;
             reply.write(&(None as Option<Vec<f32>>))?;
         }
@@ -203,10 +217,12 @@ fn on_transact(
             assert_eq!(parcel.read::<f64>()?, 0f64);
             let doubles = parcel.read::<Vec<f64>>()?;
             assert!(doubles[0].is_nan());
+            // SAFETY: Just reading an extern constant.
             assert_eq!(doubles[1..], unsafe { bindings::TESTDATA_DOUBLE }[1..]);
             assert_eq!(parcel.read::<Option<Vec<f64>>>()?, None);
 
             reply.write(&0f64)?;
+            // SAFETY: Just reading an extern constant.
             reply.write(&unsafe { bindings::TESTDATA_DOUBLE }[..])?;
             reply.write(&(None as Option<Vec<f64>>))?;
         }
@@ -216,14 +232,17 @@ fn on_transact(
             let s: Option<String> = parcel.read()?;
             assert_eq!(s, None);
             let s: Option<Vec<Option<String>>> = parcel.read()?;
+            // SAFETY: Just reading an extern constant.
             for (s, expected) in s.unwrap().iter().zip(unsafe { bindings::TESTDATA_STRS }.iter()) {
                 let expected =
+            // SAFETY: Just reading an extern constant.
                     unsafe { expected.as_ref().and_then(|e| CStr::from_ptr(e).to_str().ok()) };
                 assert_eq!(s.as_deref(), expected);
             }
             let s: Option<Vec<Option<String>>> = parcel.read()?;
             assert_eq!(s, None);
 
+            // SAFETY: Just reading an extern constant.
             let strings: Vec<Option<String>> = unsafe {
                 bindings::TESTDATA_STRS
                     .iter()
@@ -258,8 +277,7 @@ fn on_transact(
             assert!(ibinders[1].is_none());
             assert!(parcel.read::<Option<Vec<Option<SpIBinder>>>>()?.is_none());
 
-            let service =
-                unsafe { SERVICE.as_ref().expect("Global binder service not initialized").clone() };
+            let service = SERVICE.get().expect("Global binder service not initialized").clone();
             reply.write(&service)?;
             reply.write(&(None as Option<&SpIBinder>))?;
             reply.write(&[Some(&service), None][..])?;
