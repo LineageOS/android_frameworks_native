@@ -3,5 +3,10 @@
     {
       "name": "libvibratorservice_test"
     }
+  ],
+  "imports": [
+    {
+      "path": "cts/tests/vibrator"
+    }
   ]
 }
