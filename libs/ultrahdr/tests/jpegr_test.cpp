@@ -728,23 +728,23 @@ TEST(JpegRTest, EncodeAPI1WithInvalidArgs) {
 
     rawImg420->width = kWidth;
     rawImg420->height = kHeight;
-    rawImg420->luma_stride = kWidth;
+    rawImg420->luma_stride = kWidth - 2;
     ASSERT_NE(uHdrLib.encodeJPEGR(rawImgP010, rawImg420,
                                   ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
                                   jpgImg.getImageHandle(), kQuality, nullptr),
               OK)
-            << "fail, API allows luma stride for 420";
+            << "fail, API allows bad luma stride for 420";
 
     rawImg420->width = kWidth;
     rawImg420->height = kHeight;
     rawImg420->luma_stride = 0;
     rawImg420->chroma_data = rawImgP010->data;
-    rawImg420->chroma_stride = kWidth;
+    rawImg420->chroma_stride = kWidth / 2 - 2;
     ASSERT_NE(uHdrLib.encodeJPEGR(rawImgP010, rawImg420,
                                   ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
                                   jpgImg.getImageHandle(), kQuality, nullptr),
               OK)
-            << "fail, API allows bad chroma pointer for 420";
+            << "fail, API allows bad chroma stride for 420";
   }
 }
 
@@ -1021,23 +1021,23 @@ TEST(JpegRTest, EncodeAPI2WithInvalidArgs) {
 
     rawImg420->width = kWidth;
     rawImg420->height = kHeight;
-    rawImg420->luma_stride = kWidth;
+    rawImg420->luma_stride = kWidth - 2;
     ASSERT_NE(uHdrLib.encodeJPEGR(rawImgP010, rawImg420, jpgImg.getImageHandle(),
                                   ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
                                   jpgImg.getImageHandle()),
               OK)
-            << "fail, API allows luma stride for 420";
+            << "fail, API allows bad luma stride for 420";
 
     rawImg420->width = kWidth;
     rawImg420->height = kHeight;
     rawImg420->luma_stride = 0;
     rawImg420->chroma_data = rawImgP010->data;
-    rawImg420->chroma_stride = kWidth;
+    rawImg420->chroma_stride = kWidth / 2 - 2;
     ASSERT_NE(uHdrLib.encodeJPEGR(rawImgP010, rawImg420, jpgImg.getImageHandle(),
                                   ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
                                   jpgImg.getImageHandle()),
               OK)
-            << "fail, API allows bad chroma pointer for 420";
+            << "fail, API allows bad chroma stride for 420";
   }
 }
 
@@ -1445,6 +1445,24 @@ TEST(JpegRTest, EncodeAPI0AndDecodeTest) {
     ASSERT_EQ(jpg1->length, jpg2->length);
     ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
   }
+  // encode with luma and chroma stride set but no chroma ptr
+  {
+    UhdrUnCompressedStructWrapper rawImg2(kImageWidth, kImageHeight, YCbCr_p010);
+    ASSERT_TRUE(rawImg2.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100));
+    ASSERT_TRUE(rawImg2.setImageStride(kImageWidth, kImageWidth + 256));
+    ASSERT_TRUE(rawImg2.allocateMemory());
+    ASSERT_TRUE(rawImg2.loadRawResource(kYCbCrP010FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImg2.getImageHandle(),
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle(), kQuality, nullptr),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
 
   auto jpg1 = jpgImg.getImageHandle();
 #ifdef DUMP_OUTPUT
@@ -1473,7 +1491,7 @@ TEST(JpegRTest, EncodeAPI1AndDecodeTest) {
                                 ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
                                 jpgImg.getImageHandle(), kQuality, nullptr),
             OK);
-  // encode with luma stride set
+  // encode with luma stride set p010
   {
     UhdrUnCompressedStructWrapper rawImg2P010(kImageWidth, kImageHeight, YCbCr_p010);
     ASSERT_TRUE(rawImg2P010.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100));
@@ -1491,7 +1509,7 @@ TEST(JpegRTest, EncodeAPI1AndDecodeTest) {
     ASSERT_EQ(jpg1->length, jpg2->length);
     ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
   }
-  // encode with luma and chroma stride set
+  // encode with luma and chroma stride set p010
   {
     UhdrUnCompressedStructWrapper rawImg2P010(kImageWidth, kImageHeight, YCbCr_p010);
     ASSERT_TRUE(rawImg2P010.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100));
@@ -1510,7 +1528,7 @@ TEST(JpegRTest, EncodeAPI1AndDecodeTest) {
     ASSERT_EQ(jpg1->length, jpg2->length);
     ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
   }
-  // encode with chroma stride set
+  // encode with chroma stride set p010
   {
     UhdrUnCompressedStructWrapper rawImg2P010(kImageWidth, kImageHeight, YCbCr_p010);
     ASSERT_TRUE(rawImg2P010.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100));
@@ -1521,6 +1539,98 @@ TEST(JpegRTest, EncodeAPI1AndDecodeTest) {
     UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
     ASSERT_TRUE(jpgImg2.allocateMemory());
     ASSERT_EQ(uHdrLib.encodeJPEGR(rawImg2P010.getImageHandle(), rawImg420.getImageHandle(),
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle(), kQuality, nullptr),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
+  // encode with luma and chroma stride set but no chroma ptr p010
+  {
+    UhdrUnCompressedStructWrapper rawImg2P010(kImageWidth, kImageHeight, YCbCr_p010);
+    ASSERT_TRUE(rawImg2P010.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100));
+    ASSERT_TRUE(rawImg2P010.setImageStride(kImageWidth + 64, kImageWidth + 256));
+    ASSERT_TRUE(rawImg2P010.allocateMemory());
+    ASSERT_TRUE(rawImg2P010.loadRawResource(kYCbCrP010FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImg2P010.getImageHandle(), rawImg420.getImageHandle(),
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle(), kQuality, nullptr),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
+  // encode with luma stride set 420
+  {
+    UhdrUnCompressedStructWrapper rawImg2420(kImageWidth, kImageHeight, YCbCr_420);
+    ASSERT_TRUE(rawImg2420.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709));
+    ASSERT_TRUE(rawImg2420.setImageStride(kImageWidth + 128, 0));
+    ASSERT_TRUE(rawImg2420.allocateMemory());
+    ASSERT_TRUE(rawImg2420.loadRawResource(kYCbCr420FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImgP010.getImageHandle(), rawImg2420.getImageHandle(),
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle(), kQuality, nullptr),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
+  // encode with luma and chroma stride set 420
+  {
+    UhdrUnCompressedStructWrapper rawImg2420(kImageWidth, kImageHeight, YCbCr_420);
+    ASSERT_TRUE(rawImg2420.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709));
+    ASSERT_TRUE(rawImg2420.setImageStride(kImageWidth + 128, kImageWidth / 2 + 256));
+    ASSERT_TRUE(rawImg2420.setChromaMode(false));
+    ASSERT_TRUE(rawImg2420.allocateMemory());
+    ASSERT_TRUE(rawImg2420.loadRawResource(kYCbCr420FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImgP010.getImageHandle(), rawImg2420.getImageHandle(),
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle(), kQuality, nullptr),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
+  // encode with chroma stride set 420
+  {
+    UhdrUnCompressedStructWrapper rawImg2420(kImageWidth, kImageHeight, YCbCr_420);
+    ASSERT_TRUE(rawImg2420.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709));
+    ASSERT_TRUE(rawImg2420.setImageStride(0, kImageWidth / 2 + 64));
+    ASSERT_TRUE(rawImg2420.setChromaMode(false));
+    ASSERT_TRUE(rawImg2420.allocateMemory());
+    ASSERT_TRUE(rawImg2420.loadRawResource(kYCbCr420FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImgP010.getImageHandle(), rawImg2420.getImageHandle(),
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle(), kQuality, nullptr),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
+  // encode with luma and chroma stride set but no chroma ptr 420
+  {
+    UhdrUnCompressedStructWrapper rawImg2420(kImageWidth, kImageHeight, YCbCr_420);
+    ASSERT_TRUE(rawImg2420.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709));
+    ASSERT_TRUE(rawImg2420.setImageStride(kImageWidth + 128, kImageWidth / 2 + 64));
+    ASSERT_TRUE(rawImg2420.allocateMemory());
+    ASSERT_TRUE(rawImg2420.loadRawResource(kYCbCr420FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImgP010.getImageHandle(), rawImg2420.getImageHandle(),
                                   ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
                                   jpgImg2.getImageHandle(), kQuality, nullptr),
               OK);
@@ -1618,6 +1728,62 @@ TEST(JpegRTest, EncodeAPI2AndDecodeTest) {
     ASSERT_EQ(jpg1->length, jpg2->length);
     ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
   }
+  // encode with luma stride set
+  {
+    UhdrUnCompressedStructWrapper rawImg2420(kImageWidth, kImageHeight, YCbCr_420);
+    ASSERT_TRUE(rawImg2420.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709));
+    ASSERT_TRUE(rawImg2420.setImageStride(kImageWidth + 128, 0));
+    ASSERT_TRUE(rawImg2420.allocateMemory());
+    ASSERT_TRUE(rawImg2420.loadRawResource(kYCbCr420FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImgP010.getImageHandle(), rawImg2420.getImageHandle(), sdr,
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle()),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
+  // encode with luma and chroma stride set
+  {
+    UhdrUnCompressedStructWrapper rawImg2420(kImageWidth, kImageHeight, YCbCr_420);
+    ASSERT_TRUE(rawImg2420.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709));
+    ASSERT_TRUE(rawImg2420.setImageStride(kImageWidth + 128, kImageWidth + 256));
+    ASSERT_TRUE(rawImg2420.setChromaMode(false));
+    ASSERT_TRUE(rawImg2420.allocateMemory());
+    ASSERT_TRUE(rawImg2420.loadRawResource(kYCbCr420FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImgP010.getImageHandle(), rawImg2420.getImageHandle(), sdr,
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle()),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
+  // encode with chroma stride set
+  {
+    UhdrUnCompressedStructWrapper rawImg2420(kImageWidth, kImageHeight, YCbCr_420);
+    ASSERT_TRUE(rawImg2420.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT709));
+    ASSERT_TRUE(rawImg2420.setImageStride(0, kImageWidth + 64));
+    ASSERT_TRUE(rawImg2420.setChromaMode(false));
+    ASSERT_TRUE(rawImg2420.allocateMemory());
+    ASSERT_TRUE(rawImg2420.loadRawResource(kYCbCr420FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImgP010.getImageHandle(), rawImg2420.getImageHandle(), sdr,
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle()),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
 
   auto jpg1 = jpgImg.getImageHandle();
 
@@ -1690,6 +1856,24 @@ TEST(JpegRTest, EncodeAPI3AndDecodeTest) {
     ASSERT_TRUE(rawImg2P010.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100));
     ASSERT_TRUE(rawImg2P010.setImageStride(0, kImageWidth + 64));
     ASSERT_TRUE(rawImg2P010.setChromaMode(false));
+    ASSERT_TRUE(rawImg2P010.allocateMemory());
+    ASSERT_TRUE(rawImg2P010.loadRawResource(kYCbCrP010FileName));
+    UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);
+    ASSERT_TRUE(jpgImg2.allocateMemory());
+    ASSERT_EQ(uHdrLib.encodeJPEGR(rawImg2P010.getImageHandle(), sdr,
+                                  ultrahdr_transfer_function::ULTRAHDR_TF_HLG,
+                                  jpgImg2.getImageHandle()),
+              OK);
+    auto jpg1 = jpgImg.getImageHandle();
+    auto jpg2 = jpgImg2.getImageHandle();
+    ASSERT_EQ(jpg1->length, jpg2->length);
+    ASSERT_EQ(0, memcmp(jpg1->data, jpg2->data, jpg1->length));
+  }
+  // encode with luma and chroma stride set and no chroma ptr
+  {
+    UhdrUnCompressedStructWrapper rawImg2P010(kImageWidth, kImageHeight, YCbCr_p010);
+    ASSERT_TRUE(rawImg2P010.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100));
+    ASSERT_TRUE(rawImg2P010.setImageStride(kImageWidth + 32, kImageWidth + 256));
     ASSERT_TRUE(rawImg2P010.allocateMemory());
     ASSERT_TRUE(rawImg2P010.loadRawResource(kYCbCrP010FileName));
     UhdrCompressedStructWrapper jpgImg2(kImageWidth, kImageHeight);

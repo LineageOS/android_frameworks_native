@@ -598,14 +598,26 @@ Color applyGainLUT(Color e, float gain, GainLUT& gainLUT) {
 }
 
 Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
-  size_t pixel_count = image->width * image->height;
+  uint8_t* luma_data = reinterpret_cast<uint8_t*>(image->data);
+  size_t luma_stride = image->luma_stride == 0 ? image->width : image->luma_stride;
 
-  size_t pixel_y_idx = x + y * image->width;
-  size_t pixel_uv_idx = x / 2 + (y / 2) * (image->width / 2);
+  uint8_t* chroma_data;
+  size_t chroma_stride;
+  if (image->chroma_data == nullptr) {
+     chroma_stride = luma_stride / 2;
+     chroma_data = &reinterpret_cast<uint8_t*>(image->data)[luma_stride * image->height];
+  } else {
+     chroma_stride = image->chroma_stride;
+     chroma_data = reinterpret_cast<uint8_t*>(image->chroma_data);
+  }
 
-  uint8_t y_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y_idx];
-  uint8_t u_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count + pixel_uv_idx];
-  uint8_t v_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count * 5 / 4 + pixel_uv_idx];
+  size_t offset_cr = chroma_stride * (image->height / 2);
+  size_t pixel_y_idx = x + y * luma_stride;
+  size_t pixel_chroma_idx = x / 2 + (y / 2) * chroma_stride;
+
+  uint8_t y_uint = luma_data[pixel_y_idx];
+  uint8_t u_uint = chroma_data[pixel_chroma_idx];
+  uint8_t v_uint = chroma_data[offset_cr + pixel_chroma_idx];
 
   // 128 bias for UV given we are using jpeglib; see:
   // https://github.com/kornelski/libjpeg/blob/master/structure.doc
@@ -615,19 +627,17 @@ Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
 }
 
 Color getP010Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
-  size_t luma_stride = image->luma_stride;
-  size_t chroma_stride = image->chroma_stride;
   uint16_t* luma_data = reinterpret_cast<uint16_t*>(image->data);
-  uint16_t* chroma_data = reinterpret_cast<uint16_t*>(image->chroma_data);
+  size_t luma_stride = image->luma_stride == 0 ? image->width : image->luma_stride;
 
-  if (luma_stride == 0) {
-    luma_stride = image->width;
-  }
-  if (chroma_stride == 0) {
-    chroma_stride = luma_stride;
-  }
-  if (chroma_data == nullptr) {
-    chroma_data = &reinterpret_cast<uint16_t*>(image->data)[luma_stride * image->height];
+  uint16_t* chroma_data;
+  size_t chroma_stride;
+  if (image->chroma_data == nullptr) {
+     chroma_stride = luma_stride;
+     chroma_data = &reinterpret_cast<uint16_t*>(image->data)[luma_stride * image->height];
+  } else {
+     chroma_stride = image->chroma_stride;
+     chroma_data = reinterpret_cast<uint16_t*>(image->chroma_data);
   }
 
   size_t pixel_y_idx = y * luma_stride + x;
