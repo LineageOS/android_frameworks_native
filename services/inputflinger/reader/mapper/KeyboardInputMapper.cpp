@@ -270,6 +270,7 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
             keyDown.flags = flags;
             mKeyDowns.push_back(keyDown);
         }
+        tryHideCursorOnKeyDown();
     } else {
         // Remove key down.
         if (keyDownIndex) {
@@ -445,6 +446,15 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
     mKeyDowns.clear();
     mMetaState = AMETA_NONE;
     return out;
+}
+
+void KeyboardInputMapper::tryHideCursorOnKeyDown() {
+    // Hide the cursor while user is inputting text, ignoring meta keys or multiple simultaneous
+    // down keys as they are likely to be shortcuts
+    const bool shouldHideCursor = mKeyDowns.size() == 1 && !isMetaKey(mKeyDowns[0].keyCode);
+    if (shouldHideCursor && getContext()->getPolicy()->isInputMethodConnectionActive()) {
+        getContext()->fadePointer();
+    }
 }
 
 } // namespace android

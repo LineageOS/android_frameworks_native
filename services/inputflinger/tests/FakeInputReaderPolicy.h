@@ -77,6 +77,8 @@ public:
     void setVelocityControlParams(const VelocityControlParameters& params);
     void setStylusButtonMotionEventsEnabled(bool enabled);
     void setStylusPointerIconEnabled(bool enabled);
+    void setIsInputMethodConnectionActive(bool active);
+    bool isInputMethodConnectionActive() override;
 
 private:
     void getReaderConfiguration(InputReaderConfiguration* outConfig) override;
@@ -99,6 +101,7 @@ private:
     std::vector<DisplayViewport> mViewports;
     TouchAffineTransformation transform;
     std::optional<int32_t /*deviceId*/> mStylusGestureNotified GUARDED_BY(mLock){};
+    bool mIsInputMethodConnectionActive{false};
 
     uint32_t mNextPointerCaptureSequenceNumber{0};
 };
