@@ -1040,6 +1040,16 @@ int32_t InputReader::ContextImpl::getLedMetaState() {
     return mReader->getLedMetaStateLocked();
 }
 
+void InputReader::ContextImpl::setPreventingTouchpadTaps(bool prevent) {
+    // lock is already held by the input loop
+    mReader->mPreventingTouchpadTaps = prevent;
+}
+
+bool InputReader::ContextImpl::isPreventingTouchpadTaps() {
+    // lock is already held by the input loop
+    return mReader->mPreventingTouchpadTaps;
+}
+
 void InputReader::ContextImpl::disableVirtualKeysUntil(nsecs_t time) {
     // lock is already held by the input loop
     mReader->disableVirtualKeysUntilLocked(time);

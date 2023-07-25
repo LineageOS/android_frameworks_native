@@ -138,7 +138,8 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
     // Pass input event to the MetricsManager.
     if (!mMetricsManager) {
         mMetricsManager =
-                std::make_optional<MotionPredictorMetricsManager>(mModel->predictionInterval(),
+                std::make_optional<MotionPredictorMetricsManager>(mModel->config()
+                                                                          .predictionInterval,
                                                                   mModel->outputLength());
     }
     mMetricsManager->onRecord(event);
@@ -184,8 +185,18 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
     const int64_t futureTime = timestamp + mPredictionTimestampOffsetNanos;
 
     for (int i = 0; i < predictedR.size() && predictionTime <= futureTime; ++i) {
-        // TODO(b/266747654): Stop predictions if confidence and/or predicted pressure are below
-        // some thresholds.
+        if (predictedR[i] < mModel->config().distanceNoiseFloor) {
+            // Stop predicting when the predicted output is below the model's noise floor.
+            //
+            // We assume that all subsequent predictions in the batch are unreliable because later
+            // predictions are conditional on earlier predictions, and a state of noise is not a
+            // good basis for prediction.
+            //
+            // The UX trade-off is that this potentially sacrifices some predictions when the input
+            // device starts to speed up, but avoids producing noisy predictions as it slows down.
+            break;
+        }
+        // TODO(b/266747654): Stop predictions if confidence is < some threshold.
 
         const TfLiteMotionPredictorSample::Point predictedPoint =
                 convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
@@ -197,7 +208,7 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
         coords.setAxisValue(AMOTION_EVENT_AXIS_Y, predictedPoint.y);
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, predictedPressure[i]);
 
-        predictionTime += mModel->predictionInterval();
+        predictionTime += mModel->config().predictionInterval;
         if (i == 0) {
             hasPredictions = true;
             prediction->initialize(InputEvent::nextId(), event.getDeviceId(), event.getSource(),
