@@ -153,6 +153,9 @@ NotifyMotionArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime,
                                               const Gesture& gesture) {
     float deltaX = gesture.details.move.dx;
     float deltaY = gesture.details.move.dy;
+    if (std::abs(deltaX) > 0 || std::abs(deltaY) > 0) {
+        enableTapToClick();
+    }
     rotateDelta(mOrientation, &deltaX, &deltaY);
 
     mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
@@ -191,6 +194,15 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
     coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0);
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0);
+
+    if (mReaderContext.isPreventingTouchpadTaps()) {
+        enableTapToClick();
+        if (gesture.details.buttons.is_tap) {
+            // return early to prevent this tap
+            return out;
+        }
+    }
+
     const uint32_t buttonsPressed = gesture.details.buttons.down;
     bool pointerDown = isPointerDown(mButtonState) ||
             buttonsPressed &
@@ -337,6 +349,9 @@ std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTi
                 // magnitude, which will also result in the pointer icon being updated.
                 // TODO(b/282023644): Add a signal in libgestures for when a stable contact has been
                 //  initiated with a touchpad.
+                if (!mReaderContext.isPreventingTouchpadTaps()) {
+                    enableTapToClick();
+                }
                 return {handleMove(when, readTime,
                                    Gesture(kGestureMove, gesture.start_time, gesture.end_time,
                                            /*dx=*/0.f,
@@ -545,7 +560,7 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
             /* policyFlags= */ POLICY_FLAG_WAKE,
             action,
             /* actionButton= */ actionButton,
-            /* flags= */ 0,
+            /* flags= */ action == AMOTION_EVENT_ACTION_CANCEL ? AMOTION_EVENT_FLAG_CANCELED : 0,
             mReaderContext.getGlobalMetaState(),
             buttonState,
             mCurrentClassification,
@@ -559,6 +574,10 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
             yCursorPosition,
             /* downTime= */ mDownTime,
             /* videoFrames= */ {}};
+}
+
+void GestureConverter::enableTapToClick() {
+    mReaderContext.setPreventingTouchpadTaps(false);
 }
 
 } // namespace android
