@@ -1023,17 +1023,7 @@ macro_rules! declare_binder_interface {
                 }
 
                 if ibinder.associate_class(<$native as $crate::binder_impl::Remotable>::get_class()) {
-                    let service: std::result::Result<$crate::binder_impl::Binder<$native>, $crate::StatusCode> =
-                        std::convert::TryFrom::try_from(ibinder.clone());
-                    if let Ok(service) = service {
-                        // We were able to associate with our expected class and
-                        // the service is local.
-                        todo!()
-                        //return Ok($crate::Strong::new(Box::new(service)));
-                    } else {
-                        // Service is remote
-                        return Ok($crate::Strong::new(Box::new(<$proxy as $crate::binder_impl::Proxy>::from_binder(ibinder)?)));
-                    }
+                    return Ok($crate::Strong::new(Box::new(<$proxy as $crate::binder_impl::Proxy>::from_binder(ibinder)?)));
                 }
 
                 Err($crate::StatusCode::BAD_TYPE.into())
