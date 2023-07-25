@@ -216,16 +216,16 @@ TEST(RpcBinderAllocation, SetupRpcServer) {
     auto server = RpcServer::make();
     server->setRootObject(sp<BBinder>::make());
 
-    CHECK_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
+    ASSERT_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
 
     std::thread([server]() { server->join(); }).detach();
 
-    status_t status;
     auto session = RpcSession::make();
-    status = session->setupUnixDomainClient(addr.c_str());
-    CHECK_EQ(status, OK) << "Could not connect: " << addr << ": " << statusToString(status).c_str();
+    status_t status = session->setupUnixDomainClient(addr.c_str());
+    ASSERT_EQ(status, OK) << "Could not connect: " << addr << ": " << statusToString(status).c_str();
 
     auto remoteBinder = session->getRootObject();
+    ASSERT_NE(remoteBinder, nullptr);
 
     size_t mallocs = 0, totalBytes = 0;
     {
@@ -233,7 +233,7 @@ TEST(RpcBinderAllocation, SetupRpcServer) {
             mallocs++;
             totalBytes += bytes;
         });
-        CHECK_EQ(OK, remoteBinder->pingBinder());
+        ASSERT_EQ(OK, remoteBinder->pingBinder());
     }
     EXPECT_EQ(mallocs, 1);
     EXPECT_EQ(totalBytes, 40);
