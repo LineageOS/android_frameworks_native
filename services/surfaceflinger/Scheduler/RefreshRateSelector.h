@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <set>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -500,6 +501,12 @@ private:
     const std::vector<Fps> mKnownFrameRates;
 
     const Config mConfig;
+
+    // A list of known frame rates that favors at least 60Hz if there is no exact match display
+    // refresh rate
+    const std::vector<Fps> mFrameRatesThatFavorsAtLeast60 = {23.976_Hz, 25_Hz, 29.97_Hz, 50_Hz,
+                                                             59.94_Hz};
+
     Config::FrameRateOverride mFrameRateOverrideConfig;
 
     struct GetRankedFrameRatesCache {
