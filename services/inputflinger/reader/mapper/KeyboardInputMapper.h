@@ -99,6 +99,8 @@ private:
     bool updateMetaStateIfNeeded(int32_t keyCode, bool down);
 
     std::optional<size_t> findKeyDownIndex(int32_t scanCode);
+    std::optional<KeyboardLayoutInfo> getKeyboardLayoutInfo() const;
+    bool updateKeyboardLayoutOverlay();
 
     void resetLedState();
     void initializeLedState(LedState& ledState, int32_t led);

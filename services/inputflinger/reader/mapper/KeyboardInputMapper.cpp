@@ -86,20 +86,26 @@ int32_t KeyboardInputMapper::getDisplayId() {
     return ADISPLAY_ID_NONE;
 }
 
+std::optional<KeyboardLayoutInfo> KeyboardInputMapper::getKeyboardLayoutInfo() const {
+    if (mKeyboardLayoutInfo) {
+        return mKeyboardLayoutInfo;
+    }
+    std::optional<RawLayoutInfo> layoutInfo = getDeviceContext().getRawLayoutInfo();
+    if (!layoutInfo) {
+        return std::nullopt;
+    }
+    return KeyboardLayoutInfo(layoutInfo->languageTag, layoutInfo->layoutType);
+}
+
 void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
     info.setKeyboardType(mKeyboardType);
     info.setKeyCharacterMap(getDeviceContext().getKeyCharacterMap());
 
-    if (mKeyboardLayoutInfo) {
-        info.setKeyboardLayoutInfo(*mKeyboardLayoutInfo);
-    } else {
-        std::optional<RawLayoutInfo> layoutInfo = getDeviceContext().getRawLayoutInfo();
-        if (layoutInfo) {
-            info.setKeyboardLayoutInfo(
-                    KeyboardLayoutInfo(layoutInfo->languageTag, layoutInfo->layoutType));
-        }
+    std::optional keyboardLayoutInfo = getKeyboardLayoutInfo();
+    if (keyboardLayoutInfo) {
+        info.setKeyboardLayoutInfo(*keyboardLayoutInfo);
     }
 }
 
@@ -152,11 +158,29 @@ std::list<NotifyArgs> KeyboardInputMapper::reconfigure(nsecs_t when,
                 getValueByKey(config.keyboardLayoutAssociations, getDeviceContext().getLocation());
         if (mKeyboardLayoutInfo != newKeyboardLayoutInfo) {
             mKeyboardLayoutInfo = newKeyboardLayoutInfo;
+            // Also update keyboard layout overlay as soon as we find the new layout info
+            updateKeyboardLayoutOverlay();
             bumpGeneration();
         }
     }
 
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::KEYBOARD_LAYOUTS)) {
+        if (!getDeviceContext().getDeviceClasses().test(InputDeviceClass::VIRTUAL) &&
+            updateKeyboardLayoutOverlay()) {
+            bumpGeneration();
+        }
+    }
     return out;
+}
+
+bool KeyboardInputMapper::updateKeyboardLayoutOverlay() {
+    std::shared_ptr<KeyCharacterMap> keyboardLayout =
+            getDeviceContext()
+                    .getContext()
+                    ->getPolicy()
+                    ->getKeyboardLayoutOverlay(getDeviceContext().getDeviceIdentifier(),
+                                               getKeyboardLayoutInfo());
+    return getDeviceContext().setKeyboardLayoutOverlay(keyboardLayout);
 }
 
 void KeyboardInputMapper::configureParameters() {

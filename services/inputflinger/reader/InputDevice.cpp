@@ -225,23 +225,6 @@ std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
             mIsWaking = mConfiguration.getBool("device.wake").value_or(false);
         }
 
-        if (!changes.any() || changes.test(Change::KEYBOARD_LAYOUTS)) {
-            if (!mClasses.test(InputDeviceClass::VIRTUAL)) {
-                std::shared_ptr<KeyCharacterMap> keyboardLayout =
-                        mContext->getPolicy()->getKeyboardLayoutOverlay(mIdentifier);
-                bool shouldBumpGeneration = false;
-                for_each_subdevice(
-                        [&keyboardLayout, &shouldBumpGeneration](InputDeviceContext& context) {
-                            if (context.setKeyboardLayoutOverlay(keyboardLayout)) {
-                                shouldBumpGeneration = true;
-                            }
-                        });
-                if (shouldBumpGeneration) {
-                    bumpGeneration();
-                }
-            }
-        }
-
         if (!changes.any() || changes.test(Change::DEVICE_ALIAS)) {
             if (!(mClasses.test(InputDeviceClass::VIRTUAL))) {
                 std::string alias = mContext->getPolicy()->getDeviceAlias(mIdentifier);

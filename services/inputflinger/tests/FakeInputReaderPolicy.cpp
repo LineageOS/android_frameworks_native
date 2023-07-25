@@ -227,7 +227,7 @@ void FakeInputReaderPolicy::notifyInputDevicesChanged(
 }
 
 std::shared_ptr<KeyCharacterMap> FakeInputReaderPolicy::getKeyboardLayoutOverlay(
-        const InputDeviceIdentifier&) {
+        const InputDeviceIdentifier&, const std::optional<KeyboardLayoutInfo>) {
     return nullptr;
 }
 
