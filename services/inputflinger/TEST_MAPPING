@@ -1,10 +1,10 @@
 {
   "presubmit": [
     {
-      "name": "CtsWindowManagerDeviceTestCases",
+      "name": "CtsWindowManagerDeviceWindow",
       "options": [
         {
-          "include-filter": "android.server.wm.WindowInputTests"
+          "include-filter": "android.server.wm.window.WindowInputTests"
         }
       ]
     },
@@ -150,10 +150,10 @@
   ],
   "hwasan-postsubmit": [
     {
-      "name": "CtsWindowManagerDeviceTestCases",
+      "name": "CtsWindowManagerDeviceWindow",
       "options": [
         {
-          "include-filter": "android.server.wm.WindowInputTests"
+          "include-filter": "android.server.wm.window.WindowInputTests"
         }
       ]
     },
