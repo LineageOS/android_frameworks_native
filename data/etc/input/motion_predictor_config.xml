@@ -16,5 +16,20 @@
 <motion-predictor>
   <!-- The time interval (ns) between the model's predictions. -->
   <prediction-interval>4166666</prediction-interval>  <!-- 4.167 ms = ~240 Hz -->
+  <!-- The noise floor (px) for predicted distances.
+
+       As the model is trained stochastically, there is some expected minimum
+       variability in its output. This can be a UX issue when the input device
+       is moving slowly and the variability is large relative to the magnitude
+       of the motion. In these cases, it is better to inhibit the prediction,
+       rather than show noisy predictions (and there is little benefit to
+       prediction anyway).
+
+       The value for this parameter should at least be close to the maximum
+       predicted distance when the input device is held stationary (i.e. the
+       expected minimum variability), and perhaps a little larger to capture
+       the UX issue mentioned above.
+  -->
+  <distance-noise-floor>0.2</distance-noise-floor>
 </motion-predictor>
 
