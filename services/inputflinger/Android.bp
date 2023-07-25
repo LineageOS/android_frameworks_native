@@ -249,7 +249,7 @@ phony {
         "inputflinger_input_classifier_fuzzer",
 
         // Java/Kotlin targets
-        "CtsWindowManagerDeviceTestCases",
+        "CtsWindowManagerDeviceWindow",
         "InputTests",
         "CtsHardwareTestCases",
         "CtsInputTestCases",
