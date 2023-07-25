@@ -556,7 +556,7 @@ const label* getValueLabelsForTypeAndCode(int32_t type, int32_t code) {
     if (type == EV_KEY) {
         return ev_key_value_labels;
     }
-    if (type == EV_MSC && code == ABS_MT_TOOL_TYPE) {
+    if (type == EV_ABS && code == ABS_MT_TOOL_TYPE) {
         return mt_tool_labels;
     }
     return nullptr;
