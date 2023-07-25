@@ -72,11 +72,20 @@ TEST(MotionPredictorTest, IsPredictionAvailable) {
     ASSERT_FALSE(predictor.isPredictionAvailable(/*deviceId=*/1, AINPUT_SOURCE_TOUCHSCREEN));
 }
 
+TEST(MotionPredictorTest, StationaryNoiseFloor) {
+    MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/1,
+                              []() { return true /*enable prediction*/; });
+    predictor.record(getMotionEvent(DOWN, 0, 1, 30ms));
+    predictor.record(getMotionEvent(MOVE, 0, 1, 35ms)); // No movement.
+    std::unique_ptr<MotionEvent> predicted = predictor.predict(40 * NSEC_PER_MSEC);
+    ASSERT_EQ(nullptr, predicted);
+}
+
 TEST(MotionPredictorTest, Offset) {
     MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/1,
                               []() { return true /*enable prediction*/; });
     predictor.record(getMotionEvent(DOWN, 0, 1, 30ms));
-    predictor.record(getMotionEvent(MOVE, 0, 2, 35ms));
+    predictor.record(getMotionEvent(MOVE, 0, 5, 35ms)); // Move enough to overcome the noise floor.
     std::unique_ptr<MotionEvent> predicted = predictor.predict(40 * NSEC_PER_MSEC);
     ASSERT_NE(nullptr, predicted);
     ASSERT_GE(predicted->getEventTime(), 41);
