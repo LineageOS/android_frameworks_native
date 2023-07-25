@@ -1901,29 +1901,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::addTrans
         CallbackId::Type callbackType) {
     auto listener = TransactionCompletedListener::getInstance();
 
-    TransactionCompletedCallback callbackWithContext =
-            [called = false, callback,
-             callbackContext](nsecs_t latchTime, const sp<Fence>& presentFence,
-                              const std::vector<SurfaceControlStats>& stats) mutable {
-                if (called) {
-                    std::stringstream stream;
-                    auto it = stats.begin();
-                    if (it != stats.end()) {
-                        stream << it->surfaceControl->getName();
-                        it++;
-                    }
-                    while (it != stats.end()) {
-                        stream << ", " << it->surfaceControl->getName();
-                        it++;
-                    }
-                    LOG_ALWAYS_FATAL("Transaction callback called more than once. SurfaceControls: "
-                                     "%s",
-                                     stream.str().c_str());
-                }
-                callback(callbackContext, latchTime, presentFence, stats);
-                called = true;
-            };
-
+    auto callbackWithContext = std::bind(callback, callbackContext, std::placeholders::_1,
+                                         std::placeholders::_2, std::placeholders::_3);
     const auto& surfaceControls =
             mListenerCallbacks[TransactionCompletedListener::getIInstance()].surfaceControls;
 
