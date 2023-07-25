@@ -107,14 +107,9 @@ void Display::setColorTransform(const compositionengine::CompositionRefreshArgs&
 }
 
 void Display::setColorProfile(const ColorProfile& colorProfile) {
-    const ui::Dataspace targetDataspace =
-            getDisplayColorProfile()->getTargetDataspace(colorProfile.mode, colorProfile.dataspace,
-                                                         colorProfile.colorSpaceAgnosticDataspace);
-
     if (colorProfile.mode == getState().colorMode &&
         colorProfile.dataspace == getState().dataspace &&
-        colorProfile.renderIntent == getState().renderIntent &&
-        targetDataspace == getState().targetDataspace) {
+        colorProfile.renderIntent == getState().renderIntent) {
         return;
     }
 

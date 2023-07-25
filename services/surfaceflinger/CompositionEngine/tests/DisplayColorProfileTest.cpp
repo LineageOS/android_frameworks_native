@@ -646,29 +646,5 @@ TEST_F(DisplayColorProfileTest, isDataspaceSupportedWorksForProfileWithHlgSuppor
     EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::BT2020_ITU_HLG));
 }
 
-/*
- * RenderSurface::getTargetDataspace()
- */
-
-TEST_F(DisplayColorProfileTest, getTargetDataspaceWorks) {
-    auto profile = ProfileFactory::createProfileWithNoColorModeSupport();
-
-    // For a non-HDR colorspace with no colorSpaceAgnosticDataspace override,
-    // the input dataspace should be returned.
-    EXPECT_EQ(Dataspace::DISPLAY_P3,
-              profile.getTargetDataspace(ColorMode::DISPLAY_P3, Dataspace::DISPLAY_P3,
-                                         Dataspace::UNKNOWN));
-
-    // If colorSpaceAgnosticDataspace is set, its value should be returned
-    EXPECT_EQ(Dataspace::V0_SRGB,
-              profile.getTargetDataspace(ColorMode::DISPLAY_P3, Dataspace::DISPLAY_P3,
-                                         Dataspace::V0_SRGB));
-
-    // For an HDR colorspace, Dataspace::UNKNOWN should be returned.
-    EXPECT_EQ(Dataspace::UNKNOWN,
-              profile.getTargetDataspace(ColorMode::BT2100_PQ, Dataspace::BT2020_PQ,
-                                         Dataspace::UNKNOWN));
-}
-
 } // namespace
 } // namespace android::compositionengine

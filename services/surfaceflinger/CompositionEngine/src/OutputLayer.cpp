@@ -315,9 +315,10 @@ void OutputLayer::updateCompositionState(
     // Determine the output dependent dataspace for this layer. If it is
     // colorspace agnostic, it just uses the dataspace chosen for the output to
     // avoid the need for color conversion.
-    state.dataspace = layerFEState->isColorspaceAgnostic &&
-                    outputState.targetDataspace != ui::Dataspace::UNKNOWN
-            ? outputState.targetDataspace
+    // For now, also respect the colorspace agnostic flag if we're drawing to HDR, to avoid drastic
+    // luminance shift. TODO(b/292162273): we should check if that's true though.
+    state.dataspace = layerFEState->isColorspaceAgnostic && !isHdrDataspace(outputState.dataspace)
+            ? outputState.dataspace
             : layerFEState->dataspace;
 
     // Override the dataspace transfer from 170M to sRGB if the device configuration requests this.

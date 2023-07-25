@@ -406,9 +406,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     wideColorGamutCompositionPixelFormat =
             static_cast<ui::PixelFormat>(wcg_composition_pixel_format(ui::PixelFormat::RGBA_8888));
 
-    mColorSpaceAgnosticDataspace =
-            static_cast<ui::Dataspace>(color_space_agnostic_dataspace(Dataspace::UNKNOWN));
-
     mLayerCachingEnabled = [] {
         const bool enable =
                 android::sysprop::SurfaceFlingerProperties::enable_layer_caching().value_or(false);
@@ -1526,7 +1523,7 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, ui:
         }
 
         display->getCompositionDisplay()->setColorProfile(
-                {mode, Dataspace::UNKNOWN, RenderIntent::COLORIMETRIC, Dataspace::UNKNOWN});
+                {mode, Dataspace::UNKNOWN, RenderIntent::COLORIMETRIC});
 
         return NO_ERROR;
     });
@@ -2609,7 +2606,6 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
     refreshArgs.outputColorSetting = useColorManagement
             ? mDisplayColorSetting
             : compositionengine::OutputColorSetting::kUnmanaged;
-    refreshArgs.colorSpaceAgnosticDataspace = mColorSpaceAgnosticDataspace;
     refreshArgs.forceOutputColorMode = mForceColorMode;
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
@@ -3421,8 +3417,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     }
     display->getCompositionDisplay()->setColorProfile(
             compositionengine::Output::ColorProfile{defaultColorMode, defaultDataSpace,
-                                                    RenderIntent::COLORIMETRIC,
-                                                    Dataspace::UNKNOWN});
+                                                    RenderIntent::COLORIMETRIC});
 
     if (const auto& physical = state.physical) {
         mPhysicalDisplays.get(physical->id)

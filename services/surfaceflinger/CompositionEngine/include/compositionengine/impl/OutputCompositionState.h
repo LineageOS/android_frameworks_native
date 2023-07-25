@@ -116,9 +116,6 @@ struct OutputCompositionState {
     // Current active dataspace
     ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
 
-    // Current target dataspace
-    ui::Dataspace targetDataspace{ui::Dataspace::UNKNOWN};
-
     std::optional<android::HWComposer::DeviceRequestedChanges> previousDeviceRequestedChanges{};
 
     bool previousDeviceRequestedSuccess = false;

@@ -1303,7 +1303,6 @@ private:
 
     ui::Dataspace mDefaultCompositionDataspace;
     ui::Dataspace mWideColorGamutCompositionDataspace;
-    ui::Dataspace mColorSpaceAgnosticDataspace;
 
     std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
     std::atomic<int> mNumTrustedPresentationListeners = 0;
