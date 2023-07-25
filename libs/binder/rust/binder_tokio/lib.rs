@@ -103,7 +103,12 @@ impl BinderAsyncPool for Tokio {
             //
             // This shouldn't cause issues with blocking the thread as only one task will run in a
             // call to `block_on`, so there aren't other tasks to block.
-            let result = spawn_me();
+            //
+            // If the `block_in_place` call fails, then you are driving a current-thread runtime on
+            // the binder threadpool. Instead, it is recommended to use `TokioRuntime<Handle>` when
+            // the runtime is a current-thread runtime, as the current-thread runtime can be driven
+            // only by `Runtime::block_on` calls and not by `Handle::block_on`.
+            let result = tokio::task::block_in_place(spawn_me);
             Box::pin(after_spawn(result))
         } else {
             let handle = tokio::task::spawn_blocking(spawn_me);
