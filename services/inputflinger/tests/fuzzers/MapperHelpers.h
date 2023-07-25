@@ -357,6 +357,9 @@ public:
     void updateLedMetaState(int32_t metaState) override{};
     int32_t getLedMetaState() override { return mFdp->ConsumeIntegral<int32_t>(); };
     void notifyStylusGestureStarted(int32_t, nsecs_t) {}
+
+    void setPreventingTouchpadTaps(bool prevent) {}
+    bool isPreventingTouchpadTaps() { return mFdp->ConsumeBool(); };
 };
 
 template <class Fdp>
