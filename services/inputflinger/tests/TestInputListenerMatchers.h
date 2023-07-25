@@ -23,31 +23,10 @@
 #include <gtest/gtest.h>
 #include <input/Input.h>
 
+#include "NotifyArgs.h"
 #include "TestConstants.h"
 
 namespace android {
-
-MATCHER_P(WithMotionAction, action, "MotionEvent with specified action") {
-    bool matches = action == arg.action;
-    if (!matches) {
-        *result_listener << "expected action " << MotionEvent::actionToString(action)
-                         << ", but got " << MotionEvent::actionToString(arg.action);
-    }
-    if (action == AMOTION_EVENT_ACTION_CANCEL) {
-        if (!matches) {
-            *result_listener << "; ";
-        }
-        *result_listener << "expected FLAG_CANCELED to be set with ACTION_CANCEL, but was not set";
-        matches &= (arg.flags & AMOTION_EVENT_FLAG_CANCELED) != 0;
-    }
-    return matches;
-}
-
-MATCHER_P(WithKeyAction, action, "KeyEvent with specified action") {
-    *result_listener << "expected action " << KeyEvent::actionToString(action) << ", but got "
-                     << KeyEvent::actionToString(arg.action);
-    return arg.action == action;
-}
 
 MATCHER_P(WithSource, source, "InputEvent with specified source") {
     *result_listener << "expected source " << inputEventSourceToString(source) << ", but got "
@@ -55,19 +34,132 @@ MATCHER_P(WithSource, source, "InputEvent with specified source") {
     return arg.source == source;
 }
 
-MATCHER_P(WithDisplayId, displayId, "InputEvent with specified displayId") {
-    *result_listener << "expected displayId " << displayId << ", but got " << arg.displayId;
-    return arg.displayId == displayId;
-}
+/// Key action
+class WithKeyActionMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithKeyActionMatcher(int32_t action) : mAction(action) {}
 
-MATCHER_P(WithDeviceId, deviceId, "InputEvent with specified deviceId") {
-    *result_listener << "expected deviceId " << deviceId << ", but got " << arg.deviceId;
-    return arg.deviceId == deviceId;
-}
+    bool MatchAndExplain(const NotifyKeyArgs& args, std::ostream*) const {
+        return mAction == args.action;
+    }
+
+    bool MatchAndExplain(const KeyEvent& event, std::ostream*) const {
+        return mAction == event.getAction();
+    }
+
+    void DescribeTo(std::ostream* os) const {
+        *os << "with key action " << KeyEvent::actionToString(mAction);
+    }
+
+    void DescribeNegationTo(std::ostream* os) const { *os << "wrong action"; }
+
+private:
+    const int32_t mAction;
+};
+
+WithKeyActionMatcher WithKeyAction(int32_t action);
+
+/// Motion action
+class WithMotionActionMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithMotionActionMatcher(int32_t action) : mAction(action) {}
+
+    bool MatchAndExplain(const NotifyMotionArgs& args, std::ostream*) const {
+        bool matches = mAction == args.action;
+        if (args.action == AMOTION_EVENT_ACTION_CANCEL) {
+            matches &= (args.flags & AMOTION_EVENT_FLAG_CANCELED) != 0;
+        }
+        return matches;
+    }
+
+    bool MatchAndExplain(const MotionEvent& event, std::ostream*) const {
+        bool matches = mAction == event.getAction();
+        if (event.getAction() == AMOTION_EVENT_ACTION_CANCEL) {
+            matches &= (event.getFlags() & AMOTION_EVENT_FLAG_CANCELED) != 0;
+        }
+        return matches;
+    }
+
+    void DescribeTo(std::ostream* os) const {
+        *os << "with motion action " << MotionEvent::actionToString(mAction);
+        if (mAction == AMOTION_EVENT_ACTION_CANCEL) {
+            *os << " and FLAG_CANCELED";
+        }
+    }
+
+    void DescribeNegationTo(std::ostream* os) const { *os << "wrong action"; }
+
+private:
+    const int32_t mAction;
+};
+
+WithMotionActionMatcher WithMotionAction(int32_t action);
+
+/// Display Id
+class WithDisplayIdMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithDisplayIdMatcher(int32_t displayId) : mDisplayId(displayId) {}
+
+    bool MatchAndExplain(const NotifyMotionArgs& args, std::ostream*) const {
+        return mDisplayId == args.displayId;
+    }
+
+    bool MatchAndExplain(const NotifyKeyArgs& args, std::ostream*) const {
+        return mDisplayId == args.displayId;
+    }
+
+    bool MatchAndExplain(const InputEvent& event, std::ostream*) const {
+        return mDisplayId == event.getDisplayId();
+    }
+
+    void DescribeTo(std::ostream* os) const { *os << "with display id " << mDisplayId; }
+
+    void DescribeNegationTo(std::ostream* os) const { *os << "wrong display id"; }
+
+private:
+    const int32_t mDisplayId;
+};
+
+WithDisplayIdMatcher WithDisplayId(int32_t displayId);
+
+/// Device Id
+class WithDeviceIdMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithDeviceIdMatcher(int32_t deviceId) : mDeviceId(deviceId) {}
+
+    bool MatchAndExplain(const NotifyMotionArgs& args, std::ostream*) const {
+        return mDeviceId == args.deviceId;
+    }
+
+    bool MatchAndExplain(const NotifyKeyArgs& args, std::ostream*) const {
+        return mDeviceId == args.deviceId;
+    }
+
+    bool MatchAndExplain(const InputEvent& event, std::ostream*) const {
+        return mDeviceId == event.getDeviceId();
+    }
+
+    void DescribeTo(std::ostream* os) const { *os << "with device id " << mDeviceId; }
+
+    void DescribeNegationTo(std::ostream* os) const { *os << "wrong device id"; }
+
+private:
+    const int32_t mDeviceId;
+};
+
+WithDeviceIdMatcher WithDeviceId(int32_t deviceId);
 
 MATCHER_P(WithKeyCode, keyCode, "KeyEvent with specified key code") {
     *result_listener << "expected key code " << keyCode << ", but got " << arg.keyCode;
     return arg.keyCode == keyCode;
+}
+
+MATCHER_P(WithRepeatCount, repeatCount, "KeyEvent with specified repeat count") {
+    return arg.getRepeatCount() == repeatCount;
 }
 
 MATCHER_P(WithPointerCount, count, "MotionEvent with specified number of pointers") {
