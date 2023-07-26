@@ -42,28 +42,37 @@ void HdrSdrRatioOverlay::drawNumber(float number, int left, SkColor color, SkCan
 }
 
 sp<GraphicBuffer> HdrSdrRatioOverlay::draw(float currentHdrSdrRatio, SkColor color,
-                                           ui::Transform::RotationFlags rotation) {
-    SkMatrix canvasTransform = SkMatrix();
-    const auto [bufferWidth, bufferHeight] = [&]() -> std::pair<int, int> {
-        switch (rotation) {
-            case ui::Transform::ROT_90:
-                canvasTransform.setTranslate(kBufferHeight, 0);
-                canvasTransform.preRotate(90.f);
-                return {kBufferHeight, kBufferWidth};
-            case ui::Transform::ROT_270:
-                canvasTransform.setRotate(270.f, kBufferWidth / 2.f, kBufferWidth / 2.f);
-                return {kBufferHeight, kBufferWidth};
-            default:
-                return {kBufferWidth, kBufferHeight};
-        }
-    }();
+                                           ui::Transform::RotationFlags rotation,
+                                           sp<GraphicBuffer>& ringBuffer) {
+    const int32_t bufferWidth = kBufferWidth;
+    const int32_t bufferHeight = kBufferWidth;
 
     const auto kUsageFlags = static_cast<uint64_t>(
             GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE);
-    sp<GraphicBuffer> buffer =
-            sp<GraphicBuffer>::make(static_cast<uint32_t>(bufferWidth),
-                                    static_cast<uint32_t>(bufferHeight), HAL_PIXEL_FORMAT_RGBA_8888,
-                                    1u, kUsageFlags, "HdrSdrRatioOverlay");
+
+    // ring buffers here to do double-buffered rendering to avoid
+    // possible tearing and also to reduce memory take-up.
+    if (ringBuffer == nullptr) {
+        ringBuffer = sp<GraphicBuffer>::make(static_cast<uint32_t>(bufferWidth),
+                                             static_cast<uint32_t>(bufferHeight),
+                                             HAL_PIXEL_FORMAT_RGBA_8888, 1u, kUsageFlags,
+                                             "HdrSdrRatioOverlayBuffer");
+    }
+
+    auto& buffer = ringBuffer;
+
+    SkMatrix canvasTransform = SkMatrix();
+    switch (rotation) {
+        case ui::Transform::ROT_90:
+            canvasTransform.setTranslate(bufferHeight, 0);
+            canvasTransform.preRotate(90.f);
+            break;
+        case ui::Transform::ROT_270:
+            canvasTransform.setRotate(270.f, bufferWidth / 2.f, bufferWidth / 2.f);
+            break;
+        default:
+            break;
+    }
 
     const status_t bufferStatus = buffer->initCheck();
     LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "HdrSdrRatioOverlay: Buffer failed to allocate: %d",
@@ -163,13 +172,13 @@ auto HdrSdrRatioOverlay::getOrCreateBuffers(float currentHdrSdrRatio) -> const s
 
     const SkColor color = colorBase.toSkColor();
 
-    auto buffer = draw(currentHdrSdrRatio, color, transformHint);
+    auto buffer = draw(currentHdrSdrRatio, color, transformHint, mRingBuffer[mIndex]);
+    mIndex = (mIndex + 1) % 2;
     return buffer;
 }
 
 void HdrSdrRatioOverlay::animate() {
     if (!std::isfinite(mCurrentHdrSdrRatio) || mCurrentHdrSdrRatio < 1.0f) return;
-
     SurfaceComposerClient::Transaction()
             .setBuffer(mSurfaceControl->get(), getOrCreateBuffers(mCurrentHdrSdrRatio))
             .apply();
