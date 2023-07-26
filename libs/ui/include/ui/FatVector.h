@@ -65,6 +65,17 @@ public:
             free(p);
         }
     }
+
+    // The STL checks that this member type is present so that
+    // std::allocator_traits<InlineStdAllocator<T, SIZE>>::rebind_alloc<Other>
+    // works. std::vector won't be able to construct an
+    // InlineStdAllocator<Other, SIZE>, because InlineStdAllocator has no
+    // default constructor, but vector presumably doesn't rebind the allocator
+    // because it doesn't allocate internal node types.
+    template <class Other>
+    struct rebind {
+        typedef InlineStdAllocator<Other, SIZE> other;
+    };
     Allocation& mAllocation;
 };
 
