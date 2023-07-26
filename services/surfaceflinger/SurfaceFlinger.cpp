@@ -6755,7 +6755,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
         if (captureListener) {
             // TODO: The future returned by std::async blocks the main thread. Return a chain of
             // futures to the Binder thread instead.
-            std::async([=]() mutable {
+            (void)std::async([=]() mutable {
                 ATRACE_NAME("captureListener is nonnull!");
                 auto fenceResult = renderFuture.get();
                 // TODO(b/232535621): Change ScreenCaptureResults to store a FenceResult.
