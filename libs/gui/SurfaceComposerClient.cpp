@@ -377,7 +377,6 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
             }
             auto& [callbackFunction, callbackSurfaceControls] = callbacksMap[callbackId];
             if (!callbackFunction) {
-                ALOGE("cannot call null callback function, skipping");
                 continue;
             }
             std::vector<SurfaceControlStats> surfaceControlStats;
@@ -394,6 +393,11 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
 
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
                              surfaceControlStats);
+
+            // More than one transaction may contain the same callback id. Erase the callback from
+            // the map to ensure that it is only called once. This can happen if transactions are
+            // parcelled out of process and applied in both processes.
+            callbacksMap.erase(callbackId);
         }
 
         // handle on complete callbacks
