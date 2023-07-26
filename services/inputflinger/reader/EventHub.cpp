@@ -643,9 +643,6 @@ void EventHub::Device::populateAbsoluteAxisStates() {
                   identifier.name.c_str(), fd, strerror(errno));
             continue;
         }
-        if (info.minimum == info.maximum) {
-            continue;
-        }
         auto& [axisInfo, value] = absState[axis];
         axisInfo.valid = true;
         axisInfo.minValue = info.minimum;
@@ -778,26 +775,35 @@ void EventHub::Device::trackInputEvent(const struct input_event& event) {
             LOG_ALWAYS_FATAL_IF(!currentFrameDropped &&
                                         !keyState.set(static_cast<size_t>(event.code),
                                                       event.value != 0),
-                                "%s: received invalid EV_KEY event code: %s", __func__,
+                                "%s: device '%s' received invalid EV_KEY event code: %s value: %d",
+                                __func__, identifier.name.c_str(),
                                 InputEventLookup::getLinuxEvdevLabel(EV_KEY, event.code, 1)
-                                        .code.c_str());
+                                        .code.c_str(),
+                                event.value);
             break;
         }
         case EV_SW: {
             LOG_ALWAYS_FATAL_IF(!currentFrameDropped &&
                                         !swState.set(static_cast<size_t>(event.code),
                                                      event.value != 0),
-                                "%s: received invalid EV_SW event code: %s", __func__,
+                                "%s: device '%s' received invalid EV_SW event code: %s value: %d",
+                                __func__, identifier.name.c_str(),
                                 InputEventLookup::getLinuxEvdevLabel(EV_SW, event.code, 1)
-                                        .code.c_str());
+                                        .code.c_str(),
+                                event.value);
             break;
         }
         case EV_ABS: {
+            if (currentFrameDropped) {
+                break;
+            }
             auto it = absState.find(event.code);
-            LOG_ALWAYS_FATAL_IF(!currentFrameDropped && it == absState.end(),
-                                "%s: received invalid EV_ABS event code: %s", __func__,
+            LOG_ALWAYS_FATAL_IF(it == absState.end(),
+                                "%s: device '%s' received invalid EV_ABS event code: %s value: %d",
+                                __func__, identifier.name.c_str(),
                                 InputEventLookup::getLinuxEvdevLabel(EV_ABS, event.code, 0)
-                                        .code.c_str());
+                                        .code.c_str(),
+                                event.value);
             it->second.value = event.value;
             break;
         }
