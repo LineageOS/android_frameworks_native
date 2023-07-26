@@ -1414,12 +1414,12 @@ static void DumpHals(int out_fd = STDOUT_FILENO) {
     auto ret = sm->list([&](const auto& interfaces) {
         for (const std::string& interface : interfaces) {
             std::string cleanName = interface;
-            std::replace_if(cleanName.begin(),
-                            cleanName.end(),
-                            [](char c) {
-                                return !isalnum(c) &&
-                                    std::string("@-_:.").find(c) == std::string::npos;
-                            }, '_');
+            std::replace_if(
+                cleanName.begin(), cleanName.end(),
+                [](char c) {
+                    return !isalnum(c) && std::string("@-_.").find(c) == std::string::npos;
+                },
+                '_');
             const std::string path = ds.bugreport_internal_dir_ + "/lshal_debug_" + cleanName;
 
             bool empty = false;
