@@ -171,6 +171,7 @@ void APerformanceHint_closeSession(
  * @return 0 on success.
  *         EINVAL if the list of thread ids is empty or if  any of the thread ids is not part of the thread group.
  *         EPIPE if communication with the system service has failed.
+ *         EPERM if any thread id doesn't belong to the application.
  */
 int APerformanceHint_setThreads(
         APerformanceHintSession* session,
