@@ -302,6 +302,19 @@ float RefreshRateSelector::calculateNonExactMatchingLayerScoreLocked(const Layer
 
     if (layer.vote == LayerVoteType::ExplicitExactOrMultiple ||
         layer.vote == LayerVoteType::Heuristic) {
+        using fps_approx_ops::operator<;
+        if (refreshRate < 60_Hz) {
+            const bool favorsAtLeast60 =
+                    std::find_if(mFrameRatesThatFavorsAtLeast60.begin(),
+                                 mFrameRatesThatFavorsAtLeast60.end(), [&](Fps fps) {
+                                     using fps_approx_ops::operator==;
+                                     return fps == layer.desiredRefreshRate;
+                                 }) != mFrameRatesThatFavorsAtLeast60.end();
+            if (favorsAtLeast60) {
+                return 0;
+            }
+        }
+
         const float multiplier = refreshRate.getValue() / layer.desiredRefreshRate.getValue();
 
         // We only want to score this layer as a fractional pair if the content is not
