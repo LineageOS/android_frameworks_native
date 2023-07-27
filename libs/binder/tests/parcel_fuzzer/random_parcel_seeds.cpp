@@ -65,7 +65,7 @@ void writeReversedBuffer(std::vector<uint8_t>& integralBuffer, T val) {
 } // namespace impl
 
 void generateSeedsFromRecording(base::borrowed_fd fd,
-                                binder::debug::RecordedTransaction&& transaction) {
+                                const binder::debug::RecordedTransaction& transaction) {
     // Write Reserved bytes for future use
     std::vector<uint8_t> reservedBytes(8);
     CHECK(WriteFully(fd, reservedBytes.data(), reservedBytes.size())) << fd.get();

@@ -43,5 +43,5 @@ template <typename T>
 void writeReversedBuffer(std::vector<std::byte>& integralBuffer, T val);
 } // namespace impl
 void generateSeedsFromRecording(base::borrowed_fd fd,
-                                binder::debug::RecordedTransaction&& transaction);
+                                const binder::debug::RecordedTransaction& transaction);
 } // namespace android
