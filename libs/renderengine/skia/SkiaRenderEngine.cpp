@@ -813,8 +813,20 @@ void SkiaRenderEngine::drawLayersInternal(
             if (!blurInput) {
                 blurInput = activeSurface->makeImageSnapshot();
             }
+
             // rect to be blurred in the coordinate space of blurInput
-            const auto blurRect = canvas->getTotalMatrix().mapRect(bounds.rect());
+            SkRect blurRect = canvas->getTotalMatrix().mapRect(bounds.rect());
+
+            // Some layers may be much bigger than the screen. If we used
+            // `blurRect` directly, this would allocate a large buffer with no
+            // benefit. Apply the clip, which already takes the display size
+            // into account. The clipped size will then be used to calculate the
+            // size of the buffer we will create for blurring.
+            if (!blurRect.intersect(SkRect::Make(canvas->getDeviceClipBounds()))) {
+                // This should not happen, but if it did, we would use the full
+                // sized layer, which should still be fine.
+                ALOGW("blur bounds does not intersect display clip!");
+            }
 
             // if the clip needs to be applied then apply it now and make sure
             // it is restored before we attempt to draw any shadows.
