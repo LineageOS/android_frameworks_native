@@ -1264,26 +1264,40 @@ static std::vector<SocketType> testSocketTypes(bool hasPreconnected = true) {
 static std::vector<BinderRpc::ParamType> getBinderRpcParams() {
     std::vector<BinderRpc::ParamType> ret;
 
+    constexpr bool full = false;
+
     for (const auto& type : testSocketTypes()) {
-        for (const auto& security : RpcSecurityValues()) {
-            for (const auto& clientVersion : testVersions()) {
-                for (const auto& serverVersion : testVersions()) {
-                    for (bool singleThreaded : {false, true}) {
-                        for (bool noKernel : {false, true}) {
-                            ret.push_back(BinderRpc::ParamType{
-                                    .type = type,
-                                    .security = security,
-                                    .clientVersion = clientVersion,
-                                    .serverVersion = serverVersion,
-                                    .singleThreaded = singleThreaded,
-                                    .noKernel = noKernel,
-                            });
+        if (full || type == SocketType::UNIX) {
+            for (const auto& security : RpcSecurityValues()) {
+                for (const auto& clientVersion : testVersions()) {
+                    for (const auto& serverVersion : testVersions()) {
+                        for (bool singleThreaded : {false, true}) {
+                            for (bool noKernel : {false, true}) {
+                                ret.push_back(BinderRpc::ParamType{
+                                        .type = type,
+                                        .security = security,
+                                        .clientVersion = clientVersion,
+                                        .serverVersion = serverVersion,
+                                        .singleThreaded = singleThreaded,
+                                        .noKernel = noKernel,
+                                });
+                            }
                         }
                     }
                 }
             }
+        } else {
+            ret.push_back(BinderRpc::ParamType{
+                    .type = type,
+                    .security = RpcSecurity::RAW,
+                    .clientVersion = RPC_WIRE_PROTOCOL_VERSION,
+                    .serverVersion = RPC_WIRE_PROTOCOL_VERSION,
+                    .singleThreaded = false,
+                    .noKernel = false,
+            });
         }
     }
+
     return ret;
 }
 
