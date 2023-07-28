@@ -456,6 +456,16 @@ static std::unordered_map<int32_t /*lightId*/, RawLightInfo> readLightsConfigura
     return lightInfos;
 }
 
+static bool isValidEvAbsValue(int32_t code, int32_t value, const RawAbsoluteAxisInfo& info) {
+    if (code == ABS_MT_TRACKING_ID && value == -1) {
+        return true;
+    }
+    if (value >= info.minValue && value <= info.maxValue) {
+        return true;
+    }
+    return false;
+}
+
 // --- Global Functions ---
 
 ftl::Flags<InputDeviceClass> getAbsAxisUsage(int32_t axis,
@@ -804,6 +814,13 @@ void EventHub::Device::trackInputEvent(const struct input_event& event) {
                                 InputEventLookup::getLinuxEvdevLabel(EV_ABS, event.code, 0)
                                         .code.c_str(),
                                 event.value);
+            LOG_ALWAYS_FATAL_IF(!isValidEvAbsValue(event.code, event.value, it->second.info),
+                                "%s: device '%s' received invalid value %d for EV_ABS code %s with "
+                                "range [%d, %d]",
+                                __func__, identifier.name.c_str(), event.value,
+                                InputEventLookup::getLinuxEvdevLabel(EV_ABS, event.code, 0)
+                                        .code.c_str(),
+                                it->second.info.minValue, it->second.info.maxValue);
             it->second.value = event.value;
             break;
         }
