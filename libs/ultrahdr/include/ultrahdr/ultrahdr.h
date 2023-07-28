@@ -17,6 +17,8 @@
 #ifndef ANDROID_ULTRAHDR_ULTRAHDR_H
 #define ANDROID_ULTRAHDR_ULTRAHDR_H
 
+#include <string>
+
 namespace android::ultrahdr {
 // Color gamuts for image data
 typedef enum {

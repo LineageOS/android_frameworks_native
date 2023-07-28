@@ -14,38 +14,36 @@
  * limitations under the License.
  */
 
+#include <cstring>
+#include <memory>
+#include <vector>
+
 #include <ultrahdr/jpegencoderhelper.h>
-
 #include <utils/Log.h>
-
-#include <errno.h>
 
 namespace android::ultrahdr {
 
-#define ALIGNM(x, m)  ((((x) + ((m) - 1)) / (m)) * (m))
+#define ALIGNM(x, m) ((((x) + ((m)-1)) / (m)) * (m))
 
 // The destination manager that can access |mResultBuffer| in JpegEncoderHelper.
 struct destination_mgr {
-public:
     struct jpeg_destination_mgr mgr;
     JpegEncoderHelper* encoder;
 };
 
-JpegEncoderHelper::JpegEncoderHelper() {
-}
+JpegEncoderHelper::JpegEncoderHelper() {}
 
-JpegEncoderHelper::~JpegEncoderHelper() {
-}
+JpegEncoderHelper::~JpegEncoderHelper() {}
 
 bool JpegEncoderHelper::compressImage(const void* image, int width, int height, int quality,
-                                   const void* iccBuffer, unsigned int iccSize,
-                                   bool isSingleChannel) {
+                                      const void* iccBuffer, unsigned int iccSize,
+                                      bool isSingleChannel) {
     mResultBuffer.clear();
     if (!encode(image, width, height, quality, iccBuffer, iccSize, isSingleChannel)) {
         return false;
     }
-    ALOGI("Compressed JPEG: %d[%dx%d] -> %zu bytes",
-        (width * height * 12) / 8, width, height, mResultBuffer.size());
+    ALOGI("Compressed JPEG: %d[%dx%d] -> %zu bytes", (width * height * 12) / 8, width, height,
+          mResultBuffer.size());
     return true;
 }
 
@@ -85,12 +83,12 @@ void JpegEncoderHelper::outputErrorMessage(j_common_ptr cinfo) {
     char buffer[JMSG_LENGTH_MAX];
 
     /* Create the message */
-    (*cinfo->err->format_message) (cinfo, buffer);
+    (*cinfo->err->format_message)(cinfo, buffer);
     ALOGE("%s\n", buffer);
 }
 
 bool JpegEncoderHelper::encode(const void* image, int width, int height, int jpegQuality,
-                         const void* iccBuffer, unsigned int iccSize, bool isSingleChannel) {
+                               const void* iccBuffer, unsigned int iccSize, bool isSingleChannel) {
     jpeg_compress_struct cinfo;
     jpeg_error_mgr jerr;
 
@@ -115,8 +113,9 @@ bool JpegEncoderHelper::encode(const void* image, int width, int height, int jpe
 }
 
 void JpegEncoderHelper::setJpegDestination(jpeg_compress_struct* cinfo) {
-    destination_mgr* dest = static_cast<struct destination_mgr *>((*cinfo->mem->alloc_small) (
-            (j_common_ptr) cinfo, JPOOL_PERMANENT, sizeof(destination_mgr)));
+    destination_mgr* dest = static_cast<struct destination_mgr*>(
+            (*cinfo->mem->alloc_small)((j_common_ptr)cinfo, JPOOL_PERMANENT,
+                                       sizeof(destination_mgr)));
     dest->encoder = this;
     dest->mgr.init_destination = &initDestination;
     dest->mgr.empty_output_buffer = &emptyOutputBuffer;
@@ -125,48 +124,33 @@ void JpegEncoderHelper::setJpegDestination(jpeg_compress_struct* cinfo) {
 }
 
 void JpegEncoderHelper::setJpegCompressStruct(int width, int height, int quality,
-                                        jpeg_compress_struct* cinfo, bool isSingleChannel) {
+                                              jpeg_compress_struct* cinfo, bool isSingleChannel) {
     cinfo->image_width = width;
     cinfo->image_height = height;
-    if (isSingleChannel) {
-        cinfo->input_components = 1;
-        cinfo->in_color_space = JCS_GRAYSCALE;
-    } else {
-        cinfo->input_components = 3;
-        cinfo->in_color_space = JCS_YCbCr;
-    }
+    cinfo->input_components = isSingleChannel ? 1 : 3;
+    cinfo->in_color_space = isSingleChannel ? JCS_GRAYSCALE : JCS_YCbCr;
     jpeg_set_defaults(cinfo);
-
     jpeg_set_quality(cinfo, quality, TRUE);
-    jpeg_set_colorspace(cinfo, isSingleChannel ? JCS_GRAYSCALE : JCS_YCbCr);
     cinfo->raw_data_in = TRUE;
     cinfo->dct_method = JDCT_ISLOW;
-
-    if (!isSingleChannel) {
-        // Configure sampling factors. The sampling factor is JPEG subsampling 420 because the
-        // source format is YUV420.
-        cinfo->comp_info[0].h_samp_factor = 2;
-        cinfo->comp_info[0].v_samp_factor = 2;
-        cinfo->comp_info[1].h_samp_factor = 1;
-        cinfo->comp_info[1].v_samp_factor = 1;
-        cinfo->comp_info[2].h_samp_factor = 1;
-        cinfo->comp_info[2].v_samp_factor = 1;
+    cinfo->comp_info[0].h_samp_factor = cinfo->in_color_space == JCS_GRAYSCALE ? 1 : 2;
+    cinfo->comp_info[0].v_samp_factor = cinfo->in_color_space == JCS_GRAYSCALE ? 1 : 2;
+    for (int i = 1; i < cinfo->num_components; i++) {
+        cinfo->comp_info[i].h_samp_factor = 1;
+        cinfo->comp_info[i].v_samp_factor = 1;
     }
 }
 
-bool JpegEncoderHelper::compress(
-        jpeg_compress_struct* cinfo, const uint8_t* image, bool isSingleChannel) {
-    if (isSingleChannel) {
-        return compressSingleChannel(cinfo, image);
-    }
-    return compressYuv(cinfo, image);
+bool JpegEncoderHelper::compress(jpeg_compress_struct* cinfo, const uint8_t* image,
+                                 bool isSingleChannel) {
+    return isSingleChannel ? compressSingleChannel(cinfo, image) : compressYuv(cinfo, image);
 }
 
 bool JpegEncoderHelper::compressYuv(jpeg_compress_struct* cinfo, const uint8_t* yuv) {
     JSAMPROW y[kCompressBatchSize];
     JSAMPROW cb[kCompressBatchSize / 2];
     JSAMPROW cr[kCompressBatchSize / 2];
-    JSAMPARRAY planes[3] {y, cb, cr};
+    JSAMPARRAY planes[3]{y, cb, cr};
 
     size_t y_plane_size = cinfo->image_width * cinfo->image_height;
     size_t uv_plane_size = y_plane_size / 4;
@@ -246,7 +230,7 @@ bool JpegEncoderHelper::compressYuv(jpeg_compress_struct* cinfo, const uint8_t* 
 
 bool JpegEncoderHelper::compressSingleChannel(jpeg_compress_struct* cinfo, const uint8_t* image) {
     JSAMPROW y[kCompressBatchSize];
-    JSAMPARRAY planes[1] {y};
+    JSAMPARRAY planes[1]{y};
 
     uint8_t* y_plane = const_cast<uint8_t*>(image);
     std::unique_ptr<uint8_t[]> empty = std::make_unique<uint8_t[]>(cinfo->image_width);
@@ -291,4 +275,4 @@ bool JpegEncoderHelper::compressSingleChannel(jpeg_compress_struct* cinfo, const
     return true;
 }
 
-} // namespace ultrahdr
+} // namespace android::ultrahdr

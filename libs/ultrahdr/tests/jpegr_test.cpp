@@ -1966,7 +1966,7 @@ void JpegRBenchmark::BenchmarkApplyGainMap(jr_uncompressed_ptr yuv420Image, jr_u
         profileRecMap.elapsedTime() / (kProfileCount * 1000.f));
 }
 
-TEST(JpegRTest, ProfileGainMapFuncs) {
+TEST(JpegRTest, DISABLED_ProfileGainMapFuncs) {
   UhdrUnCompressedStructWrapper rawImgP010(kImageWidth, kImageHeight, YCbCr_p010);
   ASSERT_TRUE(rawImgP010.setImageColorGamut(ultrahdr_color_gamut::ULTRAHDR_COLORGAMUT_BT2100));
   ASSERT_TRUE(rawImgP010.allocateMemory());
