@@ -135,7 +135,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     // b/260736889 - limit arbitrarily, due to thread resource exhaustion, which currently
     // aborts. Servers should consider RpcServer::setConnectionFilter instead.
-    constexpr size_t kMaxConnections = 1000;
+    constexpr size_t kMaxConnections = 10;
 
     while (provider.remaining_bytes() > 0) {
         if (connections.empty() ||
