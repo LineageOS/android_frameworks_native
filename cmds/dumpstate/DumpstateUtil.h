@@ -193,11 +193,19 @@ class PropertiesHelper {
      */
     static bool IsParallelRun();
 
+    /*
+     * Strict-run mode is determined by the `dumpstate.strict_run` sysprop which
+     * will default to true. This results in shortened timeouts for flaky
+     * sections.
+     */
+    static bool IsStrictRun();
+
   private:
     static std::string build_type_;
     static int dry_run_;
     static int unroot_;
     static int parallel_run_;
+    static int strict_run_;
 };
 
 /*
