@@ -289,7 +289,18 @@ public:
         return mEventHub->getDeviceControllerNumber(mId);
     }
     inline status_t getAbsoluteAxisInfo(int32_t code, RawAbsoluteAxisInfo* axisInfo) const {
-        return mEventHub->getAbsoluteAxisInfo(mId, code, axisInfo);
+        if (const auto status = mEventHub->getAbsoluteAxisInfo(mId, code, axisInfo); status != OK) {
+            return status;
+        }
+
+        // Validate axis info for InputDevice.
+        if (axisInfo->valid && axisInfo->minValue == axisInfo->maxValue) {
+            // Historically, we deem axes with the same min and max values as invalid to avoid
+            // dividing by zero when scaling by max - min.
+            // TODO(b/291772515): Perform axis info validation on a per-axis basis when it is used.
+            axisInfo->valid = false;
+        }
+        return OK;
     }
     inline bool hasRelativeAxis(int32_t code) const {
         return mEventHub->hasRelativeAxis(mId, code);
