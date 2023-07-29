@@ -57,9 +57,9 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
                                     [](size_t n) { return n != 0; }),
                         "Non-zero incoming connections on Trusty");
 
-    RpcSecurity rpcSecurity = std::get<1>(GetParam());
-    uint32_t clientVersion = std::get<2>(GetParam());
-    uint32_t serverVersion = std::get<3>(GetParam());
+    RpcSecurity rpcSecurity = GetParam().security;
+    uint32_t clientVersion = GetParam().clientVersion;
+    uint32_t serverVersion = GetParam().serverVersion;
 
     auto ret = std::make_unique<TrustyProcessSession>();
 
@@ -89,12 +89,27 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
     return ret;
 }
 
-INSTANTIATE_TEST_CASE_P(Trusty, BinderRpc,
-                        ::testing::Combine(::testing::Values(SocketType::TIPC),
-                                           ::testing::Values(RpcSecurity::RAW),
-                                           ::testing::ValuesIn(testVersions()),
-                                           ::testing::ValuesIn(testVersions()),
-                                           ::testing::Values(false), ::testing::Values(true)),
+static std::vector<BinderRpc::ParamType> getTrustyBinderRpcParams() {
+    std::vector<BinderRpc::ParamType> ret;
+
+    for (const auto& clientVersion : testVersions()) {
+        for (const auto& serverVersion : testVersions()) {
+            ret.push_back(BinderRpc::ParamType{
+                    .type = SocketType::TIPC,
+                    .security = RpcSecurity::RAW,
+                    .clientVersion = clientVersion,
+                    .serverVersion = serverVersion,
+                    // TODO: should we test both versions here?
+                    .singleThreaded = false,
+                    .noKernel = true,
+            });
+        }
+    }
+
+    return ret;
+}
+
+INSTANTIATE_TEST_CASE_P(Trusty, BinderRpc, ::testing::ValuesIn(getTrustyBinderRpcParams()),
                         BinderRpc::PrintParamInfo);
 
 } // namespace android
