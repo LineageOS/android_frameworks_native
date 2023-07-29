@@ -1443,6 +1443,10 @@ private:
 
     // WindowInfo ids visible during the last commit.
     std::unordered_set<int32_t> mVisibleWindowIds;
+
+    // Mirroring
+    // Map of displayid to mirrorRoot
+    ftl::SmallMap<int64_t, sp<SurfaceControl>, 3> mMirrorMapForDebug;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

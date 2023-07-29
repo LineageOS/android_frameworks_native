@@ -68,6 +68,7 @@
 #include <gui/LayerMetadata.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
+#include <gui/SurfaceComposerClient.h>
 #include <gui/TraceUtils.h>
 #include <hidl/ServiceManagement.h>
 #include <layerproto/LayerProtoParser.h>
@@ -91,13 +92,12 @@
 #include <ui/LayerStack.h>
 #include <ui/PixelFormat.h>
 #include <ui/StaticDisplayInfo.h>
+#include <unistd.h>
 #include <utils/StopWatch.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/misc.h>
-
-#include <unistd.h>
 #include <algorithm>
 #include <cerrno>
 #include <cinttypes>
@@ -6522,9 +6522,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1043 are currently used for backdoors. The code
+    // Numbers from 1000 to 1044 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1043) {
+    if (code >= 1000 && code <= 1044) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -7001,6 +7001,73 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                             }
                         });
                 future.wait();
+                return NO_ERROR;
+            }
+
+            case 1044: { // Enable/Disable mirroring from one display to another
+                /*
+                 * Mirror one display onto another.
+                 * Ensure the source and destination displays are on.
+                 * Commands:
+                 * 0: Mirror one display to another
+                 * 1: Disable mirroring to a previously mirrored display
+                 * 2: Disable mirroring on previously mirrored displays
+                 *
+                 * Ex:
+                 * Get the display ids:
+                 * adb shell dumpsys SurfaceFlinger --display-id
+                 * Mirror first display to the second:
+                 * adb shell service call SurfaceFlinger 1044 i64 0 i64 4619827677550801152 i64
+                 * 4619827677550801153
+                 * Stop mirroring:
+                 * adb shell service call SurfaceFlinger 1044 i64 1
+                 */
+
+                int64_t arg0 = data.readInt64();
+
+                switch (arg0) {
+                    case 0: {
+                        // Mirror arg1 to arg2
+                        int64_t arg1 = data.readInt64();
+                        int64_t arg2 = data.readInt64();
+                        // Enable mirroring for one display
+                        const auto display1id = DisplayId::fromValue(arg1);
+                        auto mirrorRoot = SurfaceComposerClient::getDefault()->mirrorDisplay(
+                                display1id.value());
+                        auto id2 = DisplayId::fromValue<PhysicalDisplayId>(arg2);
+                        const auto token2 = getPhysicalDisplayToken(*id2);
+                        ui::LayerStack layerStack;
+                        {
+                            Mutex::Autolock lock(mStateLock);
+                            sp<DisplayDevice> display = getDisplayDeviceLocked(token2);
+                            layerStack = display->getLayerStack();
+                        }
+                        SurfaceComposerClient::Transaction t;
+                        t.setDisplayLayerStack(token2, layerStack);
+                        t.setLayer(mirrorRoot, INT_MAX); // Top-most layer
+                        t.setLayerStack(mirrorRoot, layerStack);
+                        t.apply();
+
+                        mMirrorMapForDebug.emplace_or_replace(arg2, mirrorRoot);
+                        break;
+                    }
+
+                    case 1: {
+                        // Disable mirroring for arg1
+                        int64_t arg1 = data.readInt64();
+                        mMirrorMapForDebug.erase(arg1);
+                        break;
+                    }
+
+                    case 2: {
+                        // Disable mirroring for all displays
+                        mMirrorMapForDebug.clear();
+                        break;
+                    }
+
+                    default:
+                        return BAD_VALUE;
+                }
                 return NO_ERROR;
             }
         }
