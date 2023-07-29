@@ -350,6 +350,7 @@ void TouchpadInputMapper::dump(std::string& dump) {
     dump += addLinePrefix(mPropertyProvider.dump(), INDENT4);
     dump += INDENT3 "Captured event converter:\n";
     dump += addLinePrefix(mCapturedEventConverter.dump(), INDENT4);
+    dump += StringPrintf(INDENT3 "DisplayId: %s\n", toString(mDisplayId).c_str());
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
@@ -361,13 +362,31 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
     }
 
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO)) {
-        std::optional<int32_t> displayId = mPointerController->getDisplayId();
+        mDisplayId = ADISPLAY_ID_NONE;
+        if (auto viewport = mDeviceContext.getAssociatedViewport(); viewport) {
+            // This InputDevice is associated with a viewport.
+            // Only generate events for the associated display.
+            const bool mismatchedPointerDisplay =
+                    (viewport->displayId != mPointerController->getDisplayId());
+            if (mismatchedPointerDisplay) {
+                ALOGW("Touchpad \"%s\" associated viewport display does not match pointer "
+                      "controller",
+                      mDeviceContext.getName().c_str());
+            }
+            mDisplayId = mismatchedPointerDisplay ? std::nullopt
+                                                  : std::make_optional(viewport->displayId);
+        } else {
+            // The InputDevice is not associated with a viewport, but it controls the mouse pointer.
+            mDisplayId = mPointerController->getDisplayId();
+        }
+
         ui::Rotation orientation = ui::ROTATION_0;
-        if (displayId.has_value()) {
-            if (auto viewport = config.getDisplayViewportById(*displayId); viewport) {
+        if (mDisplayId.has_value()) {
+            if (auto viewport = config.getDisplayViewportById(*mDisplayId); viewport) {
                 orientation = getInverseRotation(viewport->orientation);
             }
         }
+        mGestureConverter.setDisplayId(mDisplayId);
         mGestureConverter.setOrientation(orientation);
     }
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::TOUCHPAD_SETTINGS)) {
@@ -497,13 +516,19 @@ void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
 
 std::list<NotifyArgs> TouchpadInputMapper::processGestures(nsecs_t when, nsecs_t readTime) {
     std::list<NotifyArgs> out = {};
-    MetricsAccumulator& metricsAccumulator = MetricsAccumulator::getInstance();
-    for (Gesture& gesture : mGesturesToProcess) {
-        out += mGestureConverter.handleGesture(when, readTime, gesture);
-        metricsAccumulator.processGesture(mMetricsId, gesture);
+    if (mDisplayId) {
+        MetricsAccumulator& metricsAccumulator = MetricsAccumulator::getInstance();
+        for (Gesture& gesture : mGesturesToProcess) {
+            out += mGestureConverter.handleGesture(when, readTime, gesture);
+            metricsAccumulator.processGesture(mMetricsId, gesture);
+        }
     }
     mGesturesToProcess.clear();
     return out;
+}
+
+std::optional<int32_t> TouchpadInputMapper::getAssociatedDisplayId() {
+    return mDisplayId;
 }
 
 } // namespace android
