@@ -249,12 +249,12 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
         CHECK_EQ(options.numIncomingConnectionsBySession.size(), options.numSessions);
     }
 
-    SocketType socketType = std::get<0>(GetParam());
-    RpcSecurity rpcSecurity = std::get<1>(GetParam());
-    uint32_t clientVersion = std::get<2>(GetParam());
-    uint32_t serverVersion = std::get<3>(GetParam());
-    bool singleThreaded = std::get<4>(GetParam());
-    bool noKernel = std::get<5>(GetParam());
+    SocketType socketType = GetParam().type;
+    RpcSecurity rpcSecurity = GetParam().security;
+    uint32_t clientVersion = GetParam().clientVersion;
+    uint32_t serverVersion = GetParam().serverVersion;
+    bool singleThreaded = GetParam().singleThreaded;
+    bool noKernel = GetParam().noKernel;
 
     std::string path = android::base::GetExecutableDirectory();
     auto servicePath = android::base::StringPrintf("%s/binder_rpc_test_service%s%s", path.c_str(),
@@ -1121,12 +1121,27 @@ TEST_P(BinderRpc, Fds) {
 }
 
 #ifdef BINDER_RPC_TO_TRUSTY_TEST
-INSTANTIATE_TEST_CASE_P(Trusty, BinderRpc,
-                        ::testing::Combine(::testing::Values(SocketType::TIPC),
-                                           ::testing::Values(RpcSecurity::RAW),
-                                           ::testing::ValuesIn(testVersions()),
-                                           ::testing::ValuesIn(testVersions()),
-                                           ::testing::Values(true), ::testing::Values(true)),
+
+static std::vector<BinderRpc::ParamType> getTrustyBinderRpcParams() {
+    std::vector<BinderRpc::ParamType> ret;
+
+    for (const auto& clientVersion : testVersions()) {
+        for (const auto& serverVersion : testVersions()) {
+            ret.push_back(BinderRpc::ParamType{
+                    .type = SocketType::TIPC,
+                    .security = RpcSecurity::RAW,
+                    .clientVersion = clientVersion,
+                    .serverVersion = serverVersion,
+                    .singleThreaded = true,
+                    .noKernel = true,
+            });
+        }
+    }
+
+    return ret;
+}
+
+INSTANTIATE_TEST_CASE_P(Trusty, BinderRpc, ::testing::ValuesIn(getTrustyBinderRpcParams()),
                         BinderRpc::PrintParamInfo);
 #else // BINDER_RPC_TO_TRUSTY_TEST
 bool testSupportVsockLoopback() {
@@ -1246,13 +1261,47 @@ static std::vector<SocketType> testSocketTypes(bool hasPreconnected = true) {
     return ret;
 }
 
-INSTANTIATE_TEST_CASE_P(PerSocket, BinderRpc,
-                        ::testing::Combine(::testing::ValuesIn(testSocketTypes()),
-                                           ::testing::ValuesIn(RpcSecurityValues()),
-                                           ::testing::ValuesIn(testVersions()),
-                                           ::testing::ValuesIn(testVersions()),
-                                           ::testing::Values(false, true),
-                                           ::testing::Values(false, true)),
+static std::vector<BinderRpc::ParamType> getBinderRpcParams() {
+    std::vector<BinderRpc::ParamType> ret;
+
+    constexpr bool full = false;
+
+    for (const auto& type : testSocketTypes()) {
+        if (full || type == SocketType::UNIX) {
+            for (const auto& security : RpcSecurityValues()) {
+                for (const auto& clientVersion : testVersions()) {
+                    for (const auto& serverVersion : testVersions()) {
+                        for (bool singleThreaded : {false, true}) {
+                            for (bool noKernel : {false, true}) {
+                                ret.push_back(BinderRpc::ParamType{
+                                        .type = type,
+                                        .security = security,
+                                        .clientVersion = clientVersion,
+                                        .serverVersion = serverVersion,
+                                        .singleThreaded = singleThreaded,
+                                        .noKernel = noKernel,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            ret.push_back(BinderRpc::ParamType{
+                    .type = type,
+                    .security = RpcSecurity::RAW,
+                    .clientVersion = RPC_WIRE_PROTOCOL_VERSION,
+                    .serverVersion = RPC_WIRE_PROTOCOL_VERSION,
+                    .singleThreaded = false,
+                    .noKernel = false,
+            });
+        }
+    }
+
+    return ret;
+}
+
+INSTANTIATE_TEST_CASE_P(PerSocket, BinderRpc, ::testing::ValuesIn(getBinderRpcParams()),
                         BinderRpc::PrintParamInfo);
 
 class BinderRpcServerRootObject
