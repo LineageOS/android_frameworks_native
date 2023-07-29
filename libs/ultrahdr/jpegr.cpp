@@ -185,21 +185,18 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr p010_image_ptr, ultrahdr_transfe
     p010_image.chroma_stride = p010_image.luma_stride;
   }
 
+  const int yu420_luma_stride = ALIGNM(p010_image.width, kJpegBlock);
   unique_ptr<uint8_t[]> yuv420_image_data =
-          make_unique<uint8_t[]>(p010_image.width * p010_image.height * 3 / 2);
+          make_unique<uint8_t[]>(yu420_luma_stride * p010_image.height * 3 / 2);
   jpegr_uncompressed_struct yuv420_image = {.data = yuv420_image_data.get(),
                                             .width = p010_image.width,
                                             .height = p010_image.height,
                                             .colorGamut = p010_image.colorGamut,
-                                            .luma_stride = 0,
+                                            .luma_stride = yu420_luma_stride,
                                             .chroma_data = nullptr,
-                                            .chroma_stride = 0};
-  if (yuv420_image.luma_stride == 0) yuv420_image.luma_stride = yuv420_image.width;
-  if (!yuv420_image.chroma_data) {
-    uint8_t* data = reinterpret_cast<uint8_t*>(yuv420_image.data);
-    yuv420_image.chroma_data = data + yuv420_image.luma_stride * yuv420_image.height;
-    yuv420_image.chroma_stride = yuv420_image.luma_stride >> 1;
-  }
+                                            .chroma_stride = yu420_luma_stride >> 1};
+  uint8_t* data = reinterpret_cast<uint8_t*>(yuv420_image.data);
+  yuv420_image.chroma_data = data + yuv420_image.luma_stride * yuv420_image.height;
 
   // tone map
   JPEGR_CHECK(toneMap(&p010_image, &yuv420_image));
@@ -230,7 +227,10 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr p010_image_ptr, ultrahdr_transfe
 
   // compress 420 image
   JpegEncoderHelper jpeg_enc_obj_yuv420;
-  if (!jpeg_enc_obj_yuv420.compressImage(yuv420_image.data, yuv420_image.width, yuv420_image.height,
+  if (!jpeg_enc_obj_yuv420.compressImage(reinterpret_cast<uint8_t*>(yuv420_image.data),
+                                         reinterpret_cast<uint8_t*>(yuv420_image.chroma_data),
+                                         yuv420_image.width, yuv420_image.height,
+                                         yuv420_image.luma_stride, yuv420_image.chroma_stride,
                                          quality, icc->getData(), icc->getLength())) {
     return ERROR_JPEGR_ENCODE_ERROR;
   }
@@ -305,13 +305,15 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr p010_image_ptr,
   unique_ptr<uint8_t[]> yuv_420_bt601_data;
   // Convert to bt601 YUV encoding for JPEG encode
   if (yuv420_image.colorGamut != ULTRAHDR_COLORGAMUT_P3) {
-    yuv_420_bt601_data = make_unique<uint8_t[]>(yuv420_image.width * yuv420_image.height * 3 / 2);
+    const int yuv_420_bt601_luma_stride = ALIGNM(yuv420_image.width, kJpegBlock);
+    yuv_420_bt601_data =
+            make_unique<uint8_t[]>(yuv_420_bt601_luma_stride * yuv420_image.height * 3 / 2);
     yuv420_bt601_image.data = yuv_420_bt601_data.get();
     yuv420_bt601_image.colorGamut = yuv420_image.colorGamut;
-    yuv420_bt601_image.luma_stride = yuv420_image.width;
+    yuv420_bt601_image.luma_stride = yuv_420_bt601_luma_stride;
     uint8_t* data = reinterpret_cast<uint8_t*>(yuv420_bt601_image.data);
-    yuv420_bt601_image.chroma_data = data + yuv420_bt601_image.luma_stride * yuv420_image.height;
-    yuv420_bt601_image.chroma_stride = yuv420_bt601_image.luma_stride >> 1;
+    yuv420_bt601_image.chroma_data = data + yuv_420_bt601_luma_stride * yuv420_image.height;
+    yuv420_bt601_image.chroma_stride = yuv_420_bt601_luma_stride >> 1;
 
     {
       // copy luma
@@ -322,6 +324,10 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr p010_image_ptr,
       } else {
         for (size_t i = 0; i < yuv420_image.height; i++) {
           memcpy(y_dst, y_src, yuv420_image.width);
+          if (yuv420_image.width != yuv420_bt601_image.luma_stride) {
+            memset(y_dst + yuv420_image.width, 0,
+                   yuv420_bt601_image.luma_stride - yuv420_image.width);
+          }
           y_dst += yuv420_bt601_image.luma_stride;
           y_src += yuv420_image.luma_stride;
         }
@@ -342,6 +348,12 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr p010_image_ptr,
       for (size_t i = 0; i < yuv420_image.height / 2; i++) {
         memcpy(cb_dst, cb_src, yuv420_image.width / 2);
         memcpy(cr_dst, cr_src, yuv420_image.width / 2);
+        if (yuv420_bt601_image.width / 2 != yuv420_bt601_image.chroma_stride) {
+          memset(cb_dst + yuv420_image.width / 2, 0,
+                 yuv420_bt601_image.chroma_stride - yuv420_image.width / 2);
+          memset(cr_dst + yuv420_image.width / 2, 0,
+                 yuv420_bt601_image.chroma_stride - yuv420_image.width / 2);
+        }
         cb_dst += yuv420_bt601_image.chroma_stride;
         cb_src += yuv420_image.chroma_stride;
         cr_dst += yuv420_bt601_image.chroma_stride;
@@ -353,8 +365,11 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr p010_image_ptr,
 
   // compress 420 image
   JpegEncoderHelper jpeg_enc_obj_yuv420;
-  if (!jpeg_enc_obj_yuv420.compressImage(yuv420_bt601_image.data, yuv420_bt601_image.width,
-                                         yuv420_bt601_image.height, quality, icc->getData(),
+  if (!jpeg_enc_obj_yuv420.compressImage(reinterpret_cast<uint8_t*>(yuv420_bt601_image.data),
+                                         reinterpret_cast<uint8_t*>(yuv420_bt601_image.chroma_data),
+                                         yuv420_bt601_image.width, yuv420_bt601_image.height,
+                                         yuv420_bt601_image.luma_stride,
+                                         yuv420_bt601_image.chroma_stride, quality, icc->getData(),
                                          icc->getLength())) {
     return ERROR_JPEGR_ENCODE_ERROR;
   }
@@ -697,9 +712,10 @@ status_t JpegR::compressGainMap(jr_uncompressed_ptr gainmap_image_ptr,
   }
 
   // Don't need to convert YUV to Bt601 since single channel
-  if (!jpeg_enc_obj_ptr->compressImage(gainmap_image_ptr->data, gainmap_image_ptr->width,
-                                       gainmap_image_ptr->height, kMapCompressQuality, nullptr, 0,
-                                       true /* isSingleChannel */)) {
+  if (!jpeg_enc_obj_ptr->compressImage(reinterpret_cast<uint8_t*>(gainmap_image_ptr->data), nullptr,
+                                       gainmap_image_ptr->width, gainmap_image_ptr->height,
+                                       gainmap_image_ptr->luma_stride, 0, kMapCompressQuality,
+                                       nullptr, 0)) {
     return ERROR_JPEGR_ENCODE_ERROR;
   }
 
@@ -769,7 +785,9 @@ status_t JpegR::generateGainMap(jr_uncompressed_ptr yuv420_image_ptr,
                                 ultrahdr_transfer_function hdr_tf, ultrahdr_metadata_ptr metadata,
                                 jr_uncompressed_ptr dest, bool sdr_is_601) {
   if (yuv420_image_ptr == nullptr || p010_image_ptr == nullptr || metadata == nullptr ||
-      dest == nullptr) {
+      dest == nullptr || yuv420_image_ptr->data == nullptr ||
+      yuv420_image_ptr->chroma_data == nullptr || p010_image_ptr->data == nullptr ||
+      p010_image_ptr->chroma_data == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
   if (yuv420_image_ptr->width != p010_image_ptr->width ||
@@ -940,7 +958,8 @@ status_t JpegR::applyGainMap(jr_uncompressed_ptr yuv420_image_ptr,
                              ultrahdr_output_format output_format, float max_display_boost,
                              jr_uncompressed_ptr dest) {
   if (yuv420_image_ptr == nullptr || gainmap_image_ptr == nullptr || metadata == nullptr ||
-      dest == nullptr) {
+      dest == nullptr || yuv420_image_ptr->data == nullptr ||
+      yuv420_image_ptr->chroma_data == nullptr || gainmap_image_ptr->data == nullptr) {
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
   if (metadata->version.compare(kJpegrVersion)) {
@@ -970,7 +989,9 @@ status_t JpegR::applyGainMap(jr_uncompressed_ptr yuv420_image_ptr,
   size_t map_height = static_cast<size_t>(
           floor((image_height + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
   if (map_width != gainmap_image_ptr->width || map_height != gainmap_image_ptr->height) {
-    ALOGE("gain map dimensions and primary image dimensions are not to scale");
+    ALOGE("gain map dimensions and primary image dimensions are not to scale, computed gain map "
+          "resolution is %dx%d, received gain map resolution is %dx%d",
+          (int)map_width, (int)map_height, gainmap_image_ptr->width, gainmap_image_ptr->height);
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
@@ -1314,27 +1335,35 @@ status_t JpegR::toneMap(jr_uncompressed_ptr src, jr_uncompressed_ptr dest) {
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
   uint16_t* src_y_data = reinterpret_cast<uint16_t*>(src->data);
-  uint16_t* src_uv_data = reinterpret_cast<uint16_t*>(src->chroma_data);
   uint8_t* dst_y_data = reinterpret_cast<uint8_t*>(dest->data);
-  uint8_t* dst_u_data = reinterpret_cast<uint8_t*>(dest->chroma_data);
-  size_t v_offset = (dest->chroma_stride * dest->height / 2);
-  uint8_t* dst_v_data = dst_u_data + v_offset;
   for (size_t y = 0; y < src->height; ++y) {
+    uint16_t* src_y_row = src_y_data + y * src->luma_stride;
+    uint8_t* dst_y_row = dst_y_data + y * dest->luma_stride;
     for (size_t x = 0; x < src->width; ++x) {
-      size_t src_y_idx = y * src->luma_stride + x;
-      size_t src_u_idx = (y >> 1) * src->chroma_stride + (x & ~0x1);
-      size_t src_v_idx = src_u_idx + 1;
-
-      uint16_t y_uint = src_y_data[src_y_idx] >> 6;
-      uint16_t u_uint = src_uv_data[src_u_idx] >> 6;
-      uint16_t v_uint = src_uv_data[src_v_idx] >> 6;
-
-      size_t dest_y_idx = x + y * dest->luma_stride;
-      size_t dest_chroma_idx = (x / 2) + (y / 2) * (dest->chroma_stride);
-
-      dst_y_data[dest_y_idx] = static_cast<uint8_t>((y_uint >> 2) & 0xff);
-      dst_u_data[dest_chroma_idx] = static_cast<uint8_t>((u_uint >> 2) & 0xff);
-      dst_v_data[dest_chroma_idx] = static_cast<uint8_t>((v_uint >> 2) & 0xff);
+      uint16_t y_uint = src_y_row[x] >> 6;
+      dst_y_row[x] = static_cast<uint8_t>((y_uint >> 2) & 0xff);
+    }
+    if (dest->width != dest->luma_stride) {
+      memset(dst_y_row + dest->width, 0, dest->luma_stride - dest->width);
+    }
+  }
+  uint16_t* src_uv_data = reinterpret_cast<uint16_t*>(src->chroma_data);
+  uint8_t* dst_u_data = reinterpret_cast<uint8_t*>(dest->chroma_data);
+  size_t dst_v_offset = (dest->chroma_stride * dest->height / 2);
+  uint8_t* dst_v_data = dst_u_data + dst_v_offset;
+  for (size_t y = 0; y < src->height / 2; ++y) {
+    uint16_t* src_uv_row = src_uv_data + y * src->chroma_stride;
+    uint8_t* dst_u_row = dst_u_data + y * dest->chroma_stride;
+    uint8_t* dst_v_row = dst_v_data + y * dest->chroma_stride;
+    for (size_t x = 0; x < src->width / 2; ++x) {
+      uint16_t u_uint = src_uv_row[x << 1] >> 6;
+      uint16_t v_uint = src_uv_row[(x << 1) + 1] >> 6;
+      dst_u_row[x] = static_cast<uint8_t>((u_uint >> 2) & 0xff);
+      dst_v_row[x] = static_cast<uint8_t>((v_uint >> 2) & 0xff);
+    }
+    if (dest->width / 2 != dest->chroma_stride) {
+      memset(dst_u_row + dest->width / 2, 0, dest->chroma_stride - dest->width / 2);
+      memset(dst_v_row + dest->width / 2, 0, dest->chroma_stride - dest->width / 2);
     }
   }
   dest->colorGamut = src->colorGamut;
