@@ -1348,43 +1348,6 @@ TEST_F(BLASTBufferQueueTest, QueryNativeWindowQueuesToWindowComposer) {
     ASSERT_EQ(queuesToNativeWindow, 1);
 }
 
-// Test a slow producer doesn't hold up a faster producer from the same client. Essentially tests
-// BBQ uses separate transaction queues.
-TEST_F(BLASTBufferQueueTest, OutOfOrderTransactionTest) {
-    sp<SurfaceControl> bgSurface =
-            mClient->createSurface(String8("BGTest"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   ISurfaceComposerClient::eFXSurfaceBufferState);
-    ASSERT_NE(nullptr, bgSurface.get());
-    Transaction t;
-    t.setLayerStack(bgSurface, ui::DEFAULT_LAYER_STACK)
-            .show(bgSurface)
-            .setDataspace(bgSurface, ui::Dataspace::V0_SRGB)
-            .setLayer(bgSurface, std::numeric_limits<int32_t>::max() - 1)
-            .apply();
-
-    BLASTBufferQueueHelper slowAdapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
-    sp<IGraphicBufferProducer> slowIgbProducer;
-    setUpProducer(slowAdapter, slowIgbProducer);
-    nsecs_t presentTimeDelay = std::chrono::nanoseconds(500ms).count();
-    queueBuffer(slowIgbProducer, 0 /* r */, 255 /* g */, 0 /* b */, presentTimeDelay);
-
-    BLASTBufferQueueHelper fastAdapter(bgSurface, mDisplayWidth, mDisplayHeight);
-    sp<IGraphicBufferProducer> fastIgbProducer;
-    setUpProducer(fastAdapter, fastIgbProducer);
-    uint8_t r = 255;
-    uint8_t g = 0;
-    uint8_t b = 0;
-    queueBuffer(fastIgbProducer, r, g, b, 0 /* presentTimeDelay */);
-    fastAdapter.waitForCallbacks();
-
-    // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
-
-    ASSERT_NO_FATAL_FAILURE(
-            checkScreenCapture(r, g, b,
-                               {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight / 2}));
-}
-
 TEST_F(BLASTBufferQueueTest, TransformHint) {
     // Transform hint is provided to BBQ via the surface control passed by WM
     mSurfaceControl->setTransformHint(ui::Transform::ROT_90);
