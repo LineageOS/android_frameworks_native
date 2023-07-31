@@ -115,16 +115,28 @@ class SpAIBinder {
      */
     AIBinder** getR() { return &mBinder; }
 
-    bool operator!=(const SpAIBinder& rhs) const { return get() != rhs.get(); }
-    bool operator<(const SpAIBinder& rhs) const { return get() < rhs.get(); }
-    bool operator<=(const SpAIBinder& rhs) const { return get() <= rhs.get(); }
-    bool operator==(const SpAIBinder& rhs) const { return get() == rhs.get(); }
-    bool operator>(const SpAIBinder& rhs) const { return get() > rhs.get(); }
-    bool operator>=(const SpAIBinder& rhs) const { return get() >= rhs.get(); }
-
    private:
     AIBinder* mBinder = nullptr;
 };
+
+#define SP_AIBINDER_COMPARE(_op_)                                                    \
+    static inline bool operator _op_(const SpAIBinder& lhs, const SpAIBinder& rhs) { \
+        return lhs.get() _op_ rhs.get();                                             \
+    }                                                                                \
+    static inline bool operator _op_(const SpAIBinder& lhs, const AIBinder* rhs) {   \
+        return lhs.get() _op_ rhs;                                                   \
+    }                                                                                \
+    static inline bool operator _op_(const AIBinder* lhs, const SpAIBinder& rhs) {   \
+        return lhs _op_ rhs.get();                                                   \
+    }
+
+SP_AIBINDER_COMPARE(!=)
+SP_AIBINDER_COMPARE(<)
+SP_AIBINDER_COMPARE(<=)
+SP_AIBINDER_COMPARE(==)
+SP_AIBINDER_COMPARE(>)
+SP_AIBINDER_COMPARE(>=)
+#undef SP_AIBINDER_COMPARE
 
 namespace impl {
 

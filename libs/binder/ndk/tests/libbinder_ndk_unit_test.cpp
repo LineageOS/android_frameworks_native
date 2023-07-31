@@ -761,9 +761,9 @@ TEST(NdkBinder, ConvertToPlatformBinder) {
           // local
           ndk::SharedRefBase::make<MyBinderNdkUnitTest>()->asBinder()}) {
         // convert to platform binder
-        EXPECT_NE(binder.get(), nullptr);
+        EXPECT_NE(binder, nullptr);
         sp<IBinder> platformBinder = AIBinder_toPlatformBinder(binder.get());
-        EXPECT_NE(platformBinder.get(), nullptr);
+        EXPECT_NE(platformBinder, nullptr);
         auto proxy = interface_cast<IBinderNdkUnitTest>(platformBinder);
         EXPECT_NE(proxy, nullptr);
 
@@ -774,7 +774,7 @@ TEST(NdkBinder, ConvertToPlatformBinder) {
 
         // convert back
         ndk::SpAIBinder backBinder = ndk::SpAIBinder(AIBinder_fromPlatformBinder(platformBinder));
-        EXPECT_EQ(backBinder.get(), binder.get());
+        EXPECT_EQ(backBinder, binder);
     }
 }
 
