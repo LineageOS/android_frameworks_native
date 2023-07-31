@@ -227,10 +227,20 @@ bool JpegDecoderHelper::decode(const void* image, int length, bool decodeToRGBA)
     mHeight = cinfo.image_height;
 
     if (decodeToRGBA) {
-        if (cinfo.jpeg_color_space == JCS_GRAYSCALE) {
-            // We don't intend to support decoding grayscale to RGBA
-            status = false;
-            ALOGE("%s: decoding grayscale to RGBA is unsupported", __func__);
+        // The primary image is expected to be yuv420 sampling
+            if (cinfo.jpeg_color_space != JCS_YCbCr) {
+                status = false;
+                ALOGE("%s: decodeToRGBA unexpected jpeg color space ", __func__);
+                goto CleanUp;
+            }
+            if (cinfo.comp_info[0].h_samp_factor != 2 ||
+                    cinfo.comp_info[1].h_samp_factor != 1 ||
+                    cinfo.comp_info[2].h_samp_factor != 1 ||
+                    cinfo.comp_info[0].v_samp_factor != 2 ||
+                    cinfo.comp_info[1].v_samp_factor != 1 ||
+                    cinfo.comp_info[2].v_samp_factor != 1 ) {
+                status = false;
+                ALOGE("%s: decodeToRGBA unexpected primary image sub-sampling", __func__);
             goto CleanUp;
         }
         // 4 bytes per pixel
@@ -251,6 +261,10 @@ bool JpegDecoderHelper::decode(const void* image, int length, bool decodeToRGBA)
             mResultBuffer.resize(cinfo.image_width * cinfo.image_height * 3 / 2, 0);
         } else if (cinfo.jpeg_color_space == JCS_GRAYSCALE) {
             mResultBuffer.resize(cinfo.image_width * cinfo.image_height, 0);
+        } else {
+            status = false;
+            ALOGE("%s: decodeToYUV unexpected jpeg color space", __func__);
+            goto CleanUp;
         }
         cinfo.out_color_space = cinfo.jpeg_color_space;
         cinfo.raw_data_out = TRUE;
