@@ -124,6 +124,11 @@ void GestureConverter::populateMotionRanges(InputDeviceInfo& info) const {
 
 std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t readTime,
                                                       const Gesture& gesture) {
+    if (!mDisplayId) {
+        // Ignore gestures when there is no target display configured.
+        return {};
+    }
+
     switch (gesture.type) {
         case kGestureTypeMove:
             return {handleMove(when, readTime, gesture)};
@@ -556,7 +561,7 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
             readTime,
             mDeviceId,
             SOURCE,
-            mPointerController->getDisplayId(),
+            *mDisplayId,
             /* policyFlags= */ POLICY_FLAG_WAKE,
             action,
             /* actionButton= */ actionButton,

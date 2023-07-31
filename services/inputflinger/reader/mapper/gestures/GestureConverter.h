@@ -46,6 +46,8 @@ public:
     void setOrientation(ui::Rotation orientation) { mOrientation = orientation; }
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when);
 
+    void setDisplayId(std::optional<int32_t> displayId) { mDisplayId = displayId; }
+
     void populateMotionRanges(InputDeviceInfo& info) const;
 
     [[nodiscard]] std::list<NotifyArgs> handleGesture(nsecs_t when, nsecs_t readTime,
@@ -84,6 +86,7 @@ private:
     InputReaderContext& mReaderContext;
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
+    std::optional<int32_t> mDisplayId;
     ui::Rotation mOrientation = ui::ROTATION_0;
     RawAbsoluteAxisInfo mXAxisInfo;
     RawAbsoluteAxisInfo mYAxisInfo;
