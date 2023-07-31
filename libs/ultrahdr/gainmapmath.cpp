@@ -547,13 +547,13 @@ void transformYuv420(jr_uncompressed_ptr image, size_t x_chroma, size_t y_chroma
   uint8_t& u_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count + pixel_uv_idx];
   uint8_t& v_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count * 5 / 4 + pixel_uv_idx];
 
-  y1_uint = static_cast<uint8_t>(floor(yuv1.y * 255.0f + 0.5f));
-  y2_uint = static_cast<uint8_t>(floor(yuv2.y * 255.0f + 0.5f));
-  y3_uint = static_cast<uint8_t>(floor(yuv3.y * 255.0f + 0.5f));
-  y4_uint = static_cast<uint8_t>(floor(yuv4.y * 255.0f + 0.5f));
+  y1_uint = static_cast<uint8_t>(CLIP3((yuv1.y * 255.0f + 0.5f), 0, 255));
+  y2_uint = static_cast<uint8_t>(CLIP3((yuv2.y * 255.0f + 0.5f), 0, 255));
+  y3_uint = static_cast<uint8_t>(CLIP3((yuv3.y * 255.0f + 0.5f), 0, 255));
+  y4_uint = static_cast<uint8_t>(CLIP3((yuv4.y * 255.0f + 0.5f), 0, 255));
 
-  u_uint = static_cast<uint8_t>(floor(new_uv.u * 255.0f + 128.0f + 0.5f));
-  v_uint = static_cast<uint8_t>(floor(new_uv.v * 255.0f + 128.0f + 0.5f));
+  u_uint = static_cast<uint8_t>(CLIP3((new_uv.u * 255.0f + 128.0f + 0.5f), 0, 255));
+  v_uint = static_cast<uint8_t>(CLIP3((new_uv.v * 255.0f + 128.0f + 0.5f), 0, 255));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
