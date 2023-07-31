@@ -22,7 +22,7 @@ package {
 }
 
 cc_test {
-    name: "libultrahdr_test",
+    name: "ultrahdr_unit_test",
     test_suites: ["device-tests"],
     srcs: [
         "gainmapmath_test.cpp",
@@ -45,7 +45,7 @@ cc_test {
 }
 
 cc_test {
-    name: "libjpegencoderhelper_test",
+    name: "jpegencoderhelper_test",
     test_suites: ["device-tests"],
     srcs: [
         "jpegencoderhelper_test.cpp",
@@ -61,7 +61,7 @@ cc_test {
 }
 
 cc_test {
-    name: "libjpegdecoderhelper_test",
+    name: "jpegdecoderhelper_test",
     test_suites: ["device-tests"],
     srcs: [
         "jpegdecoderhelper_test.cpp",
