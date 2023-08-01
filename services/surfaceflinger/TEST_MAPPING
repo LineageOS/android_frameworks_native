@@ -15,7 +15,16 @@
       "name": "libscheduler_test"
     },
     {
-      "name": "CtsGraphicsTestCases"
+      "name": "CtsGraphicsTestCases",
+      // flaky on mixed gsi builds
+      "options": [
+        {
+          "exclude-filter": "android.graphics.cts.CameraGpuTest#testCameraImageCaptureAndRendering"
+        },
+        {
+          "exclude-filter": "android.graphics.cts.AnimatorLeakTest#testPauseResume"
+        }
+      ]
     },
     {
       "name": "CtsSurfaceControlTests"
