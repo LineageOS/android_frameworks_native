@@ -21,8 +21,10 @@
 #include "MockConsumer.h"
 
 #include <gui/BufferItem.h>
+#include <gui/BufferItemConsumer.h>
 #include <gui/BufferQueue.h>
 #include <gui/IProducerListener.h>
+#include <gui/Surface.h>
 
 #include <ui/GraphicBuffer.h>
 
@@ -37,6 +39,7 @@
 
 #include <gtest/gtest.h>
 
+#include <future>
 #include <thread>
 
 using namespace std::chrono_literals;
@@ -1256,6 +1259,88 @@ TEST_F(BufferQueueTest, TestProducerConnectDisconnect) {
     ASSERT_EQ(BAD_VALUE, mProducer->disconnect(NATIVE_WINDOW_API_MEDIA));
     ASSERT_EQ(OK, mProducer->disconnect(NATIVE_WINDOW_API_CPU));
     ASSERT_EQ(NO_INIT, mProducer->disconnect(NATIVE_WINDOW_API_CPU));
+}
+
+class Latch {
+public:
+    explicit Latch(int expected) : mExpected(expected) {}
+    Latch(const Latch&) = delete;
+    Latch& operator=(const Latch&) = delete;
+
+    void CountDown() {
+        std::unique_lock<std::mutex> lock(mLock);
+        mExpected--;
+        if (mExpected <= 0) {
+            mCV.notify_all();
+        }
+    }
+
+    void Wait() {
+        std::unique_lock<std::mutex> lock(mLock);
+        mCV.wait(lock, [&] { return mExpected == 0; });
+    }
+
+private:
+    int mExpected;
+    std::mutex mLock;
+    std::condition_variable mCV;
+};
+
+struct OneshotOnDequeuedListener final : public BufferItemConsumer::FrameAvailableListener {
+    OneshotOnDequeuedListener(std::function<void()>&& oneshot)
+          : mOneshotRunnable(std::move(oneshot)) {}
+
+    std::function<void()> mOneshotRunnable;
+
+    void run() {
+        if (mOneshotRunnable) {
+            mOneshotRunnable();
+            mOneshotRunnable = nullptr;
+        }
+    }
+
+    void onFrameDequeued(const uint64_t) override { run(); }
+
+    void onFrameAvailable(const BufferItem&) override {}
+};
+
+// See b/270004534
+TEST(BufferQueueThreading, TestProducerDequeueConsumerDestroy) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<BufferItemConsumer> bufferConsumer =
+            sp<BufferItemConsumer>::make(consumer, GRALLOC_USAGE_SW_READ_OFTEN, 2);
+    ASSERT_NE(nullptr, bufferConsumer.get());
+    sp<Surface> surface = sp<Surface>::make(producer);
+    native_window_set_buffers_format(surface.get(), PIXEL_FORMAT_RGBA_8888);
+    native_window_set_buffers_dimensions(surface.get(), 100, 100);
+
+    Latch triggerDisconnect(1);
+    Latch resumeCallback(1);
+    auto luckyListener = sp<OneshotOnDequeuedListener>::make([&]() {
+        triggerDisconnect.CountDown();
+        resumeCallback.Wait();
+    });
+    bufferConsumer->setFrameAvailableListener(luckyListener);
+
+    std::future<void> disconnecter = std::async(std::launch::async, [&]() {
+        triggerDisconnect.Wait();
+        luckyListener = nullptr;
+        bufferConsumer = nullptr;
+        resumeCallback.CountDown();
+    });
+
+    std::future<void> render = std::async(std::launch::async, [=]() {
+        ANativeWindow_Buffer buffer;
+        surface->lock(&buffer, nullptr);
+        surface->unlockAndPost();
+    });
+
+    ASSERT_EQ(std::future_status::ready, render.wait_for(1s));
+    EXPECT_EQ(nullptr, luckyListener.get());
+    EXPECT_EQ(nullptr, bufferConsumer.get());
 }
 
 } // namespace android
