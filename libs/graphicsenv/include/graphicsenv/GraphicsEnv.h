@@ -108,7 +108,10 @@ public:
     // (libraries must be stored uncompressed and page aligned); such elements
     // in the search path must have a '!' after the zip filename, e.g.
     //     /system/app/ANGLEPrebuilt/ANGLEPrebuilt.apk!/lib/arm64-v8a
-    void setAngleInfo(const std::string& path, const bool useSystemAngle,
+    // If the search patch is "system", then it means the system ANGLE should be used.
+    // If shouldUseNativeDriver is true, it means native GLES drivers must be used for the process.
+    // If path is set to nonempty and shouldUseNativeDriver is true, ANGLE will be used regardless.
+    void setAngleInfo(const std::string& path, const bool shouldUseNativeDriver,
                       const std::string& packageName, const std::vector<std::string> eglFeatures);
     // Get the ANGLE driver namespace.
     android_namespace_t* getAngleNamespace();
@@ -118,6 +121,7 @@ public:
     // Set the persist.graphics.egl system property value.
     void nativeToggleAngleAsSystemDriver(bool enabled);
     bool shouldUseSystemAngle();
+    bool shouldUseNativeDriver();
 
     /*
      * Apis for debug layer
@@ -175,6 +179,8 @@ private:
     bool mShouldUseAngle = false;
     // Whether loader should load system ANGLE.
     bool mShouldUseSystemAngle = false;
+    // Whether loader should load native GLES driver.
+    bool mShouldUseNativeDriver = false;
     // ANGLE namespace.
     android_namespace_t* mAngleNamespace = nullptr;
 
