@@ -180,9 +180,9 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             return reply->writeUtf8AsUtf16(driverPath);
         }
         case SHELL_COMMAND_TRANSACTION: {
-            int in = data.readFileDescriptor();
-            int out = data.readFileDescriptor();
-            int err = data.readFileDescriptor();
+            int in = dup(data.readFileDescriptor());
+            int out = dup(data.readFileDescriptor());
+            int err = dup(data.readFileDescriptor());
 
             std::vector<String16> args;
             data.readString16Vector(&args);
@@ -195,6 +195,9 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
 
             status = shellCommand(in, out, err, args);
             if (resultReceiver != nullptr) resultReceiver->send(status);
+            ::close(in);
+            ::close(out);
+            ::close(err);
 
             return OK;
         }
