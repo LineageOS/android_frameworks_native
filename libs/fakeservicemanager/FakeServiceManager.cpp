@@ -26,6 +26,8 @@ sp<IBinder> FakeServiceManager::getService( const String16& name) const {
 }
 
 sp<IBinder> FakeServiceManager::checkService( const String16& name) const {
+    std::lock_guard<std::mutex> l(mMutex);
+
     auto it = mNameToService.find(name);
     if (it == mNameToService.end()) {
         return nullptr;
@@ -36,6 +38,8 @@ sp<IBinder> FakeServiceManager::checkService( const String16& name) const {
 status_t FakeServiceManager::addService(const String16& name, const sp<IBinder>& service,
                                 bool /*allowIsolated*/,
                                 int /*dumpsysFlags*/) {
+    std::lock_guard<std::mutex> l(mMutex);
+
     if (service == nullptr) {
         return UNEXPECTED_NULL;
     }
@@ -44,6 +48,8 @@ status_t FakeServiceManager::addService(const String16& name, const sp<IBinder>&
 }
 
 Vector<String16> FakeServiceManager::listServices(int /*dumpsysFlags*/) {
+    std::lock_guard<std::mutex> l(mMutex);
+
     Vector<String16> services;
     for (auto const& [name, service] : mNameToService) {
         (void) service;
@@ -61,10 +67,14 @@ sp<IBinder> FakeServiceManager::waitForService(const String16& name) {
 }
 
 bool FakeServiceManager::isDeclared(const String16& name) {
+    std::lock_guard<std::mutex> l(mMutex);
+
     return mNameToService.find(name) != mNameToService.end();
 }
 
 Vector<String16> FakeServiceManager::getDeclaredInstances(const String16& name) {
+    std::lock_guard<std::mutex> l(mMutex);
+
     Vector<String16> out;
     const String16 prefix = name + String16("/");
     for (const auto& [registeredName, service] : mNameToService) {
@@ -108,6 +118,8 @@ std::vector<IServiceManager::ServiceDebugInfo> FakeServiceManager::getServiceDeb
 }
 
 void FakeServiceManager::clear() {
+    std::lock_guard<std::mutex> l(mMutex);
+
     mNameToService.clear();
 }
 }  // namespace android

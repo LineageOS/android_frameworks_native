@@ -19,6 +19,7 @@
 #include <binder/IServiceManager.h>
 
 #include <map>
+#include <mutex>
 #include <optional>
 #include <vector>
 
@@ -68,6 +69,7 @@ public:
     void clear();
 
 private:
+    mutable std::mutex mMutex;
     std::map<String16, sp<IBinder>> mNameToService;
 };
 
