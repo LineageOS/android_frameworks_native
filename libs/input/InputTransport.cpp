@@ -75,10 +75,20 @@ bool debugTransportPublisher() {
 
 /**
  * Log debug messages about touch event resampling.
- * Enable this via "adb shell setprop log.tag.InputTransportResampling DEBUG" (requires restart)
+ *
+ * Enable this via "adb shell setprop log.tag.InputTransportResampling DEBUG".
+ * This requires a restart on non-debuggable (e.g. user) builds, but should take effect immediately
+ * on debuggable builds (e.g. userdebug).
  */
-const bool DEBUG_RESAMPLING =
-        __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Resampling", ANDROID_LOG_INFO);
+bool debugResampling() {
+    if (!IS_DEBUGGABLE_BUILD) {
+        static const bool DEBUG_TRANSPORT_RESAMPLING =
+                __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Resampling",
+                                          ANDROID_LOG_INFO);
+        return DEBUG_TRANSPORT_RESAMPLING;
+    }
+    return __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Resampling", ANDROID_LOG_INFO);
+}
 
 } // namespace
 
@@ -1158,7 +1168,7 @@ void InputConsumer::rewriteMessage(TouchState& state, InputMessage& msg) {
                     state.recentCoordinatesAreIdentical(id)) {
                 PointerCoords& msgCoords = msg.body.motion.pointers[i].coords;
                 const PointerCoords& resampleCoords = state.lastResample.getPointerById(id);
-                ALOGD_IF(DEBUG_RESAMPLING, "[%d] - rewrite (%0.3f, %0.3f), old (%0.3f, %0.3f)", id,
+                ALOGD_IF(debugResampling(), "[%d] - rewrite (%0.3f, %0.3f), old (%0.3f, %0.3f)", id,
                          resampleCoords.getX(), resampleCoords.getY(), msgCoords.getX(),
                          msgCoords.getY());
                 msgCoords.setAxisValue(AMOTION_EVENT_AXIS_X, resampleCoords.getX());
@@ -1181,13 +1191,13 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
 
     ssize_t index = findTouchState(event->getDeviceId(), event->getSource());
     if (index < 0) {
-        ALOGD_IF(DEBUG_RESAMPLING, "Not resampled, no touch state for device.");
+        ALOGD_IF(debugResampling(), "Not resampled, no touch state for device.");
         return;
     }
 
     TouchState& touchState = mTouchStates[index];
     if (touchState.historySize < 1) {
-        ALOGD_IF(DEBUG_RESAMPLING, "Not resampled, no history for device.");
+        ALOGD_IF(debugResampling(), "Not resampled, no history for device.");
         return;
     }
 
@@ -1197,7 +1207,7 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
     for (size_t i = 0; i < pointerCount; i++) {
         uint32_t id = event->getPointerId(i);
         if (!current->idBits.hasBit(id)) {
-            ALOGD_IF(DEBUG_RESAMPLING, "Not resampled, missing id %d", id);
+            ALOGD_IF(debugResampling(), "Not resampled, missing id %d", id);
             return;
         }
     }
@@ -1213,7 +1223,7 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
         other = &future;
         nsecs_t delta = future.eventTime - current->eventTime;
         if (delta < RESAMPLE_MIN_DELTA) {
-            ALOGD_IF(DEBUG_RESAMPLING, "Not resampled, delta time is too small: %" PRId64 " ns.",
+            ALOGD_IF(debugResampling(), "Not resampled, delta time is too small: %" PRId64 " ns.",
                      delta);
             return;
         }
@@ -1224,17 +1234,17 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
         other = touchState.getHistory(1);
         nsecs_t delta = current->eventTime - other->eventTime;
         if (delta < RESAMPLE_MIN_DELTA) {
-            ALOGD_IF(DEBUG_RESAMPLING, "Not resampled, delta time is too small: %" PRId64 " ns.",
+            ALOGD_IF(debugResampling(), "Not resampled, delta time is too small: %" PRId64 " ns.",
                      delta);
             return;
         } else if (delta > RESAMPLE_MAX_DELTA) {
-            ALOGD_IF(DEBUG_RESAMPLING, "Not resampled, delta time is too large: %" PRId64 " ns.",
+            ALOGD_IF(debugResampling(), "Not resampled, delta time is too large: %" PRId64 " ns.",
                      delta);
             return;
         }
         nsecs_t maxPredict = current->eventTime + min(delta / 2, RESAMPLE_MAX_PREDICTION);
         if (sampleTime > maxPredict) {
-            ALOGD_IF(DEBUG_RESAMPLING,
+            ALOGD_IF(debugResampling(),
                      "Sample time is too far in the future, adjusting prediction "
                      "from %" PRId64 " to %" PRId64 " ns.",
                      sampleTime - current->eventTime, maxPredict - current->eventTime);
@@ -1242,7 +1252,7 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
         }
         alpha = float(current->eventTime - sampleTime) / delta;
     } else {
-        ALOGD_IF(DEBUG_RESAMPLING, "Not resampled, insufficient data.");
+        ALOGD_IF(debugResampling(), "Not resampled, insufficient data.");
         return;
     }
 
@@ -1284,13 +1294,13 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
             resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_Y,
                                          lerp(currentCoords.getY(), otherCoords.getY(), alpha));
             resampledCoords.isResampled = true;
-            ALOGD_IF(DEBUG_RESAMPLING,
+            ALOGD_IF(debugResampling(),
                      "[%d] - out (%0.3f, %0.3f), cur (%0.3f, %0.3f), "
                      "other (%0.3f, %0.3f), alpha %0.3f",
                      id, resampledCoords.getX(), resampledCoords.getY(), currentCoords.getX(),
                      currentCoords.getY(), otherCoords.getX(), otherCoords.getY(), alpha);
         } else {
-            ALOGD_IF(DEBUG_RESAMPLING, "[%d] - out (%0.3f, %0.3f), cur (%0.3f, %0.3f)", id,
+            ALOGD_IF(debugResampling(), "[%d] - out (%0.3f, %0.3f), cur (%0.3f, %0.3f)", id,
                      resampledCoords.getX(), resampledCoords.getY(), currentCoords.getX(),
                      currentCoords.getY());
         }
