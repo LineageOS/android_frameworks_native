@@ -531,21 +531,21 @@ void transformYuv420(jr_uncompressed_ptr image, size_t x_chroma, size_t y_chroma
 
   Color new_uv = (yuv1 + yuv2 + yuv3 + yuv4) / 4.0f;
 
-  size_t pixel_y1_idx =  x_chroma * 2      +  y_chroma * 2      * image->width;
-  size_t pixel_y2_idx = (x_chroma * 2 + 1) +  y_chroma * 2      * image->width;
-  size_t pixel_y3_idx =  x_chroma * 2      + (y_chroma * 2 + 1) * image->width;
-  size_t pixel_y4_idx = (x_chroma * 2 + 1) + (y_chroma * 2 + 1) * image->width;
+  size_t pixel_y1_idx =  x_chroma * 2      +  y_chroma * 2      * image->luma_stride;
+  size_t pixel_y2_idx = (x_chroma * 2 + 1) +  y_chroma * 2      * image->luma_stride;
+  size_t pixel_y3_idx =  x_chroma * 2      + (y_chroma * 2 + 1) * image->luma_stride;
+  size_t pixel_y4_idx = (x_chroma * 2 + 1) + (y_chroma * 2 + 1) * image->luma_stride;
 
   uint8_t& y1_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y1_idx];
   uint8_t& y2_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y2_idx];
   uint8_t& y3_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y3_idx];
   uint8_t& y4_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y4_idx];
 
-  size_t pixel_count = image->width * image->height;
-  size_t pixel_uv_idx = x_chroma + y_chroma * (image->width / 2);
+  size_t pixel_count = image->chroma_stride * image->height / 2;
+  size_t pixel_uv_idx = x_chroma + y_chroma * (image->chroma_stride);
 
-  uint8_t& u_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count + pixel_uv_idx];
-  uint8_t& v_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count * 5 / 4 + pixel_uv_idx];
+  uint8_t& u_uint = reinterpret_cast<uint8_t*>(image->chroma_data)[pixel_uv_idx];
+  uint8_t& v_uint = reinterpret_cast<uint8_t*>(image->chroma_data)[pixel_count + pixel_uv_idx];
 
   y1_uint = static_cast<uint8_t>(CLIP3((yuv1.y * 255.0f + 0.5f), 0, 255));
   y2_uint = static_cast<uint8_t>(CLIP3((yuv2.y * 255.0f + 0.5f), 0, 255));
@@ -599,17 +599,9 @@ Color applyGainLUT(Color e, float gain, GainLUT& gainLUT) {
 
 Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
   uint8_t* luma_data = reinterpret_cast<uint8_t*>(image->data);
-  size_t luma_stride = image->luma_stride == 0 ? image->width : image->luma_stride;
-
-  uint8_t* chroma_data;
-  size_t chroma_stride;
-  if (image->chroma_data == nullptr) {
-     chroma_stride = luma_stride / 2;
-     chroma_data = &reinterpret_cast<uint8_t*>(image->data)[luma_stride * image->height];
-  } else {
-     chroma_stride = image->chroma_stride;
-     chroma_data = reinterpret_cast<uint8_t*>(image->chroma_data);
-  }
+  size_t luma_stride = image->luma_stride;
+  uint8_t* chroma_data = reinterpret_cast<uint8_t*>(image->chroma_data);
+  size_t chroma_stride = image->chroma_stride;
 
   size_t offset_cr = chroma_stride * (image->height / 2);
   size_t pixel_y_idx = x + y * luma_stride;
@@ -629,16 +621,8 @@ Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
 Color getP010Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
   uint16_t* luma_data = reinterpret_cast<uint16_t*>(image->data);
   size_t luma_stride = image->luma_stride == 0 ? image->width : image->luma_stride;
-
-  uint16_t* chroma_data;
-  size_t chroma_stride;
-  if (image->chroma_data == nullptr) {
-     chroma_stride = luma_stride;
-     chroma_data = &reinterpret_cast<uint16_t*>(image->data)[luma_stride * image->height];
-  } else {
-     chroma_stride = image->chroma_stride;
-     chroma_data = reinterpret_cast<uint16_t*>(image->chroma_data);
-  }
+  uint16_t* chroma_data = reinterpret_cast<uint16_t*>(image->chroma_data);
+  size_t chroma_stride = image->chroma_stride;
 
   size_t pixel_y_idx = y * luma_stride + x;
   size_t pixel_u_idx = (y >> 1) * chroma_stride + (x & ~0x1);

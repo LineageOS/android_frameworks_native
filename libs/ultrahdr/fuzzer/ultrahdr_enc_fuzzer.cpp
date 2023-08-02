@@ -24,20 +24,10 @@
 // User include files
 #include "ultrahdr/gainmapmath.h"
 #include "ultrahdr/jpegencoderhelper.h"
+#include "ultrahdr/jpegdecoderhelper.h"
 #include "utils/Log.h"
 
 using namespace android::ultrahdr;
-
-// constants
-const int kMinWidth = 8;
-const int kMaxWidth = 7680;
-
-const int kMinHeight = 8;
-const int kMaxHeight = 4320;
-
-const int kScaleFactor = 4;
-
-const int kJpegBlock = 16;
 
 // Color gamuts for image data, sync with ultrahdr.h
 const int kCgMin = ULTRAHDR_COLORGAMUT_UNSPECIFIED + 1;
@@ -164,8 +154,8 @@ void UltraHdrEncFuzzer::process() {
                 fillP010Buffer(bufferUV.get(), width, height / 2, uvStride);
             }
         } else {
-            int map_width = width / kScaleFactor;
-            int map_height = height / kScaleFactor;
+            int map_width = width / kMapDimensionScaleFactor;
+            int map_height = height / kMapDimensionScaleFactor;
             map_width = static_cast<size_t>(floor((map_width + kJpegBlock - 1) / kJpegBlock)) *
                     kJpegBlock;
             map_height = ((map_height + 1) >> 1) << 1;
@@ -249,7 +239,7 @@ void UltraHdrEncFuzzer::process() {
                         jpegGainMap.data = gainMapEncoder.getCompressedImagePtr();
                         jpegGainMap.colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED;
                         ultrahdr_metadata_struct metadata;
-                        metadata.version = "1.0";
+                        metadata.version = kJpegrVersion;
                         if (tf == ULTRAHDR_TF_HLG) {
                             metadata.maxContentBoost = kHlgMaxNits / kSdrWhiteNits;
                         } else if (tf == ULTRAHDR_TF_PQ) {
