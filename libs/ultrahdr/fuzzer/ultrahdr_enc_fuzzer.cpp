@@ -60,11 +60,12 @@ void UltraHdrEncFuzzer::fillP010Buffer(uint16_t* data, int width, int height, in
     uint16_t* tmp = data;
     std::vector<uint16_t> buffer(16);
     for (int i = 0; i < buffer.size(); i++) {
-        buffer[i] = mFdp.ConsumeIntegralInRange<int>(0, (1 << 10) - 1);
+        buffer[i] = (mFdp.ConsumeIntegralInRange<int>(0, (1 << 10) - 1)) << 6;
     }
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i += buffer.size()) {
-            memcpy(data + i, buffer.data(), std::min((int)buffer.size(), (width - i)));
+            memcpy(tmp + i, buffer.data(),
+                   std::min((int)buffer.size(), (width - i)) * sizeof(*data));
             std::shuffle(buffer.begin(), buffer.end(),
                          std::default_random_engine(std::random_device{}()));
         }
@@ -264,7 +265,8 @@ void UltraHdrEncFuzzer::process() {
             jpegr_info_struct info{0, 0, &iccData, &exifData};
             status = jpegHdr.getJPEGRInfo(&jpegImgR, &info);
             if (status == android::OK) {
-                size_t outSize = info.width * info.height * ((of == ULTRAHDR_OUTPUT_SDR) ? 4 : 8);
+                size_t outSize =
+                        info.width * info.height * ((of == ULTRAHDR_OUTPUT_HDR_LINEAR) ? 8 : 4);
                 jpegr_uncompressed_struct decodedJpegR;
                 auto decodedRaw = std::make_unique<uint8_t[]>(outSize);
                 decodedJpegR.data = decodedRaw.get();
