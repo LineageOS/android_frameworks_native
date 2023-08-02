@@ -351,24 +351,6 @@ protected:
     sp<CountProducerListener> mProducerListener;
 };
 
-// Helper class to ensure the provided BBQ frame number has been committed in SurfaceFlinger.
-class BBQSyncHelper {
-public:
-    BBQSyncHelper(BLASTBufferQueueHelper& bbqHelper, uint64_t frameNumber) {
-        t.addTransactionCompletedCallback(callbackHelper.function, callbackHelper.getContext());
-        bbqHelper.mergeWithNextTransaction(&t, frameNumber);
-    }
-
-    void wait() {
-        CallbackData callbackData;
-        callbackHelper.getCallbackData(&callbackData);
-    }
-
-private:
-    Transaction t;
-    CallbackHelper callbackHelper;
-};
-
 TEST_F(BLASTBufferQueueTest, CreateBLASTBufferQueue) {
     // create BLASTBufferQueue adapter associated with this surface
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
@@ -440,7 +422,6 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
     sp<IGraphicBufferProducer> igbProducer;
     setUpProducer(adapter, igbProducer);
-    BBQSyncHelper syncHelper{adapter, 1};
 
     int slot;
     sp<Fence> fence;
@@ -466,7 +447,8 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     igbProducer->queueBuffer(slot, input, &qbOutput);
     ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
-    syncHelper.wait();
+    // ensure the buffer queue transaction has been committed
+    Transaction().apply(true /* synchronous */);
 
     // capture screen and verify that it is red
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
@@ -526,7 +508,6 @@ TEST_F(BLASTBufferQueueTest, SetCrop_Item) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
     sp<IGraphicBufferProducer> igbProducer;
     setUpProducer(adapter, igbProducer);
-    BBQSyncHelper syncHelper{adapter, 1};
     int slot;
     sp<Fence> fence;
     sp<GraphicBuffer> buf;
@@ -551,7 +532,9 @@ TEST_F(BLASTBufferQueueTest, SetCrop_Item) {
     igbProducer->queueBuffer(slot, input, &qbOutput);
     ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
-    syncHelper.wait();
+    // ensure the buffer queue transaction has been committed
+    Transaction().apply(true /* synchronous */);
+
     // capture screen and verify that it is red
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
 
@@ -582,7 +565,6 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, bufferSideLength, bufferSideLength);
     sp<IGraphicBufferProducer> igbProducer;
     setUpProducer(adapter, igbProducer);
-    BBQSyncHelper syncHelper{adapter, 1};
     int slot;
     sp<Fence> fence;
     sp<GraphicBuffer> buf;
@@ -611,7 +593,9 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
     igbProducer->queueBuffer(slot, input, &qbOutput);
     ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
-    syncHelper.wait();
+    // ensure the buffer queue transaction has been committed
+    Transaction().apply(true /* synchronous */);
+
     // capture screen and verify that it is red
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(checkScreenCapture(r, g, b,
@@ -642,7 +626,6 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToBufferSize) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, windowSize.getWidth(), windowSize.getHeight());
     sp<IGraphicBufferProducer> igbProducer;
     setUpProducer(adapter, igbProducer);
-    BBQSyncHelper syncHelper{adapter, 1};
     int slot;
     sp<Fence> fence;
     sp<GraphicBuffer> buf;
@@ -675,7 +658,8 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToBufferSize) {
     igbProducer->queueBuffer(slot, input, &qbOutput);
     ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
-    syncHelper.wait();
+    // ensure the buffer queue transaction has been committed
+    Transaction().apply(true /* synchronous */);
 
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
 
@@ -710,7 +694,6 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToWindowSize) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, windowSize.getWidth(), windowSize.getHeight());
     sp<IGraphicBufferProducer> igbProducer;
     setUpProducer(adapter, igbProducer);
-    BBQSyncHelper syncHelper{adapter, 1};
     int slot;
     sp<Fence> fence;
     sp<GraphicBuffer> buf;
@@ -743,7 +726,8 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToWindowSize) {
     igbProducer->queueBuffer(slot, input, &qbOutput);
     ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
-    syncHelper.wait();
+    // ensure the buffer queue transaction has been committed
+    Transaction().apply(true /* synchronous */);
 
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
     // Verify cropped region is scaled correctly.
@@ -769,7 +753,6 @@ TEST_F(BLASTBufferQueueTest, ScalingModeChanges) {
     sp<IGraphicBufferProducer> igbProducer;
     setUpProducer(adapter, igbProducer);
     {
-        BBQSyncHelper syncHelper{adapter, 1};
         int slot;
         sp<Fence> fence;
         sp<GraphicBuffer> buf;
@@ -791,7 +774,9 @@ TEST_F(BLASTBufferQueueTest, ScalingModeChanges) {
                                                        NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                        Fence::NO_FENCE);
         igbProducer->queueBuffer(slot, input, &qbOutput);
-        syncHelper.wait();
+
+        // ensure the buffer queue transaction has been committed
+        Transaction().apply(true /* synchronous */);
     }
     // capture screen and verify that it is red
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
@@ -804,7 +789,6 @@ TEST_F(BLASTBufferQueueTest, ScalingModeChanges) {
     adapter.update(mSurfaceControl, mDisplayWidth, mDisplayHeight / 2);
 
     {
-        BBQSyncHelper syncHelper{adapter, 1};
         int slot;
         sp<Fence> fence;
         sp<GraphicBuffer> buf;
@@ -827,7 +811,8 @@ TEST_F(BLASTBufferQueueTest, ScalingModeChanges) {
                                                        NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW,
                                                        0, Fence::NO_FENCE);
         igbProducer->queueBuffer(slot, input, &qbOutput);
-        syncHelper.wait();
+        // ensure the buffer queue transaction has been committed
+        Transaction().apply(true /* synchronous */);
     }
     // capture screen and verify that it is red
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
@@ -1420,7 +1405,7 @@ public:
         igbProducer->queueBuffer(slot, input, &qbOutput);
         ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
-        adapter.waitForCallbacks();
+        Transaction().apply(true /* synchronous */);
         ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
 
         switch (tr) {
