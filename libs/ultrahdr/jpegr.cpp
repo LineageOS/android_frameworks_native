@@ -167,15 +167,18 @@ status_t JpegR::areInputArgumentsValid(jr_uncompressed_ptr uncompressed_p010_ima
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  if (uncompressed_yuv_420_image->luma_stride != 0) {
-    ALOGE("Stride is not supported for YUV420 image");
-    return ERROR_JPEGR_UNSUPPORTED_FEATURE;
+  if (uncompressed_yuv_420_image->luma_stride != 0
+          && uncompressed_yuv_420_image->luma_stride < uncompressed_yuv_420_image->width) {
+    ALOGE("Luma stride can not be smaller than width, stride=%d, width=%d",
+                uncompressed_yuv_420_image->luma_stride, uncompressed_yuv_420_image->width);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  if (uncompressed_yuv_420_image->chroma_data != nullptr) {
-    ALOGE("Pointer to chroma plane is not supported for YUV420 image, chroma data must"
-          "be immediately after the luma data.");
-    return ERROR_JPEGR_UNSUPPORTED_FEATURE;
+  if (uncompressed_yuv_420_image->chroma_data != nullptr
+          && uncompressed_yuv_420_image->chroma_stride < uncompressed_yuv_420_image->width / 2) {
+    ALOGE("Chroma stride can not be smaller than 1/2 of the width, stride=%d, width=%d",
+                uncompressed_yuv_420_image->chroma_stride, uncompressed_yuv_420_image->width);
+    return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
   if (uncompressed_p010_image->width != uncompressed_yuv_420_image->width
@@ -323,11 +326,49 @@ status_t JpegR::encodeJPEGR(jr_uncompressed_ptr uncompressed_p010_image,
   sp<DataStruct> icc = IccHelper::writeIccProfile(ULTRAHDR_TF_SRGB,
                                                   uncompressed_yuv_420_image->colorGamut);
 
-  // Convert to Bt601 YUV encoding for JPEG encode; make a copy so as to no clobber client data
+  // Convert to Bt601 YUV encoding for JPEG encode and remove stride if needed;
+  // make a copy so as to no clobber client data
   unique_ptr<uint8_t[]> yuv_420_bt601_data = make_unique<uint8_t[]>(
       uncompressed_yuv_420_image->width * uncompressed_yuv_420_image->height * 3 / 2);
-  memcpy(yuv_420_bt601_data.get(), uncompressed_yuv_420_image->data,
-         uncompressed_yuv_420_image->width * uncompressed_yuv_420_image->height * 3 / 2);
+  // copy data
+  {
+    uint8_t* src_luma_data = reinterpret_cast<uint8_t*>(uncompressed_yuv_420_image->data);
+    size_t src_luma_stride = uncompressed_yuv_420_image->luma_stride == 0
+            ? uncompressed_yuv_420_image->width : uncompressed_yuv_420_image->luma_stride;
+    uint8_t* src_chroma_data = reinterpret_cast<uint8_t*>(uncompressed_yuv_420_image->chroma_data);
+    size_t src_chroma_stride = uncompressed_yuv_420_image->chroma_stride;
+    if (uncompressed_yuv_420_image->chroma_data == nullptr) {
+      src_chroma_data =
+             &reinterpret_cast<uint8_t*>(uncompressed_yuv_420_image->data)[src_luma_stride
+             * uncompressed_yuv_420_image->height];
+    }
+    if (src_chroma_stride == 0) {
+      src_chroma_stride = src_luma_stride / 2;
+    }
+    // copy luma
+    for (size_t i = 0; i < uncompressed_yuv_420_image->height; i++) {
+      memcpy(yuv_420_bt601_data.get() + i * uncompressed_yuv_420_image->width,
+             src_luma_data + i * src_luma_stride,
+             uncompressed_yuv_420_image->width);
+    }
+    // copy cb
+    for (size_t i = 0; i < uncompressed_yuv_420_image->height / 2; i++) {
+      memcpy(yuv_420_bt601_data.get()
+                   + uncompressed_yuv_420_image->width * uncompressed_yuv_420_image->height
+                   + i * uncompressed_yuv_420_image->width / 2,
+             src_chroma_data + i * src_chroma_stride,
+             uncompressed_yuv_420_image->width / 2);
+    }
+    // copy cr
+    for (size_t i = 0; i < uncompressed_yuv_420_image->height / 2; i++) {
+      memcpy(yuv_420_bt601_data.get()
+                   + uncompressed_yuv_420_image->width * uncompressed_yuv_420_image->height * 5 / 4
+                   + i * uncompressed_yuv_420_image->width / 2,
+             src_chroma_data + src_chroma_stride * (uncompressed_yuv_420_image->height / 2)
+                    + i * src_chroma_stride,
+             uncompressed_yuv_420_image->width / 2);
+    }
+  }
 
   jpegr_uncompressed_struct yuv_420_bt601_image = {
     yuv_420_bt601_data.get(), uncompressed_yuv_420_image->width, uncompressed_yuv_420_image->height,
@@ -792,16 +833,15 @@ status_t JpegR::generateGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
 
   size_t image_width = uncompressed_yuv_420_image->width;
   size_t image_height = uncompressed_yuv_420_image->height;
-  size_t map_width = image_width / kMapDimensionScaleFactor;
-  size_t map_height = image_height / kMapDimensionScaleFactor;
-  size_t map_stride = static_cast<size_t>(
-          floor((map_width + kJpegBlock - 1) / kJpegBlock)) * kJpegBlock;
-  size_t map_height_aligned = ((map_height + 1) >> 1) << 1;
+  size_t map_width = static_cast<size_t>(
+          floor((image_width + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
+  size_t map_height = static_cast<size_t>(
+          floor((image_height + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
 
-  dest->width = map_stride;
-  dest->height = map_height_aligned;
+  dest->width = map_width;
+  dest->height = map_height;
   dest->colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED;
-  dest->data = new uint8_t[map_stride * map_height_aligned];
+  dest->data = new uint8_t[map_width * map_height];
   std::unique_ptr<uint8_t[]> map_data;
   map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
 
@@ -895,11 +935,9 @@ status_t JpegR::generateGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
                                        luminanceFn, sdrYuvToRgbFn, hdrYuvToRgbFn, hdr_white_nits,
                                        log2MinBoost, log2MaxBoost, &jobQueue]() -> void {
     size_t rowStart, rowEnd;
-    size_t dest_map_width = uncompressed_yuv_420_image->width / kMapDimensionScaleFactor;
-    size_t dest_map_stride = dest->width;
     while (jobQueue.dequeueJob(rowStart, rowEnd)) {
       for (size_t y = rowStart; y < rowEnd; ++y) {
-        for (size_t x = 0; x < dest_map_width; ++x) {
+        for (size_t x = 0; x < dest->width; ++x) {
           Color sdr_yuv_gamma =
               sampleYuv420(uncompressed_yuv_420_image, kMapDimensionScaleFactor, x, y);
           Color sdr_rgb_gamma = sdrYuvToRgbFn(sdr_yuv_gamma);
@@ -917,7 +955,7 @@ status_t JpegR::generateGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
           hdr_rgb = hdrGamutConversionFn(hdr_rgb);
           float hdr_y_nits = luminanceFn(hdr_rgb) * hdr_white_nits;
 
-          size_t pixel_idx = x + y * dest_map_stride;
+          size_t pixel_idx = x + y * dest->width;
           reinterpret_cast<uint8_t*>(dest->data)[pixel_idx] =
               encodeGain(sdr_y_nits, hdr_y_nits, metadata, log2MinBoost, log2MaxBoost);
         }
@@ -981,11 +1019,10 @@ status_t JpegR::applyGainMap(jr_uncompressed_ptr uncompressed_yuv_420_image,
   // TODO: remove once map scaling factor is computed based on actual map dims
   size_t image_width = uncompressed_yuv_420_image->width;
   size_t image_height = uncompressed_yuv_420_image->height;
-  size_t map_width = image_width / kMapDimensionScaleFactor;
-  size_t map_height = image_height / kMapDimensionScaleFactor;
-  map_width = static_cast<size_t>(
-          floor((map_width + kJpegBlock - 1) / kJpegBlock)) * kJpegBlock;
-  map_height = ((map_height + 1) >> 1) << 1;
+  size_t map_width = static_cast<size_t>(
+          floor((image_width + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
+  size_t map_height = static_cast<size_t>(
+          floor((image_height + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
   if (map_width != uncompressed_gain_map->width
    || map_height != uncompressed_gain_map->height) {
     ALOGE("gain map dimensions and primary image dimensions are not to scale");
