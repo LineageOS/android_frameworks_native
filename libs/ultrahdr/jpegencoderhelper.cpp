@@ -140,7 +140,7 @@ void JpegEncoderHelper::setJpegCompressStruct(int width, int height, int quality
     jpeg_set_quality(cinfo, quality, TRUE);
     jpeg_set_colorspace(cinfo, isSingleChannel ? JCS_GRAYSCALE : JCS_YCbCr);
     cinfo->raw_data_in = TRUE;
-    cinfo->dct_method = JDCT_IFAST;
+    cinfo->dct_method = JDCT_ISLOW;
 
     if (!isSingleChannel) {
         // Configure sampling factors. The sampling factor is JPEG subsampling 420 because the
