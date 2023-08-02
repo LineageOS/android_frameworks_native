@@ -63,8 +63,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <condition_variable>
 #include <ctime>
 #include <future>
+#include <mutex>
 #include <string>
 
 #include <private/android_filesystem_config.h>
@@ -196,6 +198,16 @@ int SensorService::registerRuntimeSensor(
     if (mRuntimeSensorCallbacks.find(deviceId) == mRuntimeSensorCallbacks.end()) {
         mRuntimeSensorCallbacks.emplace(deviceId, callback);
     }
+
+    if (mRuntimeSensorHandler == nullptr) {
+        mRuntimeSensorEventBuffer =
+                new sensors_event_t[SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT];
+        mRuntimeSensorHandler = new RuntimeSensorHandler(this);
+        // Use PRIORITY_URGENT_DISPLAY as the injected sensor events should be dispatched as soon as
+        // possible, and also for consistency within the SensorService.
+        mRuntimeSensorHandler->run("RuntimeSensorHandler", PRIORITY_URGENT_DISPLAY);
+    }
+
     return handle;
 }
 
@@ -232,8 +244,9 @@ status_t SensorService::unregisterRuntimeSensor(int handle) {
 }
 
 status_t SensorService::sendRuntimeSensorEvent(const sensors_event_t& event) {
-    Mutex::Autolock _l(mLock);
+    std::unique_lock<std::mutex> lock(mRutimeSensorThreadMutex);
     mRuntimeSensorEventQueue.push(event);
+    mRuntimeSensorsCv.notify_all();
     return OK;
 }
 
@@ -458,6 +471,7 @@ void SensorService::onFirstRef() {
             const size_t minBufferSize = SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT;
             mSensorEventBuffer = new sensors_event_t[minBufferSize];
             mSensorEventScratch = new sensors_event_t[minBufferSize];
+            mRuntimeSensorEventBuffer = nullptr;
             mMapFlushEventsToConnections = new wp<const SensorEventConnection> [minBufferSize];
             mCurrentOperatingMode = NORMAL;
 
@@ -1089,7 +1103,6 @@ bool SensorService::threadLoop() {
         recordLastValueLocked(mSensorEventBuffer, count);
 
         // handle virtual sensors
-        bool bufferNeedsSorting = false;
         if (count && vcount) {
             sensors_event_t const * const event = mSensorEventBuffer;
             if (!mActiveVirtualSensors.empty()) {
@@ -1125,35 +1138,9 @@ bool SensorService::threadLoop() {
                     // record the last synthesized values
                     recordLastValueLocked(&mSensorEventBuffer[count], k);
                     count += k;
-                    bufferNeedsSorting = true;
+                    sortEventBuffer(mSensorEventBuffer, count);
                 }
             }
-        }
-
-        // handle runtime sensors
-        {
-            size_t k = 0;
-            while (!mRuntimeSensorEventQueue.empty()) {
-                if (count + k >= minBufferSize) {
-                    ALOGE("buffer too small to hold all events: count=%zd, k=%zu, size=%zu",
-                          count, k, minBufferSize);
-                    break;
-                }
-                mSensorEventBuffer[count + k] = mRuntimeSensorEventQueue.front();
-                mRuntimeSensorEventQueue.pop();
-                k++;
-            }
-            if (k) {
-                // record the last synthesized values
-                recordLastValueLocked(&mSensorEventBuffer[count], k);
-                count += k;
-                bufferNeedsSorting = true;
-            }
-        }
-
-        if (bufferNeedsSorting) {
-            // sort the buffer by time-stamps
-            sortEventBuffer(mSensorEventBuffer, count);
         }
 
         // handle backward compatibility for RotationVector sensor
@@ -1234,7 +1221,7 @@ bool SensorService::threadLoop() {
         bool needsWakeLock = false;
         for (const sp<SensorEventConnection>& connection : activeConnections) {
             connection->sendEvents(mSensorEventBuffer, count, mSensorEventScratch,
-                    mMapFlushEventsToConnections);
+                                   mMapFlushEventsToConnections);
             needsWakeLock |= connection->needsWakeLock();
             // If the connection has one-shot sensors, it may be cleaned up after first trigger.
             // Early check for one-shot sensors.
@@ -1251,6 +1238,46 @@ bool SensorService::threadLoop() {
     ALOGW("Exiting SensorService::threadLoop => aborting...");
     abort();
     return false;
+}
+
+void SensorService::processRuntimeSensorEvents() {
+    size_t count = 0;
+    const size_t maxBufferSize = SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT;
+
+    {
+        std::unique_lock<std::mutex> lock(mRutimeSensorThreadMutex);
+
+        if (mRuntimeSensorEventQueue.empty()) {
+            mRuntimeSensorsCv.wait(lock, [this] { return !mRuntimeSensorEventQueue.empty(); });
+        }
+
+        // Pop the events from the queue into the buffer until it's empty or the buffer is full.
+        while (!mRuntimeSensorEventQueue.empty()) {
+            if (count >= maxBufferSize) {
+                ALOGE("buffer too small to hold all events: count=%zd, size=%zu", count,
+                      maxBufferSize);
+                break;
+            }
+            mRuntimeSensorEventBuffer[count] = mRuntimeSensorEventQueue.front();
+            mRuntimeSensorEventQueue.pop();
+            count++;
+        }
+    }
+
+    if (count) {
+        ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
+
+        recordLastValueLocked(mRuntimeSensorEventBuffer, count);
+        sortEventBuffer(mRuntimeSensorEventBuffer, count);
+
+        for (const sp<SensorEventConnection>& connection : connLock.getActiveConnections()) {
+            connection->sendEvents(mRuntimeSensorEventBuffer, count, /* scratch= */ nullptr,
+                                   /* mapFlushEventsToConnections= */ nullptr);
+            if (connection->hasOneShotSensors()) {
+                cleanupAutoDisabledSensorLocked(connection, mRuntimeSensorEventBuffer, count);
+            }
+        }
+    }
 }
 
 sp<Looper> SensorService::getLooper() const {
@@ -1297,6 +1324,14 @@ bool SensorService::SensorEventAckReceiver::threadLoop() {
            mService->resetAllWakeLockRefCounts();
         }
     } while(!Thread::exitPending());
+    return false;
+}
+
+bool SensorService::RuntimeSensorHandler::threadLoop() {
+    ALOGD("new thread RuntimeSensorHandler");
+    do {
+        mService->processRuntimeSensorEvents();
+    } while (!Thread::exitPending());
     return false;
 }
 
