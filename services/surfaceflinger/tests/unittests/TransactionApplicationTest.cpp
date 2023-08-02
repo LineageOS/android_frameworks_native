@@ -306,6 +306,47 @@ public:
     ~FakeExternalTexture() = default;
 };
 
+TEST_F(TransactionApplicationTest, ApplyTokensUseDifferentQueues) {
+    auto applyToken1 = sp<BBinder>::make();
+    auto applyToken2 = sp<BBinder>::make();
+
+    // Transaction 1 has a buffer with an unfired fence. It should not be ready to be applied.
+    TransactionState transaction1;
+    transaction1.applyToken = applyToken1;
+    transaction1.id = 42069;
+    transaction1.states.emplace_back();
+    transaction1.states[0].state.what |= layer_state_t::eBufferChanged;
+    transaction1.states[0].state.bufferData =
+            std::make_shared<fake::BufferData>(/* bufferId */ 1, /* width */ 1, /* height */ 1,
+                                               /* pixelFormat */ 0, /* outUsage */ 0);
+    transaction1.states[0].externalTexture =
+            std::make_shared<FakeExternalTexture>(*transaction1.states[0].state.bufferData);
+    transaction1.states[0].state.surface =
+            sp<Layer>::make(LayerCreationArgs(mFlinger.flinger(), nullptr, "TestLayer", 0, {}))
+                    ->getHandle();
+    auto fence = sp<mock::MockFence>::make();
+    EXPECT_CALL(*fence, getStatus()).WillRepeatedly(Return(Fence::Status::Unsignaled));
+    transaction1.states[0].state.bufferData->acquireFence = std::move(fence);
+    transaction1.states[0].state.bufferData->flags = BufferData::BufferDataChange::fenceChanged;
+    transaction1.isAutoTimestamp = true;
+
+    // Transaction 2 should be ready to be applied.
+    TransactionState transaction2;
+    transaction2.applyToken = applyToken2;
+    transaction2.id = 2;
+    transaction2.isAutoTimestamp = true;
+
+    mFlinger.setTransactionStateInternal(transaction1);
+    mFlinger.setTransactionStateInternal(transaction2);
+    mFlinger.flushTransactionQueues();
+    auto transactionQueues = mFlinger.getPendingTransactionQueue();
+
+    // Transaction 1 is still in its queue.
+    EXPECT_EQ(transactionQueues[applyToken1].size(), 1u);
+    // Transaction 2 has been dequeued.
+    EXPECT_EQ(transactionQueues[applyToken2].size(), 0u);
+}
+
 class LatchUnsignaledTest : public TransactionApplicationTest {
 public:
     void TearDown() override {
