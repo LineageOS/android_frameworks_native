@@ -72,7 +72,6 @@ while ((i<MAXIMUM_PACKAGES)) ; do
   PROGRESS=$(cmd otadexopt progress)
   print -u${STATUS_FD} "global_progress $PROGRESS"
 
-  sleep 1
   i=$((i+1))
 done
 
