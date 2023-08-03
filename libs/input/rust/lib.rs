@@ -23,6 +23,7 @@ pub use input::{DeviceId, MotionAction, MotionFlags};
 pub use input_verifier::InputVerifier;
 
 #[cxx::bridge(namespace = "android::input")]
+#[allow(unsafe_op_in_unsafe_fn)]
 mod ffi {
     #[namespace = "android"]
     unsafe extern "C++" {
