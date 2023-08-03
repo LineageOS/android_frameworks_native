@@ -15,6 +15,7 @@
  */
 
 #include <BnBinderRecordReplayTest.h>
+#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/unique_fd.h>
 #include <binder/Binder.h>
@@ -23,6 +24,11 @@
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/RecordedTransaction.h>
+
+#include <fuzzbinder/libbinder_driver.h>
+#include <fuzzer/FuzzedDataProvider.h>
+#include <fuzzseeds/random_parcel_seeds.h>
+
 #include <gtest/gtest.h>
 
 #include <sys/prctl.h>
@@ -30,6 +36,7 @@
 #include "parcelables/SingleDataParcelable.h"
 
 using namespace android;
+using android::generateSeedsFromRecording;
 using android::binder::Status;
 using android::binder::debug::RecordedTransaction;
 using parcelables::SingleDataParcelable;
@@ -84,6 +91,44 @@ public:
     GENERATE_GETTER_SETTER(SingleDataParcelableArray, std::vector<SingleDataParcelable>);
 };
 
+std::vector<uint8_t> retrieveData(base::borrowed_fd fd) {
+    struct stat fdStat;
+    EXPECT_TRUE(fstat(fd.get(), &fdStat) != -1);
+    EXPECT_TRUE(fdStat.st_size != 0);
+
+    std::vector<uint8_t> buffer(fdStat.st_size);
+    auto readResult = android::base::ReadFully(fd, buffer.data(), fdStat.st_size);
+    EXPECT_TRUE(readResult != 0);
+    return std::move(buffer);
+}
+
+void replayFuzzService(const sp<BpBinder>& binder, const RecordedTransaction& transaction) {
+    base::unique_fd seedFd(open("/data/local/tmp/replayFuzzService",
+                                O_RDWR | O_CREAT | O_CLOEXEC | O_TRUNC, 0666));
+    ASSERT_TRUE(seedFd.ok());
+
+    // generate corpus from this transaction.
+    generateSeedsFromRecording(seedFd, transaction);
+
+    // Read the data which has been written to seed corpus
+    ASSERT_EQ(0, lseek(seedFd.get(), 0, SEEK_SET));
+    std::vector<uint8_t> seedData = retrieveData(seedFd);
+
+    // use fuzzService to replay the corpus
+    FuzzedDataProvider provider(seedData.data(), seedData.size());
+    fuzzService(binder, std::move(provider));
+}
+
+void replayBinder(const sp<BpBinder>& binder, const RecordedTransaction& transaction) {
+    // TODO: move logic to replay RecordedTransaction into RecordedTransaction
+    Parcel data;
+    data.setData(transaction.getDataParcel().data(), transaction.getDataParcel().dataSize());
+    auto result = binder->transact(transaction.getCode(), data, nullptr, transaction.getFlags());
+
+    // make sure recording does the thing we expect it to do
+    EXPECT_EQ(OK, result);
+}
+
 class BinderRecordReplayTest : public ::testing::Test {
 public:
     void SetUp() override {
@@ -98,48 +143,46 @@ public:
     template <typename T, typename U>
     void recordReplay(Status (IBinderRecordReplayTest::*set)(T), U recordedValue,
                       Status (IBinderRecordReplayTest::*get)(U*), U changedValue) {
-        base::unique_fd fd(open("/data/local/tmp/binderRecordReplayTest.rec",
-                                O_RDWR | O_CREAT | O_CLOEXEC, 0666));
-        ASSERT_TRUE(fd.ok());
+        auto replayFunctions = {&replayBinder, &replayFuzzService};
+        for (auto replayFunc : replayFunctions) {
+            base::unique_fd fd(open("/data/local/tmp/binderRecordReplayTest.rec",
+                                    O_RDWR | O_CREAT | O_CLOEXEC, 0666));
+            ASSERT_TRUE(fd.ok());
 
-        // record a transaction
-        mBpBinder->startRecordingBinder(fd);
-        auto status = (*mInterface.*set)(recordedValue);
-        EXPECT_TRUE(status.isOk());
-        mBpBinder->stopRecordingBinder();
+            // record a transaction
+            mBpBinder->startRecordingBinder(fd);
+            auto status = (*mInterface.*set)(recordedValue);
+            EXPECT_TRUE(status.isOk());
+            mBpBinder->stopRecordingBinder();
 
-        // test transaction does the thing we expect it to do
-        U output;
-        status = (*mInterface.*get)(&output);
-        EXPECT_TRUE(status.isOk());
-        EXPECT_EQ(output, recordedValue);
+            // test transaction does the thing we expect it to do
+            U output;
+            status = (*mInterface.*get)(&output);
+            EXPECT_TRUE(status.isOk());
+            EXPECT_EQ(output, recordedValue);
 
-        // write over the existing state
-        status = (*mInterface.*set)(changedValue);
-        EXPECT_TRUE(status.isOk());
+            // write over the existing state
+            status = (*mInterface.*set)(changedValue);
+            EXPECT_TRUE(status.isOk());
 
-        status = (*mInterface.*get)(&output);
-        EXPECT_TRUE(status.isOk());
+            status = (*mInterface.*get)(&output);
+            EXPECT_TRUE(status.isOk());
 
-        EXPECT_EQ(output, changedValue);
+            EXPECT_EQ(output, changedValue);
 
-        // replay transaction
-        ASSERT_EQ(0, lseek(fd.get(), 0, SEEK_SET));
-        std::optional<RecordedTransaction> transaction = RecordedTransaction::fromFile(fd);
-        ASSERT_NE(transaction, std::nullopt);
+            // replay transaction
+            ASSERT_EQ(0, lseek(fd.get(), 0, SEEK_SET));
+            std::optional<RecordedTransaction> transaction = RecordedTransaction::fromFile(fd);
+            ASSERT_NE(transaction, std::nullopt);
 
-        // TODO: move logic to replay RecordedTransaction into RecordedTransaction
-        Parcel data;
-        data.setData(transaction->getDataParcel().data(), transaction->getDataParcel().dataSize());
-        auto result =
-                mBpBinder->transact(transaction->getCode(), data, nullptr, transaction->getFlags());
+            const RecordedTransaction& recordedTransaction = *transaction;
+            // call replay function with recorded transaction
+            (*replayFunc)(mBpBinder, recordedTransaction);
 
-        // make sure recording does the thing we expect it to do
-        EXPECT_EQ(OK, result);
-
-        status = (*mInterface.*get)(&output);
-        EXPECT_TRUE(status.isOk());
-        EXPECT_EQ(output, recordedValue);
+            status = (*mInterface.*get)(&output);
+            EXPECT_TRUE(status.isOk());
+            EXPECT_EQ(output, recordedValue);
+        }
     }
 
 private:
