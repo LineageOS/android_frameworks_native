@@ -77,6 +77,8 @@ cc_test {
     static_libs: [
         "binderRecordReplayTestIface-cpp",
         "binderReadParcelIface-cpp",
+        "libbinder_random_parcel_seeds",
+        "libbinder_random_parcel",
     ],
     test_suites: ["general-tests"],
     require_root: true,
