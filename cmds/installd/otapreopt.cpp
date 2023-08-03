@@ -471,13 +471,18 @@ private:
     // TODO(calin): embed the profile name in the parameters.
     int Dexopt() {
         std::string error;
+
+        int dexopt_flags = parameters_.dexopt_flags;
+        // Make sure dex2oat is run with background priority.
+        dexopt_flags |= DEXOPT_BOOTCOMPLETE | DEXOPT_IDLE_BACKGROUND_JOB;
+
         int res = dexopt(parameters_.apk_path,
                          parameters_.uid,
                          parameters_.pkgName,
                          parameters_.instruction_set,
                          parameters_.dexopt_needed,
                          parameters_.oat_dir,
-                         parameters_.dexopt_flags,
+                         dexopt_flags,
                          parameters_.compiler_filter,
                          parameters_.volume_uuid,
                          parameters_.shared_libraries,
