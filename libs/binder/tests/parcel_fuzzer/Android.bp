@@ -104,3 +104,28 @@ cc_library_static {
     local_include_dirs: ["include_random_parcel"],
     export_include_dirs: ["include_random_parcel"],
 }
+
+cc_library {
+    name: "libbinder_random_parcel_seeds",
+    host_supported: true,
+    vendor_available: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    srcs: [
+        "random_parcel_seeds.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libbinder_ndk",
+        "libcutils",
+        "libutils",
+    ],
+    local_include_dirs: [
+        "include_random_parcel_seeds",
+    ],
+    export_include_dirs: ["include_random_parcel_seeds"],
+}
