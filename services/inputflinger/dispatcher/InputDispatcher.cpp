@@ -662,7 +662,15 @@ std::vector<TouchedWindow> getHoveringWindowsLocked(const TouchState* oldState,
         } else {
             // This pointer was already sent to the window. Use ACTION_HOVER_MOVE.
             if (CC_UNLIKELY(maskedAction != AMOTION_EVENT_ACTION_HOVER_MOVE)) {
-                LOG(FATAL) << "Expected ACTION_HOVER_MOVE instead of " << entry.getDescription();
+                android::base::LogSeverity severity = android::base::LogSeverity::FATAL;
+                if (entry.flags & AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT) {
+                    // The Accessibility injected touch exploration event stream
+                    // has known inconsistencies, so log ERROR instead of
+                    // crashing the device with FATAL.
+                    // TODO(b/286037469): Move a11y severity back to FATAL.
+                    severity = android::base::LogSeverity::ERROR;
+                }
+                LOG(severity) << "Expected ACTION_HOVER_MOVE instead of " << entry.getDescription();
             }
             touchedWindow.targetFlags = InputTarget::Flags::DISPATCH_AS_IS;
         }
