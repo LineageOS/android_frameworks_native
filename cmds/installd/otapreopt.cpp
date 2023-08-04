@@ -14,20 +14,21 @@
  ** limitations under the License.
  */
 
-#include <algorithm>
 #include <inttypes.h>
-#include <limits>
-#include <random>
-#include <regex>
 #include <selinux/android.h>
 #include <selinux/avc.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/capability.h>
+#include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
-#include <sys/mman.h>
 #include <sys/wait.h>
+#include <algorithm>
+#include <iterator>
+#include <limits>
+#include <random>
+#include <regex>
 
 #include <android-base/logging.h>
 #include <android-base/macros.h>
@@ -47,6 +48,7 @@
 #include "otapreopt_parameters.h"
 #include "otapreopt_utils.h"
 #include "system_properties.h"
+#include "unique_file.h"
 #include "utils.h"
 
 #ifndef LOG_TAG
@@ -87,6 +89,9 @@ static_assert(DEXOPT_GENERATE_APP_IMAGE == 1 << 12, "DEXOPT_GENERATE_APP_IMAGE u
 static_assert(DEXOPT_MASK           == (0x3dfe | DEXOPT_IDLE_BACKGROUND_JOB),
               "DEXOPT_MASK unexpected.");
 
+constexpr const char* kAotCompilerFilters[]{
+        "space-profile", "space", "speed-profile", "speed", "everything-profile", "everything",
+};
 
 template<typename T>
 static constexpr bool IsPowerOfTwo(T x) {
@@ -415,6 +420,32 @@ private:
         return (strcmp(arg, "!") == 0) ? nullptr : arg;
     }
 
+    bool IsAotCompilation() const {
+        if (std::find(std::begin(kAotCompilerFilters), std::end(kAotCompilerFilters),
+                      parameters_.compiler_filter) == std::end(kAotCompilerFilters)) {
+            return false;
+        }
+
+        int dexopt_flags = parameters_.dexopt_flags;
+        bool profile_guided = (dexopt_flags & DEXOPT_PROFILE_GUIDED) != 0;
+        bool is_secondary_dex = (dexopt_flags & DEXOPT_SECONDARY_DEX) != 0;
+        bool is_public = (dexopt_flags & DEXOPT_PUBLIC) != 0;
+
+        if (profile_guided) {
+            UniqueFile reference_profile =
+                    maybe_open_reference_profile(parameters_.pkgName, parameters_.apk_path,
+                                                 parameters_.profile_name, profile_guided,
+                                                 is_public, parameters_.uid, is_secondary_dex);
+            struct stat sbuf;
+            if (reference_profile.fd() == -1 ||
+                (fstat(reference_profile.fd(), &sbuf) != -1 && sbuf.st_size == 0)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     bool ShouldSkipPreopt() const {
         // There's one thing we have to be careful about: we may/will be asked to compile an app
         // living in the system image. This may be a valid request - if the app wasn't compiled,
@@ -439,9 +470,12 @@ private:
         //       (This is ugly as it's the only thing where we need to understand the contents
         //        of parameters_, but it beats postponing the decision or using the call-
         //        backs to do weird things.)
+
+        // In addition, no need to preopt for "verify". The existing vdex files in the OTA package
+        // and the /data partition will still be usable after the OTA update is applied.
         const char* apk_path = parameters_.apk_path;
         CHECK(apk_path != nullptr);
-        if (StartsWith(apk_path, android_root_)) {
+        if (StartsWith(apk_path, android_root_) || !IsAotCompilation()) {
             const char* last_slash = strrchr(apk_path, '/');
             if (last_slash != nullptr) {
                 std::string path(apk_path, last_slash - apk_path + 1);
