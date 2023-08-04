@@ -64,9 +64,6 @@ struct Description {
     // color used when texturing is disabled or when setting alpha.
     half4 color;
 
-    // true if the sampled pixel values are in Y410/BT2020 rather than RGBA
-    bool isY410BT2020 = false;
-
     // transfer functions for the input/output
     TransferFunction inputTransferFunction = TransferFunction::LINEAR;
     TransferFunction outputTransferFunction = TransferFunction::LINEAR;

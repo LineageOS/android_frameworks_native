@@ -108,11 +108,6 @@ public:
             OUTPUT_TF_ST2084 = 2 << OUTPUT_TF_SHIFT,
             OUTPUT_TF_HLG = 3 << OUTPUT_TF_SHIFT,
 
-            Y410_BT2020_SHIFT = 12,
-            Y410_BT2020_MASK = 1 << Y410_BT2020_SHIFT,
-            Y410_BT2020_OFF = 0 << Y410_BT2020_SHIFT,
-            Y410_BT2020_ON = 1 << Y410_BT2020_SHIFT,
-
             SHADOW_SHIFT = 13,
             SHADOW_MASK = 1 << SHADOW_SHIFT,
             SHADOW_OFF = 0 << SHADOW_SHIFT,
@@ -180,7 +175,6 @@ public:
             outputTF >>= Key::OUTPUT_TF_SHIFT;
             return inputTF != outputTF;
         }
-        inline bool isY410BT2020() const { return (mKey & Y410_BT2020_MASK) == Y410_BT2020_ON; }
 
         // for use by std::unordered_map
 

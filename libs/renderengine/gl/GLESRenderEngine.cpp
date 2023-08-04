@@ -1251,7 +1251,6 @@ void GLESRenderEngine::drawLayersInternal(
             texture.setFiltering(layer.source.buffer.useTextureFiltering);
 
             texture.setDimensions(gBuf->getWidth(), gBuf->getHeight());
-            setSourceY410BT2020(layer.source.buffer.isY410BT2020);
 
             renderengine::Mesh::VertexArray<vec2> texCoords(mesh.getTexCoordArray<vec2>());
             texCoords[0] = vec2(0.0, 0.0);
@@ -1294,7 +1293,6 @@ void GLESRenderEngine::drawLayersInternal(
         // Cleanup if there's a buffer source
         if (layer.source.buffer.buffer != nullptr) {
             disableBlending();
-            setSourceY410BT2020(false);
             disableTexturing();
         }
     }
@@ -1355,10 +1353,6 @@ void GLESRenderEngine::setupLayerBlending(bool premultipliedAlpha, bool opaque, 
     } else {
         glDisable(GL_BLEND);
     }
-}
-
-void GLESRenderEngine::setSourceY410BT2020(bool enable) {
-    mState.isY410BT2020 = enable;
 }
 
 void GLESRenderEngine::setSourceDataSpace(Dataspace source) {

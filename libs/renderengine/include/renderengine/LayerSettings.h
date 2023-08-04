@@ -64,9 +64,6 @@ struct Buffer {
     // overrides the alpha channel of the buffer.
     bool isOpaque = false;
 
-    // HDR color-space setting for Y410.
-    bool isY410BT2020 = false;
-
     float maxLuminanceNits = 0.0;
 };
 
@@ -189,8 +186,7 @@ static inline bool operator==(const Buffer& lhs, const Buffer& rhs) {
             lhs.useTextureFiltering == rhs.useTextureFiltering &&
             lhs.textureTransform == rhs.textureTransform &&
             lhs.usePremultipliedAlpha == rhs.usePremultipliedAlpha &&
-            lhs.isOpaque == rhs.isOpaque && lhs.isY410BT2020 == rhs.isY410BT2020 &&
-            lhs.maxLuminanceNits == rhs.maxLuminanceNits;
+            lhs.isOpaque == rhs.isOpaque && lhs.maxLuminanceNits == rhs.maxLuminanceNits;
 }
 
 static inline bool operator==(const Geometry& lhs, const Geometry& rhs) {
@@ -247,7 +243,6 @@ static inline void PrintTo(const Buffer& settings, ::std::ostream* os) {
     PrintMatrix(settings.textureTransform, os);
     *os << "\n    .usePremultipliedAlpha = " << settings.usePremultipliedAlpha;
     *os << "\n    .isOpaque = " << settings.isOpaque;
-    *os << "\n    .isY410BT2020 = " << settings.isY410BT2020;
     *os << "\n    .maxLuminanceNits = " << settings.maxLuminanceNits;
     *os << "\n}";
 }

@@ -468,19 +468,9 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
     if (forceUpdate ||
         requested.what &
                 (layer_state_t::eBufferChanged | layer_state_t::eDataspaceChanged |
-                 layer_state_t::eApiChanged)) {
-        isHdrY410 = requested.dataspace == ui::Dataspace::BT2020_ITU_PQ &&
-                requested.api == NATIVE_WINDOW_API_MEDIA &&
-                requested.bufferData->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102;
-    }
-
-    if (forceUpdate ||
-        requested.what &
-                (layer_state_t::eBufferChanged | layer_state_t::eDataspaceChanged |
                  layer_state_t::eApiChanged | layer_state_t::eShadowRadiusChanged |
                  layer_state_t::eBlurRegionsChanged | layer_state_t::eStretchChanged)) {
-        forceClientComposition = isHdrY410 || shadowSettings.length > 0 ||
-                stretchEffect.hasEffect();
+        forceClientComposition = shadowSettings.length > 0 || stretchEffect.hasEffect();
     }
 
     if (forceUpdate ||

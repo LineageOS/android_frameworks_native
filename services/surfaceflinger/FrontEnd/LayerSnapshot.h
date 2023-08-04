@@ -72,7 +72,6 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     Rect transformedBoundsWithoutTransparentRegion;
     renderengine::ShadowSettings shadowSettings;
     bool premultipliedAlpha;
-    bool isHdrY410;
     ui::Transform parentTransform;
     Rect bufferSize;
     Rect croppedBufferSize;

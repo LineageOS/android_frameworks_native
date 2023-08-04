@@ -45,8 +45,7 @@ inline bool equalIgnoringBuffer(const renderengine::Buffer& lhs, const rendereng
             lhs.useTextureFiltering == rhs.useTextureFiltering &&
             lhs.textureTransform == rhs.textureTransform &&
             lhs.usePremultipliedAlpha == rhs.usePremultipliedAlpha &&
-            lhs.isOpaque == rhs.isOpaque && lhs.isY410BT2020 == rhs.isY410BT2020 &&
-            lhs.maxLuminanceNits == rhs.maxLuminanceNits;
+            lhs.isOpaque == rhs.isOpaque && lhs.maxLuminanceNits == rhs.maxLuminanceNits;
 }
 
 inline bool equalIgnoringBuffer(const renderengine::LayerSettings& lhs,

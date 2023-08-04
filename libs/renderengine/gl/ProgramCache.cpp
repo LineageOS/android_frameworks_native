@@ -98,9 +98,6 @@ void ProgramCache::primeCache(
             shaderKey.set(Key::INPUT_TF_MASK, (i & 1) ?
                     Key::INPUT_TF_HLG : Key::INPUT_TF_ST2084);
 
-            // Cache Y410 input on or off
-            shaderKey.set(Key::Y410_BT2020_MASK, (i & 2) ?
-                    Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
             if (cache.count(shaderKey) == 0) {
                 cache.emplace(shaderKey, generateProgram(shaderKey));
                 shaderCount++;
@@ -161,13 +158,11 @@ void ProgramCache::primeCache(
 ProgramCache::Key ProgramCache::computeKey(const Description& description) {
     Key needs;
     needs.set(Key::TEXTURE_MASK,
-              !description.textureEnabled
-                      ? Key::TEXTURE_OFF
+              !description.textureEnabled ? Key::TEXTURE_OFF
                       : description.texture.getTextureTarget() == GL_TEXTURE_EXTERNAL_OES
-                              ? Key::TEXTURE_EXT
-                              : description.texture.getTextureTarget() == GL_TEXTURE_2D
-                                      ? Key::TEXTURE_2D
-                                      : Key::TEXTURE_OFF)
+                      ? Key::TEXTURE_EXT
+                      : description.texture.getTextureTarget() == GL_TEXTURE_2D ? Key::TEXTURE_2D
+                                                                                : Key::TEXTURE_OFF)
             .set(Key::ALPHA_MASK, (description.color.a < 1) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE)
             .set(Key::BLEND_MASK,
                  description.isPremultipliedAlpha ? Key::BLEND_PREMULT : Key::BLEND_NORMAL)
@@ -186,8 +181,6 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
             .set(Key::ROUNDED_CORNERS_MASK,
                  description.cornerRadius > 0 ? Key::ROUNDED_CORNERS_ON : Key::ROUNDED_CORNERS_OFF)
             .set(Key::SHADOW_MASK, description.drawShadows ? Key::SHADOW_ON : Key::SHADOW_OFF);
-    needs.set(Key::Y410_BT2020_MASK,
-              description.isY410BT2020 ? Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
 
     if (needs.hasTransformMatrix() ||
         (description.inputTransferFunction != description.outputTransferFunction)) {
@@ -650,20 +643,6 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
         fs << "uniform vec4 color;";
     }
 
-    if (needs.isY410BT2020()) {
-        fs << R"__SHADER__(
-            vec3 convertY410BT2020(const vec3 color) {
-                const vec3 offset = vec3(0.0625, 0.5, 0.5);
-                const mat3 transform = mat3(
-                    vec3(1.1678,  1.1678, 1.1678),
-                    vec3(   0.0, -0.1878, 2.1481),
-                    vec3(1.6836, -0.6523,   0.0));
-                // Y is in G, U is in R, and V is in B
-                return clamp(transform * (color.grb - offset), 0.0, 1.0);
-            }
-            )__SHADER__";
-    }
-
     if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF()) ||
         needs.hasDisplayColorMatrix()) {
         if (needs.needsToneMapping()) {
@@ -730,9 +709,6 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     } else {
         if (needs.isTexturing()) {
             fs << "gl_FragColor = texture2D(sampler, outTexCoords);";
-            if (needs.isY410BT2020()) {
-                fs << "gl_FragColor.rgb = convertY410BT2020(gl_FragColor.rgb);";
-            }
         } else {
             fs << "gl_FragColor.rgb = color.rgb;";
             fs << "gl_FragColor.a = 1.0;";
