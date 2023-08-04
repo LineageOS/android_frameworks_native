@@ -262,6 +262,7 @@ const NameProc kInstanceProcs[] = {
     {"vkGetSemaphoreCounterValue", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetSemaphoreCounterValue>(GetSemaphoreCounterValue))},
     {"vkGetSwapchainGrallocUsage2ANDROID", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetSwapchainGrallocUsage2ANDROID>(GetSwapchainGrallocUsage2ANDROID))},
     {"vkGetSwapchainGrallocUsage3ANDROID", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetSwapchainGrallocUsage3ANDROID>(GetSwapchainGrallocUsage3ANDROID))},
+    {"vkGetSwapchainGrallocUsage4ANDROID", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetSwapchainGrallocUsage4ANDROID>(GetSwapchainGrallocUsage4ANDROID))},
     {"vkGetSwapchainGrallocUsageANDROID", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetSwapchainGrallocUsageANDROID>(GetSwapchainGrallocUsageANDROID))},
     {"vkInvalidateMappedMemoryRanges", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkInvalidateMappedMemoryRanges>(InvalidateMappedMemoryRanges))},
     {"vkMapMemory", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkMapMemory>(MapMemory))},
