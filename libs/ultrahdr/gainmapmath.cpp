@@ -168,7 +168,7 @@ Color srgbInvOetf(Color e_gamma) {
 
 // See IEC 61966-2-1, Equations F.5 and F.6.
 float srgbInvOetfLUT(float e_gamma) {
-  uint32_t value = static_cast<uint32_t>(e_gamma * kSrgbInvOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e_gamma * (kSrgbInvOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kSrgbInvOETFNumEntries - 1);
   return kSrgbInvOETF[value];
@@ -288,7 +288,7 @@ Color hlgOetf(Color e) {
 }
 
 float hlgOetfLUT(float e) {
-  uint32_t value = static_cast<uint32_t>(e * kHlgOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e * (kHlgOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kHlgOETFNumEntries - 1);
 
@@ -315,7 +315,7 @@ Color hlgInvOetf(Color e_gamma) {
 }
 
 float hlgInvOetfLUT(float e_gamma) {
-  uint32_t value = static_cast<uint32_t>(e_gamma * kHlgInvOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e_gamma * (kHlgInvOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kHlgInvOETFNumEntries - 1);
 
@@ -344,7 +344,7 @@ Color pqOetf(Color e) {
 }
 
 float pqOetfLUT(float e) {
-  uint32_t value = static_cast<uint32_t>(e * kPqOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e * (kPqOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kPqOETFNumEntries - 1);
 
@@ -376,7 +376,7 @@ Color pqInvOetf(Color e_gamma) {
 }
 
 float pqInvOetfLUT(float e_gamma) {
-  uint32_t value = static_cast<uint32_t>(e_gamma * kPqInvOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e_gamma * (kPqInvOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kPqInvOETFNumEntries - 1);
 

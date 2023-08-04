@@ -120,7 +120,7 @@ public:
       0xB0, 0xB1,
       0xB2, 0xB3,
     };
-    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709 };
+    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709, pixels + 16, 4, 2 };
   }
 
   Color (*Yuv420Colors())[4] {
@@ -153,7 +153,7 @@ public:
       0xA0 << 6, 0xB0 << 6, 0xA1 << 6, 0xB1 << 6,
       0xA2 << 6, 0xB2 << 6, 0xA3 << 6, 0xB3 << 6,
     };
-    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709 };
+    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709, pixels + 16, 4, 4 };
   }
 
   Color (*P010Colors())[4] {
@@ -625,7 +625,7 @@ TEST_F(GainMapMathTest, Bt2100ToBt601YuvConversion) {
   EXPECT_YUV_NEAR(yuv2100To601(yuv_b), P3YuvBlue());
 }
 
-TEST_F(GainMapMathTest, DISABLED_TransformYuv420) {
+TEST_F(GainMapMathTest, TransformYuv420) {
   ColorTransformFn transforms[] = { yuv709To601, yuv709To2100, yuv601To709, yuv601To2100,
                                     yuv2100To709, yuv2100To601 };
   for (const ColorTransformFn& transform : transforms) {
@@ -636,6 +636,9 @@ TEST_F(GainMapMathTest, DISABLED_TransformYuv420) {
     memcpy(out_buf.get(), input.data, out_buf_size);
     jpegr_uncompressed_struct output = Yuv420Image();
     output.data = out_buf.get();
+    output.chroma_data = out_buf.get() + input.width * input.height;
+    output.luma_stride = input.width;
+    output.chroma_stride = input.width / 2;
 
     transformYuv420(&output, 1, 1, transform);
 
@@ -1042,7 +1045,7 @@ TEST_F(GainMapMathTest, ApplyGain) {
                 applyGain(e, 1.0f, &metadata, displayBoost));
 }
 
-TEST_F(GainMapMathTest, DISABLED_GetYuv420Pixel) {
+TEST_F(GainMapMathTest, GetYuv420Pixel) {
   jpegr_uncompressed_struct image = Yuv420Image();
   Color (*colors)[4] = Yuv420Colors();
 
@@ -1053,7 +1056,7 @@ TEST_F(GainMapMathTest, DISABLED_GetYuv420Pixel) {
   }
 }
 
-TEST_F(GainMapMathTest, DISABLED_GetP010Pixel) {
+TEST_F(GainMapMathTest, GetP010Pixel) {
   jpegr_uncompressed_struct image = P010Image();
   Color (*colors)[4] = P010Colors();
 
@@ -1064,7 +1067,7 @@ TEST_F(GainMapMathTest, DISABLED_GetP010Pixel) {
   }
 }
 
-TEST_F(GainMapMathTest, DISABLED_SampleYuv420) {
+TEST_F(GainMapMathTest, SampleYuv420) {
   jpegr_uncompressed_struct image = Yuv420Image();
   Color (*colors)[4] = Yuv420Colors();
 
@@ -1090,7 +1093,7 @@ TEST_F(GainMapMathTest, DISABLED_SampleYuv420) {
   }
 }
 
-TEST_F(GainMapMathTest, DISABLED_SampleP010) {
+TEST_F(GainMapMathTest, SampleP010) {
   jpegr_uncompressed_struct image = P010Image();
   Color (*colors)[4] = P010Colors();
 
