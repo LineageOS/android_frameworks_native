@@ -230,20 +230,20 @@ interface ISurfaceComposer {
      * The subregion can be optionally rotated.  It will also be scaled to
      * match the size of the output buffer.
      */
-    void captureDisplay(in DisplayCaptureArgs args, IScreenCaptureListener listener);
+    oneway void captureDisplay(in DisplayCaptureArgs args, IScreenCaptureListener listener);
 
     /**
      * Capture the specified screen. This requires the READ_FRAME_BUFFER
      * permission.
      */
-    void captureDisplayById(long displayId, IScreenCaptureListener listener);
+    oneway void captureDisplayById(long displayId, IScreenCaptureListener listener);
 
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
      * This requires READ_FRAME_BUFFER permission. This function will fail if there
      * is a secure window on screen
      */
-    void captureLayers(in LayerCaptureArgs args, IScreenCaptureListener listener);
+    oneway void captureLayers(in LayerCaptureArgs args, IScreenCaptureListener listener);
 
     /**
      * Clears the frame statistics for animations.
