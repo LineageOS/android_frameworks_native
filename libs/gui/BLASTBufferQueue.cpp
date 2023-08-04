@@ -303,13 +303,8 @@ void BLASTBufferQueue::transactionCommittedCallback(nsecs_t /*latchTime*/,
                 // frame numbers that were in a sync. We remove the frame from mSyncedFrameNumbers
                 // set and then check if it's empty. If there are no more pending syncs, we can
                 // proceed with flushing the shadow queue.
-                // We also want to check if mSyncTransaction is null because it's possible another
-                // sync request came in while waiting, but it hasn't started processing yet. In that
-                // case, we don't actually want to flush the frames in between since they will get
-                // processed and merged with the sync transaction and released earlier than if they
-                // were sent to SF
                 mSyncedFrameNumbers.erase(currFrameNumber);
-                if (mSyncedFrameNumbers.empty() && mSyncTransaction == nullptr) {
+                if (mSyncedFrameNumbers.empty()) {
                     flushShadowQueue();
                 }
             } else {
