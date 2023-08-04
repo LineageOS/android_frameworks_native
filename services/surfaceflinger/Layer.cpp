@@ -659,8 +659,7 @@ void Layer::preparePerFrameCompositionState() {
     // Force client composition for special cases known only to the front-end.
     // Rounded corners no longer force client composition, since we may use a
     // hole punch so that the layer will appear to have rounded corners.
-    if (isHdrY410() || drawShadows() || drawingState.blurRegions.size() > 0 ||
-        snapshot->stretchEffect.hasEffect()) {
+    if (isHdrY410() || drawShadows() || snapshot->stretchEffect.hasEffect()) {
         snapshot->forceClientComposition = true;
     }
     // If there are no visible region changes, we still need to update blur parameters.
