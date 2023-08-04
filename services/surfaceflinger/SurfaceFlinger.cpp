@@ -6141,6 +6141,13 @@ google::protobuf::RepeatedPtrField<DisplayProto> SurfaceFlinger::dumpDisplayProt
         displayProto->set_id(display->getId().value);
         displayProto->set_name(display->getDisplayName());
         displayProto->set_layer_stack(display->getLayerStack().id);
+
+        if (!display->isVirtual()) {
+            const auto dpi = display->refreshRateSelector().getActiveMode().modePtr->getDpi();
+            displayProto->set_dpi_x(dpi.x);
+            displayProto->set_dpi_y(dpi.y);
+        }
+
         LayerProtoHelper::writeSizeToProto(display->getWidth(), display->getHeight(),
                                            [&]() { return displayProto->mutable_size(); });
         LayerProtoHelper::writeToProto(display->getLayerStackSpaceRect(), [&]() {
