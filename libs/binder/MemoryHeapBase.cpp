@@ -73,8 +73,8 @@ MemoryHeapBase::MemoryHeapBase(size_t size, uint32_t flags, char const * name)
         ALOGV("MemoryHeapBase: Attempting to force MemFD");
         fd = memfd_create_region(name ? name : "MemoryHeapBase", size);
         if (fd < 0 || (mapfd(fd, true, size) != NO_ERROR)) return;
-        const int SEAL_FLAGS = ((mFlags & READ_ONLY) ? F_SEAL_FUTURE_WRITE : 0) |
-                ((mFlags & MEMFD_ALLOW_SEALING) ? 0 : F_SEAL_SEAL);
+        const int SEAL_FLAGS = ((mFlags & READ_ONLY) ? F_SEAL_FUTURE_WRITE : 0) | F_SEAL_GROW |
+                F_SEAL_SHRINK | ((mFlags & MEMFD_ALLOW_SEALING) ? 0 : F_SEAL_SEAL);
         if (SEAL_FLAGS && (fcntl(fd, F_ADD_SEALS, SEAL_FLAGS) == -1)) {
             ALOGE("MemoryHeapBase: MemFD %s sealing with flags %x failed with error  %s", name,
                   SEAL_FLAGS, strerror(errno));
