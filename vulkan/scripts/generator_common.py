@@ -70,6 +70,7 @@ _OPTIONAL_COMMANDS = [
     'vkGetSwapchainGrallocUsageANDROID',
     'vkGetSwapchainGrallocUsage2ANDROID',
     'vkGetSwapchainGrallocUsage3ANDROID',
+    'vkGetSwapchainGrallocUsage4ANDROID',
 ]
 
 # Dict for mapping dispatch table to a type.
