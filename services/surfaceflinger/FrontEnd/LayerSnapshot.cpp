@@ -345,10 +345,9 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
     clientChanges = requested.what;
     changes = requested.changes;
     contentDirty = requested.what & layer_state_t::CONTENT_DIRTY;
-    // TODO(b/238781169) scope down the changes to only buffer updates.
-    hasReadyFrame = requested.hasReadyFrame();
+    hasReadyFrame = requested.autoRefresh;
     sidebandStreamHasFrame = requested.hasSidebandStreamFrame();
-    updateSurfaceDamage(requested, hasReadyFrame, forceFullDamage, surfaceDamage);
+    updateSurfaceDamage(requested, requested.hasReadyFrame(), forceFullDamage, surfaceDamage);
 
     if (forceUpdate || requested.what & layer_state_t::eTransparentRegionChanged) {
         transparentRegionHint = requested.transparentRegion;

@@ -79,7 +79,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     std::shared_ptr<renderengine::ExternalTexture> externalTexture;
     gui::LayerMetadata layerMetadata;
     gui::LayerMetadata relativeLayerMetadata;
-    bool hasReadyFrame;
+    bool hasReadyFrame; // used in post composition to check if there is another frame ready
     ui::Transform localTransformInverse;
     gui::WindowInfo inputInfo;
     ui::Transform localTransform;

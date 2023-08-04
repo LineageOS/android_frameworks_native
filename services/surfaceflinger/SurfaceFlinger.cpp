@@ -2363,19 +2363,20 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
                 mLayersWithBuffersRemoved.emplace(it->second);
             }
             it->second->latchBufferImpl(unused, latchTime, bgColorOnly);
-            mLayersWithQueuedFrames.emplace(it->second);
-        }
-
-        for (auto& snapshot : mLayerSnapshotBuilder.getSnapshots()) {
-            updateLayerHistory(*snapshot);
-            if (!snapshot->hasReadyFrame) continue;
             newDataLatched = true;
-            if (!snapshot->isVisible) break;
-
-            Region visibleReg;
-            visibleReg.set(snapshot->transformedBoundsWithoutTransparentRegion);
-            invalidateLayerStack(snapshot->outputFilter, visibleReg);
+            mLayersWithQueuedFrames.emplace(it->second);
+            mLayersIdsWithQueuedFrames.emplace(it->second->sequence);
         }
+
+        mLayerSnapshotBuilder.forEachVisibleSnapshot([&](const frontend::LayerSnapshot& snapshot) {
+            updateLayerHistory(snapshot);
+            if (mLayersIdsWithQueuedFrames.find(snapshot.path.id) ==
+                mLayersIdsWithQueuedFrames.end())
+                return;
+            Region visibleReg;
+            visibleReg.set(snapshot.transformedBoundsWithoutTransparentRegion);
+            invalidateLayerStack(snapshot.outputFilter, visibleReg);
+        });
 
         for (auto& destroyedLayer : mLayerLifecycleManager.getDestroyedLayers()) {
             mLegacyLayers.erase(destroyedLayer->id);
@@ -2727,6 +2728,7 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
     mScheduler->modulateVsync({}, &VsyncModulator::onDisplayRefresh, hasGpuUseOrReuse);
 
     mLayersWithQueuedFrames.clear();
+    mLayersIdsWithQueuedFrames.clear();
     if (mLayerTracingEnabled && mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
         // This will block and should only be used for debugging.
         addToLayerTracing(mVisibleRegionsDirty, pacesetterTarget.frameBeginTime(), vsyncId);
