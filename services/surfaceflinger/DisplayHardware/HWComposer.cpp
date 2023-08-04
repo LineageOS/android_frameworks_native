@@ -616,19 +616,29 @@ status_t HWComposer::setPowerMode(PhysicalDisplayId displayId, hal::PowerMode mo
             ALOGV("setPowerMode: Calling HWC %s", to_string(mode).c_str());
             {
                 bool supportsDoze = false;
-                auto error = hwcDisplay->supportsDoze(&supportsDoze);
-                if (error != hal::Error::NONE) {
-                    LOG_HWC_ERROR("supportsDoze", error, displayId);
-                }
+                const auto queryDozeError = hwcDisplay->supportsDoze(&supportsDoze);
 
-                if (!supportsDoze) {
+                // queryDozeError might be NO_RESOURCES, in the case of a display that has never
+                // been turned on. In that case, attempt to set to DOZE anyway.
+                if (!supportsDoze && queryDozeError == hal::Error::NONE) {
                     mode = hal::PowerMode::ON;
                 }
 
-                error = hwcDisplay->setPowerMode(mode);
+                auto error = hwcDisplay->setPowerMode(mode);
                 if (error != hal::Error::NONE) {
                     LOG_HWC_ERROR(("setPowerMode(" + to_string(mode) + ")").c_str(), error,
                                   displayId);
+                    // If the display had never been turned on, so its doze
+                    // support was unknown, it may truly not support doze. Try
+                    // switching it to ON instead.
+                    if (queryDozeError == hal::Error::NO_RESOURCES) {
+                        ALOGD("%s: failed to set %s to %s. Trying again with ON", __func__,
+                              to_string(displayId).c_str(), to_string(mode).c_str());
+                        error = hwcDisplay->setPowerMode(hal::PowerMode::ON);
+                        if (error != hal::Error::NONE) {
+                            LOG_HWC_ERROR("setPowerMode(ON)", error, displayId);
+                        }
+                    }
                 }
             }
             break;

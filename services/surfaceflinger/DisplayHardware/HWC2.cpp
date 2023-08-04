@@ -311,6 +311,14 @@ bool Display::hasCapability(DisplayCapability capability) const {
 }
 
 Error Display::supportsDoze(bool* outSupport) const {
+    {
+        std::scoped_lock lock(mDisplayCapabilitiesMutex);
+        if (!mDisplayCapabilities) {
+            // The display has not turned on since boot, so DOZE support is unknown.
+            ALOGW("%s: haven't queried capabilities yet!", __func__);
+            return Error::NO_RESOURCES;
+        }
+    }
     *outSupport = hasCapability(DisplayCapability::DOZE);
     return Error::NONE;
 }
