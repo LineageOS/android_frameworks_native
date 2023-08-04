@@ -481,7 +481,7 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
                  layer_state_t::eApiChanged | layer_state_t::eShadowRadiusChanged |
                  layer_state_t::eBlurRegionsChanged | layer_state_t::eStretchChanged)) {
         forceClientComposition = isHdrY410 || shadowSettings.length > 0 ||
-                requested.blurRegions.size() > 0 || stretchEffect.hasEffect();
+                stretchEffect.hasEffect();
     }
 
     if (forceUpdate ||
