@@ -139,6 +139,10 @@ public:
         return mDeviceId == args.deviceId;
     }
 
+    bool MatchAndExplain(const NotifyDeviceResetArgs& args, std::ostream*) const {
+        return mDeviceId == args.deviceId;
+    }
+
     bool MatchAndExplain(const InputEvent& event, std::ostream*) const {
         return mDeviceId == event.getDeviceId();
     }

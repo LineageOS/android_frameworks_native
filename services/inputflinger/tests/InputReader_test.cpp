@@ -1356,6 +1356,7 @@ protected:
         ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
         ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyInputDevicesChangedWasCalled());
         ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+        mTestListener->clearNotifyDeviceResetCalls();
     }
 
     void TearDown() override {
@@ -1826,6 +1827,57 @@ TEST_F(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
                   WithToolType(ToolType::STYLUS))));
 
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertStylusGestureNotified(mDeviceInfo.getId()));
+}
+
+TEST_F(TouchIntegrationTest, ExternalStylusConnectedDuringTouchGesture) {
+    ASSERT_NO_FATAL_FAILURE(
+            mTestListener->assertNotifyDeviceResetWasCalled(WithDeviceId(mDeviceInfo.getId())));
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyDeviceResetWasNotCalled());
+    const Point centerPoint = mDevice->getCenterPoint();
+
+    // Down
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendDown(centerPoint);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_DOWN)));
+
+    // Move
+    mDevice->sendMove(centerPoint + Point(1, 1));
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_MOVE)));
+
+    // Connecting an external stylus mid-gesture should not interrupt the ongoing gesture stream.
+    auto externalStylus = createUinputDevice<UinputExternalStylus>();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+    const auto stylusInfo = findDeviceByName(externalStylus->getName());
+    ASSERT_TRUE(stylusInfo);
+    ASSERT_NO_FATAL_FAILURE(
+            mTestListener->assertNotifyDeviceResetWasCalled(WithDeviceId(stylusInfo->getId())));
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyDeviceResetWasNotCalled());
+
+    // Move
+    mDevice->sendMove(centerPoint + Point(2, 2));
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_MOVE)));
+
+    // Disconnecting an external stylus mid-gesture should not interrupt the ongoing gesture stream.
+    externalStylus.reset();
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());
+
+    // Up
+    mDevice->sendUp();
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(
+            mTestListener->assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_UP)));
+
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());
 }
 
 // --- StylusButtonIntegrationTest ---
