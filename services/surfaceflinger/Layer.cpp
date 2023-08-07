@@ -50,10 +50,10 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <system/graphics-base-v1.0.h>
-#include <ui/DataspaceUtils.h>
 #include <ui/DebugUtils.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/HdrRenderTypeUtils.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
 #include <ui/Transform.h>
