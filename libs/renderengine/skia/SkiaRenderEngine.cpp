@@ -20,7 +20,6 @@
 
 #include "SkiaRenderEngine.h"
 
-#include <include/gpu/ganesh/SkSurfaceGanesh.h>
 #include <GrBackendSemaphore.h>
 #include <GrContextOptions.h>
 #include <SkBlendMode.h>
@@ -55,13 +54,14 @@
 #include <android-base/stringprintf.h>
 #include <gui/FenceMonitor.h>
 #include <gui/TraceUtils.h>
+#include <include/gpu/ganesh/SkSurfaceGanesh.h>
 #include <pthread.h>
 #include <src/core/SkTraceEventCommon.h>
 #include <sync/sync.h>
 #include <ui/BlurRegion.h>
-#include <ui/DataspaceUtils.h>
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/HdrRenderTypeUtils.h>
 #include <utils/Trace.h>
 
 #include <cmath>
@@ -1027,7 +1027,10 @@ void SkiaRenderEngine::drawLayersInternal(
             // Most HDR standards require at least 10-bits of color depth for source content, so we
             // can just extract the transfer function rather than dig into precise gralloc layout.
             // Furthermore, we can assume that the only 8-bit target we support is RGBA8888.
-            const bool requiresDownsample = isHdrDataspace(layer.sourceDataspace) &&
+            const bool requiresDownsample =
+                    getHdrRenderType(layer.sourceDataspace,
+                                     std::optional<ui::PixelFormat>(static_cast<ui::PixelFormat>(
+                                             buffer->getPixelFormat()))) != HdrRenderType::SDR &&
                     buffer->getPixelFormat() == PIXEL_FORMAT_RGBA_8888;
             if (layerDimmingRatio <= kDimmingThreshold || requiresDownsample) {
                 paint.setDither(true);
