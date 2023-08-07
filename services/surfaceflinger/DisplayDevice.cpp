@@ -39,7 +39,6 @@
 #include <system/window.h>
 #include <ui/GraphicTypes.h>
 
-#include "Display/DisplaySnapshot.h"
 #include "DisplayDevice.h"
 #include "FrontEnd/DisplayInfo.h"
 #include "Layer.h"
@@ -231,10 +230,18 @@ status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
         return BAD_VALUE;
     }
     mUpcomingActiveMode = info;
-    ATRACE_INT(mActiveModeFPSHwcTrace.c_str(), info.modeOpt->modePtr->getFps().getIntValue());
-    return mHwComposer.setActiveModeWithConstraints(getPhysicalId(),
-                                                    info.modeOpt->modePtr->getHwcId(), constraints,
-                                                    outTimeline);
+    mIsModeSetPending = true;
+
+    const auto& pendingMode = *info.modeOpt->modePtr;
+    ATRACE_INT(mActiveModeFPSHwcTrace.c_str(), pendingMode.getFps().getIntValue());
+
+    return mHwComposer.setActiveModeWithConstraints(getPhysicalId(), pendingMode.getHwcId(),
+                                                    constraints, outTimeline);
+}
+
+void DisplayDevice::finalizeModeChange(DisplayModeId modeId, Fps displayFps, Fps renderFps) {
+    setActiveMode(modeId, displayFps, renderFps);
+    mIsModeSetPending = false;
 }
 
 nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {

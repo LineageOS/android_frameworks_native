@@ -35,7 +35,7 @@ using CallbackToken = scheduler::VSyncDispatch::CallbackToken;
 
 struct NoOpCompositor final : ICompositor {
     void configure() override {}
-    bool commit(const scheduler::FrameTarget&) override { return false; }
+    bool commit(PhysicalDisplayId, const scheduler::FrameTargets&) override { return false; }
     CompositeResultsPerDisplay composite(PhysicalDisplayId,
                                          const scheduler::FrameTargeters&) override {
         return {};
