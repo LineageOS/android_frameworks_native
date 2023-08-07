@@ -510,7 +510,8 @@ sk_sp<SkShader> SkiaRenderEngine::createRuntimeEffectShader(
         auto effect =
                 shaders::LinearEffect{.inputDataspace = parameters.layer.sourceDataspace,
                                       .outputDataspace = parameters.outputDataSpace,
-                                      .undoPremultipliedAlpha = parameters.undoPremultipliedAlpha};
+                                      .undoPremultipliedAlpha = parameters.undoPremultipliedAlpha,
+                                      .fakeOutputDataspace = parameters.fakeOutputDataspace};
 
         auto effectIter = mRuntimeEffects.find(effect);
         sk_sp<SkRuntimeEffect> runtimeEffect = nullptr;
@@ -904,12 +905,14 @@ void SkiaRenderEngine::drawLayersInternal(
                 (display.outputDataspace & ui::Dataspace::TRANSFER_MASK) ==
                         static_cast<int32_t>(ui::Dataspace::TRANSFER_SRGB);
 
-        const ui::Dataspace runtimeEffectDataspace = !dimInLinearSpace && isExtendedHdr
+        const bool useFakeOutputDataspaceForRuntimeEffect = !dimInLinearSpace && isExtendedHdr;
+
+        const ui::Dataspace fakeDataspace = useFakeOutputDataspaceForRuntimeEffect
                 ? static_cast<ui::Dataspace>(
                           (display.outputDataspace & ui::Dataspace::STANDARD_MASK) |
                           ui::Dataspace::TRANSFER_GAMMA2_2 |
                           (display.outputDataspace & ui::Dataspace::RANGE_MASK))
-                : display.outputDataspace;
+                : ui::Dataspace::UNKNOWN;
 
         // If the input dataspace is range extended, the output dataspace transfer is sRGB
         // and dimmingStage is GAMMA_OETF, dim in linear space instead, and
@@ -1016,7 +1019,8 @@ void SkiaRenderEngine::drawLayersInternal(
                                                   .layerDimmingRatio = dimInLinearSpace
                                                           ? layerDimmingRatio
                                                           : 1.f,
-                                                  .outputDataSpace = runtimeEffectDataspace}));
+                                                  .outputDataSpace = display.outputDataspace,
+                                                  .fakeOutputDataspace = fakeDataspace}));
 
             // Turn on dithering when dimming beyond this (arbitrary) threshold...
             static constexpr float kDimmingThreshold = 0.2f;
@@ -1080,7 +1084,8 @@ void SkiaRenderEngine::drawLayersInternal(
                                                   .undoPremultipliedAlpha = false,
                                                   .requiresLinearEffect = requiresLinearEffect,
                                                   .layerDimmingRatio = layerDimmingRatio,
-                                                  .outputDataSpace = runtimeEffectDataspace}));
+                                                  .outputDataSpace = display.outputDataspace,
+                                                  .fakeOutputDataspace = fakeDataspace}));
         }
 
         if (layer.disableBlending) {
