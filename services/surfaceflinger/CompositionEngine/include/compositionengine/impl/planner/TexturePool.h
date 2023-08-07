@@ -66,7 +66,7 @@ public:
     TexturePool(renderengine::RenderEngine& renderEngine)
           : mRenderEngine(renderEngine), mEnabled(false) {}
 
-    virtual ~TexturePool() = default;
+    virtual ~TexturePool();
 
     // Sets the display size for the texture pool.
     // This will trigger a reallocation for all remaining textures in the pool.
@@ -83,11 +83,10 @@ public:
     // be held by the pool. This is useful when the active display changes.
     void setEnabled(bool enable);
 
-    void dump(std::string& out) const;
+    void dump(std::string& out) const EXCLUDES(mMutex);
 
 protected:
     // Proteted visibility so that they can be used for testing
-    const static constexpr size_t kMinPoolSize = 3;
     const static constexpr size_t kMaxPoolSize = 4;
 
     struct Entry {
@@ -96,16 +95,20 @@ protected:
     };
 
     std::deque<Entry> mPool;
+    std::future<std::shared_ptr<renderengine::ExternalTexture>> mGenTextureFuture;
 
 private:
-    std::shared_ptr<renderengine::ExternalTexture> genTexture();
+    std::shared_ptr<renderengine::ExternalTexture> genTexture(ui::Size size);
     // Returns a previously borrowed texture to the pool.
     void returnTexture(std::shared_ptr<renderengine::ExternalTexture>&& texture,
                        const sp<Fence>& fence);
-    void allocatePool();
-    renderengine::RenderEngine& mRenderEngine;
-    ui::Size mSize;
+    void genTextureAsyncIfNeeded() REQUIRES(mMutex);
+    void resetPool() REQUIRES(mMutex);
+    renderengine::RenderEngine& mRenderEngine GUARDED_BY(mRenderEngineMutex);
+    ui::Size mSize GUARDED_BY(mMutex);
     bool mEnabled;
+    mutable std::mutex mMutex;
+    mutable std::mutex mRenderEngineMutex;
 };
 
 } // namespace android::compositionengine::impl::planner

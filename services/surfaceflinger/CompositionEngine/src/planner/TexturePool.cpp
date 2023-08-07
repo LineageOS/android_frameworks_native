@@ -25,31 +25,61 @@
 
 namespace android::compositionengine::impl::planner {
 
-void TexturePool::allocatePool() {
+TexturePool::~TexturePool() {
+    if (mGenTextureFuture.valid()) {
+        mGenTextureFuture.get();
+    }
+}
+
+void TexturePool::resetPool() {
+    if (mGenTextureFuture.valid()) {
+        mGenTextureFuture.get();
+    }
     mPool.clear();
-    if (mEnabled && mSize.isValid()) {
-        mPool.resize(kMinPoolSize);
-        std::generate_n(mPool.begin(), kMinPoolSize, [&]() {
-            return Entry{genTexture(), nullptr};
-        });
+    genTextureAsyncIfNeeded();
+}
+
+// Generate a new texture asynchronously so it will not require allocation on the main
+// thread.
+void TexturePool::genTextureAsyncIfNeeded() {
+    if (mEnabled && mSize.isValid() && !mGenTextureFuture.valid()) {
+        mGenTextureFuture = std::async(
+                std::launch::async, [&](ui::Size size) { return genTexture(size); }, mSize);
     }
 }
 
 void TexturePool::setDisplaySize(ui::Size size) {
+    std::lock_guard lock(mMutex);
     if (mSize == size) {
         return;
     }
     mSize = size;
-    allocatePool();
+    resetPool();
 }
 
 std::shared_ptr<TexturePool::AutoTexture> TexturePool::borrowTexture() {
     if (mPool.empty()) {
-        return std::make_shared<AutoTexture>(*this, genTexture(), nullptr);
+        std::lock_guard lock(mMutex);
+        std::shared_ptr<TexturePool::AutoTexture> tex;
+        if (mGenTextureFuture.valid()) {
+            tex = std::make_shared<AutoTexture>(*this, mGenTextureFuture.get(), nullptr);
+        } else {
+            tex = std::make_shared<AutoTexture>(*this, genTexture(mSize), nullptr);
+        }
+        // Speculatively generate a new texture, so that the next call does not need
+        // to wait for allocation.
+        genTextureAsyncIfNeeded();
+        return tex;
     }
 
     const auto entry = mPool.front();
     mPool.pop_front();
+    if (mPool.empty()) {
+        std::lock_guard lock(mMutex);
+        // Similiarly generate a new texture when lending out the last entry, so that
+        // the next call does not need to wait for allocation.
+        genTextureAsyncIfNeeded();
+    }
     return std::make_shared<AutoTexture>(*this, entry.texture, entry.fence);
 }
 
@@ -59,6 +89,8 @@ void TexturePool::returnTexture(std::shared_ptr<renderengine::ExternalTexture>&&
     if (!mEnabled) {
         return;
     }
+
+    std::lock_guard lock(mMutex);
 
     // Or the texture on the floor if the pool is no longer tracking textures of the same size.
     if (static_cast<int32_t>(texture->getBuffer()->getWidth()) != mSize.getWidth() ||
@@ -80,13 +112,14 @@ void TexturePool::returnTexture(std::shared_ptr<renderengine::ExternalTexture>&&
     mPool.push_back({std::move(texture), fence});
 }
 
-std::shared_ptr<renderengine::ExternalTexture> TexturePool::genTexture() {
-    LOG_ALWAYS_FATAL_IF(!mSize.isValid(), "Attempted to generate texture with invalid size");
+std::shared_ptr<renderengine::ExternalTexture> TexturePool::genTexture(ui::Size size) {
+    std::lock_guard lock(mRenderEngineMutex);
+    LOG_ALWAYS_FATAL_IF(!size.isValid(), "Attempted to generate texture with invalid size");
     return std::make_shared<
             renderengine::impl::
                     ExternalTexture>(sp<GraphicBuffer>::
-                                             make(static_cast<uint32_t>(mSize.getWidth()),
-                                                  static_cast<uint32_t>(mSize.getHeight()),
+                                             make(static_cast<uint32_t>(size.getWidth()),
+                                                  static_cast<uint32_t>(size.getHeight()),
                                                   HAL_PIXEL_FORMAT_RGBA_8888, 1U,
                                                   static_cast<uint64_t>(
                                                           GraphicBuffer::USAGE_HW_RENDER |
@@ -100,10 +133,13 @@ std::shared_ptr<renderengine::ExternalTexture> TexturePool::genTexture() {
 
 void TexturePool::setEnabled(bool enabled) {
     mEnabled = enabled;
-    allocatePool();
+
+    std::lock_guard lock(mMutex);
+    resetPool();
 }
 
 void TexturePool::dump(std::string& out) const {
+    std::lock_guard lock(mMutex);
     base::StringAppendF(&out,
                         "TexturePool (%s) has %zu buffers of size [%" PRId32 ", %" PRId32 "]\n",
                         mEnabled ? "enabled" : "disabled", mPool.size(), mSize.width, mSize.height);
