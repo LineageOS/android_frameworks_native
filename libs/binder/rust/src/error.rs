@@ -370,6 +370,94 @@ unsafe impl AsNative<sys::AStatus> for Status {
     }
 }
 
+/// A conversion from `std::result::Result<T, E>` to `binder::Result<T>`. If this type is `Ok(T)`,
+/// it's returned as is. If this type is `Err(E)`, `E` is converted into `Status` which can be
+/// either a general binder exception, or a service-specific exception.
+///
+/// # Examples
+///
+/// ```
+/// // std::io::Error is formatted as the exception's message
+/// fn file_exists(name: &str) -> binder::Result<bool> {
+///     std::fs::metadata(name)
+///         .or_service_specific_exception(NOT_FOUND)?
+/// }
+///
+/// // A custom function is used to create the exception's message
+/// fn file_exists(name: &str) -> binder::Result<bool> {
+///     std::fs::metadata(name)
+///         .or_service_specific_exception_with(NOT_FOUND,
+///             |e| format!("file {} not found: {:?}", name, e))?
+/// }
+///
+/// // anyhow::Error is formatted as the exception's message
+/// use anyhow::{Context, Result};
+/// fn file_exists(name: &str) -> binder::Result<bool> {
+///     std::fs::metadata(name)
+///         .context("file {} not found")
+///         .or_service_specific_exception(NOT_FOUND)?
+/// }
+///
+/// // General binder exceptions can be created similarly
+/// fn file_exists(name: &str) -> binder::Result<bool> {
+///     std::fs::metadata(name)
+///         .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT)?
+/// }
+/// ```
+pub trait IntoBinderResult<T, E> {
+    /// Converts the embedded error into a general binder exception of code `exception`. The
+    /// message of the exception is set by formatting the error for debugging.
+    fn or_binder_exception(self, exception: ExceptionCode) -> result::Result<T, Status>;
+
+    /// Converts the embedded error into a general binder exception of code `exception`. The
+    /// message of the exception is set by lazily evaluating the `op` function.
+    fn or_binder_exception_with<M: AsRef<str>, O: FnOnce(E) -> M>(
+        self,
+        exception: ExceptionCode,
+        op: O,
+    ) -> result::Result<T, Status>;
+
+    /// Converts the embedded error into a service-specific binder exception. `error_code` is used
+    /// to distinguish different service-specific binder exceptions. The message of the exception
+    /// is set by formatting the error for debugging.
+    fn or_service_specific_exception(self, error_code: i32) -> result::Result<T, Status>;
+
+    /// Converts the embedded error into a service-specific binder exception. `error_code` is used
+    /// to distinguish different service-specific binder exceptions. The message of the exception
+    /// is set by lazily evaluating the `op` function.
+    fn or_service_specific_exception_with<M: AsRef<str>, O: FnOnce(E) -> M>(
+        self,
+        error_code: i32,
+        op: O,
+    ) -> result::Result<T, Status>;
+}
+
+impl<T, E: std::fmt::Debug> IntoBinderResult<T, E> for result::Result<T, E> {
+    fn or_binder_exception(self, exception: ExceptionCode) -> result::Result<T, Status> {
+        self.or_binder_exception_with(exception, |e| format!("{:?}", e))
+    }
+
+    fn or_binder_exception_with<M: AsRef<str>, O: FnOnce(E) -> M>(
+        self,
+        exception: ExceptionCode,
+        op: O,
+    ) -> result::Result<T, Status> {
+        self.map_err(|e| Status::new_exception_str(exception, Some(op(e))))
+    }
+
+    fn or_service_specific_exception(self, error_code: i32) -> result::Result<T, Status> {
+        self.or_service_specific_exception_with(error_code, |e| format!("{:?}", e))
+    }
+
+    fn or_service_specific_exception_with<M: AsRef<str>, O: FnOnce(E) -> M>(
+        self,
+        error_code: i32,
+        op: O,
+    ) -> result::Result<T, Status> {
+        self.map_err(|e| Status::new_service_specific_error_str(error_code, Some(op(e))))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -405,5 +493,67 @@ mod tests {
         assert_eq!(status.exception_code(), ExceptionCode::ILLEGAL_STATE);
         assert_eq!(status.service_specific_error(), 0);
         assert_eq!(status.get_description(), "Status(-5, EX_ILLEGAL_STATE): ''".to_string());
+    }
+
+    #[test]
+    fn convert_to_service_specific_exception() {
+        let res: std::result::Result<(), Status> =
+            Err("message").or_service_specific_exception(-42);
+
+        assert!(res.is_err());
+        let status = res.unwrap_err();
+        assert_eq!(status.exception_code(), ExceptionCode::SERVICE_SPECIFIC);
+        assert_eq!(status.service_specific_error(), -42);
+        assert_eq!(
+            status.get_description(),
+            "Status(-8, EX_SERVICE_SPECIFIC): '-42: \"message\"'".to_string()
+        );
+    }
+
+    #[test]
+    fn convert_to_service_specific_exception_with() {
+        let res: std::result::Result<(), Status> = Err("message")
+            .or_service_specific_exception_with(-42, |e| format!("outer message: {:?}", e));
+
+        assert!(res.is_err());
+        let status = res.unwrap_err();
+        assert_eq!(status.exception_code(), ExceptionCode::SERVICE_SPECIFIC);
+        assert_eq!(status.service_specific_error(), -42);
+        assert_eq!(
+            status.get_description(),
+            "Status(-8, EX_SERVICE_SPECIFIC): '-42: outer message: \"message\"'".to_string()
+        );
+    }
+
+    #[test]
+    fn convert_to_binder_exception() {
+        let res: std::result::Result<(), Status> =
+            Err("message").or_binder_exception(ExceptionCode::ILLEGAL_STATE);
+
+        assert!(res.is_err());
+        let status = res.unwrap_err();
+        assert_eq!(status.exception_code(), ExceptionCode::ILLEGAL_STATE);
+        assert_eq!(status.service_specific_error(), 0);
+        assert_eq!(
+            status.get_description(),
+            "Status(-5, EX_ILLEGAL_STATE): '\"message\"'".to_string()
+        );
+    }
+
+    #[test]
+    fn convert_to_binder_exception_with() {
+        let res: std::result::Result<(), Status> = Err("message")
+            .or_binder_exception_with(ExceptionCode::ILLEGAL_STATE, |e| {
+                format!("outer message: {:?}", e)
+            });
+
+        assert!(res.is_err());
+        let status = res.unwrap_err();
+        assert_eq!(status.exception_code(), ExceptionCode::ILLEGAL_STATE);
+        assert_eq!(status.service_specific_error(), 0);
+        assert_eq!(
+            status.get_description(),
+            "Status(-5, EX_ILLEGAL_STATE): 'outer message: \"message\"'".to_string()
+        );
     }
 }
