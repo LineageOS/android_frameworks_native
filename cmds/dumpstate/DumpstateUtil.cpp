@@ -207,9 +207,7 @@ std::string PropertiesHelper::build_type_ = "";
 int PropertiesHelper::dry_run_ = -1;
 int PropertiesHelper::unroot_ = -1;
 int PropertiesHelper::parallel_run_ = -1;
-#if !defined(__ANDROID_VNDK__)
 int PropertiesHelper::strict_run_ = -1;
-#endif
 
 bool PropertiesHelper::IsUserBuild() {
     if (build_type_.empty()) {
@@ -240,7 +238,6 @@ bool PropertiesHelper::IsParallelRun() {
     return parallel_run_ == 1;
 }
 
-#if !defined(__ANDROID_VNDK__)
 bool PropertiesHelper::IsStrictRun() {
     if (strict_run_ == -1) {
         // Defaults to using stricter timeouts.
@@ -248,7 +245,6 @@ bool PropertiesHelper::IsStrictRun() {
     }
     return strict_run_ == 1;
 }
-#endif
 
 int DumpFileToFd(int out_fd, const std::string& title, const std::string& path) {
     android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC)));
