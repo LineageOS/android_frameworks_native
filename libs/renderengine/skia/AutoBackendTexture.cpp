@@ -23,7 +23,7 @@
 #include <SkImage.h>
 #include <include/gpu/ganesh/SkImageGanesh.h>
 #include <include/gpu/ganesh/SkSurfaceGanesh.h>
-
+#include <include/gpu/ganesh/gl/GrGLBackendSurface.h>
 #include <android/hardware_buffer.h>
 #include "ColorSpaces.h"
 #include "log/log_main.h"
@@ -40,13 +40,44 @@ AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
     bool createProtectedImage = 0 != (desc.usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT);
-    GrBackendFormat backendFormat =
-            GrAHardwareBufferUtils::GetBackendFormat(context, buffer, desc.format, false);
-    mBackendTexture =
-            GrAHardwareBufferUtils::MakeBackendTexture(context, buffer, desc.width, desc.height,
-                                                       &mDeleteProc, &mUpdateProc, &mImageCtx,
-                                                       createProtectedImage, backendFormat,
-                                                       isOutputBuffer);
+    GrBackendFormat backendFormat;
+
+    GrBackendApi backend = context->backend();
+    if (backend == GrBackendApi::kOpenGL) {
+        backendFormat =
+                GrAHardwareBufferUtils::GetGLBackendFormat(context, desc.format, false);
+        mBackendTexture =
+                GrAHardwareBufferUtils::MakeGLBackendTexture(context,
+                                                             buffer,
+                                                             desc.width,
+                                                             desc.height,
+                                                             &mDeleteProc,
+                                                             &mUpdateProc,
+                                                             &mImageCtx,
+                                                             createProtectedImage,
+                                                             backendFormat,
+                                                             isOutputBuffer);
+    } else if (backend == GrBackendApi::kVulkan) {
+        backendFormat =
+                GrAHardwareBufferUtils::GetVulkanBackendFormat(context,
+                                                               buffer,
+                                                               desc.format,
+                                                               false);
+        mBackendTexture =
+                GrAHardwareBufferUtils::MakeVulkanBackendTexture(context,
+                                                                 buffer,
+                                                                 desc.width,
+                                                                 desc.height,
+                                                                 &mDeleteProc,
+                                                                 &mUpdateProc,
+                                                                 &mImageCtx,
+                                                                 createProtectedImage,
+                                                                 backendFormat,
+                                                                 isOutputBuffer);
+    } else {
+        LOG_ALWAYS_FATAL("Unexpected backend %d", backend);
+    }
+
     mColorType = GrAHardwareBufferUtils::GetSkColorTypeFromBufferFormat(desc.format);
     if (!mBackendTexture.isValid() || !desc.width || !desc.height) {
         LOG_ALWAYS_FATAL("Failed to create a valid texture. [%p]:[%d,%d] isProtected:%d "
@@ -94,7 +125,7 @@ void logFatalTexture(const char* msg, const GrBackendTexture& tex, ui::Dataspace
     switch (tex.backend()) {
         case GrBackendApi::kOpenGL: {
             GrGLTextureInfo textureInfo;
-            bool retrievedTextureInfo = tex.getGLTextureInfo(&textureInfo);
+            bool retrievedTextureInfo = GrBackendTextures::GetGLTextureInfo(tex, &textureInfo);
             LOG_ALWAYS_FATAL("%s isTextureValid:%d dataspace:%d"
                              "\n\tGrBackendTexture: (%i x %i) hasMipmaps: %i isProtected: %i "
                              "texType: %i\n\t\tGrGLTextureInfo: success: %i fTarget: %u fFormat: %u"
