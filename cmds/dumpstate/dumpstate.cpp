@@ -2176,6 +2176,11 @@ static void DumpstateWifiOnly() {
     printf("========================================================\n");
 }
 
+// Collects a lightweight dumpstate to be used for debugging onboarding related flows.
+static void DumpstateOnboardingOnly() {
+    ds.AddDir(LOGPERSIST_DATA_DIR, false);
+}
+
 Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
     const std::string temp_file_pattern = ds.bugreport_internal_dir_ + "/dumptrace_XXXXXX";
     const size_t buf_size = temp_file_pattern.length() + 1;
@@ -2308,6 +2313,7 @@ static dumpstate_hal_hidl::DumpstateMode GetDumpstateHalModeHidl(
             return dumpstate_hal_hidl::DumpstateMode::CONNECTIVITY;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             return dumpstate_hal_hidl::DumpstateMode::WIFI;
+        case Dumpstate::BugreportMode::BUGREPORT_ONBOARDING:
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
             return dumpstate_hal_hidl::DumpstateMode::DEFAULT;
     }
@@ -2329,6 +2335,7 @@ static dumpstate_hal_aidl::IDumpstateDevice::DumpstateMode GetDumpstateHalModeAi
             return dumpstate_hal_aidl::IDumpstateDevice::DumpstateMode::CONNECTIVITY;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             return dumpstate_hal_aidl::IDumpstateDevice::DumpstateMode::WIFI;
+        case Dumpstate::BugreportMode::BUGREPORT_ONBOARDING:
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
             return dumpstate_hal_aidl::IDumpstateDevice::DumpstateMode::DEFAULT;
     }
@@ -2812,6 +2819,8 @@ static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
             return "BUGREPORT_TELEPHONY";
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             return "BUGREPORT_WIFI";
+        case Dumpstate::BugreportMode::BUGREPORT_ONBOARDING:
+            return "BUGREPORT_ONBOARDING";
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
             return "BUGREPORT_DEFAULT";
     }
@@ -2855,6 +2864,10 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             options->wifi_only = true;
+            options->do_screenshot = false;
+            break;
+        case Dumpstate::BugreportMode::BUGREPORT_ONBOARDING:
+            options->onboarding_only = true;
             options->do_screenshot = false;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
@@ -3276,6 +3289,8 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         DumpstateWifiOnly();
     } else if (options_->limited_only) {
         DumpstateLimitedOnly();
+    } else if (options_->onboarding_only) {
+        DumpstateOnboardingOnly();
     } else {
         // Dump state for the default case. This also drops root.
         RunStatus s = DumpstateDefaultAfterCritical();

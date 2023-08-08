@@ -141,6 +141,7 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_WEAR &&
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_TELEPHONY &&
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_WIFI &&
+        bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_ONBOARDING &&
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_DEFAULT) {
         MYLOGE("Invalid input: bad bugreport mode: %d", bugreport_mode);
         signalErrorAndExit(listener, IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);

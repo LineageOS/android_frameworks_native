@@ -49,6 +49,9 @@ interface IDumpstate {
     // Default mode.
     const int BUGREPORT_MODE_DEFAULT = 6;
 
+    // Bugreport taken for onboarding related flows.
+    const int BUGREPORT_MODE_ONBOARDING = 7;
+
     // Use pre-dumped data.
     const int BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA = 0x1;
 
