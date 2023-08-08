@@ -17,6 +17,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <gui/fake/BufferData.h>
+
 #include "Client.h" // temporarily needed for LayerCreationArgs
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/LayerHierarchy.h"
@@ -330,6 +332,32 @@ protected:
         transactions.back().states.front().state.frameRate = frameRate;
         transactions.back().states.front().state.frameRateCompatibility = compatibility;
         transactions.back().states.front().state.changeFrameRateStrategy = changeFrameRateStrategy;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setRoundedCorners(uint32_t id, float radius) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eCornerRadiusChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.cornerRadius = radius;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setBuffer(uint32_t id, std::shared_ptr<renderengine::ExternalTexture> texture) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eBufferChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().externalTexture = texture;
+        transactions.back().states.front().state.bufferData =
+                std::make_shared<fake::BufferData>(texture->getId(), texture->getWidth(),
+                                                   texture->getHeight(), texture->getPixelFormat(),
+                                                   texture->getUsage());
         mLifecycleManager.applyTransactions(transactions);
     }
 

@@ -56,6 +56,7 @@ struct RequestedLayerState : layer_state_t {
         Animation = 1u << 17,
         BufferSize = 1u << 18,
         GameMode = 1u << 19,
+        BufferUsageFlags = 1u << 20,
     };
     static Rect reduce(const Rect& win, const Region& exclude);
     RequestedLayerState(const LayerCreationArgs&);
@@ -85,6 +86,7 @@ struct RequestedLayerState : layer_state_t {
     bool willReleaseBufferOnLatch() const;
     bool backpressureEnabled() const;
     bool isSimpleBufferUpdate(const layer_state_t&) const;
+    bool isProtected() const;
 
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
