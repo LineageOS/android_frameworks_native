@@ -147,6 +147,8 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     const ui::Size oldBufferSize = hadBuffer
             ? ui::Size(externalTexture->getWidth(), externalTexture->getHeight())
             : ui::Size();
+    const uint64_t oldUsageFlags = hadBuffer ? externalTexture->getUsage() : 0;
+
     const bool hadSideStream = sidebandStream != nullptr;
     const layer_state_t& clientState = resolvedComposerState.state;
     const bool hadBlur = hasBlur();
@@ -176,6 +178,10 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
             if (oldBufferSize != newBufferSize) {
                 changes |= RequestedLayerState::Changes::BufferSize;
                 changes |= RequestedLayerState::Changes::Geometry;
+            }
+            const uint64_t usageFlags = hasBuffer ? externalTexture->getUsage() : 0;
+            if (oldUsageFlags != usageFlags) {
+                changes |= RequestedLayerState::Changes::BufferUsageFlags;
             }
         }
 
@@ -568,6 +574,10 @@ bool RequestedLayerState::isSimpleBufferUpdate(const layer_state_t& s) const {
     }
 
     return true;
+}
+
+bool RequestedLayerState::isProtected() const {
+    return externalTexture && externalTexture->getUsage() & GRALLOC_USAGE_PROTECTED;
 }
 
 void RequestedLayerState::clearChanges() {

@@ -54,6 +54,7 @@ public:
         std::unordered_set<uint32_t> excludeLayerIds;
         const std::unordered_map<std::string, bool>& supportedLayerGenericMetadata;
         const std::unordered_map<std::string, uint32_t>& genericLayerMetadataKeyMap;
+        bool skipRoundCornersWhenProtected = false;
     };
     LayerSnapshotBuilder();
 
@@ -103,7 +104,7 @@ private:
                                     bool parentIsRelative, const Args& args);
     static void resetRelativeState(LayerSnapshot& snapshot);
     static void updateRoundedCorner(LayerSnapshot& snapshot, const RequestedLayerState& layerState,
-                                    const LayerSnapshot& parentSnapshot);
+                                    const LayerSnapshot& parentSnapshot, const Args& args);
     void updateLayerBounds(LayerSnapshot& snapshot, const RequestedLayerState& layerState,
                            const LayerSnapshot& parentSnapshot, uint32_t displayRotationFlags);
     static void updateShadows(LayerSnapshot& snapshot, const RequestedLayerState& requested,

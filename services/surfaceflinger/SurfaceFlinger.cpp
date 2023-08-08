@@ -2311,7 +2311,9 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
                      .forceFullDamage = mForceFullDamage,
                      .supportedLayerGenericMetadata =
                              getHwComposer().getSupportedLayerGenericMetadata(),
-                     .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap()};
+                     .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap(),
+                     .skipRoundCornersWhenProtected =
+                             !getRenderEngine().supportsProtectedContent()};
         mLayerSnapshotBuilder.update(args);
     }
 
@@ -8660,7 +8662,9 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(std::optional<ui::LayerStack> la
                      .excludeLayerIds = std::move(excludeLayerIds),
                      .supportedLayerGenericMetadata =
                              getHwComposer().getSupportedLayerGenericMetadata(),
-                     .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap()};
+                     .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap(),
+                     .skipRoundCornersWhenProtected =
+                             !getRenderEngine().supportsProtectedContent()};
         mLayerSnapshotBuilder.update(args);
 
         auto getLayerSnapshotsFn =
@@ -8695,7 +8699,9 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(uint32_t rootLayerId, uint32_t u
                      .excludeLayerIds = std::move(excludeLayerIds),
                      .supportedLayerGenericMetadata =
                              getHwComposer().getSupportedLayerGenericMetadata(),
-                     .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap()};
+                     .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap(),
+                     .skipRoundCornersWhenProtected =
+                             !getRenderEngine().supportsProtectedContent()};
         mLayerSnapshotBuilder.update(args);
 
         auto getLayerSnapshotsFn =

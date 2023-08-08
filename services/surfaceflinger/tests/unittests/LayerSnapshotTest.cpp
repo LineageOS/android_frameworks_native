@@ -17,6 +17,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <renderengine/mock/FakeExternalTexture.h>
+
 #include "FrontEnd/LayerHierarchy.h"
 #include "FrontEnd/LayerLifecycleManager.h"
 #include "FrontEnd/LayerSnapshotBuilder.h"
@@ -68,12 +70,17 @@ protected:
         setColor(id);
     }
 
-    void updateAndVerify(LayerSnapshotBuilder& actualBuilder, bool hasDisplayChanges,
-                         const std::vector<uint32_t> expectedVisibleLayerIdsInZOrder) {
+    void update(LayerSnapshotBuilder& actualBuilder, LayerSnapshotBuilder::Args& args) {
         if (mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy)) {
             mHierarchyBuilder.update(mLifecycleManager.getLayers(),
                                      mLifecycleManager.getDestroyedLayers());
         }
+        args.root = mHierarchyBuilder.getHierarchy();
+        actualBuilder.update(args);
+    }
+
+    void updateAndVerify(LayerSnapshotBuilder& actualBuilder, bool hasDisplayChanges,
+                         const std::vector<uint32_t> expectedVisibleLayerIdsInZOrder) {
         LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
                                         .layerLifecycleManager = mLifecycleManager,
                                         .includeMetadata = false,
@@ -83,7 +90,7 @@ protected:
                                         .supportsBlur = true,
                                         .supportedLayerGenericMetadata = {},
                                         .genericLayerMetadataKeyMap = {}};
-        actualBuilder.update(args);
+        update(actualBuilder, args);
 
         // rebuild layer snapshots from scratch and verify that it matches the updated state.
         LayerSnapshotBuilder expectedBuilder(args);
@@ -594,6 +601,52 @@ TEST_F(LayerSnapshotTest, framerate) {
     EXPECT_EQ(getSnapshot({.id = 122})->frameRate.rate.getValue(), 244.f);
     EXPECT_EQ(getSnapshot({.id = 122})->frameRate.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
+}
+
+TEST_F(LayerSnapshotTest, skipRoundCornersWhenProtected) {
+    setRoundedCorners(1, 42.f);
+    setRoundedCorners(2, 42.f);
+    setCrop(1, Rect{1000, 1000});
+    setCrop(2, Rect{1000, 1000});
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_TRUE(getSnapshot({.id = 1})->roundedCorner.hasRoundedCorners());
+    EXPECT_EQ(getSnapshot({.id = 1})->roundedCorner.radius.x, 42.f);
+    EXPECT_TRUE(getSnapshot({.id = 2})->roundedCorner.hasRoundedCorners());
+
+    // add a buffer with the protected bit, check rounded corners are not set when
+    // skipRoundCornersWhenProtected == true
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               1ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+
+    LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                    .layerLifecycleManager = mLifecycleManager,
+                                    .includeMetadata = false,
+                                    .displays = mFrontEndDisplayInfos,
+                                    .displayChanges = false,
+                                    .globalShadowSettings = globalShadowSettings,
+                                    .supportsBlur = true,
+                                    .supportedLayerGenericMetadata = {},
+                                    .genericLayerMetadataKeyMap = {},
+                                    .skipRoundCornersWhenProtected = true};
+    update(mSnapshotBuilder, args);
+    EXPECT_FALSE(getSnapshot({.id = 1})->roundedCorner.hasRoundedCorners());
+    // layer 2 doesn't have a buffer and should be unaffected
+    EXPECT_TRUE(getSnapshot({.id = 2})->roundedCorner.hasRoundedCorners());
+
+    // remove protected bit, check rounded corners are set
+    setBuffer(1,
+              std::make_shared<renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                                        2ULL /* bufferId */,
+                                                                        HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                        0 /*usage*/));
+    update(mSnapshotBuilder, args);
+    EXPECT_TRUE(getSnapshot({.id = 1})->roundedCorner.hasRoundedCorners());
+    EXPECT_EQ(getSnapshot({.id = 1})->roundedCorner.radius.x, 42.f);
 }
 
 } // namespace android::surfaceflinger::frontend
