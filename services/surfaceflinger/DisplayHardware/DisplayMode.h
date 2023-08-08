@@ -32,6 +32,8 @@
 #include "DisplayHardware/Hal.h"
 #include "Scheduler/StrongTyping.h"
 
+#include <com_android_graphics_surfaceflinger_flags.h>
+
 namespace android {
 
 namespace hal = android::hardware::graphics::composer::hal;
@@ -49,6 +51,7 @@ using DisplayModeId = StrongTyping<ui::DisplayModeId, struct DisplayModeIdTag, C
 
 using DisplayModes = ftl::SmallMap<DisplayModeId, DisplayModePtr, 3>;
 using DisplayModeIterator = DisplayModes::const_iterator;
+using namespace com::android::graphics::surfaceflinger;
 
 class DisplayMode {
 public:
@@ -76,7 +79,12 @@ public:
         }
 
         Builder& setVsyncPeriod(nsecs_t vsyncPeriod) {
-            mDisplayMode->mFps = Fps::fromPeriodNsecs(vsyncPeriod);
+            mDisplayMode->mVsyncRate = Fps::fromPeriodNsecs(vsyncPeriod);
+            return *this;
+        }
+
+        Builder& setVrrConfig(std::optional<hal::VrrConfig> vrrConfig) {
+            mDisplayMode->mVrrConfig = std::move(vrrConfig);
             return *this;
         }
 
@@ -130,8 +138,17 @@ public:
     int32_t getWidth() const { return mResolution.getWidth(); }
     int32_t getHeight() const { return mResolution.getHeight(); }
 
-    Fps getFps() const { return mFps; }
-    nsecs_t getVsyncPeriod() const { return mFps.getPeriodNsecs(); }
+    // Peak refresh rate represents the highest refresh rate that can be used
+    // for the presentation.
+    Fps getPeakFps() const {
+        return flags::vrr_config() && mVrrConfig
+                ? Fps::fromPeriodNsecs(mVrrConfig->minFrameIntervalNs)
+                : mVsyncRate;
+    }
+
+    Fps getVsyncRate() const { return mVsyncRate; }
+
+    std::optional<hal::VrrConfig> getVrrConfig() const { return mVrrConfig; }
 
     struct Dpi {
         float x = -1;
@@ -155,23 +172,25 @@ private:
     PhysicalDisplayId mPhysicalDisplayId;
 
     ui::Size mResolution;
-    Fps mFps;
+    Fps mVsyncRate;
     Dpi mDpi;
     int32_t mGroup = -1;
+    std::optional<hal::VrrConfig> mVrrConfig;
 };
 
 inline bool equalsExceptDisplayModeId(const DisplayMode& lhs, const DisplayMode& rhs) {
     return lhs.getHwcId() == rhs.getHwcId() && lhs.getResolution() == rhs.getResolution() &&
-            lhs.getVsyncPeriod() == rhs.getVsyncPeriod() && lhs.getDpi() == rhs.getDpi() &&
-            lhs.getGroup() == rhs.getGroup();
+            lhs.getVsyncRate().getPeriodNsecs() == rhs.getVsyncRate().getPeriodNsecs() &&
+            lhs.getDpi() == rhs.getDpi() && lhs.getGroup() == rhs.getGroup();
 }
 
 inline std::string to_string(const DisplayMode& mode) {
-    return base::StringPrintf("{id=%d, hwcId=%d, resolution=%dx%d, refreshRate=%s, "
-                              "dpi=%.2fx%.2f, group=%d}",
+    return base::StringPrintf("{id=%d, hwcId=%d, resolution=%dx%d, vsyncRate=%s, "
+                              "dpi=%.2fx%.2f, group=%d, vrrConfig=%s}",
                               mode.getId().value(), mode.getHwcId(), mode.getWidth(),
-                              mode.getHeight(), to_string(mode.getFps()).c_str(), mode.getDpi().x,
-                              mode.getDpi().y, mode.getGroup());
+                              mode.getHeight(), to_string(mode.getVsyncRate()).c_str(),
+                              mode.getDpi().x, mode.getDpi().y, mode.getGroup(),
+                              to_string(mode.getVrrConfig()).c_str());
 }
 
 template <typename... DisplayModePtrs>

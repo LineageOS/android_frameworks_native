@@ -56,7 +56,7 @@ public:
 private:
     using Buffers = std::vector<sp<GraphicBuffer>>;
 
-    static Buffers draw(int displayFps, int renderFps, SkColor, ui::Transform::RotationFlags,
+    static Buffers draw(int vsyncRate, int renderFps, SkColor, ui::Transform::RotationFlags,
                         ftl::Flags<Features>);
     static void drawNumber(int number, int left, SkColor, SkCanvas&);
 
@@ -65,12 +65,12 @@ private:
     SurfaceComposerClient::Transaction createTransaction() const;
 
     struct Key {
-        int displayFps;
+        int vsyncRate;
         int renderFps;
         ui::Transform::RotationFlags flags;
 
         bool operator==(Key other) const {
-            return displayFps == other.displayFps && renderFps == other.renderFps &&
+            return vsyncRate == other.vsyncRate && renderFps == other.renderFps &&
                     flags == other.flags;
         }
     };
@@ -78,7 +78,7 @@ private:
     using BufferCache = ftl::SmallMap<Key, Buffers, 9>;
     BufferCache mBufferCache;
 
-    std::optional<Fps> mDisplayFps;
+    std::optional<Fps> mVsyncRate;
     std::optional<Fps> mRenderFps;
     size_t mFrame = 0;
 

@@ -208,12 +208,12 @@ bool DisplayDevice::isPoweredOn() const {
     return mPowerMode && *mPowerMode != hal::PowerMode::OFF;
 }
 
-void DisplayDevice::setActiveMode(DisplayModeId modeId, Fps displayFps, Fps renderFps) {
-    ATRACE_INT(mActiveModeFPSTrace.c_str(), displayFps.getIntValue());
+void DisplayDevice::setActiveMode(DisplayModeId modeId, Fps vsyncRate, Fps renderFps) {
+    ATRACE_INT(mActiveModeFPSTrace.c_str(), vsyncRate.getIntValue());
     ATRACE_INT(mRenderFrameRateFPSTrace.c_str(), renderFps.getIntValue());
 
     mRefreshRateSelector->setActiveMode(modeId, renderFps);
-    updateRefreshRateOverlayRate(displayFps, renderFps);
+    updateRefreshRateOverlayRate(vsyncRate, renderFps);
 }
 
 status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
@@ -230,14 +230,14 @@ status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
     mIsModeSetPending = true;
 
     const auto& pendingMode = *info.modeOpt->modePtr;
-    ATRACE_INT(mActiveModeFPSHwcTrace.c_str(), pendingMode.getFps().getIntValue());
+    ATRACE_INT(mActiveModeFPSHwcTrace.c_str(), pendingMode.getVsyncRate().getIntValue());
 
     return mHwComposer.setActiveModeWithConstraints(getPhysicalId(), pendingMode.getHwcId(),
                                                     constraints, outTimeline);
 }
 
-void DisplayDevice::finalizeModeChange(DisplayModeId modeId, Fps displayFps, Fps renderFps) {
-    setActiveMode(modeId, displayFps, renderFps);
+void DisplayDevice::finalizeModeChange(DisplayModeId modeId, Fps vsyncRate, Fps renderFps) {
+    setActiveMode(modeId, vsyncRate, renderFps);
     mIsModeSetPending = false;
 }
 
@@ -253,7 +253,7 @@ nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
         return vsyncPeriod;
     }
 
-    return refreshRateSelector().getActiveMode().modePtr->getVsyncPeriod();
+    return refreshRateSelector().getActiveMode().modePtr->getVsyncRate().getPeriodNsecs();
 }
 
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
@@ -466,17 +466,19 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool setByHwc, bool sh
         features |= RefreshRateOverlay::Features::SetByHwc;
     }
 
+    // TODO(b/296636258) Update to use the render rate range in VRR mode.
     const auto fpsRange = mRefreshRateSelector->getSupportedRefreshRateRange();
     mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(fpsRange, features);
     mRefreshRateOverlay->setLayerStack(getLayerStack());
     mRefreshRateOverlay->setViewport(getSize());
-    updateRefreshRateOverlayRate(getActiveMode().modePtr->getFps(), getActiveMode().fps, setByHwc);
+    updateRefreshRateOverlayRate(getActiveMode().modePtr->getVsyncRate(), getActiveMode().fps,
+                                 setByHwc);
 }
 
-void DisplayDevice::updateRefreshRateOverlayRate(Fps displayFps, Fps renderFps, bool setByHwc) {
+void DisplayDevice::updateRefreshRateOverlayRate(Fps vsyncRate, Fps renderFps, bool setByHwc) {
     ATRACE_CALL();
     if (mRefreshRateOverlay && (!mRefreshRateOverlay->isSetByHwc() || setByHwc)) {
-        mRefreshRateOverlay->changeRefreshRate(displayFps, renderFps);
+        mRefreshRateOverlay->changeRefreshRate(vsyncRate, renderFps);
     }
 }
 
@@ -486,7 +488,7 @@ bool DisplayDevice::onKernelTimerChanged(std::optional<DisplayModeId> desiredMod
         const auto newMode =
                 mRefreshRateSelector->onKernelTimerChanged(desiredModeId, timerExpired);
         if (newMode) {
-            updateRefreshRateOverlayRate(newMode->modePtr->getFps(), newMode->fps);
+            updateRefreshRateOverlayRate(newMode->modePtr->getVsyncRate(), newMode->fps);
             return true;
         }
     }
@@ -541,14 +543,14 @@ auto DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info, bool force)
             return DesiredActiveModeAction::None;
         }
 
-        setActiveMode(desiredMode.getId(), desiredMode.getFps(), info.modeOpt->fps);
+        setActiveMode(desiredMode.getId(), desiredMode.getVsyncRate(), info.modeOpt->fps);
         return DesiredActiveModeAction::InitiateRenderRateSwitch;
     }
 
     // Set the render frame rate to the current physical refresh rate to schedule the next
     // frame as soon as possible.
-    setActiveMode(currentMode.modePtr->getId(), currentMode.modePtr->getFps(),
-                  currentMode.modePtr->getFps());
+    setActiveMode(currentMode.modePtr->getId(), currentMode.modePtr->getVsyncRate(),
+                  currentMode.modePtr->getVsyncRate());
 
     // Initiate a mode change.
     mDesiredActiveModeChanged = true;

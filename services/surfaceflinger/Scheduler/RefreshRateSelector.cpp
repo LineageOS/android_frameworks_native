@@ -39,11 +39,15 @@
 #include "../SurfaceFlingerProperties.h"
 #include "RefreshRateSelector.h"
 
+#include <com_android_graphics_surfaceflinger_flags.h>
+
 #undef LOG_TAG
 #define LOG_TAG "RefreshRateSelector"
 
 namespace android::scheduler {
 namespace {
+
+using namespace com::android::graphics::surfaceflinger;
 
 struct RefreshRateScore {
     FrameRateMode frameRateMode;
@@ -69,7 +73,7 @@ std::vector<Fps> constructKnownFrameRates(const DisplayModes& modes) {
 
     // Add all supported refresh rates.
     for (const auto& [id, mode] : modes) {
-        knownFrameRates.push_back(mode->getFps());
+        knownFrameRates.push_back(mode->getPeakFps());
     }
 
     // Sort and remove duplicates.
@@ -91,17 +95,17 @@ std::vector<DisplayModeIterator> sortByRefreshRate(const DisplayModes& modes) {
         const auto& mode1 = it1->second;
         const auto& mode2 = it2->second;
 
-        if (mode1->getVsyncPeriod() == mode2->getVsyncPeriod()) {
+        if (mode1->getVsyncRate().getPeriodNsecs() == mode2->getVsyncRate().getPeriodNsecs()) {
             return mode1->getGroup() > mode2->getGroup();
         }
 
-        return mode1->getVsyncPeriod() > mode2->getVsyncPeriod();
+        return mode1->getVsyncRate().getPeriodNsecs() > mode2->getVsyncRate().getPeriodNsecs();
     });
 
     return sortedModes;
 }
 
-std::pair<unsigned, unsigned> divisorRange(Fps fps, FpsRange range,
+std::pair<unsigned, unsigned> divisorRange(Fps vsyncRate, Fps peakFps, FpsRange range,
                                            RefreshRateSelector::Config::FrameRateOverride config) {
     if (config != RefreshRateSelector::Config::FrameRateOverride::Enabled) {
         return {1, 1};
@@ -109,8 +113,14 @@ std::pair<unsigned, unsigned> divisorRange(Fps fps, FpsRange range,
 
     using fps_approx_ops::operator/;
     // use signed type as `fps / range.max` might be 0
-    const auto start = std::max(1, static_cast<int>(fps / range.max) - 1);
-    const auto end = fps /
+    auto start = std::max(1, static_cast<int>(peakFps / range.max) - 1);
+    if (flags::vrr_config()) {
+        start = std::max(1,
+                         static_cast<int>(vsyncRate /
+                                          std::min(range.max, peakFps, fps_approx_ops::operator<)) -
+                                 1);
+    }
+    const auto end = vsyncRate /
             std::max(range.min, RefreshRateSelector::kMinSupportedFrameRate,
                      fps_approx_ops::operator<);
 
@@ -123,7 +133,8 @@ bool shouldEnableFrameRateOverride(const std::vector<DisplayModeIterator>& sorte
         for (const auto it2 : sortedModes) {
             const auto& mode2 = it2->second;
 
-            if (RefreshRateSelector::getFrameRateDivisor(mode1->getFps(), mode2->getFps()) >= 2) {
+            if (RefreshRateSelector::getFrameRateDivisor(mode1->getPeakFps(),
+                                                         mode2->getPeakFps()) >= 2) {
                 return true;
             }
         }
@@ -176,10 +187,12 @@ auto RefreshRateSelector::createFrameRateModes(
         if (!filterModes(*mode)) {
             continue;
         }
+        const auto vsyncRate = mode->getVsyncRate();
+        const auto peakFps = mode->getPeakFps();
         const auto [start, end] =
-                divisorRange(mode->getFps(), renderRange, mConfig.enableFrameRateOverride);
+                divisorRange(vsyncRate, peakFps, renderRange, mConfig.enableFrameRateOverride);
         for (auto divisor = start; divisor <= end; divisor++) {
-            const auto fps = mode->getFps() / divisor;
+            const auto fps = vsyncRate / divisor;
             using fps_approx_ops::operator<;
             if (divisor > 1 && fps < kMinSupportedFrameRate) {
                 break;
@@ -199,28 +212,30 @@ auto RefreshRateSelector::createFrameRateModes(
             const auto [existingIter, emplaceHappened] =
                     ratesMap.try_emplace(Key{fps, mode->getGroup()}, it);
             if (emplaceHappened) {
-                ALOGV("%s: including %s (%s)", __func__, to_string(fps).c_str(),
-                      to_string(mode->getFps()).c_str());
+                ALOGV("%s: including %s (%s(%s))", __func__, to_string(fps).c_str(),
+                      to_string(peakFps).c_str(), to_string(vsyncRate).c_str());
             } else {
                 // If the primary physical range is a single rate, prefer to stay in that rate
                 // even if there is a lower physical refresh rate available. This would cause more
                 // cases to stay within the primary physical range
-                const Fps existingModeFps = existingIter->second->second->getFps();
+                const Fps existingModeFps = existingIter->second->second->getPeakFps();
                 const bool existingModeIsPrimaryRange = policy.primaryRangeIsSingleRate() &&
                         policy.primaryRanges.physical.includes(existingModeFps);
                 const bool newModeIsPrimaryRange = policy.primaryRangeIsSingleRate() &&
-                        policy.primaryRanges.physical.includes(mode->getFps());
+                        policy.primaryRanges.physical.includes(mode->getPeakFps());
                 if (newModeIsPrimaryRange == existingModeIsPrimaryRange) {
                     // We might need to update the map as we found a lower refresh rate
-                    if (isStrictlyLess(mode->getFps(), existingModeFps)) {
+                    if (isStrictlyLess(mode->getPeakFps(), existingModeFps)) {
                         existingIter->second = it;
-                        ALOGV("%s: changing %s (%s) as we found a lower physical rate", __func__,
-                              to_string(fps).c_str(), to_string(mode->getFps()).c_str());
+                        ALOGV("%s: changing %s (%s(%s)) as we found a lower physical rate",
+                              __func__, to_string(fps).c_str(), to_string(peakFps).c_str(),
+                              to_string(vsyncRate).c_str());
                     }
                 } else if (newModeIsPrimaryRange) {
                     existingIter->second = it;
-                    ALOGV("%s: changing %s (%s) to stay in the primary range", __func__,
-                          to_string(fps).c_str(), to_string(mode->getFps()).c_str());
+                    ALOGV("%s: changing %s (%s(%s)) to stay in the primary range", __func__,
+                          to_string(fps).c_str(), to_string(peakFps).c_str(),
+                          to_string(vsyncRate).c_str());
                 }
             }
         }
@@ -237,8 +252,8 @@ auto RefreshRateSelector::createFrameRateModes(
     const auto lowestRefreshRateIt =
             std::min_element(frameRateModes.begin(), frameRateModes.end(),
                              [](const FrameRateMode& lhs, const FrameRateMode& rhs) {
-                                 return isStrictlyLess(lhs.modePtr->getFps(),
-                                                       rhs.modePtr->getFps());
+                                 return isStrictlyLess(lhs.modePtr->getVsyncRate(),
+                                                       rhs.modePtr->getVsyncRate());
                              });
     frameRateModes.erase(frameRateModes.begin(), lowestRefreshRateIt);
 
@@ -623,7 +638,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
             }
 
             const bool inPrimaryPhysicalRange =
-                    policy->primaryRanges.physical.includes(modePtr->getFps());
+                    policy->primaryRanges.physical.includes(modePtr->getPeakFps());
             const bool inPrimaryRenderRange = policy->primaryRanges.render.includes(fps);
             if (((policy->primaryRangeIsSingleRate() && !inPrimaryPhysicalRange) ||
                  !inPrimaryRenderRange) &&
@@ -664,21 +679,24 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
                             Fps::fromValue(mConfig.frameRateMultipleThreshold / 2);
             if (fixedSourceLayer && layerBelowThreshold) {
                 const bool modeAboveThreshold =
-                        modePtr->getFps() >= Fps::fromValue(mConfig.frameRateMultipleThreshold);
+                        modePtr->getPeakFps() >= Fps::fromValue(mConfig.frameRateMultipleThreshold);
                 if (modeAboveThreshold) {
-                    ALOGV("%s gives %s (%s) fixed source (above threshold) score of %.4f",
+                    ALOGV("%s gives %s (%s(%s)) fixed source (above threshold) score of %.4f",
                           formatLayerInfo(layer, weight).c_str(), to_string(fps).c_str(),
-                          to_string(modePtr->getFps()).c_str(), layerScore);
+                          to_string(modePtr->getPeakFps()).c_str(),
+                          to_string(modePtr->getVsyncRate()).c_str(), layerScore);
                     fixedRateBelowThresholdLayersScore.modeAboveThreshold += weightedLayerScore;
                 } else {
-                    ALOGV("%s gives %s (%s) fixed source (below threshold) score of %.4f",
+                    ALOGV("%s gives %s (%s(%s)) fixed source (below threshold) score of %.4f",
                           formatLayerInfo(layer, weight).c_str(), to_string(fps).c_str(),
-                          to_string(modePtr->getFps()).c_str(), layerScore);
+                          to_string(modePtr->getPeakFps()).c_str(),
+                          to_string(modePtr->getVsyncRate()).c_str(), layerScore);
                     fixedRateBelowThresholdLayersScore.modeBelowThreshold += weightedLayerScore;
                 }
             } else {
-                ALOGV("%s gives %s (%s) score of %.4f", formatLayerInfo(layer, weight).c_str(),
-                      to_string(fps).c_str(), to_string(modePtr->getFps()).c_str(), layerScore);
+                ALOGV("%s gives %s (%s(%s)) score of %.4f", formatLayerInfo(layer, weight).c_str(),
+                      to_string(fps).c_str(), to_string(modePtr->getPeakFps()).c_str(),
+                      to_string(modePtr->getVsyncRate()).c_str(), layerScore);
                 overallScore += weightedLayerScore;
             }
         }
@@ -699,13 +717,14 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
                                  [](RefreshRateScore max, RefreshRateScore current) {
                                      return current.overallScore > max.overallScore;
                                  });
-        ALOGV("%s (%s) is the best refresh rate without fixed source layers. It is %s the "
+        ALOGV("%s (%s(%s)) is the best refresh rate without fixed source layers. It is %s the "
               "threshold for "
               "refresh rate multiples",
               to_string(maxScoreIt->frameRateMode.fps).c_str(),
-              to_string(maxScoreIt->frameRateMode.modePtr->getFps()).c_str(),
+              to_string(maxScoreIt->frameRateMode.modePtr->getPeakFps()).c_str(),
+              to_string(maxScoreIt->frameRateMode.modePtr->getVsyncRate()).c_str(),
               maxScoreAboveThreshold ? "above" : "below");
-        return maxScoreIt->frameRateMode.modePtr->getFps() >=
+        return maxScoreIt->frameRateMode.modePtr->getPeakFps() >=
                 Fps::fromValue(mConfig.frameRateMultipleThreshold);
     }();
 
@@ -715,8 +734,9 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
         if (maxScoreAboveThreshold) {
             overallScore += fixedRateBelowThresholdLayersScore.modeAboveThreshold;
         }
-        ALOGV("%s (%s) adjusted overallScore is %.4f", to_string(frameRateMode.fps).c_str(),
-              to_string(frameRateMode.modePtr->getFps()).c_str(), overallScore);
+        ALOGV("%s (%s(%s)) adjusted overallScore is %.4f", to_string(frameRateMode.fps).c_str(),
+              to_string(frameRateMode.modePtr->getPeakFps()).c_str(),
+              to_string(frameRateMode.modePtr->getVsyncRate()).c_str(), overallScore);
     }
 
     // Now that we scored all the refresh rates we need to pick the one that got the highest
@@ -842,6 +862,7 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
 
     const auto* policyPtr = getCurrentPolicyLocked();
     // We don't want to run lower than 30fps
+    // TODO(b/297600226): revise this for dVRR
     const Fps minFrameRate = std::max(policyPtr->appRequestRanges.render.min, 30_Hz, isApproxLess);
 
     using fps_approx_ops::operator/;
@@ -933,7 +954,7 @@ ftl::Optional<FrameRateMode> RefreshRateSelector::onKernelTimerChanged(
     const auto current = [&]() REQUIRES(mLock) -> FrameRateMode {
         if (desiredActiveModeId) {
             const auto& modePtr = mDisplayModes.get(*desiredActiveModeId)->get();
-            return FrameRateMode{modePtr->getFps(), ftl::as_non_null(modePtr)};
+            return FrameRateMode{modePtr->getPeakFps(), ftl::as_non_null(modePtr)};
         }
 
         return getActiveModeLocked();
@@ -944,7 +965,7 @@ ftl::Optional<FrameRateMode> RefreshRateSelector::onKernelTimerChanged(
         return {};
     }
 
-    return timerExpired ? FrameRateMode{min->getFps(), ftl::as_non_null(min)} : current;
+    return timerExpired ? FrameRateMode{min->getPeakFps(), ftl::as_non_null(min)} : current;
 }
 
 const DisplayModePtr& RefreshRateSelector::getMinRefreshRateByPolicyLocked() const {
@@ -970,12 +991,12 @@ const DisplayModePtr& RefreshRateSelector::getMaxRefreshRateByPolicyLocked(int a
     bool maxByAnchorFound = false;
     for (auto it = mPrimaryFrameRates.rbegin(); it != mPrimaryFrameRates.rend(); ++it) {
         using namespace fps_approx_ops;
-        if (it->modePtr->getFps() > (*max)->getFps()) {
+        if (it->modePtr->getPeakFps() > (*max)->getPeakFps()) {
             max = &it->modePtr;
         }
 
         if (anchorGroup == it->modePtr->getGroup() &&
-            it->modePtr->getFps() >= (*maxByAnchor)->getFps()) {
+            it->modePtr->getPeakFps() >= (*maxByAnchor)->getPeakFps()) {
             maxByAnchorFound = true;
             maxByAnchor = &it->modePtr;
         }
@@ -1053,8 +1074,9 @@ auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
             return;
         }
 
-        ALOGV("%s(%s) %s (%s) scored %.2f", whence, ftl::enum_string(refreshRateOrder).c_str(),
-              to_string(frameRateMode.fps).c_str(), to_string(modePtr->getFps()).c_str(), score);
+        ALOGV("%s(%s) %s (%s(%s)) scored %.2f", whence, ftl::enum_string(refreshRateOrder).c_str(),
+              to_string(frameRateMode.fps).c_str(), to_string(modePtr->getPeakFps()).c_str(),
+              to_string(modePtr->getVsyncRate()).c_str(), score);
         ranking.emplace_back(ScoredFrameRate{frameRateMode, score});
     };
 
@@ -1134,8 +1156,8 @@ void RefreshRateSelector::updateDisplayModes(DisplayModes modes, DisplayModeId a
     mDisplayModes = std::move(modes);
     const auto activeModeOpt = mDisplayModes.get(activeModeId);
     LOG_ALWAYS_FATAL_IF(!activeModeOpt);
-    mActiveModeOpt =
-            FrameRateMode{activeModeOpt->get()->getFps(), ftl::as_non_null(activeModeOpt->get())};
+    mActiveModeOpt = FrameRateMode{activeModeOpt->get()->getPeakFps(),
+                                   ftl::as_non_null(activeModeOpt->get())};
 
     const auto sortedModes = sortByRefreshRate(mDisplayModes);
     mMinRefreshRateModeIt = sortedModes.front();
@@ -1161,7 +1183,7 @@ void RefreshRateSelector::updateDisplayModes(DisplayModes modes, DisplayModeId a
     if (mConfig.enableFrameRateOverride ==
         Config::FrameRateOverride::AppOverrideNativeRefreshRates) {
         for (const auto& [_, mode] : mDisplayModes) {
-            mAppOverrideNativeRefreshRates.try_emplace(mode->getFps(), ftl::unit);
+            mAppOverrideNativeRefreshRates.try_emplace(mode->getPeakFps(), ftl::unit);
         }
     }
 
@@ -1171,7 +1193,7 @@ void RefreshRateSelector::updateDisplayModes(DisplayModes modes, DisplayModeId a
 bool RefreshRateSelector::isPolicyValidLocked(const Policy& policy) const {
     // defaultMode must be a valid mode, and within the given refresh rate range.
     if (const auto mode = mDisplayModes.get(policy.defaultMode)) {
-        if (!policy.primaryRanges.physical.includes(mode->get()->getFps())) {
+        if (!policy.primaryRanges.physical.includes(mode->get()->getPeakFps())) {
             ALOGE("Default mode is not in the primary range.");
             return false;
         }
@@ -1284,8 +1306,8 @@ void RefreshRateSelector::constructAvailableRefreshRates() {
             return mode.getResolution() == defaultMode->getResolution() &&
                     mode.getDpi() == defaultMode->getDpi() &&
                     (policy->allowGroupSwitching || mode.getGroup() == defaultMode->getGroup()) &&
-                    ranges.physical.includes(mode.getFps()) &&
-                    (supportsFrameRateOverride() || ranges.render.includes(mode.getFps()));
+                    ranges.physical.includes(mode.getPeakFps()) &&
+                    (supportsFrameRateOverride() || ranges.render.includes(mode.getPeakFps()));
         };
 
         auto frameRateModes = createFrameRateModes(*policy, filterModes, ranges.render);
@@ -1340,13 +1362,13 @@ Fps RefreshRateSelector::findClosestKnownFrameRate(Fps frameRate) const {
 auto RefreshRateSelector::getIdleTimerAction() const -> KernelIdleTimerAction {
     std::lock_guard lock(mLock);
 
-    const Fps deviceMinFps = mMinRefreshRateModeIt->second->getFps();
+    const Fps deviceMinFps = mMinRefreshRateModeIt->second->getPeakFps();
     const DisplayModePtr& minByPolicy = getMinRefreshRateByPolicyLocked();
 
     // Kernel idle timer will set the refresh rate to the device min. If DisplayManager says that
     // the min allowed refresh rate is higher than the device min, we do not want to enable the
     // timer.
-    if (isStrictlyLess(deviceMinFps, minByPolicy->getFps())) {
+    if (isStrictlyLess(deviceMinFps, minByPolicy->getPeakFps())) {
         return KernelIdleTimerAction::TurnOff;
     }
 

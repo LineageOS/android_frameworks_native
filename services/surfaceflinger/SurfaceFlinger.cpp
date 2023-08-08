@@ -1044,8 +1044,8 @@ void SurfaceFlinger::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*& info
         outMode.xDpi = xDpi;
         outMode.yDpi = yDpi;
 
-        const nsecs_t period = mode->getVsyncPeriod();
-        outMode.refreshRate = Fps::fromPeriodNsecs(period).getValue();
+        const auto peakFps = mode->getPeakFps();
+        outMode.refreshRate = peakFps.getValue();
 
         const auto vsyncConfigSet =
                 mVsyncConfiguration->getConfigsForRefreshRate(Fps::fromValue(outMode.refreshRate));
@@ -1065,7 +1065,7 @@ void SurfaceFlinger::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*& info
         //
         // We add an additional 1ms to allow for processing time and
         // differences between the ideal and actual refresh rate.
-        outMode.presentationDeadline = period - outMode.sfVsyncOffset + 1000000;
+        outMode.presentationDeadline = peakFps.getPeriodNsecs() - outMode.sfVsyncOffset + 1000000;
         excludeDolbyVisionIf4k30Present(display->getHdrCapabilities().getSupportedHdrTypes(),
                                         outMode);
         info->supportedDisplayModes.push_back(outMode);
@@ -1200,7 +1200,7 @@ void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request,
             // Start receiving vsync samples now, so that we can detect a period
             // switch.
             mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */,
-                                              mode.modePtr->getFps());
+                                              mode.modePtr->getVsyncRate());
 
             // As we called to set period, we will call to onRefreshRateChangeCompleted once
             // VsyncController model is locked.
@@ -1254,7 +1254,7 @@ status_t SurfaceFlinger::setActiveModeFromBackdoor(const sp<display::DisplayToke
         const auto& snapshot = snapshotRef.get();
 
         const auto fpsOpt = snapshot.displayModes().get(modeId).transform(
-                [](const DisplayModePtr& mode) { return mode->getFps(); });
+                [](const DisplayModePtr& mode) { return mode->getPeakFps(); });
 
         if (!fpsOpt) {
             ALOGE("%s: Invalid mode %d for display %s", whence, modeId.value(),
@@ -1303,7 +1303,7 @@ void SurfaceFlinger::finalizeDisplayModeChange(DisplayDevice& display) {
     }
 
     const auto& activeMode = *upcomingModeInfo.modeOpt;
-    display.finalizeModeChange(activeMode.modePtr->getId(), activeMode.modePtr->getFps(),
+    display.finalizeModeChange(activeMode.modePtr->getId(), activeMode.modePtr->getVsyncRate(),
                                activeMode.fps);
 
     if (displayId == mActiveDisplayId) {
@@ -1328,10 +1328,10 @@ void SurfaceFlinger::desiredActiveModeChangeDone(const sp<DisplayDevice>& displa
     const auto desiredActiveMode = display->getDesiredActiveMode();
     const auto& modeOpt = desiredActiveMode->modeOpt;
     const auto displayId = modeOpt->modePtr->getPhysicalDisplayId();
-    const auto displayFps = modeOpt->modePtr->getFps();
+    const auto vsyncRate = modeOpt->modePtr->getVsyncRate();
     const auto renderFps = modeOpt->fps;
     clearDesiredActiveModeState(display);
-    mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, displayFps);
+    mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, vsyncRate);
     mScheduler->setRenderRate(displayId, renderFps);
 
     if (displayId == mActiveDisplayId) {
@@ -1372,7 +1372,7 @@ void SurfaceFlinger::initiateDisplayModeChanges() {
         }
 
         ALOGV("%s changing active mode to %d(%s) for display %s", __func__, desiredModeId.value(),
-              to_string(displayModePtrOpt->get()->getFps()).c_str(),
+              to_string(displayModePtrOpt->get()->getVsyncRate()).c_str(),
               to_string(display->getId()).c_str());
 
         if (display->getActiveMode() == desiredActiveMode->modeOpt) {
@@ -3212,6 +3212,7 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
                                      .setPhysicalDisplayId(displayId)
                                      .setResolution({hwcMode.width, hwcMode.height})
                                      .setVsyncPeriod(hwcMode.vsyncPeriod)
+                                     .setVrrConfig(hwcMode.vrrConfig)
                                      .setDpiX(hwcMode.dpiX)
                                      .setDpiY(hwcMode.dpiY)
                                      .setGroup(hwcMode.configGroup)
@@ -3435,7 +3436,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
     if (const auto& physical = state.physical) {
         const auto& mode = *physical->activeMode;
-        display->setActiveMode(mode.getId(), mode.getFps(), mode.getFps());
+        display->setActiveMode(mode.getId(), mode.getVsyncRate(), mode.getVsyncRate());
     }
 
     display->setLayerFilter(makeLayerFilterForDisplay(display->getId(), state.layerStack));
@@ -5678,7 +5679,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
 
     display->setPowerMode(mode);
 
-    const auto refreshRate = display->refreshRateSelector().getActiveMode().modePtr->getFps();
+    const auto refreshRate = display->refreshRateSelector().getActiveMode().modePtr->getVsyncRate();
     if (!currentModeOpt || *currentModeOpt == hal::PowerMode::OFF) {
         // Turn on the display
 
@@ -6406,7 +6407,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
         std::string fps, xDpi, yDpi;
         if (const auto activeModePtr =
                     display->refreshRateSelector().getActiveMode().modePtr.get()) {
-            fps = to_string(activeModePtr->getFps());
+            fps = to_string(activeModePtr->getVsyncRate());
 
             const auto dpi = activeModePtr->getDpi();
             xDpi = base::StringPrintf("%.2f", dpi.x);
@@ -7969,7 +7970,7 @@ ftl::Optional<scheduler::FrameRateMode> SurfaceFlinger::getPreferredDisplayMode(
                 return snapshot.displayModes().get(defaultModeId);
             })
             .transform([](const DisplayModePtr& modePtr) {
-                return scheduler::FrameRateMode{modePtr->getFps(), ftl::as_non_null(modePtr)};
+                return scheduler::FrameRateMode{modePtr->getPeakFps(), ftl::as_non_null(modePtr)};
             });
 }
 
