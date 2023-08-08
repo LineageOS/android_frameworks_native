@@ -225,7 +225,6 @@ void LayerFE::prepareBufferStateClientComposition(
     layerSettings.source.buffer.fence = mSnapshot->acquireFence;
     layerSettings.source.buffer.textureName = mSnapshot->textureName;
     layerSettings.source.buffer.usePremultipliedAlpha = mSnapshot->premultipliedAlpha;
-    layerSettings.source.buffer.isY410BT2020 = mSnapshot->isHdrY410;
     bool hasSmpte2086 = mSnapshot->hdrMetadata.validTypes & HdrMetadata::SMPTE2086;
     bool hasCta861_3 = mSnapshot->hdrMetadata.validTypes & HdrMetadata::CTA861_3;
     float maxLuminance = 0.f;

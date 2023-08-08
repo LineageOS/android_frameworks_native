@@ -659,7 +659,7 @@ void Layer::preparePerFrameCompositionState() {
     // Force client composition for special cases known only to the front-end.
     // Rounded corners no longer force client composition, since we may use a
     // hole punch so that the layer will appear to have rounded corners.
-    if (isHdrY410() || drawShadows() || snapshot->stretchEffect.hasEffect()) {
+    if (drawShadows() || snapshot->stretchEffect.hasEffect()) {
         snapshot->forceClientComposition = true;
     }
     // If there are no visible region changes, we still need to update blur parameters.
@@ -3887,13 +3887,6 @@ bool Layer::isSimpleBufferUpdate(const layer_state_t& s) const {
     return true;
 }
 
-bool Layer::isHdrY410() const {
-    // pixel format is HDR Y410 masquerading as RGBA_1010102
-    return (mBufferInfo.mDataspace == ui::Dataspace::BT2020_ITU_PQ &&
-            mBufferInfo.mApi == NATIVE_WINDOW_API_MEDIA &&
-            mBufferInfo.mPixelFormat == HAL_PIXEL_FORMAT_RGBA_1010102);
-}
-
 sp<LayerFE> Layer::getCompositionEngineLayerFE() const {
     // There's no need to get a CE Layer if the layer isn't going to draw anything.
     return hasSomethingToDraw() ? mLegacyLayerFE : nullptr;
@@ -4295,7 +4288,6 @@ void Layer::updateSnapshot(bool updateGeometry) {
     snapshot->contentOpaque = isOpaque(mDrawingState);
     snapshot->layerOpaqueFlagSet =
             (mDrawingState.flags & layer_state_t::eLayerOpaque) == layer_state_t::eLayerOpaque;
-    snapshot->isHdrY410 = isHdrY410();
     sp<Layer> p = mDrawingParent.promote();
     if (p != nullptr) {
         snapshot->parentTransform = p->getTransform();

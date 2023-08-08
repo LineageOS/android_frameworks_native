@@ -282,39 +282,6 @@ TEST_F(DisplayColorProfileTest, ctorUsesOrDefaultsLuminanceValuesFromInputArgs) 
     }
 }
 
-TEST_F(DisplayColorProfileTest, ctorSignalsHdrSupportForAnyWideColorGamutDevice) {
-    {
-        // If the output does not profile wide color gamut, then no HDR modes
-        // will be profileed in the generated HDR capabilities.
-        auto profile = ProfileFactory().setHasWideColorGamut(false).build();
-
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), IsEmpty());
-    }
-
-    {
-        // If the HWC does not show profile for certain HDR modes, then the
-        // generated HDR capabilities will indicate profile anyway.
-        auto profile = ProfileFactory().setHasWideColorGamut(true).build();
-
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), SizeIs(2));
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), Contains(Hdr::HDR10));
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), Contains(Hdr::HLG));
-    }
-
-    {
-        // If the HWC profiles the HDR modes, then the generated capabilities
-        // still has one entry for each HDR type.
-        auto profile = ProfileFactory()
-                               .setHasWideColorGamut(true)
-                               .addHdrTypes({Hdr::HLG, Hdr::HDR10})
-                               .build();
-
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), SizeIs(2));
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), Contains(Hdr::HDR10));
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), Contains(Hdr::HLG));
-    }
-}
-
 /* ------------------------------------------------------------------------
  * DisplayColorProfile::hasRenderIntent
  */

@@ -220,17 +220,6 @@ DisplayColorProfile::DisplayColorProfile(const DisplayColorProfileCreationArgs& 
     minLuminance = minLuminance <= 0.0 ? sDefaultMinLumiance : minLuminance;
     maxLuminance = maxLuminance <= 0.0 ? sDefaultMaxLumiance : maxLuminance;
     maxAverageLuminance = maxAverageLuminance <= 0.0 ? sDefaultMaxLumiance : maxAverageLuminance;
-    if (args.hasWideColorGamut) {
-        // insert HDR10/HLG as we will force client composition for HDR10/HLG
-        // layers
-        if (!hasHDR10Support()) {
-            types.push_back(ui::Hdr::HDR10);
-        }
-
-        if (!hasHLGSupport()) {
-            types.push_back(ui::Hdr::HLG);
-        }
-    }
 
     mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
 }

@@ -183,7 +183,6 @@ private:
     void setupCornerRadiusCropSize(float width, float height);
 
     // HDR and color management related functions and state
-    void setSourceY410BT2020(bool enable);
     void setSourceDataSpace(ui::Dataspace source);
     void setOutputDataSpace(ui::Dataspace dataspace);
     void setDisplayMaxLuminance(const float maxLuminance);

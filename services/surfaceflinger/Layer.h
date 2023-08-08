@@ -431,8 +431,6 @@ public:
     void updateCloneBufferInfo();
     uint64_t mPreviousFrameNumber = 0;
 
-    bool isHdrY410() const;
-
     /*
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
