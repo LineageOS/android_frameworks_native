@@ -622,6 +622,9 @@ private:
     status_t removeWindowInfosListener(
             const sp<gui::IWindowInfosListener>& windowInfosListener) const;
 
+    status_t getStalledTransactionInfo(
+            int pid, std::optional<TransactionHandler::StalledTransactionInfo>& result);
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
@@ -1560,6 +1563,8 @@ public:
                                           gui::WindowInfosListenerInfo* outInfo) override;
     binder::Status removeWindowInfosListener(
             const sp<gui::IWindowInfosListener>& windowInfosListener) override;
+    binder::Status getStalledTransactionInfo(int pid,
+                                             std::optional<gui::StalledTransactionInfo>* outInfo);
 
 private:
     static const constexpr bool kUsePermissionCache = true;

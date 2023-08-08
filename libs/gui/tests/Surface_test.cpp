@@ -1016,6 +1016,11 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status getStalledTransactionInfo(
+            int32_t /*pid*/, std::optional<gui::StalledTransactionInfo>* /*result*/) override {
+        return binder::Status::ok();
+    }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 
