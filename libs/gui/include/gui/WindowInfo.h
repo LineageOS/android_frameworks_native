@@ -194,10 +194,7 @@ struct WindowInfo : public Parcelable {
     std::chrono::nanoseconds dispatchingTimeout = std::chrono::seconds(5);
 
     /* These values are filled in by SurfaceFlinger. */
-    int32_t frameLeft = -1;
-    int32_t frameTop = -1;
-    int32_t frameRight = -1;
-    int32_t frameBottom = -1;
+    Rect frame = Rect::INVALID_RECT;
 
     /*
      * SurfaceFlinger consumes this value to shrink the computed frame. This is

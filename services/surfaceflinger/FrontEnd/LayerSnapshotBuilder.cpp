@@ -178,12 +178,7 @@ void fillInputFrameInfo(gui::WindowInfo& info, const ui::Transform& screenToDisp
         info.touchableRegion.clear();
     }
 
-    const Rect roundedFrameInDisplay =
-            getInputBoundsInDisplaySpace(snapshot, inputBounds, screenToDisplay);
-    info.frameLeft = roundedFrameInDisplay.left;
-    info.frameTop = roundedFrameInDisplay.top;
-    info.frameRight = roundedFrameInDisplay.right;
-    info.frameBottom = roundedFrameInDisplay.bottom;
+    info.frame = getInputBoundsInDisplaySpace(snapshot, inputBounds, screenToDisplay);
 
     ui::Transform inputToLayer;
     inputToLayer.set(inputBounds.left, inputBounds.top);

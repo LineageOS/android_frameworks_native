@@ -178,10 +178,8 @@ void SurfaceComposerClientFuzzer::getWindowInfo(gui::WindowInfo* windowInfo) {
     windowInfo->name = mFdp.ConsumeRandomLengthString(kRandomStringMaxBytes);
     windowInfo->layoutParamsFlags = mFdp.PickValueInArray(kFlags);
     windowInfo->layoutParamsType = mFdp.PickValueInArray(kType);
-    windowInfo->frameLeft = mFdp.ConsumeIntegral<int32_t>();
-    windowInfo->frameTop = mFdp.ConsumeIntegral<int32_t>();
-    windowInfo->frameRight = mFdp.ConsumeIntegral<int32_t>();
-    windowInfo->frameBottom = mFdp.ConsumeIntegral<int32_t>();
+    windowInfo->frame = Rect(mFdp.ConsumeIntegral<int32_t>(), mFdp.ConsumeIntegral<int32_t>(),
+                             mFdp.ConsumeIntegral<int32_t>(), mFdp.ConsumeIntegral<int32_t>());
     windowInfo->surfaceInset = mFdp.ConsumeIntegral<int32_t>();
     windowInfo->alpha = mFdp.ConsumeFloatingPointInRange<float>(0, 1);
     ui::Transform transform(mFdp.PickValueInArray(kOrientation));

@@ -43,7 +43,7 @@ bool WindowInfo::touchableRegionContainsPoint(int32_t x, int32_t y) const {
 }
 
 bool WindowInfo::frameContainsPoint(int32_t x, int32_t y) const {
-    return x >= frameLeft && x < frameRight && y >= frameTop && y < frameBottom;
+    return x >= frame.left && x < frame.right && y >= frame.top && y < frame.bottom;
 }
 
 bool WindowInfo::supportsSplitTouch() const {
@@ -59,18 +59,15 @@ bool WindowInfo::interceptsStylus() const {
 }
 
 bool WindowInfo::overlaps(const WindowInfo* other) const {
-    const bool nonEmpty = (frameRight - frameLeft > 0) || (frameBottom - frameTop > 0);
-    return nonEmpty && frameLeft < other->frameRight && frameRight > other->frameLeft &&
-            frameTop < other->frameBottom && frameBottom > other->frameTop;
+    return !frame.isEmpty() && frame.left < other->frame.right && frame.right > other->frame.left &&
+            frame.top < other->frame.bottom && frame.bottom > other->frame.top;
 }
 
 bool WindowInfo::operator==(const WindowInfo& info) const {
     return info.token == token && info.id == id && info.name == name &&
-            info.dispatchingTimeout == dispatchingTimeout && info.frameLeft == frameLeft &&
-            info.frameTop == frameTop && info.frameRight == frameRight &&
-            info.frameBottom == frameBottom && info.surfaceInset == surfaceInset &&
-            info.globalScaleFactor == globalScaleFactor && info.transform == transform &&
-            info.touchableRegion.hasSameRects(touchableRegion) &&
+            info.dispatchingTimeout == dispatchingTimeout && info.frame == frame &&
+            info.surfaceInset == surfaceInset && info.globalScaleFactor == globalScaleFactor &&
+            info.transform == transform && info.touchableRegion.hasSameRects(touchableRegion) &&
             info.touchOcclusionMode == touchOcclusionMode && info.ownerPid == ownerPid &&
             info.ownerUid == ownerUid && info.packageName == packageName &&
             info.inputConfig == inputConfig && info.displayId == displayId &&
@@ -103,10 +100,7 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeInt32(layoutParamsFlags.get()) ?:
         parcel->writeInt32(
                 static_cast<std::underlying_type_t<WindowInfo::Type>>(layoutParamsType)) ?:
-        parcel->writeInt32(frameLeft) ?:
-        parcel->writeInt32(frameTop) ?:
-        parcel->writeInt32(frameRight) ?:
-        parcel->writeInt32(frameBottom) ?:
+        parcel->write(frame) ?:
         parcel->writeInt32(surfaceInset) ?:
         parcel->writeFloat(globalScaleFactor) ?:
         parcel->writeFloat(alpha) ?:
@@ -155,10 +149,7 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     // clang-format off
     status = parcel->readInt32(&lpFlags) ?:
         parcel->readInt32(&lpType) ?:
-        parcel->readInt32(&frameLeft) ?:
-        parcel->readInt32(&frameTop) ?:
-        parcel->readInt32(&frameRight) ?:
-        parcel->readInt32(&frameBottom) ?:
+        parcel->read(frame) ?:
         parcel->readInt32(&surfaceInset) ?:
         parcel->readFloat(&globalScaleFactor) ?:
         parcel->readFloat(&alpha) ?:
