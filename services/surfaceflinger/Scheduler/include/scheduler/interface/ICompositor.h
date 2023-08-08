@@ -29,6 +29,7 @@ namespace scheduler {
 class FrameTarget;
 class FrameTargeter;
 
+using FrameTargets = ui::PhysicalDisplayMap<PhysicalDisplayId, const scheduler::FrameTarget*>;
 using FrameTargeters = ui::PhysicalDisplayMap<PhysicalDisplayId, scheduler::FrameTargeter*>;
 
 } // namespace scheduler
@@ -39,7 +40,7 @@ struct ICompositor {
 
     // Commits transactions for layers and displays. Returns whether any state has been invalidated,
     // i.e. whether a frame should be composited for each display.
-    virtual bool commit(const scheduler::FrameTarget&) = 0;
+    virtual bool commit(PhysicalDisplayId pacesetterId, const scheduler::FrameTargets&) = 0;
 
     // Composites a frame for each display. CompositionEngine performs GPU and/or HAL composition
     // via RenderEngine and the Composer HAL, respectively.
