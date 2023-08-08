@@ -1302,6 +1302,13 @@ sp<IBinder> SurfaceComposerClient::getPhysicalDisplayToken(PhysicalDisplayId dis
     return status.isOk() ? display : nullptr;
 }
 
+std::optional<gui::StalledTransactionInfo> SurfaceComposerClient::getStalledTransactionInfo(
+        pid_t pid) {
+    std::optional<gui::StalledTransactionInfo> result;
+    ComposerServiceAIDL::getComposerService()->getStalledTransactionInfo(pid, &result);
+    return result;
+}
+
 void SurfaceComposerClient::Transaction::setAnimationTransaction() {
     mAnimation = true;
 }

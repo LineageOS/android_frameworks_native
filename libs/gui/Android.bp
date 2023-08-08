@@ -62,6 +62,7 @@ filegroup {
     name: "guiconstants_aidl",
     srcs: [
         "android/gui/DropInputMode.aidl",
+        "android/gui/StalledTransactionInfo.aidl",
         "android/**/TouchOcclusionMode.aidl",
     ],
 }
