@@ -129,3 +129,18 @@ cc_library {
     ],
     export_include_dirs: ["include_random_parcel_seeds"],
 }
+
+cc_binary_host {
+    name: "binder2corpus",
+    static_libs: [
+        "libbinder_random_parcel_seeds",
+    ],
+    srcs: [
+        "binder2corpus/binder2corpus.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libutils",
+    ],
+}
