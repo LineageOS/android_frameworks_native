@@ -1334,19 +1334,8 @@ protected:
         mFakePolicy = sp<FakeInputReaderPolicy>::make();
         mFakePointerController = std::make_shared<FakePointerController>();
         mFakePolicy->setPointerController(mFakePointerController);
-        mTestListener = std::make_unique<TestInputListener>(/*eventHappenedTimeout=*/2000ms,
-                                                            /*eventDidNotHappenTimeout=*/30ms);
 
-        mReader = std::make_unique<InputReader>(std::make_shared<EventHub>(), mFakePolicy,
-                                                *mTestListener);
-        ASSERT_EQ(mReader->start(), OK);
-
-        // Since this test is run on a real device, all the input devices connected
-        // to the test device will show up in mReader. We wait for those input devices to
-        // show up before beginning the tests.
-        ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
-        ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyInputDevicesChangedWasCalled());
-        ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+        setupInputReader();
     }
 
     void TearDown() override {
@@ -1366,6 +1355,22 @@ protected:
                                           return info.getIdentifier().name == name;
                                       });
         return it != inputDevices.end() ? std::make_optional(*it) : std::nullopt;
+    }
+
+    void setupInputReader() {
+        mTestListener = std::make_unique<TestInputListener>(/*eventHappenedTimeout=*/2000ms,
+                                                            /*eventDidNotHappenTimeout=*/30ms);
+
+        mReader = std::make_unique<InputReader>(std::make_shared<EventHub>(), mFakePolicy,
+                                                *mTestListener);
+        ASSERT_EQ(mReader->start(), OK);
+
+        // Since this test is run on a real device, all the input devices connected
+        // to the test device will show up in mReader. We wait for those input devices to
+        // show up before beginning the tests.
+        ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+        ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyInputDevicesChangedWasCalled());
+        ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
     }
 };
 
@@ -1500,7 +1505,7 @@ TEST_F(InputReaderIntegrationTest, SendsGearDownAndUpToInputListener) {
 
 // --- TouchIntegrationTest ---
 
-class TouchIntegrationTest : public InputReaderIntegrationTest {
+class BaseTouchIntegrationTest : public InputReaderIntegrationTest {
 protected:
     const std::string UNIQUE_ID = "local:0";
 
@@ -1545,7 +1550,55 @@ protected:
     InputDeviceInfo mDeviceInfo;
 };
 
-TEST_F(TouchIntegrationTest, MultiTouchDeviceSource) {
+enum class TouchIntegrationTestDisplays { DISPLAY_INTERNAL, DISPLAY_INPUT_PORT, DISPLAY_UNIQUE_ID };
+
+class TouchIntegrationTest : public BaseTouchIntegrationTest,
+                             public testing::WithParamInterface<TouchIntegrationTestDisplays> {
+protected:
+    static constexpr std::optional<uint8_t> DISPLAY_PORT = 0;
+    const std::string INPUT_PORT = "uinput_touch/input0";
+
+    void SetUp() override {
+#if !defined(__ANDROID__)
+        GTEST_SKIP();
+#endif
+        if (GetParam() == TouchIntegrationTestDisplays::DISPLAY_INTERNAL) {
+            BaseTouchIntegrationTest::SetUp();
+            return;
+        }
+
+        // setup policy with a input-port or UniqueId association to the display
+        bool isInputPortAssociation =
+                GetParam() == TouchIntegrationTestDisplays::DISPLAY_INPUT_PORT;
+
+        mFakePolicy = sp<FakeInputReaderPolicy>::make();
+        if (isInputPortAssociation) {
+            mFakePolicy->addInputPortAssociation(INPUT_PORT, DISPLAY_PORT.value());
+        } else {
+            mFakePolicy->addInputUniqueIdAssociation(INPUT_PORT, UNIQUE_ID);
+        }
+        mFakePointerController = std::make_shared<FakePointerController>();
+        mFakePolicy->setPointerController(mFakePointerController);
+
+        InputReaderIntegrationTest::setupInputReader();
+
+        mDevice = createUinputDevice<UinputTouchScreen>(Rect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT),
+                                                        INPUT_PORT);
+        ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+
+        // Add a display linked to a physical port or UniqueId.
+        setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
+                                     UNIQUE_ID, isInputPortAssociation ? DISPLAY_PORT : NO_PORT,
+                                     ViewportType::INTERNAL);
+        ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+        ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
+        const auto info = findDeviceByName(mDevice->getName());
+        ASSERT_TRUE(info);
+        mDeviceInfo = *info;
+    }
+};
+
+TEST_P(TouchIntegrationTest, MultiTouchDeviceSource) {
     // The UinputTouchScreen is an MT device that supports MT_TOOL_TYPE and also supports stylus
     // buttons. It should show up as a touchscreen, stylus, and keyboard (for reporting button
     // presses).
@@ -1553,7 +1606,7 @@ TEST_F(TouchIntegrationTest, MultiTouchDeviceSource) {
               mDeviceInfo.getSources());
 }
 
-TEST_F(TouchIntegrationTest, InputEvent_ProcessSingleTouch) {
+TEST_P(TouchIntegrationTest, InputEvent_ProcessSingleTouch) {
     NotifyMotionArgs args;
     const Point centerPoint = mDevice->getCenterPoint();
 
@@ -1577,7 +1630,7 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessSingleTouch) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
 }
 
-TEST_F(TouchIntegrationTest, InputEvent_ProcessMultiTouch) {
+TEST_P(TouchIntegrationTest, InputEvent_ProcessMultiTouch) {
     NotifyMotionArgs args;
     const Point centerPoint = mDevice->getCenterPoint();
 
@@ -1633,7 +1686,7 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessMultiTouch) {
  * palms, and wants to cancel Pointer 1, then it is safe to simply drop POINTER_1_UP event without
  * losing information about non-palm pointers.
  */
-TEST_F(TouchIntegrationTest, MultiTouch_PointerMoveAndSecondPointerUp) {
+TEST_P(TouchIntegrationTest, MultiTouch_PointerMoveAndSecondPointerUp) {
     NotifyMotionArgs args;
     const Point centerPoint = mDevice->getCenterPoint();
 
@@ -1676,7 +1729,7 @@ TEST_F(TouchIntegrationTest, MultiTouch_PointerMoveAndSecondPointerUp) {
  * In this scenario, the movement of the second pointer just prior to liftoff is ignored, and never
  * gets sent to the listener.
  */
-TEST_F(TouchIntegrationTest, MultiTouch_PointerMoveAndSecondPointerMoveAndUp) {
+TEST_P(TouchIntegrationTest, MultiTouch_PointerMoveAndSecondPointerMoveAndUp) {
     NotifyMotionArgs args;
     const Point centerPoint = mDevice->getCenterPoint();
 
@@ -1716,7 +1769,7 @@ TEST_F(TouchIntegrationTest, MultiTouch_PointerMoveAndSecondPointerMoveAndUp) {
     assertReceivedMotion(AMOTION_EVENT_ACTION_MOVE, {centerPoint + Point(5, 5)});
 }
 
-TEST_F(TouchIntegrationTest, InputEvent_ProcessPalm) {
+TEST_P(TouchIntegrationTest, InputEvent_ProcessPalm) {
     NotifyMotionArgs args;
     const Point centerPoint = mDevice->getCenterPoint();
 
@@ -1767,7 +1820,7 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessPalm) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
 }
 
-TEST_F(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
+TEST_P(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
     const Point centerPoint = mDevice->getCenterPoint();
 
     // Send down with the pen tool selected. The policy should be notified of the stylus presence.
@@ -1819,19 +1872,24 @@ TEST_F(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertStylusGestureNotified(mDeviceInfo.getId()));
 }
 
+INSTANTIATE_TEST_SUITE_P(TouchIntegrationTestDisplayVariants, TouchIntegrationTest,
+                         testing::Values(TouchIntegrationTestDisplays::DISPLAY_INTERNAL,
+                                         TouchIntegrationTestDisplays::DISPLAY_INPUT_PORT,
+                                         TouchIntegrationTestDisplays::DISPLAY_UNIQUE_ID));
+
 // --- StylusButtonIntegrationTest ---
 
 // Verify the behavior of button presses reported by various kinds of styluses, including buttons
 // reported by the touchscreen's device, by a fused external stylus, and by an un-fused external
 // stylus.
 template <typename UinputStylusDevice>
-class StylusButtonIntegrationTest : public TouchIntegrationTest {
+class StylusButtonIntegrationTest : public BaseTouchIntegrationTest {
 protected:
     void SetUp() override {
 #if !defined(__ANDROID__)
         GTEST_SKIP();
 #endif
-        TouchIntegrationTest::SetUp();
+        BaseTouchIntegrationTest::SetUp();
         mTouchscreen = mDevice.get();
         mTouchscreenInfo = mDeviceInfo;
 
@@ -1869,8 +1927,8 @@ private:
     std::unique_ptr<UinputStylusDevice> mStylusDeviceLifecycleTracker{};
 
     // Hide the base class's device to expose it with a different name for readability.
-    using TouchIntegrationTest::mDevice;
-    using TouchIntegrationTest::mDeviceInfo;
+    using BaseTouchIntegrationTest::mDevice;
+    using BaseTouchIntegrationTest::mDeviceInfo;
 };
 
 using StylusButtonIntegrationTestTypes =
@@ -2122,7 +2180,7 @@ TYPED_TEST(StylusButtonIntegrationTest, DISABLED_StylusButtonMotionEventsDisable
 // Verify the behavior of an external stylus. An external stylus can report pressure or button
 // data independently of the touchscreen, which is then sent as a MotionEvent as part of an
 // ongoing stylus gesture that is being emitted by the touchscreen.
-using ExternalStylusIntegrationTest = TouchIntegrationTest;
+using ExternalStylusIntegrationTest = BaseTouchIntegrationTest;
 
 TEST_F(ExternalStylusIntegrationTest, DISABLED_FusedExternalStylusPressureReported) {
     const Point centerPoint = mDevice->getCenterPoint();
