@@ -1,4 +1,4 @@
-# Copyright (C) 2022 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,21 @@
 # limitations under the License.
 #
 
-TRUSTY_USER_TESTS += \
-	frameworks/native/libs/binder/trusty/binderRpcTest \
-	frameworks/native/libs/binder/trusty/binderRpcTest/service \
-	frameworks/native/libs/binder/trusty/rust/binder_rpc_test/service \
+LOCAL_DIR := $(GET_LOCAL_DIR)
+LIBBINDER_DIR := $(LOCAL_DIR)/../../../..
 
-TRUSTY_RUST_USER_TESTS += \
-	frameworks/native/libs/binder/trusty/rust/binder_rpc_test \
+MODULE := $(LOCAL_DIR)
 
+MODULE_SRCS := $(LOCAL_DIR)/main.rs
+
+MODULE_CRATE_NAME := binder_rpc_test_service
+
+MODULE_LIBRARY_DEPS += \
+	$(LIBBINDER_DIR)/trusty/rust \
+	$(LIBBINDER_DIR)/trusty/rust/rpcbinder \
+	$(LOCAL_DIR)/../aidl \
+	trusty/user/base/lib/tipc/rust \
+
+MANIFEST := $(LOCAL_DIR)/manifest.json
+
+include make/trusted_app.mk
