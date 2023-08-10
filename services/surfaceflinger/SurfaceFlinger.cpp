@@ -2339,6 +2339,7 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
     if (!mLegacyFrontEndEnabled) {
         ATRACE_NAME("DisplayCallbackAndStatsUpdates");
         applyTransactions(update.transactions, vsyncId);
+        traverseLegacyLayers([&](Layer* layer) { layer->commitTransaction(); });
         const nsecs_t latchTime = systemTime();
         bool unused = false;
 

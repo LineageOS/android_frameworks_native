@@ -836,12 +836,12 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         mFlinger->mUpdateInputInfo = true;
     }
 
-    commitTransaction(mDrawingState);
+    commitTransaction();
 
     return flags;
 }
 
-void Layer::commitTransaction(State&) {
+void Layer::commitTransaction() {
     // Set the present state for all bufferlessSurfaceFramesTX to Presented. The
     // bufferSurfaceFrameTX will be presented in latchBuffer.
     for (auto& [token, surfaceFrame] : mDrawingState.bufferlessSurfaceFramesTX) {
