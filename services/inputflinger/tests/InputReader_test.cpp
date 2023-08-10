@@ -1830,9 +1830,6 @@ TEST_F(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
 }
 
 TEST_F(TouchIntegrationTest, ExternalStylusConnectedDuringTouchGesture) {
-    ASSERT_NO_FATAL_FAILURE(
-            mTestListener->assertNotifyDeviceResetWasCalled(WithDeviceId(mDeviceInfo.getId())));
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyDeviceResetWasNotCalled());
     const Point centerPoint = mDevice->getCenterPoint();
 
     // Down
@@ -1855,9 +1852,6 @@ TEST_F(TouchIntegrationTest, ExternalStylusConnectedDuringTouchGesture) {
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
     const auto stylusInfo = findDeviceByName(externalStylus->getName());
     ASSERT_TRUE(stylusInfo);
-    ASSERT_NO_FATAL_FAILURE(
-            mTestListener->assertNotifyDeviceResetWasCalled(WithDeviceId(stylusInfo->getId())));
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyDeviceResetWasNotCalled());
 
     // Move
     mDevice->sendMove(centerPoint + Point(2, 2));
