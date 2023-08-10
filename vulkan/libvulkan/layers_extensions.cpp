@@ -23,6 +23,7 @@
 #include <dlfcn.h>
 #include <string.h>
 #include <sys/prctl.h>
+#include <unistd.h>
 
 #include <mutex>
 #include <string>
@@ -362,6 +363,7 @@ template <typename Functor>
 void ForEachFileInZip(const std::string& zipname,
                       const std::string& dir_in_zip,
                       Functor functor) {
+    static const size_t kPageSize = getpagesize();
     int32_t err;
     ZipArchiveHandle zip = nullptr;
     if ((err = OpenArchive(zipname.c_str(), &zip)) != 0) {
@@ -389,7 +391,7 @@ void ForEachFileInZip(const std::string& zipname,
         // the APK. Loading still may fail for other reasons, but this at least
         // lets us avoid failed-to-load log messages in the typical case of
         // compressed and/or unaligned libraries.
-        if (entry.method != kCompressStored || entry.offset % PAGE_SIZE != 0)
+        if (entry.method != kCompressStored || entry.offset % kPageSize != 0)
             continue;
         functor(filename);
     }
