@@ -747,6 +747,17 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
         if (strcmp(name, props.extensionName) != 0)
             continue;
 
+        // Ignore duplicate extensions (see: b/288929054)
+        bool duplicate_entry = false;
+        for (uint32_t j = 0; j < filter.name_count; j++) {
+            if (strcmp(name, filter.names[j]) == 0) {
+                duplicate_entry = true;
+                break;
+            }
+        }
+        if (duplicate_entry == true)
+            continue;
+
         filter.names[filter.name_count++] = name;
         if (ext_bit != ProcHook::EXTENSION_UNKNOWN) {
             if (ext_bit == ProcHook::ANDROID_native_buffer)
