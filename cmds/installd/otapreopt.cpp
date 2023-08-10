@@ -560,61 +560,6 @@ private:
         return Dexopt();
     }
 
-    ////////////////////////////////////
-    // Helpers, mostly taken from ART //
-    ////////////////////////////////////
-
-    // Choose a random relocation offset. Taken from art/runtime/gc/image_space.cc.
-    static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta) {
-        constexpr size_t kPageSize = PAGE_SIZE;
-        static_assert(IsPowerOfTwo(kPageSize), "page size must be power of two");
-        CHECK_EQ(min_delta % kPageSize, 0u);
-        CHECK_EQ(max_delta % kPageSize, 0u);
-        CHECK_LT(min_delta, max_delta);
-
-        std::default_random_engine generator;
-        generator.seed(GetSeed());
-        std::uniform_int_distribution<int32_t> distribution(min_delta, max_delta);
-        int32_t r = distribution(generator);
-        if (r % 2 == 0) {
-            r = RoundUp(r, kPageSize);
-        } else {
-            r = RoundDown(r, kPageSize);
-        }
-        CHECK_LE(min_delta, r);
-        CHECK_GE(max_delta, r);
-        CHECK_EQ(r % kPageSize, 0u);
-        return r;
-    }
-
-    static uint64_t GetSeed() {
-#ifdef __BIONIC__
-        // Bionic exposes arc4random, use it.
-        uint64_t random_data;
-        arc4random_buf(&random_data, sizeof(random_data));
-        return random_data;
-#else
-#error "This is only supposed to run with bionic. Otherwise, implement..."
-#endif
-    }
-
-    void AddCompilerOptionFromSystemProperty(const char* system_property,
-            const char* prefix,
-            bool runtime,
-            std::vector<std::string>& out) const {
-        const std::string* value = system_properties_.GetProperty(system_property);
-        if (value != nullptr) {
-            if (runtime) {
-                out.push_back("--runtime-arg");
-            }
-            if (prefix != nullptr) {
-                out.push_back(StringPrintf("%s%s", prefix, value->c_str()));
-            } else {
-                out.push_back(*value);
-            }
-        }
-    }
-
     static constexpr const char* kBootClassPathPropertyName = "BOOTCLASSPATH";
     static constexpr const char* kAndroidRootPathPropertyName = "ANDROID_ROOT";
     static constexpr const char* kAndroidDataPathPropertyName = "ANDROID_DATA";
