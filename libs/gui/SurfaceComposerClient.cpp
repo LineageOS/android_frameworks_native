@@ -450,7 +450,9 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
                              surfaceControlStats);
         }
+    }
 
+    for (const auto& transactionStats : listenerStats.transactionStats) {
         for (const auto& surfaceStats : transactionStats.surfaceStats) {
             // The callbackMap contains the SurfaceControl object, which we need to look up the
             // layerId. Since we don't know which callback contains the SurfaceControl, iterate
