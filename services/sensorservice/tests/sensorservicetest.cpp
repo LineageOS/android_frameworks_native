@@ -105,7 +105,7 @@ int main() {
 
     Sensor const* accelerometer = mgr.getDefaultSensor(Sensor::TYPE_ACCELEROMETER);
     printf("accelerometer=%p (%s)\n",
-            accelerometer, accelerometer->getName().string());
+            accelerometer, accelerometer->getName().c_str());
 
     sStartTime = systemTime();
 

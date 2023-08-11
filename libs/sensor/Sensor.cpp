@@ -74,7 +74,7 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         if (hwSensor.maxDelay > INT_MAX) {
             // Max delay is declared as a 64 bit integer for 64 bit architectures. But it should
             // always fit in a 32 bit integer, log error and cap it to INT_MAX.
-            ALOGE("Sensor maxDelay overflow error %s %" PRId64, mName.string(),
+            ALOGE("Sensor maxDelay overflow error %s %" PRId64, mName.c_str(),
                   static_cast<int64_t>(hwSensor.maxDelay));
             mMaxDelay = INT_MAX;
         } else {
@@ -339,7 +339,7 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         if (actualReportingMode != expectedReportingMode) {
             ALOGE("Reporting Mode incorrect: sensor %s handle=%#010" PRIx32 " type=%" PRId32 " "
                    "actual=%d expected=%d",
-                   mName.string(), mHandle, mType, actualReportingMode, expectedReportingMode);
+                   mName.c_str(), mHandle, mType, actualReportingMode, expectedReportingMode);
         }
     }
 
@@ -617,7 +617,7 @@ void Sensor::flattenString8(void*& buffer, size_t& size,
         const String8& string8) {
     uint32_t len = static_cast<uint32_t>(string8.length());
     FlattenableUtils::write(buffer, size, len);
-    memcpy(static_cast<char*>(buffer), string8.string(), len);
+    memcpy(static_cast<char*>(buffer), string8.c_str(), len);
     FlattenableUtils::advance(buffer, size, len);
     size -= FlattenableUtils::align<4>(buffer);
 }
