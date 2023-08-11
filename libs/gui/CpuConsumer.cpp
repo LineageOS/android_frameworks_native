@@ -23,11 +23,11 @@
 #include <gui/BufferItem.h>
 #include <utils/Log.h>
 
-#define CC_LOGV(x, ...) ALOGV("[%s] " x, mName.string(), ##__VA_ARGS__)
-//#define CC_LOGD(x, ...) ALOGD("[%s] " x, mName.string(), ##__VA_ARGS__)
-//#define CC_LOGI(x, ...) ALOGI("[%s] " x, mName.string(), ##__VA_ARGS__)
-#define CC_LOGW(x, ...) ALOGW("[%s] " x, mName.string(), ##__VA_ARGS__)
-#define CC_LOGE(x, ...) ALOGE("[%s] " x, mName.string(), ##__VA_ARGS__)
+#define CC_LOGV(x, ...) ALOGV("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+// #define CC_LOGD(x, ...) ALOGD("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+// #define CC_LOGI(x, ...) ALOGI("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+#define CC_LOGW(x, ...) ALOGW("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+#define CC_LOGE(x, ...) ALOGE("[%s] " x, mName.c_str(), ##__VA_ARGS__)
 
 namespace android {
 
