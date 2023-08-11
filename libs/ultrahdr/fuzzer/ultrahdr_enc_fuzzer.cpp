@@ -161,10 +161,8 @@ void UltraHdrEncFuzzer::process() {
                 fillP010Buffer(bufferUVHdr.get(), width, height / 2, uvStride);
             }
         } else {
-            size_t map_width = static_cast<size_t>(
-                    floor((width + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
-            size_t map_height = static_cast<size_t>(
-                    floor((height + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
+            size_t map_width = width / kMapDimensionScaleFactor;
+            size_t map_height = height / kMapDimensionScaleFactor;
             // init 400 image
             grayImg.width = map_width;
             grayImg.height = map_height;

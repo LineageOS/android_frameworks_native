@@ -801,10 +801,8 @@ status_t JpegR::generateGainMap(jr_uncompressed_ptr yuv420_image_ptr,
 
   size_t image_width = yuv420_image_ptr->width;
   size_t image_height = yuv420_image_ptr->height;
-  size_t map_width = static_cast<size_t>(
-          floor((image_width + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
-  size_t map_height = static_cast<size_t>(
-          floor((image_height + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
+  size_t map_width = image_width / kMapDimensionScaleFactor;
+  size_t map_height = image_height / kMapDimensionScaleFactor;
 
   dest->data = new uint8_t[map_width * map_height];
   dest->width = map_width;
@@ -984,10 +982,8 @@ status_t JpegR::applyGainMap(jr_uncompressed_ptr yuv420_image_ptr,
   // TODO: remove once map scaling factor is computed based on actual map dims
   size_t image_width = yuv420_image_ptr->width;
   size_t image_height = yuv420_image_ptr->height;
-  size_t map_width = static_cast<size_t>(
-          floor((image_width + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
-  size_t map_height = static_cast<size_t>(
-          floor((image_height + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
+  size_t map_width = image_width / kMapDimensionScaleFactor;
+  size_t map_height = image_height / kMapDimensionScaleFactor;
   if (map_width != gainmap_image_ptr->width || map_height != gainmap_image_ptr->height) {
     ALOGE("gain map dimensions and primary image dimensions are not to scale, computed gain map "
           "resolution is %dx%d, received gain map resolution is %dx%d",
