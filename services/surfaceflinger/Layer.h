@@ -910,6 +910,7 @@ public:
     void setTransformHint(std::optional<ui::Transform::RotationFlags> transformHint) {
         mTransformHint = transformHint;
     }
+    void commitTransaction();
     // Keeps track of the previously presented layer stacks. This is used to get
     // the release fences from the correct displays when we release the last buffer
     // from the layer.
@@ -930,7 +931,6 @@ protected:
     void preparePerFrameCompositionState();
     void preparePerFrameBufferCompositionState();
     void preparePerFrameEffectsCompositionState();
-    virtual void commitTransaction(State& stateToCommit);
     void gatherBufferInfo();
     void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&);
 

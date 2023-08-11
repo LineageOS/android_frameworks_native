@@ -85,8 +85,7 @@ void SetFrameRateTest::removeChild(sp<Layer> layer, sp<Layer> child) {
 
 void SetFrameRateTest::commitTransaction() {
     for (auto layer : mLayers) {
-        auto c = layer->getDrawingState();
-        layer->commitTransaction(c);
+        layer->commitTransaction();
     }
 }
 

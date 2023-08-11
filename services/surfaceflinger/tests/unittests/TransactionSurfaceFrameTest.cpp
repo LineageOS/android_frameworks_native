@@ -60,10 +60,7 @@ public:
         return sp<Layer>::make(args);
     }
 
-    void commitTransaction(Layer* layer) {
-        auto c = layer->getDrawingState();
-        layer->commitTransaction(c);
-    }
+    void commitTransaction(Layer* layer) { layer->commitTransaction(); }
 
     TestableSurfaceFlinger mFlinger;
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
