@@ -59,7 +59,7 @@
 #include <private/gui/ComposerServiceAIDL.h>
 
 // This server size should always be smaller than the server cache size
-#define BUFFER_CACHE_MAX_SIZE 64
+#define BUFFER_CACHE_MAX_SIZE 4096
 
 namespace android {
 
