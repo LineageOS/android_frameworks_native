@@ -173,8 +173,8 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
-    name: "android.hardware.threadnetwork.prebuilt.xml",
-    src: "android.hardware.threadnetwork.xml",
+    name: "android.hardware.thread_network.prebuilt.xml",
+    src: "android.hardware.thread_network.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 

@@ -13,7 +13,7 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<!-- Adds the feature indicating support for the ThreadNetwork API -->
+<!-- Adds the feature indicating support for the Thread networking protocol -->
 <permissions>
-    <feature name="android.hardware.threadnetwork" />
+    <feature name="android.hardware.thread_network" />
 </permissions>
