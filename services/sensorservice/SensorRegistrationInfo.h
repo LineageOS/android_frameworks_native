@@ -93,7 +93,7 @@ public:
         using namespace service::SensorRegistrationInfoProto;
         proto->write(TIMESTAMP_SEC, int64_t(mRealtimeSec));
         proto->write(SENSOR_HANDLE, mSensorHandle);
-        proto->write(PACKAGE_NAME, std::string(mPackageName.string()));
+        proto->write(PACKAGE_NAME, std::string(mPackageName.c_str()));
         proto->write(PID, int32_t(mPid));
         proto->write(UID, int32_t(mUid));
         proto->write(SAMPLING_RATE_US, mSamplingRateUs);

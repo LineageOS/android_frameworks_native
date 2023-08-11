@@ -150,12 +150,12 @@ std::string SensorList::dump() const {
                     "%#010x) %-25s | %-15s | ver: %" PRId32 " | type: %20s(%" PRId32
                         ") | perm: %s | flags: 0x%08x\n",
                     s.getHandle(),
-                    s.getName().string(),
-                    s.getVendor().string(),
+                    s.getName().c_str(),
+                    s.getVendor().c_str(),
                     s.getVersion(),
-                    s.getStringType().string(),
+                    s.getStringType().c_str(),
                     s.getType(),
-                    s.getRequiredPermission().size() ? s.getRequiredPermission().string() : "n/a",
+                    s.getRequiredPermission().size() ? s.getRequiredPermission().c_str() : "n/a",
                     static_cast<int>(s.getFlags()));
 
             result.append("\t");
@@ -224,7 +224,7 @@ std::string SensorList::dump() const {
             }
             return true;
         });
-    return std::string(result.string());
+    return std::string(result.c_str());
 }
 
 /**
@@ -241,13 +241,13 @@ void SensorList::dump(util::ProtoOutputStream* proto) const {
     forEachSensor([&proto] (const Sensor& s) -> bool {
         const uint64_t token = proto->start(SENSORS);
         proto->write(HANDLE, s.getHandle());
-        proto->write(NAME, std::string(s.getName().string()));
-        proto->write(VENDOR, std::string(s.getVendor().string()));
+        proto->write(NAME, std::string(s.getName().c_str()));
+        proto->write(VENDOR, std::string(s.getVendor().c_str()));
         proto->write(VERSION, s.getVersion());
-        proto->write(STRING_TYPE, std::string(s.getStringType().string()));
+        proto->write(STRING_TYPE, std::string(s.getStringType().c_str()));
         proto->write(TYPE, s.getType());
         proto->write(REQUIRED_PERMISSION, std::string(s.getRequiredPermission().size() ?
-                s.getRequiredPermission().string() : ""));
+                s.getRequiredPermission().c_str() : ""));
         proto->write(FLAGS, int(s.getFlags()));
         switch (s.getReportingMode()) {
             case AREPORTING_MODE_CONTINUOUS:
