@@ -207,7 +207,7 @@ void UltraHdrEncFuzzer::process() {
                 fill420Buffer(bufferYSdr.get(), width, height, yStride);
                 size_t yuv420UVSize = uvStride * yuv420Img.height / 2 * 2;
                 bufferUVSdr = std::make_unique<uint8_t[]>(yuv420UVSize);
-                yuv420Img.chroma_data = bufferYSdr.get();
+                yuv420Img.chroma_data = bufferUVSdr.get();
                 yuv420Img.chroma_stride = uvStride;
                 fill420Buffer(bufferUVSdr.get(), width / 2, height / 2, uvStride);
                 fill420Buffer(bufferUVSdr.get() + uvStride * height / 2, width / 2, height / 2,
