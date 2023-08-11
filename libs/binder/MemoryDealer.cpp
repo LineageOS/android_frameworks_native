@@ -428,7 +428,7 @@ void SimpleBestFitAllocator::dump_l(const char* what) const
 {
     String8 result;
     dump_l(result, what);
-    ALOGD("%s", result.string());
+    ALOGD("%s", result.c_str());
 }
 
 void SimpleBestFitAllocator::dump(String8& result,

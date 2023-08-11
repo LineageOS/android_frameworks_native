@@ -80,7 +80,7 @@ Vector<String16> FakeServiceManager::getDeclaredInstances(const String16& name) 
     for (const auto& [registeredName, service] : mNameToService) {
         (void) service;
         if (registeredName.startsWith(prefix)) {
-            out.add(String16(registeredName.string() + prefix.size()));
+            out.add(String16(registeredName.c_str() + prefix.size()));
         }
     }
     return out;
