@@ -185,7 +185,7 @@ EGLSurface GLTest::createWindowSurface(EGLDisplay display, EGLConfig config,
         while ((err = glGetError()) != GL_NO_ERROR) {
             msg += String8::format(", %#x", err);
         }
-        return ::testing::AssertionFailure(::testing::Message(msg.string()));
+        return ::testing::AssertionFailure(::testing::Message(msg.c_str()));
     }
     if (r >= 0 && abs(r - int(pixel[0])) > tolerance) {
         msg += String8::format("r(%d isn't %d)", pixel[0], r);
@@ -209,7 +209,7 @@ EGLSurface GLTest::createWindowSurface(EGLDisplay display, EGLConfig config,
         msg += String8::format("a(%d isn't %d)", pixel[3], a);
     }
     if (!msg.isEmpty()) {
-        return ::testing::AssertionFailure(::testing::Message(msg.string()));
+        return ::testing::AssertionFailure(::testing::Message(msg.c_str()));
     } else {
         return ::testing::AssertionSuccess();
     }
@@ -244,8 +244,8 @@ EGLSurface GLTest::createWindowSurface(EGLDisplay display, EGLConfig config,
         msg += String8::format(" R1: [%d %d %d %d] R2: [%d %d %d %d]",
                                r1.left, r1.top, r1.right, r1.bottom,
                                r2.left, r2.top, r2.right, r2.bottom);
-        fprintf(stderr, "assertRectEq: %s\n", msg.string());
-        return ::testing::AssertionFailure(::testing::Message(msg.string()));
+        fprintf(stderr, "assertRectEq: %s\n", msg.c_str());
+        return ::testing::AssertionFailure(::testing::Message(msg.c_str()));
     } else {
         return ::testing::AssertionSuccess();
     }
