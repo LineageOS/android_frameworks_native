@@ -26,6 +26,8 @@ extern "C" {
 #include <utils/Errors.h>
 #include <vector>
 
+// constraint on max width and max height is only due to device alloc constraints
+// Can tune these values basing on the target device
 static const int kMaxWidth = 8192;
 static const int kMaxHeight = 8192;
 
@@ -94,9 +96,8 @@ public:
     /*
      * Decompresses metadata of the image. All vectors are owned by the caller.
      */
-    bool getCompressedImageParameters(const void* image, int length,
-                                      size_t* pWidth, size_t* pHeight,
-                                      std::vector<uint8_t>* iccData,
+    bool getCompressedImageParameters(const void* image, int length, size_t* pWidth,
+                                      size_t* pHeight, std::vector<uint8_t>* iccData,
                                       std::vector<uint8_t>* exifData);
 
 private:
