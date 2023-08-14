@@ -60,8 +60,15 @@ void fuzzService(const std::vector<sp<IBinder>>& binders, FuzzedDataProvider&& p
 
     while (provider.remaining_bytes() > 0) {
         // Most of the AIDL services will have small set of transaction codes.
-        uint32_t code = provider.ConsumeBool() ? provider.ConsumeIntegral<uint32_t>()
-                                               : provider.ConsumeIntegralInRange<uint32_t>(0, 100);
+        // TODO(b/295942369) : Add remaining transact codes from IBinder.h
+        uint32_t code = provider.ConsumeBool()
+                ? provider.ConsumeIntegral<uint32_t>()
+                : provider.PickValueInArray<int64_t>(
+                          {provider.ConsumeIntegralInRange<uint32_t>(0, 100),
+                           IBinder::DUMP_TRANSACTION, IBinder::PING_TRANSACTION,
+                           IBinder::SHELL_COMMAND_TRANSACTION, IBinder::INTERFACE_TRANSACTION,
+                           IBinder::SYSPROPS_TRANSACTION, IBinder::EXTENSION_TRANSACTION,
+                           IBinder::TWEET_TRANSACTION, IBinder::LIKE_TRANSACTION});
         uint32_t flags = provider.ConsumeIntegral<uint32_t>();
         Parcel data;
         // for increased fuzz coverage
